@@ -54,3 +54,12 @@
 
 ## Exit criteria
 Phase 01 can be marked DONE only after Steps 01-07 are evidenced, source rules traceable to official docs, contract issues resolved or tracked, and product-owner acceptance.
+
+## Step 01 amendment — per-company collection and settlement (ADR-0003)
+- Level 1 must explicitly approve or reject Level 2's submitted eligible costs with evidence, reason, identity and audit timestamp before final partner-share settlement.
+- First-time subscriptions, renewals and additional quantity packs create **separate orders** per assigned company/person, each with independent collection, cost approval, profit distribution and partner settlement balances.
+- Payments received by cash or delegate-owned gateways are recorded and allocated to orders; receipt/collection state is distinct from Level 1/Level 2 profit-share settlement state.
+- A bank transfer between partners may settle several company orders with explicit allocations. Company settlement summaries derive from allocations, not independently editable status flags.
+- Agreement defaults to 50/50 sharing of distributable profit after approved eligible costs, with versioned exceptions per delegate. VAT treatment must avoid double deduction.
+- Follow-up ERD and API steps must include: PaymentAllocation, SaleExpense, ExpenseApprovalDecision, OrderProfitDistributionSnapshot, PartnerSettlement and PartnerSettlementAllocation; protect delegate segregation, idempotency and auditability.
+- Open policy decision: accrual vs cash collection basis for profit recognition and partner share, especially when a customer has paid only partially.
