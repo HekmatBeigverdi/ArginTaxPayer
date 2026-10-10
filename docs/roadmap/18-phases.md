@@ -33,8 +33,14 @@ Status: Baseline v0.1, 2026-10-10. Roadmap phases are sequential milestones, tho
 7. Cross-system correlation: internalInvoiceId, sourceSystem, sourceRecordId, fiscalMemoryId, taxId, requestUid and authorityReference are separately stored.
 8. Public GitHub repository: no production database dump or actual certificates/private keys.
 
-9. Delegates maintain private workspace and customer-specific selling prices, while platform settlement baseline and historical order price snapshots are independently persisted.
+9. Delegates maintain private workspace and customer-specific selling prices; Root/Level 2 partnership uses agreed percentages of **verified collected, tax-exclusive revenue less Root-approved eligible allocated expenses**, usually 50/50, NOT a wholesale/platform baseline price. Historical order, collection, agreement and expense approval snapshots remain immutable.
 10. Key/CSR generation and fiscal-memory onboarding are distinct: the official portal issues the memory identifier and may require a public key or recognized certificate. Private keys must not leak to delegates or diagnostics; custody is explicitly consented to and protected.
 
 ## Release gate
 Each phase closes only after architecture impact assessment, unit/integration tests, permission-isolation tests when relevant, migration review and explicit approval.
+
+## Phase 01 design artifacts
+- [Fiscal rule matrix](../phases/phase-01-step-03-fiscal-rules.md) — outline, exhaustive applicability pending
+- [Bounded contexts](../phases/phase-01-step-04-bounded-contexts.md)
+- [Logical ERD](../phases/phase-01-step-05-logical-erd.md)
+- [API and security contracts](../phases/phase-01-step-06-api-security-contracts.md)
