@@ -15,9 +15,9 @@ Status: Baseline v0.1, 2026-10-10. Roadmap phases are sequential milestones, tho
 | 09 | Digital signatures, key generation and CSR | Natural/legal-person public/private key generation, PKCS#10 CSR, certificate import/validation, per-memory secure signing/encryption and key rotation |
 | 10 | Tax authority connector | Versioned SDK/API adapters, authenticate, submit, retrieve references, integration contract tests |
 | 11 | Queue, inquiry and reconciliation | Durable outbox, idempotency, status inquiry, retries, terminal results, accounting-safe credit handling |
-| 12 | Subscriptions, billing and settlements | Annual/quantity entitlements, cash/gateway payment, independent Level 2 finance, Level 2↔Level 1 settlements |
+| 12 | Subscriptions, billing and settlements | Annual/quantity entitlements, audited manual opening adjustments for remaining days/units, cash/gateway payment, independent Level 2 finance, Level 2↔Level 1 settlements |
 | 13 | ArginAccounting integration | API + file import, master-data reconciliation, invoices and return of tax outcomes |
-| 14 | Legacy migration | Sanitized discovery, customer/party/product/invoice mapping, staging, dry-run, reconciliation and controlled cutover |
+| 14 | Legacy migration | Admin creates new identities and links legacy customer IDs; repeatable read-only import of related taxpayers, counterparties, products, historical invoices with mapping, conflicts, preview, reconciliation and no automatic legacy plan/password import |
 | 15 | Dashboards and reporting | Tenant-scoped reports, credit, financial statements, invoice outcome and exports |
 | 16 | Platform & delegate administration | Super Admin console, Level 2 tenant consoles, policy control, support/financial operations |
 | 17 | Security and quality hardening | Pen tests, isolation/invariant tests, load, disaster recovery and audit validation |
@@ -44,3 +44,5 @@ Each phase closes only after architecture impact assessment, unit/integration te
 - [Bounded contexts](../phases/phase-01-step-04-bounded-contexts.md)
 - [Logical ERD](../phases/phase-01-step-05-logical-erd.md)
 - [API and security contracts](../phases/phase-01-step-06-api-security-contracts.md)
+
+11. Legacy migration is repeatable while old MySQL app remains active; admin-created new accounts/credentials and manual subscription credits are authoritative (ADR-0004).
