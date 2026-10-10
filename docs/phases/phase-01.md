@@ -25,7 +25,7 @@
 - Quantity plan: arbitrary number of taxpayers, purchased unit count, max twelve-month validity.
 - Support all officially documented invoice patterns and allowed subject/type combinations with versioned rules.
 - Submit, poll and reconcile tax authority responses; never equate transport acceptance with fiscal acceptance.
-- Import legacy taxpayer/customer/product/invoice history without resubmission.
+- Existing customers/users are newly created by an administrator (usually mobile username and forced first-login password change). Link to legacy source customer ID only after creation; repeatedly import selected taxpayer/counterparty/product/historical invoice data without resubmission. Import legacy authentication and commercial plan history is intentionally excluded; administrator manually sets remaining days or quantities with an audited entitlement adjustment.
 - Import from ArginAccounting via documented schemas/API and send submission outcomes back.
 
 ### Non-functional and compliance
@@ -89,3 +89,9 @@ Phase 01 can be marked DONE only after Steps 01-07 are evidenced, source rules t
 - Step 05: logical ERD drafted; owner approval pending.
 - Step 06: security/API contract drafted; OpenAPI and tests pending.
 - Step 07: review/signoff/release gate pending; phase NOT COMPLETE.
+
+## Product-owner migration direction (ADR-0004)
+- [Admin-created users and repeatable legacy import](../adr/0004-repeatable-legacy-import-admin-onboarding.md).
+- Legacy customer link includes source and old identifier; importer is read-only against active legacy system and supports re-import from subsequent snapshots.
+- Historical invoices never enqueue for transmission or consume quotas. Manual plans/days/unit adjustments are audited.
+- The full fiscal rule matrix and migration rehearsal remain open; Phase 01 is still IN PROGRESS.
