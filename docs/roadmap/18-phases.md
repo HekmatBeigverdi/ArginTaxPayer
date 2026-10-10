@@ -1,6 +1,6 @@
 # ArginTaxPayer — 18-Phase Product Roadmap
 
-Status: Baseline v0.1, 2026-10-10. Roadmap phases are sequential milestones, though delivery tasks may overlap. Every phase requires acceptance tests, changelog, documentation and an explicit signoff.
+Status: Architecture baseline v1.0, Phase 01 design handoff ready, 2026-10-10. Roadmap phases are sequential milestones, though delivery tasks may overlap. Every phase requires acceptance tests, changelog, documentation and an explicit signoff.
 
 | Phase | Name | Scope / acceptance outcome |
 |---|---|---|
@@ -46,3 +46,7 @@ Each phase closes only after architecture impact assessment, unit/integration te
 - [API and security contracts](../phases/phase-01-step-06-api-security-contracts.md)
 
 11. Legacy migration is repeatable while old MySQL app remains active; admin-created new accounts/credentials and manual subscription credits are authoritative (ADR-0004).
+
+## Phase 01 signoff and Phase 02 entry
+- [Architecture freeze and Phase 02 handoff](../phases/phase-01-architecture-freeze-handoff.md) closes **design scope**, not operational compliance testing.
+- Phase 02 may begin with solution skeleton, CI, configuration, EF Core and security baseline. Fiscal rule expansion, real key signing connectivity and legacy source import acceptance remain explicit blocking checks in their designated implementation phases.
