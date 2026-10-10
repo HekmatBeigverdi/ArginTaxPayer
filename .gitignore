@@ -1,0 +1,27 @@
+# Credentials and production/customer data
+.env
+.env.*
+!.env.example
+**/secrets/**
+**/private_keys/**
+*.pem
+*.p12
+*.pfx
+*.key
+*.cer
+*.crt
+*.sql
+*.sql.gz
+*.bak
+*.backup
+**/customer-data/**
+**/legacy-dumps/**
+# Build tooling
+node_modules/
+.next/
+dist/
+bin/
+obj/
+.vs/
+.idea/
+.DS_Store
