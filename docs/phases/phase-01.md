@@ -20,7 +20,7 @@
 - Complete delegated business operations limited to assigned entities/people.
 - Level 1-only system-wide logs, privileged metadata and platform configuration.
 - Per-delegate financial segregation: banking accounts, gateway profiles, cash intake, detailed ledgers and platform settlement.
-- Level 2 delegates set private selling prices for their own assigned companies/persons, including per-customer overrides; Level 1's settlement baseline is independent and orders snapshot the price/version.
+- Level 2 delegates set private selling prices for their assigned companies/persons, including per-customer overrides. Level 1 and each Level 2 are profit-sharing partners, typically 50/50 of net distributable profit after tax and approved eligible expenses, **not gross-sales commission and not wholesale/baseline-price settlement**. Level 2 submits cost evidence and tax breakdown; Level 1 reviews expenses. Snapshot agreement version, sale price and approved deductions for each distribution.
 - Annual plan: single taxpayer and fiscal memory, twelve months.
 - Quantity plan: arbitrary number of taxpayers, purchased unit count, max twelve-month validity.
 - Support all officially documented invoice patterns and allowed subject/type combinations with versioned rules.
@@ -49,7 +49,7 @@
 ## Pending evidence and risks
 - Complete sanitized legacy schema inventory, actual rows/counts and FK mapping require offline examination; never quote or export users' secrets to GitHub.
 - Verify exact rules and date semantics for `insr`, `indati2m`, invoice references and settlement patterns.
-- Confirm commercial commission formulas, financial settlement cadence and dispute/refund policy.
+- Confirm the allowed deduction categories, evidence and review/approval workflow, per-delegate negotiated profit-share percentages (default 50/50), settlement cadence, refunds/chargebacks, losses and tax treatment with accounting/legal review.
 - Validate version and compatibility of supplied .NET SDK binaries before choosing production adapter.
 
 ## Exit criteria
