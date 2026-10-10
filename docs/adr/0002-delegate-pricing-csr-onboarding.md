@@ -6,17 +6,17 @@
 
 ## Business decisions
 1. Every Level 2 delegate has an independent catalog of annual and quantity-pack selling prices, visible only within their explicitly assigned customer/taxpayer scope. Company/person-specific prices can override the delegate's standard price.
-2. Level 1 defines the platform's baseline settlement pricing or a separately contracted fee/commission, controls assignments, and can audit all delegate catalogs. Delegate A cannot see Delegate B prices, customer-specific overrides, gateway accounts, or ledgers.
+2. Level 1 and Level 2 are profit-sharing partners; **there is no wholesale/base-price settlement**. Level 2 independently sets selling prices and submits verifiable tax/eligible expense breakdowns. A per-delegate, versioned profit-sharing agreement specifies each party's percentage (normally 50%/50%). Level 1 approves eligible cost policy, audits deductions and reports, and controls assignments. Delegate A cannot see Delegate B prices, costs, payment accounts or ledgers.
 3. Store an immutable pricing snapshot per order line: product/version, currency, gross price, discount, net charged, tax treatment, delegate workspace, customer, and effective settlement agreement. Subsequent catalog edits cannot change historical orders.
 4. Resolve an order price by the authorized customer's active override, then the delegate catalog. Never infer an authorized workspace from client-submitted IDs; validate current grants server-side.
-5. Keep customer receipt, delegate revenue/payment, and Level 1–Level 2 interparty payable/receivable distinct. Use idempotent ledger entries and reconciliation.
+5. Keep gross customer receipts, tax collected/remitted, eligible operating expenses, net distributable profit, Level 1 share, Level 2 share, receivables/payables and actual cash settlement separate. Compute profit share on the agreed tax-exclusive revenue less verified deductible costs, avoiding double tax deductions. Post immutable, idempotent ledgers and reconciliation; disputed or unapproved costs remain pending rather than silently reducing shares.
 
 ## Recommended domain model
 - DelegatePriceList(workspaceId, version, effectiveFrom, effectiveTo, status)
 - DelegatePrice(priceListId, productId, price, currency)
 - CustomerPriceOverride(workspaceId, taxpayerId, productId, price, effective dates)
 - OrderPriceSnapshot(orderId, workspaceId, taxpayerId, catalogVersion, settlementAgreementVersion, unitPrice, discounts, totals)
-- SettlementAgreement / SettlementLine linked to historical orders and immutable journal postings.
+- ProfitSharingAgreement(workspaceId, effective dates, level1Percentage, level2Percentage, allowedExpensePolicy, approvalRules); SaleCostLine(orderId, costType, amount, receiptReference, approvalStatus); ProfitDistributionSnapshot(orderId, agreementVersion, netRevenue, approvedCosts, distributableProfit, level1Share, level2Share); SettlementLine and immutable journal postings. Preserve revisions and refunds as adjustment entries.
 - Constraints and policies reject cross-workspace reads and mutations including exports, search, jobs and price lookup APIs.
 
 ## Taxpayer key and CSR onboarding
@@ -38,7 +38,7 @@ Provide a guided setup for natural persons and legal entities:
 
 ## Acceptance tests
 - Delegate A can edit its own catalog; B cannot discover A's prices by listing, direct URL, identifier probing, API, exports or caches.
-- Specific customer override applies only to the authorized customer; platform settlement uses the contracted baseline independently.
+- Specific customer override applies only to the authorized customer; profit sharing uses the versioned agreement and verified expense/tax basis, never an invented platform baseline.
 - A historical purchase and settlement remain unchanged after repricing.
 - Correct public key can verify the CSR signature and matches the generated private key; a mismatched key is rejected.
 - Both individual and company onboarding paths generate correctly encoded artifacts; certificate path validates issuer, expiry and key matching.
