@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <ItemGroup>
+    <ProjectReference Include="../../src/ArginTaxPayer.Application/ArginTaxPayer.Application.csproj" />
+    <ProjectReference Include="../../src/ArginTaxPayer.Infrastructure/ArginTaxPayer.Infrastructure.csproj" />
+  </ItemGroup>
+</Project>
