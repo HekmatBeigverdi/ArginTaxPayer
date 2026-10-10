@@ -20,6 +20,7 @@
 - Complete delegated business operations limited to assigned entities/people.
 - Level 1-only system-wide logs, privileged metadata and platform configuration.
 - Per-delegate financial segregation: banking accounts, gateway profiles, cash intake, detailed ledgers and platform settlement.
+- Level 2 delegates set private selling prices for their own assigned companies/persons, including per-customer overrides; Level 1's settlement baseline is independent and orders snapshot the price/version.
 - Annual plan: single taxpayer and fiscal memory, twelve months.
 - Quantity plan: arbitrary number of taxpayers, purchased unit count, max twelve-month validity.
 - Support all officially documented invoice patterns and allowed subject/type combinations with versioned rules.
@@ -32,6 +33,8 @@
 - Idempotency for payments, quota use, invoice submissions, queue processing and migrations.
 - Persian RTL user experience; calendar conversion in UI but UTC timestamps and explicit timezone in persistence.
 - Decimal arithmetic for IRR calculations, transaction consistency and durable recovery.
+- Support generation and correspondence validation of public/private key pairs and PKCS#10 CSRs for natural/legal persons; official fiscal-memory onboarding and certificate import are separate steps.
+- Prefer client-side isolated generation and owner-controlled initial export; signing key custody must be explicit, encrypted and inaccessible as plaintext to delegates.
 - SDK protocol compatibility to be established against official 1405 manuals and test environment.
 - Source of truth and legal interpretation of billing/settlement are still subject to contract review.
 
