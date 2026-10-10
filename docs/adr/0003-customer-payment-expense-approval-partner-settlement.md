@@ -36,6 +36,9 @@ A company first buys a plan and later renews and buys a new quantity pack. These
 - Company report includes customer collection, cost approval, distributable profit, each partner's share, cumulative partner transfers and outstanding balance.
 
 ## Open policy decisions
-- Confirm revenue recognition for partial/unpaid collections and whether settlement is earned only on receipt or accrual.
+- **Resolved:** partner-profit entitlement and settlement use verified cash received and allocated to the order, never uncollected invoice face value. Recognize customer receivable separately. Deduct tax and Root-approved eligible costs without double-counting output VAT; allocate expenses to collection slices using a controlled policy.
 - Define allowable tax/expense categories and proof rules, approval/delegation exceptions, loss carry-forward, chargeback responsibilities and settlement cadence.
 - Confirm who can approve actual settlement transfers and whether Level 2 may submit bank evidence pending Level 1 final confirmation.
+
+## Design follow-up
+See [Phase 01 logical ERD](../phases/phase-01-step-05-logical-erd.md) for entity relationships, uniqueness requirements, payment/settlement allocation invariants and tenant-boundary tests.
