@@ -1,6 +1,6 @@
 # Phase 01 — Discovery, Domain Analysis and Architecture
 
-**Status: IN PROGRESS.** This phase establishes decisions and implementation-ready contracts; it does not claim code, migrations or end-to-end integrations are complete.
+**Status: DESIGN BASELINE COMPLETE / PHASE 02 HANDOFF READY (2026-10-10).** This closes the architectural discovery scope, not technical verification of future features. Deferred evidence and gates are documented in `phase-01-architecture-freeze-handoff.md`.
 
 ## Step plan
 | Step | Deliverable | Acceptance |
@@ -53,7 +53,7 @@
 - Validate version and compatibility of supplied .NET SDK binaries before choosing production adapter.
 
 ## Exit criteria
-Phase 01 can be marked DONE only after Steps 01-07 are evidenced, source rules traceable to official docs, contract issues resolved or tracked, and product-owner acceptance.
+Architectural scope is signed off for Phase 02 preparation subject to explicit, tracked later-phase verification gates; exhaustive fiscal validation and production integration are **not** claimed. See [Architecture freeze and handoff](phase-01-architecture-freeze-handoff.md).
 
 ## Step 01 amendment — per-company collection and settlement (ADR-0003)
 - Level 1 must explicitly approve or reject Level 2's submitted eligible costs with evidence, reason, identity and audit timestamp before final partner-share settlement.
@@ -81,17 +81,22 @@ Phase 01 can be marked DONE only after Steps 01-07 are evidenced, source rules t
 - [Endpoints, authorization, secure key custody, idempotency and acceptance tests](phase-01-step-06-api-security-contracts.md).
 - Contracts documented, no implementation or OpenAPI artifact generated yet.
 
-## Phase 01 current status
+## Phase 01 historical review status (before architecture freeze)
 - Step 01: documented baseline; reviewed additional revenue-sharing requirements.
 - Step 02: preliminary legacy inventory; sanitized reconciliation/count/FK mapping pending.
 - Step 03: partial source-derived matrix; full 86-field mapping and fixtures pending.
 - Step 04: bounded contexts drafted; owner approval pending.
 - Step 05: logical ERD drafted; owner approval pending.
 - Step 06: security/API contract drafted; OpenAPI and tests pending.
-- Step 07: review/signoff/release gate pending; phase NOT COMPLETE.
+- Step 07: historical conditional NO-GO reviewed. Architectural scope is subsequently frozen with tracked deferments in the handoff document; operational tests remain open.
 
 ## Product-owner migration direction (ADR-0004)
 - [Admin-created users and repeatable legacy import](../adr/0004-repeatable-legacy-import-admin-onboarding.md).
 - Legacy customer link includes source and old identifier; importer is read-only against active legacy system and supports re-import from subsequent snapshots.
 - Historical invoices never enqueue for transmission or consume quotas. Manual plans/days/unit adjustments are audited.
-- The full fiscal rule matrix and migration rehearsal remain open; Phase 01 is still IN PROGRESS.
+- Full fiscal rule matrix and migration rehearsal are deferred to their implementation phases with explicit blockers. Phase 01 architecture scope is frozen for Phase 02.
+
+## Final Phase 01 design closure
+- [Architecture freeze, unresolved risk disposition and Phase 02 checklist](phase-01-architecture-freeze-handoff.md).
+- [ADR-0004 updated](../adr/0004-repeatable-legacy-import-admin-onboarding.md): current registered public key may pair with an imported legacy private key; do not rotate automatically, verify actual connection separately.
+- Status is **DESIGN COMPLETE / READY FOR PHASE 02**, not fiscal certification, executable API completion, production migration or permission/security test completion.
