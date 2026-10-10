@@ -34,11 +34,11 @@ The relationships above are extracted from actual ALTER TABLE ... FOREIGN KEY cl
 
 ## Proposed migration mapping and controls
 
-1. Legacy AppUser → new User via legacy identity mapping table (sourceSystem, oldId, newId, status); force password reset if old hash verification is unproven.
-2. Legacy Customer/Vendor → Taxpayer + FiscalMemory + SigningKeyReference; do not infer one legal person per user without validating production cardinality.
+1. **Superseded by ADR-0004:** new User is created by an administrator with fresh credentials (temporary password, forced change); legacy AppUser and password hash are not imported. Legacy source IDs only link authorized taxpayer/customer operational records.
+2. New Taxpayer is created by an administrator, then linked to legacy Customer/Vendor identifiers to import selected business data. Fiscal memory code and generated/imported private key are configured separately through secure onboarding.
 3. Product/ProductUnit/MyCustomer → tenant-scoped GoodsService/Unit/Counterparty, with current code validation and cross-tenant duplicate resolution.
 4. InvoiceOneHeader/Body/associative rows/SendHistory → immutable FiscalInvoice, Lines, Parties, SubmissionHistory; link original taxid, UID, reference, status, times.
-5. SoftPlan/CustomerSoftPlan/Payment → historic plan offers, customer entitlements, collections and receivables; explicitly reconcile old money and quota before creating new financial shares.
+5. **Superseded by ADR-0004:** do not import old SoftPlan/CustomerSoftPlan/Payment as new commercial transactions. Admin chooses new plan and manually adjusts remaining validity days or units with an auditable opening adjustment. No historical partner share is inferred.
 6. **Never infer past Level 1↔Level 2 profit-sharing debt from old payment data** without contractual evidence and a migration policy.
 
 ## Automated preflight checks (to run on an isolated read-only copy)
@@ -55,3 +55,5 @@ The relationships above are extracted from actual ALTER TABLE ... FOREIGN KEY cl
 ## Acceptance
 
 The physical FK mapping is **complete for the provided DDL**. The business cardinality, orphan counts and actual reconciliations are **not yet established**; Step 02 remains open.
+
+See [ADR-0004](../adr/0004-repeatable-legacy-import-admin-onboarding.md) for repeatable import workflow, checkpoints, conflict policy and limited data scope.
