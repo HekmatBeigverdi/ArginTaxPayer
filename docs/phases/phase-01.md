@@ -69,3 +69,23 @@ Phase 01 can be marked DONE only after Steps 01-07 are evidenced, source rules t
 - Includes workspace isolation, taxpayer assignments, plans, orders, verified collections and allocations, Level 1 cost review, cash-basis profit-share snapshots, partial partner settlements, and append-only ledger entries.
 - Initial legacy SQL schema inspection identified 20 tables; full field-by-field sensitive-data-safe migration mapping remains Step 02 work.
 - Step 05 architecture deliverable is drafted; SQL migrations, enforcement and test execution are not complete.
+
+## Step 03 — Fiscal rule matrix (draft)
+- [Pattern allowlist, subject restrictions, field family index and tests](phase-01-step-03-fiscal-rules.md).
+- v7.9 source-based; exhaustive field applicability table / golden fixtures remain pending.
+
+## Step 04 — Bounded contexts (architecture draft)
+- [Context ownership, integration events and transaction boundaries](phase-01-step-04-bounded-contexts.md).
+
+## Step 06 — API/security contract (architecture draft)
+- [Endpoints, authorization, secure key custody, idempotency and acceptance tests](phase-01-step-06-api-security-contracts.md).
+- Contracts documented, no implementation or OpenAPI artifact generated yet.
+
+## Phase 01 current status
+- Step 01: documented baseline; reviewed additional revenue-sharing requirements.
+- Step 02: preliminary legacy inventory; sanitized reconciliation/count/FK mapping pending.
+- Step 03: partial source-derived matrix; full 86-field mapping and fixtures pending.
+- Step 04: bounded contexts drafted; owner approval pending.
+- Step 05: logical ERD drafted; owner approval pending.
+- Step 06: security/API contract drafted; OpenAPI and tests pending.
+- Step 07: review/signoff/release gate pending; phase NOT COMPLETE.
