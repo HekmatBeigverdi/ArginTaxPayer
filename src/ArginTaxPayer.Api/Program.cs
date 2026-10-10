@@ -5,4 +5,4 @@ var app = builder.Build();
 app.MapGet("/", () => Results.Ok(new { application = "ArginTaxPayer", stage = "bootstrap" }));
 app.Run();
 
-public partial class Program;
+public partial class Program { }
