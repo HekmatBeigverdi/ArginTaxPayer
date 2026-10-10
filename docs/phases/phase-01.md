@@ -62,4 +62,10 @@ Phase 01 can be marked DONE only after Steps 01-07 are evidenced, source rules t
 - A bank transfer between partners may settle several company orders with explicit allocations. Company settlement summaries derive from allocations, not independently editable status flags.
 - Agreement defaults to 50/50 sharing of distributable profit after approved eligible costs, with versioned exceptions per delegate. VAT treatment must avoid double deduction.
 - Follow-up ERD and API steps must include: PaymentAllocation, SaleExpense, ExpenseApprovalDecision, OrderProfitDistributionSnapshot, PartnerSettlement and PartnerSettlementAllocation; protect delegate segregation, idempotency and auditability.
-- Open policy decision: accrual vs cash collection basis for profit recognition and partner share, especially when a customer has paid only partially.
+- **Resolved:** profit-sharing and partner settlement are calculated only on verified cash actually collected and allocated to each order (cash basis); the remaining order amount stays as a customer receivable. Relevant VAT must not be treated as distributable revenue.
+
+## Step 05 — Logical ERD v1 (design completed, implementation pending)
+- See [Logical ERD and financial invariants](phase-01-step-05-logical-erd.md).
+- Includes workspace isolation, taxpayer assignments, plans, orders, verified collections and allocations, Level 1 cost review, cash-basis profit-share snapshots, partial partner settlements, and append-only ledger entries.
+- Initial legacy SQL schema inspection identified 20 tables; full field-by-field sensitive-data-safe migration mapping remains Step 02 work.
+- Step 05 architecture deliverable is drafted; SQL migrations, enforcement and test execution are not complete.
