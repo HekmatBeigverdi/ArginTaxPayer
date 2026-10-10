@@ -12,7 +12,7 @@ Status: Baseline v0.1, 2026-10-10. Roadmap phases are sequential milestones, tho
 | 06 | Goods and services | Tax goods/service IDs, official unit codes, VAT classifications and versioned catalog |
 | 07 | Invoice domain and rule engine | Schema/version-specific types, patterns, subjects, correction/cancellation/return references, all officially valid combinations |
 | 08 | Invoice workflows and UI | Draft/edit/review/approve, dynamic forms, settlement methods, calculations, import preview |
-| 09 | Digital signatures and cryptography | Per-fiscal-memory protected private-key handling, certificates, signing/encryption abstraction, key rotation |
+| 09 | Digital signatures, key generation and CSR | Natural/legal-person public/private key generation, PKCS#10 CSR, certificate import/validation, per-memory secure signing/encryption and key rotation |
 | 10 | Tax authority connector | Versioned SDK/API adapters, authenticate, submit, retrieve references, integration contract tests |
 | 11 | Queue, inquiry and reconciliation | Durable outbox, idempotency, status inquiry, retries, terminal results, accounting-safe credit handling |
 | 12 | Subscriptions, billing and settlements | Annual/quantity entitlements, cash/gateway payment, independent Level 2 finance, Level 2↔Level 1 settlements |
@@ -32,6 +32,9 @@ Status: Baseline v0.1, 2026-10-10. Roadmap phases are sequential milestones, tho
 6. Underlying signing SDKs are adapters; avoid process-wide mutable singleton state when multiple fiscal memories sign concurrently.
 7. Cross-system correlation: internalInvoiceId, sourceSystem, sourceRecordId, fiscalMemoryId, taxId, requestUid and authorityReference are separately stored.
 8. Public GitHub repository: no production database dump or actual certificates/private keys.
+
+9. Delegates maintain private workspace and customer-specific selling prices, while platform settlement baseline and historical order price snapshots are independently persisted.
+10. Key/CSR generation and fiscal-memory onboarding are distinct: the official portal issues the memory identifier and may require a public key or recognized certificate. Private keys must not leak to delegates or diagnostics; custody is explicitly consented to and protected.
 
 ## Release gate
 Each phase closes only after architecture impact assessment, unit/integration tests, permission-isolation tests when relevant, migration review and explicit approval.
