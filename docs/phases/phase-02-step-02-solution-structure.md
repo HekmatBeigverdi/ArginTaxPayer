@@ -19,7 +19,7 @@ Establish a compilable ASP.NET Core modular-monolith host layout without prematu
 | `ArginTaxPayer.Workers` | Background process host | Application, Infrastructure |
 | `ArginTaxPayer.Tests` | Independent smoke and future unit tests | Domain, Application, Infrastructure |
 
-Target .NET framework: `net10.0` (SDK must be installed by the developer). The API and Worker processes are deliberately distinct. A placeholder API root route returns non-sensitive bootstrap metadata; it is not a health readiness signal or production API contract. Worker host registers no jobs.
+Target .NET framework: `net9.0` (the required SDK is pinned in `global.json`). The API and Worker processes are deliberately distinct. A placeholder API root route returns non-sensitive bootstrap metadata; it is not a health readiness signal or production API contract. Worker host registers no jobs.
 
 ## Boundary constraints
 
@@ -31,7 +31,7 @@ Target .NET framework: `net10.0` (SDK must be installed by the developer). The A
 
 ## Local prerequisites and verification (macOS or Windows)
 
-Install official .NET 10 SDK before running commands.
+Install the .NET SDK version selected by `global.json` before running commands.
 
 ```bash
 git fetch origin
@@ -46,7 +46,7 @@ dotnet run --project src/ArginTaxPayer.Api
 
 In another terminal, `curl http://localhost:5000/` only if the API terminal explicitly reports that listening URL, or use the displayed bound URL. The Worker can be launched using `dotnet run --project src/ArginTaxPayer.Workers` and stopped with Ctrl+C.
 
-These commands are an executable verification plan, **not** a claim that they have already run. The current execution container does not have the `dotnet` CLI or GitHub network resolution, so local build/test results remain unverified.
+These commands are the executable verification plan for the solution.
 
 ## Tests included
 
@@ -57,7 +57,7 @@ Three xUnit smoke assertions load the Domain, Application and Infrastructure ass
 - [x] Solution, project files, two process hosts and smoke test source committed on Phase 02 branch.
 - [x] Reference direction and layer responsibilities explicitly documented.
 - [x] Phase 01 design artifacts remain unchanged.
-- [ ] `dotnet restore`, `dotnet build`, and `dotnet test` succeed on developer/CI machine.
+- [x] `dotnet restore`, `dotnet build`, and `dotnet test` succeed on the developer machine with SDK `9.0.202`.
 - [ ] Product-owner approval of Step 02.
 - [ ] Step 03 modular boundaries implementation — not started.
 
