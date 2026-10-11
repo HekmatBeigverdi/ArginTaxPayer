@@ -13,7 +13,7 @@ Establish explicit, predictable service-registration entry points for the API an
 - `AddArginTaxPayerApplication(IServiceCollection)` is declared in Application. It registers the 13 Phase 01 module descriptors as singleton **metadata** using `TryAddEnumerable`. Calling it twice must not add duplicate descriptors.
 - `AddArginTaxPayerInfrastructure(IServiceCollection)` is declared in Infrastructure. It registers a harmless assembly marker with `TryAddSingleton` so host wiring can be verified. No services access databases, secrets, payment gateways, fiscal SDKs or background queues.
 - Both `ArginTaxPayer.Api` and `ArginTaxPayer.Workers` call the application and infrastructure registration extensions before building their hosts.
-- `Microsoft.Extensions.DependencyInjection.Abstractions` is referenced by the Application project; the independent test project uses the concrete `Microsoft.Extensions.DependencyInjection` package. Domain still has **no** service-container dependency.
+- `Microsoft.Extensions.DependencyInjection.Abstractions` version 9.0.0 is referenced by the Application project; the independent test project uses `Microsoft.Extensions.DependencyInjection` version 9.0.0, matching the repository's `net9.0` and SDK 9.0.202 baseline. Domain still has **no** service-container dependency.
 
 ## Lifetime and dependency rules
 
@@ -36,7 +36,7 @@ dotnet test ArginTaxPayer.sln --no-build -c Release
 dotnet run --project src/ArginTaxPayer.Api
 ```
 
-API bootstrap `/` should retain its original response, with no new endpoints. The Worker should start and stop without registering jobs. Tests check service resolution, exact module count, repeat registration, application-only composition and null argument behavior. Tests must be executed on an environment with the .NET 10 SDK and access to NuGet feeds; GitHub source inspection alone cannot certify a passing build.
+API bootstrap `/` should retain its original response, with no new endpoints. The Worker should start and stop without registering jobs. Tests check service resolution, exact module count, repeat registration, application-only composition and null argument behavior. Tests must be executed on an environment with the .NET 9 SDK pinned in `global.json` and access to NuGet feeds; GitHub source inspection alone cannot certify a passing build.
 
 ## Acceptance
 
