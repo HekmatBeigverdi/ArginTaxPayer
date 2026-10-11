@@ -21,7 +21,7 @@ public sealed class PostgreSqlBootstrapTests
     public void DevelopmentWithoutDatabasePreservesBootstrapBehavior()
     {
         var services = new ServiceCollection();
-        services.AddArginTaxPayerPersistence(Configuration(null), false);
+        InfrastructurePersistenceExtensions.AddArginTaxPayerPersistence(services, Configuration(null), false);
         Assert.DoesNotContain(services, x => x.ServiceType == typeof(ArginTaxPayerDbContext));
     }
 
@@ -30,14 +30,14 @@ public sealed class PostgreSqlBootstrapTests
     {
         var services = new ServiceCollection();
         Assert.Throws<InvalidOperationException>(
-            () => services.AddArginTaxPayerPersistence(Configuration(null), true));
+            () => InfrastructurePersistenceExtensions.AddArginTaxPayerPersistence(services, Configuration(null), true));
     }
 
     [Fact]
     public void ValidConnectionRegistersScopedNpgsqlContextWithoutConnecting()
     {
         var services = new ServiceCollection();
-        services.AddArginTaxPayerPersistence(Configuration(Valid), true);
+        InfrastructurePersistenceExtensions.AddArginTaxPayerPersistence(services, Configuration(Valid), true);
         Assert.Contains(services, x => x.ServiceType == typeof(ArginTaxPayerDbContext) &&
                                         x.Lifetime == ServiceLifetime.Scoped);
 
@@ -53,7 +53,7 @@ public sealed class PostgreSqlBootstrapTests
         var services = new ServiceCollection();
         var nonTls = "Host=localhost;Database=argintaxpayer;Username=test;SSL Mode=Disable";
         Assert.Throws<InvalidOperationException>(
-            () => services.AddArginTaxPayerPersistence(Configuration(nonTls), true));
+            () => InfrastructurePersistenceExtensions.AddArginTaxPayerPersistence(services, Configuration(nonTls), true));
     }
 
     [Fact]
@@ -61,7 +61,9 @@ public sealed class PostgreSqlBootstrapTests
     {
         var services = new ServiceCollection();
         Assert.Throws<InvalidOperationException>(
-            () => services.AddArginTaxPayerPersistence(
-                Configuration("Host=localhost;Database=argintaxpayer;SSL Mode=Require"), true));
+            () => InfrastructurePersistenceExtensions.AddArginTaxPayerPersistence(
+                services,
+                Configuration("Host=localhost;Database=argintaxpayer;SSL Mode=Require"),
+                true));
     }
 }
