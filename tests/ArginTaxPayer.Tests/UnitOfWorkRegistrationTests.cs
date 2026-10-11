@@ -19,7 +19,8 @@ public sealed class UnitOfWorkRegistrationTests
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(
             new Dictionary<string, string?> { ["ConnectionStrings:ArginTaxPayerDb"] = Connection }).Build();
 
-        services.AddArginTaxPayerPersistence(configuration, isProduction: false);
+        InfrastructurePersistenceExtensions.AddArginTaxPayerPersistence(
+            services, configuration, isProduction: false);
         Assert.Contains(services, descriptor =>
             descriptor.ServiceType == typeof(IUnitOfWork) &&
             descriptor.Lifetime == ServiceLifetime.Scoped);
@@ -38,7 +39,8 @@ public sealed class UnitOfWorkRegistrationTests
     public void MissingDevelopmentConnectionDoesNotRegisterUnitOfWork()
     {
         var services = new ServiceCollection();
-        services.AddArginTaxPayerPersistence(new ConfigurationBuilder().Build(), isProduction: false);
+        InfrastructurePersistenceExtensions.AddArginTaxPayerPersistence(
+            services, new ConfigurationBuilder().Build(), isProduction: false);
         Assert.DoesNotContain(services, descriptor => descriptor.ServiceType == typeof(IUnitOfWork));
     }
 }
