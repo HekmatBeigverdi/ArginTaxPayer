@@ -1,4 +1,5 @@
 using ArginTaxPayer.Infrastructure.Persistence.Outbox;
+using ArginTaxPayer.Infrastructure.Persistence.Idempotency;
 using Microsoft.EntityFrameworkCore;
 
 namespace ArginTaxPayer.Infrastructure.Persistence;
@@ -11,10 +12,23 @@ public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbConte
     : DbContext(options)
 {
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
+    public DbSet<IdempotencyReservation> IdempotencyReservations => Set<IdempotencyReservation>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
+        var reservations = modelBuilder.Entity<IdempotencyReservation>();
+        reservations.ToTable("idempotency_reservations");
+        reservations.HasKey(x => x.Id);
+        reservations.Property(x => x.Id).HasColumnName("id");
+        reservations.Property(x => x.TaxpayerId).HasColumnName("taxpayer_id").IsRequired();
+        reservations.Property(x => x.Operation).HasColumnName("operation").HasMaxLength(100).IsRequired();
+        reservations.Property(x => x.Key).HasColumnName("idempotency_key").HasMaxLength(200).IsRequired();
+        reservations.Property(x => x.RequestFingerprint).HasColumnName("request_fingerprint").HasMaxLength(64).IsRequired();
+        reservations.Property(x => x.CreatedAtUtc).HasColumnName("created_at_utc").HasColumnType("timestamp with time zone");
+        reservations.HasIndex(x => new { x.TaxpayerId, x.Operation, x.Key })
+            .IsUnique().HasDatabaseName("ux_idempotency_taxpayer_operation_key");
 
         var outbox = modelBuilder.Entity<OutboxMessage>();
         outbox.ToTable("outbox_messages");
