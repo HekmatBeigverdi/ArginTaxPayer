@@ -1,4 +1,6 @@
 using ArginTaxPayer.Application.Modules;
+using ArginTaxPayer.Application.Abstractions.Tenancy;
+using ArginTaxPayer.Application.Tenancy;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -17,6 +19,10 @@ public static class DependencyInjection
         {
             services.TryAddEnumerable(ServiceDescriptor.Singleton<IModuleDescriptor>(descriptor));
         }
+
+        services.TryAddScoped<TaxpayerScope>();
+        services.TryAddScoped<ITaxpayerScope>(sp => sp.GetRequiredService<TaxpayerScope>());
+        services.TryAddScoped<ITaxpayerScopeInitializer>(sp => sp.GetRequiredService<TaxpayerScope>());
 
         return services;
     }
