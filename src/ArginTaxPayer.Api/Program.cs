@@ -2,7 +2,6 @@ using ArginTaxPayer.Api.Health;
 using ArginTaxPayer.Api.Observability;
 using ArginTaxPayer.Application;
 using ArginTaxPayer.Infrastructure;
-using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using System.Text.Json;
 
@@ -44,17 +43,27 @@ static Task WriteHealthResponse(HttpContext context, HealthReport report)
         cancellationToken: context.RequestAborted);
 }
 
-app.MapHealthChecks("/health/live", new HealthCheckOptions
+static async Task RunHealthCheckAsync(
+    HttpContext context,
+    HealthCheckService healthCheckService,
+    string tag)
 {
-    Predicate = registration => registration.Tags.Contains("live"),
-    ResponseWriter = WriteHealthResponse
-});
+    var report = await healthCheckService.CheckHealthAsync(
+        registration => registration.Tags.Contains(tag),
+        context.RequestAborted);
+    context.Response.StatusCode = report.Status == HealthStatus.Healthy
+        ? StatusCodes.Status200OK
+        : StatusCodes.Status503ServiceUnavailable;
+    await WriteHealthResponse(context, report);
+}
 
-app.MapHealthChecks("/health/ready", new HealthCheckOptions
-{
-    Predicate = registration => registration.Tags.Contains("ready"),
-    ResponseWriter = WriteHealthResponse
-});
+app.MapGet("/health/live", (HttpContext context, HealthCheckService healthChecks) =>
+        RunHealthCheckAsync(context, healthChecks, "live"))
+    .WithName("GetLiveness");
+
+app.MapGet("/health/ready", (HttpContext context, HealthCheckService healthChecks) =>
+        RunHealthCheckAsync(context, healthChecks, "ready"))
+    .WithName("GetReadiness");
 
 app.Run();
 

@@ -3,6 +3,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using Xunit;
 
 namespace ArginTaxPayer.Tests;
@@ -10,18 +11,28 @@ namespace ArginTaxPayer.Tests;
 public sealed class ApiOpenApiTests
 {
     private static WebApplicationFactory<Program> Factory(string environment) =>
-        new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        new ApiFactory(environment);
+
+    private sealed class ApiFactory(string environment) : WebApplicationFactory<Program>
+    {
+        protected override IHost CreateHost(IHostBuilder builder)
         {
-            builder.UseEnvironment(environment);
-            builder.ConfigureAppConfiguration((_, configuration) =>
+            builder.ConfigureHostConfiguration(configuration =>
                 configuration.AddInMemoryCollection(new Dictionary<string, string?>
                 {
                     ["ConnectionStrings:ArginTaxPayerDb"] =
                         environment == "Production"
                             ? "Host=127.0.0.1;Port=5432;Database=argintaxpayer_test;Username=test;Password=test;SSL Mode=Require"
-                            : ""
+                            : "",
+                    ["ArginTaxPayer:PublicBaseUrl"] = "https://example.test"
                 }));
-        });
+
+            return base.CreateHost(builder);
+        }
+
+        protected override void ConfigureWebHost(IWebHostBuilder builder) =>
+            builder.UseEnvironment(environment);
+    }
 
     [Fact]
     public async Task DevelopmentOpenApiExposesPlatformContract()
