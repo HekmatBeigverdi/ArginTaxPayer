@@ -93,10 +93,17 @@ jobs:
           node-version: "22"
 
       - name: Install frontend dependencies
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
 
       - name: Frontend foundation tests
         run: npm test
+
+      - name: TypeScript strict validation
+        run: npm run typecheck
+
+      - name: Dependency vulnerability report (non-blocking until remediation)
+        run: npm audit --omit=dev --audit-level=high
+        continue-on-error: true
 
       - name: Build Next.js
         run: npm run build
