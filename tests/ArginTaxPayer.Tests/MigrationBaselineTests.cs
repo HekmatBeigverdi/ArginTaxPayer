@@ -1,4 +1,5 @@
 using ArginTaxPayer.Infrastructure.Persistence;
+using ArginTaxPayer.Infrastructure.Persistence.Migrations;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 
@@ -16,7 +17,7 @@ public sealed class MigrationBaselineTests
         using var context = new ArginTaxPayerDbContext(options);
 
         Assert.Contains("20261011000000_InitialBaseline", context.Database.GetMigrations());
-        Assert.Empty(context.Model.GetEntityTypes());
+        Assert.Empty(new InitialBaseline().TargetModel.GetEntityTypes());
     }
 
     [Fact]
