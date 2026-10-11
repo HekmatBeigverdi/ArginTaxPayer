@@ -1,4 +1,5 @@
 using ArginTaxPayer.Api.Health;
+using ArginTaxPayer.Api.Observability;
 using ArginTaxPayer.Application;
 using ArginTaxPayer.Infrastructure;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
@@ -6,6 +7,9 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 using System.Text.Json;
 
 var builder = WebApplication.CreateBuilder(args);
+// JSON console output is machine-readable on macOS, Ubuntu and future containers.
+builder.Logging.ClearProviders();
+builder.Logging.AddJsonConsole(options => options.IncludeScopes = true);
 builder.Services.AddArginTaxPayerApplication();
 builder.Services.AddArginTaxPayerInfrastructure();
 builder.Services.AddArginTaxPayerConfiguration(builder.Configuration, builder.Environment.IsProduction());
@@ -17,6 +21,7 @@ builder.Services.AddHealthChecks()
     .AddCheck<DatabaseReadinessHealthCheck>("postgresql", tags: ["ready"]);
 
 var app = builder.Build();
+app.UseMiddleware<CorrelationIdMiddleware>();
 
 // Preserve the existing bootstrap endpoint.
 app.MapGet("/", () => Results.Ok(new { application = "ArginTaxPayer", stage = "bootstrap" }));
