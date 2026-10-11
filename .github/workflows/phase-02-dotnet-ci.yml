@@ -106,3 +106,43 @@ jobs:
 
       - name: Build Next.js
         run: npm run build
+
+  integration-smoke:
+    name: API + Next.js | Ubuntu loopback smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    permissions:
+      contents: read
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      DOTNET_NOLOGO: "true"
+      RUN_ARGINTAXPAYER_PG_INTEGRATION: "0"
+      ConnectionStrings__ArginTaxPayerDb: ""
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Restore .NET
+        run: dotnet restore ArginTaxPayer.sln
+
+      - name: Build API Release
+        run: dotnet build src/ArginTaxPayer.Api/ArginTaxPayer.Api.csproj -c Release --no-restore
+
+      - name: Install frontend with lockfile
+        working-directory: apps/web
+        run: npm ci --no-audit --no-fund
+
+      - name: Run isolated API + Next.js integration smoke
+        run: node scripts/phase-02-integration-smoke.mjs
