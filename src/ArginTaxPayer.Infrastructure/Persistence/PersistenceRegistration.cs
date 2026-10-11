@@ -1,4 +1,6 @@
 using ArginTaxPayer.Application.Abstractions.Persistence;
+using ArginTaxPayer.Application.Abstractions.Messaging;
+using ArginTaxPayer.Infrastructure.Persistence.Outbox;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -60,6 +62,7 @@ public static class PersistenceRegistration
             }));
 
         services.AddScoped<IUnitOfWork, EfUnitOfWork>();
+        services.AddScoped<IOutboxWriter, EfOutboxWriter>();
 
         return services;
     }
