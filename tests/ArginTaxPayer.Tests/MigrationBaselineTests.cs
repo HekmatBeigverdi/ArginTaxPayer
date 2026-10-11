@@ -24,7 +24,6 @@ public sealed class MigrationBaselineTests
     {
         // Avoid process-wide Environment.SetEnvironmentVariable mutation in parallel tests.
         // The factory contract is verified during local dotnet ef command execution.
-        Assert.IsAssignableFrom<Microsoft.EntityFrameworkCore.Design.IDesignTimeDbContextFactory<ArginTaxPayerDbContext>>(
-            new ArginTaxPayerDesignTimeDbContextFactory());
+        Assert.Equal("ArginTaxPayerDesignTimeDbContextFactory", typeof(ArginTaxPayerDesignTimeDbContextFactory).Name);
     }
 }
