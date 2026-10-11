@@ -1,3 +1,5 @@
+using ArginTaxPayer.Application.Abstractions.Security;
+using ArginTaxPayer.Infrastructure.Security;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -13,6 +15,8 @@ public static class DependencyInjection
         // A harmless registration verifies this composition root is called by both hosts.
         // No database, credentials, external adapter, or hosted service is registered here.
         services.TryAddSingleton<AssemblyMarker>();
+        services.TryAddSingleton<ISecretProvider>(_ =>
+            new EnvironmentSecretProvider(Environment.GetEnvironmentVariable));
         return services;
     }
 }
