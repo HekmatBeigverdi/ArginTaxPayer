@@ -18,7 +18,7 @@ public sealed class PlatformConfigurationTests
         };
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
         var services = new ServiceCollection();
-        services.AddArginTaxPayerConfiguration(configuration, isProduction);
+        InfrastructureConfigurationExtensions.AddArginTaxPayerConfiguration(services, configuration, isProduction);
         return services.BuildServiceProvider(validateScopes: true);
     }
 
@@ -65,7 +65,7 @@ public sealed class PlatformConfigurationTests
     public void MissingServicesOrConfigurationIsRejected()
     {
         IConfiguration config = new ConfigurationBuilder().Build();
-        Assert.Throws<ArgumentNullException>(() => InfrastructureConfigurationExtensions.AddArginTaxPayerConfiguration(null!, config, false));
-        Assert.Throws<ArgumentNullException>(() => new ServiceCollection().AddArginTaxPayerConfiguration(null!, false));
+        Assert.Throws<ArgumentNullException>(() => global::ArginTaxPayer.Infrastructure.InfrastructureConfigurationExtensions.AddArginTaxPayerConfiguration(null!, config, false));
+        Assert.Throws<ArgumentNullException>(() => global::ArginTaxPayer.Infrastructure.InfrastructureConfigurationExtensions.AddArginTaxPayerConfiguration(new ServiceCollection(), null!, false));
     }
 }

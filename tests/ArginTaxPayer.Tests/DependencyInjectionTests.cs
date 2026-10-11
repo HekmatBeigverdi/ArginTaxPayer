@@ -3,6 +3,7 @@ using ArginTaxPayer.Application.Modules;
 using ArginTaxPayer.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
+using InfrastructureAssemblyMarker = global::ArginTaxPayer.Infrastructure.AssemblyMarker;
 
 namespace ArginTaxPayer.Tests;
 
@@ -22,7 +23,7 @@ public sealed class DependencyInjectionTests
         Assert.Equal(
             ModuleCatalog.All.Select(x => x.Name).OrderBy(x => x),
             modules.Select(x => x.Name).OrderBy(x => x));
-        Assert.NotNull(provider.GetRequiredService<AssemblyMarker>());
+        Assert.NotNull(provider.GetRequiredService<InfrastructureAssemblyMarker>());
     }
 
     [Fact]
@@ -36,7 +37,7 @@ public sealed class DependencyInjectionTests
 
         using var provider = services.BuildServiceProvider(validateScopes: true);
         Assert.Equal(13, provider.GetServices<IModuleDescriptor>().Count());
-        Assert.Single(services.Where(s => s.ServiceType == typeof(AssemblyMarker)));
+        Assert.Single(services, service => service.ServiceType == typeof(InfrastructureAssemblyMarker));
     }
 
     [Fact]
@@ -47,7 +48,7 @@ public sealed class DependencyInjectionTests
 
         using var provider = services.BuildServiceProvider(validateScopes: true);
         Assert.Equal(13, provider.GetServices<IModuleDescriptor>().Count());
-        Assert.Null(provider.GetService<AssemblyMarker>());
+        Assert.Null(provider.GetService<InfrastructureAssemblyMarker>());
     }
 
     [Fact]
