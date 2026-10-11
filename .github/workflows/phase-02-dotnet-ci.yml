@@ -1,0 +1,148 @@
+name: Phase 02 .NET CI
+
+on:
+  push:
+    branches:
+      - phase/02-foundation
+  pull_request:
+    branches:
+      - main
+      - phase/02-foundation
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase-02-dotnet-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: .NET 9 | ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-24.04
+          - macos-15
+    env:
+      DOTNET_NOLOGO: "true"
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      RUN_ARGINTAXPAYER_PG_INTEGRATION: "0"
+      ConnectionStrings__ArginTaxPayerDb: ""
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install SDK pinned by global.json
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Display SDK info
+        run: |
+          dotnet --version
+          dotnet --info
+
+      - name: Restore solution
+        run: dotnet restore ArginTaxPayer.sln
+
+      - name: Compile Release
+        run: dotnet build ArginTaxPayer.sln --configuration Release --no-restore
+
+      - name: Test Release (offline database suite)
+        run: |
+          dotnet test ArginTaxPayer.sln --configuration Release --no-build \
+            --logger "trx;LogFileName=phase-02-tests.trx" \
+            --results-directory "./artifacts/test-results"
+
+      - name: Publish test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase-02-test-results-${{ matrix.os }}
+          path: artifacts/test-results/**/*.trx
+          if-no-files-found: warn
+          retention-days: 7
+
+  frontend:
+    name: Next.js RTL | ubuntu-24.04
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: apps/web
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      CI: "true"
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install frontend dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Frontend foundation tests
+        run: npm test
+
+      - name: TypeScript strict validation
+        run: npm run typecheck
+
+      - name: Dependency security gate (high/critical)
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Build Next.js
+        run: npm run build
+
+  integration-smoke:
+    name: API + Next.js | Ubuntu loopback smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    permissions:
+      contents: read
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      DOTNET_NOLOGO: "true"
+      RUN_ARGINTAXPAYER_PG_INTEGRATION: "0"
+      ConnectionStrings__ArginTaxPayerDb: ""
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Restore .NET
+        run: dotnet restore ArginTaxPayer.sln
+
+      - name: Build API Release
+        run: dotnet build src/ArginTaxPayer.Api/ArginTaxPayer.Api.csproj -c Release --no-restore
+
+      - name: Install frontend with lockfile
+        working-directory: apps/web
+        run: npm ci --no-audit --no-fund
+
+      - name: Run isolated API + Next.js integration smoke
+        run: node scripts/phase-02-integration-smoke.mjs

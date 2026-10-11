@@ -1,0 +1,70 @@
+using ArginTaxPayer.Api.Health;
+using ArginTaxPayer.Api.Observability;
+using ArginTaxPayer.Application;
+using ArginTaxPayer.Infrastructure;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
+using System.Text.Json;
+
+var builder = WebApplication.CreateBuilder(args);
+// JSON console output is machine-readable on macOS, Ubuntu and future containers.
+builder.Logging.ClearProviders();
+builder.Logging.AddJsonConsole(options => options.IncludeScopes = true);
+builder.Services.AddArginTaxPayerApplication();
+builder.Services.AddArginTaxPayerInfrastructure();
+builder.Services.AddArginTaxPayerConfiguration(builder.Configuration, builder.Environment.IsProduction());
+builder.Services.AddArginTaxPayerPersistence(builder.Configuration, builder.Environment.IsProduction());
+
+// OpenAPI document generation is registered for API contract development.
+builder.Services.AddOpenApi();
+
+// Separate cheap process liveness from real PostgreSQL readiness.
+builder.Services.AddHealthChecks()
+    .AddCheck("self", () => HealthCheckResult.Healthy(), tags: ["live"])
+    .AddCheck<DatabaseReadinessHealthCheck>("postgresql", tags: ["ready"]);
+
+var app = builder.Build();
+app.UseMiddleware<CorrelationIdMiddleware>();
+
+// Never expose the API contract endpoint in Production by default.
+if (app.Environment.IsDevelopment())
+    app.MapOpenApi();
+
+// Preserve the existing bootstrap endpoint.
+app.MapGet("/", () => Results.Ok(new { application = "ArginTaxPayer", stage = "bootstrap" }))
+    .WithName("GetBootstrapStatus")
+    .WithTags("Platform");
+
+// Minimal responses by design: never return raw connection strings or exceptions.
+static Task WriteHealthResponse(HttpContext context, HealthReport report)
+{
+    context.Response.ContentType = "application/json";
+    return JsonSerializer.SerializeAsync(context.Response.Body,
+        new { status = report.Status.ToString() },
+        cancellationToken: context.RequestAborted);
+}
+
+static async Task RunHealthCheckAsync(
+    HttpContext context,
+    HealthCheckService healthCheckService,
+    string tag)
+{
+    var report = await healthCheckService.CheckHealthAsync(
+        registration => registration.Tags.Contains(tag),
+        context.RequestAborted);
+    context.Response.StatusCode = report.Status == HealthStatus.Healthy
+        ? StatusCodes.Status200OK
+        : StatusCodes.Status503ServiceUnavailable;
+    await WriteHealthResponse(context, report);
+}
+
+app.MapGet("/health/live", (HttpContext context, HealthCheckService healthChecks) =>
+        RunHealthCheckAsync(context, healthChecks, "live"))
+    .WithName("GetLiveness");
+
+app.MapGet("/health/ready", (HttpContext context, HealthCheckService healthChecks) =>
+        RunHealthCheckAsync(context, healthChecks, "ready"))
+    .WithName("GetReadiness");
+
+app.Run();
+
+public partial class Program { }

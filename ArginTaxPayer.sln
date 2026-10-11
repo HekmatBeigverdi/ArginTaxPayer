@@ -1,0 +1,51 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ArginTaxPayer.Domain", "src\ArginTaxPayer.Domain\ArginTaxPayer.Domain.csproj", "{2D9B833E-EA90-4D74-B767-756B6BA01D11}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ArginTaxPayer.Application", "src\ArginTaxPayer.Application\ArginTaxPayer.Application.csproj", "{D526B11E-76CD-41F0-A5F4-34FF45B88E21}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ArginTaxPayer.Infrastructure", "src\ArginTaxPayer.Infrastructure\ArginTaxPayer.Infrastructure.csproj", "{A875D032-5569-44C1-8789-8974FD047812}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ArginTaxPayer.Api", "src\ArginTaxPayer.Api\ArginTaxPayer.Api.csproj", "{FCA61C08-8E0A-4580-802A-16616F68EE1B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ArginTaxPayer.Workers", "src\ArginTaxPayer.Workers\ArginTaxPayer.Workers.csproj", "{F298D7A7-089F-44A4-9ECA-FF0052C62303}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ArginTaxPayer.Tests", "tests\ArginTaxPayer.Tests\ArginTaxPayer.Tests.csproj", "{4ECFD8BA-A56F-47F3-8F1C-076AF1BE0370}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{2D9B833E-EA90-4D74-B767-756B6BA01D11}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2D9B833E-EA90-4D74-B767-756B6BA01D11}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2D9B833E-EA90-4D74-B767-756B6BA01D11}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2D9B833E-EA90-4D74-B767-756B6BA01D11}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D526B11E-76CD-41F0-A5F4-34FF45B88E21}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D526B11E-76CD-41F0-A5F4-34FF45B88E21}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D526B11E-76CD-41F0-A5F4-34FF45B88E21}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D526B11E-76CD-41F0-A5F4-34FF45B88E21}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A875D032-5569-44C1-8789-8974FD047812}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A875D032-5569-44C1-8789-8974FD047812}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A875D032-5569-44C1-8789-8974FD047812}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A875D032-5569-44C1-8789-8974FD047812}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FCA61C08-8E0A-4580-802A-16616F68EE1B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FCA61C08-8E0A-4580-802A-16616F68EE1B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FCA61C08-8E0A-4580-802A-16616F68EE1B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FCA61C08-8E0A-4580-802A-16616F68EE1B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F298D7A7-089F-44A4-9ECA-FF0052C62303}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F298D7A7-089F-44A4-9ECA-FF0052C62303}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F298D7A7-089F-44A4-9ECA-FF0052C62303}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F298D7A7-089F-44A4-9ECA-FF0052C62303}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4ECFD8BA-A56F-47F3-8F1C-076AF1BE0370}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4ECFD8BA-A56F-47F3-8F1C-076AF1BE0370}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4ECFD8BA-A56F-47F3-8F1C-076AF1BE0370}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4ECFD8BA-A56F-47F3-8F1C-076AF1BE0370}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

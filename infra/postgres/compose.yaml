@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: argintaxpayer
+      POSTGRES_DB: argintaxpayer_dev
+      POSTGRES_PASSWORD: ${ARGIN_POSTGRES_PASSWORD:?Export ARGIN_POSTGRES_PASSWORD before starting}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - argintaxpayer_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U argintaxpayer -d argintaxpayer_dev"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  argintaxpayer_pgdata:
