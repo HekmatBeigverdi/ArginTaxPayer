@@ -1,4 +1,9 @@
+using ArginTaxPayer.Application;
+using ArginTaxPayer.Infrastructure;
+
 var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddArginTaxPayerApplication();
+builder.Services.AddArginTaxPayerInfrastructure();
 var app = builder.Build();
 
 // Bootstrap endpoint only. Versioned API, authorization and observability follow in later steps.
