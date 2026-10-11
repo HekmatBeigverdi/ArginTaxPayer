@@ -1,37 +1,45 @@
-# ArginTaxPayer — فاز ۰۳: هویت و کنترل دسترسی
+# ArginTaxPayer — Phase 03: Identity and Authorization
 
-<div dir="rtl">
+**Status:** Planned — Step 01 not started; owner acceptance pending  
+**Branch:** `phase/03-identity-authorization`  
+**Baseline:** Phase 02 and `docs/roadmap/18-phases.md`  
+**Started:** 2026-10-12
 
-**وضعیت:** برنامه‌ریزی‌شده؛ منتظر تأیید گام ۱  
-**شاخه:** `phase/03-identity-authorization`  
-**مبنای فنی:** فاز ۲ و `docs/roadmap/18-phases.md`  
-**تاریخ آغاز:** ۲۰۲۶-۱۰-۱۲
+## 1. Objective and Scope Control
 
-## هدف و قواعد ثابت
-پیاده‌سازی هویت کاربران، ورود امن، MFA، نشست‌ها، نقش‌های سطح ۱ و ۲ و مشتری، و مجوزهای سمت سرور. مدیریت واقعی پرونده مؤدیان و انتساب آن‌ها در فاز ۴ است. این فاز **۱۰ گام ثابت** دارد؛ افزایش/تغییر محدوده تنها با ثبت اصلاحیه و تأیید مالک. مستندات اجرایی، تست، Commit و تأیید **صرفاً در همین فایل** به‌روزرسانی می‌شود؛ فایل مجزا برای هر گام ایجاد نشود.
+Implement user identity, secure login, multi-factor authentication, session management, Level 1 / Level 2 / Customer roles, and server-enforced authorization. Taxpayer records, fiscal memories, and taxpayer-to-delegate assignment belong to Phase 04; Phase 03 provides only the authorization groundwork for them.
 
-**امنیت:** ثبت‌نام عمومی نباید سطح مدیر بسازد؛ نقش سطح ۱ فقط از مسیر کنترل‌شده Bootstrap، سطح ۲ فقط از مسیر مجاز سطح ۱؛ رمزها فقط Hash امن، توکن‌ها و کدهای بازیابی در لاگ ممنوع، نشست و Refresh Token قابل لغو؛ مجوزها و Scope سمت سرور اعمال شوند؛ مسیر انتخاب Tenant بدون احراز هویت ممنوع. مهاجرت فقط در پایگاه تست `argintaxpayer_test` با اقدام صریح؛ هیچ Migration خودکار هنگام Startup.
+This phase contains **exactly 10 fixed implementation steps**. Do not silently renumber, split, or add steps. Any material change requires a dated plan amendment and explicit owner approval. **This is the only active Phase 03 document**: update `docs/phases/phase-03.md` after every step, rather than creating separate step reports.
 
-## گام‌ها و معیار تأیید
+Security invariants:
+- Public registration must never grant administrative privileges.
+- Level 1 administrators must be provisioned through a controlled bootstrap; only authorized Level 1 administrators may grant Level 2 roles.
+- Securely hash passwords; never expose credentials, MFA recovery codes, or tokens in logs.
+- Use revocable sessions and single-use, rotating refresh tokens.
+- Enforce roles, permissions, and resource boundaries on the server. Never trust tenant IDs supplied by unauthenticated callers.
+- Never auto-apply EF Core migrations on API or Worker startup. Apply migrations only against the explicitly verified `argintaxpayer_test` database during this phase.
 
-| گام | تحویل | تست پذیرش اختصاصی | وضعیت |
-|---|---|---|---|
-| ۰۱ | مدل User/Identity، قراردادها، EF Migration و Seed امن مدیر اولیه | ساخت مدل، یکتایی شناسه، عدم ایجاد مدیر عمومی، migration تست | Planned |
-| ۰۲ | ثبت‌نام کنترل‌شده، ورود، Hash رمز، اعتبارسنجی | رمز غلط/کاربر غیرفعال رد، ثبت‌نام تکراری رد | Planned |
-| ۰۳ | Access/Refresh Token، چرخش و لغو نشست، خروج | Refresh یک‌بارمصرف، توکن منقضی و Logout رد | Planned |
-| ۰۴ | MFA و کدهای بازیابی یک‌بارمصرف، فرایند بازیابی امن | MFA اجباری برای مدیران، جلوگیری از Replay و نشت Secret | Planned |
-| ۰۵ | نقش‌ها و Permissionهای Level 1/Level 2/Customer | جلوگیری از ارتقای نقش توسط کاربر، آزمون مجوزها | Planned |
-| ۰۶ | Policyهای منابع و Scope سمت سرور، قرارداد اتصال به فاز ۴ | درخواست بین Scopeها 403/404، عدم اتکا به UI | Planned |
-| ۰۷ | محدودسازی ورود، لغو نشست‌ها، ممیزی و Redaction | Rate limit، رویدادهای امنیتی بدون داده حساس | Planned |
-| ۰۸ | UI فارسی RTL ورود، MFA، حساب، خطاها و مسیرهای محافظت‌شده | ورود/خروج، خطا، ریسپانسیو، عدم نمایش داده محافظت‌شده | Planned |
-| ۰۹ | تست یکپارچه و منفی هویت/نقش/نشست | تست‌های API، UI و Scope isolation؛ CI سبز | Planned |
-| ۱۰ | بازبینی امنیت و Migration، CI، مستندات نهایی و تحویل | Build/Test macOS+Ubuntu، بدون Secret، گزارش Release Gate | Planned |
+## 2. Fixed Step Plan and Acceptance Criteria
 
-## دستورهای کوتاه تست هر گام
+| Step | English Title | Planned Deliverable | Step-Specific Acceptance | Status |
+| --- | --- | --- | --- | --- |
+| 01 | Identity Data Model and Bootstrap | Identity entities/contracts, EF Core migration, controlled initial Level 1 admin bootstrap | Identity uniqueness, migration validation against test DB, no public admin creation | Planned |
+| 02 | Registration, Login, and Password Security | Controlled registration, login, secure password hashing, account validation | Reject invalid credentials, disabled accounts, duplicate registrations | Planned |
+| 03 | Token and Session Lifecycle | Short-lived access tokens, rotating refresh tokens, session revocation and logout | Reject reused/expired refresh tokens; revoked sessions cannot renew | Planned |
+| 04 | Multi-Factor Authentication and Recovery | MFA enrollment/challenge, single-use recovery codes, secure account recovery | Admin MFA policy enforced; replay and secret disclosure prevented | Planned |
+| 05 | Role-Based Authorization and Permissions | Level 1, Level 2, Customer roles, permission policies and safe role grants | Users cannot self-elevate privileges; role-policy tests pass | Planned |
+| 06 | Resource-Scoped Authorization | Server-side ownership/scope policies and extension contracts for Phase 04 | Cross-scope access denied with suitable 403/404; UI filtering alone cannot grant access | Planned |
+| 07 | Account Protection and Security Audit | Login throttling, security-event audit, sensitive-data redaction, session controls | Brute-force throttling and redaction verified; security events auditable | Planned |
+| 08 | Persian RTL Identity User Interface | Login, registration, MFA, account/security screens and guarded routes | RTL layout, correct error states, login/logout flow, protected-content tests | Planned |
+| 09 | Identity and Authorization Integration Tests | API/UI negative-path integration tests, token/recovery replay and role/scope isolation | Local and CI identity/security suites pass; unauthorized access rejected | Planned |
+| 10 | Hardening, Verification, and Phase Handoff | Final security and migration review, CI checks, documentation and release readiness | macOS/Ubuntu build/test evidence, clean security review, owner sign-off gate | Planned |
 
-پیش‌نیاز یک‌باره: .NET SDK مطابق `global.json`، Node/npm مطابق فاز ۲، PostgreSQL تست فقط در گام‌های Migration/Integration. این دستورها از **ریشه پروژه** اجرا شوند. در گام‌هایی که دیتابیس لازم نیست، تست‌های آفلاین اجرا می‌شوند.
+## 3. Concise Per-Step Verification
 
-**macOS**
+One-time prerequisites: Git, the .NET SDK specified by `global.json`, Node/npm compatible with Phase 02, and a designated PostgreSQL **test** database only for database-dependent steps. Run commands from the repository root. Version-check commands are deliberately omitted.
+
+### macOS
+
 ```bash
 git switch phase/03-identity-authorization
 git pull --ff-only origin phase/03-identity-authorization
@@ -40,7 +48,10 @@ dotnet test ArginTaxPayer.sln -c Release --no-build
 (cd apps/web && npm ci --no-audit --no-fund && npm test && npm run typecheck && npm run build)
 ```
 
-**Ubuntu VPS** (پس از اطمینان از تمیز بودن Working Tree؛ از بازنویسی تغییرات محلی خودداری کنید)
+### Ubuntu VPS
+
+Inspect/preserve local modifications before switching branches or pulling. No public test ports or production credentials are needed.
+
 ```bash
 cd ~/projects/ArginTaxPayer
 git switch phase/03-identity-authorization
@@ -50,12 +61,31 @@ dotnet test ArginTaxPayer.sln -c Release --no-build
 (cd apps/web && npm ci --no-audit --no-fund && npm test && npm run typecheck && npm run build)
 ```
 
-**تست‌های اختصاصی:** در هر گام، تست‌های مربوط به ردیف همان گام به مجموعه خودکار افزوده می‌شود و خروجی واقعی macOS و Ubuntu ثبت می‌گردد. تست Migration فقط با اتصال تأییدشده به `argintaxpayer_test` اجرا می‌شود؛ دستورات دقیق Migration بعد از تعیین Migration واقعی در گام ۱ ثبت خواهد شد. هیچ تستی با صرف نوشتن کد «موفق» محسوب نمی‌شود.
+For every step, add focused automated tests covering that step's acceptance criteria and report the actual macOS and Ubuntu results. When a migration is delivered, append the exact safe migration/test commands to its step record after verifying the test DB identity. Coding or committing a test is not evidence it passed.
 
-## ثبت اجرای گام (در همین فایل)
-برای هر گام پس از پیاده‌سازی این اطلاعات را زیر همین بخش درج کنید: **گام / خلاصه تغییرات / فایل‌های اصلی / Commit SHA / Migration (دارد یا ندارد) / macOS (Pass/Fail + شواهد) / Ubuntu (Pass/Fail + شواهد) / CI / تأیید مالک / وضعیت**. تا پیش از دریافت نتایج، وضعیت Planned یا Implemented باقی می‌ماند. دستور تأیید: «گام N تأیید است».
+## 4. Step Completion Record (Update This File Only)
 
-## تحویل نهایی
-پس از تأیید گام ۱۰: بازبینی نهایی CI، تغییرات DB و امنیت؛ سپس Merge/Tag/Release فقط با مجوز صریح مالک. فاز ۴ با سند مستقل آغاز می‌شود.
+Append a completion entry for each executed step below, in **English**:
 
-</div>
+- **Step number and English title:**
+- **Implementation summary and important files:**
+- **Commit SHA:**
+- **Migration impact:** None / Name and safe test execution
+- **macOS build/tests:** Pass / Fail / Not run; output or evidence
+- **Ubuntu build/tests:** Pass / Fail / Not run; output or evidence
+- **Step-specific security and functional tests:** results
+- **CI:** Link and result / Not run
+- **Owner acceptance:** Pending / Approved (with date)
+- **Status:** Planned / Implemented / Verified / Owner approved / Blocked
+
+### Step 01 — Identity Data Model and Bootstrap
+
+**Status:** Planned. Implementation, migrations, and test results have not yet been recorded.
+
+## 5. Communication Convention
+
+The **repository phase plan and all step completion records are written in English only**. When implementing or reporting on a step in the chat, present its title in **both Persian and English** (for example: `گام ۱ — زیرساخت مدل هویت و ایجاد مدیر اولیه | Step 01 — Identity Data Model and Bootstrap`). Explain execution and acceptance in concise, right-to-left Persian, while keeping code and shell commands left-to-right. Do not change the planned English step title without an approved plan amendment.
+
+## 6. Phase Closure
+
+After Step 10 is independently verified and owner-approved, record final test evidence, CI, migration and security review in this file. Merge, immutable tag, GitHub Release, and deployment remain separate, explicitly authorized gates. Phase 04 begins under its own single-file plan.
