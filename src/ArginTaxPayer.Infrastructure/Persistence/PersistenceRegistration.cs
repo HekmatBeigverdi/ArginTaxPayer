@@ -1,3 +1,4 @@
+using ArginTaxPayer.Application.Abstractions.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -57,6 +58,8 @@ public static class PersistenceRegistration
                 postgres.CommandTimeout(30);
                 postgres.EnableRetryOnFailure(maxRetryCount: 3);
             }));
+
+        services.AddScoped<IUnitOfWork, EfUnitOfWork>();
 
         return services;
     }
