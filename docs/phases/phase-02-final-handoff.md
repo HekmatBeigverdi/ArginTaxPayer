@@ -30,7 +30,7 @@ Functional baseline delivered:
 - `apps/web/` holds Next.js code, Node tests and the lockfile.
 - `scripts/phase-02-integration-smoke.mjs` for automated loopback smoke.
 - `.github/workflows/phase-02-dotnet-ci.yml` for 4 CI jobs.
-- `docs/phases/phase-02-step-12-outbox-foundation.md`, `phase-02-step-13-idempotency-reservation-foundation.md`, `phase-02-step-14-dotnet-ci-pipeline.md`, `phase-02-step-15-openapi-contract-foundation.md`, `phase-02-step-16-secrets-abstraction.md`, `phase-02-step-17-nextjs-rtl-shell.md`, `phase-02-step-18-reproducible-frontend-ci.md`, `phase-02-step-19-local-api-health-bridge.md`, `phase-02-step-20-automated-integration-smoke.md`.
+- `phase-02-step-13-idempotency-reservation-foundation.md`, `phase-02-step-14-dotnet-ci-pipeline.md`, `phase-02-step-15-openapi-contract-foundation.md`, `phase-02-step-16-secrets-abstraction.md`, `phase-02-step-17-nextjs-rtl-shell.md`, `phase-02-step-18-reproducible-frontend-ci.md`, `phase-02-step-19-local-api-health-bridge.md`, `phase-02-step-20-automated-integration-smoke.md`.
 - Earlier Phase 02 deliverables are represented by the committed source, migration, and test trees; do not invent missing historic step titles or overwrite their original approval record.
 
 ## 3. Acceptance criteria and evidence status
