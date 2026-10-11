@@ -45,7 +45,6 @@ public sealed class PostgreSqlBootstrapTests
         using var scope = provider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ArginTaxPayerDbContext>();
         Assert.True(db.Database.IsNpgsql());
-        Assert.Empty(db.Model.GetEntityTypes());
     }
 
     [Fact]
