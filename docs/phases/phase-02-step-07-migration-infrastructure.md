@@ -11,7 +11,7 @@ Establish an explicit Npgsql/EF Core 9 design-time context factory, a reproducib
 - `ArginTaxPayerDesignTimeDbContextFactory` requires `ConnectionStrings__ArginTaxPayerDb` to be set explicitly. The connection value is not stored or logged.
 - `20261011000000_InitialBaseline` has intentionally empty Up/Down methods. Running it creates/updates the EF migrations history ledger, not any tenant data tables.
 - Context and snapshot remain empty until a reviewed physical model is introduced. Migration execution is **manual only**: neither API nor Workers calls `Database.Migrate()` or `EnsureCreated()`.
-- The Infrastructure project includes EF Design 9.0.4 while retaining the existing Npgsql 9.0.4 provider; use a compatible `dotnet-ef` CLI from the 9.0.x train.
+- The Infrastructure and API startup projects reference EF Design 9.0.4 while retaining the existing Npgsql 9.0.4 provider; use a compatible `dotnet-ef` CLI from the 9.0.x train.
 - Smoke tests inspect migration metadata without opening a PostgreSQL connection.
 
 ## Mandatory separated test database
@@ -75,13 +75,13 @@ unset PGPASS
 Inspect the targeted database and pending migrations:
 
 ```bash
-dotnet ef migrations list --project src/ArginTaxPayer.Infrastructure --context ArginTaxPayerDbContext
+dotnet ef migrations list --project src/ArginTaxPayer.Infrastructure --startup-project src/ArginTaxPayer.Api --context ArginTaxPayerDbContext
 ```
 
 Only after explicitly confirming the database name is `argintaxpayer_test`:
 
 ```bash
-dotnet ef database update --project src/ArginTaxPayer.Infrastructure --context ArginTaxPayerDbContext
+dotnet ef database update --project src/ArginTaxPayer.Infrastructure --startup-project src/ArginTaxPayer.Api --context ArginTaxPayerDbContext
 ```
 
 Then verify in Adminer (`argintaxpayer_test`) or with `psql`:
@@ -103,6 +103,7 @@ When physical models are approved in later steps, create a new migration:
 ```bash
 dotnet ef migrations add MeaningfulMigrationName \
   --project src/ArginTaxPayer.Infrastructure \
+  --startup-project src/ArginTaxPayer.Api \
   --context ArginTaxPayerDbContext
 ```
 
