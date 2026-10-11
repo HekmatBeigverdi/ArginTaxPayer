@@ -3,7 +3,7 @@
 Document type: **single authoritative phase file**
 Branch: `phase/02-foundation`
 Phase: **Foundation and Developer Platform**
-Status: **Implementation handoff prepared; last-commit CI / local Step 20 evidence and release gate pending**
+Status: **Phase 02 implementation and automated CI accepted; final main merge/tag/release tracked below**
 Last updated: 2026-10-12
 
 > This document consolidates work already implemented through Step 20. Steps 01–11 below are a **retrospective reconstruction of the delivered foundation capabilities**, not a claim to reproduce a previously approved verbatim step-by-step plan. Original titles should be restored from original records if found. Steps 12–20 follow their committed deliverables. No further steps are added without a versioned plan amendment and owner approval.
@@ -144,16 +144,16 @@ Do not alter the PostgreSQL setup, expose development ports, or apply migrations
 | --- | --- |
 | API, Worker, persistence, frontend, docs source | Implemented in `phase/02-foundation` |
 | Historical step acceptances | Reported by owner for steps 1–19 |
-| Step 20 macOS smoke | Await final operator evidence |
-| Step 20 Ubuntu VPS smoke | Await final operator evidence |
-| Four CI jobs on final master-plan commit | Await inspection of workflow run |
+| Step 20 macOS smoke | Owner reported local testing accepted; separate command log not attached |
+| Step 20 Ubuntu VPS smoke | Owner reported testing accepted; separate command log not attached |
+| Four CI jobs on pre-release phase commit | **Passed**: [run 38174376963](https://github.com/HekmatBeigverdi/ArginTaxPayer/actions/runs/38174376963), head `c3b2c1c0457c86d81487e34d33b90233a311b5c6`. All four jobs succeeded. A documentation-only closeout commit will have its own CI run. |
 | Database migration state and opt-in PostgreSQL test | Previous work; not reverified in this handoff |
 | Security risk / unresolved vulnerabilities | Production-dependency audit gate enabled; no claim of complete security certification |
 | Main merge | Not done |
 | Phase tag / GitHub release | Not done |
 | Production deployment | Not done |
 
-**Delivery conclusion:** Phase 02 development scope is packaged and handed off. Technical release-readiness is conditional on collecting the outstanding test/CI evidence. Approval to merge, tag or publish a release must be explicit; it is not inferred from a documentation request.
+**Delivery conclusion:** Phase 02 development and four-job CI acceptance are confirmed on the cited tested source commit. User explicitly authorized formal Phase 02 closeout and release work on 2026-10-12. The merge and immutable tag/release must still be verified as separate actions and recorded accurately. This foundation is not a production tax-invoicing service.
 
 ## 8. Deferred work (not part of this phase)
 
@@ -162,3 +162,13 @@ Later phases implement real identity/MFA and delegated authorization, fiscal mem
 ## 9. Archival notes
 
 Existing `docs/phases/phase-02-step-*.md` documents and the prior `phase-02-final-handoff.md` are historical evidence only. **New progress, plan amendments, results and the final release record are written here**, not in new per-step files.
+
+## 10. Formal closure decision and release record (2026-10-12)
+
+- Project owner expressly authorized completing the Phase 02 closeout, preparing for a new chat to plan Phase 03.
+- Proven CI: all four jobs succeeded for `c3b2c1c0457c86d81487e34d33b90233a311b5c6`, run [38174376963](https://github.com/HekmatBeigverdi/ArginTaxPayer/actions/runs/38174376963).
+- Phase 02 milestone: **FOUNDATION IMPLEMENTATION COMPLETE**; no extra numbered implementation steps beyond 20.
+- API-to-Next.js loopback smoke and frontend security audit are enforced in CI.
+- Release prerequisites: review last documentation-only commit and PR checks, merge to `main`, then create and verify an immutable `v0.2.0-phase02` Git tag and GitHub Release.
+- Git tag, GitHub Release, production deployment and independent operator test logs are not claimed complete until specifically verified. No application should be deployed publicly under this milestone.
+- Phase 03 begins with an *approved, fixed* single-file step plan at `docs/phases/phase-03.md`; this phase file is the sole active Phase 02 plan reference.
