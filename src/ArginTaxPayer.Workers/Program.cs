@@ -7,6 +7,7 @@ var builder = Host.CreateApplicationBuilder(args);
 builder.Services.AddArginTaxPayerApplication();
 builder.Services.AddArginTaxPayerInfrastructure();
 builder.Services.AddArginTaxPayerConfiguration(builder.Configuration, builder.Environment.IsProduction());
+builder.Services.AddArginTaxPayerPersistence(builder.Configuration, builder.Environment.IsProduction());
 using var host = builder.Build();
 await host.StartAsync();
 await host.WaitForShutdownAsync();
