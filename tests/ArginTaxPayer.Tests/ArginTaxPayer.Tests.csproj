@@ -9,10 +9,12 @@
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" PrivateAssets="all" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.1" />
     <PackageReference Include="Microsoft.Extensions.Configuration" Version="9.0.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="9.0.4" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/ArginTaxPayer.Domain/ArginTaxPayer.Domain.csproj" />
     <ProjectReference Include="../../src/ArginTaxPayer.Application/ArginTaxPayer.Application.csproj" />
     <ProjectReference Include="../../src/ArginTaxPayer.Infrastructure/ArginTaxPayer.Infrastructure.csproj" />
+    <ProjectReference Include="../../src/ArginTaxPayer.Api/ArginTaxPayer.Api.csproj" />
   </ItemGroup>
 </Project>
