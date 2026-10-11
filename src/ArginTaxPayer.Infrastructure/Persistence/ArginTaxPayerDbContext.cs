@@ -3,8 +3,8 @@ using Microsoft.EntityFrameworkCore;
 namespace ArginTaxPayer.Infrastructure.Persistence;
 
 /// <summary>
-/// Persistence foundation only. Domain entities and schema mappings are introduced in later steps.
-/// Never enable implicit database creation or migrations from a web request.
+/// Explicit migration-managed persistence context. No application code should
+/// call EnsureCreated or apply migrations during API/Worker startup.
 /// </summary>
 public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbContext> options)
     : DbContext(options)
@@ -12,6 +12,6 @@ public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbConte
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
-        // Bounded-context-specific entity configurations and migrations follow in Step 07+.
+        // The baseline has no domain entities. Future schema mappings require review.
     }
 }
