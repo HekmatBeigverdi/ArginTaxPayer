@@ -2,5 +2,6 @@
   <ItemGroup>
     <ProjectReference Include="../../src/ArginTaxPayer.Application/ArginTaxPayer.Application.csproj" />
     <ProjectReference Include="../../src/ArginTaxPayer.Infrastructure/ArginTaxPayer.Infrastructure.csproj" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.4" PrivateAssets="all" />
   </ItemGroup>
 </Project>
