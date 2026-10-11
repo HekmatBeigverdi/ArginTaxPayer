@@ -3,7 +3,7 @@
 Document type: **single authoritative phase file**
 Branch: `phase/02-foundation`
 Phase: **Foundation and Developer Platform**
-Status: **Phase 02 implementation and automated CI accepted; final main merge/tag/release tracked below**
+Status: **Phase 02 development CLOSED; main merge completed; Git tag/GitHub Release pending creation**
 Last updated: 2026-10-12
 
 > This document consolidates work already implemented through Step 20. Steps 01–11 below are a **retrospective reconstruction of the delivered foundation capabilities**, not a claim to reproduce a previously approved verbatim step-by-step plan. Original titles should be restored from original records if found. Steps 12–20 follow their committed deliverables. No further steps are added without a versioned plan amendment and owner approval.
@@ -146,11 +146,11 @@ Do not alter the PostgreSQL setup, expose development ports, or apply migrations
 | Historical step acceptances | Reported by owner for steps 1–19 |
 | Step 20 macOS smoke | Owner reported local testing accepted; separate command log not attached |
 | Step 20 Ubuntu VPS smoke | Owner reported testing accepted; separate command log not attached |
-| Four CI jobs on pre-release phase commit | **Passed**: [run 38174376963](https://github.com/HekmatBeigverdi/ArginTaxPayer/actions/runs/38174376963), head `c3b2c1c0457c86d81487e34d33b90233a311b5c6`. All four jobs succeeded. A documentation-only closeout commit will have its own CI run. |
+| Four CI jobs on final PR revision | **Passed**: [PR workflow run 38175099495](https://github.com/HekmatBeigverdi/ArginTaxPayer/actions/runs/38175099495), head `eab866402d2c1ead724324e36b5f706570287098`. Four jobs succeeded. |
 | Database migration state and opt-in PostgreSQL test | Previous work; not reverified in this handoff |
 | Security risk / unresolved vulnerabilities | Production-dependency audit gate enabled; no claim of complete security certification |
-| Main merge | Not done |
-| Phase tag / GitHub release | Not done |
+| Main merge | **Done** via [PR #3](https://github.com/HekmatBeigverdi/ArginTaxPayer/pull/3), merge commit `2cdc574b866691dc1db4c40cfd91a0b9a9ae57e9` |
+| Phase tag / GitHub release | **Pending**: GitHub connection supports read-only release lookup; the tag and release do not exist yet. Follow Section 11 manual commands |
 | Production deployment | Not done |
 
 **Delivery conclusion:** Phase 02 development and four-job CI acceptance are confirmed on the cited tested source commit. User explicitly authorized formal Phase 02 closeout and release work on 2026-10-12. The merge and immutable tag/release must still be verified as separate actions and recorded accurately. This foundation is not a production tax-invoicing service.
@@ -172,3 +172,27 @@ Existing `docs/phases/phase-02-step-*.md` documents and the prior `phase-02-fina
 - Release prerequisites: review last documentation-only commit and PR checks, merge to `main`, then create and verify an immutable `v0.2.0-phase02` Git tag and GitHub Release.
 - Git tag, GitHub Release, production deployment and independent operator test logs are not claimed complete until specifically verified. No application should be deployed publicly under this milestone.
 - Phase 03 begins with an *approved, fixed* single-file step plan at `docs/phases/phase-03.md`; this phase file is the sole active Phase 02 plan reference.
+
+## 11. Final GitHub integration and pending release publication
+
+Phase 02 development is formally closed. Four GitHub Actions jobs passed on the final PR revision: [run 38175099495](https://github.com/HekmatBeigverdi/ArginTaxPayer/actions/runs/38175099495). [PR #3](https://github.com/HekmatBeigverdi/ArginTaxPayer/pull/3) merged into `main` with merge commit `2cdc574b866691dc1db4c40cfd91a0b9a9ae57e9`.
+
+The connector used for this handoff does **not** offer a release/tag creation mutation. Tag `v0.2.0-phase02` and GitHub Release are **NOT PUBLISHED** at the time of this entry; the release gate remains pending until an authorized maintainer executes and verifies:
+
+```bash
+cd /path/to/ArginTaxPayer
+git fetch origin
+git switch main
+git pull --ff-only origin main
+git status --short
+# Ensure this working tree is clean, then tag EXACT current main head:
+git tag -a v0.2.0-phase02 -m "ArginTaxPayer Phase 02 foundation completed"
+git push origin v0.2.0-phase02
+# Requires GitHub CLI authentication: gh auth status
+gh release create v0.2.0-phase02 --title "ArginTaxPayer Phase 02 — Foundation" --notes "ASP.NET Core 9 API and Worker, EF Core PostgreSQL foundation, Next.js RTL shell, secrets/observability, dependency security, and four green CI jobs. Foundation milestone only: no production taxpayer invoicing deployment."
+gh release view v0.2.0-phase02 --json url,tagName,isDraft
+```
+
+Do not run `git tag -f` or change an existing released tag. Before publication verify `git rev-parse main` is the intended release commit. If a tag unexpectedly exists, inspect it rather than overwrite. After publication, update this Section with the actual immutable tag SHA and release URL.
+
+**Next chat:** Plan Phase 03 Identity and Authorization in the single master file `docs/phases/phase-03.md` before coding; do not implement Phase 03 on `main` without its own branch and explicitly approved step plan.
