@@ -101,9 +101,8 @@ jobs:
       - name: TypeScript strict validation
         run: npm run typecheck
 
-      - name: Dependency vulnerability report (non-blocking until remediation)
+      - name: Dependency security gate (high/critical)
         run: npm audit --omit=dev --audit-level=high
-        continue-on-error: true
 
       - name: Build Next.js
         run: npm run build
