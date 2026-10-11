@@ -50,3 +50,7 @@ Each phase closes only after architecture impact assessment, unit/integration te
 ## Phase 01 signoff and Phase 02 entry
 - [Architecture freeze and Phase 02 handoff](../phases/phase-01-architecture-freeze-handoff.md) closes **design scope**, not operational compliance testing.
 - Phase 02 may begin with solution skeleton, CI, configuration, EF Core and security baseline. Fiscal rule expansion, real key signing connectivity and legacy source import acceptance remain explicit blocking checks in their designated implementation phases.
+
+## Per-phase documentation policy (effective Phase 02 closeout)
+
+Each new phase must have exactly one **authoritative, evolving** plan at `docs/phases/phase-XX.md`. Establish its numbered step plan, deliverables, acceptance criteria and dependencies **before** starting implementation. Update the same file after each step with evidence, commit SHA, macOS/Ubuntu test outcomes, migration impact and explicit owner approval. Do not create new per-step documentation files for ordinary progress. Preserve historical Phase 02 per-step documents as archives, but maintain the [Phase 02 master plan](../phases/phase-02.md) as the single source of truth. Any expansion, renumbering or material scope change must be recorded as a plan amendment approved by the owner; a phase-closing report belongs in the master file. Release/tag/main merge are separate approval gates.
