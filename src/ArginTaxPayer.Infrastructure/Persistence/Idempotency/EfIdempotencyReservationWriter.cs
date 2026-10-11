@@ -26,7 +26,7 @@ public sealed class EfIdempotencyReservationWriter(
             throw new ArgumentException("Operation must contain 1-100 characters.", nameof(operation));
         if (string.IsNullOrWhiteSpace(key) || key.Length > 200)
             throw new ArgumentException("Idempotency key must contain 1-200 characters.", nameof(key));
-        if (requestFingerprint.Length != 64 || !requestFingerprint.All(Uri.IsHexDigit))
+        if (requestFingerprint is null || requestFingerprint.Length != 64 || !requestFingerprint.All(Uri.IsHexDigit))
             throw new ArgumentException("Fingerprint must be a SHA-256 hexadecimal digest.", nameof(requestFingerprint));
 
         var taxpayerId = taxpayerScope.RequireTaxpayerId();
