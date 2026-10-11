@@ -1,5 +1,7 @@
 using ArginTaxPayer.Application.Abstractions.Persistence;
 using ArginTaxPayer.Application.Abstractions.Messaging;
+using ArginTaxPayer.Application.Abstractions.Idempotency;
+using ArginTaxPayer.Infrastructure.Persistence.Idempotency;
 using ArginTaxPayer.Infrastructure.Persistence.Outbox;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -63,6 +65,7 @@ public static class PersistenceRegistration
 
         services.AddScoped<IUnitOfWork, EfUnitOfWork>();
         services.AddScoped<IOutboxWriter, EfOutboxWriter>();
+        services.AddScoped<IIdempotencyReservationWriter, EfIdempotencyReservationWriter>();
 
         return services;
     }
