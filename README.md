@@ -3,7 +3,11 @@
 Web-based, multi-taxpayer Iranian electronic invoicing platform. ASP.NET Core / C# backend and Next.js / TypeScript frontend. This repository is being designed phase-by-phase.
 
 ## Current status
-**Phase 01: architecture handoff completed. Phase 02: foundation implementation and handoff documentation completed on `phase/02-foundation`; final environment verification and release approval are separate gates.**\n\nPhase 02 delivers ASP.NET Core 9 API and Worker hosts, PostgreSQL/EF Core migrations, developer-only Next.js RTL shell, health endpoints, OpenAPI, scoped persistence/outbox/idempotency foundations, configuration/secrets boundary, JSON/correlation observability, and automated .NET/frontend/integration CI.\n\nSee the [Phase 02 final handoff and acceptance report](docs/phases/phase-02-final-handoff.md). This is **not** a production-ready invoicing platform. Identity, multi-taxpayer authorization, fiscal signing/submission, billing, payment settlement, and deployment belong to later phases. No Phase 02 document grants approval to deploy publicly or merge into `main` without the project owner's release decision.
+**Phase 01: architecture handoff completed. Phase 02: foundation implementation and handoff documentation completed on `phase/02-foundation`; final environment verification and release approval are separate gates.**
+
+Phase 02 delivers ASP.NET Core 9 API and Worker hosts, PostgreSQL/EF Core migrations, developer-only Next.js RTL shell, health endpoints, OpenAPI, scoped persistence/outbox/idempotency foundations, configuration/secrets boundary, JSON/correlation observability, and automated .NET/frontend/integration CI.
+
+See the [Phase 02 single master plan and final handoff](docs/phases/phase-02.md). This is **not** a production-ready invoicing platform. Identity, multi-taxpayer authorization, fiscal signing/submission, billing, payment settlement, and deployment belong to later phases. No Phase 02 document grants approval to deploy publicly or merge into `main` without the project owner's release decision.
 
 ## Core product rules
 - Super Admin (Level 1) provisions Level 2 admins, grants/revokes taxpayer access, and exclusively accesses platform-wide security/audit logs and sensitive global information.
