@@ -5,6 +5,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddArginTaxPayerApplication();
 builder.Services.AddArginTaxPayerInfrastructure();
 builder.Services.AddArginTaxPayerConfiguration(builder.Configuration, builder.Environment.IsProduction());
+builder.Services.AddArginTaxPayerPersistence(builder.Configuration, builder.Environment.IsProduction());
 var app = builder.Build();
 
 // Bootstrap endpoint only. Versioned API, authorization and observability follow in later steps.
