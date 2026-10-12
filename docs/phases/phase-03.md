@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 03: Identity and Authorization
 
-**Status:** Steps 01–06 owner approved (operator-reported acceptance); Step 07 implementation in progress — operator verification pending  
+**Status:** Steps 01–07 owner approved (operator-reported acceptance; Step 07 residual security limitations recorded); Step 08 implemented — verification pending  
 **Branch:** `phase/03-identity-authorization`  
 **Baseline:** Phase 02 and `docs/roadmap/18-phases.md`  
 **Started:** 2026-10-12
@@ -29,8 +29,8 @@ Security invariants:
 | 04 | Multi-Factor Authentication and Recovery | MFA enrollment/challenge, single-use recovery codes, secure account recovery | Admin MFA policy enforced; replay and secret disclosure prevented | Owner approved (2026-10-12) |
 | 05 | Role-Based Authorization and Permissions | Level 1, Level 2, Customer roles, permission policies and safe role grants | Users cannot self-elevate privileges; role-policy tests pass | Owner approved (2026-10-12) |
 | 06 | Resource-Scoped Authorization | Server-side ownership/scope policies and extension contracts for Phase 04 | Cross-scope access denied with suitable 403/404; UI filtering alone cannot grant access | Owner approved (2026-10-12) |
-| 07 | Account Protection and Security Audit | Login throttling, security-event audit, sensitive-data redaction, session controls | Brute-force throttling and redaction verified; security events auditable | Implementation in progress — verification pending |
-| 08 | Persian RTL Identity User Interface | Login, registration, MFA, account/security screens and guarded routes | RTL layout, correct error states, login/logout flow, protected-content tests | Planned |
+| 07 | Account Protection and Security Audit | Login throttling, security-event audit, sensitive-data redaction, session controls | Brute-force throttling and redaction verified; security events auditable | Owner approved with documented residual risks (2026-10-12) |
+| 08 | Persian RTL Identity User Interface | Login, registration, MFA, account/security screens and guarded routes | RTL layout, correct error states, login/logout flow, protected-content tests | Implemented — verification pending |
 | 09 | Identity and Authorization Integration Tests | API/UI negative-path integration tests, token/recovery replay and role/scope isolation | Local and CI identity/security suites pass; unauthorized access rejected | Planned |
 | 10 | Hardening, Verification, and Phase Handoff | Final security and migration review, CI checks, documentation and release readiness | macOS/Ubuntu build/test evidence, clean security review, owner sign-off gate | Planned |
 
@@ -784,6 +784,97 @@ dotnet run --no-launch-profile \
 ```
 
 The `read -rs 'var?prompt: '` syntax and `print` command are **zsh-specific** and suitable for the owner's macOS terminal; do not copy them into bash on Ubuntu unchanged. Start the API only after all exports are set, and keep the process running. In another terminal, confirm `GET /health/dev-identity` reports `connectionConfigured=true`, `identityEndpointsRegistered=true`, and `registrationEnabled=true`. Do not print or commit the database password. This is a Development/test-only process, never a production deployment instruction.
+
+### Step 07 — Owner Acceptance and Explicit Security Carry-Forward (2026-10-12)
+
+**Owner decision:** The owner explicitly accepted Step 07 and requested implementation of Step 08. Record as **Owner Approved**, based on owner instruction. The reported resolution of the HTTP smoke preflight was achieved using the owner-confirmed zsh launch convention.
+
+**Residual risks NOT waived by this status:** The current throttle is process-local, volatile, and Development-only. The current structured redacted security logs are not a queryable, tamper-resistant, persistent security audit trail. These requirements remain **open security hardening blockers before any Production release** and must be resolved and re-tested no later than Step 10. Owner approval of Step 07 does not mean these controls are production-ready or independently tested by the assistant. No Production deployment authorized.
+
+### Step 08 — Persian RTL Identity User Interface (2026-10-12)
+
+**Status:** Implemented on `phase/03-identity-authorization`, awaiting operator macOS/Ubuntu tests, browser inspection and owner sign-off.
+
+**Deliverables:**
+- `apps/web/app/identity/page.tsx` and `identity-forms.tsx`: Persian RTL responsive login/registration UI with labeled email/password fields, accessible error messages, 8-character registration minimum, MFA challenge completion using an authenticator TOTP or single-use recovery code, explicit loading and validation states.
+- `apps/web/app/account/page.tsx` and `account-controls.tsx`: a server-guarded account/security screen displaying authenticated actor ID and current PostgreSQL roles, own-session listing/revocation, logout, MFA enrollment/confirmation and once-only recovery-code display. The browser must not log or persist secrets; keep provisioning keys and recovery codes away from screenshots and support logs.
+- `apps/web/lib/identity.ts`: server-only test-API origin validation and current user lookup; `/account` redirects unauthenticated visitors to `/identity` and identity page redirects already-authenticated users to `/account`. Layout uses Persian `lang="fa" dir="rtl"`.
+- `apps/web/app/api/identity/[...path]/route.ts`: a **Development-only** Next.js backend-for-frontend; it forwards a tightly allowlisted set of identity routes to a trusted localhost .NET Development endpoint. Raw access/refresh credentials are held in `HttpOnly`, same-site cookies instead of browser localStorage. Mutation endpoints check same-origin `Origin`; do not expose generic arbitrary forwarding or enable the UI in Production. Successful authentication and refresh replace both cookies; logout revokes the API session and clears cookies.
+- `apps/web/app/globals.css`, `app/page.tsx`: Persian desktop/mobile responsive layout and link from the foundation landing to identity UI.
+- `apps/web/tests/identity-ui.test.mjs`: contract tests for RTL, guarded pages, MFA recovery workflow, protected account actions and proxy security constraints.
+
+**Security notes and limitations:** The UI is intentionally **not Production-ready**: it uses loopback Development .NET identity endpoints, and is disabled unless `NODE_ENV=development` AND `ARGIN_IDENTITY_UI_ENABLED=true`. Current access-token life is 10 minutes; after expiry, a protected server-side navigation requires fresh login (the explicit refresh operation exists but transparent UI refresh is not yet implemented). Same-origin mutation checks, HttpOnly cookies and server guards reduce risk but are not a substitute for a complete production identity architecture and CSRF/security review in Steps 09–10. No new database migration. Step 07 open persistent-audit / distributed-throttle blockers remain documented above.
+
+**Operator verification (macOS, all commands from repository root):**
+
+Terminal A — keep the SSH tunnel open:
+```bash
+ssh -N -o ExitOnForwardFailure=yes -L 127.0.0.1:15432:127.0.0.1:5432 argindev@85.133.244.156
+```
+
+Terminal B — use the **owner-confirmed zsh** command in the SAME shell as the API:
+```zsh
+read -rs 'db_password?Test database password: '; print
+export ConnectionStrings__ArginTaxPayerDb="Host=127.0.0.1;Port=15432;Database=argintaxpayer_test;Username=argintaxpayer;Password=${db_password};SSL Mode=Prefer"
+unset db_password
+export ASPNETCORE_ENVIRONMENT=Development
+export DOTNET_ENVIRONMENT=Development
+export Identity__AllowDevelopmentRegistration=true
+# Set the SAVED Identity__MfaEncryptionKey before startup only when testing MFA.
+dotnet run --no-launch-profile --project src/ArginTaxPayer.Api --urls http://127.0.0.1:15089
+```
+
+Terminal C — API preflight (direct, no proxy):
+```bash
+curl --noproxy '*' -s http://127.0.0.1:15089/health/dev-identity
+curl --noproxy '*' -i http://127.0.0.1:15089/api/dev/identity/authorization/me
+```
+Require `connectionConfigured=true`, `identityEndpointsRegistered=true`, `registrationEnabled=true` and anonymous `401`. Stop on any mismatch.
+
+Terminal D — Next.js frontend; no client-visible API secrets:
+```bash
+git fetch origin
+git switch phase/03-identity-authorization
+git pull --ff-only origin phase/03-identity-authorization
+dotnet build ArginTaxPayer.sln -c Release
+dotnet test ArginTaxPayer.sln -c Release --no-build
+cd apps/web
+npm ci --no-audit --no-fund
+npm test
+npm run typecheck
+npm run build
+ARGIN_IDENTITY_UI_ENABLED=true ARGIN_IDENTITY_API_INTERNAL_BASE_URL=http://127.0.0.1:15089 npm run dev -- --port 3000
+```
+
+**Browser acceptance at `http://127.0.0.1:3000`:** `/identity` opens in Persian RTL, registration of a disposable Customer succeeds, login reaches `/account`, an unauthenticated direct request to `/account` redirects to `/identity`, account page shows only own identity/sessions, log out clears identity and returns to the login page; incorrect password, duplicate registration and wrong MFA code display safe localized messages; MFA TOTP/recovery login succeeds when the stored application key is provided to .NET API; narrow mobile layout (<=780px) is usable. Inspect browser storage: no plaintext access/refresh tokens in localStorage/sessionStorage and cookies have HttpOnly and SameSite Strict. Avoid copying MFA provisioning or recovery secrets to console/logs. Browser results are **not yet verified**.
+
+**PostgreSQL and HTTP regression:** Test DB must be explicitly `argintaxpayer_test`:
+```bash
+psql -h 127.0.0.1 -p 15432 -U argintaxpayer -d argintaxpayer_test -W -tAc 'SELECT current_database();'
+RUN_ARGINTAXPAYER_PG_INTEGRATION=1 dotnet test ArginTaxPayer.sln -c Release --no-build --filter 'FullyQualifiedName~IdentityMfaRetryStrategyPostgresTests|FullyQualifiedName~IdentityRolePostgresTests|FullyQualifiedName~IdentityResourceScopePostgresTests'
+ARGINTAXPAYER_API_BASE=http://127.0.0.1:15089 python3 scripts/phase-03-step-06-smoke.py
+ARGINTAXPAYER_API_BASE=http://127.0.0.1:15089 python3 scripts/phase-03-step-07-smoke.py
+```
+Run the Python commands from repo root in a separate terminal while the .NET API stays running. These create disposable customer records in the test DB and are not to be run on Production.
+
+**Ubuntu VPS test runbook:**
+```bash
+ssh argindev@85.133.244.156
+cd ~/projects/ArginTaxPayer
+git fetch origin
+git switch phase/03-identity-authorization
+git pull --ff-only origin phase/03-identity-authorization
+dotnet build ArginTaxPayer.sln -c Release
+dotnet test ArginTaxPayer.sln -c Release --no-build
+cd apps/web
+npm ci --no-audit --no-fund
+npm test
+npm run typecheck
+npm run build
+```
+No API port needs to be exposed publicly; no migration is performed. This validates builds and static routes, not an Ubuntu-hosted production UI.
+
+**Evidence:** GitHub code/docs committed; macOS build, Browser flows, HTTP regression, PostgreSQL integration, Ubuntu build and CI results are not independently executed by the assistant. Owner approval of Step 08 **pending**. Next is Step 09 only after acceptance.
 
 ## 5. Communication Convention
 
