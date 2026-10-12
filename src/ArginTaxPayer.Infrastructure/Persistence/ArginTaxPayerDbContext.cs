@@ -1,6 +1,7 @@
 using ArginTaxPayer.Infrastructure.Persistence.Outbox;
 using ArginTaxPayer.Infrastructure.Persistence.Idempotency;
 using Microsoft.EntityFrameworkCore;
+using ArginTaxPayer.Infrastructure.Persistence.Identity;
 
 namespace ArginTaxPayer.Infrastructure.Persistence;
 
@@ -11,12 +12,34 @@ namespace ArginTaxPayer.Infrastructure.Persistence;
 public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbContext> options)
     : DbContext(options)
 {
+    public DbSet<IdentityUser> IdentityUsers => Set<IdentityUser>();
+    public DbSet<IdentityUserRole> IdentityUserRoles => Set<IdentityUserRole>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
     public DbSet<IdempotencyReservation> IdempotencyReservations => Set<IdempotencyReservation>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
+        var users = modelBuilder.Entity<IdentityUser>();
+        users.ToTable("identity_users");
+        users.HasKey(x => x.Id);
+        users.Property(x => x.Id).HasColumnName("id");
+        users.Property(x => x.NormalizedEmail).HasColumnName("normalized_email").HasMaxLength(320).IsRequired();
+        users.Property(x => x.PasswordHash).HasColumnName("password_hash").HasMaxLength(512).IsRequired();
+        users.Property(x => x.IsActive).HasColumnName("is_active").IsRequired();
+        users.Property(x => x.CreatedAtUtc).HasColumnName("created_at_utc").HasColumnType("timestamp with time zone");
+        users.Property(x => x.PasswordChangedAtUtc).HasColumnName("password_changed_at_utc").HasColumnType("timestamp with time zone");
+        users.HasIndex(x => x.NormalizedEmail).IsUnique().HasDatabaseName("ux_identity_users_email");
+
+        var roles = modelBuilder.Entity<IdentityUserRole>();
+        roles.ToTable("identity_user_roles");
+        roles.HasKey(x => new { x.UserId, x.Role });
+        roles.Property(x => x.UserId).HasColumnName("user_id");
+        roles.Property(x => x.Role).HasColumnName("role").HasMaxLength(32).IsRequired();
+        roles.Property(x => x.AssignedAtUtc).HasColumnName("assigned_at_utc").HasColumnType("timestamp with time zone");
+        roles.HasOne(x => x.User).WithMany(x => x.Roles).HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+        roles.HasIndex(x => x.Role).HasDatabaseName("ix_identity_user_roles_role");
 
         var reservations = modelBuilder.Entity<IdempotencyReservation>();
         reservations.ToTable("idempotency_reservations");

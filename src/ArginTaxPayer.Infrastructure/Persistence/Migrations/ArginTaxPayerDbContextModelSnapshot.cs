@@ -13,6 +13,35 @@ public sealed class ArginTaxPayerDbContextModelSnapshot : ModelSnapshot
     {
         modelBuilder.HasAnnotation("ProductVersion", "9.0.4");
 
+        modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", b =>
+        {
+            b.Property<Guid>("Id").HasColumnName("id").HasColumnType("uuid");
+            b.Property<string>("NormalizedEmail").IsRequired().HasMaxLength(320).HasColumnName("normalized_email").HasColumnType("character varying(320)");
+            b.Property<string>("PasswordHash").IsRequired().HasMaxLength(512).HasColumnName("password_hash").HasColumnType("character varying(512)");
+            b.Property<bool>("IsActive").HasColumnName("is_active").HasColumnType("boolean");
+            b.Property<DateTime>("CreatedAtUtc").HasColumnName("created_at_utc").HasColumnType("timestamp with time zone");
+            b.Property<DateTime?>("PasswordChangedAtUtc").HasColumnName("password_changed_at_utc").HasColumnType("timestamp with time zone");
+            b.HasKey("Id");
+            b.HasIndex("NormalizedEmail").IsUnique().HasDatabaseName("ux_identity_users_email");
+            b.ToTable("identity_users");
+        });
+        modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUserRole", b =>
+        {
+            b.Property<Guid>("UserId").HasColumnName("user_id").HasColumnType("uuid");
+            b.Property<string>("Role").IsRequired().HasMaxLength(32).HasColumnName("role").HasColumnType("character varying(32)");
+            b.Property<DateTime>("AssignedAtUtc").HasColumnName("assigned_at_utc").HasColumnType("timestamp with time zone");
+            b.HasKey("UserId", "Role");
+            b.HasIndex("Role").HasDatabaseName("ix_identity_user_roles_role");
+            b.ToTable("identity_user_roles");
+        });
+        modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUserRole", b =>
+        {
+            b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", "User")
+                .WithMany("Roles").HasForeignKey("UserId").OnDelete(DeleteBehavior.Cascade).IsRequired();
+            b.Navigation("User");
+        });
+        modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", b => b.Navigation("Roles"));
+
         modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Idempotency.IdempotencyReservation", b =>
         {
             b.Property<Guid>("Id").HasColumnName("id").HasColumnType("uuid");
