@@ -15,7 +15,7 @@ public sealed class IdentityMfaService(ArginTaxPayerDbContext db, IdentityMfaCry
     {
         var user = await db.IdentityUsers.AsNoTracking()
             .Where(x => x.Id == userId && x.IsActive)
-            .Select(x => new { x.Id, x.NormalizedEmail }).SingleOrDefaultAsync(ct);
+            .Select(x => new { x.Id, x.NormalizedEmail, x.NormalizedMobile }).SingleOrDefaultAsync(ct);
         if (user is null) return null;
         var existing = await db.IdentityMfaStates.AsNoTracking().SingleOrDefaultAsync(x => x.UserId == userId, ct);
         if (existing?.EnabledAtUtc is not null) return null;
@@ -36,7 +36,7 @@ public sealed class IdentityMfaService(ArginTaxPayerDbContext db, IdentityMfaCry
         }
         await db.SaveChangesAsync(ct);
         // The URI/secret is returned once and must not be logged.
-        return new MfaEnrollment(secret, IdentityTotp.Uri(user.NormalizedEmail, secret));
+        return new MfaEnrollment(secret, IdentityTotp.Uri(user.NormalizedEmail ?? user.NormalizedMobile ?? user.Id.ToString("N"), secret));
     }
 
     /// <summary>Complete enrollment: issue hashed one-use recovery codes only after TOTP proof.</summary>
