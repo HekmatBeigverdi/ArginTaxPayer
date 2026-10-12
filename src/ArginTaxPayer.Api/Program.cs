@@ -1,4 +1,6 @@
 using ArginTaxPayer.Api.Health;
+using ArginTaxPayer.Api.Identity;
+using ArginTaxPayer.Infrastructure.Persistence.Identity;
 using ArginTaxPayer.Api.Observability;
 using ArginTaxPayer.Application;
 using ArginTaxPayer.Infrastructure;
@@ -16,6 +18,8 @@ builder.Services.AddArginTaxPayerPersistence(builder.Configuration, builder.Envi
 
 // OpenAPI document generation is registered for API contract development.
 builder.Services.AddOpenApi();
+if (builder.Environment.IsDevelopment())
+    builder.Services.AddScoped<IdentityCredentialService>();
 
 // Separate cheap process liveness from real PostgreSQL readiness.
 builder.Services.AddHealthChecks()
@@ -27,7 +31,10 @@ app.UseMiddleware<CorrelationIdMiddleware>();
 
 // Never expose the API contract endpoint in Production by default.
 if (app.Environment.IsDevelopment())
+{
     app.MapOpenApi();
+    app.MapIdentityDevelopmentEndpoints();
+}
 
 // Preserve the existing bootstrap endpoint.
 app.MapGet("/", () => Results.Ok(new { application = "ArginTaxPayer", stage = "bootstrap" }))
