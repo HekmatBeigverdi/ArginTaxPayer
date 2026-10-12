@@ -117,6 +117,20 @@ public sealed class IdentityMfaPostgresTests
         Assert.NotNull(adminTokens);
         Assert.NotNull(await sessions.AuthenticateAsync(adminTokens!.AccessToken));
 
+        // A challenge expires and cannot be exchanged for a valid factor.
+        var expired = await mfa.BeginLoginAsync(email, password);
+        Assert.NotNull(expired);
+        var expiredHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.ASCII.GetBytes(expired!.Challenge))).ToLowerInvariant();
+        await db.IdentityMfaChallenges.Where(x => x.ChallengeHash == expiredHash)
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.ExpiresAtUtc, DateTime.UtcNow.AddSeconds(-1)));
+        Assert.Null(await mfa.CompleteLoginAsync(expired.Challenge, codes.Codes[3], true));
+
+        var limited = await mfa.BeginLoginAsync(email, password);
+        Assert.NotNull(limited);
+        for (var i = 0; i < 5; i++)
+            Assert.Null(await mfa.CompleteLoginAsync(limited!.Challenge, "000000", false));
+        Assert.Null(await mfa.CompleteLoginAsync(limited!.Challenge, codes.Codes[3], true));
         // Disabling the account immediately invalidates the administrative session.
         user.IsActive = false;
         await db.SaveChangesAsync();
