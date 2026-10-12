@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 03: Identity and Authorization
 
-**Status:** Steps 01–03 owner approved (operator-reported acceptance); Step 04 planned  
+**Status:** Steps 01–03 owner approved (operator-reported acceptance); Step 04 implemented, operator verification pending  
 **Branch:** `phase/03-identity-authorization`  
 **Baseline:** Phase 02 and `docs/roadmap/18-phases.md`  
 **Started:** 2026-10-12
@@ -26,7 +26,7 @@ Security invariants:
 | 01 | Identity Data Model and Bootstrap | Identity entities/contracts, EF Core migration, controlled initial Level 1 admin bootstrap | Identity uniqueness, migration validation against test DB, no public admin creation | Owner approved (2026-10-12) |
 | 02 | Registration, Login, and Password Security | Controlled registration, login, secure password hashing, account validation | Reject invalid credentials, disabled accounts, duplicate registrations | Owner approved (2026-10-12) |
 | 03 | Token and Session Lifecycle | Short-lived access tokens, rotating refresh tokens, session revocation and logout | Reject reused/expired refresh tokens; revoked sessions cannot renew | Owner approved (2026-10-12) |
-| 04 | Multi-Factor Authentication and Recovery | MFA enrollment/challenge, single-use recovery codes, secure account recovery | Admin MFA policy enforced; replay and secret disclosure prevented | Planned |
+| 04 | Multi-Factor Authentication and Recovery | MFA enrollment/challenge, single-use recovery codes, secure account recovery | Admin MFA policy enforced; replay and secret disclosure prevented | Implemented — operator verification pending |
 | 05 | Role-Based Authorization and Permissions | Level 1, Level 2, Customer roles, permission policies and safe role grants | Users cannot self-elevate privileges; role-policy tests pass | Planned |
 | 06 | Resource-Scoped Authorization | Server-side ownership/scope policies and extension contracts for Phase 04 | Cross-scope access denied with suitable 403/404; UI filtering alone cannot grant access | Planned |
 | 07 | Account Protection and Security Audit | Login throttling, security-event audit, sensitive-data redaction, session controls | Brute-force throttling and redaction verified; security events auditable | Planned |
@@ -307,6 +307,94 @@ dotnet test ArginTaxPayer.sln -c Release --no-build
 **Acceptance:** macOS build/tests, verified test database, migration/table/indexes, opt-in PostgreSQL integration, real HTTP lifecycle smoke, Ubuntu build/tests, previous behavior preserved. Record actual output before acceptance.
 
 **Acceptance record (2026-10-12):** The project owner explicitly reported successful execution of all Step 03 acceptance tests: macOS build and tests; SSH tunnel to the Ubuntu-hosted `argintaxpayer_test` database; successful application and verification of migration `20261012030000_AddIdentitySessions`; real PostgreSQL integration tests; HTTP session lifecycle smoke; and Ubuntu build/tests. **Status: Owner approved.** Results are operator-reported; raw terminal output and independent CI run evidence were not supplied or independently verified by the assistant. No additional database migration was run on Ubuntu. Approval closes Step 03 only; it does not authorize main merge, tag, release, or production deployment. Step 04 remains Planned.
+
+### Step 04 — Multi-Factor Authentication and Recovery
+
+**Implementation status:** Source committed. Owner macOS/PostgreSQL/Ubuntu validation, CI execution, and sign-off pending. This is not a production authentication release.
+
+**Code and security model**
+- `IdentityTotp`: standard RFC 6238 SHA-1, six digits, 30-second time steps and ±1 step clock tolerance; consumed time steps cannot be used again.
+- `IdentityMfaCrypto`: AES-256-GCM authenticated encryption of TOTP secrets at rest. The 32-byte key is injected solely through `Identity__MfaEncryptionKey`, never committed. Retain the SAME key across restarts; loss of the key makes enrolled secrets unrecoverable.
+- `IdentityMfaService`: authenticated enrollment and TOTP confirmation; ten high-entropy one-time recovery codes displayed once and stored as SHA-256 digests; five-minute challenge tokens and a five-attempt budget; atomic PostgreSQL consumption of TOTP steps, recovery codes and challenges; challenge-based creation of a new session. Prior sessions are revoked when MFA is enabled.
+- `IdentitySessionService`: password-only login rejected once MFA is enabled. Administrative roles (`Level1`, `Level2`) never receive password-only sessions and must complete MFA challenge before receiving a bearer session. Refresh and authentication check the MFA state of admin sessions.
+- Loopback Development-only routes: `POST /api/dev/identity/mfa/enroll`, `/mfa/confirm`, `/mfa/challenge`, `/mfa/complete`. They are not public production endpoints. Admin enrollment must be performed via a trusted operator provisioning workflow; there is intentionally no public or anonymous admin enrollment route.
+- Tests: `IdentityMfaUnitTests` (RFC vector, encryption tampering, schema), `IdentityMfaPostgresTests` (enrollment, password-only blocking, TOTP replay, recovery reuse, challenge replay, admin requirement, disabled account), and `scripts/phase-03-step-04-smoke.py` (end-to-end loopback HTTP).
+- Password-reset-by-email, production identity verification, lost-all-factors administrator recovery, audit/event monitoring and distributed rate limiting are NOT yet offered by this step. Recovering a lost authenticator while retaining the password is supported through single-use recovery codes.
+
+**Database migration:** `20261012040000_AddIdentityMfa` creates `identity_mfa_states`, `identity_recovery_codes`, and `identity_mfa_challenges`, with user foreign keys, hashed recovery/challenge data, encrypted secret, challenge lifetime, attempts and replay metadata. Previous tables and migrations are retained. No application-startup migration.
+
+**Mandatory ordered execution (on macOS, from project root)**
+
+Terminal A — keep the SSH tunnel open until all macOS DB/API testing is finished:
+```bash
+ssh -N -o ExitOnForwardFailure=yes \
+  -L 127.0.0.1:15432:127.0.0.1:5432 \
+  argindev@85.133.244.156
+```
+
+Terminal B — checkout and regression tests:
+```bash
+git fetch origin
+git switch phase/03-identity-authorization
+git pull --ff-only origin phase/03-identity-authorization
+dotnet build ArginTaxPayer.sln -c Release
+dotnet test ArginTaxPayer.sln -c Release --no-build
+```
+
+Terminal B — configure the existing PostgreSQL test password (never check secrets into git):
+```bash
+read -rs "PGPASS?PostgreSQL test password: "; echo
+export ConnectionStrings__ArginTaxPayerDb="Host=127.0.0.1;Port=15432;Database=argintaxpayer_test;Username=argintaxpayer;Password=${PGPASS};SSL Mode=Prefer"
+unset PGPASS
+psql -h 127.0.0.1 -p 15432 -U argintaxpayer -d argintaxpayer_test -W -tAc 'SELECT current_database();'
+```
+
+**Hard stop** unless the query reports exactly `argintaxpayer_test`. `psql` uses libpq flags, NOT the EF Core/Npgsql connection-string syntax. Review existing migration history before applying the new schema:
+```bash
+dotnet ef migrations list --project src/ArginTaxPayer.Infrastructure --startup-project src/ArginTaxPayer.Api --context ArginTaxPayerDbContext
+dotnet ef database update 20261012040000_AddIdentityMfa --project src/ArginTaxPayer.Infrastructure --startup-project src/ArginTaxPayer.Api --context ArginTaxPayerDbContext
+psql -h 127.0.0.1 -p 15432 -U argintaxpayer -d argintaxpayer_test -W -c 'SELECT "MigrationId" FROM "__EFMigrationsHistory" ORDER BY "MigrationId";'
+psql -h 127.0.0.1 -p 15432 -U argintaxpayer -d argintaxpayer_test -W -c '\dt identity_*'
+psql -h 127.0.0.1 -p 15432 -U argintaxpayer -d argintaxpayer_test -W -c '\d identity_mfa_states'
+psql -h 127.0.0.1 -p 15432 -U argintaxpayer -d argintaxpayer_test -W -c '\d identity_recovery_codes'
+psql -h 127.0.0.1 -p 15432 -U argintaxpayer -d argintaxpayer_test -W -c '\d identity_mfa_challenges'
+```
+
+Expected: migration `20261012040000_AddIdentityMfa` applied; all three new MFA tables and constraints present. **Do not apply the same migration from Ubuntu**; the tunnel already reaches the Ubuntu-hosted PostgreSQL instance.
+
+Terminal B — opt-in database integration tests (transaction rollback):
+```bash
+RUN_ARGINTAXPAYER_PG_INTEGRATION=1 dotnet test ArginTaxPayer.sln -c Release --no-build --filter FullyQualifiedName~IdentityMfaPostgresTests
+```
+
+Terminal B — before launching the API, configure a dedicated TEST-ONLY MFA encryption key, generated once per disposable test environment. It must be preserved securely for subsequent runs using the same enrolled accounts (do not echo or commit the key). Example for a one-off smoke against disposable accounts only:
+```bash
+export Identity__MfaEncryptionKey="$(openssl rand -base64 32)"
+ASPNETCORE_ENVIRONMENT=Development Identity__AllowDevelopmentRegistration=true \
+  dotnet run --no-launch-profile --project src/ArginTaxPayer.Api --urls http://127.0.0.1:15088
+```
+
+Terminal C, repository root:
+```bash
+python3 scripts/phase-03-step-04-smoke.py
+```
+Expected `STEP 04 MFA SMOKE PASSED`. The script creates a disposable Customer account in the test DB; it does not display TOTP secrets, recovery codes or bearer tokens. Stop API and SSH tunnel with Ctrl+C after the test.
+
+**Ubuntu VPS (build/regression only):**
+```bash
+ssh argindev@85.133.244.156
+cd ~/projects/ArginTaxPayer
+git fetch origin
+git switch phase/03-identity-authorization
+git pull --ff-only origin phase/03-identity-authorization
+dotnet build ArginTaxPayer.sln -c Release
+dotnet test ArginTaxPayer.sln -c Release --no-build
+```
+Database migrations are not repeated on Ubuntu. Integration tests run against the DB from macOS through the tunnel. Verify standard Phase 02 and Steps 01–03 regression suites remain green.
+
+**Owner acceptance gates:** macOS build/unit tests pass; tunnel and test DB verified; migration tables/FKs/indexes verified; TOTP unit tests and encrypted-secret tamper test pass; PostgreSQL integration passes (TOTP and recovery replay, challenge expiration and attempt limit, mandatory admin MFA); end-to-end smoke passes; Ubuntu build/tests pass; no tokens/secrets in output. Store operator-reported results and approval here only after completion.
+
+**Execution evidence:** macOS Not run by assistant; migration Not run; PostgreSQL Not run; HTTP smoke Not run; Ubuntu Not run; owner approval Pending.
 
 ## 5. Communication Convention
 
