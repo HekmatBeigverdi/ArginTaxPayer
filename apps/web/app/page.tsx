@@ -24,7 +24,7 @@ export default async function HomePage() {
           <h1>سامانه مؤدیان آرگین</h1>
           <p className="subtitle">پوسته اولیه رابط کاربری — فاز دوم</p>
         </div>
-        <span className="status">نسخه توسعه</span>
+        <div className="header-actions"><a className="status" href="/identity">ورود / ثبت‌نام</a><span className="status">نسخه توسعه</span></div>
       </header>
       <section className="intro" aria-labelledby="foundation-title">
         <h2 id="foundation-title">آماده‌سازی محیط کار</h2>
