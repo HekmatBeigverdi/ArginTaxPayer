@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { currentIdentity, identityUiEnabled } from "../../lib/identity";
 import IdentityForms from "./identity-forms";
+import PhoneForms from "./phone-forms";
 
 export const dynamic = "force-dynamic";
 
