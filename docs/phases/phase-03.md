@@ -1134,6 +1134,86 @@ AUTOSSH_GATETIME=0 autossh -M 0 -N \
 
 Do not introduce an old `ssh -N -L` variant in new phase instructions. AutoSSH repairs dropped SSH tunnels, but it does **not** restart the .NET API, restart a crashed PostgreSQL service, or make an incorrectly configured database safe. This tunnel is for local testing against PostgreSQL via Ubuntu only; distinguish it from the ordinary `ssh argindev@85.133.244.156` command used to open an Ubuntu remote shell. Keep `argintaxpayer_test` database identity verification as a hard gate before migrations/tests. Do not insert non-breaking-space (NBSP) characters from chat formatting into terminal commands.
 
+### Step 09 — Practical Browser Acceptance: Local OTP Without Ghasedak Cost (2026-10-12)
+
+**Delivery mode:** The operator requested practical end-to-end testing with the actual Next.js panel. A new `LocalFileOtpSender` is registered **only** when the .NET host runs in Development and `Identity__OtpDeliveryMode=LocalFile`; never enable this mode in Production, on an exposed public API, or on a shared server. When enabled, `IdentityPhoneService` permits test OTP delivery while `Ghasedak__EnableLiveSending=false`. A freshly generated OTP is written to an operator-selected **absolute** local path with owner-only Unix mode, never to HTTP/JSON logs or GitHub. The file contains sensitive one-time data: remove it immediately after testing. The local file sender is only for a disposable test account; no live provider SMS costs occur.
+
+**Step 09 operator acceptance sequence (macOS zsh; repository root):**
+
+**Terminal A — owner-approved AutoSSH, replaces legacy `ssh -N`:**
+```bash
+AUTOSSH_GATETIME=0 autossh -M 0 -N \
+  -o ServerAliveInterval=15 \
+  -o ServerAliveCountMax=3 \
+  -o ConnectTimeout=10 \
+  -o ExitOnForwardFailure=yes \
+  -L 127.0.0.1:15432:127.0.0.1:5432 \
+  argindev@85.133.244.156
+```
+AutoSSH prerequisite: `brew install autossh` if needed. Keep this foreground terminal open.
+
+**Terminal B — retrieve and build, then verify test DB before migration:**
+```zsh
+git fetch origin
+git switch phase/03-identity-authorization
+git pull --ff-only origin phase/03-identity-authorization
+dotnet restore ArginTaxPayer.sln
+dotnet build ArginTaxPayer.sln -c Release
+dotnet test ArginTaxPayer.sln -c Release --no-build
+(cd apps/web && npm ci --no-audit --no-fund && npm test && npm run typecheck && npm run build)
+read -rs 'db_password?Test database password: '; print
+export ConnectionStrings__ArginTaxPayerDb="Host=127.0.0.1;Port=15432;Database=argintaxpayer_test;Username=argintaxpayer;Password=${db_password};SSL Mode=Prefer"
+unset db_password
+export ASPNETCORE_ENVIRONMENT=Development
+export DOTNET_ENVIRONMENT=Development
+export Identity__AllowDevelopmentRegistration=true
+export Identity__OtpPepper="$(openssl rand -hex 32)"
+psql -h 127.0.0.1 -p 15432 -U argintaxpayer -d argintaxpayer_test -W -tAc 'SELECT current_database();'
+dotnet ef migrations list --project src/ArginTaxPayer.Infrastructure --startup-project src/ArginTaxPayer.Api --context ArginTaxPayerDbContext
+```
+Stop on any build/test failure or if the query is not **exactly** `argintaxpayer_test`. If and only if the migration is unapplied, execute against the verified test DB:
+```bash
+dotnet ef database update 20261012090000_AddMobileIdentityOtp --project src/ArginTaxPayer.Infrastructure --startup-project src/ArginTaxPayer.Api --context ArginTaxPayerDbContext
+RUN_ARGINTAXPAYER_PG_INTEGRATION=1 dotnet test ArginTaxPayer.sln -c Release --no-build --filter 'FullyQualifiedName~IdentityPhoneOtpTests|FullyQualifiedName~IdentityResourceScopePostgresTests|FullyQualifiedName~IdentityMfaRetryStrategyPostgresTests'
+```
+
+**Terminal B — run .NET API with local-only OTP file** (same shell; do not expose a non-loopback listener):
+```zsh
+mkdir -p "$HOME/.argintaxpayer-test"
+chmod 700 "$HOME/.argintaxpayer-test"
+export Identity__OtpLocalFile="$HOME/.argintaxpayer-test/step09-otp.txt"
+export Identity__OtpDeliveryMode=LocalFile
+export Ghasedak__TemplateName=TaxPayerActivationCode
+export Ghasedak__EnableLiveSending=false
+dotnet run --no-launch-profile --project src/ArginTaxPayer.Api --urls http://127.0.0.1:15089
+```
+
+**Terminal C — start Next.js** (another shell, repository root):
+```bash
+ARGIN_IDENTITY_UI_ENABLED=true ARGIN_IDENTITY_API_INTERNAL_BASE_URL=http://127.0.0.1:15089 npm --prefix apps/web run dev -- --port 3000
+```
+
+**Terminal D — preflight** (another shell, repository root):
+```bash
+curl --noproxy '*' -s http://127.0.0.1:15089/health/dev-identity
+ARGINTAXPAYER_API_BASE=http://127.0.0.1:15089 python3 scripts/phase-03-step-09-smoke.py
+python3 scripts/phase-03-step-08-ui-smoke.py
+```
+Require `identityEndpointsRegistered=true`, `registrationEnabled=true`, `connectionConfigured=true`, `otpPepperConfigured=true`, `localOtpTestMode=true`, and **`smsSendingEnabled=false`**. If any differ, stop and correct configuration.
+
+**Interactive browser at `http://127.0.0.1:3000/identity`:**
+1. **New passwordless customer:** choose `ثبت‌نام با شماره همراه`, use a genuinely disposable Iranian-formatted mobile number that is **not an existing real user's mobile** (avoid sending any real message; local file transport only), click `دریافت کد تأیید`; open `cat "$HOME/.argintaxpayer-test/step09-otp.txt"` in Terminal D (do not paste its contents into a chat). Enter its 6-digit Code; leave password empty; confirm. Expect account creation and no automatic admin role.
+2. **Passwordless login:** in the same browser sign-in switch to `ورود بدون رمز با پیامک` with that phone. Respect the 60-second persisted cooldown after the previous request; if it has not passed, the generic acknowledgement is displayed but no new file OTP is written. Check that file contents change to `Purpose: login` (future test transport versions may add purpose explicitly), enter the new Code; expect redirect to `/account`, server-backed Customer role and own sessions visible. Log out.
+3. **Wrong/reused/expired:** request another OTP after 60 seconds; enter a wrong code and confirm access is rejected; the right code should succeed once only and replay should fail. An OTP is valid for three minutes; requesting a fresh one invalidates the previous only after expiry or consumption under the current service, so explicitly verify the most recent proof is chosen. No code should appear in browser localStorage or application JSON logs. Note that the UI might not provide direct retry for a consumed code; use the request flow after cooldown.
+4. **Password recovery:** only after a valid passwordless customer exists, choose `بازیابی رمز با پیامک`, request a code, respect cooldown, inspect the local file, set a new 8+-character password, and confirm. Existing sessions must be revoked. Now use the **email/password tab** (its identifier field accepts phone) to log in with mobile + new password. Passwordless OTP login is intentionally not available for password-bearing accounts under the current conservative security policy.
+5. **Existing account regression:** register a separate test account through the existing email form, sign in and out normally; verify /account is unavailable anonymously, MFA enrollment/authentication preserves the existing admin restrictions; verify the system denies selecting a foreign session.
+6. **Browser presentation:** RTL, mobile width, clear errors, missing/invalid code, loading states; verify only HttpOnly session cookies exist, not raw bearer tokens in localStorage/sessionStorage.
+7. **Cleanup:** stop API and Next.js; remove sensitive OTP file with `rm -f "$HOME/.argintaxpayer-test/step09-otp.txt"`. Test database records are disposable but will persist for future local regression unless removed using a targeted, reviewed test-only cleanup; never run a broad delete.
+
+**Critical accuracy note:** The sample test case for an OTP sent to an arbitrary phone uses `LocalFile` delivery, so it does not prove actual phone ownership, provider delivery, real SMS costs or Ghasedak functionality; it only proves local code lifecycle and UI integration. Never activate this mechanism outside the test-only loopback Development environment. Real Ghasedak live acceptance needs a deliberate second gate, one personally controlled test recipient, an untracked secret file, validated provider template/API response, explicit permission to incur SMS charges, and verification of a receipt. Do not send the actual OTP or API key to the assistant.
+
+**Ubuntu verification** remains `dotnet build`, `dotnet test`, `npm test`, `npm run typecheck`, and `npm run build` on the Phase 03 branch; **do not** run the development OTP test sender publicly or open API/Next.js ports.
+
 ## 5. Communication Convention
 
 The **repository phase plan and all step completion records are written in English only**. When implementing or reporting on a step in the chat, present its title in **both Persian and English** (for example: `گام ۱ — زیرساخت مدل هویت و ایجاد مدیر اولیه | Step 01 — Identity Data Model and Bootstrap`). Explain execution and acceptance in concise, right-to-left Persian, while keeping code and shell commands left-to-right. Do not change the planned English step title without an approved plan amendment.
