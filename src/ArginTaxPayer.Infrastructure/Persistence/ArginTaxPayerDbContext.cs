@@ -15,6 +15,9 @@ public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbConte
     public DbSet<IdentityUser> IdentityUsers => Set<IdentityUser>();
     public DbSet<IdentityUserRole> IdentityUserRoles => Set<IdentityUserRole>();
     public DbSet<IdentitySession> IdentitySessions => Set<IdentitySession>();
+    public DbSet<IdentityMfaState> IdentityMfaStates => Set<IdentityMfaState>();
+    public DbSet<IdentityRecoveryCode> IdentityRecoveryCodes => Set<IdentityRecoveryCode>();
+    public DbSet<IdentityMfaChallenge> IdentityMfaChallenges => Set<IdentityMfaChallenge>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
     public DbSet<IdempotencyReservation> IdempotencyReservations => Set<IdempotencyReservation>();
 
@@ -60,6 +63,39 @@ public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbConte
         sessions.HasIndex(x => x.RefreshTokenHash).IsUnique().HasDatabaseName("ux_identity_sessions_refresh_hash");
         sessions.HasIndex(x => x.PreviousRefreshTokenHash).HasDatabaseName("ix_identity_sessions_previous_refresh_hash");
         sessions.HasIndex(x => new { x.UserId, x.RevokedAtUtc }).HasDatabaseName("ix_identity_sessions_user_revoked");
+
+        var mfa = modelBuilder.Entity<IdentityMfaState>();
+        mfa.ToTable("identity_mfa_states");
+        mfa.HasKey(x => x.UserId);
+        mfa.Property(x => x.UserId).HasColumnName("user_id");
+        mfa.Property(x => x.EncryptedSecret).HasColumnName("encrypted_secret").HasColumnType("text").IsRequired();
+        mfa.Property(x => x.EnabledAtUtc).HasColumnName("enabled_at_utc").HasColumnType("timestamp with time zone");
+        mfa.Property(x => x.LastAcceptedTotpStep).HasColumnName("last_accepted_totp_step").HasDefaultValue(-1L);
+        mfa.Property(x => x.RecoveryGeneration).HasColumnName("recovery_generation").HasDefaultValue(0);
+        mfa.HasOne(x => x.User).WithOne().HasForeignKey<IdentityMfaState>(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+
+        var recovery = modelBuilder.Entity<IdentityRecoveryCode>();
+        recovery.ToTable("identity_recovery_codes");
+        recovery.HasKey(x => x.Id);
+        recovery.Property(x => x.Id).HasColumnName("id");
+        recovery.Property(x => x.UserId).HasColumnName("user_id");
+        recovery.Property(x => x.CodeHash).HasColumnName("code_hash").HasMaxLength(64).IsRequired();
+        recovery.Property(x => x.CreatedAtUtc).HasColumnName("created_at_utc").HasColumnType("timestamp with time zone");
+        recovery.Property(x => x.UsedAtUtc).HasColumnName("used_at_utc").HasColumnType("timestamp with time zone");
+        recovery.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+        recovery.HasIndex(x => new { x.UserId, x.CodeHash }).IsUnique().HasDatabaseName("ux_identity_recovery_user_hash");
+
+        var challenge = modelBuilder.Entity<IdentityMfaChallenge>();
+        challenge.ToTable("identity_mfa_challenges");
+        challenge.HasKey(x => x.Id);
+        challenge.Property(x => x.Id).HasColumnName("id");
+        challenge.Property(x => x.UserId).HasColumnName("user_id");
+        challenge.Property(x => x.ChallengeHash).HasColumnName("challenge_hash").HasMaxLength(64).IsRequired();
+        challenge.Property(x => x.ExpiresAtUtc).HasColumnName("expires_at_utc").HasColumnType("timestamp with time zone");
+        challenge.Property(x => x.ConsumedAtUtc).HasColumnName("consumed_at_utc").HasColumnType("timestamp with time zone");
+        challenge.Property(x => x.AttemptCount).HasColumnName("attempt_count").HasDefaultValue(0);
+        challenge.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+        challenge.HasIndex(x => x.ChallengeHash).IsUnique().HasDatabaseName("ux_identity_challenge_hash");
 
         var reservations = modelBuilder.Entity<IdempotencyReservation>();
         reservations.ToTable("idempotency_reservations");
