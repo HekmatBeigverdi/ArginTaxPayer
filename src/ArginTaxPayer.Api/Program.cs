@@ -25,8 +25,11 @@ if (identityDevelopmentEnabled)
     builder.Services.AddSingleton<IdentityProtectionService>();
     builder.Services.AddScoped<IdentityCredentialService>();
     builder.Services.AddScoped<IdentitySessionService>();
-    builder.Services.AddHttpClient<IIdentityOtpSender, GhasedakOtpSender>(client =>
-        client.Timeout = TimeSpan.FromSeconds(12));
+    if (builder.Configuration["Identity:OtpDeliveryMode"] == "LocalFile")
+        builder.Services.AddScoped<IIdentityOtpSender, LocalFileOtpSender>();
+    else
+        builder.Services.AddHttpClient<IIdentityOtpSender, GhasedakOtpSender>(client =>
+            client.Timeout = TimeSpan.FromSeconds(12));
     builder.Services.AddScoped<IdentityPhoneService>();
     builder.Services.AddScoped<IdentityAuthorizationService>();
     builder.Services.AddScoped<IIdentityResourceOwnershipResolver, IdentityResourceOwnershipResolver>();
@@ -66,6 +69,7 @@ if (app.Environment.IsDevelopment())
                 "Identity:AllowDevelopmentRegistration"),
             smsSendingEnabled = app.Configuration.GetValue<bool>("Ghasedak:EnableLiveSending"),
             otpPepperConfigured = (app.Configuration["Identity:OtpPepper"]?.Length ?? 0) >= 32,
+            localOtpTestMode = app.Configuration["Identity:OtpDeliveryMode"] == "LocalFile",
             loopbackRecognized = true
         });
     }).ExcludeFromDescription();
