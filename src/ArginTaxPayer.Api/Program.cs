@@ -25,6 +25,8 @@ if (identityDevelopmentEnabled)
     builder.Services.AddScoped<IdentityCredentialService>();
     builder.Services.AddScoped<IdentitySessionService>();
     builder.Services.AddScoped<IdentityAuthorizationService>();
+    builder.Services.AddScoped<IIdentityResourceOwnershipResolver, IdentityResourceOwnershipResolver>();
+    builder.Services.AddScoped<IdentityResourceAuthorizationService>();
     var mfaEncryptionKey = builder.Configuration["Identity:MfaEncryptionKey"];
     if (!string.IsNullOrWhiteSpace(mfaEncryptionKey))
     {
