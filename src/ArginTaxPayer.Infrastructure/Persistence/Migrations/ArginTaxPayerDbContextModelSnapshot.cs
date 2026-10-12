@@ -42,6 +42,32 @@ public sealed class ArginTaxPayerDbContextModelSnapshot : ModelSnapshot
         });
         modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", b => b.Navigation("Roles"));
 
+        modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentitySession", b =>
+        {
+            b.Property<Guid>("Id").HasColumnName("id").HasColumnType("uuid");
+            b.Property<Guid>("UserId").HasColumnName("user_id").HasColumnType("uuid");
+            b.Property<string>("AccessTokenHash").IsRequired().HasMaxLength(64).HasColumnName("access_token_hash").HasColumnType("character varying(64)");
+            b.Property<string>("RefreshTokenHash").IsRequired().HasMaxLength(64).HasColumnName("refresh_token_hash").HasColumnType("character varying(64)");
+            b.Property<string>("PreviousRefreshTokenHash").HasMaxLength(64).HasColumnName("previous_refresh_token_hash").HasColumnType("character varying(64)");
+            b.Property<DateTime>("CreatedAtUtc").HasColumnName("created_at_utc").HasColumnType("timestamp with time zone");
+            b.Property<DateTime>("AccessExpiresAtUtc").HasColumnName("access_expires_at_utc").HasColumnType("timestamp with time zone");
+            b.Property<DateTime>("RefreshExpiresAtUtc").HasColumnName("refresh_expires_at_utc").HasColumnType("timestamp with time zone");
+            b.Property<DateTime?>("RevokedAtUtc").HasColumnName("revoked_at_utc").HasColumnType("timestamp with time zone");
+            b.Property<int>("RotationCount").HasColumnName("rotation_count").HasColumnType("integer").HasDefaultValue(0);
+            b.HasKey("Id");
+            b.HasIndex("AccessTokenHash").IsUnique().HasDatabaseName("ux_identity_sessions_access_hash");
+            b.HasIndex("RefreshTokenHash").IsUnique().HasDatabaseName("ux_identity_sessions_refresh_hash");
+            b.HasIndex("PreviousRefreshTokenHash").HasDatabaseName("ix_identity_sessions_previous_refresh_hash");
+            b.HasIndex("UserId", "RevokedAtUtc").HasDatabaseName("ix_identity_sessions_user_revoked");
+            b.ToTable("identity_sessions");
+        });
+        modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentitySession", b =>
+        {
+            b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", "User")
+                .WithMany().HasForeignKey("UserId").OnDelete(DeleteBehavior.Cascade).IsRequired();
+            b.Navigation("User");
+        });
+
         modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Idempotency.IdempotencyReservation", b =>
         {
             b.Property<Guid>("Id").HasColumnName("id").HasColumnType("uuid");

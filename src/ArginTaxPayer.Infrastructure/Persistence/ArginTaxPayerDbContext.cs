@@ -14,6 +14,7 @@ public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbConte
 {
     public DbSet<IdentityUser> IdentityUsers => Set<IdentityUser>();
     public DbSet<IdentityUserRole> IdentityUserRoles => Set<IdentityUserRole>();
+    public DbSet<IdentitySession> IdentitySessions => Set<IdentitySession>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
     public DbSet<IdempotencyReservation> IdempotencyReservations => Set<IdempotencyReservation>();
 
@@ -40,6 +41,25 @@ public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbConte
         roles.Property(x => x.AssignedAtUtc).HasColumnName("assigned_at_utc").HasColumnType("timestamp with time zone");
         roles.HasOne(x => x.User).WithMany(x => x.Roles).HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
         roles.HasIndex(x => x.Role).HasDatabaseName("ix_identity_user_roles_role");
+
+        var sessions = modelBuilder.Entity<IdentitySession>();
+        sessions.ToTable("identity_sessions");
+        sessions.HasKey(x => x.Id);
+        sessions.Property(x => x.Id).HasColumnName("id");
+        sessions.Property(x => x.UserId).HasColumnName("user_id");
+        sessions.Property(x => x.AccessTokenHash).HasColumnName("access_token_hash").HasMaxLength(64).IsRequired();
+        sessions.Property(x => x.RefreshTokenHash).HasColumnName("refresh_token_hash").HasMaxLength(64).IsRequired();
+        sessions.Property(x => x.PreviousRefreshTokenHash).HasColumnName("previous_refresh_token_hash").HasMaxLength(64);
+        sessions.Property(x => x.CreatedAtUtc).HasColumnName("created_at_utc").HasColumnType("timestamp with time zone");
+        sessions.Property(x => x.AccessExpiresAtUtc).HasColumnName("access_expires_at_utc").HasColumnType("timestamp with time zone");
+        sessions.Property(x => x.RefreshExpiresAtUtc).HasColumnName("refresh_expires_at_utc").HasColumnType("timestamp with time zone");
+        sessions.Property(x => x.RevokedAtUtc).HasColumnName("revoked_at_utc").HasColumnType("timestamp with time zone");
+        sessions.Property(x => x.RotationCount).HasColumnName("rotation_count").HasDefaultValue(0);
+        sessions.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+        sessions.HasIndex(x => x.AccessTokenHash).IsUnique().HasDatabaseName("ux_identity_sessions_access_hash");
+        sessions.HasIndex(x => x.RefreshTokenHash).IsUnique().HasDatabaseName("ux_identity_sessions_refresh_hash");
+        sessions.HasIndex(x => x.PreviousRefreshTokenHash).HasDatabaseName("ix_identity_sessions_previous_refresh_hash");
+        sessions.HasIndex(x => new { x.UserId, x.RevokedAtUtc }).HasDatabaseName("ix_identity_sessions_user_revoked");
 
         var reservations = modelBuilder.Entity<IdempotencyReservation>();
         reservations.ToTable("idempotency_reservations");

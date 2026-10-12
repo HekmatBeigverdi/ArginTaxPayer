@@ -21,7 +21,10 @@ builder.Services.AddArginTaxPayerPersistence(builder.Configuration, builder.Envi
 // OpenAPI document generation is registered for API contract development.
 builder.Services.AddOpenApi();
 if (identityDevelopmentEnabled)
+{
     builder.Services.AddScoped<IdentityCredentialService>();
+    builder.Services.AddScoped<IdentitySessionService>();
+}
 
 // Separate cheap process liveness from real PostgreSQL readiness.
 builder.Services.AddHealthChecks()

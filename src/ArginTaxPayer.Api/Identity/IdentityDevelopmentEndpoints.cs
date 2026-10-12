@@ -46,7 +46,58 @@ public static class IdentityDevelopmentEndpoints
                 : Results.Unauthorized();
         });
 
+        // No tokens are issued for administrative accounts until MFA is implemented.
+        group.MapPost("/login", async (
+            [FromBody] IdentityCredentials request,
+            HttpContext http,
+            IdentitySessionService sessions,
+            CancellationToken ct) =>
+        {
+            if (!IsLoopback(http)) return Results.NotFound();
+            var tokens = await sessions.LoginAsync(request.Email, request.Password, ct);
+            return tokens is null ? Results.Unauthorized() : Results.Ok(tokens);
+        });
+
+        group.MapPost("/refresh", async (
+            [FromBody] RefreshRequest request,
+            HttpContext http,
+            IdentitySessionService sessions,
+            CancellationToken ct) =>
+        {
+            if (!IsLoopback(http)) return Results.NotFound();
+            var tokens = await sessions.RefreshAsync(request.RefreshToken, ct);
+            return tokens is null ? Results.Unauthorized() : Results.Ok(tokens);
+        });
+
+        group.MapPost("/logout", async (
+            HttpContext http,
+            IdentitySessionService sessions,
+            CancellationToken ct) =>
+        {
+            if (!IsLoopback(http)) return Results.NotFound();
+            var token = ReadBearer(http);
+            return await sessions.LogoutAsync(token, ct)
+                ? Results.NoContent() : Results.Unauthorized();
+        });
+
+        group.MapGet("/me", async (
+            HttpContext http,
+            IdentitySessionService sessions,
+            CancellationToken ct) =>
+        {
+            if (!IsLoopback(http)) return Results.NotFound();
+            var userId = await sessions.AuthenticateAsync(ReadBearer(http), ct);
+            return userId is { } id ? Results.Ok(new { userId = id }) : Results.Unauthorized();
+        });
+
         return endpoints;
+    }
+
+    private static string? ReadBearer(HttpContext http)
+    {
+        var authorization = http.Request.Headers.Authorization.ToString();
+        return authorization.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
+            ? authorization[7..].Trim() : null;
     }
 
     private static bool IsLoopback(HttpContext http) =>
@@ -54,3 +105,5 @@ public static class IdentityDevelopmentEndpoints
 }
 
 public sealed record IdentityCredentials(string? Email, string? Password);
+
+public sealed record RefreshRequest(string? RefreshToken);
