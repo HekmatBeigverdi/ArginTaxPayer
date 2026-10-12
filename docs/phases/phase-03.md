@@ -991,6 +991,95 @@ The API currently has **no Ghasedak registration or file-loading mechanism**, so
 
 **Updated completion sequence:** Step 08 verify and owner signoff → Step 09 implementation and owner signoff → Step 10 Identity and Authorization Integration Tests → Step 11 Hardening, Verification, and Phase Handoff. The finished Phase 03 deliverable is identity/OTP groundwork; the commercial SMS credit and configurable tariff system is tracked as downstream work.
 
+### Step 09 — Mobile-First Registration, OTP Authentication and Ghasedak Integration (Implementation checkpoint, 2026-10-12)
+
+**Status:** Core implementation committed; **not yet Owner Approved**. The assistant cannot run `.NET` Build/PostgreSQL on the GitHub-hosted repository in this environment, and no CI result is available. Do **not** merge, deploy, enable real SMS or treat this as a production-ready account recovery mechanism until tests and the explicit remaining gaps below are resolved.
+
+**Implemented artifacts:**
+- `IdentityUser` now has nullable legacy email/password plus a unique optional `NormalizedMobile` and `MobileVerifiedAtUtc`; existing email/password records are left intact. A new `IdentityPhoneChallenge` entity and `ArginTaxPayerDbContext` mapping store purpose, keyed digest, expiry, attempts, delivery status and consumption timestamp.
+- Additive EF Core migration `20261012090000_AddMobileIdentityOtp` and updated model snapshot. The migration does **not** auto-apply, and its downgrade fails safely if newly created phone-only/passwordless accounts exist.
+- `IdentityPhoneService`: verified Iranian mobile registration with optional password, password login using mobile/email, passwordless mobile OTP login for Customer accounts without a password, SMS proof-based password reset, and immediate revocation of prior sessions on reset. Administrative identities are excluded from phone passwordless login and phone reset; their established MFA rules remain in effect.
+- OTP code generation with `RandomNumberGenerator`, HMAC-SHA256 bound to challenge ID, normalized phone and purpose; stored values cannot be used as raw OTP; three-minute expiry, one-use DB CAS claim, up to five attempts, basic mobile send cooldown. Secret `Identity__OtpPepper` must be supplied privately (32+ characters). No OTP response contains plaintext codes.
+- `IIdentityOtpSender` and `GhasedakOtpSender`: typed .NET 9 HttpClient, official `SendOtpWithParams` URL and PascalCase JSON contract, `TaxPayerActivationCode` with exactly `Param1`, client reference ID, `ApiKey` header. **Actual SMS sending disabled by default**. The real API key is never committed or logged. Provider receipts/charges have not been integrated into a financial ledger yet (Phase 12).
+- Development/loopback API routes: `POST /api/dev/identity/phone/request`, `/phone/register/complete`, `/phone/login/complete`, `/phone/reset/complete`. Start-request acknowledgement is intentionally generic (`202`) to avoid account enumeration. Local `/health/dev-identity` now reports only safe booleans `smsSendingEnabled` and `otpPepperConfigured`.
+- Next.js local BFF allowlists corresponding actions; Persian RTL `phone-forms.tsx` offers registration, eligible passwordless login and SMS reset, while maintaining prior email/password forms and protected account/session UI.
+- Tests: `IdentityPhoneOtpTests` for code binding and disposable PostgreSQL registration/login/replay/reset (with in-memory fake sender), `GhasedakOtpSenderTests` for disabled-by-default and template payload mock, `IranianMobileNumberTests` for canonical formats, and `scripts/phase-03-step-09-smoke.py` for phone endpoint rejection and no-live-SMS safety preflight. The Python script **refuses to run if the API does not explicitly report `smsSendingEnabled=false`**.
+
+**Unresolved acceptance items (must not be described as passed):**
+1. Existing email/password authentication remains; however, email *ownership verification and email-based forgotten-password recovery* are **not yet implemented**. A secure email-delivery and verified-email recovery contract must be implemented and tested to fully meet the owner's requirement that SMS not be mandatory for registration, login and recovery.
+2. The SMS sender's response parsing is based on the public Framework contract but has not been validated with a real Ghasedak test panel; live send and provider cost reconciliation are disabled. Do not provide an API key in this chat; store it in an untracked restricted local file only when explicitly conducting a live test.
+3. OTP cooldown is currently persisted but not a complete atomic distributed send budget or IP/device/provider abuse policy; durable, redacted audit/security tracking and provider timeout reconciliation are not yet complete. These are security blockers for production, not optional enhancements.
+4. Frontend browser, full macOS/Ubuntu Build, isolated PostgreSQL migration/integration, and HTTP/UI regression test evidence have not yet been supplied. CI not independently verified. These are required before Owner Approved.
+5. Per-user 200,000 toman promotional SMS wallet, customer/provider cost ledgers and future-dated Level 1 tariff management remain explicitly deferred to Phases 12 and 16 under the approved roadmap. The lack of a live SMS wallet cannot silently be treated as a zero-price charge.
+
+**Verification command sequence, macOS, repository root:**
+
+```bash
+git fetch origin
+git switch phase/03-identity-authorization
+git pull --ff-only origin phase/03-identity-authorization
+dotnet restore ArginTaxPayer.sln
+dotnet build ArginTaxPayer.sln -c Release
+dotnet test ArginTaxPayer.sln -c Release --no-build
+dotnet test ArginTaxPayer.sln -c Release --no-build --filter 'FullyQualifiedName~IranianMobileNumberTests|FullyQualifiedName~GhasedakOtpSenderTests|FullyQualifiedName~IdentityPhoneOtpTests'
+(cd apps/web && npm ci --no-audit --no-fund && npm test && npm run typecheck && npm run build)
+```
+
+**Test DB / migration gate:** Keep the existing SSH tunnel open in a separate terminal:
+```bash
+ssh -N -o ExitOnForwardFailure=yes -L 127.0.0.1:15432:127.0.0.1:5432 argindev@85.133.244.156
+```
+Use the **owner-verified macOS zsh command** in the same shell that will run `.NET` API/tests:
+```zsh
+read -rs 'db_password?Test database password: '; print
+export ConnectionStrings__ArginTaxPayerDb="Host=127.0.0.1;Port=15432;Database=argintaxpayer_test;Username=argintaxpayer;Password=${db_password};SSL Mode=Prefer"
+unset db_password
+export ASPNETCORE_ENVIRONMENT=Development
+export DOTNET_ENVIRONMENT=Development
+export Identity__AllowDevelopmentRegistration=true
+export Identity__OtpPepper="$(openssl rand -hex 32)"
+psql -h 127.0.0.1 -p 15432 -U argintaxpayer -d argintaxpayer_test -W -tAc 'SELECT current_database();'
+```
+**Stop unless the result is exactly `argintaxpayer_test`.** Inspect migrations before applying; do not apply to any other database:
+```bash
+dotnet ef migrations list --project src/ArginTaxPayer.Infrastructure --startup-project src/ArginTaxPayer.Api --context ArginTaxPayerDbContext
+dotnet ef database update 20261012090000_AddMobileIdentityOtp --project src/ArginTaxPayer.Infrastructure --startup-project src/ArginTaxPayer.Api --context ArginTaxPayerDbContext
+RUN_ARGINTAXPAYER_PG_INTEGRATION=1 dotnet test ArginTaxPayer.sln -c Release --no-build --filter 'FullyQualifiedName~IdentityPhoneOtpTests|FullyQualifiedName~IdentityResourceScopePostgresTests|FullyQualifiedName~IdentityMfaRetryStrategyPostgresTests'
+```
+Do not automatically roll back the migration after creating phone-only accounts; the manual Down migration intentionally blocks unsafe downgrade.
+
+**Start .NET API with the same configured shell (Development only):**
+```bash
+export Ghasedak__TemplateName=TaxPayerActivationCode
+export Ghasedak__EnableLiveSending=false
+dotnet run --no-launch-profile --project src/ArginTaxPayer.Api --urls http://127.0.0.1:15089
+```
+Leave the API running. In another terminal, from repo root:
+```bash
+curl --noproxy '*' -s http://127.0.0.1:15089/health/dev-identity
+ARGINTAXPAYER_API_BASE=http://127.0.0.1:15089 python3 scripts/phase-03-step-09-smoke.py
+ARGINTAXPAYER_API_BASE=http://127.0.0.1:15089 python3 scripts/phase-03-step-06-smoke.py
+ARGINTAXPAYER_API_BASE=http://127.0.0.1:15089 python3 scripts/phase-03-step-07-smoke.py
+python3 scripts/phase-03-step-08-ui-smoke.py
+```
+**Note:** The last command requires Next.js to be running in a **separate** terminal with `ARGIN_IDENTITY_UI_ENABLED=true ARGIN_IDENTITY_API_INTERNAL_BASE_URL=http://127.0.0.1:15089 npm --prefix apps/web run dev -- --port 3000`. Expected marker for Step 09 negative smoke: `STEP 09 PHONE OTP NEGATIVE SMOKE PASSED`. The positive phone OTP flow is verified with `IdentityPhoneOtpTests` using the fake sender; do **not** turn on live Ghasedak just to make the negative smoke pass.
+
+**Ubuntu VPS build and tests (no public API port):**
+```bash
+ssh argindev@85.133.244.156
+cd ~/projects/ArginTaxPayer
+git fetch origin
+git switch phase/03-identity-authorization
+git pull --ff-only origin phase/03-identity-authorization
+dotnet restore ArginTaxPayer.sln
+dotnet build ArginTaxPayer.sln -c Release
+dotnet test ArginTaxPayer.sln -c Release --no-build
+(cd apps/web && npm ci --no-audit --no-fund && npm test && npm run typecheck && npm run build)
+```
+The Ubuntu unit/build gate does not imply that database migrations or real SMS were performed on the VPS.
+
+**Ghasedak configuration convention (when a subsequent live-provider verification is explicitly authorized):** Place the real `Ghasedak__ApiKey` and verified `Ghasedak__TemplateName='TaxPayerActivationCode'` in the repository-root untracked `.env.ghasedak.local`, set file permissions `chmod 600`, load it with `set -a; source ./.env.ghasedak.local; set +a` in the API shell, and never commit it or print it to logs. **Keep `Ghasedak__EnableLiveSending=false` at this stage**. The OTP pepper is a distinct durable secret, not the Ghasedak API key; store it in the secret environment for any non-disposable deployment.
+
 ## 5. Communication Convention
 
 The **repository phase plan and all step completion records are written in English only**. When implementing or reporting on a step in the chat, present its title in **both Persian and English** (for example: `گام ۱ — زیرساخت مدل هویت و ایجاد مدیر اولیه | Step 01 — Identity Data Model and Bootstrap`). Explain execution and acceptance in concise, right-to-left Persian, while keeping code and shell commands left-to-right. Do not change the planned English step title without an approved plan amendment.
