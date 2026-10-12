@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 03: Identity and Authorization
 
-**Status:** Steps 01–03 owner approved (operator-reported acceptance); Step 04 implemented, operator verification pending  
+**Status:** Steps 01–04 owner approved (operator-reported acceptance); Step 05 planned  
 **Branch:** `phase/03-identity-authorization`  
 **Baseline:** Phase 02 and `docs/roadmap/18-phases.md`  
 **Started:** 2026-10-12
@@ -26,7 +26,7 @@ Security invariants:
 | 01 | Identity Data Model and Bootstrap | Identity entities/contracts, EF Core migration, controlled initial Level 1 admin bootstrap | Identity uniqueness, migration validation against test DB, no public admin creation | Owner approved (2026-10-12) |
 | 02 | Registration, Login, and Password Security | Controlled registration, login, secure password hashing, account validation | Reject invalid credentials, disabled accounts, duplicate registrations | Owner approved (2026-10-12) |
 | 03 | Token and Session Lifecycle | Short-lived access tokens, rotating refresh tokens, session revocation and logout | Reject reused/expired refresh tokens; revoked sessions cannot renew | Owner approved (2026-10-12) |
-| 04 | Multi-Factor Authentication and Recovery | MFA enrollment/challenge, single-use recovery codes, secure account recovery | Admin MFA policy enforced; replay and secret disclosure prevented | Implemented — operator verification pending |
+| 04 | Multi-Factor Authentication and Recovery | MFA enrollment/challenge, single-use recovery codes, secure account recovery | Admin MFA policy enforced; replay and secret disclosure prevented | Owner approved (2026-10-12) |
 | 05 | Role-Based Authorization and Permissions | Level 1, Level 2, Customer roles, permission policies and safe role grants | Users cannot self-elevate privileges; role-policy tests pass | Planned |
 | 06 | Resource-Scoped Authorization | Server-side ownership/scope policies and extension contracts for Phase 04 | Cross-scope access denied with suitable 403/404; UI filtering alone cannot grant access | Planned |
 | 07 | Account Protection and Security Audit | Login throttling, security-event audit, sensitive-data redaction, session controls | Brute-force throttling and redaction verified; security events auditable | Planned |
@@ -404,7 +404,7 @@ Database migrations are not repeated on Ubuntu. Integration tests run against th
 
 **Owner acceptance gates:** macOS build/unit tests pass; tunnel and test DB verified; migration tables/FKs/indexes verified; TOTP unit tests and encrypted-secret tamper test pass; PostgreSQL integration passes (TOTP and recovery replay, challenge expiration and attempt limit, mandatory admin MFA); end-to-end smoke passes; Ubuntu build/tests pass; no tokens/secrets in output. Store operator-reported results and approval here only after completion.
 
-**Execution evidence:** macOS Not run by assistant; migration Not run; PostgreSQL Not run; HTTP smoke Not run; Ubuntu Not run; owner approval Pending.
+**Acceptance record (2026-10-12):** The project owner explicitly reported that all Step 04 final verification succeeded after fixes: macOS build and unit/regression tests, SSH tunnel and dedicated PostgreSQL test database, MFA migration and schema verification, `IdentityMfaRetryStrategyPostgresTests`, `IdentityMfaPostgresTests`, real HTTP MFA smoke, Level 1 administrator MFA enrollment, and Ubuntu build/tests. **Step 04 status: Owner approved.** This evidence is **operator-reported PASS**, not independently executed by the assistant; terminal transcripts and CI logs were not supplied. No new migration was needed for subsequent HTTP-500, administrator diagnostic, or password-policy fixes. Approval closes Step 04 only; it does not authorize release, merge to main, tag, or production deployment.
 
 ### Step 04 — MFA Enrollment HTTP 500 Regression Fix (2026-10-12)
 
@@ -486,6 +486,12 @@ dotnet run --project tools/ArginTaxPayer.IdentityOperator -- inspect-level1-test
 If the same-shell `ConnectionStrings__ArginTaxPayerDb` variable is absent, restore it with `Database=argintaxpayer_test` via the established runbook; do not pass the Npgsql string to `psql`. For a new Level 1 account in the dedicated test DB, run `bootstrap-level1-test`; for an existing Level 1, `enroll-level1-test`. The email must not already belong to a different account. Do not regenerate the AES-GCM MFA key after enrollment. **No migration** for this change.
 
 **Ubuntu regression:** Pull branch, `dotnet build ArginTaxPayer.sln -c Release`, and `dotnet test ArginTaxPayer.sln -c Release --no-build`. Step 04 remains pending operator acceptance.
+
+### Step 04 — Owner Sign-off (2026-10-12)
+
+**Decision:** Approved by project owner after successful macOS, Ubuntu, PostgreSQL retry regression, MFA database integration, HTTP smoke and Level 1 administrator MFA tests. Step 05 — Role-Based Authorization and Permissions — is the next planned step of the unchanged ten-step Phase 03.
+
+**Security follow-up:** An authenticator provisioning URI containing an MFA secret was previously shared in a chat transcript. Treat that particular secret as exposed. Confirm that the enrolled Level 1 authenticator uses a **new, uncompromised** TOTP secret; if the exposed secret remains active, invalidate and securely re-enroll it through an authorized, audited administrative recovery path before any non-test use. Existing CLI intentionally refuses overwriting enabled MFA. Preserve the actual encryption key securely; do not create a fresh random key over an existing enrolled identity. This security note does not represent independently verified rotation.
 
 ## 5. Communication Convention
 
