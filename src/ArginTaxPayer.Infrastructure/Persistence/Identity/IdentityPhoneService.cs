@@ -114,7 +114,9 @@ public sealed class IdentityPhoneService(ArginTaxPayerDbContext db, IIdentityOtp
             } }
         });
         try { await db.SaveChangesAsync(ct); return true; }
-        catch (DbUpdateException) { db.ChangeTracker.Clear(); return false; }
+        catch (DbUpdateException error) when (error.InnerException is Npgsql.PostgresException
+            { SqlState: Npgsql.PostgresErrorCodes.UniqueViolation })
+        { db.ChangeTracker.Clear(); return false; }
     }
 
     public async Task<SessionTokens?> CompleteLoginAsync(string? mobile, string? code,
@@ -135,10 +137,10 @@ public sealed class IdentityPhoneService(ArginTaxPayerDbContext db, IIdentityOtp
         if (await db.IdentityUserRoles.AnyAsync(
             x => x.UserId == userId && x.Role != IdentityRoleNames.Customer, ct)) return false;
         var now = DateTime.UtcNow;
+        var newHash = IdentityPasswordHasher.Hash(password!);
         var updated = await db.IdentityUsers.Where(x =>
             x.Id == userId && x.IsActive && x.NormalizedMobile == proof.Mobile)
-            .ExecuteUpdateAsync(s => s.SetProperty(x => x.PasswordHash,
-                IdentityPasswordHasher.Hash(password!))
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.PasswordHash, newHash)
                 .SetProperty(x => x.PasswordChangedAtUtc, now), ct);
         if (updated != 1) return false;
         await db.IdentitySessions.Where(x => x.UserId == userId && x.RevokedAtUtc == null)
