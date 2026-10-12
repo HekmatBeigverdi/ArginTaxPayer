@@ -27,7 +27,11 @@ public sealed class IdentitySessionService(ArginTaxPayerDbContext db)
         if (user is null || !IdentityPasswordHasher.Verify(password, user.PasswordHash))
             return null;
 
-        // Administrative authentication must wait for the MFA gate in Step 04.
+        // MFA-enabled Customer accounts must not bypass their second factor.
+        if (await db.IdentityMfaStates.AsNoTracking().AnyAsync(
+            x => x.UserId == user.Id && x.EnabledAtUtc != null, ct)) return null;
+
+        // Administrative identities always require a completed MFA challenge.
         if (await db.IdentityUserRoles.AsNoTracking().AnyAsync(
                 x => x.UserId == user.Id && x.Role != IdentityRoleNames.Customer, ct))
             return null;
@@ -38,6 +42,26 @@ public sealed class IdentitySessionService(ArginTaxPayerDbContext db)
         db.IdentitySessions.Add(new IdentitySession
         {
             Id = Guid.NewGuid(), UserId = user.Id,
+            AccessTokenHash = Digest(access), RefreshTokenHash = Digest(refresh),
+            CreatedAtUtc = now, AccessExpiresAtUtc = now.Add(AccessLifetime),
+            RefreshExpiresAtUtc = now.Add(RefreshLifetime)
+        });
+        await db.SaveChangesAsync(ct);
+        return new SessionTokens(access, refresh, now.Add(AccessLifetime), now.Add(RefreshLifetime));
+    }
+
+    internal async Task<SessionTokens?> CreateMfaSessionAsync(Guid userId, CancellationToken ct = default)
+    {
+        if (!await db.IdentityUsers.AsNoTracking().AnyAsync(x => x.Id == userId && x.IsActive, ct)
+            || !await db.IdentityMfaStates.AsNoTracking().AnyAsync(
+                x => x.UserId == userId && x.EnabledAtUtc != null, ct))
+            return null;
+        var now = DateTime.UtcNow;
+        var access = NewToken();
+        var refresh = NewToken();
+        db.IdentitySessions.Add(new IdentitySession
+        {
+            Id = Guid.NewGuid(), UserId = userId,
             AccessTokenHash = Digest(access), RefreshTokenHash = Digest(refresh),
             CreatedAtUtc = now, AccessExpiresAtUtc = now.Add(AccessLifetime),
             RefreshExpiresAtUtc = now.Add(RefreshLifetime)
@@ -73,7 +97,8 @@ public sealed class IdentitySessionService(ArginTaxPayerDbContext db)
         var updated = await db.IdentitySessions
             .Where(x => x.Id == session.Id && x.RefreshTokenHash == digest &&
                 x.RevokedAtUtc == null && x.RefreshExpiresAtUtc > now && x.User.IsActive &&
-                !x.User.Roles.Any(r => r.Role != IdentityRoleNames.Customer))
+                (!x.User.Roles.Any(r => r.Role != IdentityRoleNames.Customer) ||
+                    db.IdentityMfaStates.Any(m => m.UserId == x.UserId && m.EnabledAtUtc != null)))
             .ExecuteUpdateAsync(setters => setters
                 .SetProperty(x => x.AccessTokenHash, newAccessDigest)
                 .SetProperty(x => x.PreviousRefreshTokenHash, digest)
