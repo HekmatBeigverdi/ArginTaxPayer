@@ -34,7 +34,9 @@ try:
         health = json.load(resp)
     if not health.get("identityEndpointsRegistered") or not health.get("connectionConfigured"):
         raise AssertionError("Identity API not configured in Development.")
-    if health.get("smsSendingEnabled") is not False:\n        raise AssertionError("Refusing negative smoke when live SMS is enabled or status unknown.")\n    # Use an unowned disposable phone: never complete a real registration or send live SMS.
+    if health.get("smsSendingEnabled") is not False:
+        raise AssertionError("Refusing negative smoke when live SMS is enabled or status unknown.")
+    # Use an unowned disposable phone: never complete a real registration or send live SMS.
     mobile = "09" + str(secrets.randbelow(10**9)).zfill(9)
     require(call("phone/request", {"mobile": mobile, "purpose": "register"}), 202,
             "generic OTP request acknowledgement; live sending disabled by default")
