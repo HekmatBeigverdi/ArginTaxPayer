@@ -88,7 +88,7 @@ export default function IdentityForms() {
     </div>}
     <form onSubmit={submit} className="identity-form">
       {view !== "challenge" ? <>
-        <label htmlFor="login-email">ایمیل</label>
+        <label htmlFor="login-email">{view === "login" ? "ایمیل یا شماره همراه" : "ایمیل"}</label>
         <input id="login-email" dir="ltr" type="email" autoComplete="username"
           value={email} onChange={e=>setEmail(e.target.value)} required maxLength={320}/>
         <label htmlFor="login-password">رمز عبور</label>
