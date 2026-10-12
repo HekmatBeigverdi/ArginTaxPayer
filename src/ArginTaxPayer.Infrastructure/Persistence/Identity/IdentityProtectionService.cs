@@ -27,7 +27,8 @@ public sealed class IdentityProtectionService(ILogger<IdentityProtectionService>
 
     private string BucketKey(string email)
     {
-        var normal = email.Trim().ToUpperInvariant();
+        var normal = IranianMobileNumber.TryNormalize(email, out var mobile)
+            ? mobile : email.Trim().ToUpperInvariant();
         return Convert.ToHexString(HMACSHA256.HashData(key, Encoding.UTF8.GetBytes(normal)));
     }
 
