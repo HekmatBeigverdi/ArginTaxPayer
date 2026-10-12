@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 
 namespace ArginTaxPayer.Infrastructure.Persistence.Identity;
 
@@ -13,7 +14,7 @@ public interface IIdentityOtpSender
 /// Ghasedak OTP adapter for .NET 9; live sending is explicitly opt-in.
 /// This adapter never logs passwords, OTP values, API keys or raw provider messages.
 /// </summary>
-public sealed class GhasedakOtpSender(HttpClient http, IConfiguration config) : IIdentityOtpSender
+public sealed class GhasedakOtpSender(HttpClient http, IConfiguration config, ILogger<GhasedakOtpSender> logger) : IIdentityOtpSender
 {
     private const string Template = "TaxPayerActivationCode";
 
@@ -21,13 +22,27 @@ public sealed class GhasedakOtpSender(HttpClient http, IConfiguration config) : 
         CancellationToken cancellationToken = default)
     {
         if (!config.GetValue<bool>("Ghasedak:EnableLiveSending"))
+        {
+            logger.LogInformation("OTP_SMS_SKIPPED reason=live_sending_disabled");
             return false;
+        }
         var key = config["Ghasedak:ApiKey"];
-        if (string.IsNullOrWhiteSpace(key) ||
-            config["Ghasedak:TemplateName"] != Template ||
-            !IranianMobileNumber.TryNormalize(normalizedMobile, out var mobile) ||
-            !System.Text.RegularExpressions.Regex.IsMatch(code, "^[0-9]{6}$"))
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            logger.LogWarning("OTP_SMS_CONFIG_INVALID reason=api_key_missing");
             return false;
+        }
+        if (config["Ghasedak:TemplateName"] != Template)
+        {
+            logger.LogWarning("OTP_SMS_CONFIG_INVALID reason=template_mismatch");
+            return false;
+        }
+        if (!IranianMobileNumber.TryNormalize(normalizedMobile, out var mobile) ||
+            !System.Text.RegularExpressions.Regex.IsMatch(code, "^[0-9]{6}$"))
+        {
+            logger.LogWarning("OTP_SMS_REJECTED reason=invalid_input");
+            return false;
+        }
 
         var body = new
         {
@@ -48,16 +63,35 @@ public sealed class GhasedakOtpSender(HttpClient http, IConfiguration config) : 
         try
         {
             using var result = await http.SendAsync(request, cancellationToken);
-            if (!result.IsSuccessStatusCode) return false;
+            if (!result.IsSuccessStatusCode)
+            {
+                logger.LogWarning("OTP_SMS_PROVIDER_REJECTED httpStatus={HttpStatus}", (int)result.StatusCode);
+                return false;
+            }
             using var document = await System.Text.Json.JsonDocument.ParseAsync(
                 await result.Content.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken);
-            return document.RootElement.TryGetProperty("isSuccess", out var property)
+            var success = document.RootElement.TryGetProperty("isSuccess", out var property)
                 ? property.ValueKind == System.Text.Json.JsonValueKind.True
                 : document.RootElement.TryGetProperty("IsSuccess", out var alt) &&
                   alt.ValueKind == System.Text.Json.JsonValueKind.True;
+            if (success) logger.LogInformation("OTP_SMS_PROVIDER_ACCEPTED");
+            else logger.LogWarning("OTP_SMS_PROVIDER_REJECTED reason=response_not_success");
+            return success;
         }
-        catch (HttpRequestException) { return false; }
-        catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested) { return false; }
-        catch (System.Text.Json.JsonException) { return false; }
+        catch (HttpRequestException)
+        {
+            logger.LogWarning("OTP_SMS_TRANSPORT_FAILED reason=network");
+            return false;
+        }
+        catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            logger.LogWarning("OTP_SMS_TRANSPORT_FAILED reason=timeout");
+            return false;
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            logger.LogWarning("OTP_SMS_PROVIDER_REJECTED reason=invalid_json");
+            return false;
+        }
     }
 }
