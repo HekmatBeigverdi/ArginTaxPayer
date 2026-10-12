@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 03: Identity and Authorization
 
-**Status:** Steps 01–04 owner approved (operator-reported acceptance); Step 05 planned  
+**Status:** Steps 01–04 owner approved (operator-reported acceptance); Step 05 implemented, verification pending  
 **Branch:** `phase/03-identity-authorization`  
 **Baseline:** Phase 02 and `docs/roadmap/18-phases.md`  
 **Started:** 2026-10-12
@@ -27,7 +27,7 @@ Security invariants:
 | 02 | Registration, Login, and Password Security | Controlled registration, login, secure password hashing, account validation | Reject invalid credentials, disabled accounts, duplicate registrations | Owner approved (2026-10-12) |
 | 03 | Token and Session Lifecycle | Short-lived access tokens, rotating refresh tokens, session revocation and logout | Reject reused/expired refresh tokens; revoked sessions cannot renew | Owner approved (2026-10-12) |
 | 04 | Multi-Factor Authentication and Recovery | MFA enrollment/challenge, single-use recovery codes, secure account recovery | Admin MFA policy enforced; replay and secret disclosure prevented | Owner approved (2026-10-12) |
-| 05 | Role-Based Authorization and Permissions | Level 1, Level 2, Customer roles, permission policies and safe role grants | Users cannot self-elevate privileges; role-policy tests pass | Planned |
+| 05 | Role-Based Authorization and Permissions | Level 1, Level 2, Customer roles, permission policies and safe role grants | Users cannot self-elevate privileges; role-policy tests pass | Implemented — verification pending |
 | 06 | Resource-Scoped Authorization | Server-side ownership/scope policies and extension contracts for Phase 04 | Cross-scope access denied with suitable 403/404; UI filtering alone cannot grant access | Planned |
 | 07 | Account Protection and Security Audit | Login throttling, security-event audit, sensitive-data redaction, session controls | Brute-force throttling and redaction verified; security events auditable | Planned |
 | 08 | Persian RTL Identity User Interface | Login, registration, MFA, account/security screens and guarded routes | RTL layout, correct error states, login/logout flow, protected-content tests | Planned |
@@ -492,6 +492,89 @@ If the same-shell `ConnectionStrings__ArginTaxPayerDb` variable is absent, resto
 **Decision:** Approved by project owner after successful macOS, Ubuntu, PostgreSQL retry regression, MFA database integration, HTTP smoke and Level 1 administrator MFA tests. Step 05 — Role-Based Authorization and Permissions — is the next planned step of the unchanged ten-step Phase 03.
 
 **Security follow-up:** An authenticator provisioning URI containing an MFA secret was previously shared in a chat transcript. Treat that particular secret as exposed. Confirm that the enrolled Level 1 authenticator uses a **new, uncompromised** TOTP secret; if the exposed secret remains active, invalidate and securely re-enroll it through an authorized, audited administrative recovery path before any non-test use. Existing CLI intentionally refuses overwriting enabled MFA. Preserve the actual encryption key securely; do not create a fresh random key over an existing enrolled identity. This security note does not represent independently verified rotation.
+
+### Step 05 — Role-Based Authorization and Permissions
+
+**Delivery:** Code committed to `phase/03-identity-authorization`; operator build/test verification and owner approval pending. Do not mark this step complete based only on committed source. Phase 03 remains a fixed ten-step plan.
+
+**Implementation:**
+- `IdentityPermissions` is a central deny-by-default matrix. `Level1` can read identity, role directory, administration and customer areas, and grant `Level2`. `Level2` may access administrative/customer read areas but **cannot** grant roles. `Customer` receives customer/self access only. Unknown roles and permissions never grant privileges.
+- `IdentityAuthorizationService` resolves the current user from the hashed, revocable bearer session using `IdentitySessionService`, then fetches **current roles from PostgreSQL on each authorization check**. Never trust roles, permissions, tenant identifiers or actor IDs from request input.
+- `GrantLevel2Async` accepts only a target user ID. Current, active, MFA-enabled `Level1` actor required. Actor cannot grant a role to self. Target must be active, already have `Customer`, have confirmed MFA **before promotion**, and must not already be `Level1` or `Level2`. Successful grant is transactional with PostgreSQL SERIALIZABLE isolation, rechecks eligibility and revokes all target sessions; a new MFA login is required. Unique role key and conflict handling protect against duplicate grants.
+- `Program.cs` injects authorization service into Development only. New **loopback Development-only** endpoints under `/api/dev/identity`: `GET /authorization/me`, `GET /authorization/admin`, `GET /authorization/customer`, `POST /roles/level2/grant` with body `{"targetUserId":"<uuid>"}`. No public role-management endpoint is enabled in Production. Existing registration, login, MFA, token and health endpoint behavior is preserved.
+- Tests: `IdentityRolePolicyTests` validate the role-to-permission matrix and invalid token rejection. `IdentityRolePostgresTests` exercises live PostgreSQL role escalation denial, MFA prerequisite, valid `Level1` grant, target-session revocation, repeated grant conflict and `Level2` privilege restrictions. `scripts/phase-03-step-05-smoke.py` exercises anonymous 401, Customer 403, customer 200 and self-escalation denial over localhost HTTP.
+
+**Migration impact: NONE.** Reuse `identity_users`, `identity_user_roles`, `identity_mfa_states` and `identity_sessions` from Steps 01–04. **Do not execute `dotnet ef database update` for Step 05.** Resource ownership and taxpayer membership remain deferred to Step 06 / Phase 04 as planned.
+
+**Ordered operator runbook — macOS, SSH and PostgreSQL**
+
+**1. Terminal A — SSH tunnel, remain connected throughout DB tests:**
+```bash
+ssh -N -o ExitOnForwardFailure=yes \
+  -L 127.0.0.1:15432:127.0.0.1:5432 \
+  argindev@85.133.244.156
+```
+
+**2. Terminal B — macOS repository root, inspect local modifications before switching:**
+```bash
+git fetch origin
+git switch phase/03-identity-authorization
+git pull --ff-only origin phase/03-identity-authorization
+dotnet build ArginTaxPayer.sln -c Release
+dotnet test ArginTaxPayer.sln -c Release --no-build
+dotnet build tools/ArginTaxPayer.IdentityOperator/ArginTaxPayer.IdentityOperator.csproj -c Release
+```
+
+**3. Terminal B — explicitly configure the test connection and verify exact database:**
+```bash
+read -rs "PGPASS?Test PostgreSQL password: "; echo
+export ConnectionStrings__ArginTaxPayerDb="Host=127.0.0.1;Port=15432;Database=argintaxpayer_test;Username=argintaxpayer;Password=${PGPASS};SSL Mode=Prefer"
+unset PGPASS
+psql -h 127.0.0.1 -p 15432 -U argintaxpayer -d argintaxpayer_test -W -tAc 'SELECT current_database();'
+```
+**Stop unless** the output is exactly `argintaxpayer_test`. This is an Npgsql connection string, not a `psql` libpq DSN. Only read/check existing schema; there is no new migration:
+```bash
+psql -h 127.0.0.1 -p 15432 -U argintaxpayer -d argintaxpayer_test -W -c '\d identity_user_roles'
+psql -h 127.0.0.1 -p 15432 -U argintaxpayer -d argintaxpayer_test -W -c '\d identity_mfa_states'
+psql -h 127.0.0.1 -p 15432 -U argintaxpayer -d argintaxpayer_test -W -c 'SELECT "MigrationId" FROM "__EFMigrationsHistory" ORDER BY "MigrationId";'
+```
+Expected: Step 01–04 migrations including `20261012040000_AddIdentityMfa` already applied and identity role composite key preserved.
+
+**4. Terminal B — real PostgreSQL authorization tests (test-only dedicated database):**
+```bash
+RUN_ARGINTAXPAYER_PG_INTEGRATION=1 dotnet test ArginTaxPayer.sln -c Release --no-build --filter FullyQualifiedName~IdentityRolePostgresTests
+```
+Expected: only MFA-confirmed Level 1 can grant Level 2; duplicate grants rejected; Customer and Level 2 denied; prior sessions revoked. The integration test creates disposable test identities and attempts cleanup in `finally`; do not use production credentials or database.
+
+**5. Terminal B — start loopback Development API.** Keep the configured test DB string and **previously saved** `Identity__MfaEncryptionKey` present if testing an existing enrolled account. For the disposable Customer-only RBAC smoke, the API requires no MFA key; if a key is configured, do not replace it with a fresh key for existing enrolled accounts.
+```bash
+ASPNETCORE_ENVIRONMENT=Development Identity__AllowDevelopmentRegistration=true \
+  dotnet run --no-launch-profile --project src/ArginTaxPayer.Api --urls http://127.0.0.1:15088
+```
+
+**6. Terminal C — HTTP smoke from macOS repository root:**
+```bash
+python3 scripts/phase-03-step-05-smoke.py
+```
+Expected `STEP 05 RBAC SMOKE PASSED`. Script does not output raw credentials or tokens; creates one disposable Customer row in `argintaxpayer_test`. Stop the API with Ctrl+C after it passes.
+
+**7. Ubuntu VPS — same branch, no database migration:**
+```bash
+ssh argindev@85.133.244.156
+cd ~/projects/ArginTaxPayer
+git fetch origin
+git switch phase/03-identity-authorization
+git pull --ff-only origin phase/03-identity-authorization
+dotnet build ArginTaxPayer.sln -c Release
+dotnet test ArginTaxPayer.sln -c Release --no-build
+dotnet build tools/ArginTaxPayer.IdentityOperator/ArginTaxPayer.IdentityOperator.csproj -c Release
+```
+
+**Acceptance requirements:** macOS build and full regression suite green, test PostgreSQL identity confirmed, existing role/MFA schema verified (no migration applied), PostgreSQL permission/elevation tests pass, HTTP smoke passes, Ubuntu build/test and operator project build pass, and existing Phase 03 Step 04 MFA tests remain green. Raw terminal or CI evidence has not been provided to the assistant; owner sign-off pending.
+
+**Security limitations:** This phase introduces role-level permission infrastructure, **not** taxpayer/resource ownership authorization. Those checks are Step 06 and Phase 04 deliverables. These API routes remain loopback Development-only; do not treat them as a production authentication/authorization deployment. No new admin account or additional Level 1 provisioning is needed for the automated database test.
+
+**Verification record:** macOS Not run by assistant; PostgreSQL integration Not run; HTTP smoke Not run; Ubuntu Not run; owner approval Pending.
 
 ## 5. Communication Convention
 
