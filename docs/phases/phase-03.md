@@ -1214,6 +1214,79 @@ Require `identityEndpointsRegistered=true`, `registrationEnabled=true`, `connect
 
 **Ubuntu verification** remains `dotnet build`, `dotnet test`, `npm test`, `npm run typecheck`, and `npm run build` on the Phase 03 branch; **do not** run the development OTP test sender publicly or open API/Next.js ports.
 
+### Step 09 — UX Revision and Operator-Gated Ghasedak Live-Test Procedure (2026-10-12)
+
+**UX change:** The former stacked mobile widget + legacy email tabs have been replaced on `/identity` by the new `identity-flow.tsx`: exactly two primary tabs **Login / Registration** in Persian RTL. Login has password-vs-SMS-OTP secondary choices; registration defaults to mobile, with an explicit **Development-only email** alternative for backward compatibility. Forgotten-password is an inline subflow, not a third primary tab. MFA is handled in the same compact card. Responsive spacing, validation, one-time-code fields, status messages and accessible controls are retained. Historical `identity-forms.tsx` and `phone-forms.tsx` are no longer rendered; do not run old UI assumptions as acceptance criteria. `apps/web/tests/identity-ui.test.mjs` now verifies the unified interface.
+
+**Connection state — IMPORTANT:** A .NET 9 `GhasedakOtpSender` that POSTs the `TaxPayerActivationCode` template and `Param1` to the provider endpoint exists, **but no live account success is independently confirmed**. `Ghasedak__EnableLiveSending` defaults to false; `Identity__OtpDeliveryMode=LocalFile` disables real provider transport. A live provider test now requires an explicit *single operator-owned test recipient* (`Ghasedak__TestRecipientMobile`) as well as API key and template; all other recipients are rejected at the adapter. There is no production activation in Step 09.
+
+**Safe diagnostics:** `GET /health/dev-identity` (loopback Development only) returns booleans `ghasedakApiKeyConfigured`, `ghasedakTemplateConfigured`, `ghasedakTestRecipientConfigured`, `smsSendingEnabled`, `localOtpTestMode`, `otpPepperConfigured`, plus existing identity flags; it never returns secret values or the recipient number. .NET JSON console emits safe categorized reasons:
+`OTP_SMS_CONFIG_INVALID reason=api_key_missing`,
+`OTP_SMS_CONFIG_INVALID reason=template_mismatch`,
+`OTP_SMS_REJECTED reason=test_recipient_not_allowed`,
+`OTP_SMS_PROVIDER_REJECTED httpStatus=...`,
+`OTP_SMS_PROVIDER_REJECTED reason=response_not_success`,
+`OTP_SMS_PROVIDER_REJECTED reason=invalid_json`,
+`OTP_SMS_TRANSPORT_FAILED reason=network|timeout`,
+`OTP_SMS_PROVIDER_ACCEPTED`, and `OTP_REQUEST_DELIVERED` or `OTP_REQUEST_NOT_DELIVERED`. No raw response payload, API key, mobile or OTP is logged by these diagnostic events. `/phone/request` deliberately responds `202` even when not sent, to avoid account enumeration; **HTTP 202 alone is not proof of delivery**.
+
+**Operator test plan, macOS / real Ghasedak (perform after Build, test-DB migration and no-cost local-file browser tests succeed):**
+
+A. Keep the project-standard AutoSSH tunnel in an independent macOS terminal:
+```bash
+AUTOSSH_GATETIME=0 autossh -M 0 -N \
+  -o ServerAliveInterval=15 \
+  -o ServerAliveCountMax=3 \
+  -o ConnectTimeout=10 \
+  -o ExitOnForwardFailure=yes \
+  -L 127.0.0.1:15432:127.0.0.1:5432 \
+  argindev@85.133.244.156
+```
+Never paste chat-formatted nonbreaking spaces into shell. This is a tunnel to the **test** PostgreSQL only, not public API hosting.
+
+B. Ensure `dotnet build ArginTaxPayer.sln -c Release`, `dotnet test ArginTaxPayer.sln -c Release --no-build`, `(cd apps/web && npm ci && npm test && npm run typecheck && npm run build)` pass. In a new zsh API shell set the **owner-confirmed** Postgres env:
+```zsh
+read -rs 'db_password?Test database password: '; print
+export ConnectionStrings__ArginTaxPayerDb="Host=127.0.0.1;Port=15432;Database=argintaxpayer_test;Username=argintaxpayer;Password=${db_password};SSL Mode=Prefer"
+unset db_password
+export ASPNETCORE_ENVIRONMENT=Development
+export DOTNET_ENVIRONMENT=Development
+export Identity__AllowDevelopmentRegistration=true
+export Identity__OtpPepper="$(openssl rand -hex 32)"
+psql -h 127.0.0.1 -p 15432 -U argintaxpayer -d argintaxpayer_test -W -tAc 'SELECT current_database();'
+```
+Stop unless database reports exactly `argintaxpayer_test`. Inspect/apply migration `20261012090000_AddMobileIdentityOtp` only if pending, according to the Step 09 migration procedure above.
+
+C. Create an **untracked** root `.env.ghasedak.local` with `chmod 600`; the shell must never echo the API key. Use a private editor:
+```sh
+Ghasedak__ApiKey='PASTE_YOUR_REAL_KEY_LOCALLY'
+Ghasedak__TemplateName='TaxPayerActivationCode'
+Ghasedak__TestRecipientMobile='YOUR_OWN_TEST_NUMBER_09XXXXXXXXX'
+Ghasedak__EnableLiveSending='false'
+Identity__OtpDeliveryMode='Ghasedak'
+```
+The owner must explicitly choose to change `Ghasedak__EnableLiveSending` to `true` **only** for a short, supervised single-recipient live smoke test; SMS costs may be incurred. The file is ignored by Git; `chmod 600 .env.ghasedak.local`. Do not provide the key, recipient, OTP or phone logs to ChatGPT.
+
+D. In the **same API startup shell**, load the secret file and avoid accidentally selecting LocalFile:
+```zsh
+set -a
+source ./.env.ghasedak.local
+set +a
+unset Identity__OtpLocalFile
+dotnet run --no-launch-profile --project src/ArginTaxPayer.Api --urls http://127.0.0.1:15089
+```
+In another shell verify `curl --noproxy '*' -s http://127.0.0.1:15089/health/dev-identity` has `ghasedakApiKeyConfigured=true`, `ghasedakTemplateConfigured=true`, `ghasedakTestRecipientConfigured=true`, `otpPepperConfigured=true`, `localOtpTestMode=false`. For a live test, `smsSendingEnabled=true` must also be present. If any flag is false, stop before sending. A test recipient must be under operator control.
+
+E. Start web in another shell:
+```bash
+ARGIN_IDENTITY_UI_ENABLED=true ARGIN_IDENTITY_API_INTERNAL_BASE_URL=http://127.0.0.1:15089 npm --prefix apps/web run dev -- --port 3000
+```
+Open `http://127.0.0.1:3000/identity`. Use the two tabs to check: registration with the operator's own number (if never registered); OTP login **only** for a verified **passwordless Customer**; recovery for a registered Customer with phone; password login with verified phone or email; existing admin MFA. Respect the 60-second SMS cooldown and 3-minute code expiry. An already registered phone cannot be registered again. For a fresh account that should test OTP login, leave optional password **blank** when completing registration. For password reset, use a passworded Customer. This is **not** a test of email verification or email recovery, which remain incomplete.
+
+F. Check the API terminal's sanitized `OTP_SMS_...` / `OTP_REQUEST_...` events and compare with actual receipt in the mobile inbox and provider control panel. Distinguish `OTP_SMS_PROVIDER_ACCEPTED` (provider accepted request) from actual handset delivery and cost; gateway acceptance does **not** establish handset delivery. On any failure, return only nonsecret diagnostic codes and HTTP status to the assistant. After live test stop the API, restore `Ghasedak__EnableLiveSending='false'`, do not expose ports publicly, and keep the API key in the untracked owner-only file.
+
+**Known constraints to resolve before closing Step 09:** Verified-email recovery and confirmation still need implementation; real Ghasedak compatibility, request/response mapping and provider-level cost must be verified using an operator-approved test; distributed OTP throttling and persistent security audit hardening remain incomplete; provider acceptance is not equivalent to confirmed delivery. The Phase 12 wallet and tariff work stays deferred. Build, CI, PostgreSQL, macOS and Ubuntu tests remain owner-executed; no pass results are inferred.
+
 ## 5. Communication Convention
 
 The **repository phase plan and all step completion records are written in English only**. When implementing or reporting on a step in the chat, present its title in **both Persian and English** (for example: `گام ۱ — زیرساخت مدل هویت و ایجاد مدیر اولیه | Step 01 — Identity Data Model and Bootstrap`). Explain execution and acceptance in concise, right-to-left Persian, while keeping code and shell commands left-to-right. Do not change the planned English step title without an approved plan amendment.
