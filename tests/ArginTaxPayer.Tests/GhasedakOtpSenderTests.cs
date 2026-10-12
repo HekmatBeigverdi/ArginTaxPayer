@@ -2,6 +2,7 @@ using System.Net;
 using System.Text;
 using ArginTaxPayer.Infrastructure.Persistence.Identity;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace ArginTaxPayer.Tests;
@@ -13,7 +14,7 @@ public sealed class GhasedakOtpSenderTests
     {
         var handler = new RecordingHandler();
         var client = new HttpClient(handler);
-        var sender = new GhasedakOtpSender(client, new ConfigurationBuilder().Build());
+        var sender = new GhasedakOtpSender(client, new ConfigurationBuilder().Build(), NullLogger<GhasedakOtpSender>.Instance);
         Assert.False(await sender.SendAsync("+989123456789", "123456", Guid.NewGuid()));
         Assert.Equal(0, handler.RequestCount);
     }
@@ -28,7 +29,7 @@ public sealed class GhasedakOtpSenderTests
                 ["Ghasedak:ApiKey"] = "TEST_NOT_A_REAL_KEY",
                 ["Ghasedak:TemplateName"] = "TaxPayerActivationCode"
             }).Build();
-        var sender = new GhasedakOtpSender(new HttpClient(handler), settings);
+        var sender = new GhasedakOtpSender(new HttpClient(handler), settings, NullLogger<GhasedakOtpSender>.Instance);
         var id = Guid.NewGuid();
         Assert.True(await sender.SendAsync("+989123456789", "654321", id));
         Assert.Equal(1, handler.RequestCount);
