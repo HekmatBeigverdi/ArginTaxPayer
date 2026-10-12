@@ -43,8 +43,23 @@ public sealed class IdentityMfaService(ArginTaxPayerDbContext db, IdentityMfaCry
     public async Task<MfaRecoveryCodes?> ConfirmEnrollmentAsync(Guid userId, string? totpCode,
         CancellationToken ct = default)
     {
-        var ownsTransaction = db.Database.CurrentTransaction is null;
-        await using var transaction = ownsTransaction ? await db.Database.BeginTransactionAsync(ct) : null;
+        // EF Core's configured retry strategy cannot execute an unmanaged user transaction.
+        // Own the transaction inside the strategy; reuse the caller transaction in integration tests.
+        if (db.Database.CurrentTransaction is not null)
+            return await ConfirmEnrollmentCoreAsync(userId, totpCode, ct);
+
+        return await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+        {
+            await using var transaction = await db.Database.BeginTransactionAsync(ct);
+            var result = await ConfirmEnrollmentCoreAsync(userId, totpCode, ct);
+            if (result is not null) await transaction.CommitAsync(ct);
+            return result;
+        });
+    }
+
+    private async Task<MfaRecoveryCodes?> ConfirmEnrollmentCoreAsync(
+        Guid userId, string? totpCode, CancellationToken ct)
+    {
         var state = await db.IdentityMfaStates.AsNoTracking()
             .SingleOrDefaultAsync(x => x.UserId == userId && x.EnabledAtUtc == null, ct);
         if (state is null) return null;
@@ -73,7 +88,6 @@ public sealed class IdentityMfaService(ArginTaxPayerDbContext db, IdentityMfaCry
         // An existing password-only session must not survive MFA enrollment.
         await db.IdentitySessions.Where(x => x.UserId == userId && x.RevokedAtUtc == null)
             .ExecuteUpdateAsync(s => s.SetProperty(x => x.RevokedAtUtc, now), ct);
-        if (transaction is not null) await transaction.CommitAsync(ct);
         return new MfaRecoveryCodes(codes);
     }
 
@@ -120,8 +134,21 @@ public sealed class IdentityMfaService(ArginTaxPayerDbContext db, IdentityMfaCry
             .ExecuteUpdateAsync(s => s.SetProperty(x => x.AttemptCount, x => x.AttemptCount + 1), ct);
         if (updated != 1) return null;
 
-        var ownsTransaction = db.Database.CurrentTransaction is null;
-        await using var tx = ownsTransaction ? await db.Database.BeginTransactionAsync(ct) : null;
+        if (db.Database.CurrentTransaction is not null)
+            return await CompleteLoginCoreAsync(digest, code, useRecoveryCode, now, ct);
+
+        return await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+        {
+            await using var transaction = await db.Database.BeginTransactionAsync(ct);
+            var result = await CompleteLoginCoreAsync(digest, code, useRecoveryCode, now, ct);
+            if (result is not null) await transaction.CommitAsync(ct);
+            return result;
+        });
+    }
+
+    private async Task<SessionTokens?> CompleteLoginCoreAsync(
+        string digest, string code, bool useRecoveryCode, DateTime now, CancellationToken ct)
+    {
         var candidate = await db.IdentityMfaChallenges.AsNoTracking()
             .Where(x => x.ChallengeHash == digest && x.ConsumedAtUtc == null &&
                 x.ExpiresAtUtc > now && x.AttemptCount <= 5)
@@ -160,7 +187,6 @@ public sealed class IdentityMfaService(ArginTaxPayerDbContext db, IdentityMfaCry
 
         var tokens = await sessions.CreateMfaSessionAsync(candidate.UserId, ct);
         if (tokens is null) return null;
-        if (tx is not null) await tx.CommitAsync(ct);
         return tokens;
     }
 
