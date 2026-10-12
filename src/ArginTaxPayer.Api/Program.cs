@@ -22,6 +22,7 @@ builder.Services.AddArginTaxPayerPersistence(builder.Configuration, builder.Envi
 builder.Services.AddOpenApi();
 if (identityDevelopmentEnabled)
 {
+    builder.Services.AddSingleton<IdentityProtectionService>();
     builder.Services.AddScoped<IdentityCredentialService>();
     builder.Services.AddScoped<IdentitySessionService>();
     builder.Services.AddScoped<IdentityAuthorizationService>();
