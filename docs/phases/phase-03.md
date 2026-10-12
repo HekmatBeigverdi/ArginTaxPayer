@@ -437,6 +437,31 @@ Expected: `PASS invalid enrollment code` and final `STEP 04 MFA SMOKE PASSED`. I
 
 **Verification record:** Fix committed; macOS/operator retest Pending; PostgreSQL retry regression Pending; Ubuntu Pending; Step 04 approval Pending.
 
+### Step 04 — Initial Level 1 Operator Diagnostic (2026-10-12)
+
+**Operator report:** `bootstrap-level1-test` returned `Initial Level 1 bootstrap rejected`, and `enroll-level1-test` returned `Invalid administrator identity, password, or role` for an entered email. These messages do not prove a database or migration failure. The bootstrap rejects creation if another Level 1 exists, if the normalized email is already assigned, or if the password fails the minimum length policy. Enrollment only accepts an existing active Level 1 with the correct password.
+
+**Change:** Added the read-only `inspect-level1-test` command to `tools/ArginTaxPayer.IdentityOperator`. It requires an explicitly verified `argintaxpayer_test` connection and reports Level 1 email(s) and active flag, without displaying password hashes or MFA secrets. The CLI also now displays the safe original bootstrap validation reason. No migration or data mutation is necessary for diagnosis.
+
+**Operator instructions:** Keep the macOS-to-Ubuntu SSH tunnel open; export the test connection string in the exact terminal running the operator. Pull the branch, then:
+```bash
+git pull --ff-only origin phase/03-identity-authorization
+dotnet run --project tools/ArginTaxPayer.IdentityOperator -- inspect-level1-test
+```
+Separately, use a read-only `psql` query for the target email and existing Level 1 roles (the CLI inspection does not validate the entered email or password):
+```sql
+SELECT u.normalized_email, u.is_active, COALESCE(string_agg(r.role, ', '), 'No role') AS roles
+FROM identity_users u
+LEFT JOIN identity_user_roles r ON r.user_id = u.id
+WHERE u.normalized_email = upper('TARGET_EMAIL') OR r.role = 'Level1'
+GROUP BY u.id, u.normalized_email, u.is_active
+ORDER BY u.normalized_email;
+```
+
+**Do not** delete/change users or manually elevate Customer to Level 1 to circumvent bootstrap. Existing Level 1 identity ownership and trusted operator authority must be verified; later role grant/recovery procedures remain separate work. Store and reuse the exact test MFA encryption key after the first successful enrollment, not a newly generated key on every run.
+
+**Evidence:** Diagnostic source committed; operator verification pending; Step 04 remains unapproved.
+
 ## 5. Communication Convention
 
 The **repository phase plan and all step completion records are written in English only**. When implementing or reporting on a step in the chat, present its title in **both Persian and English** (for example: `گام ۱ — زیرساخت مدل هویت و ایجاد مدیر اولیه | Step 01 — Identity Data Model and Bootstrap`). Explain execution and acceptance in concise, right-to-left Persian, while keeping code and shell commands left-to-right. Do not change the planned English step title without an approved plan amendment.
