@@ -27,8 +27,21 @@ public sealed class IdentityCredentialTests
     }
 
     [Theory]
+    [InlineData("abcdefgh")]
+    [InlineData("Eight888")]
+    [InlineData("Passw0rd123")]
+    public void PasswordsShorterThanPreviousSixteenCharacterMinimumAreAccepted(string password)
+    {
+        IdentityPasswordHasher.Validate(password);
+        var hash = IdentityPasswordHasher.Hash(password);
+        Assert.True(IdentityPasswordHasher.Verify(password, hash));
+        Assert.False(IdentityPasswordHasher.Verify(password + "x", hash));
+    }
+
+    [Theory]
     [InlineData("short")]
     [InlineData("")]
+    [InlineData("1234567")]
     public void WeakLengthPasswordIsRejected(string password)
         => Assert.Throws<ArgumentException>(() => IdentityPasswordHasher.Validate(password));
 }
