@@ -7,6 +7,7 @@ public static class IdentityPasswordHasher
 {
     private const int Iterations = 310_000;
     private const int KeySize = 32;
+    public const int MinimumPasswordLength = 8;
 
     public static string Hash(string password)
     {
@@ -45,7 +46,7 @@ public static class IdentityPasswordHasher
 
     public static void Validate(string password)
     {
-        if (string.IsNullOrWhiteSpace(password) || password.Length < 16 || password.Length > 1024)
-            throw new ArgumentException("Password must be 16 to 1024 characters.", nameof(password));
+        if (string.IsNullOrWhiteSpace(password) || password.Length < MinimumPasswordLength || password.Length > 1024)
+            throw new ArgumentException("Password must be 8 to 1024 characters.", nameof(password));
     }
 }
