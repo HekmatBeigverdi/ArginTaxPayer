@@ -17,9 +17,7 @@ public static class InitialAdministratorBootstrap
     {
         ArgumentNullException.ThrowIfNull(db);
         var normalized = NormalizeEmail(email);
-        if (string.IsNullOrWhiteSpace(password) || password.Length < 16 ||
-            password.Length > 1024)
-            throw new ArgumentException("A password of 16 to 1024 characters is required.", nameof(password));
+        IdentityPasswordHasher.Validate(password);
 
         // Fail closed: never automatically provision a second Level 1 identity.
         if (await db.IdentityUserRoles.AnyAsync(x => x.Role == IdentityRoleNames.Level1, cancellationToken))
