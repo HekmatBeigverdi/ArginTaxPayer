@@ -16,14 +16,39 @@ public sealed class ArginTaxPayerDbContextModelSnapshot : ModelSnapshot
         modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", b =>
         {
             b.Property<Guid>("Id").HasColumnName("id").HasColumnType("uuid");
-            b.Property<string>("NormalizedEmail").IsRequired().HasMaxLength(320).HasColumnName("normalized_email").HasColumnType("character varying(320)");
-            b.Property<string>("PasswordHash").IsRequired().HasMaxLength(512).HasColumnName("password_hash").HasColumnType("character varying(512)");
+            b.Property<string>("NormalizedEmail").HasMaxLength(320).HasColumnName("normalized_email").HasColumnType("character varying(320)");
+            b.Property<string>("PasswordHash").HasMaxLength(512).HasColumnName("password_hash").HasColumnType("character varying(512)");
+            b.Property<string>("NormalizedMobile").HasMaxLength(13).HasColumnName("normalized_mobile").HasColumnType("character varying(13)");
+            b.Property<DateTime?>("MobileVerifiedAtUtc").HasColumnName("mobile_verified_at_utc").HasColumnType("timestamp with time zone");
             b.Property<bool>("IsActive").HasColumnName("is_active").HasColumnType("boolean");
             b.Property<DateTime>("CreatedAtUtc").HasColumnName("created_at_utc").HasColumnType("timestamp with time zone");
             b.Property<DateTime?>("PasswordChangedAtUtc").HasColumnName("password_changed_at_utc").HasColumnType("timestamp with time zone");
             b.HasKey("Id");
             b.HasIndex("NormalizedEmail").IsUnique().HasDatabaseName("ux_identity_users_email");
+            b.HasIndex("NormalizedMobile").IsUnique().HasDatabaseName("ux_identity_users_mobile");
             b.ToTable("identity_users");
+        });
+        modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityPhoneChallenge", b =>
+        {
+            b.Property<Guid>("Id").HasColumnName("id").HasColumnType("uuid");
+            b.Property<string>("Mobile").IsRequired().HasMaxLength(13).HasColumnName("mobile").HasColumnType("character varying(13)");
+            b.Property<string>("Purpose").IsRequired().HasMaxLength(16).HasColumnName("purpose").HasColumnType("character varying(16)");
+            b.Property<string>("CodeDigest").IsRequired().HasMaxLength(64).HasColumnName("code_digest").HasColumnType("character varying(64)");
+            b.Property<Guid?>("UserId").HasColumnName("user_id").HasColumnType("uuid");
+            b.Property<int>("Attempts").HasColumnName("attempts").HasColumnType("integer");
+            b.Property<DateTime>("CreatedAtUtc").HasColumnName("created_at_utc").HasColumnType("timestamp with time zone");
+            b.Property<DateTime>("ExpiresAtUtc").HasColumnName("expires_at_utc").HasColumnType("timestamp with time zone");
+            b.Property<DateTime?>("ConsumedAtUtc").HasColumnName("consumed_at_utc").HasColumnType("timestamp with time zone");
+            b.Property<bool>("Delivered").HasColumnName("delivered").HasColumnType("boolean");
+            b.HasKey("Id");
+            b.HasIndex("Mobile", "Purpose", "CreatedAtUtc").HasDatabaseName("ix_phone_challenge_cooldown");
+            b.HasIndex("UserId");
+            b.ToTable("identity_phone_challenges");
+        });
+        modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityPhoneChallenge", b =>
+        {
+            b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null)
+                .WithMany().HasForeignKey("UserId").OnDelete(DeleteBehavior.Cascade);
         });
         modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUserRole", b =>
         {
