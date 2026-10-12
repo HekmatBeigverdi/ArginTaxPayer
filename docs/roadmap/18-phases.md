@@ -36,6 +36,18 @@ Status: Architecture baseline v1.0, Phase 01 design handoff ready, 2026-10-10. R
 9. Delegates maintain private workspace and customer-specific selling prices; Root/Level 2 partnership uses agreed percentages of **verified collected, tax-exclusive revenue less Root-approved eligible allocated expenses**, usually 50/50, NOT a wholesale/platform baseline price. Historical order, collection, agreement and expense approval snapshots remain immutable.
 10. Key/CSR generation and fiscal-memory onboarding are distinct: the official portal issues the memory identifier and may require a public key or recognized certificate. Private keys must not leak to delegates or diagnostics; custody is explicitly consented to and protected.
 
+## Scheduled SMS pricing and identity delivery allocation (approved scope extension, 2026-10-12)
+
+This cross-phase requirement extends the existing numbered roadmap **without adding or renaming any of its eighteen phases**. Full specification and acceptance: [Phase 03 master plan](../phases/phase-03.md) and [GitHub issue #4](https://github.com/HekmatBeigverdi/ArginTaxPayer/issues/4).
+
+- **Phase 03, existing Steps 08–10:** Phone-first identity and optional email/SMS OTP architecture, login/recovery safeguards, mocked Ghasedak adapter contract, and backwards-compatible legacy identity migration; issue formal downstream billing handoff. Phase 03 does not assert full paid-SMS billing completion.
+- **Phase 12:** Owner of customer SMS wallets, one-time 2,000,000 IRR promotional credit, append-only wallet/provider expense ledger, paid SMS reservations, top-ups, per-panel/per-category **versioned scheduled tariff** engine and charge snapshots. Rate is resolved at atomic send reservation timestamp (UTC). Every subsequent retry/settlement keeps the immutable original rate; no price retroactivity, no double-charge and no ambiguity if a scheduled increase becomes effective.
+- **Phase 16:** Owner of **Level 1-only** scheduled tariff administration, future-dated price changes, cancellation/reschedule audit, role-scoped top-up and expense reports. Level 2 is read-only within explicitly authorized scope, never a pricing administrator.
+- **Phase 17:** Security, concurrency, timezone/price-boundary, distributed rate-limit and persistent audit tests, including provider reconciliation and no duplicate promotional credits.
+- **Phase 18:** Production seed/activation, Ghasedak secret provision, controlled live send validation, migrations and operational financial reconciliation.
+
+Business contract: a future price may be created now for activation at a specified `Asia/Tehran` local date/time and stored in UTC; for each provider panel + charge category exactly one price applies at any instant. Customer-facing SMS tariff and actual Ghasedak provider expense are independent IRR amounts, each auditable. Missing current rate blocks paid send, never silently falls back to zero. Level 1 controls price schedules; past send snapshots are immutable. Real SMS sends and deductions stay disabled until the responsible phases are implemented and explicitly accepted.
+
 ## Release gate
 Each phase closes only after architecture impact assessment, unit/integration tests, permission-isolation tests when relevant, migration review and explicit approval.
 
