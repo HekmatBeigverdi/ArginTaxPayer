@@ -15,8 +15,9 @@ public sealed class IdentityMfaService(ArginTaxPayerDbContext db, IdentityMfaCry
     {
         var user = await db.IdentityUsers.AsNoTracking()
             .Where(x => x.Id == userId && x.IsActive)
-            .Select(x => new { x.Id, x.NormalizedEmail, x.NormalizedMobile }).SingleOrDefaultAsync(ct);
-        if (user is null) return null;
+            .Select(x => new { x.Id, x.NormalizedEmail, x.NormalizedMobile, x.PasswordHash }).SingleOrDefaultAsync(ct);
+        // Prevent locking passwordless mobile users out of their own MFA account.
+        if (user is null || user.PasswordHash is null) return null;
         var existing = await db.IdentityMfaStates.AsNoTracking().SingleOrDefaultAsync(x => x.UserId == userId, ct);
         if (existing?.EnabledAtUtc is not null) return null;
 
@@ -95,12 +96,17 @@ public sealed class IdentityMfaService(ArginTaxPayerDbContext db, IdentityMfaCry
         CancellationToken ct = default)
     {
         if (string.IsNullOrEmpty(password) || password.Length > 1024) return null;
-        string normalized;
-        try { normalized = InitialAdministratorBootstrap.NormalizeEmail(email ?? ""); }
-        catch (ArgumentException) { return null; }
+        string? normalizedEmail = null;
+        string? normalizedMobile = null;
+        if (IranianMobileNumber.TryNormalize(email, out var mobile)) normalizedMobile = mobile;
+        else { try { normalizedEmail = InitialAdministratorBootstrap.NormalizeEmail(email ?? ""); }
+            catch (ArgumentException) { return null; } }
 
         var user = await db.IdentityUsers.AsNoTracking()
-            .Where(x => x.NormalizedEmail == normalized && x.IsActive)
+            .Where(x => x.IsActive && (
+                normalizedEmail != null && x.NormalizedEmail == normalizedEmail ||
+                normalizedMobile != null && x.NormalizedMobile == normalizedMobile &&
+                    x.MobileVerifiedAtUtc != null))
             .Select(x => new { x.Id, x.PasswordHash }).SingleOrDefaultAsync(ct);
         if (user is null || !IdentityPasswordHasher.Verify(password, user.PasswordHash))
             return null;
