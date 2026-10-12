@@ -1,12 +1,18 @@
 #!/usr/bin/env python3
 """Step 06 local HTTP scope isolation test. Requires Development registration on loopback."""
 import json
+import os
 import secrets
 import sys
 import urllib.error
 import urllib.request
+import urllib.parse
 
-BASE = "http://127.0.0.1:15088/api/dev/identity"
+ORIGIN = os.environ.get("ARGINTAXPAYER_API_BASE", "http://127.0.0.1:15088").rstrip("/")
+parsed = urllib.parse.urlsplit(ORIGIN)
+if parsed.scheme != "http" or parsed.hostname not in ("127.0.0.1", "localhost") or parsed.path or parsed.query or parsed.fragment:
+    raise SystemExit("Smoke test requires an explicit local HTTP origin only.")
+BASE = ORIGIN + "/api/dev/identity"
 PASS = "Disposable-Scope-2026-" + secrets.token_hex(10)
 
 
@@ -41,7 +47,7 @@ def create_customer():
 
 
 def main():
-    with urllib.request.urlopen("http://127.0.0.1:15088/health/dev-identity", timeout=10) as response:
+    with urllib.request.urlopen(ORIGIN + "/health/dev-identity", timeout=10) as response:
         diagnostics = json.load(response)
     if not diagnostics.get("identityEndpointsRegistered") or not diagnostics.get("registrationEnabled"):
         raise AssertionError("API configuration does not enable test identity routes: " + str(diagnostics))
