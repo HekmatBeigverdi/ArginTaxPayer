@@ -196,7 +196,13 @@ Keep the tunnel open until all macOS DB tests finish. Optional: repeat the opt-i
 **Mac testing — connect first:**
 1. Open and keep running, in macOS Terminal 1:
 ```bash
-ssh -N -o ExitOnForwardFailure=yes -L 127.0.0.1:15432:127.0.0.1:5432 argindev@85.133.244.156
+AUTOSSH_GATETIME=0 autossh -M 0 -N \
+  -o ServerAliveInterval=15 \
+  -o ServerAliveCountMax=3 \
+  -o ConnectTimeout=10 \
+  -o ExitOnForwardFailure=yes \
+  -L 127.0.0.1:15432:127.0.0.1:5432 \
+  argindev@85.133.244.156
 ```
 2. In macOS Terminal 2, from the repository root:
 ```bash
@@ -256,7 +262,13 @@ dotnet test ArginTaxPayer.sln -c Release --no-build
 
 macOS Terminal A — keep SSH tunnel active:
 ```bash
-ssh -N -o ExitOnForwardFailure=yes -L 127.0.0.1:15432:127.0.0.1:5432 argindev@85.133.244.156
+AUTOSSH_GATETIME=0 autossh -M 0 -N \
+  -o ServerAliveInterval=15 \
+  -o ServerAliveCountMax=3 \
+  -o ConnectTimeout=10 \
+  -o ExitOnForwardFailure=yes \
+  -L 127.0.0.1:15432:127.0.0.1:5432 \
+  argindev@85.133.244.156
 ```
 
 macOS Terminal B — from project root, after preserving any uncommitted changes:
@@ -472,7 +484,13 @@ ORDER BY u.normalized_email;
 **Verification sequence (macOS):**
 ```bash
 # Terminal 1: keep open until after all DB-dependent checks
-ssh -N -o ExitOnForwardFailure=yes -L 127.0.0.1:15432:127.0.0.1:5432 argindev@85.133.244.156
+AUTOSSH_GATETIME=0 autossh -M 0 -N \
+  -o ServerAliveInterval=15 \
+  -o ServerAliveCountMax=3 \
+  -o ConnectTimeout=10 \
+  -o ExitOnForwardFailure=yes \
+  -L 127.0.0.1:15432:127.0.0.1:5432 \
+  argindev@85.133.244.156
 
 # Terminal 2: from repo root, in a shell that has the test DB connection and persistent MFA key
 git fetch origin
@@ -726,7 +744,13 @@ dotnet test ArginTaxPayer.sln -c Release --no-build
 
 **macOS to PostgreSQL SSH tunnel (Terminal A):**
 ```bash
-ssh -N -o ExitOnForwardFailure=yes -L 127.0.0.1:15432:127.0.0.1:5432 argindev@85.133.244.156
+AUTOSSH_GATETIME=0 autossh -M 0 -N \
+  -o ServerAliveInterval=15 \
+  -o ServerAliveCountMax=3 \
+  -o ConnectTimeout=10 \
+  -o ExitOnForwardFailure=yes \
+  -L 127.0.0.1:15432:127.0.0.1:5432 \
+  argindev@85.133.244.156
 ```
 
 **PostgreSQL test identity verification (Terminal B):**
@@ -810,7 +834,13 @@ The `read -rs 'var?prompt: '` syntax and `print` command are **zsh-specific** an
 
 Terminal A — keep the SSH tunnel open:
 ```bash
-ssh -N -o ExitOnForwardFailure=yes -L 127.0.0.1:15432:127.0.0.1:5432 argindev@85.133.244.156
+AUTOSSH_GATETIME=0 autossh -M 0 -N \
+  -o ServerAliveInterval=15 \
+  -o ServerAliveCountMax=3 \
+  -o ConnectTimeout=10 \
+  -o ExitOnForwardFailure=yes \
+  -L 127.0.0.1:15432:127.0.0.1:5432 \
+  argindev@85.133.244.156
 ```
 
 Terminal B — use the **owner-confirmed zsh** command in the SAME shell as the API:
@@ -1029,7 +1059,13 @@ dotnet test ArginTaxPayer.sln -c Release --no-build --filter 'FullyQualifiedName
 
 **Test DB / migration gate:** Keep the existing SSH tunnel open in a separate terminal:
 ```bash
-ssh -N -o ExitOnForwardFailure=yes -L 127.0.0.1:15432:127.0.0.1:5432 argindev@85.133.244.156
+AUTOSSH_GATETIME=0 autossh -M 0 -N \
+  -o ServerAliveInterval=15 \
+  -o ServerAliveCountMax=3 \
+  -o ConnectTimeout=10 \
+  -o ExitOnForwardFailure=yes \
+  -L 127.0.0.1:15432:127.0.0.1:5432 \
+  argindev@85.133.244.156
 ```
 Use the **owner-verified macOS zsh command** in the same shell that will run `.NET` API/tests:
 ```zsh
@@ -1081,6 +1117,22 @@ dotnet test ArginTaxPayer.sln -c Release --no-build
 The Ubuntu unit/build gate does not imply that database migrations or real SMS were performed on the VPS.
 
 **Ghasedak configuration convention (when a subsequent live-provider verification is explicitly authorized):** Place the real `Ghasedak__ApiKey` and verified `Ghasedak__TemplateName='TaxPayerActivationCode'` in the repository-root untracked `.env.ghasedak.local`, set file permissions `chmod 600`, load it with `set -a; source ./.env.ghasedak.local; set +a` in the API shell, and never commit it or print it to logs. **Keep `Ghasedak__EnableLiveSending=false` at this stage**. The OTP pepper is a distinct durable secret, not the Ghasedak API key; store it in the secret environment for any non-disposable deployment.
+
+### Project-Wide macOS-to-Ubuntu PostgreSQL Tunnel Standard — Owner Approved (2026-10-12)
+
+**MANDATORY for all future ArginTaxPayer phase runbooks and local development tests:** The owner replaces previous plain `ssh -N` PostgreSQL port-forward commands with persistent `autossh` (AutoSSH must be installed and SSH-key login should be configured). Use this exact command from macOS in a **dedicated foreground terminal**, keeping the same PostgreSQL test-only local port:
+
+```bash
+AUTOSSH_GATETIME=0 autossh -M 0 -N \
+  -o ServerAliveInterval=15 \
+  -o ServerAliveCountMax=3 \
+  -o ConnectTimeout=10 \
+  -o ExitOnForwardFailure=yes \
+  -L 127.0.0.1:15432:127.0.0.1:5432 \
+  argindev@85.133.244.156
+```
+
+Do not introduce an old `ssh -N -L` variant in new phase instructions. AutoSSH repairs dropped SSH tunnels, but it does **not** restart the .NET API, restart a crashed PostgreSQL service, or make an incorrectly configured database safe. This tunnel is for local testing against PostgreSQL via Ubuntu only; distinguish it from the ordinary `ssh argindev@85.133.244.156` command used to open an Ubuntu remote shell. Keep `argintaxpayer_test` database identity verification as a hard gate before migrations/tests. Do not insert non-breaking-space (NBSP) characters from chat formatting into terminal commands.
 
 ## 5. Communication Convention
 
