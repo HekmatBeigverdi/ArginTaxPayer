@@ -406,6 +406,37 @@ Database migrations are not repeated on Ubuntu. Integration tests run against th
 
 **Execution evidence:** macOS Not run by assistant; migration Not run; PostgreSQL Not run; HTTP smoke Not run; Ubuntu Not run; owner approval Pending.
 
+### Step 04 — MFA Enrollment HTTP 500 Regression Fix (2026-10-12)
+
+**Operator issue:** `scripts/phase-03-step-04-smoke.py` passed customer registration, first login and TOTP enrollment, but `POST /api/dev/identity/mfa/confirm` with an invalid code returned HTTP 500 rather than 401.
+
+**Root cause:** In production-style API registration, Npgsql EF Core uses `EnableRetryOnFailure`. `IdentityMfaService.ConfirmEnrollmentAsync` began a user transaction directly, outside `DbContext.Database.CreateExecutionStrategy()`, which is incompatible with the configured retry strategy. The same flaw affected the valid TOTP confirmation and challenge completion paths.
+
+**Correction:** Run each confirmation/completion transaction **inside** EF Core's execution strategy. Respect existing caller-owned transactions in the test suite. Invalid codes and replay return null (HTTP 401); successful operations keep atomic enrollment/recovery/session writes and transaction commit. Added `IdentityMfaRetryStrategyPostgresTests` using `EnableRetryOnFailure(maxRetryCount: 3)` to exercise invalid and valid enrollment, invalid and valid challenge completion, and replay under real PostgreSQL.
+
+**Migration impact:** None. No EF migration or schema change for this fix. Do NOT execute `dotnet ef database update` again merely for this correction.
+
+**macOS regression retest order:** Keep the existing SSH tunnel to `127.0.0.1:15432` open (or restart it). Stop the running Development API with Ctrl+C. From project root, in the terminal with `ConnectionStrings__ArginTaxPayerDb` configured for `argintaxpayer_test`:
+```bash
+git pull --ff-only origin phase/03-identity-authorization
+dotnet build ArginTaxPayer.sln -c Release
+dotnet test ArginTaxPayer.sln -c Release --no-build
+RUN_ARGINTAXPAYER_PG_INTEGRATION=1 dotnet test ArginTaxPayer.sln -c Release --no-build --filter FullyQualifiedName~IdentityMfaRetryStrategyPostgresTests
+```
+Then relaunch the Development API in that same connection-configured terminal; keep the existing MFA encryption key for existing accounts, or use a disposable smoke-only key for the new unique smoke account:
+```bash
+ASPNETCORE_ENVIRONMENT=Development Identity__AllowDevelopmentRegistration=true dotnet run --no-launch-profile --project src/ArginTaxPayer.Api --urls http://127.0.0.1:15088
+```
+From another macOS terminal at the project root:
+```bash
+python3 scripts/phase-03-step-04-smoke.py
+```
+Expected: `PASS invalid enrollment code` and final `STEP 04 MFA SMOKE PASSED`. If the regression still returns 500, capture the **exception type, message and stack frames**, removing credentials, tokens, TOTP secrets and personally identifying data before sharing.
+
+**Ubuntu:** Pull this fix, run `dotnet build ArginTaxPayer.sln -c Release` and `dotnet test ArginTaxPayer.sln -c Release --no-build`. No repeated migration is required.
+
+**Verification record:** Fix committed; macOS/operator retest Pending; PostgreSQL retry regression Pending; Ubuntu Pending; Step 04 approval Pending.
+
 ## 5. Communication Convention
 
 The **repository phase plan and all step completion records are written in English only**. When implementing or reporting on a step in the chat, present its title in **both Persian and English** (for example: `گام ۱ — زیرساخت مدل هویت و ایجاد مدیر اولیه | Step 01 — Identity Data Model and Bootstrap`). Explain execution and acceptance in concise, right-to-left Persian, while keeping code and shell commands left-to-right. Do not change the planned English step title without an approved plan amendment.
