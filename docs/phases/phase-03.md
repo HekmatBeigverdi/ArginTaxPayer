@@ -677,6 +677,26 @@ python3 scripts/phase-03-step-06-smoke.py
 ```
 Expected diagnostic all booleans `true`, unauthenticated authorization `401` and `STEP 06 RESOURCE SCOPE SMOKE PASSED`. If diagnostics show `connectionConfigured=false`, restore the test connection string **in the API process's terminal**. If diagnostics show `registrationEnabled=false`, set `Identity__AllowDevelopmentRegistration=true` **before starting the API**. An unrecognized diagnostic URL (404) after pulling may mean a stale listener; inspect the owning process and effective environment. No migration required. **Step 06 remains operator-verification pending.**
 
+### Step 06 — Isolated-port recovery for stale Kestrel listener (2026-10-12)
+
+The owner confirmed `curl --noproxy '*'` receives a local Kestrel `200` on `127.0.0.1:15088` while the safe diagnostic reports `connectionConfigured=false` and `identityEndpointsRegistered=false`; `lsof -nP -iTCP:15088 -sTCP:LISTEN` did not show a listener. This proves the HTTP request is direct but does **not** identify the listener's process or why local socket inspection was empty. Environment exports in a separate shell cannot alter a previously started process. No evidence of a code-level RBAC or resource-scope failure.
+
+To avoid colliding with the unidentified listener, Step 06 smoke now supports a configurable *loopback HTTP origin*, `ARGINTAXPAYER_API_BASE` (default remains `http://127.0.0.1:15088`); non-local destinations are refused. Execute from the repository root:
+
+```bash
+git pull --ff-only origin phase/03-identity-authorization
+# In the SAME terminal with an exported ConnectionStrings__ArginTaxPayerDb targeting argintaxpayer_test:
+export ASPNETCORE_ENVIRONMENT=Development DOTNET_ENVIRONMENT=Development
+export Identity__AllowDevelopmentRegistration=true
+dotnet run --no-launch-profile --project src/ArginTaxPayer.Api --urls http://127.0.0.1:15089
+# Keep this API terminal open. In a second terminal:
+curl --noproxy '*' -i http://127.0.0.1:15089/health/dev-identity
+curl --noproxy '*' -i http://127.0.0.1:15089/api/dev/identity/authorization/me
+ARGINTAXPAYER_API_BASE=http://127.0.0.1:15089 python3 scripts/phase-03-step-06-smoke.py
+```
+
+Expected: diagnostic five booleans `true`, anonymous `authorization/me` returns `401`, smoke ends `STEP 06 RESOURCE SCOPE SMOKE PASSED`. SSH tunnel `127.0.0.1:15432 -> Ubuntu:5432` must remain active in its own shell. Never print the database password or MFA secret. This diagnostic patch does not require a migration or alter production endpoint exposure. **Step 06 remains awaiting owner verification.**
+
 ## 5. Communication Convention
 
 The **repository phase plan and all step completion records are written in English only**. When implementing or reporting on a step in the chat, present its title in **both Persian and English** (for example: `گام ۱ — زیرساخت مدل هویت و ایجاد مدیر اولیه | Step 01 — Identity Data Model and Bootstrap`). Explain execution and acceptance in concise, right-to-left Persian, while keeping code and shell commands left-to-right. Do not change the planned English step title without an approved plan amendment.
