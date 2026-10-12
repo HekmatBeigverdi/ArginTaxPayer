@@ -2,6 +2,8 @@
 .api-health-grid{display:flex;gap:24px;flex-wrap:wrap;margin-top:12px}.api-health-grid p{margin:0}.api-health-grid strong{color:#15273c}@media(max-width:800px){.api-health-grid{flex-direction:column;gap:8px}}
 
 /* Phase 03 Step 08 — Persian RTL identity, account, and security screens */
+.phone-auth{border-bottom:1px solid #dce5ef;padding:12px 0 26px;margin:12px 0 26px}.phone-auth h2{font-size:18px}.phone-auth .identity-tabs{flex-wrap:wrap}.phone-auth .identity-tabs button{min-width:110px;font-size:12px}.identity-method-divider{text-align:center;color:#64748b;font-size:13px;font-weight:700;margin:14px 0}
+
 .identity-layout{min-height:100vh;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:24px;padding:36px 16px;background:radial-gradient(circle at 12% 12%,#dce8f6,transparent 32%),#f3f6fa}
 .identity-brand{display:flex;gap:12px;align-items:center;width:min(100%,470px)}.identity-brand>div{display:flex;flex-direction:column;gap:3px}.identity-brand strong{font-size:22px}.identity-brand span:not(.brand-symbol){color:#64748b;font-size:13px}.brand-symbol{width:46px;height:46px;display:grid;place-items:center;background:#163d5d;color:white;font-weight:900;border-radius:13px;font-size:23px}
 .identity-card{background:#fff;border:1px solid #dde5ef;border-radius:20px;padding:32px;width:min(100%,470px);box-shadow:0 20px 60px #21344b10}.identity-card h1{font-size:27px;margin:0 0 9px}.identity-kicker{font-weight:700;color:#1c618d;margin-bottom:11px;font-size:12px}.identity-muted{color:#62748a;font-size:14px;line-height:1.85}.identity-note{font-size:12px;color:#60748c;max-width:470px;text-align:center}
