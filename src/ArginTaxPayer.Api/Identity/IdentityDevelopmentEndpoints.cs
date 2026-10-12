@@ -196,8 +196,63 @@ public static class IdentityDevelopmentEndpoints
             };
         });
 
+        // Step 06: ownership is derived from PostgreSQL by resource ID and
+        // authenticated actor; no owner/tenant claim is accepted from a client.
+        group.MapGet("/resources/users/{userId:guid}", async (
+            Guid userId, HttpContext http, IdentityResourceAuthorizationService scopes,
+            CancellationToken ct) =>
+        {
+            if (!IsLoopback(http)) return Results.NotFound();
+            var decision = await scopes.CheckAsync(ReadBearer(http),
+                IdentityPermissions.ReadOwnIdentity, IdentityResourceKind.IdentityUser, userId, ct);
+            return ScopeResult(decision, new { userId });
+        });
+
+        group.MapGet("/resources/sessions", async (
+            HttpContext http, IdentityResourceAuthorizationService scopes,
+            CancellationToken ct) =>
+        {
+            if (!IsLoopback(http)) return Results.NotFound();
+            var ids = await scopes.ListOwnSessionIdsAsync(ReadBearer(http), ct);
+            return ids is null ? Results.Unauthorized() : Results.Ok(new { sessionIds = ids });
+        });
+
+        group.MapGet("/resources/sessions/{sessionId:guid}", async (
+            Guid sessionId, HttpContext http, IdentityResourceAuthorizationService scopes,
+            CancellationToken ct) =>
+        {
+            if (!IsLoopback(http)) return Results.NotFound();
+            var decision = await scopes.CheckAsync(ReadBearer(http),
+                IdentityPermissions.ReadOwnIdentity,
+                IdentityResourceKind.IdentitySession, sessionId, ct);
+            return ScopeResult(decision, new { sessionId });
+        });
+
+        group.MapPost("/resources/sessions/{sessionId:guid}/revoke", async (
+            Guid sessionId, HttpContext http, IdentityResourceAuthorizationService scopes,
+            CancellationToken ct) =>
+        {
+            if (!IsLoopback(http)) return Results.NotFound();
+            var decision = await scopes.RevokeOwnSessionAsync(ReadBearer(http), sessionId, ct);
+            return decision switch
+            {
+                ResourceAccessDecision.Unauthenticated => Results.Unauthorized(),
+                ResourceAccessDecision.Forbidden => Results.StatusCode(StatusCodes.Status403Forbidden),
+                ResourceAccessDecision.NotFound => Results.NotFound(),
+                _ => Results.NoContent()
+            };
+        });
+
         return endpoints;
     }
+
+    private static IResult ScopeResult(ResourceAccessDecision decision, object payload) => decision switch
+    {
+        ResourceAccessDecision.Unauthenticated => Results.Unauthorized(),
+        ResourceAccessDecision.Forbidden => Results.StatusCode(StatusCodes.Status403Forbidden),
+        ResourceAccessDecision.NotFound => Results.NotFound(),
+        _ => Results.Ok(payload)
+    };
 
     private static string? ReadBearer(HttpContext http)
     {
