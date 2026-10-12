@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 03: Identity and Authorization
 
-**Status:** Steps 01–06 owner approved (operator-reported acceptance); Step 07 planned  
+**Status:** Steps 01–06 owner approved (operator-reported acceptance); Step 07 implementation in progress — operator verification pending  
 **Branch:** `phase/03-identity-authorization`  
 **Baseline:** Phase 02 and `docs/roadmap/18-phases.md`  
 **Started:** 2026-10-12
@@ -29,7 +29,7 @@ Security invariants:
 | 04 | Multi-Factor Authentication and Recovery | MFA enrollment/challenge, single-use recovery codes, secure account recovery | Admin MFA policy enforced; replay and secret disclosure prevented | Owner approved (2026-10-12) |
 | 05 | Role-Based Authorization and Permissions | Level 1, Level 2, Customer roles, permission policies and safe role grants | Users cannot self-elevate privileges; role-policy tests pass | Owner approved (2026-10-12) |
 | 06 | Resource-Scoped Authorization | Server-side ownership/scope policies and extension contracts for Phase 04 | Cross-scope access denied with suitable 403/404; UI filtering alone cannot grant access | Owner approved (2026-10-12) |
-| 07 | Account Protection and Security Audit | Login throttling, security-event audit, sensitive-data redaction, session controls | Brute-force throttling and redaction verified; security events auditable | Planned |
+| 07 | Account Protection and Security Audit | Login throttling, security-event audit, sensitive-data redaction, session controls | Brute-force throttling and redaction verified; security events auditable | Implementation in progress — verification pending |
 | 08 | Persian RTL Identity User Interface | Login, registration, MFA, account/security screens and guarded routes | RTL layout, correct error states, login/logout flow, protected-content tests | Planned |
 | 09 | Identity and Authorization Integration Tests | API/UI negative-path integration tests, token/recovery replay and role/scope isolation | Local and CI identity/security suites pass; unauthorized access rejected | Planned |
 | 10 | Hardening, Verification, and Phase Handoff | Final security and migration review, CI checks, documentation and release readiness | macOS/Ubuntu build/test evidence, clean security review, owner sign-off gate | Planned |
@@ -702,6 +702,67 @@ Expected: diagnostic five booleans `true`, anonymous `authorization/me` returns 
 **Final decision: OWNER APPROVED.** The owner expressly confirmed that the following were successful after the local HTTP 404 troubleshooting: macOS build/unit suite, SSH tunnel and dedicated `argintaxpayer_test` PostgreSQL checks, Resource Scope PostgreSQL integration tests, HTTP scope smoke, Step 04/05 regression tests, and Ubuntu build/tests. These results are **operator-reported PASS**, not independently executed or verified against raw terminal/CI logs by the assistant.
 
 **Scope closure:** Resource ownership is enforced server-side for existing identity and session resources; cross-owner access is hidden and foreign session revocation is denied. A typed resource-ownership contract is ready for Phase 04 taxpayer membership implementation. **No Step 06 database migration.** Preserve the ten-step plan: Steps 01–06 are owner-approved; Step 07 — Account Protection and Security Audit — is next, not yet started or approved. No merge to `main`, release, tag, or production deployment is authorized by this acceptance.
+
+### Step 07 — Account Protection and Security Audit (Implementation in progress, 2026-10-12)
+
+**Scope implemented so far:**
+- `IdentityProtectionService` provides an account-keyed, 5-failure/15-minute login throttle for the **Development-only identity API**, using a per-process random HMAC key and canonicalized emails as map keys. The failure map never stores raw usernames, passwords or tokens. Successful authentication clears the account's failure bucket.
+- The same throttle applies to `/login`, `/verify-password`, and `/mfa/challenge` in the loopback-only Development API. Locked callers receive `429 Too Many Requests`. Incorrect credentials continue to receive generic `401`.
+- Structured security signals record only operation names and coarse outcomes (`rejected`, `throttled`, `accepted`), with no user identifier, password, raw bearer token, MFA recovery code or secret in log arguments. Existing Step 03 revocable sessions, rotating refresh tokens and Step 06 own-session revocation remain in place.
+- `IdentityProtectionTests` cover canonicalized account buckets, the failure threshold, lock window and successful reset. `scripts/phase-03-step-07-smoke.py` runs a disposable test-only account through five failed logins and checks `429` on subsequent valid credentials and password verification.
+
+**Important limitations before production acceptance:** This is a **single-process** development-mode throttle. It resets upon application restart, is not cross-instance, and is not suitable as the final distributed lockout enforcement. Application JSON logs are redacted structured event signals, **not** an immutable durable security-audit event store. Authentication history retention, security event correlation and durable auditing require an explicit persistent implementation and additional acceptance tests. MFA completion retains its earlier five-attempt per-challenge counter. Therefore this implementation **cannot yet be certified as meeting every Step 07 hardening criterion**, and owner approval remains pending. No new database migration is included in this increment. Never deploy this Development API as the production identity service.
+
+**macOS prerequisites and Build:**
+```bash
+git fetch origin
+git switch phase/03-identity-authorization
+git pull --ff-only origin phase/03-identity-authorization
+dotnet build ArginTaxPayer.sln -c Release
+dotnet test ArginTaxPayer.sln -c Release --no-build --filter 'FullyQualifiedName~IdentityProtectionTests'
+dotnet test ArginTaxPayer.sln -c Release --no-build
+```
+
+**macOS to PostgreSQL SSH tunnel (Terminal A):**
+```bash
+ssh -N -o ExitOnForwardFailure=yes -L 127.0.0.1:15432:127.0.0.1:5432 argindev@85.133.244.156
+```
+
+**PostgreSQL test identity verification (Terminal B):**
+```bash
+read -rs "PGPASS?Test PostgreSQL password: "; echo
+export ConnectionStrings__ArginTaxPayerDb="Host=127.0.0.1;Port=15432;Database=argintaxpayer_test;Username=argintaxpayer;Password=${PGPASS};SSL Mode=Prefer"
+unset PGPASS
+psql -h 127.0.0.1 -p 15432 -U argintaxpayer -d argintaxpayer_test -W -tAc 'SELECT current_database();'
+RUN_ARGINTAXPAYER_PG_INTEGRATION=1 dotnet test ArginTaxPayer.sln -c Release --no-build --filter 'FullyQualifiedName~IdentityMfaRetryStrategyPostgresTests|FullyQualifiedName~IdentityRolePostgresTests|FullyQualifiedName~IdentityResourceScopePostgresTests'
+```
+**Stop unless database identity is exactly `argintaxpayer_test`.** Step 07 currently contains **no migration**.
+
+**Run Development API (Terminal B; test connection must be present in that same shell):**
+```bash
+export DOTNET_ENVIRONMENT=Development ASPNETCORE_ENVIRONMENT=Development Identity__AllowDevelopmentRegistration=true
+dotnet run --no-launch-profile --project src/ArginTaxPayer.Api --urls http://127.0.0.1:15089
+```
+
+**HTTP smoke (Terminal C):**
+```bash
+curl --noproxy '*' -s http://127.0.0.1:15089/health/dev-identity
+ARGINTAXPAYER_API_BASE=http://127.0.0.1:15089 python3 scripts/phase-03-step-07-smoke.py
+```
+Expected `STEP 07 ACCOUNT PROTECTION SMOKE PASSED`. Smoke generates one disposable Customer row in the `argintaxpayer_test` database. Do not run it against other environments.
+
+**Ubuntu VPS Build/tests:**
+```bash
+ssh argindev@85.133.244.156
+cd ~/projects/ArginTaxPayer
+git fetch origin
+git switch phase/03-identity-authorization
+git pull --ff-only origin phase/03-identity-authorization
+dotnet build ArginTaxPayer.sln -c Release
+dotnet test ArginTaxPayer.sln -c Release --no-build
+```
+
+**Verification record:** Source committed, CI not independently checked, macOS tests not run by assistant, PostgreSQL tests not run by assistant, HTTP smoke not run by assistant, Ubuntu tests not run by assistant. Owner acceptance Pending. **Remaining work:** durable cross-process throttle and queryable/redacted persistent security audit must be completed before final Step 07 acceptance.
 
 ## 5. Communication Convention
 
