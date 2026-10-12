@@ -28,7 +28,8 @@ public sealed class IdentityPhoneService(ArginTaxPayerDbContext db, IIdentityOtp
     {
         if (!IranianMobileNumber.TryNormalize(mobileInput, out var mobile) ||
             purpose is not ("register" or "login" or "reset")) return false;
-        if (!configuration.GetValue<bool>("Ghasedak:EnableLiveSending")) return false;
+        if (!configuration.GetValue<bool>("Ghasedak:EnableLiveSending") &&
+            configuration["Identity:OtpDeliveryMode"] != "LocalFile") return false;
         var now = DateTime.UtcNow;
 
         // Prevent too many sends even across multiple API workers by checking persisted attempts.
