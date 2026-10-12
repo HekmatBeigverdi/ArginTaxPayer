@@ -21,16 +21,17 @@ public sealed class IdentityMfaService(ArginTaxPayerDbContext db, IdentityMfaCry
         if (existing?.EnabledAtUtc is not null) return null;
 
         var secret = IdentityTotp.NewSecret();
+        var encrypted = crypto.Encrypt(secret);
         if (existing is null)
         {
             db.IdentityMfaStates.Add(new IdentityMfaState {
-                UserId = userId, EncryptedSecret = crypto.Encrypt(secret), LastAcceptedTotpStep = -1
+                UserId = userId, EncryptedSecret = encrypted, LastAcceptedTotpStep = -1
             });
         }
         else
         {
             await db.IdentityMfaStates.Where(x => x.UserId == userId && x.EnabledAtUtc == null)
-                .ExecuteUpdateAsync(s => s.SetProperty(x => x.EncryptedSecret, crypto.Encrypt(secret))
+                .ExecuteUpdateAsync(s => s.SetProperty(x => x.EncryptedSecret, encrypted)
                     .SetProperty(x => x.LastAcceptedTotpStep, -1L), ct);
         }
         await db.SaveChangesAsync(ct);
