@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 03: Identity and Authorization
 
-**Status:** Step 01 owner approved (2026-10-12); Step 02 implemented, test verification pending  
+**Status:** Steps 01–02 owner approved (operator reported); Step 03 implemented, test verification pending  
 **Branch:** `phase/03-identity-authorization`  
 **Baseline:** Phase 02 and `docs/roadmap/18-phases.md`  
 **Started:** 2026-10-12
@@ -25,7 +25,7 @@ Security invariants:
 | --- | --- | --- | --- | --- |
 | 01 | Identity Data Model and Bootstrap | Identity entities/contracts, EF Core migration, controlled initial Level 1 admin bootstrap | Identity uniqueness, migration validation against test DB, no public admin creation | Owner approved (2026-10-12) |
 | 02 | Registration, Login, and Password Security | Controlled registration, login, secure password hashing, account validation | Reject invalid credentials, disabled accounts, duplicate registrations | Owner approved (2026-10-12) |
-| 03 | Token and Session Lifecycle | Short-lived access tokens, rotating refresh tokens, session revocation and logout | Reject reused/expired refresh tokens; revoked sessions cannot renew | Planned |
+| 03 | Token and Session Lifecycle | Short-lived access tokens, rotating refresh tokens, session revocation and logout | Reject reused/expired refresh tokens; revoked sessions cannot renew | Implemented — operator verification pending |
 | 04 | Multi-Factor Authentication and Recovery | MFA enrollment/challenge, single-use recovery codes, secure account recovery | Admin MFA policy enforced; replay and secret disclosure prevented | Planned |
 | 05 | Role-Based Authorization and Permissions | Level 1, Level 2, Customer roles, permission policies and safe role grants | Users cannot self-elevate privileges; role-policy tests pass | Planned |
 | 06 | Resource-Scoped Authorization | Server-side ownership/scope policies and extension contracts for Phase 04 | Cross-scope access denied with suitable 403/404; UI filtering alone cannot grant access | Planned |
@@ -240,6 +240,73 @@ dotnet test ArginTaxPayer.sln -c Release --no-build
 **Security and acceptance:** The development-only password verification response is not an authenticated login and MUST NOT be used to grant access. Rate-limiting, MFA, token/session issuance, production registration policy, and authorization are future steps. Never expose this development endpoint outside loopback. Verify strong hashing, duplicate registration, valid/invalid credentials, inactive users, Customer-only role, normal API regressions, and both local/Ubuntu test results.
 
 **Acceptance record (2026-10-12):** The project owner explicitly reported that all Step 02 tests completed successfully on macOS and Ubuntu, including the prescribed PostgreSQL integration, registration/duplicate/credential scenarios, and required database checks; Step 02 is **Owner approved**. This is **operator-reported PASS**, not an independent assistant execution or an attached terminal transcript. The owner confirmed tests against the existing `argintaxpayer_test` schema; no Step 02 migration was required or applied. Implementation commits: `48e3a037`, `0e9731d8`, `5606d756`; documentation before sign-off: `9500846`. No phase merge, tag, release, or production deployment is implied. Step 03 remains Planned.
+
+### Step 03 — Token and Session Lifecycle
+
+**Status:** Implemented in branch; macOS, PostgreSQL, Ubuntu and owner acceptance pending.
+
+**Changes:** Added `IdentitySession`, `IdentitySessionService`, mapping and migration `20261012030000_AddIdentitySessions`. Opaque random 256-bit access/refresh tokens are returned to clients; only SHA-256 digests are stored. Access validity: 10 minutes. Refresh validity: 7 days, renewed on rotation. Atomic compare-and-swap rotation replaces both tokens. Reuse of the immediately previous refresh token revokes that session. Expired, revoked, inactive-account, and unknown tokens are rejected. Logout revokes the current session. Administrative account sessions are blocked until MFA is implemented.
+
+**Security boundary:** `/api/dev/identity/login`, `/refresh`, `/me`, `/logout` are mapped only in Development and accept loopback clients. They are **not production authentication endpoints** and must never be exposed publicly. Customer registration still requires `Identity__AllowDevelopmentRegistration=true`. No roles or taxpayer scope are selected by the caller.
+
+**Database:** One new migration creates `identity_sessions` with user FK, unique access and refresh digest indexes, replay-detection index, expiry, revocation and rotation fields. Neither API nor Worker automatically migrates. Apply **once from macOS to the existing Ubuntu PostgreSQL test DB**.
+
+**Step 03 test commands (ordered):**
+
+macOS Terminal A — keep SSH tunnel active:
+```bash
+ssh -N -o ExitOnForwardFailure=yes -L 127.0.0.1:15432:127.0.0.1:5432 argindev@85.133.244.156
+```
+
+macOS Terminal B — from project root, after preserving any uncommitted changes:
+```bash
+git fetch origin
+git switch phase/03-identity-authorization
+git pull --ff-only origin phase/03-identity-authorization
+dotnet build ArginTaxPayer.sln -c Release
+dotnet test ArginTaxPayer.sln -c Release --no-build
+read -rs "PGPASS?Test DB password: "; echo
+export ConnectionStrings__ArginTaxPayerDb="Host=127.0.0.1;Port=15432;Database=argintaxpayer_test;Username=argintaxpayer;Password=${PGPASS};SSL Mode=Prefer"
+unset PGPASS
+psql -h 127.0.0.1 -p 15432 -U argintaxpayer -d argintaxpayer_test -W -tAc 'SELECT current_database();'
+```
+
+Stop if the database name is not exactly `argintaxpayer_test`. Then in the same macOS terminal:
+```bash
+dotnet ef migrations list --project src/ArginTaxPayer.Infrastructure --startup-project src/ArginTaxPayer.Api --context ArginTaxPayerDbContext
+dotnet ef database update 20261012030000_AddIdentitySessions --project src/ArginTaxPayer.Infrastructure --startup-project src/ArginTaxPayer.Api --context ArginTaxPayerDbContext
+psql -h 127.0.0.1 -p 15432 -U argintaxpayer -d argintaxpayer_test -W -c 'SELECT "MigrationId" FROM "__EFMigrationsHistory" ORDER BY "MigrationId";'
+psql -h 127.0.0.1 -p 15432 -U argintaxpayer -d argintaxpayer_test -W -c '\d identity_sessions'
+RUN_ARGINTAXPAYER_PG_INTEGRATION=1 dotnet test ArginTaxPayer.sln -c Release --no-build --filter FullyQualifiedName~IdentitySessionPostgresTests
+```
+
+Expected: identity session migration applied, FK and unique token-digest indexes present; real PostgreSQL integration tests pass for login, rotation, replay revocation, logout, inactive and expired accounts/tokens. Unit/metadata tests are included in `dotnet test`.
+
+Run local API from Terminal B (connection must remain exported):
+```bash
+ASPNETCORE_ENVIRONMENT=Development Identity__AllowDevelopmentRegistration=true dotnet run --no-launch-profile --project src/ArginTaxPayer.Api --urls http://127.0.0.1:15088
+```
+
+Terminal C, project root:
+```bash
+python3 scripts/phase-03-step-03-smoke.py
+```
+Expected: `STEP 03 SESSION SMOKE PASSED`. This smoke creates a disposable Customer user in the test database. Tokens are not printed. Close API and SSH tunnel after completion.
+
+Ubuntu VPS — do **not** apply the migration again:
+```bash
+ssh argindev@85.133.244.156
+cd ~/projects/ArginTaxPayer
+git fetch origin
+git switch phase/03-identity-authorization
+git pull --ff-only origin phase/03-identity-authorization
+dotnet build ArginTaxPayer.sln -c Release
+dotnet test ArginTaxPayer.sln -c Release --no-build
+```
+
+**Acceptance:** macOS build/tests, verified test database, migration/table/indexes, opt-in PostgreSQL integration, real HTTP lifecycle smoke, Ubuntu build/tests, previous behavior preserved. Record actual output before acceptance.
+
+**Operator evidence:** macOS Not run; Migration Not run; PostgreSQL test Not run; HTTP smoke Not run; Ubuntu Not run; Owner approval Pending.
 
 ## 5. Communication Convention
 
