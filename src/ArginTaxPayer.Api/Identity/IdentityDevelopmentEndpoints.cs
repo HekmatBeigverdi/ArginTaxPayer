@@ -151,6 +151,48 @@ public static class IdentityDevelopmentEndpoints
             return tokens is null ? Results.Unauthorized() : Results.Ok(tokens);
         });
 
+        // Step 09: mobile ownership proof and passwordless customer login.
+        // Routes remain Development/loopback only until the production identity gate.
+        group.MapPost("/phone/request", async (
+            [FromBody] PhoneRequest request, HttpContext http, IdentityPhoneService phones,
+            CancellationToken ct) =>
+        {
+            if (!IsLoopback(http)) return Results.NotFound();
+            // The accepted response does not reveal whether an account exists.
+            // Sending is disabled by default; the caller receives a generic state.
+            await phones.RequestAsync(request.Mobile, request.Purpose, ct);
+            return Results.Accepted();
+        });
+
+        group.MapPost("/phone/register/complete", async (
+            [FromBody] PhoneRegisterComplete request, HttpContext http,
+            IdentityPhoneService phones, CancellationToken ct) =>
+        {
+            if (!IsLoopback(http)) return Results.NotFound();
+            return await phones.ConfirmRegistrationAsync(request.Mobile, request.Code,
+                request.Password, ct) ? Results.StatusCode(201) :
+                Results.BadRequest(new { error = "verification_failed" });
+        });
+
+        group.MapPost("/phone/login/complete", async (
+            [FromBody] PhoneComplete request, HttpContext http,
+            IdentityPhoneService phones, CancellationToken ct) =>
+        {
+            if (!IsLoopback(http)) return Results.NotFound();
+            var tokens = await phones.CompleteLoginAsync(request.Mobile, request.Code, ct);
+            return tokens is null ? Results.Unauthorized() : Results.Ok(tokens);
+        });
+
+        group.MapPost("/phone/reset/complete", async (
+            [FromBody] PhoneResetComplete request, HttpContext http,
+            IdentityPhoneService phones, CancellationToken ct) =>
+        {
+            if (!IsLoopback(http)) return Results.NotFound();
+            return await phones.ResetPasswordAsync(request.Mobile, request.Code,
+                request.NewPassword, ct) ? Results.NoContent() :
+                Results.BadRequest(new { error = "verification_failed" });
+        });
+
         // Step 05: all role decisions are made from the persisted identity,
         // never from claimed roles, user IDs, or permissions in the request.
         group.MapGet("/authorization/me", async (
@@ -293,3 +335,8 @@ public sealed record TotpConfirmRequest(string? Code);
 public sealed record MfaCompleteRequest(string? Challenge, string? Code, bool UseRecoveryCode);
 
 public sealed record Level2GrantRequest(Guid TargetUserId);
+
+public sealed record PhoneRequest(string? Mobile, string? Purpose);
+public sealed record PhoneComplete(string? Mobile, string? Code);
+public sealed record PhoneRegisterComplete(string? Mobile, string? Code, string? Password);
+public sealed record PhoneResetComplete(string? Mobile, string? Code, string? NewPassword);
