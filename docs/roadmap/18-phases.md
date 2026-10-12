@@ -48,6 +48,22 @@ This cross-phase requirement extends the existing numbered roadmap **without add
 
 Business contract: a future price may be created now for activation at a specified `Asia/Tehran` local date/time and stored in UTC; for each provider panel + charge category exactly one price applies at any instant. Customer-facing SMS tariff and actual Ghasedak provider expense are independent IRR amounts, each auditable. Missing current rate blocks paid send, never silently falls back to zero. Level 1 controls price schedules; past send snapshots are immutable. Real SMS sends and deductions stay disabled until the responsible phases are implemented and explicitly accepted.
 
+## Canonical macOS PostgreSQL Test Tunnel (Owner-Mandated, 2026-10-12)
+
+Use `autossh`, **not plain `ssh -N`**, for every ArginTaxPayer phase's macOS-to-Ubuntu PostgreSQL tunnel. Keep it open in a dedicated local terminal. Do not alter the target or database without explicit owner instruction:
+
+```bash
+AUTOSSH_GATETIME=0 autossh -M 0 -N \
+  -o ServerAliveInterval=15 \
+  -o ServerAliveCountMax=3 \
+  -o ConnectTimeout=10 \
+  -o ExitOnForwardFailure=yes \
+  -L 127.0.0.1:15432:127.0.0.1:5432 \
+  argindev@85.133.244.156
+```
+
+The tunnel is only transport. All migrations and database tests must independently check `current_database() = 'argintaxpayer_test'` before execution. Ordinary `ssh` for opening the Ubuntu remote shell remains unaffected. This convention applies to all future phase master plans and operator checklists.
+
 ## Release gate
 Each phase closes only after architecture impact assessment, unit/integration tests, permission-isolation tests when relevant, migration review and explicit approval.
 
