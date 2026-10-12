@@ -764,6 +764,27 @@ dotnet test ArginTaxPayer.sln -c Release --no-build
 
 **Verification record:** Source committed, CI not independently checked, macOS tests not run by assistant, PostgreSQL tests not run by assistant, HTTP smoke not run by assistant, Ubuntu tests not run by assistant. Owner acceptance Pending. **Remaining work:** durable cross-process throttle and queryable/redacted persistent security audit must be completed before final Step 07 acceptance.
 
+### Confirmed macOS Development API Launch Convention (Owner feedback, 2026-10-12)
+
+The project owner confirmed that the following **zsh** startup sequence resolved the Step 07 HTTP smoke preflight error. Use this exact convention in subsequent Phase 03 steps when running the Development API against the SSH-tunneled PostgreSQL test database. Run it in the **same terminal that launches the API**; do not assume exported variables in a different shell will be inherited. Keep the separate SSH tunnel `127.0.0.1:15432` open.
+
+```bash
+read -rs 'db_password?Test database password: '; print
+
+export ConnectionStrings__ArginTaxPayerDb="Host=127.0.0.1;Port=15432;Database=argintaxpayer_test;Username=argintaxpayer;Password=${db_password};SSL Mode=Prefer"
+unset db_password
+
+export ASPNETCORE_ENVIRONMENT=Development
+export DOTNET_ENVIRONMENT=Development
+export Identity__AllowDevelopmentRegistration=true
+
+dotnet run --no-launch-profile \
+  --project src/ArginTaxPayer.Api \
+  --urls http://127.0.0.1:15089
+```
+
+The `read -rs 'var?prompt: '` syntax and `print` command are **zsh-specific** and suitable for the owner's macOS terminal; do not copy them into bash on Ubuntu unchanged. Start the API only after all exports are set, and keep the process running. In another terminal, confirm `GET /health/dev-identity` reports `connectionConfigured=true`, `identityEndpointsRegistered=true`, and `registrationEnabled=true`. Do not print or commit the database password. This is a Development/test-only process, never a production deployment instruction.
+
 ## 5. Communication Convention
 
 The **repository phase plan and all step completion records are written in English only**. When implementing or reporting on a step in the chat, present its title in **both Persian and English** (for example: `گام ۱ — زیرساخت مدل هویت و ایجاد مدیر اولیه | Step 01 — Identity Data Model and Bootstrap`). Explain execution and acceptance in concise, right-to-left Persian, while keeping code and shell commands left-to-right. Do not change the planned English step title without an approved plan amendment.
