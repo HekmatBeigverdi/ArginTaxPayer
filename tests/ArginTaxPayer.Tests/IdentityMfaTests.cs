@@ -105,6 +105,23 @@ public sealed class IdentityMfaPostgresTests
         Assert.NotNull(third);
         Assert.NotNull(await mfa.CompleteLoginAsync(third!.Challenge, codes.Codes[1], true));
         Assert.Null(await mfa.CompleteLoginAsync(third.Challenge, codes.Codes[1], true));
+        // Administrative roles are denied password-only login even when MFA is configured.
+        db.IdentityUserRoles.Add(new IdentityUserRole {
+            UserId = user.Id, Role = IdentityRoleNames.Level2, AssignedAtUtc = DateTime.UtcNow
+        });
+        await db.SaveChangesAsync();
+        Assert.Null(await sessions.LoginAsync(email, password));
+        var adminChallenge = await mfa.BeginLoginAsync(email, password);
+        Assert.NotNull(adminChallenge);
+        var adminTokens = await mfa.CompleteLoginAsync(adminChallenge!.Challenge, codes.Codes[2], true);
+        Assert.NotNull(adminTokens);
+        Assert.NotNull(await sessions.AuthenticateAsync(adminTokens!.AccessToken));
+
+        // Disabling the account immediately invalidates the administrative session.
+        user.IsActive = false;
+        await db.SaveChangesAsync();
+        Assert.Null(await sessions.AuthenticateAsync(adminTokens.AccessToken));
+        Assert.Null(await sessions.RefreshAsync(adminTokens.RefreshToken));
         // outer transaction rolled back, including recovery code use
     }
 }
