@@ -46,6 +46,23 @@ app.UseMiddleware<CorrelationIdMiddleware>();
 // Never expose the API contract endpoint in Production by default.
 if (app.Environment.IsDevelopment())
 {
+    // Diagnostic deliberately contains no configuration values, credentials or IPs.
+    // Registered even when development identity endpoints were not mapped.
+    app.MapGet("/health/dev-identity", (HttpContext http) =>
+    {
+        if (!IdentityDevelopmentEndpoints.IsLoopbackAddress(http.Connection.RemoteIpAddress))
+            return Results.NotFound();
+        return Results.Ok(new
+        {
+            development = true,
+            connectionConfigured = !string.IsNullOrWhiteSpace(
+                app.Configuration.GetConnectionString("ArginTaxPayerDb")),
+            identityEndpointsRegistered = identityDevelopmentEnabled,
+            registrationEnabled = app.Configuration.GetValue<bool>(
+                "Identity:AllowDevelopmentRegistration"),
+            loopbackRecognized = true
+        });
+    }).ExcludeFromDescription();
     app.MapOpenApi();
     if (identityDevelopmentEnabled)
         app.MapIdentityDevelopmentEndpoints();
