@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 03: Identity and Authorization
 
-**Status:** Steps 01–04 owner approved (operator-reported acceptance); Step 05 implemented, verification pending  
+**Status:** Steps 01–05 owner approved (operator-reported acceptance); Step 06 planned  
 **Branch:** `phase/03-identity-authorization`  
 **Baseline:** Phase 02 and `docs/roadmap/18-phases.md`  
 **Started:** 2026-10-12
@@ -27,7 +27,7 @@ Security invariants:
 | 02 | Registration, Login, and Password Security | Controlled registration, login, secure password hashing, account validation | Reject invalid credentials, disabled accounts, duplicate registrations | Owner approved (2026-10-12) |
 | 03 | Token and Session Lifecycle | Short-lived access tokens, rotating refresh tokens, session revocation and logout | Reject reused/expired refresh tokens; revoked sessions cannot renew | Owner approved (2026-10-12) |
 | 04 | Multi-Factor Authentication and Recovery | MFA enrollment/challenge, single-use recovery codes, secure account recovery | Admin MFA policy enforced; replay and secret disclosure prevented | Owner approved (2026-10-12) |
-| 05 | Role-Based Authorization and Permissions | Level 1, Level 2, Customer roles, permission policies and safe role grants | Users cannot self-elevate privileges; role-policy tests pass | Implemented — verification pending |
+| 05 | Role-Based Authorization and Permissions | Level 1, Level 2, Customer roles, permission policies and safe role grants | Users cannot self-elevate privileges; role-policy tests pass | Owner approved (2026-10-12) |
 | 06 | Resource-Scoped Authorization | Server-side ownership/scope policies and extension contracts for Phase 04 | Cross-scope access denied with suitable 403/404; UI filtering alone cannot grant access | Planned |
 | 07 | Account Protection and Security Audit | Login throttling, security-event audit, sensitive-data redaction, session controls | Brute-force throttling and redaction verified; security events auditable | Planned |
 | 08 | Persian RTL Identity User Interface | Login, registration, MFA, account/security screens and guarded routes | RTL layout, correct error states, login/logout flow, protected-content tests | Planned |
@@ -574,7 +574,7 @@ dotnet build tools/ArginTaxPayer.IdentityOperator/ArginTaxPayer.IdentityOperator
 
 **Security limitations:** This phase introduces role-level permission infrastructure, **not** taxpayer/resource ownership authorization. Those checks are Step 06 and Phase 04 deliverables. These API routes remain loopback Development-only; do not treat them as a production authentication/authorization deployment. No new admin account or additional Level 1 provisioning is needed for the automated database test.
 
-**Verification record:** macOS Not run by assistant; PostgreSQL integration Not run; HTTP smoke Not run; Ubuntu Not run; owner approval Pending.
+**Owner acceptance record (2026-10-12):** The project owner expressly confirmed successful completion of Step 05 macOS Build and Unit Tests, SSH tunnel connectivity, PostgreSQL `IdentityRolePostgresTests`, HTTP RBAC smoke tests, and Ubuntu build/tests. Step 05 is **Owner Approved**. All results are **operator-reported PASS**; the assistant did not independently execute the tests or verify raw terminal/CI logs. There is **no Step 05 database migration**. Approval is limited to Step 05, and does not authorize a merge to `main`, release/tag or production deployment. Step 06 — Resource-Scoped Authorization — remains Planned.
 
 ## 5. Communication Convention
 
