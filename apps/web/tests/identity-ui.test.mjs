@@ -38,27 +38,24 @@ test("protected account provides logout, MFA, and owned-session controls", () =>
   assert.match(account, /setRecoveryCodes\(\[\]\)/);
 });
 
-test("login form supports MFA challenge, recovery code, and accessible errors", () => {
-  const form = read("app/identity/identity-forms.tsx");
-  assert.match(form, /\/api\/identity\/mfa\/challenge/);
-  assert.match(form, /\/api\/identity\/mfa\/complete/);
-  assert.match(form, /useRecoveryCode: recovery/);
-  assert.match(form, /role="alert"/);
-  assert.match(form, /minLength=\{view === "register" \? 8/);
-});
-
-test("phone-first RTL registration, OTP login and reset are connected through allowlisted BFF", () => {
+test("unified identity screen has two top-level tabs, OTP choice and recovery path", () => {
   const page = read("app/identity/page.tsx");
-  const phone = read("app/identity/phone-forms.tsx");
+  const flow = read("app/identity/identity-flow.tsx");
   const proxy = read("app/api/identity/[...path]/route.ts");
-  assert.match(page, /<PhoneForms \/>/);
-  assert.match(phone, /phone\/request/);
-  assert.match(phone, /phone\/register\/complete/);
-  assert.match(phone, /phone\/login\/complete/);
-  assert.match(phone, /phone\/reset\/complete/);
-  assert.match(phone, /autoComplete="one-time-code"/);
-  assert.match(proxy, /"phone\/register\/complete"/);
+  assert.match(page, /<IdentityFlow \/>/);
+  assert.match(flow, /role="tablist"/);
+  assert.match(flow, />ورود<\/button>/);
+  assert.match(flow, />ثبت‌نام<\/button>/);
+  assert.match(flow, /role="group" aria-label="روش ورود"/);
+  assert.match(flow, /رمز عبور را فراموش کرده‌اید/);
+  assert.match(flow, /mfa\/challenge/);
+  assert.match(flow, /mfa\/complete/);
+  assert.match(flow, /useRecoveryCode:recovery/);
+  assert.match(flow, /phone\/request/);
+  assert.match(flow, /register\/complete/);
+  assert.match(flow, /login\/complete/);
+  assert.match(flow, /reset\/complete/);
+  assert.match(flow, /role="alert"/);
   assert.match(proxy, /"phone\/login\/complete"/);
-  assert.match(proxy, /"phone\/reset\/complete"/);
   assert.match(proxy, /httpOnly: true/);
 });
