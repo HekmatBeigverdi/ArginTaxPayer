@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 03: Identity and Authorization
 
-**Status:** Steps 01–05 owner approved (operator-reported acceptance); Step 06 implemented, operator verification pending  
+**Status:** Steps 01–06 owner approved (operator-reported acceptance); Step 07 planned  
 **Branch:** `phase/03-identity-authorization`  
 **Baseline:** Phase 02 and `docs/roadmap/18-phases.md`  
 **Started:** 2026-10-12
@@ -28,7 +28,7 @@ Security invariants:
 | 03 | Token and Session Lifecycle | Short-lived access tokens, rotating refresh tokens, session revocation and logout | Reject reused/expired refresh tokens; revoked sessions cannot renew | Owner approved (2026-10-12) |
 | 04 | Multi-Factor Authentication and Recovery | MFA enrollment/challenge, single-use recovery codes, secure account recovery | Admin MFA policy enforced; replay and secret disclosure prevented | Owner approved (2026-10-12) |
 | 05 | Role-Based Authorization and Permissions | Level 1, Level 2, Customer roles, permission policies and safe role grants | Users cannot self-elevate privileges; role-policy tests pass | Owner approved (2026-10-12) |
-| 06 | Resource-Scoped Authorization | Server-side ownership/scope policies and extension contracts for Phase 04 | Cross-scope access denied with suitable 403/404; UI filtering alone cannot grant access | Implemented — operator verification pending |
+| 06 | Resource-Scoped Authorization | Server-side ownership/scope policies and extension contracts for Phase 04 | Cross-scope access denied with suitable 403/404; UI filtering alone cannot grant access | Owner approved (2026-10-12) |
 | 07 | Account Protection and Security Audit | Login throttling, security-event audit, sensitive-data redaction, session controls | Brute-force throttling and redaction verified; security events auditable | Planned |
 | 08 | Persian RTL Identity User Interface | Login, registration, MFA, account/security screens and guarded routes | RTL layout, correct error states, login/logout flow, protected-content tests | Planned |
 | 09 | Identity and Authorization Integration Tests | API/UI negative-path integration tests, token/recovery replay and role/scope isolation | Local and CI identity/security suites pass; unauthorized access rejected | Planned |
@@ -578,7 +578,7 @@ dotnet build tools/ArginTaxPayer.IdentityOperator/ArginTaxPayer.IdentityOperator
 
 ### Step 06 — Resource-Scoped Authorization
 
-**Status:** Implemented in `phase/03-identity-authorization`; **operator verification and owner approval pending**. This entry does not certify tests as passing merely because source and test code were committed.
+**Status:** Owner Approved (2026-10-12), based on explicit operator-reported successful completion of the acceptance tests. Source commits alone were not treated as test evidence.
 
 **Deliverables and security boundary:**
 - `IdentityResourceKind` and `IIdentityResourceOwnershipResolver` define a typed extension contract. `IdentityResourceOwnershipResolver` resolves **active IdentityUser** and **IdentitySession** ownership directly in PostgreSQL. `IdentityResourceAuthorizationService` combines current bearer session, current RBAC permission and storage-derived ownership. No user-controlled owner ID, tenant ID or client-supplied role is trusted.
@@ -651,7 +651,7 @@ dotnet test ArginTaxPayer.sln -c Release --no-build
 ```
 The Ubuntu default tests do not require a configured PostgreSQL URL. Running the opt-in PostgreSQL tests on Ubuntu is allowed only with an **explicit** connection string pointing to `argintaxpayer_test`; do not point it to any production service and do not apply migrations.
 
-**Acceptance:** macOS/Ubuntu builds and full standard suites pass; scoped PostgreSQL and Step 04/05 regression integration tests pass; HTTP smoke passes and confirms 401/404 isolation plus safe self-revocation; no regressions in prior endpoints; no Step 06 migration. **CI not verified; owner acceptance pending.**
+**Acceptance (owner-reported PASS, 2026-10-12):** macOS and Ubuntu builds/tests, dedicated PostgreSQL connectivity, `IdentityResourceScopePostgresTests`, the Step 04/05 regression tests, and the Step 06 HTTP smoke (including 401/404 cross-scope isolation and own-session revocation) all succeeded. **CI status not independently verified. Owner Approved.** No Step 06 migration was necessary.
 
 ### Step 06 — HTTP 404 Diagnostic Patch (2026-10-12)
 
@@ -675,7 +675,7 @@ curl -i http://127.0.0.1:15088/health/dev-identity
 curl -i http://127.0.0.1:15088/api/dev/identity/authorization/me
 python3 scripts/phase-03-step-06-smoke.py
 ```
-Expected diagnostic all booleans `true`, unauthenticated authorization `401` and `STEP 06 RESOURCE SCOPE SMOKE PASSED`. If diagnostics show `connectionConfigured=false`, restore the test connection string **in the API process's terminal**. If diagnostics show `registrationEnabled=false`, set `Identity__AllowDevelopmentRegistration=true` **before starting the API**. An unrecognized diagnostic URL (404) after pulling may mean a stale listener; inspect the owning process and effective environment. No migration required. **Step 06 remains operator-verification pending.**
+Expected diagnostic all booleans `true`, unauthenticated authorization `401` and `STEP 06 RESOURCE SCOPE SMOKE PASSED`. If diagnostics show `connectionConfigured=false`, restore the test connection string **in the API process's terminal**. If diagnostics show `registrationEnabled=false`, set `Identity__AllowDevelopmentRegistration=true` **before starting the API**. An unrecognized diagnostic URL (404) after pulling may mean a stale listener; inspect the owning process and effective environment. No migration required. **Historical diagnostic note:** This was the status before the owner subsequently reported all Step 06 tests passing and approved the step (2026-10-12).
 
 ### Step 06 — Isolated-port recovery for stale Kestrel listener (2026-10-12)
 
@@ -695,7 +695,13 @@ curl --noproxy '*' -i http://127.0.0.1:15089/api/dev/identity/authorization/me
 ARGINTAXPAYER_API_BASE=http://127.0.0.1:15089 python3 scripts/phase-03-step-06-smoke.py
 ```
 
-Expected: diagnostic five booleans `true`, anonymous `authorization/me` returns `401`, smoke ends `STEP 06 RESOURCE SCOPE SMOKE PASSED`. SSH tunnel `127.0.0.1:15432 -> Ubuntu:5432` must remain active in its own shell. Never print the database password or MFA secret. This diagnostic patch does not require a migration or alter production endpoint exposure. **Step 06 remains awaiting owner verification.**
+Expected: diagnostic five booleans `true`, anonymous `authorization/me` returns `401`, smoke ends `STEP 06 RESOURCE SCOPE SMOKE PASSED`. SSH tunnel `127.0.0.1:15432 -> Ubuntu:5432` must remain active in its own shell. Never print the database password or MFA secret. This diagnostic patch does not require a migration or alter production endpoint exposure. **Historical diagnostic note:** Step 06 was awaiting verification when this workaround was written. The owner subsequently confirmed all Step 06 tests passed (2026-10-12).
+
+### Step 06 — Owner Acceptance and Handoff (2026-10-12)
+
+**Final decision: OWNER APPROVED.** The owner expressly confirmed that the following were successful after the local HTTP 404 troubleshooting: macOS build/unit suite, SSH tunnel and dedicated `argintaxpayer_test` PostgreSQL checks, Resource Scope PostgreSQL integration tests, HTTP scope smoke, Step 04/05 regression tests, and Ubuntu build/tests. These results are **operator-reported PASS**, not independently executed or verified against raw terminal/CI logs by the assistant.
+
+**Scope closure:** Resource ownership is enforced server-side for existing identity and session resources; cross-owner access is hidden and foreign session revocation is denied. A typed resource-ownership contract is ready for Phase 04 taxpayer membership implementation. **No Step 06 database migration.** Preserve the ten-step plan: Steps 01–06 are owner-approved; Step 07 — Account Protection and Security Audit — is next, not yet started or approved. No merge to `main`, release, tag, or production deployment is authorized by this acceptance.
 
 ## 5. Communication Convention
 
