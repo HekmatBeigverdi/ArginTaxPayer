@@ -653,6 +653,30 @@ The Ubuntu default tests do not require a configured PostgreSQL URL. Running the
 
 **Acceptance:** macOS/Ubuntu builds and full standard suites pass; scoped PostgreSQL and Step 04/05 regression integration tests pass; HTTP smoke passes and confirms 401/404 isolation plus safe self-revocation; no regressions in prior endpoints; no Step 06 migration. **CI not verified; owner acceptance pending.**
 
+### Step 06 — HTTP 404 Diagnostic Patch (2026-10-12)
+
+The owner reported `404` from both `GET /api/dev/identity/authorization/me` (expected unauthenticated `401`) and the Step 06 customer registration smoke, even after confirming the standard Development and test connection settings. This means the route was either not registered or the loopback guard returned NotFound; the HTTP status alone does not distinguish those causes.
+
+**Patch:** Hardened the loopback guard to recognize IPv4-mapped IPv6 loopback addresses (`::ffff:127.0.0.1`), which some local host stacks present. Added Development-only, localhost-only `GET /health/dev-identity`, registered independently of the identity route condition, returning only booleans: `development`, `connectionConfigured`, `identityEndpointsRegistered`, `registrationEnabled` and `loopbackRecognized`. No connection string, token, secret, password, address, or environment variable contents are returned. Step 06 HTTP smoke now checks this endpoint before creating test users and provides a configuration failure diagnostic if identity routes are disabled. If the endpoint remains `404`, investigate the exact process/binary bound to port 15088, its actual runtime environment or the remote-loopback guard. This change **does not establish the user's root cause without the diagnostic response**.
+
+**macOS recovery checklist:**
+```bash
+git pull --ff-only origin phase/03-identity-authorization
+dotnet build ArginTaxPayer.sln -c Release
+lsof -nP -iTCP:15088 -sTCP:LISTEN
+# Stop the existing 15088 API cleanly (Ctrl+C in its owning terminal)
+# In the API terminal that has the exact argintaxpayer_test DB connection set:
+export DOTNET_ENVIRONMENT=Development
+export ASPNETCORE_ENVIRONMENT=Development
+export Identity__AllowDevelopmentRegistration=true
+dotnet run --no-launch-profile --project src/ArginTaxPayer.Api --urls http://127.0.0.1:15088
+# Another terminal:
+curl -i http://127.0.0.1:15088/health/dev-identity
+curl -i http://127.0.0.1:15088/api/dev/identity/authorization/me
+python3 scripts/phase-03-step-06-smoke.py
+```
+Expected diagnostic all booleans `true`, unauthenticated authorization `401` and `STEP 06 RESOURCE SCOPE SMOKE PASSED`. If diagnostics show `connectionConfigured=false`, restore the test connection string **in the API process's terminal**. If diagnostics show `registrationEnabled=false`, set `Identity__AllowDevelopmentRegistration=true` **before starting the API**. An unrecognized diagnostic URL (404) after pulling may mean a stale listener; inspect the owning process and effective environment. No migration required. **Step 06 remains operator-verification pending.**
+
 ## 5. Communication Convention
 
 The **repository phase plan and all step completion records are written in English only**. When implementing or reporting on a step in the chat, present its title in **both Persian and English** (for example: `گام ۱ — زیرساخت مدل هویت و ایجاد مدیر اولیه | Step 01 — Identity Data Model and Bootstrap`). Explain execution and acceptance in concise, right-to-left Persian, while keeping code and shell commands left-to-right. Do not change the planned English step title without an approved plan amendment.
