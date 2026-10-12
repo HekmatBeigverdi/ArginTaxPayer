@@ -1,3 +1,4 @@
+using Npgsql;
 using Microsoft.EntityFrameworkCore;
 
 namespace ArginTaxPayer.Infrastructure.Persistence.Identity;
@@ -122,8 +123,10 @@ public sealed class IdentityAuthorizationService(
             return Level2RoleGrantResult.Forbidden;
 
         var strategy = db.Database.CreateExecutionStrategy();
-        return await strategy.ExecuteAsync(async () =>
+        try
         {
+            return await strategy.ExecuteAsync(async () =>
+            {
             await using var tx = await db.Database.BeginTransactionAsync(
                 System.Data.IsolationLevel.Serializable, ct);
             // Recheck privileged actor and target under transaction isolation.
@@ -151,6 +154,18 @@ public sealed class IdentityAuthorizationService(
                 .ExecuteUpdateAsync(s => s.SetProperty(x => x.RevokedAtUtc, DateTime.UtcNow), ct);
             await tx.CommitAsync(ct);
             return Level2RoleGrantResult.Granted;
-        });
+            });
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException
+            { SqlState: PostgresErrorCodes.UniqueViolation })
+        {
+            db.ChangeTracker.Clear();
+            return Level2RoleGrantResult.Conflict;
+        }
+        catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.SerializationFailure)
+        {
+            db.ChangeTracker.Clear();
+            return Level2RoleGrantResult.Conflict;
+        }
     }
 }
