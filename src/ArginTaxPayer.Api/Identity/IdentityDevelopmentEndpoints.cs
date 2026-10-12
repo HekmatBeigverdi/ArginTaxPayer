@@ -90,6 +90,52 @@ public static class IdentityDevelopmentEndpoints
             return userId is { } id ? Results.Ok(new { userId = id }) : Results.Unauthorized();
         });
 
+        // MFA endpoints are restricted to Development and loopback, matching session routes.
+        group.MapPost("/mfa/enroll", async (HttpContext http, IdentitySessionService sessions,
+            IServiceProvider provider, CancellationToken ct) =>
+        {
+            if (!IsLoopback(http)) return Results.NotFound();
+            var identity = provider.GetService<IdentityMfaService>();
+            if (identity is null) return Results.NotFound();
+            var userId = await sessions.AuthenticateAsync(ReadBearer(http), ct);
+            if (userId is null) return Results.Unauthorized();
+            var enrollment = await identity.BeginEnrollmentAsync(userId.Value, ct);
+            return enrollment is null ? Results.BadRequest(new { error = "mfa_unavailable" }) : Results.Ok(enrollment);
+        });
+
+        group.MapPost("/mfa/confirm", async ([FromBody] TotpConfirmRequest request,
+            HttpContext http, IdentitySessionService sessions, IServiceProvider provider, CancellationToken ct) =>
+        {
+            if (!IsLoopback(http)) return Results.NotFound();
+            var identity = provider.GetService<IdentityMfaService>();
+            if (identity is null) return Results.NotFound();
+            var userId = await sessions.AuthenticateAsync(ReadBearer(http), ct);
+            if (userId is null) return Results.Unauthorized();
+            var codes = await identity.ConfirmEnrollmentAsync(userId.Value, request.Code, ct);
+            return codes is null ? Results.Unauthorized() : Results.Ok(codes);
+        });
+
+        group.MapPost("/mfa/challenge", async ([FromBody] IdentityCredentials request,
+            HttpContext http, IServiceProvider provider, CancellationToken ct) =>
+        {
+            if (!IsLoopback(http)) return Results.NotFound();
+            var identity = provider.GetService<IdentityMfaService>();
+            if (identity is null) return Results.NotFound();
+            var challenge = await identity.BeginLoginAsync(request.Email, request.Password, ct);
+            return challenge is null ? Results.Unauthorized() : Results.Ok(challenge);
+        });
+
+        group.MapPost("/mfa/complete", async ([FromBody] MfaCompleteRequest request,
+            HttpContext http, IServiceProvider provider, CancellationToken ct) =>
+        {
+            if (!IsLoopback(http)) return Results.NotFound();
+            var identity = provider.GetService<IdentityMfaService>();
+            if (identity is null) return Results.NotFound();
+            var tokens = await identity.CompleteLoginAsync(request.Challenge, request.Code,
+                request.UseRecoveryCode, ct);
+            return tokens is null ? Results.Unauthorized() : Results.Ok(tokens);
+        });
+
         return endpoints;
     }
 
@@ -107,3 +153,6 @@ public static class IdentityDevelopmentEndpoints
 public sealed record IdentityCredentials(string? Email, string? Password);
 
 public sealed record RefreshRequest(string? RefreshToken);
+
+public sealed record TotpConfirmRequest(string? Code);
+public sealed record MfaCompleteRequest(string? Challenge, string? Code, bool UseRecoveryCode);
