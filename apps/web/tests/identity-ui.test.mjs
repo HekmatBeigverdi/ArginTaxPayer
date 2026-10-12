@@ -46,3 +46,19 @@ test("login form supports MFA challenge, recovery code, and accessible errors", 
   assert.match(form, /role="alert"/);
   assert.match(form, /minLength=\{view === "register" \? 8/);
 });
+
+test("phone-first RTL registration, OTP login and reset are connected through allowlisted BFF", () => {
+  const page = read("app/identity/page.tsx");
+  const phone = read("app/identity/phone-forms.tsx");
+  const proxy = read("app/api/identity/[...path]/route.ts");
+  assert.match(page, /<PhoneForms \/>/);
+  assert.match(phone, /phone\/request/);
+  assert.match(phone, /phone\/register\/complete/);
+  assert.match(phone, /phone\/login\/complete/);
+  assert.match(phone, /phone\/reset\/complete/);
+  assert.match(phone, /autoComplete="one-time-code"/);
+  assert.match(proxy, /"phone\/register\/complete"/);
+  assert.match(proxy, /"phone\/login\/complete"/);
+  assert.match(proxy, /"phone\/reset\/complete"/);
+  assert.match(proxy, /httpOnly: true/);
+});
