@@ -928,6 +928,46 @@ No API port needs to be exposed publicly; no migration is performed. This valida
 
 **Dependencies and release gates:** Phase 03 may close as **identity groundwork** only if its identity-specific amended acceptance is approved and the deferred financial work is explicitly registered for Phase 12, administration Phase 16, security Phase 17 and release Phase 18. Do not describe SMS wallet or scheduled rates as implemented during Phase 03. Preserve a feature flag / disabled paid-SMS flows until billing and admin work pass acceptance. Update the single-file phase master plan for each later phase before work begins, consistent with the roadmap documentation policy. GitHub issue #4 tracks the multi-phase requirements.
 
+### Operator Checkpoint — Current Step, Test Gates and Ghasedak Secret Provisioning (2026-10-12)
+
+**Current position:** Steps 01–07 = Owner Approved (Step 07 security debt carries into Step 10/17). Step 08 = Implemented, **Not Yet Owner Approved**, pending UI and regression verification and the approved phone-first scope amendment. Steps 09 and 10 = Planned. The current `/identity` frontend and API still use **email/password**; adding `IranianMobileNumber` did not enable phone registration, SMS dispatch or a wallet. Do not treat the SMS/OTP flow as ready to test merely because a provider key has been configured.
+
+**First verification gate:**
+```bash
+git switch phase/03-identity-authorization
+git pull --ff-only origin phase/03-identity-authorization
+dotnet build ArginTaxPayer.sln -c Release
+dotnet test ArginTaxPayer.sln -c Release --no-build
+dotnet test ArginTaxPayer.sln -c Release --no-build --filter 'FullyQualifiedName~IranianMobileNumberTests'
+(cd apps/web && npm ci --no-audit --no-fund && npm test && npm run typecheck && npm run build)
+```
+Next, use the **owner-proven zsh same-shell PostgreSQL env command** in the section titled `Confirmed macOS Development API Launch Convention`, start API on `127.0.0.1:15089`, and run a separate terminal:
+```bash
+curl --noproxy '*' -s http://127.0.0.1:15089/health/dev-identity
+ARGIN_IDENTITY_UI_ENABLED=true ARGIN_IDENTITY_API_INTERNAL_BASE_URL=http://127.0.0.1:15089 npm --prefix apps/web run dev -- --port 3000
+```
+While API and web run in dedicated shells, in another shell from repository root:
+```bash
+python3 scripts/phase-03-step-08-ui-smoke.py
+ARGINTAXPAYER_API_BASE=http://127.0.0.1:15089 python3 scripts/phase-03-step-06-smoke.py
+ARGINTAXPAYER_API_BASE=http://127.0.0.1:15089 python3 scripts/phase-03-step-07-smoke.py
+```
+Check `http://127.0.0.1:3000/identity`, `/account`, registration/login, logout, forbidden direct account access, MFA and recovery with the **previously configured** Identity encryption key; use disposable users only in the isolated `argintaxpayer_test` PostgreSQL database. Then run all matching build/test commands on Ubuntu without publishing development API/web ports.
+
+**Secret file convention for FUTURE Ghasedak adapter tests (no production SMS in current Step 08):** On macOS use an **untracked** project-root `.env.ghasedak.local` file (covered by root `.gitignore` rule `.env.*`). Do not create it from actual credentials until the adapter tests require it. The intended format is:
+```sh
+# .env.ghasedak.local (NEVER commit or paste this file in chat)
+Ghasedak__ApiKey='REPLACE_LOCALLY_WITH_REAL_API_KEY'
+Ghasedak__TemplateName='TaxPayerActivationCode'
+Ghasedak__EnableLiveSending='false'
+# Add account/panel identifier and tested provider mapping when confirmed.
+```
+The API currently has **no Ghasedak registration or file-loading mechanism**, so these values are **planned**, not presently wired configuration. For future test runs, load the restricted local file into **the same process shell that launches .NET** using `set -a; source ./.env.ghasedak.local; set +a` (after inspecting the file, ensuring it is owner-readable only via `chmod 600 .env.ghasedak.local`). Do not run `git add -f` on secrets or expose an API key through `NEXT_PUBLIC_*` environment variables. Never log secrets.
+
+**Additional operator inputs at the relevant live-provider gate:** one Ghasedak panel/account identifier and a secret API key supplied in the file only; account-specific confirmation that `TaxPayerActivationCode` exists and `Param1` is correct; a permitted test recipient mobile entered privately into a local test configuration; provider response/receipt/cost metadata and sender restrictions. The actual provider expense **must be established from source evidence**. Customer-facing scheduled charges require Level 1 tariff versions in Phase 12/16, not a hard-coded Ghasedak unit price.
+
+**Provider compatibility clarification:** The `GhasedakSms.Framework` repository README documents `SendOtpWithParamsInput`, while the current C# method signature accepts `SendOldOtpInput` for `SendOtpWithParams` and submits to `https://gateway.ghasedak.me/rest/api/v1/WebService/SendOtpWithParams`. Verify the request DTO against actual provider behavior before implementing a .NET 9 typed HttpClient adapter; do not add the .NET Framework-only SDK directly to .NET 9. Test with mock transport first and default live sending OFF.
+
 ## 5. Communication Convention
 
 The **repository phase plan and all step completion records are written in English only**. When implementing or reporting on a step in the chat, present its title in **both Persian and English** (for example: `گام ۱ — زیرساخت مدل هویت و ایجاد مدیر اولیه | Step 01 — Identity Data Model and Bootstrap`). Explain execution and acceptance in concise, right-to-left Persian, while keeping code and shell commands left-to-right. Do not change the planned English step title without an approved plan amendment.
