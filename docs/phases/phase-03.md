@@ -462,6 +462,31 @@ ORDER BY u.normalized_email;
 
 **Evidence:** Diagnostic source committed; operator verification pending; Step 04 remains unapproved.
 
+### Step 04 — Password Policy Adjustment and Closed SSH Tunnel (2026-10-12)
+
+**Owner-requested policy change:** The previous 16-character password minimum was relaxed consistently to **8 characters** (maximum remains 1,024). Applies to initial Level 1 administrator bootstrap and customer registration through shared `IdentityPasswordHasher.Validate`. Existing PBKDF2-SHA256 hashing, salts, credential verification, mandatory administrator MFA, and role boundaries remain unchanged. Regression tests cover eight-character acceptance and short-password rejection. No database migration is required.
+
+**Operator error:** `SocketException (61): Connection refused` on `127.0.0.1:15432` means that the macOS SSH tunnel to Ubuntu PostgreSQL is not currently accepting connections. This is unrelated to the password minimum. The operator CLI now reports a concise tunnel/connectivity diagnostic instead of an unhandled PostgreSQL connection stack trace.
+
+**Verification sequence (macOS):**
+```bash
+# Terminal 1: keep open until after all DB-dependent checks
+ssh -N -o ExitOnForwardFailure=yes -L 127.0.0.1:15432:127.0.0.1:5432 argindev@85.133.244.156
+
+# Terminal 2: from repo root, in a shell that has the test DB connection and persistent MFA key
+git fetch origin
+git switch phase/03-identity-authorization
+git pull --ff-only origin phase/03-identity-authorization
+lsof -nP -iTCP:15432 -sTCP:LISTEN
+psql -h 127.0.0.1 -p 15432 -U argintaxpayer -d argintaxpayer_test -W -tAc 'SELECT current_database();'
+dotnet build ArginTaxPayer.sln -c Release
+dotnet test ArginTaxPayer.sln -c Release --no-build --filter FullyQualifiedName~IdentityCredentialTests
+dotnet run --project tools/ArginTaxPayer.IdentityOperator -- inspect-level1-test
+```
+If the same-shell `ConnectionStrings__ArginTaxPayerDb` variable is absent, restore it with `Database=argintaxpayer_test` via the established runbook; do not pass the Npgsql string to `psql`. For a new Level 1 account in the dedicated test DB, run `bootstrap-level1-test`; for an existing Level 1, `enroll-level1-test`. The email must not already belong to a different account. Do not regenerate the AES-GCM MFA key after enrollment. **No migration** for this change.
+
+**Ubuntu regression:** Pull branch, `dotnet build ArginTaxPayer.sln -c Release`, and `dotnet test ArginTaxPayer.sln -c Release --no-build`. Step 04 remains pending operator acceptance.
+
 ## 5. Communication Convention
 
 The **repository phase plan and all step completion records are written in English only**. When implementing or reporting on a step in the chat, present its title in **both Persian and English** (for example: `گام ۱ — زیرساخت مدل هویت و ایجاد مدیر اولیه | Step 01 — Identity Data Model and Bootstrap`). Explain execution and acceptance in concise, right-to-left Persian, while keeping code and shell commands left-to-right. Do not change the planned English step title without an approved plan amendment.
