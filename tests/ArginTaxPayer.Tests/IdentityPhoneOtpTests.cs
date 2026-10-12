@@ -51,7 +51,8 @@ public sealed class IdentityPhoneOtpTests
             Assert.True(await phones.RequestAsync(phone, "register"));
             Assert.NotNull(fake.LastCode);
             Assert.NotEqual(fake.LastCode, (await db.IdentityPhoneChallenges.SingleAsync(x => x.Mobile == phone)).CodeDigest);
-            Assert.False(await phones.ConfirmRegistrationAsync(phone, "000000", null));
+            Assert.False(await phones.ConfirmRegistrationAsync(phone,
+                fake.LastCode == "000000" ? "111111" : "000000", null));
             Assert.True(await phones.ConfirmRegistrationAsync(phone, fake.LastCode, null));
             Assert.False(await phones.ConfirmRegistrationAsync(phone, fake.LastCode, null));
             userId = await db.IdentityUsers.Where(x => x.NormalizedMobile == phone)
