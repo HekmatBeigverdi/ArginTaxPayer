@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 03: Identity and Authorization
 
-**Status:** Steps 01–05 owner approved (operator-reported acceptance); Step 06 planned  
+**Status:** Steps 01–05 owner approved (operator-reported acceptance); Step 06 implemented, operator verification pending  
 **Branch:** `phase/03-identity-authorization`  
 **Baseline:** Phase 02 and `docs/roadmap/18-phases.md`  
 **Started:** 2026-10-12
@@ -28,7 +28,7 @@ Security invariants:
 | 03 | Token and Session Lifecycle | Short-lived access tokens, rotating refresh tokens, session revocation and logout | Reject reused/expired refresh tokens; revoked sessions cannot renew | Owner approved (2026-10-12) |
 | 04 | Multi-Factor Authentication and Recovery | MFA enrollment/challenge, single-use recovery codes, secure account recovery | Admin MFA policy enforced; replay and secret disclosure prevented | Owner approved (2026-10-12) |
 | 05 | Role-Based Authorization and Permissions | Level 1, Level 2, Customer roles, permission policies and safe role grants | Users cannot self-elevate privileges; role-policy tests pass | Owner approved (2026-10-12) |
-| 06 | Resource-Scoped Authorization | Server-side ownership/scope policies and extension contracts for Phase 04 | Cross-scope access denied with suitable 403/404; UI filtering alone cannot grant access | Planned |
+| 06 | Resource-Scoped Authorization | Server-side ownership/scope policies and extension contracts for Phase 04 | Cross-scope access denied with suitable 403/404; UI filtering alone cannot grant access | Implemented — operator verification pending |
 | 07 | Account Protection and Security Audit | Login throttling, security-event audit, sensitive-data redaction, session controls | Brute-force throttling and redaction verified; security events auditable | Planned |
 | 08 | Persian RTL Identity User Interface | Login, registration, MFA, account/security screens and guarded routes | RTL layout, correct error states, login/logout flow, protected-content tests | Planned |
 | 09 | Identity and Authorization Integration Tests | API/UI negative-path integration tests, token/recovery replay and role/scope isolation | Local and CI identity/security suites pass; unauthorized access rejected | Planned |
@@ -575,6 +575,83 @@ dotnet build tools/ArginTaxPayer.IdentityOperator/ArginTaxPayer.IdentityOperator
 **Security limitations:** This phase introduces role-level permission infrastructure, **not** taxpayer/resource ownership authorization. Those checks are Step 06 and Phase 04 deliverables. These API routes remain loopback Development-only; do not treat them as a production authentication/authorization deployment. No new admin account or additional Level 1 provisioning is needed for the automated database test.
 
 **Owner acceptance record (2026-10-12):** The project owner expressly confirmed successful completion of Step 05 macOS Build and Unit Tests, SSH tunnel connectivity, PostgreSQL `IdentityRolePostgresTests`, HTTP RBAC smoke tests, and Ubuntu build/tests. Step 05 is **Owner Approved**. All results are **operator-reported PASS**; the assistant did not independently execute the tests or verify raw terminal/CI logs. There is **no Step 05 database migration**. Approval is limited to Step 05, and does not authorize a merge to `main`, release/tag or production deployment. Step 06 — Resource-Scoped Authorization — remains Planned.
+
+### Step 06 — Resource-Scoped Authorization
+
+**Status:** Implemented in `phase/03-identity-authorization`; **operator verification and owner approval pending**. This entry does not certify tests as passing merely because source and test code were committed.
+
+**Deliverables and security boundary:**
+- `IdentityResourceKind` and `IIdentityResourceOwnershipResolver` define a typed extension contract. `IdentityResourceOwnershipResolver` resolves **active IdentityUser** and **IdentitySession** ownership directly in PostgreSQL. `IdentityResourceAuthorizationService` combines current bearer session, current RBAC permission and storage-derived ownership. No user-controlled owner ID, tenant ID or client-supplied role is trusted.
+- Owners can read their own identity resource and identify/revoke their own database-backed sessions. A missing ID or a foreign user/session ID produces the same **404**; absent/invalid session returns **401**; valid session lacking role permission returns **403**. Scope enforcement is server-side and independent of the UI.
+- The revocation query filters by both session ID and authenticated user ID at the point of mutation. Session revocation invalidates both access and refresh credentials, without affecting other users. Authorization is fail-closed for unknown resource kinds.
+- Development-only, loopback-only HTTP probes: `GET /api/dev/identity/resources/users/{userId}`, `GET /api/dev/identity/resources/sessions`, `GET /api/dev/identity/resources/sessions/{sessionId}`, `POST /api/dev/identity/resources/sessions/{sessionId}/revoke`. These return only resource identifiers/statuses; never raw session tokens or password/MFA secrets.
+- The contract **does not invent taxpayer-company memberships** or assume that Level 1/Level 2 globally own taxpayer data. Mapping a user to a taxpayer/company and the delegated role for that taxpayer remain Phase 04 responsibilities. Future taxpayer resource resolvers must use authoritative stored memberships and deny unlinked user-resource combinations. Existing Phase 03 role checks and endpoints remain intact.
+- Focused tests: `IdentityResourceScopeUnitTests` cover anonymous/unknown-resource denial without DB I/O. `IdentityResourceScopePostgresTests` creates two disposable Customer identities in the dedicated test DB, checks own and foreign identity/session boundaries, confirms own-session revocation, rejects cross-user revoke, and verifies no effect on the other account. `scripts/phase-03-step-06-smoke.py` repeats the core negative paths via HTTP.
+
+**Migration impact: NONE.** Reuses `identity_users` and `identity_sessions` from Steps 01–03. Do **not** run EF Core schema update for Step 06. A new persisted taxpayer membership model must be designed and explicitly migrated in Phase 04; this delivery is deliberately limited to identity-owned resources and a future extension contract.
+
+**macOS test runbook (repository root):**
+
+Terminal 1 — open and keep the PostgreSQL SSH tunnel alive:
+```bash
+ssh -N -o ExitOnForwardFailure=yes \
+  -L 127.0.0.1:15432:127.0.0.1:5432 \
+  argindev@85.133.244.156
+```
+
+Terminal 2 — pull source and run regression tests:
+```bash
+git fetch origin
+git switch phase/03-identity-authorization
+git pull --ff-only origin phase/03-identity-authorization
+dotnet build ArginTaxPayer.sln -c Release
+dotnet test ArginTaxPayer.sln -c Release --no-build
+```
+
+Terminal 2 — export a dedicated **test** PostgreSQL connection string only if not already configured:
+```bash
+read -rs "PGPASS?PostgreSQL test password: "; echo
+export ConnectionStrings__ArginTaxPayerDb="Host=127.0.0.1;Port=15432;Database=argintaxpayer_test;Username=argintaxpayer;Password=${PGPASS};SSL Mode=Prefer"
+unset PGPASS
+psql -h 127.0.0.1 -p 15432 -U argintaxpayer -d argintaxpayer_test -W -tAc 'SELECT current_database();'
+```
+Proceed **only** if output is exactly `argintaxpayer_test`. Verify existing resource tables without schema changes:
+```bash
+psql -h 127.0.0.1 -p 15432 -U argintaxpayer -d argintaxpayer_test -W -c '\d identity_users'
+psql -h 127.0.0.1 -p 15432 -U argintaxpayer -d argintaxpayer_test -W -c '\d identity_sessions'
+```
+
+Terminal 2 — run focused PostgreSQL test and prior Step 04/05 integration regressions:
+```bash
+RUN_ARGINTAXPAYER_PG_INTEGRATION=1 dotnet test ArginTaxPayer.sln -c Release --no-build --filter 'FullyQualifiedName~IdentityResourceScopePostgresTests'
+RUN_ARGINTAXPAYER_PG_INTEGRATION=1 dotnet test ArginTaxPayer.sln -c Release --no-build --filter 'FullyQualifiedName~IdentityMfaRetryStrategyPostgresTests|FullyQualifiedName~IdentityRolePostgresTests'
+```
+
+Terminal 2 — run the API on loopback Development mode (keep running):
+```bash
+ASPNETCORE_ENVIRONMENT=Development Identity__AllowDevelopmentRegistration=true \
+dotnet run --no-launch-profile --project src/ArginTaxPayer.Api --urls http://127.0.0.1:15088
+```
+
+Terminal 3 — HTTP smoke test:
+```bash
+python3 scripts/phase-03-step-06-smoke.py
+```
+Expected final marker: `STEP 06 RESOURCE SCOPE SMOKE PASSED`. The HTTP smoke creates disposable `Customer` records in `argintaxpayer_test`; it does not delete them automatically. Stop the API with Ctrl+C after the test.
+
+**Ubuntu VPS build and test:**
+```bash
+ssh argindev@85.133.244.156
+cd ~/projects/ArginTaxPayer
+git fetch origin
+git switch phase/03-identity-authorization
+git pull --ff-only origin phase/03-identity-authorization
+dotnet build ArginTaxPayer.sln -c Release
+dotnet test ArginTaxPayer.sln -c Release --no-build
+```
+The Ubuntu default tests do not require a configured PostgreSQL URL. Running the opt-in PostgreSQL tests on Ubuntu is allowed only with an **explicit** connection string pointing to `argintaxpayer_test`; do not point it to any production service and do not apply migrations.
+
+**Acceptance:** macOS/Ubuntu builds and full standard suites pass; scoped PostgreSQL and Step 04/05 regression integration tests pass; HTTP smoke passes and confirms 401/404 isolation plus safe self-revocation; no regressions in prior endpoints; no Step 06 migration. **CI not verified; owner acceptance pending.**
 
 ## 5. Communication Convention
 
