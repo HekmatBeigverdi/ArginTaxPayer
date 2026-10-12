@@ -155,12 +155,16 @@ public static class IdentityDevelopmentEndpoints
         // Routes remain Development/loopback only until the production identity gate.
         group.MapPost("/phone/request", async (
             [FromBody] PhoneRequest request, HttpContext http, IdentityPhoneService phones,
-            CancellationToken ct) =>
+            ILoggerFactory loggerFactory, CancellationToken ct) =>
         {
             if (!IsLoopback(http)) return Results.NotFound();
-            // The accepted response does not reveal whether an account exists.
-            // Sending is disabled by default; the caller receives a generic state.
-            await phones.RequestAsync(request.Mobile, request.Purpose, ct);
+            // Generic response avoids account enumeration; diagnosis stays server-side.
+            var delivered = await phones.RequestAsync(request.Mobile, request.Purpose, ct);
+            var logger = loggerFactory.CreateLogger("ArginTaxPayer.Identity.OtpDelivery");
+            if (delivered)
+                logger.LogInformation("OTP_REQUEST_DELIVERED");
+            else
+                logger.LogWarning("OTP_REQUEST_NOT_DELIVERED; check provider configuration, eligibility and cooldown");
             return Results.Accepted();
         });
 
