@@ -3,9 +3,9 @@ using ArginTaxPayer.Infrastructure.Persistence.Identity;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 
-if (args.Length != 1 || (args[0] != "enroll-level1-test" && args[0] != "bootstrap-level1-test"))
+if (args.Length != 1 || (args[0] != "enroll-level1-test" && args[0] != "bootstrap-level1-test" && args[0] != "inspect-level1-test"))
 {
-    Console.Error.WriteLine("Usage: dotnet run --project tools/ArginTaxPayer.IdentityOperator -- enroll-level1-test|bootstrap-level1-test");
+    Console.Error.WriteLine("Usage: dotnet run --project tools/ArginTaxPayer.IdentityOperator -- enroll-level1-test|bootstrap-level1-test|inspect-level1-test");
     return 2;
 }
 
@@ -17,13 +17,6 @@ if (string.IsNullOrWhiteSpace(cs) ||
     Console.Error.WriteLine("Refusing operation: only explicit argintaxpayer_test is permitted.");
     return 2;
 }
-var key = Environment.GetEnvironmentVariable("Identity__MfaEncryptionKey");
-if (string.IsNullOrWhiteSpace(key))
-{
-    Console.Error.WriteLine("Identity MFA encryption key required.");
-    return 2;
-}
-var crypto = new IdentityMfaCrypto(key);
 await using var db = new ArginTaxPayerDbContext(
     new DbContextOptionsBuilder<ArginTaxPayerDbContext>().UseNpgsql(cs).Options);
 if (!(await db.Database.GetAppliedMigrationsAsync()).Contains("20261012040000_AddIdentityMfa"))
@@ -31,6 +24,27 @@ if (!(await db.Database.GetAppliedMigrationsAsync()).Contains("20261012040000_Ad
     Console.Error.WriteLine("MFA migration must be applied first.");
     return 2;
 }
+
+if (args[0] == "inspect-level1-test")
+{
+    // Read-only operator diagnostic: never display password hashes or MFA secrets.
+    var adminRows = await db.IdentityUserRoles.AsNoTracking()
+        .Where(x => x.Role == IdentityRoleNames.Level1)
+        .Join(db.IdentityUsers.AsNoTracking(), r => r.UserId, u => u.Id,
+            (r, u) => new { u.NormalizedEmail, u.IsActive })
+        .ToListAsync();
+    Console.WriteLine($"Level 1 account count: {adminRows.Count}");
+    foreach (var admin in adminRows)
+        Console.WriteLine($"Level 1 email: {admin.NormalizedEmail}; active: {admin.IsActive}");
+    return 0;
+}
+var key = Environment.GetEnvironmentVariable("Identity__MfaEncryptionKey");
+if (string.IsNullOrWhiteSpace(key))
+{
+    Console.Error.WriteLine("Identity MFA encryption key required.");
+    return 2;
+}
+var crypto = new IdentityMfaCrypto(key);
 
 static string Hidden(string label)
 {
@@ -66,7 +80,7 @@ if (user is null && args[0] == "bootstrap-level1-test")
     try { await InitialAdministratorBootstrap.ProvisionAsync(db, email, password); }
     catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
     {
-        Console.Error.WriteLine("Initial Level 1 bootstrap rejected.");
+        Console.Error.WriteLine("Initial Level 1 bootstrap rejected: " + ex.Message);
         return 2;
     }
     user = await db.IdentityUsers.AsNoTracking()
