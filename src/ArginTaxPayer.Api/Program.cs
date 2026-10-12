@@ -8,6 +8,8 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 using System.Text.Json;
 
 var builder = WebApplication.CreateBuilder(args);
+var identityDevelopmentEnabled = builder.Environment.IsDevelopment() &&
+    !string.IsNullOrWhiteSpace(builder.Configuration.GetConnectionString("ArginTaxPayerDb"));
 // JSON console output is machine-readable on macOS, Ubuntu and future containers.
 builder.Logging.ClearProviders();
 builder.Logging.AddJsonConsole(options => options.IncludeScopes = true);
@@ -18,7 +20,7 @@ builder.Services.AddArginTaxPayerPersistence(builder.Configuration, builder.Envi
 
 // OpenAPI document generation is registered for API contract development.
 builder.Services.AddOpenApi();
-if (builder.Environment.IsDevelopment())
+if (identityDevelopmentEnabled)
     builder.Services.AddScoped<IdentityCredentialService>();
 
 // Separate cheap process liveness from real PostgreSQL readiness.
@@ -33,7 +35,8 @@ app.UseMiddleware<CorrelationIdMiddleware>();
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
-    app.MapIdentityDevelopmentEndpoints();
+    if (identityDevelopmentEnabled)
+        app.MapIdentityDevelopmentEndpoints();
 }
 
 // Preserve the existing bootstrap endpoint.
