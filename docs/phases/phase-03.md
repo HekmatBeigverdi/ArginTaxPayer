@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 03: Identity and Authorization
 
-**Status:** Step 01 implemented; database verification pending  
+**Status:** Step 01 owner approved (2026-10-12); Step 02 implemented, test verification pending  
 **Branch:** `phase/03-identity-authorization`  
 **Baseline:** Phase 02 and `docs/roadmap/18-phases.md`  
 **Started:** 2026-10-12
@@ -23,8 +23,8 @@ Security invariants:
 
 | Step | English Title | Planned Deliverable | Step-Specific Acceptance | Status |
 | --- | --- | --- | --- | --- |
-| 01 | Identity Data Model and Bootstrap | Identity entities/contracts, EF Core migration, controlled initial Level 1 admin bootstrap | Identity uniqueness, migration validation against test DB, no public admin creation | Implemented — pending operator verification |
-| 02 | Registration, Login, and Password Security | Controlled registration, login, secure password hashing, account validation | Reject invalid credentials, disabled accounts, duplicate registrations | Planned |
+| 01 | Identity Data Model and Bootstrap | Identity entities/contracts, EF Core migration, controlled initial Level 1 admin bootstrap | Identity uniqueness, migration validation against test DB, no public admin creation | Owner approved (2026-10-12) |
+| 02 | Registration, Login, and Password Security | Controlled registration, login, secure password hashing, account validation | Reject invalid credentials, disabled accounts, duplicate registrations | Implemented — pending verification |
 | 03 | Token and Session Lifecycle | Short-lived access tokens, rotating refresh tokens, session revocation and logout | Reject reused/expired refresh tokens; revoked sessions cannot renew | Planned |
 | 04 | Multi-Factor Authentication and Recovery | MFA enrollment/challenge, single-use recovery codes, secure account recovery | Admin MFA policy enforced; replay and secret disclosure prevented | Planned |
 | 05 | Role-Based Authorization and Permissions | Level 1, Level 2, Customer roles, permission policies and safe role grants | Users cannot self-elevate privileges; role-policy tests pass | Planned |
@@ -185,6 +185,61 @@ exit
 Keep the tunnel open until all macOS DB tests finish. Optional: repeat the opt-in PostgreSQL integration test on Ubuntu only after explicitly setting a safe local test connection. Never expose PostgreSQL to the public network. Stop the tunnel with Ctrl+C when finished. Do not commit or paste database credentials in issue comments.
 
 **Verification evidence:** macOS: pending; Ubuntu: pending; migration applied: pending; schema inspected: pending; PostgreSQL integration: pending; owner approval: pending.
+
+### Step 02 — Registration, Login, and Password Security
+
+**Implementation:** `IdentityPasswordHasher` verifies Phase 01's PBKDF2-SHA256 hashes using constant-time comparison, and generates random-salted new hashes. `IdentityCredentialService` persists new Customer identities (no client-selectable administrative role), handles duplicate emails, rejects invalid/disabled credentials, and does not issue sessions. API endpoints are available **only in Development**, restricted to **loopback connections**; Customer registration additionally requires opt-in `Identity__AllowDevelopmentRegistration=true`. No token, session or user authority is issued until subsequent steps. Production exposure is intentionally disabled.
+
+**Migration impact: None.** Reuse the Step 01 identity migration already applied on the VPS test database. No additional migration or Ubuntu schema change is needed.
+
+**Mac testing — connect first:**
+1. Open and keep running, in macOS Terminal 1:
+```bash
+ssh -N -o ExitOnForwardFailure=yes -L 127.0.0.1:15432:127.0.0.1:5432 argindev@85.133.244.156
+```
+2. In macOS Terminal 2, from the repository root:
+```bash
+git fetch origin
+git switch phase/03-identity-authorization
+git pull --ff-only origin phase/03-identity-authorization
+dotnet build ArginTaxPayer.sln -c Release
+dotnet test ArginTaxPayer.sln -c Release --no-build
+read -rs "PGPASS?Test PostgreSQL password: "; echo
+export ConnectionStrings__ArginTaxPayerDb="Host=127.0.0.1;Port=15432;Database=argintaxpayer_test;Username=argintaxpayer;Password=${PGPASS};SSL Mode=Prefer"
+unset PGPASS
+psql -h 127.0.0.1 -p 15432 -U argintaxpayer -d argintaxpayer_test -W -tAc 'SELECT current_database();'
+dotnet ef migrations list --project src/ArginTaxPayer.Infrastructure --startup-project src/ArginTaxPayer.Api --context ArginTaxPayerDbContext
+RUN_ARGINTAXPAYER_PG_INTEGRATION=1 dotnet test ArginTaxPayer.sln -c Release --no-build --filter FullyQualifiedName~IdentityCredentialPostgresTests
+```
+Expected database: `argintaxpayer_test`, and Step 01 migration already applied. `psql` uses libpq flags, not the Npgsql connection string syntax. Integration test transactions roll back.
+
+3. Run the development API in Terminal 2 (keep the exported test database connection):
+```bash
+ASPNETCORE_ENVIRONMENT=Development Identity__AllowDevelopmentRegistration=true dotnet run --no-launch-profile --project src/ArginTaxPayer.Api --urls http://127.0.0.1:15088
+```
+4. In macOS Terminal 3, test using a **throwaway** identity (not real credentials):
+```bash
+curl -i http://127.0.0.1:15088/api/dev/identity/register -H 'Content-Type: application/json' -d '{"email":"phase03-demo@example.invalid","password":"Demo-Only-Password-2026!"}'
+curl -i http://127.0.0.1:15088/api/dev/identity/register -H 'Content-Type: application/json' -d '{"email":"PHASE03-DEMO@example.invalid","password":"Demo-Only-Password-2026!"}'
+curl -i http://127.0.0.1:15088/api/dev/identity/verify-password -H 'Content-Type: application/json' -d '{"email":"phase03-demo@example.invalid","password":"Demo-Only-Password-2026!"}'
+curl -i http://127.0.0.1:15088/api/dev/identity/verify-password -H 'Content-Type: application/json' -d '{"email":"phase03-demo@example.invalid","password":"wrong"}'
+```
+Expected: `201`, `409`, `200` with `sessionIssued:false`, then `401`. Since user rows persist, choose a fresh email on every rerun, or use the isolated transaction integration test for repeatable validation. Verify the row has **only Customer** role, and no plaintext password in the database. Stop the API and tunnel after testing.
+
+**Ubuntu build and regression tests (no second migration):**
+```bash
+ssh argindev@85.133.244.156
+cd ~/projects/ArginTaxPayer
+git fetch origin
+git switch phase/03-identity-authorization
+git pull --ff-only origin phase/03-identity-authorization
+dotnet build ArginTaxPayer.sln -c Release
+dotnet test ArginTaxPayer.sln -c Release --no-build
+```
+
+**Security and acceptance:** The development-only password verification response is not an authenticated login and MUST NOT be used to grant access. Rate-limiting, MFA, token/session issuance, production registration policy, and authorization are future steps. Never expose this development endpoint outside loopback. Verify strong hashing, duplicate registration, valid/invalid credentials, inactive users, Customer-only role, normal API regressions, and both local/Ubuntu test results.
+
+**Evidence:** Source committed; macOS: Not run; Ubuntu: Not run; integration: Not run; owner approval: Pending.
 
 ## 5. Communication Convention
 
