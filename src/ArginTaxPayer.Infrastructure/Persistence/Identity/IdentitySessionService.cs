@@ -16,12 +16,15 @@ public sealed class IdentitySessionService(ArginTaxPayerDbContext db)
     {
         if (password is null || password.Length > 1024 || password.Length == 0)
             return null;
-        string normalized;
-        try { normalized = InitialAdministratorBootstrap.NormalizeEmail(email ?? ""); }
-        catch (ArgumentException) { return null; }
+        string? normalizedEmail = null;
+        string? normalizedMobile = null;
+        if (IranianMobileNumber.TryNormalize(email, out var parsedMobile)) normalizedMobile = parsedMobile;
+        else { try { normalizedEmail = InitialAdministratorBootstrap.NormalizeEmail(email ?? ""); }
+            catch (ArgumentException) { return null; } }
 
         var user = await db.IdentityUsers.AsNoTracking()
-            .Where(x => x.NormalizedEmail == normalized && x.IsActive)
+            .Where(x => (x.NormalizedEmail == normalizedEmail && normalizedEmail != null ||
+                x.NormalizedMobile == normalizedMobile && normalizedMobile != null && x.MobileVerifiedAtUtc != null) && x.IsActive)
             .Select(x => new { x.Id, x.PasswordHash })
             .SingleOrDefaultAsync(ct);
         if (user is null || !IdentityPasswordHasher.Verify(password, user.PasswordHash))
@@ -44,6 +47,30 @@ public sealed class IdentitySessionService(ArginTaxPayerDbContext db)
             Id = Guid.NewGuid(), UserId = user.Id,
             AccessTokenHash = Digest(access), RefreshTokenHash = Digest(refresh),
             CreatedAtUtc = now, AccessExpiresAtUtc = now.Add(AccessLifetime),
+            RefreshExpiresAtUtc = now.Add(RefreshLifetime)
+        });
+        await db.SaveChangesAsync(ct);
+        return new SessionTokens(access, refresh, now.Add(AccessLifetime), now.Add(RefreshLifetime));
+    }
+
+    public async Task<SessionTokens?> CreatePhoneSessionAsync(Guid userId, CancellationToken ct = default)
+    {
+        var allowed = await db.IdentityUsers.AsNoTracking().AnyAsync(x =>
+            x.Id == userId && x.IsActive && x.NormalizedMobile != null &&
+            x.MobileVerifiedAtUtc != null && x.PasswordHash == null, ct);
+        if (!allowed || await db.IdentityUserRoles.AsNoTracking().AnyAsync(x =>
+            x.UserId == userId && x.Role != IdentityRoleNames.Customer, ct) ||
+            await db.IdentityMfaStates.AsNoTracking().AnyAsync(x =>
+            x.UserId == userId && x.EnabledAtUtc != null, ct))
+            return null;
+        var now = DateTime.UtcNow;
+        var access = NewToken();
+        var refresh = NewToken();
+        db.IdentitySessions.Add(new IdentitySession
+        {
+            Id = Guid.NewGuid(), UserId = userId, AccessTokenHash = Digest(access),
+            RefreshTokenHash = Digest(refresh), CreatedAtUtc = now,
+            AccessExpiresAtUtc = now.Add(AccessLifetime),
             RefreshExpiresAtUtc = now.Add(RefreshLifetime)
         });
         await db.SaveChangesAsync(ct);
