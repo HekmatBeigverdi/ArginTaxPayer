@@ -107,6 +107,85 @@ Expected: `20261012010000_AddIdentityFoundation` is applied, `identity_users` an
 
 **Verification record:** macOS migration: Not run; Ubuntu migration: Not run; integration test: Not run; owner acceptance: Pending.
 
+### Step 01 — Complete macOS-to-Ubuntu Tunnel and Migration Acceptance Runbook
+
+**Execution order is mandatory**; do not omit the SSH tunnel or PostgreSQL verification. The Ubuntu host from the Phase 02 runbook is `argindev@85.133.244.156`; the Docker Compose PostgreSQL service binds the VPS loopback port `5432`. These commands are for an operator with an existing SSH login and the test PostgreSQL password.
+
+**A. macOS terminal 1: keep SSH tunnel open**
+
+```bash
+ssh -N -o ExitOnForwardFailure=yes \
+  -L 127.0.0.1:15432:127.0.0.1:5432 \
+  argindev@85.133.244.156
+```
+
+**B. Ubuntu: verify or create the dedicated test database (once)**
+
+```bash
+ssh argindev@85.133.244.156
+PG_ID=$(sudo docker ps -q --filter label=com.docker.compose.service=postgres | head -n 1)
+test -n "$PG_ID" || { echo "PostgreSQL container missing"; exit 1; }
+sudo docker exec "$PG_ID" psql -U argintaxpayer -d postgres -tAc \
+  "SELECT datname FROM pg_database WHERE datname='argintaxpayer_test';"
+# ONLY IF THE PREVIOUS QUERY RETURNED NO DATABASE:
+sudo docker exec "$PG_ID" createdb -U argintaxpayer argintaxpayer_test
+exit
+```
+
+**C. macOS terminal 2: pull, build, and connect via tunnel**
+
+```bash
+git fetch origin
+git switch phase/03-identity-authorization
+git pull --ff-only origin phase/03-identity-authorization
+dotnet build ArginTaxPayer.sln -c Release
+dotnet test ArginTaxPayer.sln -c Release --no-build
+read -rs "PGPASS?PostgreSQL test password: "; echo
+export ConnectionStrings__ArginTaxPayerDb="Host=127.0.0.1;Port=15432;Database=argintaxpayer_test;Username=argintaxpayer;Password=${PGPASS};SSL Mode=Prefer"
+unset PGPASS
+```
+
+Note: `read -rs "PGPASS?..."` is for macOS's default zsh shell. The connection string above is an Npgsql/EF Core string; do **not** pass it directly to `psql`, which uses libpq connection syntax. In a separate psql invocation, specify host, port, database, and username:
+
+```bash
+psql -h 127.0.0.1 -p 15432 -U argintaxpayer -d argintaxpayer_test -W -tAc 'SELECT current_database();'
+```
+
+**Require output `argintaxpayer_test` before mutating schema.** The password is entered at the psql prompt. For installed EF Core CLI:
+
+```bash
+dotnet ef migrations list --project src/ArginTaxPayer.Infrastructure --startup-project src/ArginTaxPayer.Api --context ArginTaxPayerDbContext
+dotnet ef database update 20261012010000_AddIdentityFoundation --project src/ArginTaxPayer.Infrastructure --startup-project src/ArginTaxPayer.Api --context ArginTaxPayerDbContext
+```
+
+**D. macOS: verify tables, migration history and real DB constraints**
+
+```bash
+psql -h 127.0.0.1 -p 15432 -U argintaxpayer -d argintaxpayer_test -W -c 'SELECT "MigrationId" FROM "__EFMigrationsHistory" ORDER BY "MigrationId";'
+psql -h 127.0.0.1 -p 15432 -U argintaxpayer -d argintaxpayer_test -W -c '\d identity_users'
+psql -h 127.0.0.1 -p 15432 -U argintaxpayer -d argintaxpayer_test -W -c '\d identity_user_roles'
+RUN_ARGINTAXPAYER_PG_INTEGRATION=1 dotnet test ArginTaxPayer.sln -c Release --filter FullyQualifiedName~IdentityPostgresIntegrationTests
+```
+
+Expected: applied `20261012010000_AddIdentityFoundation`; both identity tables visible; email unique index and role key / FK exist; PostgreSQL integration test passes (test transaction rolled back). Database update must be performed only once, from macOS; Ubuntu does not need to reapply it.
+
+**E. Ubuntu code verification (no second schema mutation)**
+
+```bash
+ssh argindev@85.133.244.156
+cd ~/projects/ArginTaxPayer
+git fetch origin
+git switch phase/03-identity-authorization
+git pull --ff-only origin phase/03-identity-authorization
+dotnet build ArginTaxPayer.sln -c Release
+dotnet test ArginTaxPayer.sln -c Release --no-build
+exit
+```
+
+Keep the tunnel open until all macOS DB tests finish. Optional: repeat the opt-in PostgreSQL integration test on Ubuntu only after explicitly setting a safe local test connection. Never expose PostgreSQL to the public network. Stop the tunnel with Ctrl+C when finished. Do not commit or paste database credentials in issue comments.
+
+**Verification evidence:** macOS: pending; Ubuntu: pending; migration applied: pending; schema inspected: pending; PostgreSQL integration: pending; owner approval: pending.
+
 ## 5. Communication Convention
 
 The **repository phase plan and all step completion records are written in English only**. When implementing or reporting on a step in the chat, present its title in **both Persian and English** (for example: `گام ۱ — زیرساخت مدل هویت و ایجاد مدیر اولیه | Step 01 — Identity Data Model and Bootstrap`). Explain execution and acceptance in concise, right-to-left Persian, while keeping code and shell commands left-to-right. Do not change the planned English step title without an approved plan amendment.
