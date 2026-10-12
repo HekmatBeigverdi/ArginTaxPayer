@@ -846,6 +846,12 @@ npm run build
 ARGIN_IDENTITY_UI_ENABLED=true ARGIN_IDENTITY_API_INTERNAL_BASE_URL=http://127.0.0.1:15089 npm run dev -- --port 3000
 ```
 
+**Additional HTTP UI smoke from the repository root (Next.js on port 3000):**
+```bash
+python3 scripts/phase-03-step-08-ui-smoke.py
+```
+Expected marker: `STEP 08 PERSIAN IDENTITY UI SMOKE PASSED`. It asserts server-guarded `/account`, rendered Persian RTL markup, and a CSRF-origin rejection from the BFF; it does not submit secrets, persist accounts or replace interactive browser MFA testing.
+
 **Browser acceptance at `http://127.0.0.1:3000`:** `/identity` opens in Persian RTL, registration of a disposable Customer succeeds, login reaches `/account`, an unauthenticated direct request to `/account` redirects to `/identity`, account page shows only own identity/sessions, log out clears identity and returns to the login page; incorrect password, duplicate registration and wrong MFA code display safe localized messages; MFA TOTP/recovery login succeeds when the stored application key is provided to .NET API; narrow mobile layout (<=780px) is usable. Inspect browser storage: no plaintext access/refresh tokens in localStorage/sessionStorage and cookies have HttpOnly and SameSite Strict. Avoid copying MFA provisioning or recovery secrets to console/logs. Browser results are **not yet verified**.
 
 **PostgreSQL and HTTP regression:** Test DB must be explicitly `argintaxpayer_test`:
