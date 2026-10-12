@@ -1,5 +1,6 @@
 using ArginTaxPayer.Infrastructure.Persistence.Identity;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging;
 using Xunit;
 
 namespace ArginTaxPayer.Tests;
@@ -20,6 +21,32 @@ public sealed class IdentityProtectionTests
         Assert.True(protection.IsBlocked("user@example.invalid", start.AddMinutes(1)));
         Assert.False(protection.IsBlocked("user@example.invalid", start.AddMinutes(16)));
         Assert.False(protection.IsBlocked("other@example.invalid", start));
+    }
+
+    [Fact]
+    public void SecurityLogOmitsAccountAndSecret()
+    {
+        var logger = new CaptureLogger();
+        var protection = new IdentityProtectionService(logger);
+        var email = "private-account@example.invalid";
+        var password = "private-password-DO-NOT-LOG";
+        protection.RecordFailure(email, DateTime.UtcNow, "login");
+        protection.RecordSuccess(email, "login");
+        var text = string.Join(" ", logger.Messages);
+        Assert.DoesNotContain(email, text);
+        Assert.DoesNotContain(password, text);
+        Assert.Contains("rejected", text);
+        Assert.Contains("accepted", text);
+    }
+
+    private sealed class CaptureLogger : ILogger<IdentityProtectionService>
+    {
+        public List<string> Messages { get; } = new();
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state,
+            Exception? exception, Func<TState, Exception?, string> formatter)
+            => Messages.Add(formatter(state, exception));
     }
 
     [Fact]
