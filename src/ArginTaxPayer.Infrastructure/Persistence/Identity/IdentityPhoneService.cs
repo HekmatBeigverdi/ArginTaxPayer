@@ -97,27 +97,24 @@ public sealed class IdentityPhoneService(ArginTaxPayerDbContext db, IIdentityOtp
             try { IdentityPasswordHasher.Validate(password); }
             catch (ArgumentException) { return false; }
         }
-        return await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
-        {
-            await using var trx = await db.Database.BeginTransactionAsync(ct);
-            var proof = await ConsumeAsync(mobile, "register", code, ct);
-            if (proof is null) return false;
-            if (await db.IdentityUsers.AnyAsync(x => x.NormalizedMobile == proof.Mobile, ct)) return false;
-            var id = Guid.NewGuid();
-            var now = DateTime.UtcNow;
-            db.IdentityUsers.Add(new IdentityUser {
-                Id = id, NormalizedMobile = proof.Mobile, MobileVerifiedAtUtc = now,
-                PasswordHash = password is null ? null : IdentityPasswordHasher.Hash(password),
-                CreatedAtUtc = now, PasswordChangedAtUtc = password is null ? null : now,
-                IsActive = true,
-                Roles = new List<IdentityUserRole> { new() {
-                    UserId = id, Role = IdentityRoleNames.Customer, AssignedAtUtc = now
-                } }
-            });
-            await db.SaveChangesAsync(ct);
-            await trx.CommitAsync(ct);
-            return true;
+        // Consume proof first, independently of account creation, so failed guesses
+        // cannot be rolled back by a caller-managed transaction.
+        var proof = await ConsumeAsync(mobile, "register", code, ct);
+        if (proof is null) return false;
+        if (await db.IdentityUsers.AnyAsync(x => x.NormalizedMobile == proof.Mobile, ct)) return false;
+        var id = Guid.NewGuid();
+        var now = DateTime.UtcNow;
+        db.IdentityUsers.Add(new IdentityUser {
+            Id = id, NormalizedMobile = proof.Mobile, MobileVerifiedAtUtc = now,
+            PasswordHash = password is null ? null : IdentityPasswordHasher.Hash(password),
+            CreatedAtUtc = now, PasswordChangedAtUtc = password is null ? null : now,
+            IsActive = true,
+            Roles = new List<IdentityUserRole> { new() {
+                UserId = id, Role = IdentityRoleNames.Customer, AssignedAtUtc = now
+            } }
         });
+        try { await db.SaveChangesAsync(ct); return true; }
+        catch (DbUpdateException) { db.ChangeTracker.Clear(); return false; }
     }
 
     public async Task<SessionTokens?> CompleteLoginAsync(string? mobile, string? code,
@@ -133,25 +130,19 @@ public sealed class IdentityPhoneService(ArginTaxPayerDbContext db, IIdentityOtp
     {
         try { IdentityPasswordHasher.Validate(password ?? ""); }
         catch (ArgumentException) { return false; }
-
-        return await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
-        {
-            await using var trx = await db.Database.BeginTransactionAsync(ct);
-            var proof = await ConsumeAsync(mobile, "reset", code, ct);
-            if (proof?.UserId is not { } userId) return false;
-            if (await db.IdentityUserRoles.AnyAsync(
-                x => x.UserId == userId && x.Role != IdentityRoleNames.Customer, ct)) return false;
-            var now = DateTime.UtcNow;
-            var updated = await db.IdentityUsers.Where(x =>
-                x.Id == userId && x.IsActive && x.NormalizedMobile == proof.Mobile)
-                .ExecuteUpdateAsync(s => s.SetProperty(x => x.PasswordHash,
-                    IdentityPasswordHasher.Hash(password!))
-                    .SetProperty(x => x.PasswordChangedAtUtc, now), ct);
-            if (updated != 1) return false;
-            await db.IdentitySessions.Where(x => x.UserId == userId && x.RevokedAtUtc == null)
-                .ExecuteUpdateAsync(s => s.SetProperty(x => x.RevokedAtUtc, now), ct);
-            await trx.CommitAsync(ct);
-            return true;
-        });
+        var proof = await ConsumeAsync(mobile, "reset", code, ct);
+        if (proof?.UserId is not { } userId) return false;
+        if (await db.IdentityUserRoles.AnyAsync(
+            x => x.UserId == userId && x.Role != IdentityRoleNames.Customer, ct)) return false;
+        var now = DateTime.UtcNow;
+        var updated = await db.IdentityUsers.Where(x =>
+            x.Id == userId && x.IsActive && x.NormalizedMobile == proof.Mobile)
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.PasswordHash,
+                IdentityPasswordHasher.Hash(password!))
+                .SetProperty(x => x.PasswordChangedAtUtc, now), ct);
+        if (updated != 1) return false;
+        await db.IdentitySessions.Where(x => x.UserId == userId && x.RevokedAtUtc == null)
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.RevokedAtUtc, now), ct);
+        return true;
     }
 }
