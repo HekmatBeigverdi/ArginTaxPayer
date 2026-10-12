@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isSameLocalOrigin } from "../../../../lib/identity-origin.mjs";
 import { ACCESS_COOKIE, REFRESH_COOKIE, identityBackend, identityUiEnabled } from "../../../../lib/identity";
 
 type TokenResponse = { accessToken: string; refreshToken: string; accessExpiresAtUtc?: string; refreshExpiresAtUtc?: string };
@@ -8,8 +9,7 @@ const errorResult = (code: number, message: string) =>
   NextResponse.json({ error: message }, { status: code, headers: { "Cache-Control": "no-store" } });
 
 function sameOrigin(req: NextRequest): boolean {
-  const origin = req.headers.get("origin");
-  return Boolean(origin && origin === req.nextUrl.origin);
+  return isSameLocalOrigin(req.headers.get("origin"), req.headers.get("host"), req.nextUrl.protocol);
 }
 
 function saveTokens(response: NextResponse, tokens: TokenResponse) {
