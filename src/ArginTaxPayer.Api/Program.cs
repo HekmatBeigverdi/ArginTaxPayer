@@ -25,6 +25,9 @@ if (identityDevelopmentEnabled)
     builder.Services.AddSingleton<IdentityProtectionService>();
     builder.Services.AddScoped<IdentityCredentialService>();
     builder.Services.AddScoped<IdentitySessionService>();
+    builder.Services.AddHttpClient<IIdentityOtpSender, GhasedakOtpSender>(client =>
+        client.Timeout = TimeSpan.FromSeconds(12));
+    builder.Services.AddScoped<IdentityPhoneService>();
     builder.Services.AddScoped<IdentityAuthorizationService>();
     builder.Services.AddScoped<IIdentityResourceOwnershipResolver, IdentityResourceOwnershipResolver>();
     builder.Services.AddScoped<IdentityResourceAuthorizationService>();
