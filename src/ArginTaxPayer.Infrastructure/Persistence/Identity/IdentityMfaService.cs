@@ -17,7 +17,7 @@ public sealed class IdentityMfaService(ArginTaxPayerDbContext db, IdentityMfaCry
             .Where(x => x.Id == userId && x.IsActive)
             .Select(x => new { x.Id, x.NormalizedEmail }).SingleOrDefaultAsync(ct);
         if (user is null) return null;
-        var existing = await db.IdentityMfaStates.SingleOrDefaultAsync(x => x.UserId == userId, ct);
+        var existing = await db.IdentityMfaStates.AsNoTracking().SingleOrDefaultAsync(x => x.UserId == userId, ct);
         if (existing?.EnabledAtUtc is not null) return null;
 
         var secret = IdentityTotp.NewSecret();
@@ -29,8 +29,9 @@ public sealed class IdentityMfaService(ArginTaxPayerDbContext db, IdentityMfaCry
         }
         else
         {
-            existing.EncryptedSecret = crypto.Encrypt(secret);
-            existing.LastAcceptedTotpStep = -1;
+            await db.IdentityMfaStates.Where(x => x.UserId == userId && x.EnabledAtUtc == null)
+                .ExecuteUpdateAsync(s => s.SetProperty(x => x.EncryptedSecret, crypto.Encrypt(secret))
+                    .SetProperty(x => x.LastAcceptedTotpStep, -1L), ct);
         }
         await db.SaveChangesAsync(ct);
         // The URI/secret is returned once and must not be logged.
