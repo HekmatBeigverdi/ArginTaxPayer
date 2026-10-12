@@ -1,5 +1,4 @@
 using System.Net.Http.Json;
-using System.Text.Json.Serialization;
 using Microsoft.Extensions.Configuration;
 
 namespace ArginTaxPayer.Infrastructure.Persistence.Identity;
@@ -43,7 +42,9 @@ public sealed class GhasedakOtpSender(HttpClient http, IConfiguration config) : 
             "https://gateway.ghasedak.me/rest/api/v1/WebService/SendOtpWithParams");
         request.Headers.TryAddWithoutValidation("ApiKey", key);
         request.Headers.TryAddWithoutValidation("Agent", "C#");
-        request.Content = JsonContent.Create(body);
+        // The referenced Ghasedak Framework DTO serializes PascalCase field names.
+        request.Content = JsonContent.Create(body, options: new System.Text.Json.JsonSerializerOptions(
+            System.Text.Json.JsonSerializerDefaults.General));
         try
         {
             using var result = await http.SendAsync(request, cancellationToken);
