@@ -27,7 +27,8 @@ public sealed class GhasedakOtpSenderTests
             new Dictionary<string, string?> {
                 ["Ghasedak:EnableLiveSending"] = "true",
                 ["Ghasedak:ApiKey"] = "TEST_NOT_A_REAL_KEY",
-                ["Ghasedak:TemplateName"] = "TaxPayerActivationCode"
+                ["Ghasedak:TemplateName"] = "TaxPayerActivationCode",
+                ["Ghasedak:TestRecipientMobile"] = "09123456789"
             }).Build();
         var sender = new GhasedakOtpSender(new HttpClient(handler), settings, NullLogger<GhasedakOtpSender>.Instance);
         var id = Guid.NewGuid();
