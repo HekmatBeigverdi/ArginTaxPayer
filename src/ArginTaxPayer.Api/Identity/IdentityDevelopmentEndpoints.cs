@@ -1,5 +1,6 @@
 using ArginTaxPayer.Infrastructure.Persistence.Identity;
 using Microsoft.AspNetCore.Mvc;
+using System.Net;
 
 namespace ArginTaxPayer.Api.Identity;
 
@@ -15,11 +16,12 @@ public static class IdentityDevelopmentEndpoints
         var group = endpoints.MapGroup("/api/dev/identity").WithTags("Identity (Development)");
         group.MapPost("/register", async (
             [FromBody] IdentityCredentials request,
+            HttpContext http,
             IdentityCredentialService identity,
             IConfiguration configuration,
             CancellationToken cancellationToken) =>
         {
-            if (!configuration.GetValue<bool>("Identity:AllowDevelopmentRegistration"))
+            if (!IsLoopback(http) || !configuration.GetValue<bool>("Identity:AllowDevelopmentRegistration"))
                 return Results.NotFound();
 
             var result = await identity.RegisterCustomerAsync(request.Email, request.Password, cancellationToken);
@@ -33,9 +35,11 @@ public static class IdentityDevelopmentEndpoints
 
         group.MapPost("/verify-password", async (
             [FromBody] IdentityCredentials request,
+            HttpContext http,
             IdentityCredentialService identity,
             CancellationToken cancellationToken) =>
         {
+            if (!IsLoopback(http)) return Results.NotFound();
             var valid = await identity.VerifyCredentialsAsync(request.Email, request.Password, cancellationToken);
             return valid
                 ? Results.Ok(new { status = "credentials_verified", sessionIssued = false })
@@ -44,6 +48,9 @@ public static class IdentityDevelopmentEndpoints
 
         return endpoints;
     }
+
+    private static bool IsLoopback(HttpContext http) =>
+        http.Connection.RemoteIpAddress is { } ip && IPAddress.IsLoopback(ip);
 }
 
 public sealed record IdentityCredentials(string? Email, string? Password);
