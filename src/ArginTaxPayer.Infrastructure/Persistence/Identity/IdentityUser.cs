@@ -4,8 +4,10 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Identity;
 public sealed class IdentityUser
 {
     public Guid Id { get; set; }
-    public string NormalizedEmail { get; set; } = string.Empty;
-    public string PasswordHash { get; set; } = string.Empty;
+    public string? NormalizedEmail { get; set; }
+    public string? NormalizedMobile { get; set; }
+    public DateTime? MobileVerifiedAtUtc { get; set; }
+    public string? PasswordHash { get; set; }
     public bool IsActive { get; set; } = true;
     public DateTime CreatedAtUtc { get; set; }
     public DateTime? PasswordChangedAtUtc { get; set; }
