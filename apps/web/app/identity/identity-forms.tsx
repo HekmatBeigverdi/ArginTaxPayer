@@ -62,10 +62,21 @@ export default function IdentityForms() {
           setFeedback(errorText.too_many_attempts); return;
         }
       }
-      setFeedback(errorText[body.error] ||
-        (response.status === 409 ? "این ایمیل قبلاً ثبت شده است." :
-          response.status === 429 ? errorText.too_many_attempts :
-          "درخواست انجام نشد؛ لطفاً دوباره بررسی کنید."));
+      // The proxy deliberately uses a generic error body; preserve the useful
+      // HTTP status instead of letting that body hide validation or conflicts.
+      const statusFeedback: Record<number, string> = {
+        400: view === "register"
+          ? "ایمیل معتبر و رمز عبور بین ۸ تا ۱۰۲۴ کاراکتر وارد کنید؛ رمز نباید فقط فاصله باشد."
+          : "اطلاعات واردشده معتبر نیست. دوباره بررسی کنید.",
+        401: view === "challenge" ? "کد تأیید نامعتبر یا منقضی شده است." : errorText.unauthorized,
+        404: "این امکان در سرویس هویت فعال نیست.",
+        409: "این ایمیل قبلاً ثبت شده است. از بخش ورود استفاده کنید.",
+        429: errorText.too_many_attempts,
+        502: "سرویس هویت با خطا مواجه شد. کمی بعد دوباره تلاش کنید.",
+        503: errorText.identity_service_unavailable
+      };
+      setFeedback(statusFeedback[response.status] || errorText[body.error] ||
+        "درخواست انجام نشد؛ لطفاً دوباره بررسی کنید.");
     } catch {
       setFeedback(errorText.identity_service_unavailable);
     } finally { setBusy(false); }

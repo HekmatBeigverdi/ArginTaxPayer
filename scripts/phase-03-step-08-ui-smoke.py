@@ -22,9 +22,10 @@ def call(path, method="GET", payload=None):
         method=method, headers={"Content-Type":"application/json"})
     try:
         with client.open(req, timeout=12) as result:
-            return result.status, dict(result.headers), result.read().decode("utf-8")
+            # Keep HTTPMessage's case-insensitive HTTP header lookup.
+            return result.status, result.headers, result.read().decode("utf-8")
     except urllib.error.HTTPError as err:
-        return err.code, dict(err.headers), err.read().decode("utf-8")
+        return err.code, err.headers, err.read().decode("utf-8")
 
 def require(cond, label):
     if not cond: raise AssertionError(label)
