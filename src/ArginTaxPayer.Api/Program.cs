@@ -24,6 +24,12 @@ if (identityDevelopmentEnabled)
 {
     builder.Services.AddScoped<IdentityCredentialService>();
     builder.Services.AddScoped<IdentitySessionService>();
+    var mfaEncryptionKey = builder.Configuration["Identity:MfaEncryptionKey"];
+    if (!string.IsNullOrWhiteSpace(mfaEncryptionKey))
+    {
+        builder.Services.AddSingleton(new IdentityMfaCrypto(mfaEncryptionKey));
+        builder.Services.AddScoped<IdentityMfaService>();
+    }
 }
 
 // Separate cheap process liveness from real PostgreSQL readiness.
