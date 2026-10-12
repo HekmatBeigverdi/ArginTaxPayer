@@ -136,6 +136,66 @@ public static class IdentityDevelopmentEndpoints
             return tokens is null ? Results.Unauthorized() : Results.Ok(tokens);
         });
 
+        // Step 05: all role decisions are made from the persisted identity,
+        // never from claimed roles, user IDs, or permissions in the request.
+        group.MapGet("/authorization/me", async (
+            HttpContext http, IdentityAuthorizationService authorization, CancellationToken ct) =>
+        {
+            if (!IsLoopback(http)) return Results.NotFound();
+            var bearer = ReadBearer(http);
+            var userId = await authorization.CurrentUserIdAsync(bearer, ct);
+            if (userId is null) return Results.Unauthorized();
+            var roles = await authorization.GetCurrentRolesAsync(bearer, ct);
+            return Results.Ok(new { userId, roles });
+        });
+
+        group.MapGet("/authorization/admin", async (
+            HttpContext http, IdentityAuthorizationService authorization, CancellationToken ct) =>
+        {
+            if (!IsLoopback(http)) return Results.NotFound();
+            var result = await authorization.CheckAsync(ReadBearer(http),
+                IdentityPermissions.ReadAdministration, ct);
+            return result switch
+            {
+                IdentityAuthorizationResult.Unauthenticated => Results.Unauthorized(),
+                IdentityAuthorizationResult.Forbidden => Results.StatusCode(StatusCodes.Status403Forbidden),
+                _ => Results.Ok(new { area = "administration", access = "granted" })
+            };
+        });
+
+        group.MapGet("/authorization/customer", async (
+            HttpContext http, IdentityAuthorizationService authorization, CancellationToken ct) =>
+        {
+            if (!IsLoopback(http)) return Results.NotFound();
+            var result = await authorization.CheckAsync(ReadBearer(http),
+                IdentityPermissions.ReadCustomerArea, ct);
+            return result switch
+            {
+                IdentityAuthorizationResult.Unauthenticated => Results.Unauthorized(),
+                IdentityAuthorizationResult.Forbidden => Results.StatusCode(StatusCodes.Status403Forbidden),
+                _ => Results.Ok(new { area = "customer", access = "granted" })
+            };
+        });
+
+        group.MapPost("/roles/level2/grant", async (
+            [FromBody] Level2GrantRequest request, HttpContext http,
+            IdentityAuthorizationService authorization, CancellationToken ct) =>
+        {
+            if (!IsLoopback(http)) return Results.NotFound();
+            if (request.TargetUserId == Guid.Empty)
+                return Results.BadRequest(new { error = "invalid_target" });
+            var result = await authorization.GrantLevel2Async(
+                ReadBearer(http), request.TargetUserId, ct);
+            return result switch
+            {
+                Level2RoleGrantResult.Unauthenticated => Results.Unauthorized(),
+                Level2RoleGrantResult.Forbidden => Results.StatusCode(StatusCodes.Status403Forbidden),
+                Level2RoleGrantResult.TargetNotFound => Results.NotFound(),
+                Level2RoleGrantResult.Conflict => Results.Conflict(new { error = "role_already_assigned" }),
+                _ => Results.Ok(new { status = "level2_granted", targetUserId = request.TargetUserId })
+            };
+        });
+
         return endpoints;
     }
 
@@ -156,3 +216,5 @@ public sealed record RefreshRequest(string? RefreshToken);
 
 public sealed record TotpConfirmRequest(string? Code);
 public sealed record MfaCompleteRequest(string? Challenge, string? Code, bool UseRecoveryCode);
+
+public sealed record Level2GrantRequest(Guid TargetUserId);
