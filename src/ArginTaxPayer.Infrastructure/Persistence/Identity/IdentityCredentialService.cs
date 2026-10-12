@@ -58,12 +58,15 @@ public sealed class IdentityCredentialService(ArginTaxPayerDbContext db)
         if (string.IsNullOrEmpty(password) || password.Length > 1024)
             return false;
 
-        string normalized;
-        try { normalized = InitialAdministratorBootstrap.NormalizeEmail(email ?? ""); }
-        catch (ArgumentException) { return false; }
+        string? normalizedEmail = null;
+        string? normalizedMobile = null;
+        if (IranianMobileNumber.TryNormalize(email, out var mobile)) normalizedMobile = mobile;
+        else { try { normalizedEmail = InitialAdministratorBootstrap.NormalizeEmail(email ?? ""); }
+            catch (ArgumentException) { return false; } }
 
         var user = await db.IdentityUsers.AsNoTracking()
-            .Where(u => u.NormalizedEmail == normalized)
+            .Where(u => normalizedEmail != null && u.NormalizedEmail == normalizedEmail ||
+                normalizedMobile != null && u.NormalizedMobile == normalizedMobile && u.MobileVerifiedAtUtc != null)
             .Select(u => new { u.PasswordHash, u.IsActive })
             .SingleOrDefaultAsync(cancellationToken);
 
