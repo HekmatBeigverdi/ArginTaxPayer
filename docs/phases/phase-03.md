@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 03: Identity and Authorization
 
-**Status:** Steps 01–07 owner approved (operator-reported acceptance; Step 07 residual security limitations recorded); Step 08 implemented — verification pending  
+**Status:** Steps 01–07 owner approved (Step 07 residual security limitations documented); Step 08 implemented — verification pending; Step 09 newly planned for mobile/SMS OTP; Steps 10–11 planned  
 **Branch:** `phase/03-identity-authorization`  
 **Baseline:** Phase 02 and `docs/roadmap/18-phases.md`  
 **Started:** 2026-10-12
@@ -9,7 +9,7 @@
 
 Implement user identity, secure login, multi-factor authentication, session management, Level 1 / Level 2 / Customer roles, and server-enforced authorization. Taxpayer records, fiscal memories, and taxpayer-to-delegate assignment belong to Phase 04; Phase 03 provides only the authorization groundwork for them.
 
-This phase contains **exactly 10 fixed implementation steps**. Do not silently renumber, split, or add steps. Any material change requires a dated plan amendment and explicit owner approval. **This is the only active Phase 03 document**: update `docs/phases/phase-03.md` after every step, rather than creating separate step reports.
+**Approved 2026-10-12 plan amendment:** The owner explicitly increased Phase 03 from 10 to **11 fixed implementation steps**, inserting a new Step 09 for phone-first registration, optional SMS/email OTP login and recovery, and the Ghasedak delivery integration. Former Step 09 becomes Step 10; former Step 10 becomes Step 11. Previously completed Steps 01–07 and Step 08 retain their numbering and acceptance status. Further changes still require an explicit dated owner-approved amendment. **This is the only active Phase 03 document**: update `docs/phases/phase-03.md` after every step, rather than creating separate step reports.
 
 Security invariants:
 - Public registration must never grant administrative privileges.
@@ -30,9 +30,10 @@ Security invariants:
 | 05 | Role-Based Authorization and Permissions | Level 1, Level 2, Customer roles, permission policies and safe role grants | Users cannot self-elevate privileges; role-policy tests pass | Owner approved (2026-10-12) |
 | 06 | Resource-Scoped Authorization | Server-side ownership/scope policies and extension contracts for Phase 04 | Cross-scope access denied with suitable 403/404; UI filtering alone cannot grant access | Owner approved (2026-10-12) |
 | 07 | Account Protection and Security Audit | Login throttling, security-event audit, sensitive-data redaction, session controls | Brute-force throttling and redaction verified; security events auditable | Owner approved with documented residual risks (2026-10-12) |
-| 08 | Persian RTL Identity User Interface | Login, registration, MFA, account/security screens and guarded routes | RTL layout, correct error states, login/logout flow, protected-content tests | Implemented — verification pending |
-| 09 | Identity and Authorization Integration Tests | API/UI negative-path integration tests, token/recovery replay and role/scope isolation | Local and CI identity/security suites pass; unauthorized access rejected | Planned |
-| 10 | Hardening, Verification, and Phase Handoff | Final security and migration review, CI checks, documentation and release readiness | macOS/Ubuntu build/test evidence, clean security review, owner sign-off gate | Planned |
+| 08 | Persian RTL Identity User Interface | Existing email/password login, registration, MFA, guarded account/security pages and safe RTL layout | RTL layout, error states, login/logout, guarded-content tests; original email flow remains functional | Implemented — verification pending |
+| 09 | Mobile-First Registration, OTP Authentication and Ghasedak Integration | Backwards-compatible mobile/email identity migration, phone ownership verification, optional email/SMS OTP login and password recovery, Ghasedak adapter and RTL workflow updates | Tested OTP expiry/replay/throttling, MFA preservation, no enumeration; mock/provider-gated transport, macOS/PostgreSQL/Ubuntu/UI smoke; no live secrets in repo | Planned — inserted by owner (2026-10-12) |
+| 10 | Identity and Authorization Integration Tests | API/UI negative-path integration tests, token/recovery replay and role/scope isolation including Step 09 | Local and CI identity/security suites pass; unauthorized access rejected | Planned — formerly Step 09 |
+| 11 | Hardening, Verification, and Phase Handoff | Final security and migration review, CI checks, documentation and release readiness; finance-feature handoff | macOS/Ubuntu build/test evidence, security review, explicit deferred billing ledger scope, owner sign-off gate | Planned — formerly Step 10 |
 
 ## 3. Concise Per-Step Verification
 
@@ -789,7 +790,7 @@ The `read -rs 'var?prompt: '` syntax and `print` command are **zsh-specific** an
 
 **Owner decision:** The owner explicitly accepted Step 07 and requested implementation of Step 08. Record as **Owner Approved**, based on owner instruction. The reported resolution of the HTTP smoke preflight was achieved using the owner-confirmed zsh launch convention.
 
-**Residual risks NOT waived by this status:** The current throttle is process-local, volatile, and Development-only. The current structured redacted security logs are not a queryable, tamper-resistant, persistent security audit trail. These requirements remain **open security hardening blockers before any Production release** and must be resolved and re-tested no later than Step 10. Owner approval of Step 07 does not mean these controls are production-ready or independently tested by the assistant. No Production deployment authorized.
+**Residual risks NOT waived by this status:** The current throttle is process-local, volatile, and Development-only. The current structured redacted security logs are not a queryable, tamper-resistant, persistent security audit trail. These requirements remain **open security hardening blockers before any Production release** and must be resolved and re-tested no later than Step 11. Owner approval of Step 07 does not mean these controls are production-ready or independently tested by the assistant. No Production deployment authorized.
 
 ### Step 08 — Persian RTL Identity User Interface (2026-10-12)
 
@@ -803,7 +804,7 @@ The `read -rs 'var?prompt: '` syntax and `print` command are **zsh-specific** an
 - `apps/web/app/globals.css`, `app/page.tsx`: Persian desktop/mobile responsive layout and link from the foundation landing to identity UI.
 - `apps/web/tests/identity-ui.test.mjs`: contract tests for RTL, guarded pages, MFA recovery workflow, protected account actions and proxy security constraints.
 
-**Security notes and limitations:** The UI is intentionally **not Production-ready**: it uses loopback Development .NET identity endpoints, and is disabled unless `NODE_ENV=development` AND `ARGIN_IDENTITY_UI_ENABLED=true`. Current access-token life is 10 minutes; after expiry, a protected server-side navigation requires fresh login (the explicit refresh operation exists but transparent UI refresh is not yet implemented). Same-origin mutation checks, HttpOnly cookies and server guards reduce risk but are not a substitute for a complete production identity architecture and CSRF/security review in Steps 09–10. No new database migration. Step 07 open persistent-audit / distributed-throttle blockers remain documented above.
+**Security notes and limitations:** The UI is intentionally **not Production-ready**: it uses loopback Development .NET identity endpoints, and is disabled unless `NODE_ENV=development` AND `ARGIN_IDENTITY_UI_ENABLED=true`. Current access-token life is 10 minutes; after expiry, a protected server-side navigation requires fresh login (the explicit refresh operation exists but transparent UI refresh is not yet implemented). Same-origin mutation checks, HttpOnly cookies and server guards reduce risk but are not a substitute for a complete production identity architecture and CSRF/security review in Steps 10–11. No new database migration. Step 07 open persistent-audit / distributed-throttle blockers remain documented above.
 
 **Operator verification (macOS, all commands from repository root):**
 
@@ -884,7 +885,7 @@ No API port needs to be exposed publicly; no migration is performed. This valida
 
 ### Scope Amendment Requested — Phone-First Identity, Ghasedak OTP and SMS Credit (2026-10-12)
 
-**Change request:** https://github.com/HekmatBeigverdi/ArginTaxPayer/issues/4. The owner requested a material revision to the Phase 03 identity experience while Step 08 (Persian RTL Identity UI) is still pending verification. Preserve the original **ten-step numbering** and historical approvals. The requested functionality is an **additive scope amendment under design/implementation**, not a retroactive completion claim. Existing email/password, administrator MFA and previous integration tests must remain operational until migration and full acceptance.
+**Change request:** https://github.com/HekmatBeigverdi/ArginTaxPayer/issues/4. The owner requested a material revision to the Phase 03 identity experience while Step 08 (Persian RTL Identity UI) is still pending verification. Historical note written before the owner-approved eleven-step amendment; preserve existing Steps 01–08 and their approvals. The requested functionality is an **additive scope amendment under design/implementation**, not a retroactive completion claim. Existing email/password, administrator MFA and previous integration tests must remain operational until migration and full acceptance.
 
 **Functional requirement:** Phone number (normalized `+989xxxxxxxxx`) becomes the primary registration identity. Registration requires proving ownership of a reachable channel through SMS OTP or another enabled verified channel. Login accepts either verified email or verified mobile with password, or mobile OTP for a passwordless account. Password recovery supports SMS OTP or email-based proof; no SMS is compulsory when another secure channel is available. No one may register/sign in with an unverified identifier, and the email-only Level 1 administrator must not be locked out.
 
@@ -896,7 +897,7 @@ No API port needs to be exposed publicly; no migration is performed. This valida
 
 **First non-breaking implementation committed:** `IranianMobileNumber.TryNormalize` in `src/ArginTaxPayer.Infrastructure/Persistence/Identity/IranianMobileNumber.cs` normalizes local/Persian/Arabic and +98/0098 Iranian mobile input to E.164 `+989xxxxxxxxx`. Tests in `tests/ArginTaxPayer.Tests/IranianMobileNumberTests.cs` cover accepted variants and rejection. This does not mark a phone as verified, alter the current login mechanism, create an SMS wallet, or send any messages. Before any wider change, run `dotnet test ArginTaxPayer.sln -c Release --filter FullyQualifiedName~IranianMobileNumberTests` locally and in CI. Build/test outcomes are not independently verified.
 
-**Delivery sequence and acceptance:** Schema and compatibility migration → OTP lifecycle and alternate email/password flows → Ghasedak transport/mock tests → transactional wallet/provider cost accounting → Persian user/admin UI → full macOS, dedicated PostgreSQL, HTTP Smoke, Ubuntu and live-provider operator verification. The current Step 08 status remains `Implemented — Verification Pending` until the amended workflows are built and verified; no new step number is created. The technical design, acceptance scenarios and external dependencies are tracked in issue #4. Release/production deployment is blocked until all requirements and Step 07 remaining distributed protection/audit items are resolved.
+**Delivery sequence and acceptance:** Schema and compatibility migration → OTP lifecycle and alternate email/password flows → Ghasedak transport/mock tests → transactional wallet/provider cost accounting → Persian user/admin UI → full macOS, dedicated PostgreSQL, HTTP Smoke, Ubuntu and live-provider operator verification. The current Step 08 status remains `Implemented — Verification Pending` until the amended workflows are built and verified; the owner has since approved inserting the new Step 09. The technical design, acceptance scenarios and external dependencies are tracked in issue #4. Release/production deployment is blocked until all requirements and Step 07 remaining distributed protection/audit items are resolved.
 
 ### Scope Amendment Addendum — Level 1 Scheduled SMS Tariff Versioning and Phase Allocation (2026-10-12)
 
@@ -918,9 +919,10 @@ No API port needs to be exposed publicly; no migration is performed. This valida
 
 | Phase / existing step | Planned work package | Required acceptance |
 | --- | --- | --- |
-| **03 / Step 08** (amended, pending approval) | Phone-first Persian RTL registration and optional email/SMS routes; account phone verification and passwordless login/recovery screens; admin UI skeleton (no live pricing administration yet). | Existing email/password MFA preserved, guarded UI, OTP UX, negative tests; no fake live SMS. |
-| **03 / Step 09** | Identity/OTP tests: normalize mobile, purpose-bound one-time OTP, email alternative, wrong/replay/expiry, admin MFA preservation, no enumeration and scope isolation. Define `ISmsTariffResolver` and immutable price-snapshot contract for later phases. | PostgreSQL isolated test DB, macOS/Ubuntu, API+UI smoke and concurrent redemption tests; no live Ghasedak secrets. |
-| **03 / Step 10** | Security/handoff review; controlled additive identity migration and Ghasedak transport interface + mocked adapter acceptance, plus ADR/roadmap handoff for remaining SMS billing. | Migration rollback rehearsal, no credential leaks, compatibility and security gate. Do **not** mark the complete wallet/pricing feature production-ready if later work is still open. |
+| **03 / Step 08** (verification pending) | Verify previously built Persian RTL email/password, MFA, account and guarded routes without changing accepted core identity behavior. | Existing login, logout, UI smoke and negative-path regression verified. |
+| **03 / Step 09** (new) | Build mobile-first identity migration, alternate email/password and phone OTP login/recovery, Ghasedak transport with mock-first validation and updated RTL screens; define financial delivery contracts for downstream phases. | PostgreSQL test DB, expiry/replay/anti-enumeration, admin MFA protection, macOS/Ubuntu/API/UI smoke; live sends explicitly gated. |
+| **03 / Step 10** (renumbered former Step 09) | Complete end-to-end identity authorization and OTP integration/regression tests, including multi-user negative paths and provider failure modes. | Integration/CI evidence and compatibility suite all pass before signoff. |
+| **03 / Step 11** (renumbered former Step 10) | Final hardening and handoff; durable security/audit review, migration/rollback drill and finance-domain delivery contracts. | Security, compatibility and handoff gate. Do **not** claim paid SMS wallet or scheduled pricing complete. |
 | **12 — Subscriptions, Billing and Settlements** | Implement `sms_provider_panels`, versioned/scheduled tariffs, customer SMS credit wallet, immutable ledger/reservations, provider expenses and reconciliation, top-up and once-only promotional 2,000,000 IRR grant. Billing domain owns pricing and financial transactions. | Boundary-time selection, past-price immutability, concurrent debit, no duplicate grants, tariff swap between reserve/settle, reconciliation, replay/idempotency and accounting checks. |
 | **16 — Platform & Delegate Administration** | Level 1-only SMS panel administration, future-dated tariff creation/amendment/cancellation, ledger/search screens, top-ups, provider cost vs charge analytics and audit views. Level 2 may view only authorized billing history. | Role/scope denial matrix, future schedule preview and confirmation, no retroactive mutation, operator audit evidence. |
 | **17 — Security and Quality Hardening** | Pen-test OTP and tariff endpoints, distributed throttling and durable audit follow-through from Step 07; timezone-boundary, concurrency, failure-injection and provider consistency tests. | No double-charge, price-gap, role escalation, replay or secret leakage. |
@@ -930,7 +932,7 @@ No API port needs to be exposed publicly; no migration is performed. This valida
 
 ### Operator Checkpoint — Current Step, Test Gates and Ghasedak Secret Provisioning (2026-10-12)
 
-**Current position:** Steps 01–07 = Owner Approved (Step 07 security debt carries into Step 10/17). Step 08 = Implemented, **Not Yet Owner Approved**, pending UI and regression verification and the approved phone-first scope amendment. Steps 09 and 10 = Planned. The current `/identity` frontend and API still use **email/password**; adding `IranianMobileNumber` did not enable phone registration, SMS dispatch or a wallet. Do not treat the SMS/OTP flow as ready to test merely because a provider key has been configured.
+**Current position:** Steps 01–07 = Owner Approved (Step 07 security debt carries into Step 11/17). Step 08 = Implemented, **Not Yet Owner Approved**, pending UI and regression verification and the approved phone-first scope amendment. Steps 09, 10 and 11 = Planned (with Step 09 added by owner-approved amendment). The current `/identity` frontend and API still use **email/password**; adding `IranianMobileNumber` did not enable phone registration, SMS dispatch or a wallet. Do not treat the SMS/OTP flow as ready to test merely because a provider key has been configured.
 
 **First verification gate:**
 ```bash
@@ -968,10 +970,27 @@ The API currently has **no Ghasedak registration or file-loading mechanism**, so
 
 **Provider compatibility clarification:** The `GhasedakSms.Framework` repository README documents `SendOtpWithParamsInput`, while the current C# method signature accepts `SendOldOtpInput` for `SendOtpWithParams` and submits to `https://gateway.ghasedak.me/rest/api/v1/WebService/SendOtpWithParams`. Verify the request DTO against actual provider behavior before implementing a .NET 9 typed HttpClient adapter; do not add the .NET Framework-only SDK directly to .NET 9. Test with mock transport first and default live sending OFF.
 
+### Owner-Approved Phase Plan Amendment — Expand to 11 Steps (2026-10-12)
+
+**Decision and scope:** The owner explicitly instructed that phone-first registration and optional Ghasedak SMS OTP must be a **separate next step**, after the existing Step 08, and that Phase 03 shall **close in 11 steps**. This supersedes all earlier notes in this file saying that the phase must remain at ten steps. Earlier text documenting the original ten-step plan is retained as historical context only, not the active plan. Existing Steps 01–08 retain their numbers; the original Step 09 is renumbered Step 10 and the original Step 10 is renumbered Step 11. Neither Step 08 nor the new Step 09 is owner-approved by this amendment.
+
+**New Step 09 — Mobile-First Registration, OTP Authentication and Ghasedak Integration**
+
+- Schema: additive, reviewed EF Core migrations for normalized and verified mobile identity, optional verified email, password-optional accounts, OTP challenge/delivery/audit entities; no destructive change to existing Level 1 email/password/MFA records. PostgreSQL migration is **manual against the verified `argintaxpayer_test` DB only** before wider rollout.
+- Registration: primary phone number, verified ownership before activation; alternative verified email identity supported when SMS is unavailable; no automatic activation from an unverified identifier. Phone representation canonicalized to `+989xxxxxxxxx` using existing tested `IranianMobileNumber`.
+- Login: a normalized verified phone **or** verified email with password, or phone OTP for eligible passwordless account; existing email/password users keep working. Password recovery: SMS OTP or verified email mechanism; any successful password change revokes existing sessions and refresh credentials. Existing administrative MFA must not be bypassed by a phone OTP.
+- OTP: purpose-specific, account/phone-bound cryptographic hashes, short TTL, one-time atomic consumption, retry/resend limits, multi-instance protection where applicable, generic responses to prevent user enumeration, secure event audit and no raw OTP in logs.
+- Provider: modern .NET 9 Ghasedak REST adapter, mocked delivery tests first; template `TaxPayerActivationCode` and single `Param1`; local untracked secret `.env.ghasedak.local` only when the adapter supports these variables. Live send remains **disabled by default** until permitted test number, verified template, provider key and explicit operator approval are supplied. An SMS service disruption must not disable other safe authentication/recovery channels.
+- RTL UI: registration by phone, choice of email/password or eligible mobile OTP login, SMS/email recovery, countdown/errors and ownership verification; retain guarded account page and same-origin HttpOnly session handling.
+- **Financial boundary:** Step 09 may define SMS delivery cost and event contracts but does **not** claim that 200,000 toman promotional credit, paid SMS deductions, future tariff scheduling or provider expense settlement are implemented. These remain Phase 12 (ledger, wallet and scheduled pricing) and Phase 16 (Level 1 admin controls), tested in Phase 17 and released in Phase 18. Authentication verification must not be blocked by an unimplemented customer SMS wallet.
+- **Acceptance:** macOS Build and all existing identity regressions, PostgreSQL integration against `argintaxpayer_test`, OTP one-use/expiry/replay/negative path, email fallback, admin MFA and session invalidation, HTTP API+Next.js smoke, Ubuntu Build/tests, controlled provider mock validation and an operator-authorized live test where available. Record separate evidence and do not invent pass results. At least one viable non-SMS authentication/recovery route must remain. No CI/release/merge without independent evidence and owner approval.
+
+**Updated completion sequence:** Step 08 verify and owner signoff → Step 09 implementation and owner signoff → Step 10 Identity and Authorization Integration Tests → Step 11 Hardening, Verification, and Phase Handoff. The finished Phase 03 deliverable is identity/OTP groundwork; the commercial SMS credit and configurable tariff system is tracked as downstream work.
+
 ## 5. Communication Convention
 
 The **repository phase plan and all step completion records are written in English only**. When implementing or reporting on a step in the chat, present its title in **both Persian and English** (for example: `گام ۱ — زیرساخت مدل هویت و ایجاد مدیر اولیه | Step 01 — Identity Data Model and Bootstrap`). Explain execution and acceptance in concise, right-to-left Persian, while keeping code and shell commands left-to-right. Do not change the planned English step title without an approved plan amendment.
 
 ## 6. Phase Closure
 
-After Step 10 is independently verified and owner-approved, record final test evidence, CI, migration and security review in this file. Merge, immutable tag, GitHub Release, and deployment remain separate, explicitly authorized gates. Phase 04 begins under its own single-file plan.
+After Step 11 is independently verified and owner-approved, record final test evidence, CI, migration and security review in this file. Merge, immutable tag, GitHub Release, and deployment remain separate, explicitly authorized gates. Phase 04 begins under its own single-file plan.
