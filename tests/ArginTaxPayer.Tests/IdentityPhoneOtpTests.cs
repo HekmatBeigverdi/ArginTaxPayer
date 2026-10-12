@@ -50,7 +50,7 @@ public sealed class IdentityPhoneOtpTests
             var phones = new IdentityPhoneService(db, fake, sessions, settings);
             Assert.True(await phones.RequestAsync(phone, "register"));
             Assert.NotNull(fake.LastCode);
-            Assert.NotEqual(fake.LastCode, (await db.IdentityPhoneChallenges.SingleAsync()).CodeDigest);
+            Assert.NotEqual(fake.LastCode, (await db.IdentityPhoneChallenges.SingleAsync(x => x.Mobile == phone)).CodeDigest);
             Assert.False(await phones.ConfirmRegistrationAsync(phone, "000000", null));
             Assert.True(await phones.ConfirmRegistrationAsync(phone, fake.LastCode, null));
             Assert.False(await phones.ConfirmRegistrationAsync(phone, fake.LastCode, null));
