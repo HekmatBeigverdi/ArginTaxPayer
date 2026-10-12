@@ -1,8 +1,8 @@
 using System.Net;
 using System.Text.Json;
-using Microsoft.AspNetCore.Hosting;
+using ArginTaxPayer.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace ArginTaxPayer.Tests;
@@ -10,15 +10,7 @@ namespace ArginTaxPayer.Tests;
 public sealed class ApiHealthEndpointTests
 {
     private static WebApplicationFactory<Program> CreateFactory() =>
-        new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
-        {
-            builder.UseEnvironment("Development");
-            builder.ConfigureAppConfiguration((_, config) =>
-                config.AddInMemoryCollection(new Dictionary<string, string?>
-                {
-                    ["ConnectionStrings:ArginTaxPayerDb"] = ""
-                }));
-        });
+        new DatabaseUnconfiguredApiFactory();
 
     [Fact]
     public async Task LivenessDoesNotRequireDatabase()
@@ -37,6 +29,8 @@ public sealed class ApiHealthEndpointTests
     {
         using var factory = CreateFactory();
         using var client = factory.CreateClient();
+        using var scope = factory.Services.CreateScope();
+        Assert.Null(scope.ServiceProvider.GetService<ArginTaxPayerDbContext>());
 
         using var response = await client.GetAsync("/health/ready");
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);

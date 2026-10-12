@@ -37,9 +37,16 @@ public sealed class IdentityMfaCrypto
         var payload = Convert.FromBase64String(encoded);
         if (payload.Length < 29) throw new CryptographicException("Invalid ciphertext.");
         var result = new byte[payload.Length - 28];
-        using (var aes = new AesGcm(_key, 16))
-            aes.Decrypt(payload.AsSpan(0, 12), payload.AsSpan(28), payload.AsSpan(12, 16), result);
-        try { return Encoding.UTF8.GetString(result); }
+        try
+        {
+            using (var aes = new AesGcm(_key, 16))
+                aes.Decrypt(payload.AsSpan(0, 12), payload.AsSpan(28), payload.AsSpan(12, 16), result);
+            return Encoding.UTF8.GetString(result);
+        }
+        catch (AuthenticationTagMismatchException ex)
+        {
+            throw new CryptographicException("Invalid ciphertext.", ex);
+        }
         finally { CryptographicOperations.ZeroMemory(result); }
     }
 }

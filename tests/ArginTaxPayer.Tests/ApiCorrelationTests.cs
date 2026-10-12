@@ -1,8 +1,6 @@
 using System.Net;
 using ArginTaxPayer.Api.Observability;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.Configuration;
 using Xunit;
 
 namespace ArginTaxPayer.Tests;
@@ -10,15 +8,7 @@ namespace ArginTaxPayer.Tests;
 public sealed class ApiCorrelationTests
 {
     private static WebApplicationFactory<Program> CreateFactory() =>
-        new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
-        {
-            builder.UseEnvironment("Development");
-            builder.ConfigureAppConfiguration((_, config) =>
-                config.AddInMemoryCollection(new Dictionary<string, string?>
-                {
-                    ["ConnectionStrings:ArginTaxPayerDb"] = ""
-                }));
-        });
+        new DatabaseUnconfiguredApiFactory();
 
     [Fact]
     public async Task ValidCorrelationIdIsPreservedAcrossBootstrap()
