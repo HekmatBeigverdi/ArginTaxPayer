@@ -317,7 +317,7 @@ dotnet test ArginTaxPayer.sln -c Release --no-build
 - `IdentityMfaCrypto`: AES-256-GCM authenticated encryption of TOTP secrets at rest. The 32-byte key is injected solely through `Identity__MfaEncryptionKey`, never committed. Retain the SAME key across restarts; loss of the key makes enrolled secrets unrecoverable.
 - `IdentityMfaService`: authenticated enrollment and TOTP confirmation; ten high-entropy one-time recovery codes displayed once and stored as SHA-256 digests; five-minute challenge tokens and a five-attempt budget; atomic PostgreSQL consumption of TOTP steps, recovery codes and challenges; challenge-based creation of a new session. Prior sessions are revoked when MFA is enabled.
 - `IdentitySessionService`: password-only login rejected once MFA is enabled. Administrative roles (`Level1`, `Level2`) never receive password-only sessions and must complete MFA challenge before receiving a bearer session. Refresh and authentication check the MFA state of admin sessions.
-- Loopback Development-only routes: `POST /api/dev/identity/mfa/enroll`, `/mfa/confirm`, `/mfa/challenge`, `/mfa/complete`. They are not public production endpoints. Admin enrollment must be performed via a trusted operator provisioning workflow; there is intentionally no public or anonymous admin enrollment route.
+- Loopback Development-only routes: `POST /api/dev/identity/mfa/enroll`, `/mfa/confirm`, `/mfa/challenge`, `/mfa/complete`. They are not public production endpoints. Admin enrollment is performed by the dedicated `tools/ArginTaxPayer.IdentityOperator` local operator CLI; there is intentionally no public or anonymous admin enrollment route. The operator project is built separately from `ArginTaxPayer.sln`.
 - Tests: `IdentityMfaUnitTests` (RFC vector, encryption tampering, schema), `IdentityMfaPostgresTests` (enrollment, password-only blocking, TOTP replay, recovery reuse, challenge replay, admin requirement, disabled account), and `scripts/phase-03-step-04-smoke.py` (end-to-end loopback HTTP).
 - Password-reset-by-email, production identity verification, lost-all-factors administrator recovery, audit/event monitoring and distributed rate limiting are NOT yet offered by this step. Recovering a lost authenticator while retaining the password is supported through single-use recovery codes.
 
@@ -380,6 +380,15 @@ python3 scripts/phase-03-step-04-smoke.py
 ```
 Expected `STEP 04 MFA SMOKE PASSED`. The script creates a disposable Customer account in the test DB; it does not display TOTP secrets, recovery codes or bearer tokens. Stop API and SSH tunnel with Ctrl+C after the test.
 
+**Trusted Level 1 bootstrap and MFA enrollment on the TEST database only (optional operator exercise):**
+
+Run this from macOS Terminal B with the SSH tunnel still active. `Identity__MfaEncryptionKey` must be the **same persistent key** used by the test API for these users; do not generate a new key after enrollment. The console reads administrator credentials without echo and requires explicit confirmation before creating the first Level 1 account:
+```bash
+dotnet build tools/ArginTaxPayer.IdentityOperator/ArginTaxPayer.IdentityOperator.csproj -c Release
+dotnet run --project tools/ArginTaxPayer.IdentityOperator -- bootstrap-level1-test
+```
+For an existing Level 1 test account requiring first-time MFA enrollment, substitute `enroll-level1-test`. The CLI refuses databases other than `argintaxpayer_test`, checks the required MFA migration, verifies existing Level 1 credentials when applicable, and displays the OTP provisioning URI and one-time recovery codes only to the trusted operator. The terminal session must not be recorded or screen-shared. This is not a production administrator provisioning workflow.
+
 **Ubuntu VPS (build/regression only):**
 ```bash
 ssh argindev@85.133.244.156
@@ -389,6 +398,7 @@ git switch phase/03-identity-authorization
 git pull --ff-only origin phase/03-identity-authorization
 dotnet build ArginTaxPayer.sln -c Release
 dotnet test ArginTaxPayer.sln -c Release --no-build
+dotnet build tools/ArginTaxPayer.IdentityOperator/ArginTaxPayer.IdentityOperator.csproj -c Release
 ```
 Database migrations are not repeated on Ubuntu. Integration tests run against the DB from macOS through the tunnel. Verify standard Phase 02 and Steps 01–03 regression suites remain green.
 
