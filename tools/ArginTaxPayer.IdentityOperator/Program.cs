@@ -19,9 +19,17 @@ if (string.IsNullOrWhiteSpace(cs) ||
 }
 await using var db = new ArginTaxPayerDbContext(
     new DbContextOptionsBuilder<ArginTaxPayerDbContext>().UseNpgsql(cs).Options);
-if (!(await db.Database.GetAppliedMigrationsAsync()).Contains("20261012040000_AddIdentityMfa"))
+try
 {
-    Console.Error.WriteLine("MFA migration must be applied first.");
+    if (!(await db.Database.GetAppliedMigrationsAsync()).Contains("20261012040000_AddIdentityMfa"))
+    {
+        Console.Error.WriteLine("MFA migration must be applied first.");
+        return 2;
+    }
+}
+catch (NpgsqlException)
+{
+    Console.Error.WriteLine("PostgreSQL connection failed. Check the macOS SSH tunnel at 127.0.0.1:15432 and verify the test database is reachable.");
     return 2;
 }
 
