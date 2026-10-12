@@ -3,7 +3,7 @@ import { isSameLocalOrigin } from "../../../../lib/identity-origin.mjs";
 import { ACCESS_COOKIE, REFRESH_COOKIE, identityBackend, identityUiEnabled } from "../../../../lib/identity";
 
 type TokenResponse = { accessToken: string; refreshToken: string; accessExpiresAtUtc?: string; refreshExpiresAtUtc?: string };
-const operations = new Set(["register", "login", "logout", "mfa/challenge", "mfa/complete", "mfa/enroll", "mfa/confirm", "refresh", "me", "sessions", "sessions/revoke"]);
+const operations = new Set(["register", "login", "logout", "mfa/challenge", "mfa/complete", "mfa/enroll", "mfa/confirm", "refresh", "me", "sessions", "sessions/revoke", "phone/request", "phone/register/complete", "phone/login/complete", "phone/reset/complete"]);
 const cookieOptions = { httpOnly: true, sameSite: "strict" as const, secure: false, path: "/" };
 const errorResult = (code: number, message: string) =>
   NextResponse.json({ error: message }, { status: code, headers: { "Cache-Control": "no-store" } });
@@ -43,7 +43,11 @@ async function callIdentity(operation: string, req: NextRequest, method: "GET" |
     register: "register", login: "login", refresh: "refresh", me: "authorization/me",
     "mfa/challenge": "mfa/challenge", "mfa/complete": "mfa/complete",
     "mfa/enroll": "mfa/enroll", "mfa/confirm": "mfa/confirm",
-    sessions: "resources/sessions"
+    sessions: "resources/sessions",
+    "phone/request": "phone/request",
+    "phone/register/complete": "phone/register/complete",
+    "phone/login/complete": "phone/login/complete",
+    "phone/reset/complete": "phone/reset/complete"
   };
   if (operation === "sessions/revoke") {
     let data: { sessionId?: string };
@@ -72,7 +76,7 @@ async function callIdentity(operation: string, req: NextRequest, method: "GET" |
       ...(method === "POST" && operation !== "sessions/revoke" ? { body: JSON.stringify(payload) } : {})
     });
     if (response.status === 204) return new NextResponse(null, { status: 204 });
-    if (["login", "refresh", "mfa/complete"].includes(operation) && response.ok) {
+    if (["login", "refresh", "mfa/complete", "phone/login/complete"].includes(operation) && response.ok) {
       const tokens = (await response.json()) as TokenResponse;
       if (!tokens.accessToken || !tokens.refreshToken) return errorResult(502, "invalid_response");
       const result = NextResponse.json({ status: "authenticated" });
