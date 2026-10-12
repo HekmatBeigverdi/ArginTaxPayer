@@ -82,6 +82,24 @@ public sealed class IdentitySessionPostgresTests
         await db.SaveChangesAsync();
         Assert.Null(await service.AuthenticateAsync(third!.AccessToken));
         Assert.Null(await service.RefreshAsync(third.RefreshToken));
+        // Expiration is enforced on the server, not by trusting the caller.
+        user.IsActive = true;
+        await db.SaveChangesAsync();
+        var expiring = await service.LoginAsync(email, password);
+        Assert.NotNull(expiring);
+        var accessHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.ASCII.GetBytes(expiring!.AccessToken))).ToLowerInvariant();
+        await db.IdentitySessions.Where(x => x.AccessTokenHash == accessHash)
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.AccessExpiresAtUtc, DateTime.UtcNow.AddSeconds(-5)));
+        Assert.Null(await service.AuthenticateAsync(expiring.AccessToken));
+        var restored = await service.RefreshAsync(expiring.RefreshToken);
+        Assert.NotNull(restored);
+        var newAccessHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.ASCII.GetBytes(restored!.AccessToken))).ToLowerInvariant();
+        await db.IdentitySessions.Where(x => x.AccessTokenHash == newAccessHash)
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.RefreshExpiresAtUtc, DateTime.UtcNow.AddSeconds(-5)));
+        Assert.Null(await service.RefreshAsync(restored.RefreshToken));
+        Assert.Null(await service.AuthenticateAsync(restored.AccessToken));
         // Test transaction always rolls back.
     }
 }
