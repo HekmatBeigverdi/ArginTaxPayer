@@ -118,7 +118,8 @@ public sealed class IdentitySessionService(ArginTaxPayerDbContext db)
         return await db.IdentitySessions.AsNoTracking()
             .Where(x => x.AccessTokenHash == digest && x.AccessExpiresAtUtc > now &&
                 x.RefreshExpiresAtUtc > now && x.RevokedAtUtc == null && x.User.IsActive &&
-                !x.User.Roles.Any(r => r.Role != IdentityRoleNames.Customer))
+                (!x.User.Roles.Any(r => r.Role != IdentityRoleNames.Customer) ||
+                    db.IdentityMfaStates.Any(m => m.UserId == x.UserId && m.EnabledAtUtc != null)))
             .Select(x => (Guid?)x.UserId).SingleOrDefaultAsync(ct);
     }
 
