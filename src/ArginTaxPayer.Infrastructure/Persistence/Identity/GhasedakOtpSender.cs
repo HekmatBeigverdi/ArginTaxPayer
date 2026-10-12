@@ -44,6 +44,15 @@ public sealed class GhasedakOtpSender(HttpClient http, IConfiguration config, IL
             return false;
         }
 
+        // A live OTP test must be explicitly constrained to the operator's
+        // one verified recipient, not arbitrary public input from a form.
+        if (!IranianMobileNumber.TryNormalize(config["Ghasedak:TestRecipientMobile"],
+            out var permittedMobile) || mobile != permittedMobile)
+        {
+            logger.LogWarning("OTP_SMS_REJECTED reason=test_recipient_not_allowed");
+            return false;
+        }
+
         var body = new
         {
             TemplateName = Template,
