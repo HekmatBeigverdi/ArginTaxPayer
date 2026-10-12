@@ -64,6 +64,8 @@ if (app.Environment.IsDevelopment())
             identityEndpointsRegistered = identityDevelopmentEnabled,
             registrationEnabled = app.Configuration.GetValue<bool>(
                 "Identity:AllowDevelopmentRegistration"),
+            smsSendingEnabled = app.Configuration.GetValue<bool>("Ghasedak:EnableLiveSending"),
+            otpPepperConfigured = (app.Configuration["Identity:OtpPepper"]?.Length ?? 0) >= 32,
             loopbackRecognized = true
         });
     }).ExcludeFromDescription();
