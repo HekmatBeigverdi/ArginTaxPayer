@@ -41,6 +41,11 @@ def create_customer():
 
 
 def main():
+    with urllib.request.urlopen("http://127.0.0.1:15088/health/dev-identity", timeout=10) as response:
+        diagnostics = json.load(response)
+    if not diagnostics.get("identityEndpointsRegistered") or not diagnostics.get("registrationEnabled"):
+        raise AssertionError("API configuration does not enable test identity routes: " + str(diagnostics))
+    print("PASS API identity route and registration preflight")
     first, first_refresh = create_customer()
     second, second_refresh = create_customer()
     status, me1 = call("/authorization/me", bearer=first)
