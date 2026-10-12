@@ -3,9 +3,9 @@ using ArginTaxPayer.Infrastructure.Persistence.Identity;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 
-if (args.Length != 1 || args[0] != "enroll-level1-test")
+if (args.Length != 1 || (args[0] != "enroll-level1-test" && args[0] != "bootstrap-level1-test"))
 {
-    Console.Error.WriteLine("Usage: dotnet run --project tools/ArginTaxPayer.IdentityOperator -- enroll-level1-test");
+    Console.Error.WriteLine("Usage: dotnet run --project tools/ArginTaxPayer.IdentityOperator -- enroll-level1-test|bootstrap-level1-test");
     return 2;
 }
 
@@ -59,6 +59,19 @@ catch (ArgumentException) { Console.Error.WriteLine("Invalid email."); return 2;
 var password = Hidden("Administrator password (hidden): ");
 var user = await db.IdentityUsers.AsNoTracking()
     .SingleOrDefaultAsync(x => x.NormalizedEmail == email && x.IsActive);
+if (user is null && args[0] == "bootstrap-level1-test")
+{
+    Console.Write("Create first Level 1 admin in TEST database? Type CREATE: ");
+    if (Console.ReadLine() != "CREATE") return 2;
+    try { await InitialAdministratorBootstrap.ProvisionAsync(db, email, password); }
+    catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+    {
+        Console.Error.WriteLine("Initial Level 1 bootstrap rejected.");
+        return 2;
+    }
+    user = await db.IdentityUsers.AsNoTracking()
+        .SingleAsync(x => x.NormalizedEmail == email && x.IsActive);
+}
 if (user is null || !IdentityPasswordHasher.Verify(password, user.PasswordHash) ||
     !await db.IdentityUserRoles.AsNoTracking()
         .AnyAsync(x => x.UserId == user.Id && x.Role == IdentityRoleNames.Level1))
