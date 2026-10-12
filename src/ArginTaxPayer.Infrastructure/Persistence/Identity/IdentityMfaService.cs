@@ -41,7 +41,8 @@ public sealed class IdentityMfaService(ArginTaxPayerDbContext db, IdentityMfaCry
     public async Task<MfaRecoveryCodes?> ConfirmEnrollmentAsync(Guid userId, string? totpCode,
         CancellationToken ct = default)
     {
-        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        var ownsTransaction = db.Database.CurrentTransaction is null;
+        await using var transaction = ownsTransaction ? await db.Database.BeginTransactionAsync(ct) : null;
         var state = await db.IdentityMfaStates.AsNoTracking()
             .SingleOrDefaultAsync(x => x.UserId == userId && x.EnabledAtUtc == null, ct);
         if (state is null) return null;
@@ -67,7 +68,10 @@ public sealed class IdentityMfaService(ArginTaxPayerDbContext db, IdentityMfaCry
             });
         }
         await db.SaveChangesAsync(ct);
-        await transaction.CommitAsync(ct);
+        // An existing password-only session must not survive MFA enrollment.
+        await db.IdentitySessions.Where(x => x.UserId == userId && x.RevokedAtUtc == null)
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.RevokedAtUtc, now), ct);
+        if (transaction is not null) await transaction.CommitAsync(ct);
         return new MfaRecoveryCodes(codes);
     }
 
@@ -114,7 +118,8 @@ public sealed class IdentityMfaService(ArginTaxPayerDbContext db, IdentityMfaCry
             .ExecuteUpdateAsync(s => s.SetProperty(x => x.AttemptCount, x => x.AttemptCount + 1), ct);
         if (updated != 1) return null;
 
-        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        var ownsTransaction = db.Database.CurrentTransaction is null;
+        await using var tx = ownsTransaction ? await db.Database.BeginTransactionAsync(ct) : null;
         var candidate = await db.IdentityMfaChallenges.AsNoTracking()
             .Where(x => x.ChallengeHash == digest && x.ConsumedAtUtc == null &&
                 x.ExpiresAtUtc > now && x.AttemptCount <= 5)
@@ -153,7 +158,7 @@ public sealed class IdentityMfaService(ArginTaxPayerDbContext db, IdentityMfaCry
 
         var tokens = await sessions.CreateMfaSessionAsync(candidate.UserId, ct);
         if (tokens is null) return null;
-        await tx.CommitAsync(ct);
+        if (tx is not null) await tx.CommitAsync(ct);
         return tokens;
     }
 
