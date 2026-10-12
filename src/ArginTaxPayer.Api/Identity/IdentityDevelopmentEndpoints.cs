@@ -37,10 +37,15 @@ public static class IdentityDevelopmentEndpoints
             [FromBody] IdentityCredentials request,
             HttpContext http,
             IdentityCredentialService identity,
+            IdentityProtectionService protection,
             CancellationToken cancellationToken) =>
         {
             if (!IsLoopback(http)) return Results.NotFound();
+            if (protection.IsBlocked(request.Email, DateTime.UtcNow))
+                return Results.StatusCode(StatusCodes.Status429TooManyRequests);
             var valid = await identity.VerifyCredentialsAsync(request.Email, request.Password, cancellationToken);
+            if (valid) protection.RecordSuccess(request.Email, "password_verify");
+            else protection.RecordFailure(request.Email, DateTime.UtcNow, "password_verify");
             return valid
                 ? Results.Ok(new { status = "credentials_verified", sessionIssued = false })
                 : Results.Unauthorized();
@@ -51,10 +56,15 @@ public static class IdentityDevelopmentEndpoints
             [FromBody] IdentityCredentials request,
             HttpContext http,
             IdentitySessionService sessions,
+            IdentityProtectionService protection,
             CancellationToken ct) =>
         {
             if (!IsLoopback(http)) return Results.NotFound();
+            if (protection.IsBlocked(request.Email, DateTime.UtcNow))
+                return Results.StatusCode(StatusCodes.Status429TooManyRequests);
             var tokens = await sessions.LoginAsync(request.Email, request.Password, ct);
+            if (tokens is not null) protection.RecordSuccess(request.Email, "login");
+            else protection.RecordFailure(request.Email, DateTime.UtcNow, "login");
             return tokens is null ? Results.Unauthorized() : Results.Ok(tokens);
         });
 
@@ -116,12 +126,17 @@ public static class IdentityDevelopmentEndpoints
         });
 
         group.MapPost("/mfa/challenge", async ([FromBody] IdentityCredentials request,
-            HttpContext http, IServiceProvider provider, CancellationToken ct) =>
+            HttpContext http, IServiceProvider provider,
+            IdentityProtectionService protection, CancellationToken ct) =>
         {
             if (!IsLoopback(http)) return Results.NotFound();
+            if (protection.IsBlocked(request.Email, DateTime.UtcNow))
+                return Results.StatusCode(StatusCodes.Status429TooManyRequests);
             var identity = provider.GetService<IdentityMfaService>();
             if (identity is null) return Results.NotFound();
             var challenge = await identity.BeginLoginAsync(request.Email, request.Password, ct);
+            if (challenge is not null) protection.RecordSuccess(request.Email, "mfa_challenge");
+            else protection.RecordFailure(request.Email, DateTime.UtcNow, "mfa_challenge");
             return challenge is null ? Results.Unauthorized() : Results.Ok(challenge);
         });
 
