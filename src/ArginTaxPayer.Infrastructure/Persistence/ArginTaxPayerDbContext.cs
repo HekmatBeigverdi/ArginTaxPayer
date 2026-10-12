@@ -18,6 +18,7 @@ public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbConte
     public DbSet<IdentityMfaState> IdentityMfaStates => Set<IdentityMfaState>();
     public DbSet<IdentityRecoveryCode> IdentityRecoveryCodes => Set<IdentityRecoveryCode>();
     public DbSet<IdentityMfaChallenge> IdentityMfaChallenges => Set<IdentityMfaChallenge>();
+    public DbSet<IdentityPhoneChallenge> IdentityPhoneChallenges => Set<IdentityPhoneChallenge>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
     public DbSet<IdempotencyReservation> IdempotencyReservations => Set<IdempotencyReservation>();
 
@@ -29,12 +30,15 @@ public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbConte
         users.ToTable("identity_users");
         users.HasKey(x => x.Id);
         users.Property(x => x.Id).HasColumnName("id");
-        users.Property(x => x.NormalizedEmail).HasColumnName("normalized_email").HasMaxLength(320).IsRequired();
-        users.Property(x => x.PasswordHash).HasColumnName("password_hash").HasMaxLength(512).IsRequired();
+        users.Property(x => x.NormalizedEmail).HasColumnName("normalized_email").HasMaxLength(320);
+        users.Property(x => x.NormalizedMobile).HasColumnName("normalized_mobile").HasMaxLength(13);
+        users.Property(x => x.MobileVerifiedAtUtc).HasColumnName("mobile_verified_at_utc").HasColumnType("timestamp with time zone");
+        users.Property(x => x.PasswordHash).HasColumnName("password_hash").HasMaxLength(512);
         users.Property(x => x.IsActive).HasColumnName("is_active").IsRequired();
         users.Property(x => x.CreatedAtUtc).HasColumnName("created_at_utc").HasColumnType("timestamp with time zone");
         users.Property(x => x.PasswordChangedAtUtc).HasColumnName("password_changed_at_utc").HasColumnType("timestamp with time zone");
         users.HasIndex(x => x.NormalizedEmail).IsUnique().HasDatabaseName("ux_identity_users_email");
+        users.HasIndex(x => x.NormalizedMobile).IsUnique().HasDatabaseName("ux_identity_users_mobile");
 
         var roles = modelBuilder.Entity<IdentityUserRole>();
         roles.ToTable("identity_user_roles");
@@ -96,6 +100,24 @@ public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbConte
         challenge.Property(x => x.AttemptCount).HasColumnName("attempt_count").HasDefaultValue(0);
         challenge.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
         challenge.HasIndex(x => x.ChallengeHash).IsUnique().HasDatabaseName("ux_identity_challenge_hash");
+
+        var phone = modelBuilder.Entity<IdentityPhoneChallenge>();
+        phone.ToTable("identity_phone_challenges");
+        phone.HasKey(x => x.Id);
+        phone.Property(x => x.Id).HasColumnName("id");
+        phone.Property(x => x.Mobile).HasColumnName("mobile").HasMaxLength(13).IsRequired();
+        phone.Property(x => x.Purpose).HasColumnName("purpose").HasMaxLength(16).IsRequired();
+        phone.Property(x => x.CodeDigest).HasColumnName("code_digest").HasMaxLength(64).IsRequired();
+        phone.Property(x => x.UserId).HasColumnName("user_id");
+        phone.Property(x => x.Attempts).HasColumnName("attempts");
+        phone.Property(x => x.CreatedAtUtc).HasColumnName("created_at_utc").HasColumnType("timestamp with time zone");
+        phone.Property(x => x.ExpiresAtUtc).HasColumnName("expires_at_utc").HasColumnType("timestamp with time zone");
+        phone.Property(x => x.ConsumedAtUtc).HasColumnName("consumed_at_utc").HasColumnType("timestamp with time zone");
+        phone.Property(x => x.Delivered).HasColumnName("delivered");
+        phone.HasIndex(x => new { x.Mobile, x.Purpose, x.CreatedAtUtc })
+            .HasDatabaseName("ix_phone_challenge_cooldown");
+        phone.HasOne<IdentityUser>().WithMany().HasForeignKey(x => x.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         var reservations = modelBuilder.Entity<IdempotencyReservation>();
         reservations.ToTable("idempotency_reservations");
