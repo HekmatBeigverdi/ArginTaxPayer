@@ -68,6 +68,59 @@ public sealed class ArginTaxPayerDbContextModelSnapshot : ModelSnapshot
             b.Navigation("User");
         });
 
+        modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityMfaState", b =>
+        {
+            b.Property<Guid>("UserId").HasColumnName("user_id").HasColumnType("uuid");
+            b.Property<string>("EncryptedSecret").IsRequired().HasColumnName("encrypted_secret").HasColumnType("text");
+            b.Property<DateTime?>("EnabledAtUtc").HasColumnName("enabled_at_utc").HasColumnType("timestamp with time zone");
+            b.Property<long>("LastAcceptedTotpStep").HasColumnName("last_accepted_totp_step").HasColumnType("bigint").HasDefaultValue(-1L);
+            b.Property<int>("RecoveryGeneration").HasColumnName("recovery_generation").HasColumnType("integer").HasDefaultValue(0);
+            b.HasKey("UserId");
+            b.ToTable("identity_mfa_states");
+        });
+        modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityRecoveryCode", b =>
+        {
+            b.Property<Guid>("Id").HasColumnName("id").HasColumnType("uuid");
+            b.Property<Guid>("UserId").HasColumnName("user_id").HasColumnType("uuid");
+            b.Property<string>("CodeHash").IsRequired().HasMaxLength(64).HasColumnName("code_hash").HasColumnType("character varying(64)");
+            b.Property<DateTime>("CreatedAtUtc").HasColumnName("created_at_utc").HasColumnType("timestamp with time zone");
+            b.Property<DateTime?>("UsedAtUtc").HasColumnName("used_at_utc").HasColumnType("timestamp with time zone");
+            b.HasKey("Id");
+            b.HasIndex("UserId", "CodeHash").IsUnique().HasDatabaseName("ux_identity_recovery_user_hash");
+            b.ToTable("identity_recovery_codes");
+        });
+        modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityMfaChallenge", b =>
+        {
+            b.Property<Guid>("Id").HasColumnName("id").HasColumnType("uuid");
+            b.Property<Guid>("UserId").HasColumnName("user_id").HasColumnType("uuid");
+            b.Property<string>("ChallengeHash").IsRequired().HasMaxLength(64).HasColumnName("challenge_hash").HasColumnType("character varying(64)");
+            b.Property<DateTime>("ExpiresAtUtc").HasColumnName("expires_at_utc").HasColumnType("timestamp with time zone");
+            b.Property<DateTime?>("ConsumedAtUtc").HasColumnName("consumed_at_utc").HasColumnType("timestamp with time zone");
+            b.Property<int>("AttemptCount").HasColumnName("attempt_count").HasColumnType("integer").HasDefaultValue(0);
+            b.HasKey("Id");
+            b.HasIndex("ChallengeHash").IsUnique().HasDatabaseName("ux_identity_challenge_hash");
+            b.ToTable("identity_mfa_challenges");
+        });
+        modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityMfaState", b =>
+        {
+            b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", "User").WithOne()
+                .HasForeignKey("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityMfaState", "UserId")
+                .OnDelete(DeleteBehavior.Cascade).IsRequired();
+            b.Navigation("User");
+        });
+        modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityRecoveryCode", b =>
+        {
+            b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", "User").WithMany()
+                .HasForeignKey("UserId").OnDelete(DeleteBehavior.Cascade).IsRequired();
+            b.Navigation("User");
+        });
+        modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityMfaChallenge", b =>
+        {
+            b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", "User").WithMany()
+                .HasForeignKey("UserId").OnDelete(DeleteBehavior.Cascade).IsRequired();
+            b.Navigation("User");
+        });
+
         modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Idempotency.IdempotencyReservation", b =>
         {
             b.Property<Guid>("Id").HasColumnName("id").HasColumnType("uuid");
