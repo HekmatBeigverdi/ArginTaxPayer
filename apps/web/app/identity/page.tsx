@@ -15,6 +15,8 @@ export default async function IdentityPage() {
       <p className="identity-kicker">حساب کاربری</p>
       <h1>به آرگین خوش آمدید</h1>
       <p className="identity-muted">ورود ایمن، ثبت‌نام آزمایشی و احراز هویت دومرحله‌ای</p>
+      <PhoneForms />
+      <div className="identity-method-divider">یا ورود با ایمیل و رمز عبور</div>
       <IdentityForms />
     </section>
     <p className="identity-note">این بخش صرفاً در محیط توسعه فعال است. اطلاعات ورود خود را با دیگران به اشتراک نگذارید.</p>
