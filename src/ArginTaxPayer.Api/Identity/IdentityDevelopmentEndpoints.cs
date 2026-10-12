@@ -261,8 +261,13 @@ public static class IdentityDevelopmentEndpoints
             ? authorization[7..].Trim() : null;
     }
 
+    internal static bool IsLoopbackAddress(IPAddress? address) =>
+        address is { } ip &&
+        (IPAddress.IsLoopback(ip) ||
+            (ip.IsIPv4MappedToIPv6 && IPAddress.IsLoopback(ip.MapToIPv4())));
+
     private static bool IsLoopback(HttpContext http) =>
-        http.Connection.RemoteIpAddress is { } ip && IPAddress.IsLoopback(ip);
+        IsLoopbackAddress(http.Connection.RemoteIpAddress);
 }
 
 public sealed record IdentityCredentials(string? Email, string? Password);
