@@ -84,19 +84,23 @@ public sealed class IdentityPhoneService(ArginTaxPayerDbContext db, IIdentityOtp
         }
 
         var now = DateTime.UtcNow;
+        // The 15-minute budget counts all attempts, including failed provider calls.
+        // The three-minute resend cooldown only follows a *successful* provider
+        // acceptance: a failed dispatch must not misleadingly block retry for 3 min.
         var recent = await db.IdentityPhoneChallenges.AsNoTracking()
             .Where(x => x.Mobile == mobile && x.CreatedAtUtc > now.AddMinutes(-15))
             .OrderByDescending(x => x.CreatedAtUtc)
-            .Select(x => x.CreatedAtUtc).Take(5).ToListAsync(ct);
+            .Select(x => new { x.CreatedAtUtc, x.Delivered }).Take(5).ToListAsync(ct);
         if (recent.Count >= 5)
         {
-            var wait = RemainingSeconds(recent[4].AddMinutes(15), now);
+            var wait = RemainingSeconds(recent[4].CreatedAtUtc.AddMinutes(15), now);
             logger.LogWarning("OTP_REQUEST_SKIPPED reason=rate_limit_15m remaining_seconds={RemainingSeconds}", wait);
             return new(PhoneOtpRequestStatus.RateLimited, wait);
         }
-        if (recent.Count > 0 && recent[0] > now.Subtract(Cooldown))
+        var lastDelivered = recent.FirstOrDefault(x => x.Delivered);
+        if (lastDelivered is not null && lastDelivered.CreatedAtUtc > now.Subtract(Cooldown))
         {
-            var wait = RemainingSeconds(recent[0].Add(Cooldown), now);
+            var wait = RemainingSeconds(lastDelivered.CreatedAtUtc.Add(Cooldown), now);
             logger.LogWarning("OTP_REQUEST_SKIPPED reason=cooldown_180s remaining_seconds={RemainingSeconds}", wait);
             return new(PhoneOtpRequestStatus.RateLimited, wait);
         }
