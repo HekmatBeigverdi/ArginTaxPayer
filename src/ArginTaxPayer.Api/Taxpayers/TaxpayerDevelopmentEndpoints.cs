@@ -1,5 +1,5 @@
 using ArginTaxPayer.Infrastructure.Persistence.Taxpayers;
-using ArginTaxPayer.Api.Identity;
+using System.Net;
 using Microsoft.AspNetCore.Mvc;
 
 namespace ArginTaxPayer.Api.Taxpayers;
@@ -13,7 +13,7 @@ public static class TaxpayerDevelopmentEndpoints
             [FromBody] CreateTaxpayerRequest request, HttpContext http,
             TaxpayerCreationService service, CancellationToken ct) =>
         {
-            if (!IdentityDevelopmentEndpoints.IsLoopbackAddress(http.Connection.RemoteIpAddress))
+            if (!(http.Connection.RemoteIpAddress is { } ip && (IPAddress.IsLoopback(ip) || (ip.IsIPv4MappedToIPv6 && IPAddress.IsLoopback(ip.MapToIPv4())))))
                 return Results.NotFound();
             var header = http.Request.Headers.Authorization.ToString();
             var token = header.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
