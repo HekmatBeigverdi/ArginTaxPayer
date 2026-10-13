@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 
 
 type Account = {
@@ -93,7 +93,7 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
 
   function close() {
     requestRef.current++;
-    dialogRef.current?.close();
+    if (dialogRef.current?.open) dialogRef.current.close();
     setSelected(null); setTaxpayers([]); setModalError("");
   }
 
@@ -113,7 +113,7 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
     } finally { if (requestId === requestRef.current) setDetailsLoading(false); }
   }
 
-  async function assignOwner(event: React.FormEvent<HTMLFormElement>) {
+  async function assignOwner(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!level1 || !selected || savingOwner || !transferReason.trim()) return;
     const target = partnerId.trim();
