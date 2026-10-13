@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type Tab = "login" | "register";
@@ -27,10 +27,18 @@ export default function IdentityFlow() {
   const [navigating,setNavigating] = useState(false);
   const [error,setError] = useState("");
   const [message,setMessage] = useState("");
+  const [retryAfter,setRetryAfter] = useState(0);
   const purpose: Purpose = forgot ? "reset" : tab === "register" ? "register" : "login";
   const phoneOtp = forgot || (tab === "register" && !emailRegistration) || (tab === "login" && mode === "otp");
 
+  useEffect(() => {
+    if (retryAfter <= 0) return;
+    const tick = setInterval(() => setRetryAfter(v => Math.max(0, v - 1)), 1000);
+    return () => clearInterval(tick);
+  }, [retryAfter > 0]);
+
   function reset() {
+    setRetryAfter(0);
     setStep("details"); setIdentifier(""); setPassword(""); setCode(""); setChallenge("");
     setRecovery(false); setError(""); setMessage("");
   }
@@ -55,10 +63,28 @@ export default function IdentityFlow() {
       }
       if (phoneOtp) {
         if (step === "details") {
-          const {response} = await api("phone/request",{mobile:identifier,purpose});
-          if (response.status !== 202) {setError("درخواست تأیید امکان‌پذیر نیست؛ سرویس و تنظیمات پیامک را بررسی کنید.");return;}
+          const {response,result} = await api("phone/request",{mobile:identifier,purpose});
+          if (response.status === 409 && result.error === "mobile_already_registered") {
+            setError("این شماره همراه قبلاً ثبت‌نام شده است. از تب ورود استفاده کنید.");
+            return;
+          }
+          if (response.status === 429) {
+            const seconds = typeof result.retryAfterSeconds === "number"
+              && Number.isFinite(result.retryAfterSeconds)
+              ? Math.max(1, Math.min(900, Math.ceil(result.retryAfterSeconds))) : 60;
+            setRetryAfter(seconds);
+            setError("کاربر گرامی، برای دریافت مجدد کد تأیید کمی صبر کنید.");
+            return;
+          }
+          if (response.status !== 202) {
+            setError(response.status === 503
+              ? "ارسال کد تأیید انجام نشد. اتصال سرویس پیامک را بررسی کنید."
+              : "درخواست تأیید معتبر نیست؛ شماره همراه را بررسی کنید.");
+            return;
+          }
+          setRetryAfter(0);
           setStep("code");
-          setMessage("در صورت مجاز بودن درخواست، کد ارسال می‌شود. اگر پیامکی دریافت نکردید، وضعیت اتصال را بررسی کنید.");
+          setMessage("درخواست کد تأیید پذیرفته شد. کد دریافت‌شده را وارد کنید.");
           return;
         }
         const path = purpose === "register" ? "phone/register/complete"
@@ -161,9 +187,9 @@ export default function IdentityFlow() {
           onChange={e=>setRecovery(e.target.checked)}/>استفاده از کد بازیابی</label>
       </>}
       {message&&<p role="status" className="auth-info">{message}</p>}
-      {error&&<p role="alert" className="form-error">{error}</p>}
-      <button className="identity-primary" type="submit" disabled={pending || navigating} aria-busy={pending || navigating}>
-        {navigating?"در حال ورود به پنل...":pending?"در حال بررسی...":step==="mfa"?"تأیید و ورود":step==="code"?"تأیید کد":
+      {error&&<p role="alert" className="form-error">{error}{retryAfter > 0 && <strong dir="ltr" className="otp-countdown"> زمان باقی‌مانده: {Math.floor(retryAfter/60).toString().padStart(2,"0")}:{(retryAfter%60).toString().padStart(2,"0")}</strong>}</p>}
+      <button className="identity-primary" type="submit" disabled={pending || navigating || (phoneOtp && step==="details" && retryAfter > 0)} aria-busy={pending || navigating}>
+        {navigating?"در حال ورود به پنل...":pending?"در حال بررسی...":phoneOtp && step==="details" && retryAfter > 0?"امکان درخواست مجدد پس از پایان شمارش":step==="mfa"?"تأیید و ورود":step==="code"?"تأیید کد":
           phoneOtp?"دریافت کد تأیید":tab==="register"?"ایجاد حساب":"ورود به حساب"}
       </button>
       {step==="code"&&<button className="identity-secondary" type="button"
