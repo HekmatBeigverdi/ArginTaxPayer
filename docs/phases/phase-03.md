@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 03: Identity and Authorization
 
-**Status:** Steps 01–09 owner approved (Step 09 explicitly owner-approved on 2026-10-13; security limitations carried forward); Step 10 implementation committed with operator-run regression evidence pending; Step 11 planned  
+**Status:** Steps 01–10 owner approved (Step 10 owner-reported macOS acceptance on 2026-10-13; raw logs not independently available); Step 11 active — final hardening, Ubuntu phase acceptance and phase handoff pending  
 **Branch:** `phase/03-identity-authorization`  
 **Baseline:** Phase 02 and `docs/roadmap/18-phases.md`  
 **Started:** 2026-10-12
@@ -32,7 +32,7 @@ Security invariants:
 | 07 | Account Protection and Security Audit | Login throttling, security-event audit, sensitive-data redaction, session controls | Brute-force throttling and redaction verified; security events auditable | Owner approved with documented residual risks (2026-10-12) |
 | 08 | Persian RTL Identity User Interface | Existing email/password login, registration, MFA, guarded account/security pages and safe RTL layout | RTL layout, error states, login/logout, guarded-content tests; original email flow remains functional | Owner Approved (2026-10-12, owner-reported) |
 | 09 | Mobile-First Registration, OTP Authentication and Ghasedak Integration | Backwards-compatible mobile/email identity migration, phone ownership verification, optional email/SMS OTP login and password recovery, Ghasedak adapter and RTL workflow updates | Tested OTP expiry/replay/throttling, MFA preservation, mock/provider-gated transport and RTL UI; residual production security tracked in Step 11 | **Owner approved (2026-10-13)**; deferred final Ubuntu/security verification explicitly tracked |
-| 10 | Identity and Authorization Integration Tests | API/UI negative-path integration tests, token/recovery replay and role/scope isolation including Step 09 | Focused PostgreSQL positive/negative, HTTP deny-by-default, frontend identity tests | **Implemented; local execution/owner acceptance pending (2026-10-13)** |
+| 10 | Identity and Authorization Integration Tests | API/UI negative-path integration tests, token/recovery replay and role/scope isolation including Step 09 | Focused PostgreSQL positive/negative, HTTP deny-by-default, frontend identity tests | **Owner approved (2026-10-13; owner-reported successful local tests)** |
 | 11 | Hardening, Verification, and Phase Handoff | Final security and migration review, CI checks, documentation and release readiness; finance-feature handoff | macOS/Ubuntu build/test evidence, security review, explicit deferred billing ledger scope, owner sign-off gate | Planned — formerly Step 10 |
 
 ## 3. Concise Per-Step Verification
@@ -1527,6 +1527,41 @@ If `dev-up` is already running, skip repeating it. After testing `zsh scripts/de
 
 **Honest verification state:** Source tests, scripts and phase record committed via GitHub. The assistant did **not** execute a local macOS or Ubuntu .NET/npm/PostgreSQL/HTTP test and cannot claim that tests passed or that the owner approved Step 10. Step 10 implementation is complete for handoff, with acceptance pending actual owner-run evidence.
 
+
+
+### Step 10 — Owner Acceptance Record (2026-10-13)
+
+**Owner decision:** `تمام معیارهای پذیرش گام ۱۰ فاز ۳ ArginTaxPayer در تست محلی موفق بودند. گام ۱۰ را تأیید و در مستند فاز ثبت کن و گام ۱۱ را شروع کن.`
+
+**Recorded outcome:** Step 10 is **OWNER APPROVED** for the local macOS test acceptance matrix. The owner reports passing the focused identity/authorization/PostgreSQL/frontend/HTTP smoke and manual UI criteria. The assistant did not directly receive or execute individual machine logs, so raw test output, exact assertions run, runtime versions and timings remain owner-reported rather than independently verified. This decision does not grant production release approval and does not waive the agreed final Ubuntu acceptance.
+
+### Step 11 — Hardening, Verification, and Phase Handoff (Initiated 2026-10-13)
+
+**Goal:** Close the entire Phase 03 only after a clean consolidated final Ubuntu test, security review and explicit owner approval. Follow the permanent cadence: macOS focused tests each step, **Ubuntu full test only at the end of the phase**. Do not re-open earlier approved steps or change the 11-step scope without a documented owner amendment.
+
+**Final acceptance gates:**
+1. **Source and changes:** Verify clean branch worktree, review pending migration list using the exact `argintaxpayer_test` database, record versions/commit and ensure no credential files or keys are tracked. Never run production migrations.
+2. **Automated verification:** `bash scripts/ubuntu-dev.sh verify` on Ubuntu (Build, .NET tests with opt-in PostgreSQL integration, npm tests/typecheck/build) and the scoped identity HTTP negative smoke with live SMS disabled; capture a concise redacted PASS/FAIL evidence record.
+3. **Private functional UI:** `bash scripts/ubuntu-dev.sh up`, verify `/health/ready` and `/health/dev-identity`, then inspect Next.js over a localhost-only SSH port forward from the Mac. Test password and OTP login, admin MFA, registration conflict, cooldown, recovery, session revocation, resource/role deny paths, the new admin Customer form, and the disabled-until-navigation button state. `bash scripts/ubuntu-dev.sh down` after test.
+4. **Security decisions:** Never expose Development API endpoints, bypass TOTP to create privileged users, send OTPs to unrestricted recipients during routine verification, or reveal credentials/phone/code in logs. Public API registration still needs account-enumeration resistance; verify OTP request throttling under concurrent processes, durable audit records for privileged phone trust bypass, the incomplete email verification/recovery path and readiness of production-safe email/MFA delivery. These are **open security/feature gaps** until implemented or explicitly deferred to a named later phase; do not claim production readiness while they remain.
+5. **Scope handoff:** Phase 03 is identity/authorization only. SMS commercial tariffs, trial credit, customer wallet and profit settlement remain delegated to the finance phases specified in the roadmap; tax entity and membership/scope relations begin in Phase 04. No commercial balance or charge logic is silently introduced.
+6. **Closure and release controls:** Record operator environment, test date, redacted output, migration status, exception list and owner sign-off in this same file. A merge into `main`, immutable tag, GitHub Release and production deployment are **separate manual gates** and must not be claimed or performed merely because Step 11 is accepted.
+
+**Ubuntu fast path (once per phase):**
+```bash
+# Ubuntu, from repo root; private ~/.argintaxpayer-test/ubuntu.env already configured
+git switch phase/03-identity-authorization
+git pull --ff-only origin phase/03-identity-authorization
+bash scripts/ubuntu-dev.sh verify
+bash scripts/ubuntu-dev.sh up
+bash scripts/ubuntu-dev.sh status
+# Manual private UI inspection, and negative smoke only with SMS disabled
+python3 scripts/phase-03-step-10-identity-smoke.py
+bash scripts/ubuntu-dev.sh down
+```
+Do not reuse the Mac-only zsh AutoSSH runner on Ubuntu. The isolated Ubuntu test database must remain `argintaxpayer_test`. On the Mac use a private SSH tunnel to view Ubuntu Next.js, never an internet-exposed Development site.
+
+**Current status:** Step 11 **STARTED**, NOT approved or completed. Ubuntu results, raw security checks and release readiness evidence are pending the owner's test session. The phase remains OPEN.
 
 ## 5. Communication Convention
 
