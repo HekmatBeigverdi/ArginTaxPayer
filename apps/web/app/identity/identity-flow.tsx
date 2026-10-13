@@ -46,11 +46,12 @@ export default function IdentityFlow() {
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault(); if (pending || navigating) return;
     setError("");setMessage("");setPending(true);
+    let leavingForAccount = false;
     try {
       if (step === "mfa") {
         const {response} = await api("mfa/complete",{challenge,code,useRecoveryCode:recovery});
         if (!response.ok) { setError("کد تأیید دومرحله‌ای معتبر نیست یا منقضی شده است.");return; }
-        setNavigating(true);router.replace("/account");router.refresh();return;
+        leavingForAccount = true;setNavigating(true);router.replace("/account");router.refresh();return;
       }
       if (phoneOtp) {
         if (step === "details") {
@@ -90,7 +91,7 @@ export default function IdentityFlow() {
       setError(response.status === 429 ? "تعداد تلاش‌ها بیش از حد مجاز است؛ بعداً دوباره امتحان کنید." :
         "نام کاربری یا رمز عبور نادرست است.");
     } catch {setError("ارتباط با سرور برقرار نشد؛ وضعیت API را بررسی کنید.");}
-    finally { if (!navigating) setPending(false); }
+    finally { if (!leavingForAccount) setPending(false); }
   }
 
   return <div className="auth-workflow">
