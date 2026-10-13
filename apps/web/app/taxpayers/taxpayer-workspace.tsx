@@ -47,11 +47,21 @@ export default function TaxpayerWorkspace({ isLevel1 }: { isLevel1: boolean }) {
 
   const reload = useCallback(async () => {
     setLoading(true); setError("");
-    try { setTaxpayers(await request<Taxpayer[]>("/list")); }
+    try {
+      const list = await request<Taxpayer[]>("/list");
+      setTaxpayers(list);
+      setDetails(current => current && list.some(item => item.id === current.id) ? current : null);
+      setSelectedId(current => list.some(item => item.id === current) ? current : "");
+    }
     catch (ex) { setError((ex as Error).message); setTaxpayers([]); }
     finally { setLoading(false); }
   }, []);
-  useEffect(() => { void reload(); }, [reload]);
+  useEffect(() => {
+    void reload();
+    const onFocus = () => void reload();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [reload]);
 
   const show = useCallback(async (id: string) => {
     setError(""); setNotice(""); setSelectedId(id); setDetails(null); setMemories([]); setCertificates({});
