@@ -3,7 +3,7 @@ import { isSameLocalOrigin } from "../../../../lib/identity-origin.mjs";
 import { ACCESS_COOKIE, REFRESH_COOKIE, identityBackend, identityUiEnabled } from "../../../../lib/identity";
 
 type TokenResponse = { accessToken: string; refreshToken: string; accessExpiresAtUtc?: string; refreshExpiresAtUtc?: string };
-const operations = new Set(["register", "login", "logout", "mfa/challenge", "mfa/complete", "mfa/enroll", "mfa/confirm", "refresh", "me", "sessions", "sessions/revoke", "phone/request", "phone/register/complete", "phone/login/complete", "phone/reset/complete"]);
+const operations = new Set(["register", "login", "logout", "mfa/challenge", "mfa/complete", "mfa/enroll", "mfa/confirm", "refresh", "me", "sessions", "sessions/revoke", "phone/request", "phone/register/complete", "phone/login/complete", "phone/reset/complete", "admin/customers"]);
 const cookieOptions = { httpOnly: true, sameSite: "strict" as const, secure: false, path: "/" };
 const errorResult = (code: number, message: string) =>
   NextResponse.json({ error: message }, { status: code, headers: { "Cache-Control": "no-store" } });
