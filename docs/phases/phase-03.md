@@ -1398,6 +1398,92 @@ Confirm `current_database() = 'argintaxpayer_test'` before DB integration; use `
 
 **Scope caveat:** The existing 15-minute request budget remains; if five attempts are recorded, the displayed remaining time can exceed three minutes based on that longer control. OTP expiration is three minutes independently of the resend cooldown. Do not mark Phase 03 Step 09 Owner Approved until live/negative UI and security tests are verified.
 
+
+### Step 09 — Ubuntu VPS Acceptance Runbook (2026-10-13)
+
+**Purpose:** Operator-run Ubuntu verification of Phase 03 Step 09. This is an isolated **Development-only** test, NOT a production deployment. Do not expose .NET/Next.js Development endpoints externally; preserve the existing VPS application. For macOS-to-Postgres work, use the owner-approved AutoSSH tunnel defined earlier in this document. For Ubuntu-local execution, connect straight to its 127.0.0.1:5432 PostgreSQL; AutoSSH is unnecessary on the VPS itself. The repository-root macOS `scripts/dev-up.zsh` is macOS-specific and must not be run on Ubuntu.
+
+**Ubuntu session, no credentials pasted into chat:**
+```bash
+ssh argindev@85.133.244.156
+cd ~/projects/ArginTaxPayer
+git status --short
+git fetch origin
+git switch phase/03-identity-authorization
+git pull --ff-only origin phase/03-identity-authorization
+dotnet --version
+node --version
+npm --version
+python3 --version
+dotnet restore ArginTaxPayer.sln
+dotnet build ArginTaxPayer.sln -c Release
+dotnet test ArginTaxPayer.sln -c Release --no-build
+(cd apps/web && npm ci --no-audit --no-fund && npm test && npm run typecheck && npm run build)
+```
+Do not overwrite dirty work; review `git status` before switching. Step 09 PostgreSQL fixtures must use at least 4-minute simulated prior requests for the current 180-second resend cooldown (commit `11eb13d3`).
+
+**Dedicated test database and migration gate, current Ubuntu bash shell:**
+```bash
+read -rsp 'PostgreSQL TEST password: ' DB_PASSWORD; echo
+export ConnectionStrings__ArginTaxPayerDb="Host=127.0.0.1;Port=5432;Database=argintaxpayer_test;Username=argintaxpayer;Password=${DB_PASSWORD};SSL Mode=Prefer"
+export PGPASSWORD="$DB_PASSWORD"
+unset DB_PASSWORD
+psql -h 127.0.0.1 -p 5432 -U argintaxpayer -d argintaxpayer_test -Atqc 'SELECT current_database();'
+unset PGPASSWORD
+```
+**Stop unless exactly `argintaxpayer_test` is reported**, and do not apply migrations to any other DB. The connection string is ephemeral for this shell and must never appear in repository or shell history. If the dedicated test database does not exist, stop and provision it separately—do not repoint to a production database.
+
+```bash
+export ASPNETCORE_ENVIRONMENT=Development
+export DOTNET_ENVIRONMENT=Development
+export Identity__AllowDevelopmentRegistration=true
+export Ghasedak__EnableLiveSending=false
+export Identity__OtpDeliveryMode=Ghasedak
+export Identity__OtpPepper="$(cat "$HOME/.argintaxpayer-test/otp-pepper")"
+dotnet ef migrations list --project src/ArginTaxPayer.Infrastructure --startup-project src/ArginTaxPayer.Api --context ArginTaxPayerDbContext
+```
+On a known disposable `argintaxpayer_test` database, apply *only if pending*:
+```bash
+dotnet ef database update 20261012090000_AddMobileIdentityOtp --project src/ArginTaxPayer.Infrastructure --startup-project src/ArginTaxPayer.Api --context ArginTaxPayerDbContext
+RUN_ARGINTAXPAYER_PG_INTEGRATION=1 dotnet test ArginTaxPayer.sln -c Release --no-build --filter 'FullyQualifiedName~IdentityPhoneOtpTests|FullyQualifiedName~IdentityAdminProvisioningTests|FullyQualifiedName~IdentityResourceScopePostgresTests|FullyQualifiedName~IdentityMfaRetryStrategyPostgresTests'
+```
+Ensure the OTP pepper file is a **stable** test-only secret of at least 32 characters. If missing, securely initialize once, private to the operator. Never use a macOS pepper/file on the server when the secrets should be isolated.
+
+**Ubuntu API, same env shell, bind only loopback:**
+```bash
+dotnet run --no-launch-profile --project src/ArginTaxPayer.Api --urls http://127.0.0.1:15089
+```
+Run the following from a second SSH session to the same VPS:
+```bash
+cd ~/projects/ArginTaxPayer
+curl --noproxy '*' -fsS http://127.0.0.1:15089/health/ready
+curl --noproxy '*' -fsS http://127.0.0.1:15089/health/dev-identity
+ARGINTAXPAYER_API_BASE=http://127.0.0.1:15089 python3 scripts/phase-03-step-09-smoke.py
+```
+Expected negative smoke marker: `STEP 09 PHONE OTP NEGATIVE SMOKE PASSED` **only when live SMS is disabled**. The script expects 503 for a dispatch request when SMS disabled. Run other phase negative smokes as available.
+
+**Ubuntu Next.js, separate SSH session:**
+```bash
+cd ~/projects/ArginTaxPayer
+export ARGIN_IDENTITY_UI_ENABLED=true
+export ARGIN_IDENTITY_API_INTERNAL_BASE_URL=http://127.0.0.1:15089
+cd apps/web
+npm run dev -- --hostname 127.0.0.1 --port 3000
+```
+Keep these as foreground test processes. Do not open public firewall ports or expose Development endpoints to the Internet.
+
+**Mac-only private UI forwarding:** From a macOS terminal (independent of the owner's regular AutoSSH PostgreSQL tunnel), connect to the VPS loopback Next.js port:
+```bash
+AUTOSSH_GATETIME=0 autossh -M 0 -N -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -o ConnectTimeout=10 -o ExitOnForwardFailure=yes -L 127.0.0.1:13000:127.0.0.1:3000 argindev@85.133.244.156
+```
+Open `http://127.0.0.1:13000/identity` in the Mac browser. Next.js will call the Ubuntu-local API using `ARGIN_IDENTITY_API_INTERNAL_BASE_URL`; there is no need to expose API port 15089. If browser Same-Origin validation fails because port 13000 is forwarded, test using the original, localhost-only macOS browser route or adjust the local-origin policy as a separate reviewed security change—never bypass it globally.
+
+**UI acceptance matrix (disposable test accounts):** Existing verified mobile in registration yields 409 and Persian existing-account error with no OTP page. Fresh test recipient registration sends a code only if a deliberately authorized Ghasedak provider test is configured and enabled; when disabled, expect 503/no code entry. After an accepted OTP, return/retry: 429 with remaining countdown from 03:00 to approximately 02:30 after 30 seconds; after the actual wait re-request. Wrong, expired and reused codes must fail. An existing verified Customer with password must be able to sign in by password or OTP (unless MFA enabled). Logout and session revocation work. MFA-enabled/admin accounts must never gain access with OTP-only. An authenticated Level 1/2 **with enabled MFA** can create a Customer using required phone/password and optional email without SMS; a Customer or anonymous actor cannot. Registration UI remains RTL, and the login button remains disabled while navigation completes.
+
+**Live provider gate:** Do not activate live Ghasedak on Ubuntu merely to pass smoke. If explicitly authorized, use an isolated untracked `.env.ghasedak.local` with a private test API key/template/operator-owned recipient and set `Ghasedak__EnableLiveSending=true` only for one supervised request. Sending may incur charges. Disable live sending after testing and verify logs don't contain OTP/key/recipient. Provider accepted is not proof of handset delivery.
+
+**Evidence and signoff:** Record `dotnet build`, `dotnet test`, `npm test`, `npm run typecheck`, `npm run build`, exact DB identity, migration state, negative HTTP smoke, manual UI matrix and supervised provider evidence (if run). Preserve redacted diagnostic event names only. Remaining email verification/recovery, OTP distributed throttling/audit and privileged phone-trust audit concerns must be expressly resolved or accepted as scoped follow-up; do not claim production readiness, merge main, tag or release without separate gates.
+
 ## 5. Communication Convention
 
 The **repository phase plan and all step completion records are written in English only**. When implementing or reporting on a step in the chat, present its title in **both Persian and English** (for example: `گام ۱ — زیرساخت مدل هویت و ایجاد مدیر اولیه | Step 01 — Identity Data Model and Bootstrap`). Explain execution and acceptance in concise, right-to-left Persian, while keeping code and shell commands left-to-right. Do not change the planned English step title without an approved plan amendment.
