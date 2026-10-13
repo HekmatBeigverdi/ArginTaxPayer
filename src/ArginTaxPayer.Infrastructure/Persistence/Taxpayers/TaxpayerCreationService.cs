@@ -5,7 +5,7 @@ using Npgsql;
 
 namespace ArginTaxPayer.Infrastructure.Persistence.Taxpayers;
 
-public sealed record CreateTaxpayerRequest(TaxpayerKind Kind, string? Identifier, string? DisplayName);
+public sealed record CreateTaxpayerRequest(TaxpayerKind Kind, string? Identifier, string? DisplayName, Guid? CustomerUserId = null);
 public sealed record TaxpayerCreated(Guid Id, TaxpayerKind Kind, string NormalizedIdentifier, string DisplayName);
 public enum CreateTaxpayerStatus { Created, Invalid, Unauthenticated, Forbidden, Conflict }
 public sealed record CreateTaxpayerResult(CreateTaxpayerStatus Status, TaxpayerCreated? Taxpayer = null);
@@ -27,7 +27,8 @@ public sealed class TaxpayerCreationService(
             db.IdentityMfaStates.Any(m => m.UserId == u.Id && m.EnabledAtUtc != null), ct))
             return new(CreateTaxpayerStatus.Forbidden);
 
-        if (request is null || !Enum.IsDefined(request.Kind) ||
+        if (request is null || request.CustomerUserId is null || request.CustomerUserId == Guid.Empty ||
+            !Enum.IsDefined(request.Kind) ||
             !IranianTaxpayerIdentifier.TryNormalize(request.Kind, request.Identifier, out var identifier) ||
             string.IsNullOrWhiteSpace(request.DisplayName))
             return new(CreateTaxpayerStatus.Invalid);
@@ -35,10 +36,17 @@ public sealed class TaxpayerCreationService(
         if (name.Length > 256 || name.Any(char.IsControl))
             return new(CreateTaxpayerStatus.Invalid);
 
+        // Identity account membership is independent from partner ownership.
+        // Never silently infer a Level2 partner from a fiscal-memory identifier.
+        if (!await db.CustomerCommercialOwners.AsNoTracking().AnyAsync(o =>
+            o.CustomerUserId == request.CustomerUserId && o.RootLevel1UserId == actor.Value, ct))
+            return new(CreateTaxpayerStatus.Forbidden);
+
         var now = DateTime.UtcNow;
         var profile = new TaxpayerProfile
         {
-            Id = Guid.NewGuid(), Kind = request.Kind, NormalizedIdentifier = identifier,
+            Id = Guid.NewGuid(), CustomerUserId = request.CustomerUserId,
+            Kind = request.Kind, NormalizedIdentifier = identifier,
             DisplayName = name, Status = TaxpayerStatus.Active, Revision = 1,
             CreatedAtUtc = now, UpdatedAtUtc = now
         };
