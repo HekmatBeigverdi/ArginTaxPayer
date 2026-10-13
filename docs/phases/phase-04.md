@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 04: Multi-Taxpayer Management
 
-**Status:** Step 01 implemented (verification/owner approval pending); Step 02 active — persistence and migration
+**Status:** Step 01 owner approved (2026-10-13); Step 02 implemented in repository — local build, PostgreSQL migration verification and owner acceptance pending
 **Branch:** `phase/04-multi-taxpayer-management`
 **Started:** 2026-10-13
 **Baseline:** `docs/roadmap/18-phases.md`, Phase 03 identity/authorization contracts
@@ -23,8 +23,8 @@ Manage natural/legal taxpayer profiles, fiscal memories, certificate metadata an
 
 | Step | Title | Deliverable | Acceptance | Status |
 |---|---|---|---|---|
-| 01 | Domain Contracts and Lifecycle Matrix | Taxpayer/memory/assignment state models, invariants, API contracts, migration plan | Identity, lifecycle and authorization matrix reviewed; no unapproved mutation | Implemented — tests/owner acceptance pending |
-| 02 | Taxpayer Persistence and Migration | Natural/legal taxpayer entities, normalized identifiers, constraints, EF migration | Safe migration and duplicate/constraint tests against test DB | Active — not implemented |
+| 01 | Domain Contracts and Lifecycle Matrix | Taxpayer/memory/assignment state models, invariants, API contracts, migration plan | Identity, lifecycle and authorization matrix reviewed; no unapproved mutation | Owner approved (2026-10-13; automated test evidence not supplied) |
+| 02 | Taxpayer Persistence and Migration | Natural/legal taxpayer entities, normalized identifiers, constraints, EF migration | Safe migration and duplicate/constraint tests against test DB | Implemented — verification pending |
 | 03 | Taxpayer Creation and Validation | Level 1 controlled taxpayer registration, type-specific validation | Invalid/duplicate inputs rejected; authorization enforced | Planned |
 | 04 | Taxpayer Profile and Lifecycle | Read/update/deactivate workflows, optimistic concurrency, history | Stale updates rejected; history preserved | Planned |
 | 05 | Fiscal Memory Persistence | Memory identifiers, taxpayer relationship, lifecycle and constraints | No cross-taxpayer linking; unique/active policy tested | Planned |
@@ -60,9 +60,9 @@ For each step append here: scope implemented, changed paths, commit SHA, migrati
 
 ### Step 01 — Domain Contracts and Lifecycle Matrix
 
-**Status:** Implemented in source, awaiting automated macOS verification and owner approval. **Commit:** `63a129d25bfd3298fcbb049144e2feccc04a998d`.
+**Status:** Owner approved 2026-10-13; automated macOS verification not independently observed. **Commit:** `63a129d25bfd3298fcbb049144e2feccc04a998d`.
 **Changed:** `src/ArginTaxPayer.Domain/Taxpayers/TaxpayerContracts.cs`.
-**Migration:** None. **macOS:** Not run by assistant; local verification required. **Ubuntu:** Deferred to final phase gate. **CI:** Not verified. **Owner acceptance:** Pending.
+**Migration:** None. **macOS:** Not run by assistant; local verification required. **Ubuntu:** Deferred to final phase gate. **CI:** Not verified. **Owner acceptance:** Approved by owner 2026-10-13.
 
 #### Domain model and lifecycle decisions
 - A taxpayer is either NaturalPerson or LegalEntity; profile ID is a stable UUID, normalized taxpayer identifier is separate from any user account ID, and Revision supports future optimistic concurrency.
@@ -96,7 +96,26 @@ dotnet test ArginTaxPayer.sln -c Release --no-build
 No build or test pass is claimed until operator output/CI evidence exists.
 
 ### Step 02 — Taxpayer Persistence and Migration
-**Status:** Active; implementation, migration and acceptance tests pending. **Owner acceptance:** Pending. **Ubuntu:** Runtime verification deferred; database migration verification required when migration is written.
+**Status:** Implemented in GitHub; local build, migration execution and owner acceptance pending. **Owner acceptance:** Pending.
+**Files:** `src/ArginTaxPayer.Infrastructure/Persistence/Taxpayers/TaxpayerProfile.cs`, `src/ArginTaxPayer.Infrastructure/Persistence/ArginTaxPayerDbContext.cs`, `src/ArginTaxPayer.Infrastructure/Persistence/Migrations/20261013010000_AddTaxpayerProfiles.cs`, `src/ArginTaxPayer.Infrastructure/Persistence/Migrations/ArginTaxPayerDbContextModelSnapshot.cs`, `tests/ArginTaxPayer.Tests/TaxpayerPersistenceMetadataTests.cs`.
+**Commits:** `b9b91659`, `81bec434`, `f91ec9d1`, `2901d2a6`, `cecacb35`.
+**Design:** Taxpayer profiles are separate from authentication users. A natural/legal kind discriminator, normalized business identifier, display name, active/suspended/archived status, UTC timestamps and optimistic concurrency revision are persisted. Unique composite (kind, normalized_identifier), check constraints and positive revision protect DB integrity. Identifier semantic checks and normalization algorithms will be implemented in Step 03; Step 02 presently rejects blanks but is NOT an official Iranian identifier validator.
+**Migration:** `20261013010000_AddTaxpayerProfiles` is committed but not applied; no existing table is dropped/modified by Up. Run migrations only after verifying `current_database() = 'argintaxpayer_test'`. Existing outbox/idempotency TaxpayerId columns are deliberately not retrofitted with foreign keys until legacy-data assessment.
+**Local verification (project root, after scripts/dev-up.zsh):**
+```bash
+dotnet build ArginTaxPayer.sln -c Release
+dotnet test ArginTaxPayer.sln -c Release --filter FullyQualifiedName~TaxpayerPersistenceMetadataTests
+psql -h 127.0.0.1 -p 15432 -U argintaxpayer -d argintaxpayer_test -W -tAc 'SELECT current_database();'
+dotnet ef migrations list --project src/ArginTaxPayer.Infrastructure --startup-project src/ArginTaxPayer.Api --context ArginTaxPayerDbContext
+```
+Require actual database output `argintaxpayer_test` before the separate explicit command:
+```bash
+dotnet ef database update 20261013010000_AddTaxpayerProfiles --project src/ArginTaxPayer.Infrastructure --startup-project src/ArginTaxPayer.Api --context ArginTaxPayerDbContext
+```
+Then inspect `\\d taxpayer_profiles` in psql and verify duplicate identifier rejection in an isolated rollback transaction. Inspect existing migration history before execution, since the added migration must follow the phase 03 migrations in that environment.
+**Evidence:** Build not run; unit tests not run; PostgreSQL duplicate/constraint tests not run; migration not applied; CI not checked. Ubuntu runtime verification deferred to Step 13 except required migration integrity validation. Do not mark verified until evidence is provided.
+
+
 
 ## Phase Exit Gate
 All 13 steps accepted, focused regression passing, Ubuntu verification once, schema/security review, owner signoff. Merge to main, immutable tag, GitHub Release and production deployment are distinct gated actions and must never be assumed completed.
