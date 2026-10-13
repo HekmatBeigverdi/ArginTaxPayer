@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 04: Multi-Taxpayer Management
 
-**Status:** Steps 01–05 owner approved (2026-10-13; owner-reported acceptance). Step 05 received a dated, owner-approved cross-phase contract clarification; Step 06 owner approved 2026-10-13; Step 07 owner approved 2026-10-13; Step 08 repository implementation completed, local verification and owner acceptance pending.
+**Status:** Steps 01–05 owner approved (2026-10-13; owner-reported acceptance). Step 05 received a dated, owner-approved cross-phase contract clarification; Step 06 owner approved 2026-10-13; Step 07 owner approved 2026-10-13; Step 08 owner approved 2026-10-13; Step 09 scoped server query/command policies implemented, local verification pending.
 **Branch:** `phase/04-multi-taxpayer-management`
 **Started:** 2026-10-13
 **Baseline:** `docs/roadmap/18-phases.md`, Phase 03 identity/authorization contracts
@@ -30,8 +30,8 @@ Manage natural/legal taxpayer profiles, fiscal memories, certificate metadata an
 | 05 | Fiscal Memory Persistence | Memory identifiers, taxpayer relationship, lifecycle and constraints | No cross-taxpayer linking; unique/active policy tested | Owner approved (2026-10-13), additional binding/connectivity/key-import contracts registered |
 | 06 | Fiscal Memory Management API | Register/update/retire memory metadata and lifecycle | Unauthorized and invalid transitions denied | Owner approved 2026-10-13; deferred activation/rebind constraints retained |
 | 07 | Certificate Metadata and Custody Boundary | Fingerprint, expiry, issuer, secure key-reference contracts, rotation metadata | No secret leakage; expired/revoked states handled | Owner approved 2026-10-13 |
-| 08 | Delegate Assignment Model | Level 1-to-Level 2 taxpayer grants, revocation, effective dates, history | Only Level 1 may grant/revoke; audit trail complete | Implemented — focused PostgreSQL/API tests and owner acceptance pending |
-| 09 | Server-Side Scoped Query and Command Policies | Query filters, resource policies, assignment checks | Cross-delegate isolation for reads/writes, deny by default | Planned |
+| 08 | Delegate Assignment Model | Level 1-to-Level 2 taxpayer grants, revocation, effective dates, history | Only Level 1 may grant/revoke; audit trail complete | Owner approved 2026-10-13 |
+| 09 | Server-Side Scoped Query and Command Policies | Query filters, resource policies, assignment checks | Cross-delegate isolation for reads/writes, deny by default | Source implemented — build, HTTP/DB verification and owner approval pending |
 | 10 | Taxpayer and Memory RTL Management UI | Persian responsive taxpayer list, forms, detail, memory views | RTL, validation, loading/error states, guarded routes | Planned |
 | 11 | Level 1 Assignment Console and Level 2 Workspace | Assignment/revocation UI, scoped delegate views | Revocation effective immediately; no unauthorized data shown | Planned |
 | 12 | Integration and Negative-Path Regression | PostgreSQL/API/UI security, concurrency and lifecycle tests | Identity regression and cross-scope negative paths pass | Planned |
@@ -330,6 +330,35 @@ zsh scripts/dev-status.zsh
 PostgreSQL integration acceptance: duplicate/concurrent grants must fail, revoked historical grants must remain, re-grant after revocation must succeed, revision collision must fail, invalid FK must fail. HTTP security acceptance: unauthenticated 401; Level2/Customer 403; wrong taxpayer 404; invalid delegate denied; revoke by Level1 with reason succeeds; stale revoke 409; Level2 history denied. **None of these runtime outcomes has been independently observed.** Ubuntu end-of-phase verification remains planned; DB migration verification must be performed now.
 
 **Owner acceptance:** Pending.
+
+### Step 09 — Server-Side Scoped Query and Command Policies
+
+**Status:** Source implementation committed on 2026-10-13; owner acceptance pending. Step08 owner-approved 2026-10-13 (operator-reported), not independently certified by assistant.
+
+**Implementation:** `TaxpayerScopeService.cs` (`1fa64be5`, `bf64d766`), DI in `Program.cs` (`50a7396a`), routes in `TaxpayerDevelopmentEndpoints.cs` (`3d663f08`), focused SQL-shape test `TaxpayerScopePolicyTests.cs` (`d0d0bbcf`). No schema migration introduced.
+
+**Server-side policy:** Every request authenticates the current opaque Phase03 session; actor must be an active Level1 or Level2 with enabled MFA. Level1 can query all taxpayers. Level2 can query only profiles where a **currently unrevoked** row in `taxpayer_delegate_grants` maps that taxpayer to their server-resolved user ID. For unauthorized or nonexistent resource IDs, detail returns indistinguishable 404 (prevent enumeration); no grant and pending/revoked grants never confer access. List scopes in SQL before materialization and excludes archived profiles. Never trust client-provided role, delegate or taxpayer-owner IDs for scope. Unrecognized role or user is denied by default.
+
+**Development + loopback routes:**
+- `GET /api/dev/taxpayers`: authorized scoped list.
+- `GET /api/dev/taxpayers/{taxpayerId}`: authorized scoped detail.
+- `PATCH /api/dev/taxpayers/{taxpayerId}/display-name`: `{"displayName":"...","expectedRevision":1}`, safe display-name-only scoped command. It does not permit changes to legal identifier, taxpayer status, memory ID, key or annual subscription. Atomic SQL UPDATE predicate includes `revoked_at_utc IS NULL` for Level2, checks current revision, and appends an audited before/after profile-change row in the same transaction. Stale attempts conflict; missing/unassigned IDs not found.
+- Prior privileged Step03–08 mutating endpoints retain Level1-only authorization. In particular, scoped Level2 taxpayer access must **not** imply automatic Level2 permission to activate/replace fiscal memory, view custody metadata, grant/revoke other delegates or bypass annual plan review.
+
+**Security acceptance matrix:** Level1 list/detail works; Level2 receives only their assigned records; Customer/Level2 without grant denied; archived filtered in list; cross-delegate guessed UUID returns 404; revoked grant immediately removes read/list/write access in subsequent DB requests; stale revision 409; wrong taxpayer ID 404; Level2 cannot mutate status/identifier/memory/keys via scoped rename; anonymous 401; no caching of grants; privilege removal and MFA disable invalidate subsequent decisions. Exercise parallel revoke/edit with an actual PostgreSQL transaction and verify no unauthorized committed state, plus audit entry created exactly once on successful edit.
+
+**Current tests:** focused `TaxpayerScopePolicyTests` checks generated SQL predicate shape and DTO surface, not actual PostgreSQL authorization, concurrency or HTTP behavior. **Build, tests and CI not executed by assistant.** Complete targeted and negative-path tests locally before owner signoff. Cross-application enforcement for later modules is a continuing mandatory rule; Step12 covers full integration. Production endpoint activation remains intentionally disabled until security gate.
+
+**macOS test:**
+```bash
+git switch phase/04-multi-taxpayer-management
+git pull --ff-only origin phase/04-multi-taxpayer-management
+zsh scripts/dev-up.zsh
+dotnet build ArginTaxPayer.sln -c Release
+dotnet test ArginTaxPayer.sln -c Release --filter 'FullyQualifiedName~TaxpayerScopePolicyTests|FullyQualifiedName~TaxpayerDelegatePersistenceTests|FullyQualifiedName~TaxpayerLifecycleTests'
+zsh scripts/dev-status.zsh
+```
+**Migration:** None in Step09. Requires Step08 `20261013230000_AddTaxpayerDelegateGrants` applied on verified `argintaxpayer_test` before local HTTP integration. **Ubuntu:** defer full runtime verification to Step13 absent platform-specific errors. **Owner acceptance:** pending.
 
 ## Phase Exit Gate
 All 13 steps accepted, focused regression passing, Ubuntu verification once, schema/security review, owner signoff. Merge to main, immutable tag, GitHub Release and production deployment are distinct gated actions and must never be assumed completed.
