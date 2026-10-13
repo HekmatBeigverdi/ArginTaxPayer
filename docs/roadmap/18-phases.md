@@ -82,3 +82,15 @@ Each phase closes only after architecture impact assessment, unit/integration te
 ## Per-phase documentation policy (effective Phase 02 closeout)
 
 Each new phase must have exactly one **authoritative, evolving** plan at `docs/phases/phase-XX.md`. Establish its numbered step plan, deliverables, acceptance criteria and dependencies **before** starting implementation. Update the same file after each step with evidence, commit SHA, macOS/Ubuntu test outcomes, migration impact and explicit owner approval. Do not create new per-step documentation files for ordinary progress. Preserve historical Phase 02 per-step documents as archives, but maintain the [Phase 02 master plan](../phases/phase-02.md) as the single source of truth. Any expansion, renumbering or material scope change must be recorded as a plan amendment approved by the owner; a phase-closing report belongs in the master file. Release/tag/main merge are separate approval gates.
+
+## Shared Local Development Environment (Owner Standard, 2026-10-13)
+
+All remaining phases use one persistent local setup and the **same three commands**:
+```bash
+zsh scripts/dev-up.zsh
+zsh scripts/dev-status.zsh
+zsh scripts/dev-down.zsh
+```
+The project-root untracked `.env.dev.local` (copy from `.env.dev.local.example`, `chmod 600`) stores the **test-only PostgreSQL** connection and any future phase-specific local feature flags. The separate untracked `.env.ghasedak.local` stores the Ghasedak API key, `TaxPayerActivationCode`, operator-owned test recipient and disabled-by-default live-sending flag. The stable random OTP pepper is owned by the developer in `~/.argintaxpayer-test/otp-pepper`, not regenerated on every run. The runner loads these *in the same process context as .NET*, starts the approved AutoSSH tunnel, .NET API on loopback port 15089 and Next.js on local port 3000. Logs live in `~/.argintaxpayer-test/{autossh,api,web}.log`. It fails fast on occupied API ports, missing config, missing tools and failing DB readiness. **The runner does not automatically apply EF migrations, send SMS, or start production services**. Its initial macOS end-to-end testing is operator pending.
+
+**Future step contract:** Implementers append necessary safe flags to the private environment-template instructions and add smoke/regression checks to their existing phase document; do not ask the owner to rediscover old startup commands. Run `zsh scripts/dev-up.zsh` at the beginning of each new UI test, then provide only phase-specific test commands. Never put credentials in Git or screenshots and never enable Ghasedak live SMS without explicit test authorization.
