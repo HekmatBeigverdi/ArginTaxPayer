@@ -57,7 +57,7 @@ public sealed class IdentitySessionService(ArginTaxPayerDbContext db)
     {
         var allowed = await db.IdentityUsers.AsNoTracking().AnyAsync(x =>
             x.Id == userId && x.IsActive && x.NormalizedMobile != null &&
-            x.MobileVerifiedAtUtc != null && x.PasswordHash == null, ct);
+            x.MobileVerifiedAtUtc != null, ct);
         if (!allowed || await db.IdentityUserRoles.AsNoTracking().AnyAsync(x =>
             x.UserId == userId && x.Role != IdentityRoleNames.Customer, ct) ||
             await db.IdentityMfaStates.AsNoTracking().AnyAsync(x =>
