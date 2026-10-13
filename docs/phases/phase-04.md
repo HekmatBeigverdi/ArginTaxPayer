@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 04: Multi-Taxpayer Management
 
-**Status:** Steps 01–05 owner approved (2026-10-13; owner-reported acceptance). Step 05 received a dated, owner-approved cross-phase contract clarification; Step 06 remains planned.
+**Status:** Steps 01–05 owner approved (2026-10-13; owner-reported acceptance). Step 05 received a dated, owner-approved cross-phase contract clarification; Step 06 safe baseline implemented; local test and owner acceptance pending.
 **Branch:** `phase/04-multi-taxpayer-management`
 **Started:** 2026-10-13
 **Baseline:** `docs/roadmap/18-phases.md`, Phase 03 identity/authorization contracts
@@ -28,7 +28,7 @@ Manage natural/legal taxpayer profiles, fiscal memories, certificate metadata an
 | 03 | Taxpayer Creation and Validation | Level 1 controlled taxpayer registration, type-specific validation | Invalid/duplicate inputs rejected; authorization enforced | Owner approved (2026-10-13; owner-reported) |
 | 04 | Taxpayer Profile and Lifecycle | Read/update/deactivate workflows, optimistic concurrency, history | Stale updates rejected; history preserved | Owner approved (2026-10-13; owner-reported) |
 | 05 | Fiscal Memory Persistence | Memory identifiers, taxpayer relationship, lifecycle and constraints | No cross-taxpayer linking; unique/active policy tested | Owner approved (2026-10-13), additional binding/connectivity/key-import contracts registered |
-| 06 | Fiscal Memory Management API | Register/update/retire memory metadata and lifecycle | Unauthorized and invalid transitions denied | Planned |
+| 06 | Fiscal Memory Management API | Register/update/retire memory metadata and lifecycle | Unauthorized and invalid transitions denied | Safe first-onboarding/list/pending-retire API committed; activation/rebind gated until authority/entitlement implementation; tests pending |
 | 07 | Certificate Metadata and Custody Boundary | Fingerprint, expiry, issuer, secure key-reference contracts, rotation metadata | No secret leakage; expired/revoked states handled | Planned |
 | 08 | Delegate Assignment Model | Level 1-to-Level 2 taxpayer grants, revocation, effective dates, history | Only Level 1 may grant/revoke; audit trail complete | Planned |
 | 09 | Server-Side Scoped Query and Command Policies | Query filters, resource policies, assignment checks | Cross-delegate isolation for reads/writes, deny by default | Planned |
@@ -231,6 +231,47 @@ dotnet ef database update 20261013210000_AddFiscalMemories --project src/ArginTa
 - **Phases 09/10/12/14/17:** actual key import, live authority test, annual entitlement lock/rebind, legacy migration and hardening respectively remain their owners. No production claim may precede their release gates.
 
 **Step 05 clarification commits:** `dc600665`, `f5ab7b62`. **Tests:** source committed, execution not independently observed. After pull run `dotnet test ArginTaxPayer.sln -c Release --filter FullyQualifiedName~AnnualFiscalBindingPolicyTests` as a focused source regression. No Ubuntu runtime pass or official connectivity success is asserted.
+
+### Step 06 — Fiscal Memory Management API (2026-10-13)
+
+**Status:** Repository implementation committed. Focused tests and owner approval pending. Three owner-approved enhancements recorded in Step 05 clarification remain binding and are **not** claimed fully delivered in this step.
+
+**Implementation:**
+- `src/ArginTaxPayer.Infrastructure/Persistence/Taxpayers/FiscalMemoryManagementService.cs`: Level 1 + enrolled MFA + live opaque session required. All taxpayer/memory operations derive actor from Phase 03 server-side identity; no client-supplied role or owner IDs are trusted.
+- `src/ArginTaxPayer.Domain/Taxpayers/FiscalMemoryOnboardingPolicy.cs`: side-effect-free normalization and fail-closed transition decision.
+- `src/ArginTaxPayer.Api/Taxpayers/TaxpayerDevelopmentEndpoints.cs`: Development+loopback-only routes, `Program.cs` scoped DI, `tests/ArginTaxPayer.Tests/FiscalMemoryManagementPolicyTests.cs` focused unit coverage.
+- Commit sequence: `72e47beb`, `7ff965de`, `850f06a9`, `cf9b3fda`, `2475f251`, `7c1c95aa`.
+
+**Implemented endpoints (Development/loopback only):**
+| Method | Path | Purpose | Statuses |
+| --- | --- | --- | --- |
+| POST | `/api/dev/taxpayers/{taxpayerId}/memories` | Register first externally assigned identifier as `PendingVerification` metadata; reject additional records until manual-review capability exists | 201/400/401/403/404/409 |
+| GET | `/api/dev/taxpayers/{taxpayerId}/memories` | Role-gated list for a taxpayer | 200/401/403/404 |
+| PUT | `/api/dev/taxpayers/{taxpayerId}/memories/{memoryId}/status` | Revision-checked `PendingVerification -> Retired` only; all active-memory changes and activation remain forbidden until authoritative proof and binding review enforcement | 200/400/401/403/404/409 |
+
+Example POST body: `{"memoryIdentifier":"ABC123"}`. Example status body: `{"status":4,"expectedRevision":1}`. Response contains public memory metadata only and never private keys.
+
+**Correctness and scope:** Fiscal-memory IDs are treated as user-supplied *unverified* registry metadata. Creation normalizes uppercase ASCII alphanumeric IDs, ensures an existing active taxpayer, requires Level 1 MFA, uses a PostgreSQL Serializable transaction, denies a second fiscal-memory record for that taxpayer, and relies on database-wide memory identifier uniqueness. This does **not** automatically generate/activate a fiscal memory, call the tax authority or lock an annual entitlement. A stale revision yields 409 and a cross-taxpayer memory URL yields 404. `PendingVerification -> Retired` is the only state change permitted before the server can verify the relevant subscription's annual binding. All other transitions, including `PendingVerification -> Active`, return `authority_verification_not_available` (409) instead of forging connectivity. New operations cannot replace a memory even after retirement until reviewed rebind exists. Level 2 delegation is disabled until Steps 08–09 have server-side assignment records.
+
+**Owner amendments preserved:**
+1. Annual plan: one taxpayer, unlimited invoices, lock only on positive real authority connectivity; customer cannot self-switch; Level 2 can request review; Level 1 approves; append-only before/after reason and scoped user/admin history. Phase 12 owns entitlement enforcement and final atomic rebind.
+2. Test connection: distinguish token/authentication error, signing mismatch, authority 5xx, timeout and network outage; no fake positive result or invoice-charge side effects. Live connector belongs Phase 10.
+3. Existing `private.txt`: supported path alongside new key generation, verify imported key/public fingerprint and secure custody. Cryptographic import belongs Phase 09; no ordinary DB field or API endpoint here can ingest private key material.
+
+**Migration:** None introduced in Step 06; relies on Step 05 `20261013210000_AddFiscalMemories`. Schema verification must occur only against `argintaxpayer_test`; do not auto-migrate.
+
+**Focused macOS verification:**
+```bash
+git switch phase/04-multi-taxpayer-management
+git pull --ff-only origin phase/04-multi-taxpayer-management
+zsh scripts/dev-up.zsh
+dotnet build ArginTaxPayer.sln -c Release
+dotnet test ArginTaxPayer.sln -c Release --filter 'FullyQualifiedName~FiscalMemoryManagementPolicyTests|FullyQualifiedName~FiscalMemoryPersistenceTests|FullyQualifiedName~AnnualFiscalBindingPolicyTests'
+zsh scripts/dev-status.zsh
+```
+**Required API negative tests:** anonymous POST/GET/PUT => 401; Level 2/Customer => 403; unknown taxpayer => 404; invalid identifier => 400; duplicate memory ID => 409; second memory registration same taxpayer => 409 review required; cross-taxpayer URL => 404; illegal or stale transition => 400/409; no activation or memory replacement without review/authority/entitlement enforcement. DB race test must confirm concurrent first-register requests cannot both succeed. **Tests have not been executed by assistant** and no user acceptance is inferred.
+
+**Ubuntu:** Routine runtime verification deferred to end of phase; test-database PostgreSQL migration already owned by Step 05. **CI:** Not checked. **Owner acceptance:** Pending.
 
 ## Phase Exit Gate
 All 13 steps accepted, focused regression passing, Ubuntu verification once, schema/security review, owner signoff. Merge to main, immutable tag, GitHub Release and production deployment are distinct gated actions and must never be assumed completed.
