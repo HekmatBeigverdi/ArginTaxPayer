@@ -23,6 +23,18 @@ Status: Architecture baseline v1.0, Phase 01 design handoff ready, 2026-10-10. R
 | 17 | Security and quality hardening | Pen tests, isolation/invariant tests, load, disaster recovery and audit validation |
 | 18 | Production release and documentation | Deployment, operator runbooks, user guides, release/tag, verification and rollback plan |
 
+## Annual taxpayer binding, authority diagnostics and legacy key onboarding (owner-approved 2026-10-13)
+
+The [Phase 04 master plan](../phases/phase-04.md) records the detailed approved acceptance contract. This supplements, without renumbering, the 18-phase roadmap.
+
+- **Phase 04:** model one fiscal memory active per taxpayer, annual subscription binding/exception-review contracts, Level 1-approved audited reset requests, scoped history and a visible connection-test capability state. Step 05 contract clarification does **not** claim live tax authority tests, annual subscription enforcement or private-key ingestion.
+- **Phase 09:** securely import/derive/validate an existing `private.txt` key pair and optional registered public key/certificate, as an alternative to new key generation; strict restricted vault/HSM custody and no raw-key leaks.
+- **Phase 10:** implement authentic read-only connectivity/authentication diagnosis against supported, versioned tax authority endpoints; separate invalid token, signature mismatch, authority outage, timeout, network failure and inconclusive/unsupported operations. No fabricated successful test.
+- **Phase 11:** robust timeout/retry/reconciliation behavior without unintended invoices or charges.
+- **Phase 12:** annual subscription allows unlimited invoices for **one** taxpayer and locks taxpayer/memory on successful authority connection. No customer self-switch. Level 2 can request a reviewed exception, Level 1 approves; paid validity, historic invoice linkage and ledgers remain immutable and auditable.
+- **Phase 14:** associate legacy taxpayer/memory identities using controlled import; no automatic plaintext legacy private-key dumps.
+- **Phases 16–17:** scoped histories, administrative exception tooling, race/isolation/secret handling/outage tests. Never reset annual binding because the authority is temporarily unavailable.
+
 ## Cross-cutting engineering requirements
 1. Tenant and assignment constraints are enforced by server-side authorization and database query scoping, never only by UI filtering.
 2. Financial ledgers use immutable postings, balanced entries and unique idempotency keys. Settlement approval and execution are separated.
