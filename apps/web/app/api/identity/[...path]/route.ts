@@ -47,7 +47,8 @@ async function callIdentity(operation: string, req: NextRequest, method: "GET" |
     "phone/request": "phone/request",
     "phone/register/complete": "phone/register/complete",
     "phone/login/complete": "phone/login/complete",
-    "phone/reset/complete": "phone/reset/complete"
+    "phone/reset/complete": "phone/reset/complete",
+    "admin/customers": "admin/customers"
   };
   if (operation === "sessions/revoke") {
     let data: { sessionId?: string };
