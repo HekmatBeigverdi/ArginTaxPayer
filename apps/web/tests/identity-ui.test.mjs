@@ -59,3 +59,21 @@ test("unified identity screen has two top-level tabs, OTP choice and recovery pa
   assert.match(proxy, /"phone\/login\/complete"/);
   assert.match(proxy, /httpOnly: true/);
 });
+
+test("successful login remains busy until protected page navigation", () => {
+  const flow = read("app/identity/identity-flow.tsx");
+  assert.match(flow, /setNavigating\(true\)/);
+  assert.match(flow, /disabled=\{pending \|\| navigating\}/);
+  assert.match(flow, /در حال ورود به پنل/);
+});
+
+test("administrator customer form requires role-gated UI and authenticated BFF operation", () => {
+  const account = read("app/account/page.tsx");
+  const form = read("app/account/admin-create-customer.tsx");
+  const proxy = read("app/api/identity/[...path]/route.ts");
+  assert.match(account, /role === "Level1" \|\| role === "Level2"/);
+  assert.match(form, /admin\/customers/);
+  assert.match(form, /ایمیل \(اختیاری\)/);
+  assert.match(proxy, /"admin\/customers"/);
+  assert.match(proxy, /httpOnly: true/);
+});
