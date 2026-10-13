@@ -11,6 +11,7 @@ async function handle(req: NextRequest, ctx: Context, method: "GET" | "POST") {
   const { path } = await ctx.params;
   const valid = method === "GET" && path.length === 1 && path[0] === "list" ||
     method === "GET" && path.length === 1 && uuid.test(path[0]) ||
+    method === "GET" && path.length === 2 && uuid.test(path[0]) && path[1] === "history" ||
     method === "POST" && path.length === 2 && uuid.test(path[0]) && path[1] === "transfer";
   if (!valid) return error(404);
   if (method === "POST" && !isSameLocalOrigin(req.headers.get("origin"),
