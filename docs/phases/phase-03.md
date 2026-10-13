@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 03: Identity and Authorization
 
-**Status:** Steps 01–08 owner approved (owner-reported; Step 07 residual security limitations documented); Step 09 implementation committed — operator verification and security completion pending; Steps 10–11 planned  
+**Status:** Steps 01–09 owner approved (Step 09 explicitly owner-approved on 2026-10-13; security limitations carried forward); Step 10 implementation committed with operator-run regression evidence pending; Step 11 planned  
 **Branch:** `phase/03-identity-authorization`  
 **Baseline:** Phase 02 and `docs/roadmap/18-phases.md`  
 **Started:** 2026-10-12
@@ -31,8 +31,8 @@ Security invariants:
 | 06 | Resource-Scoped Authorization | Server-side ownership/scope policies and extension contracts for Phase 04 | Cross-scope access denied with suitable 403/404; UI filtering alone cannot grant access | Owner approved (2026-10-12) |
 | 07 | Account Protection and Security Audit | Login throttling, security-event audit, sensitive-data redaction, session controls | Brute-force throttling and redaction verified; security events auditable | Owner approved with documented residual risks (2026-10-12) |
 | 08 | Persian RTL Identity User Interface | Existing email/password login, registration, MFA, guarded account/security pages and safe RTL layout | RTL layout, error states, login/logout, guarded-content tests; original email flow remains functional | Owner Approved (2026-10-12, owner-reported) |
-| 09 | Mobile-First Registration, OTP Authentication and Ghasedak Integration | Backwards-compatible mobile/email identity migration, phone ownership verification, optional email/SMS OTP login and password recovery, Ghasedak adapter and RTL workflow updates | Tested OTP expiry/replay/throttling, MFA preservation, no enumeration; mock/provider-gated transport, macOS/PostgreSQL/Ubuntu/UI smoke; no live secrets in repo | Implementation in progress — owner verification pending |
-| 10 | Identity and Authorization Integration Tests | API/UI negative-path integration tests, token/recovery replay and role/scope isolation including Step 09 | Local and CI identity/security suites pass; unauthorized access rejected | Planned — formerly Step 09 |
+| 09 | Mobile-First Registration, OTP Authentication and Ghasedak Integration | Backwards-compatible mobile/email identity migration, phone ownership verification, optional email/SMS OTP login and password recovery, Ghasedak adapter and RTL workflow updates | Tested OTP expiry/replay/throttling, MFA preservation, mock/provider-gated transport and RTL UI; residual production security tracked in Step 11 | **Owner approved (2026-10-13)**; deferred final Ubuntu/security verification explicitly tracked |
+| 10 | Identity and Authorization Integration Tests | API/UI negative-path integration tests, token/recovery replay and role/scope isolation including Step 09 | Focused PostgreSQL positive/negative, HTTP deny-by-default, frontend identity tests | **Implemented; local execution/owner acceptance pending (2026-10-13)** |
 | 11 | Hardening, Verification, and Phase Handoff | Final security and migration review, CI checks, documentation and release readiness; finance-feature handoff | macOS/Ubuntu build/test evidence, security review, explicit deferred billing ledger scope, owner sign-off gate | Planned — formerly Step 10 |
 
 ## 3. Concise Per-Step Verification
@@ -1503,6 +1503,30 @@ bash scripts/ubuntu-dev.sh status
 bash scripts/ubuntu-dev.sh down
 ```
 Ubuntu one-time precondition: owner-only `~/.argintaxpayer-test/ubuntu.env` (mode 600), private `argintaxpayer_test` connection, and required installed SDK/npm/psql. The script verifies the actual PostgreSQL database name and runs services only on localhost. `verify` does not auto-run EF migrations, and both verify/up force Ghasedak real sending off; a real provider test is a separate, explicitly approved exercise. UI browser access from Mac is by a private SSH forward of the Ubuntu loopback web port. Step 09 sign-off remains pending real evidence; the new cadence is an **ongoing process rule**, not approval of the current step.
+
+
+### Step 10 — Identity and Authorization Integration Tests (Implementation Record, 2026-10-13)
+
+**Input and owner decision:** Step 09 was explicitly approved by the owner: `گام ۹ اکی هست گام ۱۰ را کامل کن`. Record this approval without pretending the separate final Ubuntu acceptance or production-hardening debts were independently executed. Step 10 is the **formerly planned Step 09**, with numbering preserved according to the owner-approved 11-step phase plan.
+
+**New implementation work** (no database migration):
+- Extend `tests/ArginTaxPayer.Tests/IdentityAdminProvisioningTests.cs` with a parameterized PostgreSQL integration scenario for **both Level 1 and Level 2**: create disposable identities in `argintaxpayer_test`, enable MFA before controlled privileged role assignment, verify password login cannot bypass MFA, finish MFA recovery-code challenge, create a Customer using required verified-by-operator mobile and optional email (no SMS), ensure only Customer role is assigned, reject bad mobile, reject duplicate registration, verify customer password login, revoke operator session, and deny subsequent creation using revoked token. Track created identities and delete them in finally.
+- Add `scripts/phase-03-step-10-identity-smoke.py`: explicit localhost + port only, verify API readiness/configuration, **refuse when real SMS is enabled**, then assert 401 for anonymous identity/me, administration/customer authorization, session listings, resource ownership, session revocation, Level 2 grant, admin customer creation, refresh/logout/login and phone login; assert 400 on invalid phone registration/reset/request. No raw SMS/secret requests, no user-account creation.
+- Add `scripts/phase-03-step-10-verify.zsh`: a focused Mac suite loading existing private `.env.dev.local`, validating dedicated `argintaxpayer_test` connection string and API readiness, running `RUN_ARGINTAXPAYER_PG_INTEGRATION=1 dotnet test` for Identity, Ghasedak adapter and mobile normalization, executing `npm test` + `npm run typecheck`, then the no-live-SMS HTTP negative smoke.
+- Existing tests remain part of the acceptance coverage: `IdentitySessionPostgresTests` verifies access/refresh token rotation, refresh replay detection, logout, revocation, disabled users and expiry; `IdentityRolePostgresTests` verifies role grant boundaries, MFA prerequisite and session invalidation; `IdentityResourceScopePostgresTests` verifies cross-user resource non-disclosure and revocation isolation; `IdentityPhoneOtpTests` verifies registration conflicts, 180-second cooldown, wrong/reused OTPs, password reset revoking sessions, password-bearing Customer OTP login and enabled MFA exclusion; `IdentityMfaTests` verifies MFA/recovery behavior. These are regression tests retained, not new claims of runtime pass.
+
+**One-command operator verification for each Mac step** (from repository root, after pulling branch and starting the existing developer stack; remember real sending must be OFF):
+```bash
+zsh scripts/dev-up.zsh
+zsh scripts/phase-03-step-10-verify.zsh
+zsh scripts/dev-status.zsh
+```
+If `dev-up` is already running, skip repeating it. After testing `zsh scripts/dev-down.zsh`. The smoke refuses live Ghasedak, so set `Ghasedak__EnableLiveSending=false` in the private local config and restart the dev stack; no credentials should be published. If npm dependencies are absent, run `(cd apps/web && npm ci --no-audit --no-fund)` once. Tests that mutate disposable identities must not run concurrently with Ubuntu's shared-DB test suite.
+
+**Acceptance gate:** (1) successful .NET build and filtered PostgreSQL test suite on `argintaxpayer_test`; (2) successful Next.js test/typecheck; (3) negative HTTP smoke completion marker `PHASE 03 STEP 10 HTTP NEGATIVE SMOKE PASSED`; (4) manual Mac smoke for login/MFA/OTP/admin provisioning from Step 09 remains functioning; (5) no leaked credentials. Keep final clean Ubuntu build, DB/API/UI confirmation and security review at the **end of Phase 03** (Step 11), per the documented owner's cadence, except for environment-specific or high-risk regressions. For production, unverified email verification/recovery, distributed OTP throttling, account enumeration and durable privileged-provisioning audit remain explicitly **not solved by these tests**.
+
+**Honest verification state:** Source tests, scripts and phase record committed via GitHub. The assistant did **not** execute a local macOS or Ubuntu .NET/npm/PostgreSQL/HTTP test and cannot claim that tests passed or that the owner approved Step 10. Step 10 implementation is complete for handoff, with acceptance pending actual owner-run evidence.
+
 
 ## 5. Communication Convention
 
