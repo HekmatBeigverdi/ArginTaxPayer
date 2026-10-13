@@ -1287,6 +1287,38 @@ F. Check the API terminal's sanitized `OTP_SMS_...` / `OTP_REQUEST_...` events a
 
 **Known constraints to resolve before closing Step 09:** Verified-email recovery and confirmation still need implementation; real Ghasedak compatibility, request/response mapping and provider-level cost must be verified using an operator-approved test; distributed OTP throttling and persistent security audit hardening remain incomplete; provider acceptance is not equivalent to confirmed delivery. The Phase 12 wallet and tariff work stays deferred. Build, CI, PostgreSQL, macOS and Ubuntu tests remain owner-executed; no pass results are inferred.
 
+### Step 09 — Mac API Config-Loading Fix / Old Process Diagnostics (2026-10-13)
+
+**User-reported symptom:** `/health/dev-identity` responds with `development=true`, `identityEndpointsRegistered=true`, `connectionConfigured=true`, but all of `smsSendingEnabled`, `ghasedakApiKeyConfigured`, `ghasedakTemplateConfigured`, `ghasedakTestRecipientConfigured` and `otpPepperConfigured` are `false` even after following manual environment instructions. This establishes that the **running API process** does not see those values; it does not establish any Ghasedak API failure. Possible causes: an old listener or variables sourced in the wrong shell. Do not send OTP/API keys in chat; do not reapply migrations to fix process configuration.
+
+**Committed remedy:** `scripts/phase-03-step-09-run-api.zsh`, a single entrypoint that checks no existing TCP listener on port `15089`, prompts privately for `argintaxpayer_test` DB password if not exported, loads an existing stable OTP pepper from `~/.argintaxpayer-test/otp-pepper`, sources the untracked owner-only repository-root `.env.ghasedak.local`, prints booleans only (never keys, passwords or mobile numbers), and `exec`-starts `.NET` in the very same environment. It refuses missing/mismatched configuration and the LocalFile test mode. **This script does not generate credentials, run migrations, enable live SMS, or overwrite the private config.**
+
+**Operator actions (macOS):**
+```bash
+git switch phase/03-identity-authorization
+git pull --ff-only origin phase/03-identity-authorization
+lsof -nP -iTCP:15089 -sTCP:LISTEN
+```
+If a process is listening, stop it using `Ctrl+C` in its original shell. Confirm `lsof` no longer shows the listener. In another macOS terminal keep the owner-mandated `autossh` tunnel open. From the repository root:
+```zsh
+test -s "$HOME/.argintaxpayer-test/otp-pepper" || {
+  mkdir -p "$HOME/.argintaxpayer-test"; chmod 700 "$HOME/.argintaxpayer-test";
+  openssl rand -hex 32 > "$HOME/.argintaxpayer-test/otp-pepper";
+  chmod 600 "$HOME/.argintaxpayer-test/otp-pepper";
+}
+# Edit untracked .env.ghasedak.local with real operator-owned credentials and
+# Ghasedak__EnableLiveSending=false for preflight; test-recipient only.
+zsh scripts/phase-03-step-09-run-api.zsh
+```
+Then run:
+```bash
+curl --noproxy '*' -s http://127.0.0.1:15089/health/dev-identity
+curl --noproxy '*' -i http://127.0.0.1:15089/health/ready
+```
+The first endpoint must show `otpPepperConfigured=true`, `ghasedakApiKeyConfigured=true`, `ghasedakTemplateConfigured=true`, `ghasedakTestRecipientConfigured=true`, `localOtpTestMode=false`, `smsSendingEnabled=false` for **configuration-only preflight**. The second must respond healthy `200` before any DB test. Only after verified preflight and an explicit operator decision to incur limited real-SMS charges should they edit the secret file's `Ghasedak__EnableLiveSending=true`, stop/restart the API with the same launcher, and request a single OTP to the configured private test recipient. The health endpoint should then show `smsSendingEnabled=true`. Restore false immediately after testing. If config is present but provider rejects or times out, consult existing **redacted** `OTP_SMS_...` logs; never paste raw provider responses/credentials.
+
+**No acceptance claim:** Runtime success, SMS receipt and provider delivery are still unverified; Step 09 remains open until actual operator tests and remaining email recovery/security requirements are satisfied.
+
 ## 5. Communication Convention
 
 The **repository phase plan and all step completion records are written in English only**. When implementing or reporting on a step in the chat, present its title in **both Persian and English** (for example: `گام ۱ — زیرساخت مدل هویت و ایجاد مدیر اولیه | Step 01 — Identity Data Model and Bootstrap`). Explain execution and acceptance in concise, right-to-left Persian, while keeping code and shell commands left-to-right. Do not change the planned English step title without an approved plan amendment.
