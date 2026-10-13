@@ -33,7 +33,7 @@ Security invariants:
 | 08 | Persian RTL Identity User Interface | Existing email/password login, registration, MFA, guarded account/security pages and safe RTL layout | RTL layout, error states, login/logout, guarded-content tests; original email flow remains functional | Owner Approved (2026-10-12, owner-reported) |
 | 09 | Mobile-First Registration, OTP Authentication and Ghasedak Integration | Backwards-compatible mobile/email identity migration, phone ownership verification, optional email/SMS OTP login and password recovery, Ghasedak adapter and RTL workflow updates | Tested OTP expiry/replay/throttling, MFA preservation, mock/provider-gated transport and RTL UI; residual production security tracked in Step 11 | **Owner approved (2026-10-13)**; deferred final Ubuntu/security verification explicitly tracked |
 | 10 | Identity and Authorization Integration Tests | API/UI negative-path integration tests, token/recovery replay and role/scope isolation including Step 09 | Focused PostgreSQL positive/negative, HTTP deny-by-default, frontend identity tests | **Owner approved (2026-10-13; owner-reported successful local tests)** |
-| 11 | Hardening, Verification, and Phase Handoff | Final security and migration review, CI checks, documentation and release readiness; finance-feature handoff | macOS regression evidence, previously executed Ubuntu evidence as owner-reported, security review, deferred billing ledger scope, explicit owner sign-off gate | **In progress (2026-10-13)** — formerly Step 10 |
+| 11 | Hardening, Verification, and Phase Handoff | Final security and migration review, CI checks, documentation and release readiness; finance-feature handoff | macOS regression evidence, previously executed Ubuntu evidence as owner-reported, security review, deferred billing ledger scope, explicit owner sign-off gate | **Closed for development handoff (2026-10-13)**; production gates outstanding |
 
 ## 3. Concise Per-Step Verification
 
@@ -1586,10 +1586,30 @@ git log -1 --oneline
 ```
 If `git status --short` reports local changes, preserve and reconcile them before switching/pulling; avoid force/reset/clean. Step 11 completion and Phase 03 closure remain pending.
 
+
+### Step 11 — Final Development Handoff and Risk Register (2026-10-13)
+
+**Owner decision:** The owner requested finalization of Step 11 and Git pull instructions for macOS and Ubuntu. **Step 11 is closed as a development handoff; Phase 03 is closed for continuation to Phase 04. This does not authorize Production release, main merge, tag or deployment.**
+
+**Evidence:** Owner reported all Step 10 macOS .NET, PostgreSQL, Next.js, HTTP smoke and UI acceptance criteria passed. Owner also reported Ubuntu testing in the previous step and explicitly waived repeating Ubuntu acceptance for Step 11. Individual runtime logs, CI run identifiers and independent Ubuntu test artifacts were not supplied; therefore no additional test execution or security certification is claimed. No new migration required in Step 11.
+
+**Source-level security review and unresolved release gates:**
+- Development-only phone registration returns 409 for existing users, revealing account existence. Public use requires anti-enumeration design and abuse controls.
+- OTP uses DB-backed attempt count and cooldown, but cross-replica atomic throttling, network/device/IP limits and delivery reconciliation have not been verified for a public endpoint.
+- Legacy email registration does not establish verified email ownership. Public email verification and email-based recovery are incomplete.
+- Level 1/2 operators with MFA can manually create Customer accounts with mobile treated as trusted without SMS, but an operator-correlated durable audit and proof-of-ownership policy remain to be completed.
+- Identity development endpoints are gated by Development and loopback checks; do not expose the Next.js/API test environment to the internet. Review all deployment wiring before enabling public authentication.
+- Provider submission acceptance is not proof of SMS delivery; live sending remains separately controlled and commercial SMS/wallet/settlement belongs to roadmap finance/admin phases.
+- No new independent CI, secret scan, rollback test or production security evaluation occurred in this closing action. These remain separate release approvals.
+
+**Boundary handoff:** Phase 04 owns taxpayer/company entities, fiscal memories and taxpayer-to-delegate membership/scope integrations. Phase 03 defines underlying identity, MFA, role and resource authorization only. Do not assume production readiness for deferred phone/email/OTP controls. The approved permanent cadence is focused macOS testing at each step plus Ubuntu once per phase; the Ubuntu repeat waiver was specific to Phase 03.
+
+**Repository action:** This commit updates only the Phase 03 branch/document. No migration, service restart, main merge, tag, release, deployment or live SMS operation was performed. Final production approval remains a separate gate. Current Step 11 development deliverable is the closed record and transparent security handoff.
+
 ## 5. Communication Convention
 
 The **repository phase plan and all step completion records are written in English only**. When implementing or reporting on a step in the chat, present its title in **both Persian and English** (for example: `گام ۱ — زیرساخت مدل هویت و ایجاد مدیر اولیه | Step 01 — Identity Data Model and Bootstrap`). Explain execution and acceptance in concise, right-to-left Persian, while keeping code and shell commands left-to-right. Do not change the planned English step title without an approved plan amendment.
 
 ## 6. Phase Closure
 
-After Step 11 is independently verified and owner-approved, record final test evidence, CI, migration and security review in this file. Merge, immutable tag, GitHub Release, and deployment remain separate, explicitly authorized gates. Phase 04 begins under its own single-file plan.
+Phase 03 development handoff closed by owner request on 2026-10-13, while independent release/CI/security evidence remains pending as recorded above. Merge, immutable tag, GitHub Release, and deployment remain separate explicitly authorized gates. Phase 04 begins under its own single-file plan.
