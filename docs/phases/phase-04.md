@@ -7,10 +7,10 @@
 **Policy:** This single file is the authoritative evolving plan. No per-step files. Changes to step count/scope require dated owner-approved amendment.
 
 ## Objective
-Manage natural/legal taxpayer profiles, fiscal memories, certificate metadata and custody references, and Level 1 controlled assignments to Level 2 delegates. Enforce server-side scope isolation and auditable lifecycle changes. Actual key generation/CSR/signing belongs to Phase 09; tax authority transmission belongs to Phase 10; billing and settlement belong to Phase 12.
+Manage natural/legal taxpayer profiles, fiscal memories, certificate metadata and custody references, and Level 1 controlled commercial customer-to-Level 2 partner associations. Enforce server-side scope isolation and auditable lifecycle changes. Actual key generation/CSR/signing belongs to Phase 09; tax authority transmission belongs to Phase 10; billing and settlement belong to Phase 12.
 
 ## Security and domain invariants
-- Level 1 controls taxpayer assignment, reassignment, and revocation; Level 2 can operate only within explicitly assigned scope.
+- Level 1 controls CUSTOMER account ownership and partner reassignment; Level 2 can operate only on owned customer accounts and the taxpayer profiles belonging to those customers. Direct taxpayer-to-Level2 grants are deprecated.
 - No Level 2 access to other delegates' taxpayers, global audit, raw private keys, or platform secrets.
 - Taxpayer identity and fiscal-memory identifiers have appropriate unique constraints; historical ownership/assignment is auditable.
 - A taxpayer may have multiple historical fiscal memories, but active-memory policy must enforce the approved subscription/business invariant and prevent ambiguous operations.
@@ -30,10 +30,10 @@ Manage natural/legal taxpayer profiles, fiscal memories, certificate metadata an
 | 05 | Fiscal Memory Persistence | Memory identifiers, taxpayer relationship, lifecycle and constraints | No cross-taxpayer linking; unique/active policy tested | Owner approved (2026-10-13), additional binding/connectivity/key-import contracts registered |
 | 06 | Fiscal Memory Management API | Register/update/retire memory metadata and lifecycle | Unauthorized and invalid transitions denied | Owner approved 2026-10-13; deferred activation/rebind constraints retained |
 | 07 | Certificate Metadata and Custody Boundary | Fingerprint, expiry, issuer, secure key-reference contracts, rotation metadata | No secret leakage; expired/revoked states handled | Owner approved 2026-10-13 |
-| 08 | Delegate Assignment Model | Level 1-to-Level 2 taxpayer grants, revocation, effective dates, history | Only Level 1 may grant/revoke; audit trail complete | Owner approved 2026-10-13 |
-| 09 | Server-Side Scoped Query and Command Policies | Query filters, resource policies, assignment checks | Cross-delegate isolation for reads/writes, deny by default | Owner approved for progression 2026-10-13; final UI/HTTP/DB integration acceptance explicitly deferred to Step12 |
+| 08 | Commercial Customer Assignment Model (approved correction) | Level1 ownership of customer accounts, Level2 partner association, customer-level reassignment history | Role-based automatic acquisition and Level1-only partner transfer, historical preservation | Original implementation approved; customer-level correction committed 2026-10-13; local verification pending |
+| 09 | Server-Side Customer-Scoped Query and Command Policies | Customer-to-many-taxpayer join, partner owner checks, deny by default | Level2 cannot see another partner's customers or taxpayers | Customer-owner query correction committed 2026-10-13; integration regression pending Step12 |
 | 10 | Taxpayer and Memory RTL Management UI | Persian responsive taxpayer list, forms, detail, memory views | RTL, validation, loading/error states, guarded routes | Owner approved 2026-10-13 |
-| 11 | Level 1 Assignment Console and Level 2 Workspace | Assignment/revocation UI, scoped delegate views | Revocation effective immediately; no unauthorized data shown | Implemented in GitHub; browser/security tests and owner acceptance pending |
+| 11 | Level1 Customer Commercial Ownership Console and Level2 Workspace (approved correction) | Transfer entire customer relationship to Level2 and show scoped customer accounts | No taxpayer-level grants; root-approved customer reattribution, preserve financial history | Customer-level replacement UI/backend committed; local verification pending |
 | 12 | Integration and Negative-Path Regression | PostgreSQL/API/UI security, concurrency and lifecycle tests | Identity regression and cross-scope negative paths pass | Planned |
 | 13 | Hardening and Phase Handoff | Review, local regression, final Ubuntu acceptance, documentation | Evidence, migration review, unresolved risks and owner signoff recorded | Planned |
 
@@ -54,6 +54,29 @@ bash scripts/ubuntu-dev.sh status
 bash scripts/ubuntu-dev.sh down
 ```
 All live SMS sending stays disabled; do not expose Development services publicly. A macOS test against VPS PostgreSQL does not substitute for final Ubuntu runtime acceptance.
+
+## OWNER-APPROVED CORRECTION — CUSTOMER vs TAXPAYER COMMERCIAL OWNERSHIP (2026-10-13)
+
+This correction **supersedes** the earlier incorrect taxpayer-to-Level2 delegation interpretation in Steps 01, 04, 08–11; the 13-step phase numbering remains unchanged. See the [18-phase roadmap](../roadmap/18-phases.md), subsection “Customer-level partner ownership and cash-based settlement”.
+
+**Correct hierarchy:** `Level1 owner -> Level2 partner (optional) -> customer account -> one or more fiscal taxpayer profiles -> fiscal memories/certificates`. The customer's commercial partner is NOT the taxpayer and does not own the private key. Customer identity and taxpayer are different entities. A customer's monthly/annual plan may bind exactly one taxpayer as required by the plan, while other customer or plan types may have more than one taxpayer. The same Level2 partner may manage many customers, and each such customer may own different profiles.
+
+**Acquisition rules:**
+1. Customer created by Level1 → owned directly by that Level1; never share Level2 profit.
+2. Customer created by Level2 → associated automatically with the creating Level2 partner and its controlling Level1.
+3. Public/self-signup customer → owned by configured default Level1; Level2 claiming an existing referred customer submits a request only, with manual Level1 approval required before reassignment. **No self-approval or automatic retroactive claim.**
+4. Root always has administration visibility; Level2 has only its customers' data and taxpayers (by live server-side association). Customer self-management/creation of many taxpayers is gated by subscriptions in Phase12 and completed in Phase05. Old taxpayer-to-Level2 grants never authorize access.
+5. Commercial ownership is a **single row per customer**, with revision-checked reassignment and append-only previous/new partner, reason, Level1 approver, timestamp history. Existing invoices, credits, subscriptions, company/taxpayer ownership, settled amounts and historical financial allocations cannot be reassigned retroactively.
+
+**Database/code correction:** `CustomerCommercialOwner`, `CustomerCommercialOwnerChange`, nullable `TaxpayerProfile.CustomerUserId` (nullable **only for legacy reconciliation**) and explicit migration `20261013233000_AddCustomerCommercialOwnership`. New taxpayer creation from Level1 requires existing owning customer UUID. New public email/phone and admin-created customer registrations now create a commercial-owner row atomically with identity; Level1 creation selects its own account, Level2 creation selects the creating partner, public selects root default. Root resolution uses configured `Ownership:DefaultLevel1UserId`, or the unique active Level1 as fallback; ambiguity denies new registration (no mistaken ownership). Current database state must be reconciled before applying business financial logic: legacy customers and unlinked taxpayer rows are **not silently reassigned**.
+
+**API correction:** Former `/api/dev/taxpayers/{taxpayerId}/delegates*` grant/revoke/history routes **removed**. The old `taxpayer_delegate_grants` schema is retained temporarily **for historical migration assessment only**, not allowed for new partner access. New `GET /api/dev/customer-owners`, `GET /api/dev/customer-owners/{customerId}`, and `POST /api/dev/customer-owners/{customerId}/transfer` endpoints are introduced. Transfer requires Level1 authenticated session + MFA, customer belongs to that Level1, valid active MFA-enabled Level2 (or null to return the relationship to root), reason, `expectedRevision`, before/after audit and database CAS. Future Level2 referral claim queue is Phase16; until then Level1 can manually document a request/reason.
+
+**UI correction:** Old taxpayer “DelegateConsole” and its Next.js gateway/tests removed; the taxpayer UI now creates a profile **for a selected existing customer account** rather than assigning it to a Level2 partner. The `/account` screen has a new `CustomerOwnershipConsole`: Level1 can list its customer accounts and approve an attribution change; Level2 has read-only list of its owned customers, with taxpayer access derived from them. There are no UI buttons for fake tax-authority token verification or plaintext-key upload.
+
+**Accounting cross-phase nonnegotiables:** Root-direct customer revenue/profit belongs to Level1. Level2 partner customers use independent financial accounting, sale-price/cost snapshots and agreed percent (normally 50/50) of **net profit computed only from verified allocated collected cash**, not the uncollected invoice or contract amount. Tax and eligible expense deductions require Level1 manual approval. Track each company/taxpayer and purchase, first plan sale, plan renewal and invoice/unit package separately, including partial receipts, receivables, reimbursements, pending approval, full/partial settlement and immutable audit trail. Phase12 implements billing/settlement and immutable ledgers; Phase16 administrative referral/expense/settlement approvals; Phase17 security and financial regression.
+
+**Verification blockers:** No schema applied by assistant; `argintaxpayer_test` must be verified before migration. Phase04 Step12 must test new root-created, partner-created and public signups, multiple taxpayers per customer, manually approved referral transfer, former partner losing all access immediately, never taking historic cash allocations, multiple Level1 default ambiguity, old grants having zero authority, concurrency and transaction rollback. Production enablement remains blocked. **Owner acceptance:** Architectural amendment approved, implementation verification pending.
 
 ## Step Completion Record Template
 For each step append here: scope implemented, changed paths, commit SHA, migration impact and confirmed target DB, focused macOS test results, Ubuntu test result or explicitly deferred reason, CI evidence, security negative tests, owner acceptance date, and remaining blockers. Never mark a test passed without actual evidence.
