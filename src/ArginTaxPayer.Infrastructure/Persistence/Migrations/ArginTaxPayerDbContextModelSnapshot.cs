@@ -13,6 +13,32 @@ public sealed class ArginTaxPayerDbContextModelSnapshot : ModelSnapshot
     {
         modelBuilder.HasAnnotation("ProductVersion", "9.0.4");
 
+        modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Taxpayers.FiscalMemory", b =>
+        {
+            b.Property<Guid>("Id").HasColumnName("id").HasColumnType("uuid");
+            b.Property<Guid>("TaxpayerId").HasColumnName("taxpayer_id").HasColumnType("uuid");
+            b.Property<string>("MemoryIdentifier").IsRequired().HasMaxLength(64).HasColumnName("memory_identifier").HasColumnType("character varying(64)");
+            b.Property<int>("Status").HasColumnName("status").HasColumnType("integer");
+            b.Property<long>("Revision").HasColumnName("revision").HasColumnType("bigint").HasDefaultValue(1L).IsConcurrencyToken();
+            b.Property<DateTime>("CreatedAtUtc").HasColumnName("created_at_utc").HasColumnType("timestamp with time zone");
+            b.Property<DateTime>("UpdatedAtUtc").HasColumnName("updated_at_utc").HasColumnType("timestamp with time zone");
+            b.HasKey("Id");
+            b.HasIndex("MemoryIdentifier").IsUnique().HasDatabaseName("ux_fiscal_memories_identifier");
+            b.HasIndex("TaxpayerId").IsUnique().HasFilter("status = 2").HasDatabaseName("ux_fiscal_memories_active_taxpayer");
+            b.ToTable("fiscal_memories", t =>
+            {
+                t.HasCheckConstraint("ck_fiscal_memories_status", "status IN (1, 2, 3, 4)");
+                t.HasCheckConstraint("ck_fiscal_memories_identifier", "length(trim(memory_identifier)) > 0");
+                t.HasCheckConstraint("ck_fiscal_memories_revision", "revision > 0");
+            });
+        });
+        modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Taxpayers.FiscalMemory", b =>
+        {
+            b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Taxpayers.TaxpayerProfile", "Taxpayer")
+                .WithMany().HasForeignKey("TaxpayerId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+            b.Navigation("Taxpayer");
+        });
+
         modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Taxpayers.TaxpayerProfileChange", b =>
         {
             b.Property<Guid>("Id").HasColumnName("id").HasColumnType("uuid");
