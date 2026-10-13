@@ -46,7 +46,7 @@ export default function TaxpayerWorkspace({ isLevel1 }: { isLevel1: boolean }) {
 
   const reload = useCallback(async () => {
     setLoading(true); setError("");
-    try { setTaxpayers(await request<Taxpayer[]>("")); }
+    try { setTaxpayers(await request<Taxpayer[]>("/list")); }
     catch (ex) { setError((ex as Error).message); setTaxpayers([]); }
     finally { setLoading(false); }
   }, []);
@@ -67,7 +67,7 @@ export default function TaxpayerWorkspace({ isLevel1 }: { isLevel1: boolean }) {
     event.preventDefault(); if (busy) return;
     setBusy(true); setError(""); setNotice("");
     try {
-      await request("", "POST", { kind: newKind, identifier: newIdentifier, displayName: newName });
+      await request("/new", "POST", { kind: newKind, identifier: newIdentifier, displayName: newName });
       setNotice("مؤدی ثبت شد. شناسه قانونی هنوز به معنی تأیید رسمی سازمان مالیاتی نیست.");
       setNewIdentifier(""); setNewName(""); await reload();
     } catch (ex) { setError((ex as Error).message); } finally { setBusy(false); }
