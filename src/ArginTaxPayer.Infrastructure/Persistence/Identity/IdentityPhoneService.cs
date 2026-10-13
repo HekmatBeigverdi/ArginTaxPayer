@@ -26,69 +26,79 @@ public sealed class IdentityPhoneService(ArginTaxPayerDbContext db, IIdentityOtp
         ? secret : throw new InvalidOperationException("Identity:OtpPepper must be configured with at least 32 characters.");
 
     public async Task<bool> RequestAsync(string? mobileInput, string? purpose, CancellationToken ct = default)
+        => (await RequestDetailedAsync(mobileInput, purpose, ct)).Status == PhoneOtpRequestStatus.Sent;
+
+    /// <summary>
+    /// Detailed development-only outcome. Do not expose account-existence distinctions
+    /// on an unauthenticated public endpoint in Production.
+    /// </summary>
+    public async Task<PhoneOtpRequestResult> RequestDetailedAsync(
+        string? mobileInput, string? purpose, CancellationToken ct = default)
     {
-        // All diagnostic events contain *only* a reason or purpose, never
-        // recipient numbers, codes, credentials, or account identifiers.
         if (!IranianMobileNumber.TryNormalize(mobileInput, out var mobile))
         {
             logger.LogWarning("OTP_REQUEST_SKIPPED reason=invalid_mobile");
-            return false;
+            return new(PhoneOtpRequestStatus.Invalid);
         }
         if (purpose is not ("register" or "login" or "reset"))
         {
             logger.LogWarning("OTP_REQUEST_SKIPPED reason=invalid_purpose");
-            return false;
+            return new(PhoneOtpRequestStatus.Invalid);
         }
+
+        // Account checks precede cooldown: a registered user should see a
+        // registration conflict, never a misleading OTP/code entry screen.
+        var actor = await db.IdentityUsers.AsNoTracking()
+            .Where(x => x.NormalizedMobile == mobile)
+            .Select(x => new { x.Id, x.IsActive, x.MobileVerifiedAtUtc })
+            .SingleOrDefaultAsync(ct);
+        if (purpose == "register" && actor is not null)
+        {
+            logger.LogInformation("OTP_REQUEST_SKIPPED reason=mobile_already_registered");
+            return new(PhoneOtpRequestStatus.AlreadyRegistered);
+        }
+        if (purpose != "register" && (actor is null || !actor.IsActive ||
+            actor.MobileVerifiedAtUtc is null))
+        {
+            logger.LogInformation("OTP_REQUEST_SKIPPED reason=no_verified_account");
+            return new(PhoneOtpRequestStatus.Unavailable);
+        }
+        if ((purpose is "login" or "reset") && await db.IdentityUserRoles.AnyAsync(
+            x => x.UserId == actor!.Id && x.Role != IdentityRoleNames.Customer, ct))
+        {
+            logger.LogInformation("OTP_REQUEST_SKIPPED reason=administrator_mfa_required");
+            return new(PhoneOtpRequestStatus.Unavailable);
+        }
+        if (purpose == "login" && await db.IdentityMfaStates.AsNoTracking().AnyAsync(
+            x => x.UserId == actor!.Id && x.EnabledAtUtc != null, ct))
+        {
+            logger.LogInformation("OTP_REQUEST_SKIPPED reason=mfa_required");
+            return new(PhoneOtpRequestStatus.Unavailable);
+        }
+
         if (!configuration.GetValue<bool>("Ghasedak:EnableLiveSending") &&
             configuration["Identity:OtpDeliveryMode"] != "LocalFile")
         {
             logger.LogWarning("OTP_REQUEST_SKIPPED reason=delivery_disabled");
-            return false;
+            return new(PhoneOtpRequestStatus.Unavailable);
         }
 
         var now = DateTime.UtcNow;
         var recent = await db.IdentityPhoneChallenges.AsNoTracking()
             .Where(x => x.Mobile == mobile && x.CreatedAtUtc > now.AddMinutes(-15))
             .OrderByDescending(x => x.CreatedAtUtc)
-            .Select(x => x.CreatedAtUtc).Take(6).ToListAsync(ct);
+            .Select(x => x.CreatedAtUtc).Take(5).ToListAsync(ct);
         if (recent.Count >= 5)
         {
-            logger.LogWarning("OTP_REQUEST_SKIPPED reason=rate_limit_15m");
-            return false;
+            var wait = RemainingSeconds(recent[4].AddMinutes(15), now);
+            logger.LogWarning("OTP_REQUEST_SKIPPED reason=rate_limit_15m remaining_seconds={RemainingSeconds}", wait);
+            return new(PhoneOtpRequestStatus.RateLimited, wait);
         }
-        if (recent.Count != 0 && recent[0] > now.Subtract(Cooldown))
+        if (recent.Count > 0 && recent[0] > now.Subtract(Cooldown))
         {
-            logger.LogWarning("OTP_REQUEST_SKIPPED reason=cooldown_60s");
-            return false;
-        }
-        var actor = await db.IdentityUsers.AsNoTracking()
-            .Where(x => x.NormalizedMobile == mobile &&
-                x.MobileVerifiedAtUtc != null && x.IsActive)
-            .Select(x => new { x.Id, x.PasswordHash }).SingleOrDefaultAsync(ct);
-        if (purpose == "register" && actor is not null)
-        {
-            logger.LogInformation("OTP_REQUEST_SKIPPED reason=mobile_already_registered");
-            return false;
-        }
-        if (purpose != "register" && actor is null)
-        {
-            logger.LogInformation("OTP_REQUEST_SKIPPED reason=no_verified_account");
-            return false;
-        }
-        if ((purpose is "login" or "reset") && await db.IdentityUserRoles.AnyAsync(
-            x => x.UserId == actor!.Id && x.Role != IdentityRoleNames.Customer, ct))
-        {
-            logger.LogInformation("OTP_REQUEST_SKIPPED reason=administrator_mfa_required");
-            return false;
-        }
-
-        // Password ownership is independent of SMS login eligibility.
-        // But any separately enabled MFA remains mandatory and must not be bypassed.
-        if (purpose == "login" && await db.IdentityMfaStates.AsNoTracking().AnyAsync(
-            x => x.UserId == actor!.Id && x.EnabledAtUtc != null, ct))
-        {
-            logger.LogInformation("OTP_REQUEST_SKIPPED reason=mfa_required");
-            return false;
+            var wait = RemainingSeconds(recent[0].Add(Cooldown), now);
+            logger.LogWarning("OTP_REQUEST_SKIPPED reason=cooldown_60s remaining_seconds={RemainingSeconds}", wait);
+            return new(PhoneOtpRequestStatus.RateLimited, wait);
         }
 
         var code = RandomNumberGenerator.GetInt32(0, 1_000_000).ToString("D6");
@@ -100,14 +110,19 @@ public sealed class IdentityPhoneService(ArginTaxPayerDbContext db, IIdentityOtp
         });
         await db.SaveChangesAsync(ct);
         logger.LogInformation("OTP_REQUEST_DISPATCH_STARTED purpose={OtpPurpose}", purpose);
-        bool delivered = await sender.SendAsync(mobile, code, purpose, id, ct);
-        if (delivered)
-            await db.IdentityPhoneChallenges.Where(x => x.Id == id)
-                .ExecuteUpdateAsync(s => s.SetProperty(x => x.Delivered, true), ct);
-        else
+        var delivered = await sender.SendAsync(mobile, code, purpose, id, ct);
+        if (!delivered)
+        {
             logger.LogWarning("OTP_REQUEST_DISPATCH_FAILED purpose={OtpPurpose}", purpose);
-        return delivered;
+            return new(PhoneOtpRequestStatus.Unavailable);
+        }
+        await db.IdentityPhoneChallenges.Where(x => x.Id == id)
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.Delivered, true), ct);
+        return new(PhoneOtpRequestStatus.Sent);
     }
+
+    private static int RemainingSeconds(DateTime untilUtc, DateTime nowUtc)
+        => Math.Max(1, (int)Math.Ceiling((untilUtc - nowUtc).TotalSeconds));
 
     private async Task<IdentityPhoneChallenge?> ConsumeAsync(string? mobileInput, string purpose,
         string? code, CancellationToken ct)
@@ -193,3 +208,15 @@ public sealed class IdentityPhoneService(ArginTaxPayerDbContext db, IIdentityOtp
         return true;
     }
 }
+
+public enum PhoneOtpRequestStatus
+{
+    Sent,
+    Invalid,
+    AlreadyRegistered,
+    RateLimited,
+    Unavailable
+}
+
+public sealed record PhoneOtpRequestResult(
+    PhoneOtpRequestStatus Status, int RetryAfterSeconds = 0);
