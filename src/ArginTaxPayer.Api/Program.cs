@@ -24,6 +24,7 @@ if (identityDevelopmentEnabled)
 {
     builder.Services.AddSingleton<IdentityProtectionService>();
     builder.Services.AddScoped<IdentityCredentialService>();
+    builder.Services.AddScoped<IdentityAdministratorUserProvisioning>();
     builder.Services.AddScoped<IdentitySessionService>();
     if (builder.Configuration["Identity:OtpDeliveryMode"] == "LocalFile")
         builder.Services.AddScoped<IIdentityOtpSender, LocalFileOtpSender>();
