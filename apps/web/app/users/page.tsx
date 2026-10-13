@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { currentIdentity, identityUiEnabled } from "../../lib/identity";
 import UsersWorkspace from "./users-workspace";
+import AdminCreateCustomer from "../account/admin-create-customer";
 
 export const dynamic = "force-dynamic";
 export default async function UsersPage() {
@@ -23,5 +24,8 @@ export default async function UsersPage() {
       </nav>
     </header>
     <UsersWorkspace level1={isLevel1}/>
+    <section className="taxpayer-panel" aria-label="ایجاد حساب کاربر">
+      <AdminCreateCustomer/>
+    </section>
   </main>;
 }
