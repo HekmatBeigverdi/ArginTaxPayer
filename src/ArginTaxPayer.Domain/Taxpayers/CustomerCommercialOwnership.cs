@@ -9,7 +9,8 @@ public enum CustomerAcquisitionChannel
     PublicSelfRegistration = 1,
     Level1Created = 2,
     Level2Created = 3,
-    Level2ReferralApprovedByLevel1 = 4
+    Level2ReferralApprovedByLevel1 = 4,
+    LegacyReconciledByLevel1 = 5
 }
 
 public enum CustomerOwnershipChangeReason
