@@ -10,7 +10,7 @@ public sealed record TransferCustomerOwnerRequest(Guid? PartnerLevel2UserId, lon
     CustomerOwnershipChangeReason Reason, string? Explanation);
 public sealed record CustomerCommercialOwnerView(Guid CustomerUserId, Guid RootLevel1UserId,
     Guid? PartnerLevel2UserId, CustomerAcquisitionChannel AcquisitionChannel, long Revision);
-public sealed record CustomerAccountSummary(Guid CustomerUserId, Guid RootLevel1UserId,
+public sealed record CustomerAccountSummary(Guid CustomerUserId, Guid? RootLevel1UserId,
     Guid? PartnerLevel2UserId, CustomerAcquisitionChannel AcquisitionChannel,
     long Revision, string? Mobile, string? Email, DateTime CreatedAtUtc, bool IsActive,
     int TaxpayerCount);
@@ -143,16 +143,23 @@ public sealed class CustomerCommercialOwnershipService(
         var root = await IsScopedAdministratorAsync(actor.Value, IdentityRoleNames.Level1, ct);
         var partner = await IsScopedAdministratorAsync(actor.Value, IdentityRoleNames.Level2, ct);
         if (!root && !partner) return new(CustomerOwnershipDecision.Forbidden);
+        // Root sees all registered customer identities, including legacy accounts
+        // awaiting supervised attribution. Partners only see explicitly owned accounts.
         var rows = await (
-            from o in db.CustomerCommercialOwners.AsNoTracking()
-            join u in db.IdentityUsers.AsNoTracking() on o.CustomerUserId equals u.Id
-            where root && o.RootLevel1UserId == actor.Value ||
-                !root && partner && o.PartnerLevel2UserId == actor.Value
+            from u in db.IdentityUsers.AsNoTracking()
+            where u.Roles.Any(role => role.Role == IdentityRoleNames.Customer)
+            join assignment in db.CustomerCommercialOwners.AsNoTracking()
+                on u.Id equals assignment.CustomerUserId into matches
+            from o in matches.DefaultIfEmpty()
+            where root || partner && o != null && o.PartnerLevel2UserId == actor.Value
             orderby u.CreatedAtUtc descending, u.Id
             select new CustomerAccountSummary(
-                o.CustomerUserId, o.RootLevel1UserId, o.PartnerLevel2UserId,
-                o.AcquisitionChannel, o.Revision, u.NormalizedMobile, u.NormalizedEmail,
-                u.CreatedAtUtc, u.IsActive, db.TaxpayerProfiles.Count(t => t.CustomerUserId == o.CustomerUserId))
+                u.Id, o == null ? null : o.RootLevel1UserId,
+                o == null ? null : o.PartnerLevel2UserId,
+                o == null ? 0 : o.AcquisitionChannel,
+                o == null ? 0 : o.Revision,
+                u.NormalizedMobile, u.NormalizedEmail, u.CreatedAtUtc, u.IsActive,
+                db.TaxpayerProfiles.Count(t => t.CustomerUserId == u.Id))
         ).ToArrayAsync(ct);
         return new(CustomerOwnershipDecision.Success, rows);
     }
