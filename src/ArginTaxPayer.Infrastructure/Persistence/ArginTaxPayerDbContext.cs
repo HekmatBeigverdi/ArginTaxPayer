@@ -50,9 +50,9 @@ public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbConte
         commercial.Property(x => x.Revision).HasColumnName("revision").IsConcurrencyToken().HasDefaultValue(1L);
         commercial.Property(x => x.CreatedAtUtc).HasColumnName("created_at_utc").HasColumnType("timestamp with time zone");
         commercial.Property(x => x.UpdatedAtUtc).HasColumnName("updated_at_utc").HasColumnType("timestamp with time zone");
-        commercial.HasOne<IdentityUser>().WithMany().HasForeignKey(x => x.CustomerUserId).OnDelete(DeleteBehavior.Restrict);
-        commercial.HasOne<IdentityUser>().WithMany().HasForeignKey(x => x.RootLevel1UserId).OnDelete(DeleteBehavior.Restrict);
-        commercial.HasOne<IdentityUser>().WithMany().HasForeignKey(x => x.PartnerLevel2UserId).OnDelete(DeleteBehavior.Restrict);
+        commercial.HasOne<IdentityUser>().WithMany().HasForeignKey(x => x.CustomerUserId).OnDelete(DeleteBehavior.Restrict).HasConstraintName("FK_customer_owner_customer");
+        commercial.HasOne<IdentityUser>().WithMany().HasForeignKey(x => x.RootLevel1UserId).OnDelete(DeleteBehavior.Restrict).HasConstraintName("FK_customer_owner_root");
+        commercial.HasOne<IdentityUser>().WithMany().HasForeignKey(x => x.PartnerLevel2UserId).OnDelete(DeleteBehavior.Restrict).HasConstraintName("FK_customer_owner_partner");
         commercial.HasIndex(x => x.RootLevel1UserId);
         commercial.HasIndex(x => x.PartnerLevel2UserId);
 
@@ -75,9 +75,9 @@ public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbConte
         ownershipChanges.Property(x => x.ToRevision).HasColumnName("to_revision");
         ownershipChanges.Property(x => x.ChangedAtUtc).HasColumnName("changed_at_utc").HasColumnType("timestamp with time zone");
         ownershipChanges.HasOne<CustomerCommercialOwner>().WithMany()
-            .HasForeignKey(x => x.CustomerUserId).OnDelete(DeleteBehavior.Restrict);
+            .HasForeignKey(x => x.CustomerUserId).OnDelete(DeleteBehavior.Restrict).HasConstraintName("FK_customer_owner_change_owner");
         ownershipChanges.HasOne<IdentityUser>().WithMany()
-            .HasForeignKey(x => x.ApprovedByLevel1UserId).OnDelete(DeleteBehavior.Restrict);
+            .HasForeignKey(x => x.ApprovedByLevel1UserId).OnDelete(DeleteBehavior.Restrict).HasConstraintName("FK_customer_owner_change_actor");
         ownershipChanges.HasIndex(x => new { x.CustomerUserId, x.ToRevision }).IsUnique();
 
         var grants = modelBuilder.Entity<TaxpayerDelegateGrant>();
@@ -183,7 +183,7 @@ public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbConte
         taxpayers.HasKey(x => x.Id);
         taxpayers.Property(x => x.Id).HasColumnName("id");
         taxpayers.Property(x => x.CustomerUserId).HasColumnName("customer_user_id");
-        taxpayers.HasOne<IdentityUser>().WithMany().HasForeignKey(x => x.CustomerUserId).OnDelete(DeleteBehavior.Restrict);
+        taxpayers.HasOne<IdentityUser>().WithMany().HasForeignKey(x => x.CustomerUserId).OnDelete(DeleteBehavior.Restrict).HasConstraintName("FK_taxpayer_profiles_customer_user_id");
         taxpayers.HasIndex(x => x.CustomerUserId).HasDatabaseName("ix_taxpayer_profiles_customer_user_id");
         taxpayers.Property(x => x.Kind).HasColumnName("kind").HasConversion<int>().IsRequired();
         taxpayers.Property(x => x.NormalizedIdentifier).HasColumnName("normalized_identifier").HasMaxLength(32).IsRequired();
