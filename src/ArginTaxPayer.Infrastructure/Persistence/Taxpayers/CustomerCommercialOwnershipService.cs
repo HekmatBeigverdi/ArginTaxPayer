@@ -173,10 +173,10 @@ public sealed class CustomerCommercialOwnershipService(
         var root = await IsScopedAdministratorAsync(actor.Value, IdentityRoleNames.Level1, ct);
         var partner = await IsScopedAdministratorAsync(actor.Value, IdentityRoleNames.Level2, ct);
         if (!root && !partner) return new(CustomerOwnershipDecision.Forbidden);
-        var permitted = db.CustomerCommercialOwners.AsNoTracking().Where(o =>
-            o.CustomerUserId == customerId &&
-            (root && o.RootLevel1UserId == actor.Value ||
-             !root && partner && o.PartnerLevel2UserId == actor.Value));
+        var permitted = db.IdentityUsers.AsNoTracking().Where(u => u.Id == customerId &&
+            u.Roles.Any(role => role.Role == IdentityRoleNames.Customer) &&
+            (root || partner && db.CustomerCommercialOwners.Any(o =>
+                o.CustomerUserId == u.Id && o.PartnerLevel2UserId == actor.Value)));
         var profiles = await db.TaxpayerProfiles.AsNoTracking().Where(t =>
             t.CustomerUserId == customerId && permitted.Any())
             .OrderBy(t => t.DisplayName).ThenBy(t => t.Id)
