@@ -20,6 +20,7 @@ export default function CustomerOwnershipConsole({ level1 }: { level1: boolean }
   const [selection, setSelection] = useState("");
   const [targetPartner, setTargetPartner] = useState("");
   const [reason, setReason] = useState("");
+  const [reasonCode, setReasonCode] = useState(1);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -63,7 +64,7 @@ export default function CustomerOwnershipConsole({ level1 }: { level1: boolean }
         body: JSON.stringify({
           partnerLevel2UserId: targetPartner.trim() || null,
           expectedRevision: current.revision,
-          reason: 1,
+          reason: reasonCode,
           explanation: reason.trim()
         })
       });
@@ -122,7 +123,14 @@ export default function CustomerOwnershipConsole({ level1 }: { level1: boolean }
         <label htmlFor="commercial-partner">شناسه ادمین سطح ۲ (برای مشتری مستقیم، خالی بگذارید)</label>
         <input id="commercial-partner" dir="ltr" value={targetPartner}
           onChange={e => setTargetPartner(e.target.value)} placeholder="UUID شریک تجاری"/>
-        <label htmlFor="commercial-reason">علت تغییر مالک تجاری / معرفی مشتری</label>
+        <label htmlFor="commercial-reason-kind">نوع تغییر</label>
+        <select id="commercial-reason-kind" value={reasonCode} onChange={e => setReasonCode(Number(e.target.value))}>
+          <option value={1}>معرفی مشتری و تأیید سطح ۱</option>
+          <option value={2}>اصلاح انتساب اشتباه</option>
+          <option value={3}>غیرفعال‌شدن شریک قبلی</option>
+          <option value={4}>سایر دلایل</option>
+        </select>
+        <label htmlFor="commercial-reason">شرح و مستندات علت تغییر</label>
         <textarea id="commercial-reason" required maxLength={1000} rows={3}
           value={reason} onChange={e => setReason(e.target.value)}/>
         <button className="identity-primary" disabled={busy || !reason.trim() ||
