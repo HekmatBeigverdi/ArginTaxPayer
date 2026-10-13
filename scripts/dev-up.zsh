@@ -122,9 +122,21 @@ print 'Starting Next.js...'
   export ARGIN_IDENTITY_UI_ENABLED=true
   export ARGIN_IDENTITY_API_INTERNAL_BASE_URL=http://127.0.0.1:15089
   cd apps/web
-  nohup npm run dev -- --port 3000 > "$STATE/web.log" 2>&1 < /dev/null &
+  nohup npm run dev -- --hostname 127.0.0.1 --port 3000 > "$STATE/web.log" 2>&1 < /dev/null &
   echo $! > "$STATE/web.pid"
 )
+web_ready=0
+for i in {1..30}; do
+  if curl --noproxy '*' -fsS http://127.0.0.1:3000/identity > /dev/null 2>&1; then
+    web_ready=1
+    break
+  fi
+  sleep 1
+done
+if (( ! web_ready )); then
+  print -u2 "Next.js not ready. Check $STATE/web.log"
+  exit 1
+fi
 print 'Services launched. Panel: http://127.0.0.1:3000/identity'
 print 'Status: zsh scripts/dev-status.zsh'
 print 'Stop: zsh scripts/dev-down.zsh'
