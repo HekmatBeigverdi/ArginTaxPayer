@@ -33,7 +33,7 @@ Security invariants:
 | 08 | Persian RTL Identity User Interface | Existing email/password login, registration, MFA, guarded account/security pages and safe RTL layout | RTL layout, error states, login/logout, guarded-content tests; original email flow remains functional | Owner Approved (2026-10-12, owner-reported) |
 | 09 | Mobile-First Registration, OTP Authentication and Ghasedak Integration | Backwards-compatible mobile/email identity migration, phone ownership verification, optional email/SMS OTP login and password recovery, Ghasedak adapter and RTL workflow updates | Tested OTP expiry/replay/throttling, MFA preservation, mock/provider-gated transport and RTL UI; residual production security tracked in Step 11 | **Owner approved (2026-10-13)**; deferred final Ubuntu/security verification explicitly tracked |
 | 10 | Identity and Authorization Integration Tests | API/UI negative-path integration tests, token/recovery replay and role/scope isolation including Step 09 | Focused PostgreSQL positive/negative, HTTP deny-by-default, frontend identity tests | **Owner approved (2026-10-13; owner-reported successful local tests)** |
-| 11 | Hardening, Verification, and Phase Handoff | Final security and migration review, CI checks, documentation and release readiness; finance-feature handoff | macOS/Ubuntu build/test evidence, security review, explicit deferred billing ledger scope, owner sign-off gate | Planned — formerly Step 10 |
+| 11 | Hardening, Verification, and Phase Handoff | Final security and migration review, CI checks, documentation and release readiness; finance-feature handoff | macOS regression evidence, previously executed Ubuntu evidence as owner-reported, security review, deferred billing ledger scope, explicit owner sign-off gate | **In progress (2026-10-13)** — formerly Step 10 |
 
 ## 3. Concise Per-Step Verification
 
@@ -1562,6 +1562,29 @@ bash scripts/ubuntu-dev.sh down
 Do not reuse the Mac-only zsh AutoSSH runner on Ubuntu. The isolated Ubuntu test database must remain `argintaxpayer_test`. On the Mac use a private SSH tunnel to view Ubuntu Next.js, never an internet-exposed Development site.
 
 **Current status:** Step 11 **STARTED**, NOT approved or completed. Ubuntu results, raw security checks and release readiness evidence are pending the owner's test session. The phase remains OPEN.
+
+### Step 10 — Owner Acceptance and Step 11 Kickoff (2026-10-13)
+
+**Step 10 decision: OWNER APPROVED.** The owner explicitly reported that all five local acceptance criteria for Step 10 passed: .NET build and tests; PostgreSQL integration; Next.js and TypeScript checks; negative-path HTTP smoke; and manual regression for login, OTP, MFA, and privileged Customer provisioning. This is **owner-reported evidence**; actual logs and test artifacts were not independently obtained by the assistant. Step 10 scope and numbering are frozen as approved.
+
+**Step 11 ACTIVE — Hardening, Verification, and Phase Handoff.** Starting checklist:
+1. Audit all remaining Phase 03 security risks and identify those requiring an immediate fix versus explicitly deferred production gates: account-enumeration exposure in Development-only OTP errors, OTP rate limiting across replicas, email ownership verification/recovery completion, durable and actor-correlated administrative Customer provisioning audit, provider delivery verification, nonpublic Development endpoints, token and secret hygiene, authorization policy parity.
+2. Review migration compatibility and reversibility only against the dedicated `argintaxpayer_test` database. Confirm no silent startup migrations and no changes to the agreed Phase 04 taxpayer-authorization boundary.
+3. Consolidate documented local/macOS test acceptance from Step 10 and prior Ubuntu results as **owner-reported**, without inventing Ubuntu CI/build results. On 2026-10-13 the owner explicitly waived **repeat final Ubuntu testing** because Ubuntu had already been tested in the preceding step. This exception applies only to this Phase 03 closing verification cycle; Ubuntu is still the final test gate for future phases unless changed by the owner. No new Ubuntu tests are requested in Step 11.
+4. Prepare final one-file `docs/phases/phase-03.md` handoff, classify deferred commercial billing/SMS wallet features as Phase 12/16+, and list any unresolved release blockers with explicit owner decision.
+5. Do not merge `main`, create tags/releases or deploy to Production without separate owner authorization and documented security readiness.
+
+**Ubuntu update-only operator command** (do not run tests or restart services automatically):
+```bash
+ssh argindev@85.133.244.156
+cd ~/projects/ArginTaxPayer
+git status --short
+git fetch origin
+git switch phase/03-identity-authorization
+git pull --ff-only origin phase/03-identity-authorization
+git log -1 --oneline
+```
+If `git status --short` reports local changes, preserve and reconcile them before switching/pulling; avoid force/reset/clean. Step 11 completion and Phase 03 closure remain pending.
 
 ## 5. Communication Convention
 
