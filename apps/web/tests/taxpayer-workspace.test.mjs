@@ -25,7 +25,8 @@ test("BFF has strict allowlist, same-origin writes and no-store responses", () =
   assert.match(proxy, /uuid\.test/);
 });
 test("workspace displays permission errors, uses revisions and never simulates authority success", () => {
-  assert.match(workspace, /response\.status === 404/);
+  assert.match(workspace, /if \(status === 404\) return "اطلاعات یافت نشد/);
+  assert.match(workspace, /errorText\(response\.status\)/);
   assert.match(workspace, /expectedRevision: details\.revision/);
   assert.match(workspace, /تست واقعی ارتباط با سازمان مالیاتی/);
   assert.match(workspace, /"\/list"/);
