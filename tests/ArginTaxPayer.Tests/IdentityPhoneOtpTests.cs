@@ -3,6 +3,7 @@ using ArginTaxPayer.Infrastructure.Persistence;
 using ArginTaxPayer.Infrastructure.Persistence.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using Xunit;
 
@@ -47,7 +48,7 @@ public sealed class IdentityPhoneOtpTests
         {
             await using var db = new ArginTaxPayerDbContext(options);
             var sessions = new IdentitySessionService(db);
-            var phones = new IdentityPhoneService(db, fake, sessions, settings);
+            var phones = new IdentityPhoneService(db, fake, sessions, settings, NullLogger<IdentityPhoneService>.Instance);
             Assert.True(await phones.RequestAsync(phone, "register"));
             Assert.NotNull(fake.LastCode);
             Assert.NotEqual(fake.LastCode, (await db.IdentityPhoneChallenges.SingleAsync(x => x.Mobile == phone)).CodeDigest);
