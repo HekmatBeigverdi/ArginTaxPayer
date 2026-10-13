@@ -861,6 +861,14 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
                     b.Navigation("Taxpayer");
                 });
 
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Taxpayers.TaxpayerProfile", b =>
+                {
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null)
+                        .WithMany()
+                        .HasForeignKey("CustomerUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
             modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Taxpayers.TaxpayerProfileChange", b =>
                 {
                     b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null)
