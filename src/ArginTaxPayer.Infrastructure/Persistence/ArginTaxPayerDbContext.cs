@@ -14,6 +14,7 @@ public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbConte
     : DbContext(options)
 {
     public DbSet<TaxpayerProfile> TaxpayerProfiles => Set<TaxpayerProfile>();
+    public DbSet<TaxpayerDelegateGrant> TaxpayerDelegateGrants => Set<TaxpayerDelegateGrant>();
     public DbSet<FiscalMemory> FiscalMemories => Set<FiscalMemory>();
     public DbSet<FiscalCertificateMetadata> FiscalCertificateMetadata => Set<FiscalCertificateMetadata>();
     public DbSet<TaxpayerProfileChange> TaxpayerProfileChanges => Set<TaxpayerProfileChange>();
@@ -30,6 +31,30 @@ public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbConte
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
+        var grants = modelBuilder.Entity<TaxpayerDelegateGrant>();
+        grants.ToTable("taxpayer_delegate_grants", t =>
+        {
+            t.HasCheckConstraint("ck_delegate_revision", "revision > 0");
+            t.HasCheckConstraint("ck_delegate_revocation", "revoked_at_utc IS NULL OR (revoked_at_utc >= granted_at_utc AND revoked_by_level1_user_id IS NOT NULL AND length(trim(revocation_reason)) > 0)");
+        });
+        grants.HasKey(x => x.Id);
+        grants.Property(x => x.Id).HasColumnName("id");
+        grants.Property(x => x.TaxpayerId).HasColumnName("taxpayer_id");
+        grants.Property(x => x.DelegateUserId).HasColumnName("delegate_user_id");
+        grants.Property(x => x.GrantedByLevel1UserId).HasColumnName("granted_by_level1_user_id");
+        grants.Property(x => x.GrantedAtUtc).HasColumnName("granted_at_utc").HasColumnType("timestamp with time zone");
+        grants.Property(x => x.RevokedAtUtc).HasColumnName("revoked_at_utc").HasColumnType("timestamp with time zone");
+        grants.Property(x => x.RevokedByLevel1UserId).HasColumnName("revoked_by_level1_user_id");
+        grants.Property(x => x.RevocationReason).HasColumnName("revocation_reason").HasMaxLength(500);
+        grants.Property(x => x.Revision).HasColumnName("revision").HasDefaultValue(1L).IsConcurrencyToken();
+        grants.HasOne<TaxpayerProfile>().WithMany().HasForeignKey(x => x.TaxpayerId).OnDelete(DeleteBehavior.Restrict);
+        grants.HasOne<IdentityUser>().WithMany().HasForeignKey(x => x.DelegateUserId).OnDelete(DeleteBehavior.Restrict);
+        grants.HasOne<IdentityUser>().WithMany().HasForeignKey(x => x.GrantedByLevel1UserId).OnDelete(DeleteBehavior.Restrict);
+        grants.HasOne<IdentityUser>().WithMany().HasForeignKey(x => x.RevokedByLevel1UserId).OnDelete(DeleteBehavior.Restrict);
+        grants.HasIndex(x => new { x.TaxpayerId, x.DelegateUserId }).IsUnique()
+            .HasFilter("revoked_at_utc IS NULL").HasDatabaseName("ux_taxpayer_delegate_active");
+        grants.HasIndex(x => new { x.DelegateUserId, x.RevokedAtUtc }).HasDatabaseName("ix_delegate_current_scope");
 
         var certificates = modelBuilder.Entity<FiscalCertificateMetadata>();
         certificates.ToTable("fiscal_certificate_metadata", t =>
