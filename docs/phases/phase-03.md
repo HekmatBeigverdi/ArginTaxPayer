@@ -1484,6 +1484,26 @@ Open `http://127.0.0.1:13000/identity` in the Mac browser. Next.js will call the
 
 **Evidence and signoff:** Record `dotnet build`, `dotnet test`, `npm test`, `npm run typecheck`, `npm run build`, exact DB identity, migration state, negative HTTP smoke, manual UI matrix and supervised provider evidence (if run). Preserve redacted diagnostic event names only. Remaining email verification/recovery, OTP distributed throttling/audit and privileged phone-trust audit concerns must be expressly resolved or accepted as scoped follow-up; do not claim production readiness, merge main, tag or release without separate gates.
 
+
+### Step 09 — Approved Test Cadence and Ubuntu Shortcut (2026-10-13)
+
+The owner decided that per-step testing should be done using the Mac's established AutoSSH connection to the dedicated `argintaxpayer_test` PostgreSQL on the Ubuntu VPS, while **complete Ubuntu build/test/manual UI acceptance is performed once per phase, immediately before its closure and final documentation**. Focused automated tests, integration checks for security-sensitive changes, and database migration validation still run at the implementing step. Exceptions requiring earlier Ubuntu work: Ubuntu-specific runtime/network/dependency failures, deployment changes, or unreproducible environment issues. Preserve test isolation; never run overlapping destructive Mac/Ubuntu database tests.
+
+**Abbreviated standard commands** (use these in future step instructions, not repetitive connection setup):
+```bash
+# Mac during each step
+zsh scripts/dev-up.zsh
+zsh scripts/dev-status.zsh
+zsh scripts/dev-down.zsh
+
+# Ubuntu only at phase acceptance (or relevant exception)
+bash scripts/ubuntu-dev.sh verify
+bash scripts/ubuntu-dev.sh up
+bash scripts/ubuntu-dev.sh status
+bash scripts/ubuntu-dev.sh down
+```
+Ubuntu one-time precondition: owner-only `~/.argintaxpayer-test/ubuntu.env` (mode 600), private `argintaxpayer_test` connection, and required installed SDK/npm/psql. The script verifies the actual PostgreSQL database name and runs services only on localhost. `verify` does not auto-run EF migrations, and both verify/up force Ghasedak real sending off; a real provider test is a separate, explicitly approved exercise. UI browser access from Mac is by a private SSH forward of the Ubuntu loopback web port. Step 09 sign-off remains pending real evidence; the new cadence is an **ongoing process rule**, not approval of the current step.
+
 ## 5. Communication Convention
 
 The **repository phase plan and all step completion records are written in English only**. When implementing or reporting on a step in the chat, present its title in **both Persian and English** (for example: `گام ۱ — زیرساخت مدل هویت و ایجاد مدیر اولیه | Step 01 — Identity Data Model and Bootstrap`). Explain execution and acceptance in concise, right-to-left Persian, while keeping code and shell commands left-to-right. Do not change the planned English step title without an approved plan amendment.
