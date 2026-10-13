@@ -63,6 +63,42 @@ public sealed class CustomerCommercialOwnershipService(
         };
     }
 
+    public async Task<CustomerOwnershipResponse> GetAsync(string? bearer, Guid customerUserId,
+        CancellationToken ct = default)
+    {
+        var actorId = await identity.CurrentUserIdAsync(bearer, ct);
+        if (actorId is null) return new(CustomerOwnershipDecision.Unauthenticated);
+        var isRoot = await IsRoleAsync(actorId.Value, IdentityRoleNames.Level1, ct);
+        var isPartner = await IsRoleAsync(actorId.Value, IdentityRoleNames.Level2, ct);
+        if (!isRoot && !isPartner) return new(CustomerOwnershipDecision.Forbidden);
+        var record = await db.CustomerCommercialOwners.AsNoTracking().Where(o =>
+            o.CustomerUserId == customerUserId &&
+            (isRoot && o.RootLevel1UserId == actorId.Value ||
+             isPartner && o.PartnerLevel2UserId == actorId.Value))
+            .Select(o => new CustomerCommercialOwnerView(o.CustomerUserId,
+                o.RootLevel1UserId, o.PartnerLevel2UserId,
+                o.AcquisitionChannel, o.Revision)).SingleOrDefaultAsync(ct);
+        return record is null ? new(CustomerOwnershipDecision.NotFound) :
+            new(CustomerOwnershipDecision.Success, record);
+    }
+
+    public async Task<(CustomerOwnershipDecision Decision, CustomerCommercialOwnerView[]? Owners)> ListAsync(
+        string? bearer, CancellationToken ct = default)
+    {
+        var actorId = await identity.CurrentUserIdAsync(bearer, ct);
+        if (actorId is null) return (CustomerOwnershipDecision.Unauthenticated, null);
+        var root = await IsRoleAsync(actorId.Value, IdentityRoleNames.Level1, ct);
+        var partner = await IsRoleAsync(actorId.Value, IdentityRoleNames.Level2, ct);
+        if (!root && !partner) return (CustomerOwnershipDecision.Forbidden, null);
+        var result = await db.CustomerCommercialOwners.AsNoTracking()
+            .Where(o => root && o.RootLevel1UserId == actorId.Value ||
+                partner && o.PartnerLevel2UserId == actorId.Value)
+            .OrderBy(o => o.CreatedAtUtc)
+            .Select(o => new CustomerCommercialOwnerView(o.CustomerUserId, o.RootLevel1UserId,
+                o.PartnerLevel2UserId, o.AcquisitionChannel, o.Revision)).ToArrayAsync(ct);
+        return (CustomerOwnershipDecision.Success, result);
+    }
+
     public async Task<CustomerOwnershipResponse> TransferAsync(string? bearer, Guid customerUserId,
         TransferCustomerOwnerRequest request, CancellationToken ct = default)
     {
