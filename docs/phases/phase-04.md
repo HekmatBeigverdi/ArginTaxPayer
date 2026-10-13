@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 04: Multi-Taxpayer Management
 
-**Status:** Steps 01–04 owner approved (2026-10-13; owner-reported local acceptance). Step 05 implemented in source; local PostgreSQL acceptance and owner approval pending
+**Status:** Steps 01–05 owner approved (2026-10-13; owner-reported acceptance). Step 05 received a dated, owner-approved cross-phase contract clarification; Step 06 remains planned.
 **Branch:** `phase/04-multi-taxpayer-management`
 **Started:** 2026-10-13
 **Baseline:** `docs/roadmap/18-phases.md`, Phase 03 identity/authorization contracts
@@ -27,7 +27,7 @@ Manage natural/legal taxpayer profiles, fiscal memories, certificate metadata an
 | 02 | Taxpayer Persistence and Migration | Natural/legal taxpayer entities, normalized identifiers, constraints, EF migration | Safe migration and duplicate/constraint tests against test DB | Owner approved (2026-10-13; owner-reported) |
 | 03 | Taxpayer Creation and Validation | Level 1 controlled taxpayer registration, type-specific validation | Invalid/duplicate inputs rejected; authorization enforced | Owner approved (2026-10-13; owner-reported) |
 | 04 | Taxpayer Profile and Lifecycle | Read/update/deactivate workflows, optimistic concurrency, history | Stale updates rejected; history preserved | Owner approved (2026-10-13; owner-reported) |
-| 05 | Fiscal Memory Persistence | Memory identifiers, taxpayer relationship, lifecycle and constraints | No cross-taxpayer linking; unique/active policy tested | Implemented — test and owner approval pending |
+| 05 | Fiscal Memory Persistence | Memory identifiers, taxpayer relationship, lifecycle and constraints | No cross-taxpayer linking; unique/active policy tested | Owner approved (2026-10-13), additional binding/connectivity/key-import contracts registered |
 | 06 | Fiscal Memory Management API | Register/update/retire memory metadata and lifecycle | Unauthorized and invalid transitions denied | Planned |
 | 07 | Certificate Metadata and Custody Boundary | Fingerprint, expiry, issuer, secure key-reference contracts, rotation metadata | No secret leakage; expired/revoked states handled | Planned |
 | 08 | Delegate Assignment Model | Level 1-to-Level 2 taxpayer grants, revocation, effective dates, history | Only Level 1 may grant/revoke; audit trail complete | Planned |
@@ -158,7 +158,7 @@ After independent DB check `SELECT current_database();` returns `argintaxpayer_t
 
 ### Step 05 — Fiscal Memory Persistence
 
-**Status:** Implemented in GitHub, not yet locally verified; owner acceptance pending.
+**Status:** Owner approved on 2026-10-13 (owner-reported); migration and focused PostgreSQL evidence not independently observed. This confirmation does not certify live authority integration.
 **Commits:** `06767747` (entity), `dbc11bba` (EF mapping), `15441ab3` (migration), `200bae8e` (snapshot), `6e3fa89c` (focused tests).
 **Files:**
 - `src/ArginTaxPayer.Infrastructure/Persistence/Taxpayers/FiscalMemory.cs`
@@ -189,7 +189,48 @@ Require exact database result `argintaxpayer_test`, verify that prior phase-04 m
 dotnet ef database update 20261013210000_AddFiscalMemories --project src/ArginTaxPayer.Infrastructure --startup-project src/ArginTaxPayer.Api --context ArginTaxPayerDbContext
 ```
 **Database acceptance:** In a rollback-only transaction, test valid taxpayer FK, missing taxpayer FK rejection, duplicate memory identifier rejection across taxpayers, two active memories for the same taxpayer rejected, and historical suspended/retired coexistence. Test checks must not leave fixture data behind. Compare live schema and EF snapshot after application. These actual PostgreSQL constraint tests have **not been executed by assistant**; the included unit tests check EF metadata and pure lifecycle predicates, not concurrent live-DB inserts.
-**macOS status:** Not run by assistant. **Ubuntu:** Full runtime verification deferred to phase end; migration/schema verification is required now on the shared test PostgreSQL. **CI:** Not checked. **Owner acceptance:** Pending.
+**macOS status:** Not run by assistant. **Ubuntu:** Full runtime verification deferred to phase end; migration/schema verification is required now on the shared test PostgreSQL. **CI:** Not checked. **Owner acceptance:** Owner approved 2026-10-13; independent execution evidence remains outstanding.
+
+## Owner-approved Phase 04 scope clarification — 2026-10-13 (Step 05)
+
+**Approval:** The owner explicitly approved Step 05 and added the following three non-optional product requirements on 2026-10-13. This is a requirement/acceptance amendment to existing phase ownership, **not** a new Step 05 database feature claim and **not** a step renumbering. The fixed 13 steps are unchanged.
+
+### A. Annual plan — single taxpayer binding, audited manual reset
+
+- Annual plan: **unlimited invoice submissions for one taxpayer only**, within the subscription's paid annual validity. Invoice-count subscription remains a separate model. The choice of taxpayer is stable for the entire annual entitlement unless an exception is approved.
+- At initial onboarding, one designated taxpayer/memory pair can be configured. A **confirmed successful authenticated authority connectivity check**, explicitly linked to that taxpayer, memory, subscription and check ID, locks the annual binding. No timeout, unavailable service, invalid token, or inconclusive local self-test may lock it.
+- After lock, end users cannot replace the taxpayer, add a second covered taxpayer, or arbitrarily change the active memory. UI affordances are disabled **and** server-side commands reject attempts; direct DB writes must respect transactional invariants.
+- Level 2 acting within a current assigned scope, or Level 1, may **request** review and manual reconfiguration with required reason and explanation. **Only Level 1 approves or rejects** by default; no Level 2 self-approval, even when Level 2 requested the change. Approval identity, date, scope, reason, before/after taxpayer and memory IDs, effective time, and decision are persisted in append-only audit history.
+- Distinguish (1) replace fiscal memory for the **same** taxpayer from (2) exceptional taxpayer reassignment. The latter requires explicit elevated approval. An approval opens only one controlled rebind, with revision/CAS and independent re-verification. Never silently transfer prior fiscal invoices, tax identifiers, original historical invoice associations, annual expiry, balances, or financial ledger postings. No deletion of former taxpayer/memory relationships.
+- Both Level 1/assigned Level 2 and the affected customer may view **redacted, role-scoped** review history (reason, timestamps, statuses and old/new identifiers where authorized), never private keys or global audit details.
+- No subscription may span multiple simultaneously covered taxpayer identities under the annual plan. Phase 12 owns enforcement of entitlements, atomic lock/rebind and preservation of remaining validity. Phase 04 persists memory lifecycles and review lifecycle with secure authorization; do not confuse Step 05's one-active-memory-per-taxpayer index with the annual one-taxpayer-per-subscription restriction.
+
+### B. Real tax authority connectivity and token diagnostics
+
+- A visible **Test connection** action must be available at memory details, including after onboarding/when token or signing credentials stop working. It checks real authority authentication/connectivity through the **versioned Phase 10 tax authority adapter** rather than treating a local JWT, network ping or local-only signature check as proof of external connectivity.
+- Independently classify: Success, invalid/expired token or authentication credential, key/signature mismatch, authority request timeout/no response, upstream 5xx/server failure, DNS/network/TLS failure, and inconclusive/unsupported check. A transport failure is **not** necessarily a bad token; never mark a stored token invalid based merely on upstream silence.
+- Persist a scoped redacted diagnostic result with time, authenticated request actor, memory ID, safe correlation identifier and optional sanitized HTTP status. Apply short network deadlines, rate limits, no invoice issuance, no subscription charge, no automatic disable/rotation or bound-taxpayer change on failure; return a recoverable UI message.
+- Step 06 and Steps 10–12 of this phase: create safe API contract and RTL affordance/diagnostic history without asserting actual authority connectivity when adapter is not yet delivered. **Phase 10 implements the live token/authority diagnostic** using officially supported operations; unsupported checking returns Inconclusive/NotConfigured, not fake Success. Phase 11 covers retries and reconciliation; Phase 17 covers outages, invalid token and security tests.
+
+### C. Existing key import (legacy private.txt) alongside key generation
+
+- Offer **Generate new key pair** and **Use existing registered fiscal memory/key** as parallel onboarding choices. For the second route the user already knows the fiscal memory ID and possibly registered public key/certificate; importing legacy `private.txt` content or an uploaded key is supported via a protected encrypted server-side channel, never a public repo, general file store, analytics event, URL, browser localStorage, logs, or ordinary audit content.
+- Parse supported PEM/key formats **with strict size and algorithm checks**, including appropriate handling for encrypted keys, and derive the public key from the imported private key. Display/compare only a safe SHA-256 public-key fingerprint. If a public key or certificate was supplied, require cryptographic match. Do not assume the user must generate/re-register a new public key if the existing registered key truly matches.
+- Existing registered fiscal memory ID is authority-assigned; verify ownership/binding and key legitimacy with available authoritative evidence, rather than trusting a client assertion. The UI must distinguish **locally valid key pair** from **authority-confirmed registration and successful live connectivity**.
+- Store encrypted private key only in restricted custody/HSM/vault architecture with protected custody reference in ordinary DB records and explicit user consent; redact private-key bodies from errors, HTTP logs, request tracing and Level 2 business history. Define safe replacement/rotation and revocation. Imported keys never become accessible through taxpayer read APIs or export endpoints.
+- Phase 04 Step 07 defines custody and safe metadata interfaces, Step 10 provides controlled UI designs. **Phase 09 owns actual key import, derivation, validation, signing, generation and rotation**; Phase 10 provides authoritative live connectivity verification; Phase 14 handles sanitized association/migration from legacy accounts without automatically copying plaintext `private.txt` archives; Phase 17 tests security and isolation.
+
+### Implementation boundary and fixed-step acceptance additions
+
+- **Step 05 (completed):** domain-only contracts `FiscalConnectionPolicyContracts.cs` plus pure policy tests `AnnualFiscalBindingPolicyTests.cs` model locking only on confirmed Success, lock after successful connectivity, manual approval and diagnostic categories. No further DB migration was added by this clarification. **The prior Step 05 signoff is preserved.**
+- **Step 06:** wire lifecycle API so changes to a locked annual subscription require an approved exception; until Phase 12 entitlement storage exists, the endpoint must fail closed for operations it cannot safely authorize. Do not simulate live authority success.
+- **Step 07:** metadata/secure custody reference and import contract; no raw-key persistence in ordinary tables.
+- **Steps 08–09:** scoped review request and Level 1-only approval/deny with immutable audit, effective authorization changes and concurrency checks.
+- **Steps 10–11:** user-facing connection test, reset request/history, and existing-key onboarding choices with explicit capability states (live authority check and import not available until designated phases); user and delegate see their permitted audit history.
+- **Steps 12–13:** exercise invalid token, authority outage, race conditions, cross-tenant access denial, audit immutability, fail-closed unsupported operations and original Phase 03 identity regression. Final Ubuntu runtime verification retains existing schedule.
+- **Phases 09/10/12/14/17:** actual key import, live authority test, annual entitlement lock/rebind, legacy migration and hardening respectively remain their owners. No production claim may precede their release gates.
+
+**Step 05 clarification commits:** `dc600665`, `f5ab7b62`. **Tests:** source committed, execution not independently observed. After pull run `dotnet test ArginTaxPayer.sln -c Release --filter FullyQualifiedName~AnnualFiscalBindingPolicyTests` as a focused source regression. No Ubuntu runtime pass or official connectivity success is asserted.
 
 ## Phase Exit Gate
 All 13 steps accepted, focused regression passing, Ubuntu verification once, schema/security review, owner signoff. Merge to main, immutable tag, GitHub Release and production deployment are distinct gated actions and must never be assumed completed.
