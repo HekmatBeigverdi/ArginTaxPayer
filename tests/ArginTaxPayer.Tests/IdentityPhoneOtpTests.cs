@@ -78,7 +78,7 @@ public sealed class IdentityPhoneOtpTests
             Assert.NotNull(await sessions.AuthenticateAsync(token!.AccessToken));
             Assert.Null(await phones.CompleteLoginAsync(phone, fake.LastCode));
             await db.IdentityPhoneChallenges.Where(x => x.Mobile == phone)
-                .ExecuteUpdateAsync(s => s.SetProperty(x => x.CreatedAtUtc, DateTime.UtcNow.AddMinutes(-2)));
+                .ExecuteUpdateAsync(s => s.SetProperty(x => x.CreatedAtUtc, DateTime.UtcNow.AddMinutes(-4)));
             Assert.True(await phones.RequestAsync(phone, "reset"));
             Assert.True(await phones.ResetPasswordAsync(phone, fake.LastCode, "Mobile-Reset-Password-2026"));
             Assert.False(await phones.ResetPasswordAsync(phone, fake.LastCode, "Mobile-Reset-Password-2026"));
@@ -86,7 +86,7 @@ public sealed class IdentityPhoneOtpTests
             Assert.NotNull(await sessions.LoginAsync(phone, "Mobile-Reset-Password-2026"));
             // A verified Customer who now has a password may still choose SMS OTP.
             await db.IdentityPhoneChallenges.Where(x => x.Mobile == phone)
-                .ExecuteUpdateAsync(s => s.SetProperty(x => x.CreatedAtUtc, DateTime.UtcNow.AddMinutes(-2)));
+                .ExecuteUpdateAsync(s => s.SetProperty(x => x.CreatedAtUtc, DateTime.UtcNow.AddMinutes(-4)));
             Assert.True(await phones.RequestAsync(phone, "login"));
             var passwordAccountOtp = fake.LastCode;
             var passwordAccountSession = await phones.CompleteLoginAsync(phone, passwordAccountOtp);
@@ -102,7 +102,7 @@ public sealed class IdentityPhoneOtpTests
             db.IdentityMfaStates.Add(mfaState);
             await db.SaveChangesAsync();
             await db.IdentityPhoneChallenges.Where(x => x.Mobile == phone)
-                .ExecuteUpdateAsync(s => s.SetProperty(x => x.CreatedAtUtc, DateTime.UtcNow.AddMinutes(-2)));
+                .ExecuteUpdateAsync(s => s.SetProperty(x => x.CreatedAtUtc, DateTime.UtcNow.AddMinutes(-4)));
             Assert.False(await phones.RequestAsync(phone, "login"));
             Assert.Null(await sessions.CreatePhoneSessionAsync(userId));
         }
