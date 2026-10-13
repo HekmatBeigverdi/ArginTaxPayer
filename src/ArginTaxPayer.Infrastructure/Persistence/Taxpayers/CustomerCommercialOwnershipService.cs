@@ -10,6 +10,15 @@ public sealed record TransferCustomerOwnerRequest(Guid? PartnerLevel2UserId, lon
     CustomerOwnershipChangeReason Reason, string? Explanation);
 public sealed record CustomerCommercialOwnerView(Guid CustomerUserId, Guid RootLevel1UserId,
     Guid? PartnerLevel2UserId, CustomerAcquisitionChannel AcquisitionChannel, long Revision);
+public sealed record CustomerAccountSummary(Guid CustomerUserId, Guid RootLevel1UserId,
+    Guid? PartnerLevel2UserId, CustomerAcquisitionChannel AcquisitionChannel,
+    long Revision, string? Mobile, string? Email, DateTime CreatedAtUtc, bool IsActive,
+    int TaxpayerCount);
+
+public sealed record CustomerAccountListResponse(CustomerOwnershipDecision Decision,
+    CustomerAccountSummary[]? Customers = null);
+public sealed record CustomerTaxpayerListResponse(CustomerOwnershipDecision Decision,
+    TaxpayerProfileView[]? Taxpayers = null);
 public sealed record CustomerOwnershipResponse(CustomerOwnershipDecision Decision, CustomerCommercialOwnerView? Owner = null);
 
 /// <summary>
@@ -123,6 +132,52 @@ public sealed class CustomerCommercialOwnershipService(
             .OrderBy(h => h.ChangedAtUtc).ThenBy(h => h.ToRevision)
             .ToArrayAsync(ct);
         return (CustomerOwnershipDecision.Success, history);
+    }
+
+    /// <summary>Customer-first administrator listing; scoped before any materialization.</summary>
+    public async Task<CustomerAccountListResponse> ListCustomerAccountsAsync(
+        string? bearer, CancellationToken ct = default)
+    {
+        var actor = await identity.CurrentUserIdAsync(bearer, ct);
+        if (actor is null) return new(CustomerOwnershipDecision.Unauthenticated);
+        var root = await IsScopedAdministratorAsync(actor.Value, IdentityRoleNames.Level1, ct);
+        var partner = await IsScopedAdministratorAsync(actor.Value, IdentityRoleNames.Level2, ct);
+        if (!root && !partner) return new(CustomerOwnershipDecision.Forbidden);
+        var rows = await (
+            from o in db.CustomerCommercialOwners.AsNoTracking()
+            join u in db.IdentityUsers.AsNoTracking() on o.CustomerUserId equals u.Id
+            where root && o.RootLevel1UserId == actor.Value ||
+                !root && partner && o.PartnerLevel2UserId == actor.Value
+            orderby u.CreatedAtUtc descending, u.Id
+            select new CustomerAccountSummary(
+                o.CustomerUserId, o.RootLevel1UserId, o.PartnerLevel2UserId,
+                o.AcquisitionChannel, o.Revision, u.NormalizedMobile, u.NormalizedEmail,
+                u.CreatedAtUtc, u.IsActive, db.TaxpayerProfiles.Count(t => t.CustomerUserId == o.CustomerUserId))
+        ).ToArrayAsync(ct);
+        return new(CustomerOwnershipDecision.Success, rows);
+    }
+
+    /// <summary>Taxpayers belong to the selected customer; never fetch unrelated profiles.</summary>
+    public async Task<CustomerTaxpayerListResponse> ListCustomerTaxpayersAsync(
+        string? bearer, Guid customerId, CancellationToken ct = default)
+    {
+        var actor = await identity.CurrentUserIdAsync(bearer, ct);
+        if (actor is null) return new(CustomerOwnershipDecision.Unauthenticated);
+        var root = await IsScopedAdministratorAsync(actor.Value, IdentityRoleNames.Level1, ct);
+        var partner = await IsScopedAdministratorAsync(actor.Value, IdentityRoleNames.Level2, ct);
+        if (!root && !partner) return new(CustomerOwnershipDecision.Forbidden);
+        var permitted = db.CustomerCommercialOwners.AsNoTracking().Where(o =>
+            o.CustomerUserId == customerId &&
+            (root && o.RootLevel1UserId == actor.Value ||
+             !root && partner && o.PartnerLevel2UserId == actor.Value));
+        var profiles = await db.TaxpayerProfiles.AsNoTracking().Where(t =>
+            t.CustomerUserId == customerId && permitted.Any())
+            .OrderBy(t => t.DisplayName).ThenBy(t => t.Id)
+            .Select(t => new TaxpayerProfileView(t.Id, t.Kind, t.NormalizedIdentifier,
+                t.DisplayName, t.Status, t.Revision))
+            .ToArrayAsync(ct);
+        if (!await permitted.AnyAsync(ct)) return new(CustomerOwnershipDecision.NotFound);
+        return new(CustomerOwnershipDecision.Success, profiles);
     }
 
     public async Task<CustomerOwnershipResponse> TransferAsync(string? bearer, Guid customerUserId,
