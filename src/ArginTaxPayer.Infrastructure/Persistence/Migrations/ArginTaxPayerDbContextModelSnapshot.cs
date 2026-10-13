@@ -542,6 +542,59 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
                 .HasForeignKey("RevokedByLevel1UserId").OnDelete(DeleteBehavior.Restrict);
         });
 
+        modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Taxpayers.CustomerCommercialOwner", b =>
+        {
+            b.Property<Guid>("CustomerUserId").HasColumnType("uuid").HasColumnName("customer_user_id");
+            b.Property<Guid>("RootLevel1UserId").HasColumnType("uuid").HasColumnName("root_level1_user_id");
+            b.Property<Guid?>("PartnerLevel2UserId").HasColumnType("uuid").HasColumnName("partner_level2_user_id");
+            b.Property<int>("AcquisitionChannel").HasColumnType("integer").HasColumnName("acquisition_channel");
+            b.Property<long>("Revision").HasColumnType("bigint").HasColumnName("revision").HasDefaultValue(1L).IsConcurrencyToken();
+            b.Property<DateTime>("CreatedAtUtc").HasColumnType("timestamp with time zone").HasColumnName("created_at_utc");
+            b.Property<DateTime>("UpdatedAtUtc").HasColumnType("timestamp with time zone").HasColumnName("updated_at_utc");
+            b.HasKey("CustomerUserId");
+            b.HasIndex("RootLevel1UserId");
+            b.HasIndex("PartnerLevel2UserId");
+            b.ToTable("customer_commercial_owners", t =>
+            {
+                t.HasCheckConstraint("ck_customer_owner_revision", "revision > 0");
+                t.HasCheckConstraint("ck_customer_owner_channel", "acquisition_channel IN (1, 2, 3, 4)");
+                t.HasCheckConstraint("ck_customer_owner_not_root_partner", "partner_level2_user_id IS NULL OR partner_level2_user_id <> root_level1_user_id");
+            });
+        });
+        modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Taxpayers.CustomerCommercialOwner", b =>
+        {
+            b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null).WithMany().HasForeignKey("CustomerUserId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+            b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null).WithMany().HasForeignKey("RootLevel1UserId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+            b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null).WithMany().HasForeignKey("PartnerLevel2UserId").OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Taxpayers.CustomerCommercialOwnerChange", b =>
+        {
+            b.Property<Guid>("Id").HasColumnType("uuid").HasColumnName("id");
+            b.Property<Guid>("CustomerUserId").HasColumnType("uuid").HasColumnName("customer_user_id");
+            b.Property<Guid>("RootLevel1UserId").HasColumnType("uuid").HasColumnName("root_level1_user_id");
+            b.Property<Guid?>("PreviousPartnerLevel2UserId").HasColumnType("uuid").HasColumnName("previous_partner_level2_user_id");
+            b.Property<Guid?>("NewPartnerLevel2UserId").HasColumnType("uuid").HasColumnName("new_partner_level2_user_id");
+            b.Property<Guid>("ApprovedByLevel1UserId").HasColumnType("uuid").HasColumnName("approved_by_level1_user_id");
+            b.Property<int>("Reason").HasColumnType("integer").HasColumnName("reason");
+            b.Property<string>("Explanation").IsRequired().HasMaxLength(1000).HasColumnType("character varying(1000)").HasColumnName("explanation");
+            b.Property<long>("FromRevision").HasColumnType("bigint").HasColumnName("from_revision");
+            b.Property<long>("ToRevision").HasColumnType("bigint").HasColumnName("to_revision");
+            b.Property<DateTime>("ChangedAtUtc").HasColumnType("timestamp with time zone").HasColumnName("changed_at_utc");
+            b.HasKey("Id");
+            b.HasIndex("CustomerUserId", "ToRevision").IsUnique();
+            b.HasIndex("ApprovedByLevel1UserId");
+            b.ToTable("customer_commercial_owner_changes", t =>
+            {
+                t.HasCheckConstraint("ck_owner_changes_revision", "to_revision = from_revision + 1");
+                t.HasCheckConstraint("ck_owner_changes_reason", "reason IN (1, 2, 3, 4)");
+            });
+        });
+        modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Taxpayers.CustomerCommercialOwnerChange", b =>
+        {
+            b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Taxpayers.CustomerCommercialOwner", null).WithMany().HasForeignKey("CustomerUserId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+            b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null).WithMany().HasForeignKey("ApprovedByLevel1UserId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+        });
+
         modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Taxpayers.FiscalMemory", b =>
                 {
                     b.Property<Guid>("Id")
@@ -616,6 +669,8 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(256)")
                         .HasColumnName("display_name");
 
+                    b.Property<Guid?>("CustomerUserId").HasColumnType("uuid").HasColumnName("customer_user_id");
+
                     b.Property<int>("Kind")
                         .HasColumnType("integer")
                         .HasColumnName("kind");
@@ -642,6 +697,8 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
                         .HasColumnName("updated_at_utc");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CustomerUserId").HasDatabaseName("ix_taxpayer_profiles_customer_user_id");
 
                     b.HasIndex("Kind", "NormalizedIdentifier")
                         .IsUnique()
