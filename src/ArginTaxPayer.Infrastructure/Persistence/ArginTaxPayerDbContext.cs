@@ -14,6 +14,8 @@ public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbConte
     : DbContext(options)
 {
     public DbSet<TaxpayerProfile> TaxpayerProfiles => Set<TaxpayerProfile>();
+    public DbSet<CustomerCommercialOwner> CustomerCommercialOwners => Set<CustomerCommercialOwner>();
+    public DbSet<CustomerCommercialOwnerChange> CustomerCommercialOwnerChanges => Set<CustomerCommercialOwnerChange>();
     public DbSet<TaxpayerDelegateGrant> TaxpayerDelegateGrants => Set<TaxpayerDelegateGrant>();
     public DbSet<FiscalMemory> FiscalMemories => Set<FiscalMemory>();
     public DbSet<FiscalCertificateMetadata> FiscalCertificateMetadata => Set<FiscalCertificateMetadata>();
@@ -31,6 +33,52 @@ public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbConte
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
+        var commercial = modelBuilder.Entity<CustomerCommercialOwner>();
+        commercial.ToTable("customer_commercial_owners", t =>
+        {
+            t.HasCheckConstraint("ck_customer_owner_revision", "revision > 0");
+            t.HasCheckConstraint("ck_customer_owner_channel", "acquisition_channel IN (1, 2, 3, 4)");
+            t.HasCheckConstraint("ck_customer_owner_not_root_partner",
+                "partner_level2_user_id IS NULL OR partner_level2_user_id <> root_level1_user_id");
+        });
+        commercial.HasKey(x => x.CustomerUserId);
+        commercial.Property(x => x.CustomerUserId).HasColumnName("customer_user_id");
+        commercial.Property(x => x.RootLevel1UserId).HasColumnName("root_level1_user_id");
+        commercial.Property(x => x.PartnerLevel2UserId).HasColumnName("partner_level2_user_id");
+        commercial.Property(x => x.AcquisitionChannel).HasColumnName("acquisition_channel").HasConversion<int>();
+        commercial.Property(x => x.Revision).HasColumnName("revision").IsConcurrencyToken().HasDefaultValue(1L);
+        commercial.Property(x => x.CreatedAtUtc).HasColumnName("created_at_utc").HasColumnType("timestamp with time zone");
+        commercial.Property(x => x.UpdatedAtUtc).HasColumnName("updated_at_utc").HasColumnType("timestamp with time zone");
+        commercial.HasOne<IdentityUser>().WithMany().HasForeignKey(x => x.CustomerUserId).OnDelete(DeleteBehavior.Restrict);
+        commercial.HasOne<IdentityUser>().WithMany().HasForeignKey(x => x.RootLevel1UserId).OnDelete(DeleteBehavior.Restrict);
+        commercial.HasOne<IdentityUser>().WithMany().HasForeignKey(x => x.PartnerLevel2UserId).OnDelete(DeleteBehavior.Restrict);
+        commercial.HasIndex(x => x.RootLevel1UserId);
+        commercial.HasIndex(x => x.PartnerLevel2UserId);
+
+        var ownershipChanges = modelBuilder.Entity<CustomerCommercialOwnerChange>();
+        ownershipChanges.ToTable("customer_commercial_owner_changes", t =>
+        {
+            t.HasCheckConstraint("ck_owner_changes_revision", "to_revision = from_revision + 1");
+            t.HasCheckConstraint("ck_owner_changes_reason", "reason IN (1, 2, 3, 4)");
+        });
+        ownershipChanges.HasKey(x => x.Id);
+        ownershipChanges.Property(x => x.Id).HasColumnName("id");
+        ownershipChanges.Property(x => x.CustomerUserId).HasColumnName("customer_user_id");
+        ownershipChanges.Property(x => x.RootLevel1UserId).HasColumnName("root_level1_user_id");
+        ownershipChanges.Property(x => x.PreviousPartnerLevel2UserId).HasColumnName("previous_partner_level2_user_id");
+        ownershipChanges.Property(x => x.NewPartnerLevel2UserId).HasColumnName("new_partner_level2_user_id");
+        ownershipChanges.Property(x => x.ApprovedByLevel1UserId).HasColumnName("approved_by_level1_user_id");
+        ownershipChanges.Property(x => x.Reason).HasColumnName("reason").HasConversion<int>();
+        ownershipChanges.Property(x => x.Explanation).HasColumnName("explanation").HasMaxLength(1000).IsRequired();
+        ownershipChanges.Property(x => x.FromRevision).HasColumnName("from_revision");
+        ownershipChanges.Property(x => x.ToRevision).HasColumnName("to_revision");
+        ownershipChanges.Property(x => x.ChangedAtUtc).HasColumnName("changed_at_utc").HasColumnType("timestamp with time zone");
+        ownershipChanges.HasOne<CustomerCommercialOwner>().WithMany()
+            .HasForeignKey(x => x.CustomerUserId).OnDelete(DeleteBehavior.Restrict);
+        ownershipChanges.HasOne<IdentityUser>().WithMany()
+            .HasForeignKey(x => x.ApprovedByLevel1UserId).OnDelete(DeleteBehavior.Restrict);
+        ownershipChanges.HasIndex(x => new { x.CustomerUserId, x.ToRevision }).IsUnique();
 
         var grants = modelBuilder.Entity<TaxpayerDelegateGrant>();
         grants.ToTable("taxpayer_delegate_grants", t =>
