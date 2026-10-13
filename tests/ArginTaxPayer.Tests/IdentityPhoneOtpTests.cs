@@ -73,7 +73,27 @@ public sealed class IdentityPhoneOtpTests
             Assert.False(await phones.ResetPasswordAsync(phone, fake.LastCode, "Mobile-Reset-Password-2026"));
             Assert.Null(await sessions.AuthenticateAsync(token.AccessToken));
             Assert.NotNull(await sessions.LoginAsync(phone, "Mobile-Reset-Password-2026"));
-            Assert.False(await phones.RequestAsync(phone, "login")); // passwordful login requires password
+            // A verified Customer who now has a password may still choose SMS OTP.
+            await db.IdentityPhoneChallenges.Where(x => x.Mobile == phone)
+                .ExecuteUpdateAsync(s => s.SetProperty(x => x.CreatedAtUtc, DateTime.UtcNow.AddMinutes(-2)));
+            Assert.True(await phones.RequestAsync(phone, "login"));
+            var passwordAccountOtp = fake.LastCode;
+            var passwordAccountSession = await phones.CompleteLoginAsync(phone, passwordAccountOtp);
+            Assert.NotNull(passwordAccountSession);
+            Assert.NotNull(await sessions.AuthenticateAsync(passwordAccountSession!.AccessToken));
+            Assert.Null(await phones.CompleteLoginAsync(phone, passwordAccountOtp));
+            Assert.NotNull(await sessions.LoginAsync(phone, "Mobile-Reset-Password-2026"));
+            // Enabled MFA must still prevent a direct OTP-only session.
+            var mfaState = new IdentityMfaState {
+                UserId = userId, EncryptedSecret = "test-only-unusable",
+                EnabledAtUtc = DateTime.UtcNow
+            };
+            db.IdentityMfaStates.Add(mfaState);
+            await db.SaveChangesAsync();
+            await db.IdentityPhoneChallenges.Where(x => x.Mobile == phone)
+                .ExecuteUpdateAsync(s => s.SetProperty(x => x.CreatedAtUtc, DateTime.UtcNow.AddMinutes(-2)));
+            Assert.False(await phones.RequestAsync(phone, "login"));
+            Assert.Null(await sessions.CreatePhoneSessionAsync(userId));
         }
         finally
         {
