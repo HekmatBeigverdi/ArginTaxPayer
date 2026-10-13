@@ -2,6 +2,7 @@ using ArginTaxPayer.Domain.Taxpayers;
 using ArginTaxPayer.Infrastructure.Persistence.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Npgsql;
 
 namespace ArginTaxPayer.Infrastructure.Persistence.Taxpayers;
 
@@ -209,7 +210,9 @@ public sealed class CustomerCommercialOwnershipService(
                 !u.Roles.Any(r => r.Role == IdentityRoleNames.Level1) &&
                 db.IdentityMfaStates.Any(m => m.UserId == partner && m.EnabledAtUtc != null), ct))
             return new(CustomerOwnershipDecision.Forbidden);
-        return await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+        try
+        {
+            return await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
         {
             await using var tx = await db.Database.BeginTransactionAsync(ct);
             var owner = await db.CustomerCommercialOwners.AsNoTracking()
@@ -273,6 +276,13 @@ public sealed class CustomerCommercialOwnershipService(
             return new CustomerOwnershipResponse(CustomerOwnershipDecision.Success,
                 new CustomerCommercialOwnerView(customerUserId, owner.RootLevel1UserId,
                     request.PartnerLevel2UserId, owner.AcquisitionChannel, owner.Revision + 1));
-        });
+            });
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException
+            { SqlState: PostgresErrorCodes.UniqueViolation or PostgresErrorCodes.ForeignKeyViolation })
+        {
+            db.ChangeTracker.Clear();
+            return new(CustomerOwnershipDecision.Conflict);
+        }
     }
 }
