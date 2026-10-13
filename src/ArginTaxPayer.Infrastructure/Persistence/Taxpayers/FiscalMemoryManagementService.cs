@@ -42,9 +42,8 @@ public sealed class FiscalMemoryManagementService(
     {
         var denied = await AuthenticateLevel1Async(bearer, ct);
         if (denied is { } failure) return new(failure);
-        var identifier = request?.MemoryIdentifier?.Trim().ToUpperInvariant();
-        if (taxpayerId == Guid.Empty || string.IsNullOrEmpty(identifier) ||
-            identifier.Length > 64 || identifier.Any(c => !char.IsAsciiLetterUpper(c) && !char.IsAsciiDigit(c)))
+        if (taxpayerId == Guid.Empty ||
+            !FiscalMemoryOnboardingPolicy.TryNormalizeIdentifier(request?.MemoryIdentifier, out var identifier))
             return new(FiscalMemoryOperationStatus.Invalid);
 
         // This is FIRST-TIME metadata onboarding only. The database does not yet
@@ -127,8 +126,8 @@ public sealed class FiscalMemoryManagementService(
 
         // Pending -> Retired is only safe while never activated. It does not
         // replace a bound memory and cannot enable an alternative one.
-        if (memory.Status != FiscalMemoryStatus.PendingVerification ||
-            request.Status != FiscalMemoryStatus.Retired)
+        if (!FiscalMemoryOnboardingPolicy.CanLocallyRetireNeverActivatedMemory(
+                memory.Status, request.Status))
             return new(FiscalMemoryOperationStatus.AuthorityVerificationUnavailable);
 
         var now = DateTime.UtcNow;
