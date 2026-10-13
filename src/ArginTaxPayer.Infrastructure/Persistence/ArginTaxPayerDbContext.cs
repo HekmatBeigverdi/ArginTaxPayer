@@ -2,6 +2,7 @@ using ArginTaxPayer.Infrastructure.Persistence.Outbox;
 using ArginTaxPayer.Infrastructure.Persistence.Idempotency;
 using Microsoft.EntityFrameworkCore;
 using ArginTaxPayer.Infrastructure.Persistence.Identity;
+using ArginTaxPayer.Infrastructure.Persistence.Taxpayers;
 
 namespace ArginTaxPayer.Infrastructure.Persistence;
 
@@ -12,6 +13,7 @@ namespace ArginTaxPayer.Infrastructure.Persistence;
 public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbContext> options)
     : DbContext(options)
 {
+    public DbSet<TaxpayerProfile> TaxpayerProfiles => Set<TaxpayerProfile>();
     public DbSet<IdentityUser> IdentityUsers => Set<IdentityUser>();
     public DbSet<IdentityUserRole> IdentityUserRoles => Set<IdentityUserRole>();
     public DbSet<IdentitySession> IdentitySessions => Set<IdentitySession>();
@@ -25,6 +27,27 @@ public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbConte
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
+        var taxpayers = modelBuilder.Entity<TaxpayerProfile>();
+        taxpayers.ToTable("taxpayer_profiles", t =>
+        {
+            t.HasCheckConstraint("ck_taxpayer_profiles_kind", "kind IN (1, 2)");
+            t.HasCheckConstraint("ck_taxpayer_profiles_status", "status IN (1, 2, 3)");
+            t.HasCheckConstraint("ck_taxpayer_profiles_identifier", "length(trim(normalized_identifier)) > 0");
+            t.HasCheckConstraint("ck_taxpayer_profiles_display_name", "length(trim(display_name)) > 0");
+            t.HasCheckConstraint("ck_taxpayer_profiles_revision", "revision > 0");
+        });
+        taxpayers.HasKey(x => x.Id);
+        taxpayers.Property(x => x.Id).HasColumnName("id");
+        taxpayers.Property(x => x.Kind).HasColumnName("kind").HasConversion<int>().IsRequired();
+        taxpayers.Property(x => x.NormalizedIdentifier).HasColumnName("normalized_identifier").HasMaxLength(32).IsRequired();
+        taxpayers.Property(x => x.DisplayName).HasColumnName("display_name").HasMaxLength(256).IsRequired();
+        taxpayers.Property(x => x.Status).HasColumnName("status").HasConversion<int>().IsRequired();
+        taxpayers.Property(x => x.Revision).HasColumnName("revision").HasDefaultValue(1L).IsConcurrencyToken();
+        taxpayers.Property(x => x.CreatedAtUtc).HasColumnName("created_at_utc").HasColumnType("timestamp with time zone");
+        taxpayers.Property(x => x.UpdatedAtUtc).HasColumnName("updated_at_utc").HasColumnType("timestamp with time zone");
+        taxpayers.HasIndex(x => new { x.Kind, x.NormalizedIdentifier })
+            .IsUnique().HasDatabaseName("ux_taxpayer_profiles_kind_identifier");
 
         var users = modelBuilder.Entity<IdentityUser>();
         users.ToTable("identity_users");
