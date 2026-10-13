@@ -1319,6 +1319,22 @@ The first endpoint must show `otpPepperConfigured=true`, `ghasedakApiKeyConfigur
 
 **No acceptance claim:** Runtime success, SMS receipt and provider delivery are still unverified; Step 09 remains open until actual operator tests and remaining email recovery/security requirements are satisfied.
 
+### Step 09 — Live SMS Is Configured but Not Arriving: Decision-Point Diagnostics (2026-10-13)
+
+**Observed operator evidence:** `/health/dev-identity` now reports all necessary Ghasedak config booleans `true`, `localOtpTestMode=false`, and `smsSendingEnabled=true`. These flags only prove configuration has been read; they do not prove that an OTP request passed eligibility/cooldown checks, reached the Ghasedak REST endpoint, or was delivered to a handset.
+
+**Root-cause instrumentation change:** `IdentityPhoneService.RequestAsync` now logs redacted `OTP_REQUEST_SKIPPED reason=...` for `invalid_mobile`, `invalid_purpose`, `delivery_disabled`, `rate_limit_15m`, `cooldown_60s`, `mobile_already_registered`, `no_verified_account`, `password_login_required`, `administrator_mfa_required`. It logs `OTP_REQUEST_DISPATCH_STARTED purpose=register|login|reset` only when code generation, challenge persistence and sender dispatch occur, and `OTP_REQUEST_DISPATCH_FAILED` if the sender rejects. The transport still logs `OTP_SMS_CONFIG_INVALID`, `OTP_SMS_REJECTED`, `OTP_SMS_PROVIDER_REJECTED`, `OTP_SMS_TRANSPORT_FAILED`, `OTP_SMS_PROVIDER_ACCEPTED`. These diagnostic events do **not** contain the user mobile, provider key or OTP. The generic HTTP 202 response remains unchanged to prevent user enumeration.
+
+**Verify after pulling new commits and restart .NET API** (old process must be stopped):
+1. `dotnet build ArginTaxPayer.sln -c Release` and `dotnet test ArginTaxPayer.sln -c Release --no-build --filter 'FullyQualifiedName~IdentityPhoneOtpTests|FullyQualifiedName~GhasedakOtpSenderTests'`.
+2. Confirm the API still targets `argintaxpayer_test` through the owner-approved AutoSSH tunnel and `/health/ready` returns 200.
+3. Verify `/health/dev-identity`: `smsSendingEnabled=true`, `ghasedakApiKeyConfigured=true`, `ghasedakTemplateConfigured=true`, `ghasedakTestRecipientConfigured=true`, `otpPepperConfigured=true`, `localOtpTestMode=false`. Only test the operator-owned `Ghasedak__TestRecipientMobile` entered in the private file.
+4. In the browser `http://127.0.0.1:3000/identity`, select **Registration** for a **not-yet-registered** permitted mobile. If the account is already registered, use **Login with OTP** only if it is a passwordless Customer, or **Password reset** for an existing verified Customer. For existing users registered exclusively by email, `normalized_mobile` is null and the SMS reset option cannot work until a separate verified-mobile linking workflow is implemented. Avoid trying the wrong purpose.
+5. Make one request; read the .NET terminal, not the browser's generic `202`. If `OTP_REQUEST_SKIPPED`, fix the indicated prerequisite; if `OTP_REQUEST_DISPATCH_STARTED` followed by `OTP_SMS_PROVIDER_REJECTED`, inspect provider dashboard/API rights/template; if `OTP_SMS_TRANSPORT_FAILED`, inspect TLS/DNS/network; if `OTP_SMS_PROVIDER_ACCEPTED`, confirm provider delivery and handset inbox separately. Do **not** automatically retry immediately because sending can incur charges and a provider timeout does not prove it did not submit.
+6. If results still disagree, share only sanitized log event names/reason tokens and HTTP status, never API key, OTP, full mobile or raw provider response.
+
+**No assertion of successful delivery has been made.** Remain on Step 09 until operator evidence, email recovery and security hardening acceptance are complete.
+
 ## 5. Communication Convention
 
 The **repository phase plan and all step completion records are written in English only**. When implementing or reporting on a step in the chat, present its title in **both Persian and English** (for example: `گام ۱ — زیرساخت مدل هویت و ایجاد مدیر اولیه | Step 01 — Identity Data Model and Bootstrap`). Explain execution and acceptance in concise, right-to-left Persian, while keeping code and shell commands left-to-right. Do not change the planned English step title without an approved plan amendment.
