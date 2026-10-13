@@ -37,9 +37,7 @@ public sealed class TaxpayerScopeService(ArginTaxPayerDbContext db, IdentityAuth
     {
         var profiles = db.TaxpayerProfiles.AsNoTracking();
         if (level1) return profiles;
-        return profiles.Where(p => db.TaxpayerDelegateGrants.Any(g =>
-            g.TaxpayerId == p.Id && g.DelegateUserId == actorId &&
-            g.RevokedAtUtc == null));
+        return profiles.Where(p => db.CustomerCommercialOwners.Any(o => o.CustomerUserId == p.CustomerUserId && o.PartnerLevel2UserId == actorId));
     }
 
     public async Task<ScopedTaxpayerListResult> ListAsync(string? token, CancellationToken ct = default)
@@ -134,6 +132,5 @@ public sealed class TaxpayerScopeService(ArginTaxPayerDbContext db, IdentityAuth
     /// </summary>
     public IQueryable<TaxpayerProfile> ScopedCommandQuery(Guid actorId, bool level1) =>
         level1 ? db.TaxpayerProfiles :
-            db.TaxpayerProfiles.Where(p => db.TaxpayerDelegateGrants.Any(g =>
-                g.TaxpayerId == p.Id && g.DelegateUserId == actorId && g.RevokedAtUtc == null));
+            db.TaxpayerProfiles.Where(p => db.CustomerCommercialOwners.Any(o => o.CustomerUserId == p.CustomerUserId && o.PartnerLevel2UserId == actorId));
 }
