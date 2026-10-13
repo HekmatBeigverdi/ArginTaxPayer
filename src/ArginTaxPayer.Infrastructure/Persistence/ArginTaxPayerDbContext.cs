@@ -1,6 +1,7 @@
 using ArginTaxPayer.Infrastructure.Persistence.Outbox;
 using ArginTaxPayer.Infrastructure.Persistence.Idempotency;
 using Microsoft.EntityFrameworkCore;
+using ArginTaxPayer.Infrastructure.Persistence.Identity;
 
 namespace ArginTaxPayer.Infrastructure.Persistence;
 
@@ -11,12 +12,112 @@ namespace ArginTaxPayer.Infrastructure.Persistence;
 public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbContext> options)
     : DbContext(options)
 {
+    public DbSet<IdentityUser> IdentityUsers => Set<IdentityUser>();
+    public DbSet<IdentityUserRole> IdentityUserRoles => Set<IdentityUserRole>();
+    public DbSet<IdentitySession> IdentitySessions => Set<IdentitySession>();
+    public DbSet<IdentityMfaState> IdentityMfaStates => Set<IdentityMfaState>();
+    public DbSet<IdentityRecoveryCode> IdentityRecoveryCodes => Set<IdentityRecoveryCode>();
+    public DbSet<IdentityMfaChallenge> IdentityMfaChallenges => Set<IdentityMfaChallenge>();
+    public DbSet<IdentityPhoneChallenge> IdentityPhoneChallenges => Set<IdentityPhoneChallenge>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
     public DbSet<IdempotencyReservation> IdempotencyReservations => Set<IdempotencyReservation>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
+        var users = modelBuilder.Entity<IdentityUser>();
+        users.ToTable("identity_users");
+        users.HasKey(x => x.Id);
+        users.Property(x => x.Id).HasColumnName("id");
+        users.Property(x => x.NormalizedEmail).HasColumnName("normalized_email").HasMaxLength(320);
+        users.Property(x => x.NormalizedMobile).HasColumnName("normalized_mobile").HasMaxLength(13);
+        users.Property(x => x.MobileVerifiedAtUtc).HasColumnName("mobile_verified_at_utc").HasColumnType("timestamp with time zone");
+        users.Property(x => x.PasswordHash).HasColumnName("password_hash").HasMaxLength(512);
+        users.Property(x => x.IsActive).HasColumnName("is_active").IsRequired();
+        users.Property(x => x.CreatedAtUtc).HasColumnName("created_at_utc").HasColumnType("timestamp with time zone");
+        users.Property(x => x.PasswordChangedAtUtc).HasColumnName("password_changed_at_utc").HasColumnType("timestamp with time zone");
+        users.HasIndex(x => x.NormalizedEmail).IsUnique().HasDatabaseName("ux_identity_users_email");
+        users.HasIndex(x => x.NormalizedMobile).IsUnique().HasDatabaseName("ux_identity_users_mobile");
+
+        var roles = modelBuilder.Entity<IdentityUserRole>();
+        roles.ToTable("identity_user_roles");
+        roles.HasKey(x => new { x.UserId, x.Role });
+        roles.Property(x => x.UserId).HasColumnName("user_id");
+        roles.Property(x => x.Role).HasColumnName("role").HasMaxLength(32).IsRequired();
+        roles.Property(x => x.AssignedAtUtc).HasColumnName("assigned_at_utc").HasColumnType("timestamp with time zone");
+        roles.HasOne(x => x.User).WithMany(x => x.Roles).HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+        roles.HasIndex(x => x.Role).HasDatabaseName("ix_identity_user_roles_role");
+
+        var sessions = modelBuilder.Entity<IdentitySession>();
+        sessions.ToTable("identity_sessions");
+        sessions.HasKey(x => x.Id);
+        sessions.Property(x => x.Id).HasColumnName("id");
+        sessions.Property(x => x.UserId).HasColumnName("user_id");
+        sessions.Property(x => x.AccessTokenHash).HasColumnName("access_token_hash").HasMaxLength(64).IsRequired();
+        sessions.Property(x => x.RefreshTokenHash).HasColumnName("refresh_token_hash").HasMaxLength(64).IsRequired();
+        sessions.Property(x => x.PreviousRefreshTokenHash).HasColumnName("previous_refresh_token_hash").HasMaxLength(64);
+        sessions.Property(x => x.CreatedAtUtc).HasColumnName("created_at_utc").HasColumnType("timestamp with time zone");
+        sessions.Property(x => x.AccessExpiresAtUtc).HasColumnName("access_expires_at_utc").HasColumnType("timestamp with time zone");
+        sessions.Property(x => x.RefreshExpiresAtUtc).HasColumnName("refresh_expires_at_utc").HasColumnType("timestamp with time zone");
+        sessions.Property(x => x.RevokedAtUtc).HasColumnName("revoked_at_utc").HasColumnType("timestamp with time zone");
+        sessions.Property(x => x.RotationCount).HasColumnName("rotation_count").HasDefaultValue(0);
+        sessions.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+        sessions.HasIndex(x => x.AccessTokenHash).IsUnique().HasDatabaseName("ux_identity_sessions_access_hash");
+        sessions.HasIndex(x => x.RefreshTokenHash).IsUnique().HasDatabaseName("ux_identity_sessions_refresh_hash");
+        sessions.HasIndex(x => x.PreviousRefreshTokenHash).HasDatabaseName("ix_identity_sessions_previous_refresh_hash");
+        sessions.HasIndex(x => new { x.UserId, x.RevokedAtUtc }).HasDatabaseName("ix_identity_sessions_user_revoked");
+
+        var mfa = modelBuilder.Entity<IdentityMfaState>();
+        mfa.ToTable("identity_mfa_states");
+        mfa.HasKey(x => x.UserId);
+        mfa.Property(x => x.UserId).HasColumnName("user_id");
+        mfa.Property(x => x.EncryptedSecret).HasColumnName("encrypted_secret").HasColumnType("text").IsRequired();
+        mfa.Property(x => x.EnabledAtUtc).HasColumnName("enabled_at_utc").HasColumnType("timestamp with time zone");
+        mfa.Property(x => x.LastAcceptedTotpStep).HasColumnName("last_accepted_totp_step").HasDefaultValue(-1L);
+        mfa.Property(x => x.RecoveryGeneration).HasColumnName("recovery_generation").HasDefaultValue(0);
+        mfa.HasOne(x => x.User).WithOne().HasForeignKey<IdentityMfaState>(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+
+        var recovery = modelBuilder.Entity<IdentityRecoveryCode>();
+        recovery.ToTable("identity_recovery_codes");
+        recovery.HasKey(x => x.Id);
+        recovery.Property(x => x.Id).HasColumnName("id");
+        recovery.Property(x => x.UserId).HasColumnName("user_id");
+        recovery.Property(x => x.CodeHash).HasColumnName("code_hash").HasMaxLength(64).IsRequired();
+        recovery.Property(x => x.CreatedAtUtc).HasColumnName("created_at_utc").HasColumnType("timestamp with time zone");
+        recovery.Property(x => x.UsedAtUtc).HasColumnName("used_at_utc").HasColumnType("timestamp with time zone");
+        recovery.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+        recovery.HasIndex(x => new { x.UserId, x.CodeHash }).IsUnique().HasDatabaseName("ux_identity_recovery_user_hash");
+
+        var challenge = modelBuilder.Entity<IdentityMfaChallenge>();
+        challenge.ToTable("identity_mfa_challenges");
+        challenge.HasKey(x => x.Id);
+        challenge.Property(x => x.Id).HasColumnName("id");
+        challenge.Property(x => x.UserId).HasColumnName("user_id");
+        challenge.Property(x => x.ChallengeHash).HasColumnName("challenge_hash").HasMaxLength(64).IsRequired();
+        challenge.Property(x => x.ExpiresAtUtc).HasColumnName("expires_at_utc").HasColumnType("timestamp with time zone");
+        challenge.Property(x => x.ConsumedAtUtc).HasColumnName("consumed_at_utc").HasColumnType("timestamp with time zone");
+        challenge.Property(x => x.AttemptCount).HasColumnName("attempt_count").HasDefaultValue(0);
+        challenge.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+        challenge.HasIndex(x => x.ChallengeHash).IsUnique().HasDatabaseName("ux_identity_challenge_hash");
+
+        var phone = modelBuilder.Entity<IdentityPhoneChallenge>();
+        phone.ToTable("identity_phone_challenges");
+        phone.HasKey(x => x.Id);
+        phone.Property(x => x.Id).HasColumnName("id");
+        phone.Property(x => x.Mobile).HasColumnName("mobile").HasMaxLength(13).IsRequired();
+        phone.Property(x => x.Purpose).HasColumnName("purpose").HasMaxLength(16).IsRequired();
+        phone.Property(x => x.CodeDigest).HasColumnName("code_digest").HasMaxLength(64).IsRequired();
+        phone.Property(x => x.UserId).HasColumnName("user_id");
+        phone.Property(x => x.Attempts).HasColumnName("attempts");
+        phone.Property(x => x.CreatedAtUtc).HasColumnName("created_at_utc").HasColumnType("timestamp with time zone");
+        phone.Property(x => x.ExpiresAtUtc).HasColumnName("expires_at_utc").HasColumnType("timestamp with time zone");
+        phone.Property(x => x.ConsumedAtUtc).HasColumnName("consumed_at_utc").HasColumnType("timestamp with time zone");
+        phone.Property(x => x.Delivered).HasColumnName("delivered");
+        phone.HasIndex(x => new { x.Mobile, x.Purpose, x.CreatedAtUtc })
+            .HasDatabaseName("ix_phone_challenge_cooldown");
+        phone.HasOne<IdentityUser>().WithMany().HasForeignKey(x => x.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         var reservations = modelBuilder.Entity<IdempotencyReservation>();
         reservations.ToTable("idempotency_reservations");

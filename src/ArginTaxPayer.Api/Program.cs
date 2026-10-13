@@ -1,4 +1,6 @@
 using ArginTaxPayer.Api.Health;
+using ArginTaxPayer.Api.Identity;
+using ArginTaxPayer.Infrastructure.Persistence.Identity;
 using ArginTaxPayer.Api.Observability;
 using ArginTaxPayer.Application;
 using ArginTaxPayer.Infrastructure;
@@ -6,6 +8,8 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 using System.Text.Json;
 
 var builder = WebApplication.CreateBuilder(args);
+var identityDevelopmentEnabled = builder.Environment.IsDevelopment() &&
+    !string.IsNullOrWhiteSpace(builder.Configuration.GetConnectionString("ArginTaxPayerDb"));
 // JSON console output is machine-readable on macOS, Ubuntu and future containers.
 builder.Logging.ClearProviders();
 builder.Logging.AddJsonConsole(options => options.IncludeScopes = true);
@@ -16,6 +20,28 @@ builder.Services.AddArginTaxPayerPersistence(builder.Configuration, builder.Envi
 
 // OpenAPI document generation is registered for API contract development.
 builder.Services.AddOpenApi();
+if (identityDevelopmentEnabled)
+{
+    builder.Services.AddSingleton<IdentityProtectionService>();
+    builder.Services.AddScoped<IdentityCredentialService>();
+    builder.Services.AddScoped<IdentityAdministratorUserProvisioning>();
+    builder.Services.AddScoped<IdentitySessionService>();
+    if (builder.Configuration["Identity:OtpDeliveryMode"] == "LocalFile")
+        builder.Services.AddScoped<IIdentityOtpSender, LocalFileOtpSender>();
+    else
+        builder.Services.AddHttpClient<IIdentityOtpSender, GhasedakOtpSender>(client =>
+            client.Timeout = TimeSpan.FromSeconds(12));
+    builder.Services.AddScoped<IdentityPhoneService>();
+    builder.Services.AddScoped<IdentityAuthorizationService>();
+    builder.Services.AddScoped<IIdentityResourceOwnershipResolver, IdentityResourceOwnershipResolver>();
+    builder.Services.AddScoped<IdentityResourceAuthorizationService>();
+    var mfaEncryptionKey = builder.Configuration["Identity:MfaEncryptionKey"];
+    if (!string.IsNullOrWhiteSpace(mfaEncryptionKey))
+    {
+        builder.Services.AddSingleton(new IdentityMfaCrypto(mfaEncryptionKey));
+        builder.Services.AddScoped<IdentityMfaService>();
+    }
+}
 
 // Separate cheap process liveness from real PostgreSQL readiness.
 builder.Services.AddHealthChecks()
@@ -27,7 +53,37 @@ app.UseMiddleware<CorrelationIdMiddleware>();
 
 // Never expose the API contract endpoint in Production by default.
 if (app.Environment.IsDevelopment())
+{
+    // Diagnostic deliberately contains no configuration values, credentials or IPs.
+    // Registered even when development identity endpoints were not mapped.
+    app.MapGet("/health/dev-identity", (HttpContext http) =>
+    {
+        if (!IdentityDevelopmentEndpoints.IsLoopbackAddress(http.Connection.RemoteIpAddress))
+            return Results.NotFound();
+        return Results.Ok(new
+        {
+            development = true,
+            connectionConfigured = !string.IsNullOrWhiteSpace(
+                app.Configuration.GetConnectionString("ArginTaxPayerDb")),
+            identityEndpointsRegistered = identityDevelopmentEnabled,
+            registrationEnabled = app.Configuration.GetValue<bool>(
+                "Identity:AllowDevelopmentRegistration"),
+            smsSendingEnabled = app.Configuration.GetValue<bool>("Ghasedak:EnableLiveSending"),
+            ghasedakApiKeyConfigured = !string.IsNullOrWhiteSpace(app.Configuration["Ghasedak:ApiKey"]),
+            ghasedakTemplateConfigured = app.Configuration["Ghasedak:TemplateName"] == "TaxPayerActivationCode",
+            ghasedakLoginTemplateConfigured = true,
+            ghasedakRecipientRestrictionEnabled = app.Configuration.GetValue("Ghasedak:RestrictToTestRecipient", true),
+            ghasedakTestRecipientConfigured = ArginTaxPayer.Infrastructure.Persistence.Identity.IranianMobileNumber.TryNormalize(
+                app.Configuration["Ghasedak:TestRecipientMobile"], out _),
+            otpPepperConfigured = (app.Configuration["Identity:OtpPepper"]?.Length ?? 0) >= 32,
+            localOtpTestMode = app.Configuration["Identity:OtpDeliveryMode"] == "LocalFile",
+            loopbackRecognized = true
+        });
+    }).ExcludeFromDescription();
     app.MapOpenApi();
+    if (identityDevelopmentEnabled)
+        app.MapIdentityDevelopmentEndpoints();
+}
 
 // Preserve the existing bootstrap endpoint.
 app.MapGet("/", () => Results.Ok(new { application = "ArginTaxPayer", stage = "bootstrap" }))
