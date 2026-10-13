@@ -158,14 +158,28 @@ public static class IdentityDevelopmentEndpoints
             ILoggerFactory loggerFactory, CancellationToken ct) =>
         {
             if (!IsLoopback(http)) return Results.NotFound();
-            // Generic response avoids account enumeration; diagnosis stays server-side.
-            var delivered = await phones.RequestAsync(request.Mobile, request.Purpose, ct);
+            // Explicit errors are restricted to Development + loopback; a public
+            // production identity API must not reveal registration existence.
+            var result = await phones.RequestDetailedAsync(request.Mobile, request.Purpose, ct);
             var logger = loggerFactory.CreateLogger("ArginTaxPayer.Identity.OtpDelivery");
-            if (delivered)
+            if (result.Status == PhoneOtpRequestStatus.Sent)
+            {
                 logger.LogInformation("OTP_REQUEST_DELIVERED");
-            else
-                logger.LogWarning("OTP_REQUEST_NOT_DELIVERED; check provider configuration, eligibility and cooldown");
-            return Results.Accepted();
+                return Results.Accepted();
+            }
+            logger.LogWarning("OTP_REQUEST_NOT_DELIVERED reason={OtpRequestStatus}", result.Status);
+            return result.Status switch
+            {
+                PhoneOtpRequestStatus.AlreadyRegistered =>
+                    Results.Conflict(new { error = "mobile_already_registered" }),
+                PhoneOtpRequestStatus.RateLimited =>
+                    Results.Json(new { error = "otp_cooldown", retryAfterSeconds = result.RetryAfterSeconds },
+                        statusCode: StatusCodes.Status429TooManyRequests),
+                PhoneOtpRequestStatus.Invalid =>
+                    Results.BadRequest(new { error = "invalid_phone_request" }),
+                _ => Results.Json(new { error = "otp_unavailable" },
+                    statusCode: StatusCodes.Status503ServiceUnavailable)
+            };
         });
 
         group.MapPost("/phone/register/complete", async (
