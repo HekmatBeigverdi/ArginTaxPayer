@@ -82,6 +82,8 @@ export default function IdentityFlow() {
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
   const [challenge, setChallenge] = useState("");
+  const [mfaExpiresAt, setMfaExpiresAt] = useState<number | null>(null);
+  const [mfaSecondsLeft, setMfaSecondsLeft] = useState(0);
   const [recovery, setRecovery] = useState(false);
   const [pending, setPending] = useState(false);
   const [navigating, setNavigating] = useState(false);
@@ -100,6 +102,24 @@ export default function IdentityFlow() {
     return () => clearInterval(tick);
   }, [retryAfter > 0]);
 
+  useEffect(() => {
+    if (step !== "mfa" || mfaExpiresAt === null) return;
+    const check = () => {
+      const remaining = Math.max(0, Math.ceil((mfaExpiresAt - Date.now()) / 1000));
+      setMfaSecondsLeft(remaining);
+      if (remaining === 0) {
+        setStep("details"); setChallenge(""); setCode(""); setRecovery(false);
+        setMfaExpiresAt(null); setPassword("");
+        setError("مهلت تأیید دومرحله‌ای تمام شد. لطفاً مجدداً وارد شوید.");
+      }
+    };
+    check();
+    const id = window.setInterval(check, 1000);
+    window.addEventListener("focus", check);
+    document.addEventListener("visibilitychange", check);
+    return () => { window.clearInterval(id); window.removeEventListener("focus", check); document.removeEventListener("visibilitychange", check); };
+  }, [step, mfaExpiresAt]);
+
   function reset() {
     setRetryAfter(0);
     setStep("details");
@@ -107,6 +127,8 @@ export default function IdentityFlow() {
     setPassword("");
     setCode("");
     setChallenge("");
+    setMfaExpiresAt(null);
+    setMfaSecondsLeft(0);
     setRecovery(false);
     setError("");
     setMessage("");
@@ -143,8 +165,16 @@ export default function IdentityFlow() {
     let leavingForAccount = false;
     try {
       if (step === "mfa") {
+        if (mfaExpiresAt === null || Date.now() >= mfaExpiresAt) {
+          reset(); setError("مهلت تأیید دومرحله‌ای تمام شد. لطفاً مجدداً وارد شوید."); return;
+        }
         const {response} = await api("mfa/complete",{challenge,code,useRecoveryCode:recovery});
-        if (!response.ok) { setError("کد تأیید دومرحله‌ای معتبر نیست یا منقضی شده است.");return; }
+        if (!response.ok) {
+          if (mfaExpiresAt !== null && Date.now() >= mfaExpiresAt) {
+            reset(); setError("مهلت تأیید دومرحله‌ای تمام شد. لطفاً مجدداً وارد شوید.");
+          } else setError("کد تأیید دومرحله‌ای معتبر نیست یا منقضی شده است.");
+          return;
+        }
         leavingForAccount = true;setNavigating(true);router.replace("/account");router.refresh();return;
       }
       if (phoneOtp) {
@@ -204,6 +234,11 @@ export default function IdentityFlow() {
       if (response.status === 401) {
         const challengeResponse = await api("mfa/challenge",{email:identifier,password});
         if (challengeResponse.response.ok && typeof challengeResponse.result.challenge === "string") {
+          const expiresAt = Date.parse(challengeResponse.result.expiresAtUtc);
+          if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
+            setError("مهلت درخواست ورود به پایان رسیده است. مجدداً تلاش کنید."); return;
+          }
+          setMfaExpiresAt(expiresAt);
           setChallenge(challengeResponse.result.challenge);setStep("mfa");setCode("");setPassword("");return;
         }
       }
@@ -246,6 +281,7 @@ export default function IdentityFlow() {
     {step==="mfa" && <div className="auth-section-heading">
       <h2>تأیید دومرحله‌ای</h2>
       <p className="identity-muted">کد برنامه Authenticator یا یکی از کدهای بازیابی را وارد کنید.</p>
+      <p role="timer" className="identity-muted">زمان باقی‌مانده برای ورود: <strong dir="ltr">{Math.floor(mfaSecondsLeft / 60).toString().padStart(2, "0")}:{(mfaSecondsLeft % 60).toString().padStart(2, "0")}</strong></p>
     </div>}
     <form className="identity-form" onSubmit={submit}>
       {step==="details" && <>
@@ -300,7 +336,7 @@ export default function IdentityFlow() {
         رمز عبور را فراموش کرده‌اید؟
       </button>}
       {step==="mfa"&&<button type="button" className="identity-secondary"
-        onClick={()=>{setStep("details");setCode("");setChallenge("");setError("");}}>بازگشت به ورود</button>}
+        onClick={()=>{reset();}}>بازگشت به ورود</button>}
     </form>
     <p className="auth-footer-note">حساب‌های مدیریتی همچنان ملزم به احراز هویت دومرحله‌ای هستند.</p>
   </div>;
