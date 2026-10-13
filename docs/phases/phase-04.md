@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 04: Multi-Taxpayer Management
 
-**Status:** Steps 01–05 owner approved (2026-10-13; owner-reported acceptance). Step 05 received a dated, owner-approved cross-phase contract clarification; Step 06 owner approved 2026-10-13; Step 07 owner approved 2026-10-13; Step 08 owner approved 2026-10-13; Step 09 implementation approved for progression with integration acceptance deferred to Step12; Step 10 RTL UI implemented, local test and owner signoff pending.
+**Status:** Steps 01–05 owner approved (2026-10-13; owner-reported acceptance). Step 05 received a dated, owner-approved cross-phase contract clarification; Step 06 owner approved 2026-10-13; Step 07 owner approved 2026-10-13; Step 08 owner approved 2026-10-13; Step 09 implementation approved for progression with integration acceptance deferred to Step12; Step 10 owner approved 2026-10-13; Step 11 Level1 assignment and Level2 workspace implemented in GitHub; local test and owner acceptance pending.
 **Branch:** `phase/04-multi-taxpayer-management`
 **Started:** 2026-10-13
 **Baseline:** `docs/roadmap/18-phases.md`, Phase 03 identity/authorization contracts
@@ -32,8 +32,8 @@ Manage natural/legal taxpayer profiles, fiscal memories, certificate metadata an
 | 07 | Certificate Metadata and Custody Boundary | Fingerprint, expiry, issuer, secure key-reference contracts, rotation metadata | No secret leakage; expired/revoked states handled | Owner approved 2026-10-13 |
 | 08 | Delegate Assignment Model | Level 1-to-Level 2 taxpayer grants, revocation, effective dates, history | Only Level 1 may grant/revoke; audit trail complete | Owner approved 2026-10-13 |
 | 09 | Server-Side Scoped Query and Command Policies | Query filters, resource policies, assignment checks | Cross-delegate isolation for reads/writes, deny by default | Owner approved for progression 2026-10-13; final UI/HTTP/DB integration acceptance explicitly deferred to Step12 |
-| 10 | Taxpayer and Memory RTL Management UI | Persian responsive taxpayer list, forms, detail, memory views | RTL, validation, loading/error states, guarded routes | Implemented in GitHub; macOS UI test and owner acceptance pending |
-| 11 | Level 1 Assignment Console and Level 2 Workspace | Assignment/revocation UI, scoped delegate views | Revocation effective immediately; no unauthorized data shown | Planned |
+| 10 | Taxpayer and Memory RTL Management UI | Persian responsive taxpayer list, forms, detail, memory views | RTL, validation, loading/error states, guarded routes | Owner approved 2026-10-13 |
+| 11 | Level 1 Assignment Console and Level 2 Workspace | Assignment/revocation UI, scoped delegate views | Revocation effective immediately; no unauthorized data shown | Implemented in GitHub; browser/security tests and owner acceptance pending |
 | 12 | Integration and Negative-Path Regression | PostgreSQL/API/UI security, concurrency and lifecycle tests | Identity regression and cross-scope negative paths pass | Planned |
 | 13 | Hardening and Phase Handoff | Review, local regression, final Ubuntu acceptance, documentation | Evidence, migration review, unresolved risks and owner signoff recorded | Planned |
 
@@ -388,6 +388,33 @@ dotnet test ArginTaxPayer.sln -c Release --filter 'FullyQualifiedName~TaxpayerSc
 zsh scripts/dev-status.zsh
 ```
 **Migration:** None in Step10. **Ubuntu:** deferred to Step13 except platform-specific regression. **macOS tests, CI and browser acceptance:** not independently executed by assistant. **Owner acceptance:** Pending.
+
+### Step 11 — Level 1 Assignment Console and Level 2 Workspace
+
+**Status:** Source implemented; macOS test and owner approval pending. Step 10 owner-approved 2026-10-13. No additional EF migration.
+
+**Source/commits:**
+- `apps/web/app/taxpayers/delegate-console.tsx` (`f90fba68`, `35e22f9c`): Level1 panel for taxpayer-to-Level2 grant, revocation with mandatory reason and optimistic `expectedRevision`, and historical issue/revocation display. Shows explicit 401/403/404/409 error categories and loads only actual DB-backed responses.
+- `apps/web/app/api/delegations/[...path]/route.ts` (`6ac5d941`): restricted dedicated Next.js server gateway to existing Level1-only development delegate API, using HttpOnly access cookie, server-only bearer forwarding, same-origin validation for mutations, a strict UUID/operation allowlist, no-store, timeout, and sanitized upstream error responses. Never exposes session token to client.
+- `apps/web/app/taxpayers/taxpayer-workspace.tsx` (`939a5148`): delegate management visible only to Level1; Level2 workspace lists only backend-assigned profiles, allows permitted display-name edit but does not attempt Level1-only memory/certificate endpoints.
+- `apps/web/tests/delegate-console.test.mjs` (`a8ec874d`): static regression for panel grant/revoke/revision and gateway session boundary; not a full browser/e2e security test.
+
+**Role matrix:** Level1 can see taxpayer list, inspect Level1 memory/certificate metadata, grant/revoke scoped Level2 access and view full authorized grant history. Level2 only sees active assigned taxpayer profiles via Step09 SQL predicates and permitted display-name edits. Customer cannot access workspace. An active assignment never means annual-plan ownership transfer, fiscal-memory replacement approval, or certificate/key permission.
+
+**Security:** All grant/revoke/history backend routes revalidate Level1, active MFA and persisted role. Revoking sets `revoked_at_utc` without deleting history. Subsequent server reads and scoped mutations for Level2 use live `revoked_at_utc IS NULL` predicates. Already-rendered client data is not itself a source of authorization and must be cleared/refetched as browser navigates; do not claim push-based live UI revocation. No global administrator list or delegated security log is exposed.
+
+**Manual UI verification:** Login as Level1, open `http://127.0.0.1:3000/taxpayers`, select a test taxpayer, enter an existing active MFA-enabled Level2 UUID obtained from the account screen, grant access, verify history; login Level2 in separate browser profile and confirm only assigned taxpayers; revoke by Level1 with a reason, refresh Level2 and verify taxpayer disappears and direct detail request returns 404; regrant and check history preserved; try stale `expectedRevision` to receive 409; verify anonymous, Customer and Level2 mutation attempts are denied. Test SSR role gates, same-origin rejection, no localStorage/token leak, browser mobile RTL and error/loading screens. **These scenarios have not been run by assistant.**
+
+**Local operator commands:**
+```bash
+git switch phase/04-multi-taxpayer-management
+git pull --ff-only origin phase/04-multi-taxpayer-management
+zsh scripts/dev-up.zsh
+(cd apps/web && npm test && npm run typecheck && npm run build)
+dotnet test ArginTaxPayer.sln -c Release --filter 'FullyQualifiedName~TaxpayerScopePolicyTests|FullyQualifiedName~TaxpayerDelegatePersistenceTests'
+zsh scripts/dev-status.zsh
+```
+**Migration:** None. Step08 schema must exist on verified `argintaxpayer_test`. **Ubuntu:** full runtime verification deferred to Step13. **CI:** Not independently checked. **Owner acceptance:** Pending.
 
 ## Phase Exit Gate
 All 13 steps accepted, focused regression passing, Ubuntu verification once, schema/security review, owner signoff. Merge to main, immutable tag, GitHub Release and production deployment are distinct gated actions and must never be assumed completed.
