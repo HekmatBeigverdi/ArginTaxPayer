@@ -99,6 +99,26 @@ public sealed class CustomerCommercialOwnershipService(
         return (CustomerOwnershipDecision.Success, result);
     }
 
+    public async Task<(CustomerOwnershipDecision Decision, CustomerCommercialOwnerChange[]? History)>
+        HistoryAsync(string? bearer, Guid customerUserId, CancellationToken ct = default)
+    {
+        var actorId = await identity.CurrentUserIdAsync(bearer, ct);
+        if (actorId is null) return (CustomerOwnershipDecision.Unauthenticated, null);
+        if (!await db.IdentityUsers.AsNoTracking().AnyAsync(u =>
+            u.Id == actorId && u.IsActive &&
+            u.Roles.Any(r => r.Role == IdentityRoleNames.Level1) &&
+            db.IdentityMfaStates.Any(m => m.UserId == u.Id && m.EnabledAtUtc != null), ct))
+            return (CustomerOwnershipDecision.Forbidden, null);
+        if (!await db.CustomerCommercialOwners.AsNoTracking().AnyAsync(o =>
+            o.CustomerUserId == customerUserId && o.RootLevel1UserId == actorId, ct))
+            return (CustomerOwnershipDecision.NotFound, null);
+        var history = await db.CustomerCommercialOwnerChanges.AsNoTracking()
+            .Where(h => h.CustomerUserId == customerUserId)
+            .OrderBy(h => h.ChangedAtUtc).ThenBy(h => h.ToRevision)
+            .ToArrayAsync(ct);
+        return (CustomerOwnershipDecision.Success, history);
+    }
+
     public async Task<CustomerOwnershipResponse> TransferAsync(string? bearer, Guid customerUserId,
         TransferCustomerOwnerRequest request, CancellationToken ct = default)
     {
