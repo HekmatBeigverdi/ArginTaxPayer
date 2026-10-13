@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 04: Multi-Taxpayer Management
 
-**Status:** Planned; Step 01 ready, not implemented or accepted
+**Status:** Step 01 implemented (verification/owner approval pending); Step 02 active — persistence and migration
 **Branch:** `phase/04-multi-taxpayer-management`
 **Started:** 2026-10-13
 **Baseline:** `docs/roadmap/18-phases.md`, Phase 03 identity/authorization contracts
@@ -23,8 +23,8 @@ Manage natural/legal taxpayer profiles, fiscal memories, certificate metadata an
 
 | Step | Title | Deliverable | Acceptance | Status |
 |---|---|---|---|---|
-| 01 | Domain Contracts and Lifecycle Matrix | Taxpayer/memory/assignment state models, invariants, API contracts, migration plan | Identity, lifecycle and authorization matrix reviewed; no unapproved mutation | Ready |
-| 02 | Taxpayer Persistence and Migration | Natural/legal taxpayer entities, normalized identifiers, constraints, EF migration | Safe migration and duplicate/constraint tests against test DB | Planned |
+| 01 | Domain Contracts and Lifecycle Matrix | Taxpayer/memory/assignment state models, invariants, API contracts, migration plan | Identity, lifecycle and authorization matrix reviewed; no unapproved mutation | Implemented — tests/owner acceptance pending |
+| 02 | Taxpayer Persistence and Migration | Natural/legal taxpayer entities, normalized identifiers, constraints, EF migration | Safe migration and duplicate/constraint tests against test DB | Active — not implemented |
 | 03 | Taxpayer Creation and Validation | Level 1 controlled taxpayer registration, type-specific validation | Invalid/duplicate inputs rejected; authorization enforced | Planned |
 | 04 | Taxpayer Profile and Lifecycle | Read/update/deactivate workflows, optimistic concurrency, history | Stale updates rejected; history preserved | Planned |
 | 05 | Fiscal Memory Persistence | Memory identifiers, taxpayer relationship, lifecycle and constraints | No cross-taxpayer linking; unique/active policy tested | Planned |
@@ -59,9 +59,44 @@ All live SMS sending stays disabled; do not expose Development services publicly
 For each step append here: scope implemented, changed paths, commit SHA, migration impact and confirmed target DB, focused macOS test results, Ubuntu test result or explicitly deferred reason, CI evidence, security negative tests, owner acceptance date, and remaining blockers. Never mark a test passed without actual evidence.
 
 ### Step 01 — Domain Contracts and Lifecycle Matrix
-**Status:** Ready for implementation. **Acceptance:** Pending. **Implementation:** Not started.
-**Required output:** documented domain contracts, approved state-transition matrix, permission matrix, and migration implications before Step 02.
-**macOS:** Not run. **Ubuntu:** Deferred per approved cadence. **Commit:** Pending.
+
+**Status:** Implemented in source, awaiting automated macOS verification and owner approval. **Commit:** `63a129d25bfd3298fcbb049144e2feccc04a998d`.
+**Changed:** `src/ArginTaxPayer.Domain/Taxpayers/TaxpayerContracts.cs`.
+**Migration:** None. **macOS:** Not run by assistant; local verification required. **Ubuntu:** Deferred to final phase gate. **CI:** Not verified. **Owner acceptance:** Pending.
+
+#### Domain model and lifecycle decisions
+- A taxpayer is either NaturalPerson or LegalEntity; profile ID is a stable UUID, normalized taxpayer identifier is separate from any user account ID, and Revision supports future optimistic concurrency.
+- Taxpayer status: Active → Suspended → Active; Active/Suspended → Archived. Archived is terminal; no physical deletion in routine workflows.
+- Fiscal memory status: PendingVerification → Active/Retired; Active → Suspended/Retired; Suspended → Active/Retired. Retired is terminal. An externally issued memory identifier cannot be inferred from a locally created profile.
+- Certificate metadata states: MetadataOnly, Valid, Expired, Revoked. Store SHA-256 fingerprint, validity window and opaque custody reference only; signing keys/CSR generation remain Phase 09.
+- Delegate grant records retain grantor Level 1 user ID, delegate ID, taxpayer ID, start/revocation times. Revoke rather than hard-delete to preserve auditability.
+- Assignment policy: Level 1 alone may grant/revoke access; Level 2 list/read/modify only within current assignment. Direct ID guessing must fail. A customer identity is not an administrator grant.
+- Memory active-policy requires explicit authoritative enforcement when Step 05 creates persisted memories; avoid imposing a universal uniqueness rule across historical/inactive memories. Multiple records are allowed, but ambiguous active fiscal memory selection must be rejected.
+- Boundary with Phase 03: user authentication and MFA remain unchanged; existing scoped-authorization hooks must be reused, not duplicated.
+- API contract plan: authenticated create/list/detail/update/archive taxpayer endpoints; memory lifecycle endpoints; Level 1 grant/revoke endpoints. Commands use concurrency tokens and auditable actor context; all reads use resource scoping.
+
+#### Permission matrix
+| Operation | Level 1 | Level 2 | Customer |
+|---|---|---|---|
+| Create taxpayer | Allowed | Denied (unless explicitly delegated by later owner-approved policy) | Denied |
+| Read/update taxpayer | All within platform policy | Only currently assigned | Only explicitly owned portal view in later phase |
+| Add/retire fiscal memory | Allowed | Scoped business operation subject to policy | Denied |
+| Grant/revoke taxpayer access | Allowed | Denied | Denied |
+| Read raw secret/private key | Denied through ordinary API | Denied | Denied |
+| View global security audit | Allowed | Denied | Denied |
+
+#### Step 02 implementation handoff
+Persist taxpayer profiles with immutable UUID, normalized identifier per taxpayer kind, status, revision and timestamps. Add unique appropriate DB indexes and a dedicated EF migration. Review whether legal entities and natural persons need different normalized field rules, and test collisions per kind. Never mutate existing identity_users table semantics. Check `current_database() = 'argintaxpayer_test'` before applying migrations; schema changes require focused PostgreSQL verification even though routine Ubuntu application testing remains deferred.
+
+**Focused local smoke after pulling:**
+```bash
+dotnet build ArginTaxPayer.sln -c Release
+dotnet test ArginTaxPayer.sln -c Release --no-build
+```
+No build or test pass is claimed until operator output/CI evidence exists.
+
+### Step 02 — Taxpayer Persistence and Migration
+**Status:** Active; implementation, migration and acceptance tests pending. **Owner acceptance:** Pending. **Ubuntu:** Runtime verification deferred; database migration verification required when migration is written.
 
 ## Phase Exit Gate
 All 13 steps accepted, focused regression passing, Ubuntu verification once, schema/security review, owner signoff. Merge to main, immutable tag, GitHub Release and production deployment are distinct gated actions and must never be assumed completed.
