@@ -63,7 +63,7 @@ test("unified identity screen has two top-level tabs, OTP choice and recovery pa
 test("successful login remains busy until protected page navigation", () => {
   const flow = read("app/identity/identity-flow.tsx");
   assert.match(flow, /setNavigating\(true\)/);
-  assert.match(flow, /disabled=\{pending \|\| navigating\}/);
+  assert.match(flow, /disabled=\{pending \|\| navigating(?: \|\| [^}]+)?\}/);
   assert.match(flow, /در حال ورود به پنل/);
 });
 

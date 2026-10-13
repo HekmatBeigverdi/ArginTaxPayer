@@ -7,53 +7,139 @@ type Tab = "login" | "register";
 type Mode = "password" | "otp";
 type Step = "details" | "code" | "mfa";
 type Purpose = "register" | "login" | "reset";
-const captions: Record<Purpose,string> = {
-  register: "تأیید شماره همراه", login: "ورود با کد یک‌بارمصرف", reset: "بازیابی رمز عبور"
+const purposeCaptions: Record<Purpose, string> = {
+  register: "تأیید شماره همراه",
+  login: "ورود با کد یک‌بارمصرف",
+  reset: "بازیابی رمز عبور",
 };
+
+function getPurpose(tab: Tab, forgot: boolean): Purpose {
+  if (forgot) return "reset";
+  return tab === "register" ? "register" : "login";
+}
+
+function usesPhoneOtp(
+  tab: Tab,
+  mode: Mode,
+  forgot: boolean,
+  emailRegistration: boolean,
+) {
+  return (
+    forgot ||
+    (tab === "register" && !emailRegistration) ||
+    (tab === "login" && mode === "otp")
+  );
+}
+
+function getOtpCompletionRequest(
+  purpose: Purpose,
+  identifier: string,
+  code: string,
+  password: string,
+) {
+  if (purpose === "register") {
+    return {
+      path: "phone/register/complete",
+      body: { mobile: identifier, code, password: password || null },
+    };
+  }
+
+  if (purpose === "reset") {
+    return {
+      path: "phone/reset/complete",
+      body: { mobile: identifier, code, newPassword: password },
+    };
+  }
+
+  return {
+    path: "phone/login/complete",
+    body: { mobile: identifier, code },
+  };
+}
+
+function getOtpError(status: number) {
+  return status === 429
+    ? "تعداد تلاش‌ها زیاد است."
+    : "کد تأیید اشتباه یا منقضی شده است.";
+}
+
+function getPasswordError(status: number) {
+  if (status === 429) {
+    return "تعداد تلاش‌ها بیش از حد مجاز است؛ بعداً دوباره امتحان کنید.";
+  }
+
+  return "نام کاربری یا رمز عبور نادرست است.";
+}
 
 export default function IdentityFlow() {
   const router = useRouter();
-  const [tab,setTab] = useState<Tab>("login");
-  const [mode,setMode] = useState<Mode>("password");
-  const [step,setStep] = useState<Step>("details");
-  const [forgot,setForgot] = useState(false);
-  const [emailRegistration,setEmailRegistration] = useState(false);
-  const [identifier,setIdentifier] = useState("");
-  const [password,setPassword] = useState("");
-  const [code,setCode] = useState("");
-  const [challenge,setChallenge] = useState("");
-  const [recovery,setRecovery] = useState(false);
-  const [pending,setPending] = useState(false);
-  const [navigating,setNavigating] = useState(false);
-  const [error,setError] = useState("");
-  const [message,setMessage] = useState("");
-  const [retryAfter,setRetryAfter] = useState(0);
-  const purpose: Purpose = forgot ? "reset" : tab === "register" ? "register" : "login";
-  const phoneOtp = forgot || (tab === "register" && !emailRegistration) || (tab === "login" && mode === "otp");
+  const [tab, setTab] = useState<Tab>("login");
+  const [mode, setMode] = useState<Mode>("password");
+  const [step, setStep] = useState<Step>("details");
+  const [forgot, setForgot] = useState(false);
+  const [emailRegistration, setEmailRegistration] = useState(false);
+  const [identifier, setIdentifier] = useState("");
+  const [password, setPassword] = useState("");
+  const [code, setCode] = useState("");
+  const [challenge, setChallenge] = useState("");
+  const [recovery, setRecovery] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [navigating, setNavigating] = useState(false);
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+  const [retryAfter, setRetryAfter] = useState(0);
+
+  const purpose = getPurpose(tab, forgot);
+  const phoneOtp = usesPhoneOtp(tab, mode, forgot, emailRegistration);
 
   useEffect(() => {
     if (retryAfter <= 0) return;
-    const tick = setInterval(() => setRetryAfter(v => Math.max(0, v - 1)), 1000);
+    const tick = setInterval(() => {
+      setRetryAfter((value) => Math.max(0, value - 1));
+    }, 1000);
     return () => clearInterval(tick);
   }, [retryAfter > 0]);
 
   function reset() {
     setRetryAfter(0);
-    setStep("details"); setIdentifier(""); setPassword(""); setCode(""); setChallenge("");
-    setRecovery(false); setError(""); setMessage("");
+    setStep("details");
+    setIdentifier("");
+    setPassword("");
+    setCode("");
+    setChallenge("");
+    setRecovery(false);
+    setError("");
+    setMessage("");
   }
-  function changeTab(next: Tab) { setTab(next); setForgot(false); setMode("password"); setEmailRegistration(false); reset(); }
-  function changeMode(next: Mode) { setMode(next);reset(); }
-  async function api(path:string, data:unknown) {
-    const response = await fetch("/api/identity/"+path, {
-      method:"POST",headers:{"Content-Type":"application/json"},cache:"no-store",body:JSON.stringify(data)
+  function changeTab(next: Tab) {
+    setTab(next);
+    setForgot(false);
+    setMode("password");
+    setEmailRegistration(false);
+    reset();
+  }
+
+  function changeMode(next: Mode) {
+    setMode(next);
+    reset();
+  }
+
+  async function api(path: string, data: unknown) {
+    const response = await fetch(`/api/identity/${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      cache: "no-store",
+      body: JSON.stringify(data),
     });
-    const result = await response.json().catch(()=>({}));
-    return {response,result};
+    const result = await response.json().catch(() => ({}));
+    return { response, result };
   }
   async function submit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault(); if (pending || navigating) return;
-    setError("");setMessage("");setPending(true);
+    e.preventDefault();
+    if (pending || navigating) return;
+    setError("");
+    setMessage("");
+    setPending(true);
     let leavingForAccount = false;
     try {
       if (step === "mfa") {
@@ -87,18 +173,25 @@ export default function IdentityFlow() {
           setMessage("درخواست کد تأیید پذیرفته شد. کد دریافت‌شده را وارد کنید.");
           return;
         }
-        const path = purpose === "register" ? "phone/register/complete"
-          : purpose === "reset" ? "phone/reset/complete" : "phone/login/complete";
-        const body = purpose === "register" ? {mobile:identifier,code,password:password||null}
-          : purpose === "reset" ? {mobile:identifier,code,newPassword:password}
-          : {mobile:identifier,code};
-        const {response} = await api(path,body);
-        if (!response.ok) {setError(response.status === 429 ? "تعداد تلاش‌ها زیاد است." : "کد تأیید اشتباه یا منقضی شده است.");return;}
-        setPassword("");setCode("");
+        const request = getOtpCompletionRequest(purpose, identifier, code, password);
+        const { response } = await api(request.path, request.body);
+        if (!response.ok) {
+          setError(getOtpError(response.status));
+          return;
+        }
+        setPassword("");
+        setCode("");
         if (purpose === "login") {router.replace("/account");router.refresh();return;}
         const wasReset = purpose === "reset";
-        setTab("login");setForgot(false);setMode("password");setStep("details");
-        setMessage(wasReset?"رمز تغییر کرد. اکنون با رمز جدید وارد شوید.":"ثبت‌نام تکمیل شد؛ اکنون وارد شوید.");
+        setTab("login");
+        setForgot(false);
+        setMode("password");
+        setStep("details");
+        setMessage(
+          wasReset
+            ? "رمز تغییر کرد. اکنون با رمز جدید وارد شوید."
+            : "ثبت‌نام تکمیل شد؛ اکنون وارد شوید.",
+        );
         return;
       }
       if (tab === "register") {
@@ -114,10 +207,12 @@ export default function IdentityFlow() {
           setChallenge(challengeResponse.result.challenge);setStep("mfa");setCode("");setPassword("");return;
         }
       }
-      setError(response.status === 429 ? "تعداد تلاش‌ها بیش از حد مجاز است؛ بعداً دوباره امتحان کنید." :
-        "نام کاربری یا رمز عبور نادرست است.");
-    } catch {setError("ارتباط با سرور برقرار نشد؛ وضعیت API را بررسی کنید.");}
-    finally { if (!leavingForAccount) setPending(false); }
+      setError(getPasswordError(response.status));
+    } catch {
+      setError("ارتباط با سرور برقرار نشد؛ وضعیت API را بررسی کنید.");
+    } finally {
+      if (!leavingForAccount) setPending(false);
+    }
   }
 
   return <div className="auth-workflow">
@@ -144,7 +239,7 @@ export default function IdentityFlow() {
       <button type="button" aria-pressed={emailRegistration} onClick={()=>{setEmailRegistration(true);reset();}}>ایمیل (آزمایشی)</button>
     </div>}
     {step==="code" && <div className="auth-code-info">
-      <strong>{captions[purpose]}</strong>
+      <strong>{purposeCaptions[purpose]}</strong>
       <span dir="ltr">{identifier}</span>
       <p>کد تا سه دقیقه اعتبار دارد. دریافت دوباره کد با محدودیت زمانی همراه است.</p>
     </div>}

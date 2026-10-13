@@ -19,6 +19,9 @@ if parsed.scheme != "http" or parsed.hostname not in ("127.0.0.1", "localhost") 
 if parsed.path or parsed.query or parsed.fragment or parsed.username or parsed.password:
     raise SystemExit("REFUSED: invalid API base URL")
 
+# Loopback checks must not be routed through shell-configured HTTP proxies.
+opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+
 def request(path, method="GET", body=None, token=None):
     headers = {"Accept": "application/json"}
     if body is not None:
@@ -29,7 +32,7 @@ def request(path, method="GET", body=None, token=None):
     req = urllib.request.Request(BASE + "/api/dev/identity/" + path, data=data,
                                  method=method, headers=headers)
     try:
-        with urllib.request.urlopen(req, timeout=12) as res:
+        with opener.open(req, timeout=12) as res:
             return res.status, res.read(8192)
     except urllib.error.HTTPError as err:
         return err.code, err.read(8192)
@@ -41,14 +44,14 @@ def expect(path, status, method="GET", body=None, token=None):
     print(f"PASS {method} {path}: {status}")
 
 try:
-    with urllib.request.urlopen(BASE + "/health/dev-identity", timeout=12) as res:
+    with opener.open(BASE + "/health/dev-identity", timeout=12) as res:
         health = json.load(res)
     if not (health.get("development") and health.get("connectionConfigured")
             and health.get("identityEndpointsRegistered") and health.get("otpPepperConfigured")):
         raise AssertionError("Development identity preflight failed")
     if health.get("smsSendingEnabled") is not False:
         raise AssertionError("REFUSED: disable real Ghasedak sending before negative-path smoke")
-    with urllib.request.urlopen(BASE + "/health/ready", timeout=12) as res:
+    with opener.open(BASE + "/health/ready", timeout=12) as res:
         if res.status != 200:
             raise AssertionError("PostgreSQL readiness failed")
 
