@@ -63,7 +63,7 @@ public sealed class IdentityMfaPostgresTests
             new DbContextOptionsBuilder<ArginTaxPayerDbContext>().UseNpgsql(cs).Options);
         Assert.Contains("20261012040000_AddIdentityMfa", await db.Database.GetAppliedMigrationsAsync());
         await using var tx = await db.Database.BeginTransactionAsync();
-        var credential = new IdentityCredentialService(db);
+        var credential = new IdentityCredentialService(db, IdentityTestServices.CreateOwnership(db));
         const string password = "Test-Mfa-Only-2026-Password!";
         var email = "mfa-" + Guid.NewGuid().ToString("N") + "@example.invalid";
         Assert.Equal(IdentityRegistrationResult.Created, await credential.RegisterCustomerAsync(email, password));

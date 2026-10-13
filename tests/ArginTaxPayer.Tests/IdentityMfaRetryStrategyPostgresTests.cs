@@ -33,7 +33,7 @@ public sealed class IdentityMfaRetryStrategyPostgresTests
         try
         {
             await using var db = new ArginTaxPayerDbContext(options);
-            var credentials = new IdentityCredentialService(db);
+            var credentials = new IdentityCredentialService(db, IdentityTestServices.CreateOwnership(db));
             const string password = "Disposable-MFA-Retry-Password-2026!";
             Assert.Equal(IdentityRegistrationResult.Created,
                 await credentials.RegisterCustomerAsync(email, password));

@@ -25,7 +25,7 @@ public sealed class IdentityCredentialPostgresTests
             await db.Database.GetAppliedMigrationsAsync());
 
         await using var tx = await db.Database.BeginTransactionAsync();
-        var identity = new IdentityCredentialService(db);
+        var identity = new IdentityCredentialService(db, IdentityTestServices.CreateOwnership(db));
         var email = $"step02-{Guid.NewGuid():N}@example.invalid";
         const string password = "Test-only-Customer-Password-2026!";
 

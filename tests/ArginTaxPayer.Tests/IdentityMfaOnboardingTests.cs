@@ -29,7 +29,7 @@ public sealed class IdentityMfaOnboardingTests
         var ids = new List<Guid>();
         try
         {
-            var credentials = new IdentityCredentialService(db);
+            var credentials = new IdentityCredentialService(db, IdentityTestServices.CreateOwnership(db));
             var sessions = new IdentitySessionService(db);
             var mfa = new IdentityMfaService(db, new IdentityMfaCrypto(key), sessions);
             var password = "Mfa-Onboarding-Test-Only-2026!";

@@ -50,7 +50,7 @@ public sealed class IdentitySessionPostgresTests
             new DbContextOptionsBuilder<ArginTaxPayerDbContext>().UseNpgsql(connection).Options);
         Assert.Contains("20261012030000_AddIdentitySessions", await db.Database.GetAppliedMigrationsAsync());
         await using var tx = await db.Database.BeginTransactionAsync();
-        var credentialService = new IdentityCredentialService(db);
+        var credentialService = new IdentityCredentialService(db, IdentityTestServices.CreateOwnership(db));
         var email = $"phase03session-{Guid.NewGuid():N}@example.invalid";
         const string password = "Session-Test-Only-2026-Secret!";
         Assert.Equal(IdentityRegistrationResult.Created, await credentialService.RegisterCustomerAsync(email, password));
