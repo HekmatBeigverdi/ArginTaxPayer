@@ -1,10 +1,11 @@
 using Microsoft.EntityFrameworkCore;
+using ArginTaxPayer.Infrastructure.Persistence.Taxpayers;
 using Npgsql;
 
 namespace ArginTaxPayer.Infrastructure.Persistence.Identity;
 
 /// <summary>Development-only credential proof; session issuance is implemented in Step 03.</summary>
-public sealed class IdentityCredentialService(ArginTaxPayerDbContext db)
+public sealed class IdentityCredentialService(ArginTaxPayerDbContext db, CustomerCommercialOwnershipService ownership)
 {
     public async Task<IdentityRegistrationResult> RegisterCustomerAsync(
         string? email, string? password, CancellationToken cancellationToken = default)
@@ -28,6 +29,9 @@ public sealed class IdentityCredentialService(ArginTaxPayerDbContext db)
 
         var id = Guid.NewGuid();
         var now = DateTime.UtcNow;
+        var initialOwner = await ownership.PrepareInitialAsync(id, null, cancellationToken);
+        if (initialOwner is null) return IdentityRegistrationResult.Invalid;
+        db.CustomerCommercialOwners.Add(initialOwner);
         db.IdentityUsers.Add(new IdentityUser
         {
             Id = id, NormalizedEmail = normalized,
