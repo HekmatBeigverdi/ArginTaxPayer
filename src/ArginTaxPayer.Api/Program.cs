@@ -36,6 +36,7 @@ if (identityDevelopmentEnabled)
     builder.Services.AddScoped<IdentityPhoneService>();
     builder.Services.AddScoped<IdentityAuthorizationService>();
     builder.Services.AddScoped<TaxpayerCreationService>();
+    builder.Services.AddScoped<TaxpayerProfileLifecycleService>();
     builder.Services.AddScoped<IIdentityResourceOwnershipResolver, IdentityResourceOwnershipResolver>();
     builder.Services.AddScoped<IdentityResourceAuthorizationService>();
     var mfaEncryptionKey = builder.Configuration["Identity:MfaEncryptionKey"];
