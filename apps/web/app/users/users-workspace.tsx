@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import CustomerOwnershipConsole from "../account/customer-ownership-console";
+
 
 type Account = {
   customerUserId: string; rootLevel1UserId: string | null; partnerLevel2UserId: string | null;
@@ -12,7 +12,7 @@ type Taxpayer = { id: string; kind: number; normalizedIdentifier: string; displa
   status: number; revision: number };
 const acquisition: Record<number,string> = {
   0: "نیازمند تعیین مالکیت", 1: "ثبت‌نام مستقیم", 2: "ثبت توسط سطح ۱",
-  3: "ثبت توسط سطح ۲", 4: "معرفی تأییدشده"
+  3: "ثبت توسط سطح ۲", 4: "معرفی تأییدشده", 5: "بازیابی مالکیت کاربر قدیمی"
 };
 const PAGE_SIZES = [10, 20, 50];
 const errorLabel = (status: number) => status === 401 ? "نشست ورود معتبر نیست." :
@@ -36,7 +36,12 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [error, setError] = useState("");
   const [modalError, setModalError] = useState("");
-  const [ownershipOpen, setOwnershipOpen] = useState(false);
+  const [partnerId, setPartnerId] = useState("");
+  const [transferReason, setTransferReason] = useState("");
+  const [transferKind, setTransferKind] = useState(1);
+  const [savingOwner, setSavingOwner] = useState(false);
+  const [transferNotice, setTransferNotice] = useState("");
+  const [transferHistory, setTransferHistory] = useState<{ id: string; previousPartnerLevel2UserId: string | null; newPartnerLevel2UserId: string | null; explanation: string; changedAtUtc: string }[] | null>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const requestRef = useRef(0);
 
@@ -94,6 +99,7 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
 
   async function open(account: Account) {
     setSelected(account); setTaxpayers([]); setModalError(""); setDetailsLoading(true);
+    setPartnerId(account.partnerLevel2UserId || ""); setTransferReason(""); setTransferNotice(""); setTransferHistory(null);
     dialogRef.current?.showModal();
     const requestId = ++requestRef.current;
     try {
@@ -105,6 +111,42 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
         if (!level1) { close(); void refresh(); }
       }
     } finally { if (requestId === requestRef.current) setDetailsLoading(false); }
+  }
+
+  async function assignOwner(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!level1 || !selected || savingOwner || !transferReason.trim()) return;
+    const target = partnerId.trim();
+    if (target && !/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(target)) {
+      setModalError("شناسه ادمین سطح ۲ معتبر نیست."); return;
+    }
+    if (!window.confirm("انتساب تجاری این کاربر تغییر کند؟ این عملیات سوابق فروش قبلی را تغییر نمی‌دهد.")) return;
+    setSavingOwner(true); setModalError(""); setTransferNotice("");
+    try {
+      const response = await fetch("/api/customer-owners/" + selected.customerUserId + "/transfer", {
+        method: "POST", credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          partnerLevel2UserId: target || null,
+          expectedRevision: selected.revision,
+          reason: transferKind,
+          explanation: transferReason.trim()
+        })
+      });
+      if (!response.ok) throw new Error(errorLabel(response.status));
+      setTransferNotice("مالکیت تجاری با تأیید سطح ۱ ثبت شد؛ تغییر در تاریخچه محفوظ است.");
+      setTransferReason("");
+      await refresh();
+    } catch (e) { setModalError((e as Error).message); }
+    finally { setSavingOwner(false); }
+  }
+
+  async function readHistory() {
+    if (!selected || !level1) return;
+    setModalError("");
+    try {
+      setTransferHistory(await load("/api/customer-owners/" + selected.customerUserId + "/history"));
+    } catch (e) { setModalError((e as Error).message); }
   }
 
   const ownerLabel = (a: Account) => !a.rootLevel1UserId ? "نیازمند بررسی" :
@@ -178,13 +220,6 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
       </div>
     </div>
 
-    {level1 && <div className="users-ownership-toggle">
-      <button className="users-button" type="button" onClick={() => setOwnershipOpen(v => !v)}>
-        {ownershipOpen ? "بستن بخش انتساب تجاری" : "مدیریت مالکیت تجاری و انتساب کاربران به شرکا"}
-      </button>
-      {ownershipOpen && <CustomerOwnershipConsole level1={true}/>}
-    </div>}
-
     <dialog className="users-dialog" ref={dialogRef} onClose={close}
       aria-labelledby="user-detail-heading" dir="rtl">
       <div className="users-dialog-head">
@@ -211,6 +246,42 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
             <small>{t.kind === 1 ? "حقیقی" : "حقوقی"}</small>
             <small dir="ltr">{t.normalizedIdentifier}</small>
           </div>)}</div>}
+        {level1 && <section className="users-owner-edit">
+          <h3>انتساب تجاری این کاربر</h3>
+          <p>ثبت‌نام عمومی زیرمجموعه سطح ۱ است. واگذاری به شریک سطح ۲ فقط با تأیید شما انجام می‌شود.</p>
+          <form onSubmit={assignOwner}>
+            <label htmlFor="owner-partner-id">شناسه ادمین سطح ۲ (برای مالکیت مستقیم سطح ۱، خالی بگذارید)
+              <input id="owner-partner-id" dir="ltr" value={partnerId} onChange={e => setPartnerId(e.target.value)}
+                placeholder="شناسه UUID شریک تجاری"/>
+            </label>
+            <label htmlFor="owner-transfer-kind">علت انتساب
+              <select id="owner-transfer-kind" value={transferKind} onChange={e => setTransferKind(Number(e.target.value))}>
+                <option value={1}>معرفی مشتری توسط شریک و تأیید سطح ۱</option>
+                <option value={2}>اصلاح مالکیت اشتباه</option>
+                <option value={3}>غیرفعال شدن شریک قبلی</option>
+                <option value={4}>سایر دلایل</option>
+              </select>
+            </label>
+            <label htmlFor="owner-transfer-reason">شرح و مستندات
+              <textarea id="owner-transfer-reason" rows={2} maxLength={1000} required
+                value={transferReason} onChange={e => setTransferReason(e.target.value)}/>
+            </label>
+            <button className="users-button" type="submit"
+              disabled={savingOwner || !transferReason.trim() ||
+                (!!selected.rootLevel1UserId && partnerId.trim() === (selected.partnerLevel2UserId || ""))}>
+              {savingOwner ? "در حال ثبت…" : selected.rootLevel1UserId ? "تأیید تغییر انتساب" : "ثبت اولیه مالکیت کاربر قدیمی"}
+            </button>
+          </form>
+          <button className="users-action" type="button" onClick={() => void readHistory()}>مشاهده تاریخچه انتساب</button>
+          {transferNotice && <p role="status" className="auth-info">{transferNotice}</p>}
+          {transferHistory && <ul className="users-owner-history">{transferHistory.length === 0 ?
+            <li>سابقه انتقال قبلی موجود نیست.</li> : transferHistory.map(item =>
+            <li key={item.id}>
+              {new Date(item.changedAtUtc).toLocaleString("fa-IR")} —
+              از {item.previousPartnerLevel2UserId || "سطح ۱"} به {item.newPartnerLevel2UserId || "سطح ۱"} —
+              {item.explanation}
+            </li>)}</ul>}
+        </section>}
         <p className="field-hint">تعداد مؤدیان مجاز باید براساس پلن فعال در Backend کنترل شود؛ تا آن زمان این پنجره فقط نمایش می‌دهد.</p>
       </div>}
       <div className="users-dialog-footer"><button type="button" className="users-button"
