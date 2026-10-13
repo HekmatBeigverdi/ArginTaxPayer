@@ -38,8 +38,8 @@ try:
         raise AssertionError("Refusing negative smoke when live SMS is enabled or status unknown.")
     # Use an unowned disposable phone: never complete a real registration or send live SMS.
     mobile = "09" + str(secrets.randbelow(10**9)).zfill(9)
-    require(call("phone/request", {"mobile": mobile, "purpose": "register"}), 202,
-            "generic OTP request acknowledgement; live sending disabled by default")
+    require(call("phone/request", {"mobile": mobile, "purpose": "register"}), 503,
+            "disabled SMS must reject dispatch without entering verification flow")
     require(call("phone/register/complete", {"mobile": mobile, "code": "000000"}), 400,
             "unverified phone registration blocked")
     require(call("phone/login/complete", {"mobile": mobile, "code": "000000"}), 401,
