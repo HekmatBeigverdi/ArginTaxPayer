@@ -563,9 +563,9 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
         });
         modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Taxpayers.CustomerCommercialOwner", b =>
         {
-            b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null).WithMany().HasForeignKey("CustomerUserId").OnDelete(DeleteBehavior.Restrict).IsRequired();
-            b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null).WithMany().HasForeignKey("RootLevel1UserId").OnDelete(DeleteBehavior.Restrict).IsRequired();
-            b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null).WithMany().HasForeignKey("PartnerLevel2UserId").OnDelete(DeleteBehavior.Restrict);
+            b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null).WithMany().HasForeignKey("CustomerUserId").OnDelete(DeleteBehavior.Restrict).IsRequired().HasConstraintName("FK_customer_owner_customer");
+            b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null).WithMany().HasForeignKey("RootLevel1UserId").OnDelete(DeleteBehavior.Restrict).IsRequired().HasConstraintName("FK_customer_owner_root");
+            b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null).WithMany().HasForeignKey("PartnerLevel2UserId").OnDelete(DeleteBehavior.Restrict).HasConstraintName("FK_customer_owner_partner");
         });
         modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Taxpayers.CustomerCommercialOwnerChange", b =>
         {
@@ -591,8 +591,8 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
         });
         modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Taxpayers.CustomerCommercialOwnerChange", b =>
         {
-            b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Taxpayers.CustomerCommercialOwner", null).WithMany().HasForeignKey("CustomerUserId").OnDelete(DeleteBehavior.Restrict).IsRequired();
-            b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null).WithMany().HasForeignKey("ApprovedByLevel1UserId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+            b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Taxpayers.CustomerCommercialOwner", null).WithMany().HasForeignKey("CustomerUserId").OnDelete(DeleteBehavior.Restrict).IsRequired().HasConstraintName("FK_customer_owner_change_owner");
+            b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null).WithMany().HasForeignKey("ApprovedByLevel1UserId").OnDelete(DeleteBehavior.Restrict).IsRequired().HasConstraintName("FK_customer_owner_change_actor");
         });
 
         modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Taxpayers.FiscalMemory", b =>
@@ -866,7 +866,8 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
                     b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null)
                         .WithMany()
                         .HasForeignKey("CustomerUserId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("FK_taxpayer_profiles_customer_user_id");
                 });
 
             modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Taxpayers.TaxpayerProfileChange", b =>
