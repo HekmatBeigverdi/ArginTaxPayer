@@ -253,6 +253,19 @@ public static class TaxpayerDevelopmentEndpoints
             };
         }).WithTags("Customer Accounts (Development)");
 
+        routes.MapGet("/api/dev/customer-owners/partners", async (
+            HttpContext http, CustomerCommercialOwnershipService service, CancellationToken ct) =>
+        {
+            if (!IsLocal(http)) return Results.NotFound();
+            var result = await service.ListPartnersAsync(Bearer(http), ct);
+            return result.Decision switch
+            {
+                CustomerOwnershipDecision.Unauthenticated => Results.Unauthorized(),
+                CustomerOwnershipDecision.Forbidden => Results.StatusCode(403),
+                _ => Results.Ok(result.Partners)
+            };
+        }).WithTags("Customer Accounts (Development)");
+
         return routes;
     }
 
