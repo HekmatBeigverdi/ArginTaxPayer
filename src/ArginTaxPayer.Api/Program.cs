@@ -38,7 +38,6 @@ if (identityDevelopmentEnabled)
     builder.Services.AddScoped<TaxpayerCreationService>();
     builder.Services.AddScoped<TaxpayerProfileLifecycleService>();
     builder.Services.AddScoped<FiscalMemoryManagementService>();
-    builder.Services.AddScoped<TaxpayerDelegateService>();
     builder.Services.AddScoped<CustomerCommercialOwnershipService>();
     builder.Services.AddScoped<TaxpayerScopeService>();
     builder.Services.AddScoped<FiscalCertificateMetadataService>();
