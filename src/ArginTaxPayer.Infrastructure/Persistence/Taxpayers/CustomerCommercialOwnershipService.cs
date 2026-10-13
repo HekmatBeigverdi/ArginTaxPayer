@@ -29,8 +29,9 @@ public sealed class CustomerCommercialOwnershipService(
         if (creatorLevel1Id is { } directRoot)
             return await IsRoleAsync(directRoot, IdentityRoleNames.Level1, ct) ? directRoot : null;
         var configured = configuration["Ownership:DefaultLevel1UserId"];
-        if (Guid.TryParse(configured, out var rootId) && await IsRoleAsync(rootId, IdentityRoleNames.Level1, ct))
-            return rootId;
+        if (!string.IsNullOrWhiteSpace(configured))
+            return Guid.TryParse(configured, out var rootId) &&
+                await IsRoleAsync(rootId, IdentityRoleNames.Level1, ct) ? rootId : null;
         // Ambiguous Level1 owners cannot silently acquire someone else's customers.
         var candidates = await db.IdentityUsers.AsNoTracking()
             .Where(u => u.IsActive && u.Roles.Any(r => r.Role == IdentityRoleNames.Level1))
