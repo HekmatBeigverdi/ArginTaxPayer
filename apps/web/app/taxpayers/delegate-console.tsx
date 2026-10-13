@@ -23,7 +23,7 @@ export default function DelegateConsole({ taxpayerId, taxpayerName, onChanged }:
   const refresh = useCallback(async () => {
     setLoading(true); setError("");
     try {
-      const response = await fetch("/api/taxpayers/" + taxpayerId + "/delegates/history",
+      const response = await fetch("/api/delegations/" + taxpayerId + "/history",
         { cache: "no-store", credentials: "same-origin" });
       if (!response.ok) throw new Error(readable(response.status));
       setHistory(await response.json() as Grant[]);
@@ -36,7 +36,7 @@ export default function DelegateConsole({ taxpayerId, taxpayerName, onChanged }:
     event.preventDefault(); if (busy || !uuid.test(delegateId.trim())) return;
     setBusy(true); setError(""); setMessage("");
     try {
-      const response = await fetch("/api/taxpayers/" + taxpayerId + "/delegates", {
+      const response = await fetch("/api/delegations/" + taxpayerId + "/grant", {
         method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
         body: JSON.stringify({ delegateUserId: delegateId.trim() })
       });
@@ -50,7 +50,7 @@ export default function DelegateConsole({ taxpayerId, taxpayerName, onChanged }:
     if (!window.confirm("دسترسی این ادمین به مؤدی لغو شود؟")) return;
     setBusy(true); setError(""); setMessage("");
     try {
-      const response = await fetch("/api/taxpayers/" + taxpayerId + "/delegates/" + grant.id + "/revoke", {
+      const response = await fetch("/api/delegations/" + taxpayerId + "/" + grant.id + "/revoke", {
         method: "POST", credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ expectedRevision: grant.revision, reason })
