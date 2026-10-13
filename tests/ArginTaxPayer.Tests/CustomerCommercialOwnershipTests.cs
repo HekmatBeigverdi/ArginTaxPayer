@@ -21,6 +21,16 @@ public sealed class CustomerCommercialOwnershipTests
     }
 
     [Fact]
+    public void Legacy_reconciliation_is_not_mistaken_for_public_registration()
+    {
+        Assert.Equal(5, (int)CustomerAcquisitionChannel.LegacyReconciledByLevel1);
+        Assert.Null(CustomerCommercialOwnershipPolicy.InitialPartner(
+            CustomerAcquisitionChannel.PublicSelfRegistration, Guid.NewGuid()));
+        Assert.Null(CustomerCommercialOwnershipPolicy.InitialPartner(
+            CustomerAcquisitionChannel.Level1Created, Guid.NewGuid()));
+    }
+
+    [Fact]
     public void Referral_after_public_signup_requires_level1_approval()
     {
         Assert.True(CustomerCommercialOwnershipPolicy.RequiresLevel1Approval(
