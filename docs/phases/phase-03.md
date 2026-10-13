@@ -1344,6 +1344,37 @@ The first endpoint must show `otpPepperConfigured=true`, `ghasedakApiKeyConfigur
 
 **Acceptance:** Pull the branch, build, run `dotnet test ArginTaxPayer.sln -c Release --filter FullyQualifiedName~IdentityPhoneOtpTests`, then run the same suite with `RUN_ARGINTAXPAYER_PG_INTEGRATION=1` against the confirmed `argintaxpayer_test` PostgreSQL database. Test the two login methods from the unified two-tab browser UI. Do not enable live Ghasedak except for the operator-owned test recipient. Step 09 remains verification-pending.
 
+### Step 09 — UX, Administrator Customer Onboarding, and Reusable Development Runner (2026-10-13)
+
+**Owner-requested UI fix:** On successful password/OTP/MFA login, the unified `identity-flow.tsx` keeps the submit button disabled and displays `در حال ورود به پنل...` through the Next.js `router.replace("/account")` transition. The form cannot be double-submitted in the small interval after successful API authentication but before the protected dashboard renders. On error the button becomes available again. Code and frontend regression test committed; browser timing still requires operator verification.
+
+**Level 1/Level 2 manual account onboarding:** A new **administrative Customer creation** workflow accepts required normalized Iranian phone and password, with optional email. It does **not** require SMS OTP. Access requires an authenticated, active Level 1 or Level 2 administrator with enabled TOTP MFA. Authorization is enforced server-side with current database roles and MFA, not merely by hiding the form. The API `POST /api/dev/identity/admin/customers` accepts only `Mobile`, `Email`, `Password`, never a requested role. It always creates the Customer role; unique mobile/email conflicts and validation fail without privilege elevation. The same-origin Next.js BFF route `POST /api/identity/admin/customers` forwards a protected HttpOnly-cookie authenticated request, and the form is shown on `/account` only for Level 1/2. The operator must check real-world phone ownership out-of-band: admin-created mobile is **trusted as verified** without SMS, which is an intentional privileged bypass, not proof of actual SIM possession. Do not introduce a public unauthenticated bypass. The current workflow creates Customer users, **not** administrative Level 1/2 accounts; promotion to Level 2 still requires the existing Level 1 grant and MFA safeguards. Manual creation logs a non-sensitive event, but a durable operator/taxpayer audit trail must be completed before Production. No schema migration for this route.
+
+**Shared local developer commands (macOS, all subsequent phases):**
+
+First-time setup:
+```bash
+cp .env.dev.local.example .env.dev.local
+chmod 600 .env.dev.local
+# Edit .env.dev.local with the private dedicated test Postgres ConnectionStrings__ArginTaxPayerDb value.
+# Keep .env.ghasedak.local with Ghasedak__ApiKey, TaxPayerActivationCode,
+# Ghasedak__TestRecipientMobile and explicit Ghasedak__EnableLiveSending=false/true.
+# Set stable Identity__MfaEncryptionKey in .env.dev.local when testing admin MFA.
+```
+Do not print or commit the credential files. The project root `.gitignore` ignores `.env.*`.
+
+Every day/step after setup, from repo root:
+```bash
+zsh scripts/dev-up.zsh
+zsh scripts/dev-status.zsh
+zsh scripts/dev-down.zsh
+```
+The launcher starts the exact approved `AUTOSSH_GATETIME=0 autossh -M 0 -N` tunnel at local `127.0.0.1:15432` (with ServerAliveInterval 15, ServerAliveCountMax 3, ConnectTimeout 10, ExitOnForwardFailure, host `argindev@85.133.244.156`), followed by .NET API `127.0.0.1:15089`, Next.js `127.0.0.1:3000`. It loads `.env.dev.local` and `.env.ghasedak.local` in the very same child process environment, preserves `~/.argintaxpayer-test/otp-pepper`, preflights dedicated test DB and identity readiness, checks Ghasedak configuration booleans, identifies whether **real SMS is enabled**, and stores local logs in `~/.argintaxpayer-test/` with owner-only directory access. It never creates migrations, charges customers or triggers an SMS by itself. **AutoSSH in this runner uses BatchMode=yes, so SSH key-based authentication must be set up**; otherwise run the user's foreground AutoSSH command and then relaunch the runner. Do not run this development stack publicly or in Production.
+
+**Operator smoke checklist:** (a) correct Build; (b) `dotnet test` baseline; (c) PostgreSQL tests with `RUN_ARGINTAXPAYER_PG_INTEGRATION=1` only after checking the exact DB name; (d) Login button stays busy/disabled until navigation; (e) Level 1/2 with MFA sees Customer creation form; (f) required phone + password, optional email creates a Customer without sending SMS; (g) normal Customer cannot call the endpoint, return 403; (h) invalid/duplicate phone/email denied; (i) previously existing email/phone login, Customer SMS OTP, TOTP admin MFA and role policies remain intact; (j) dev-up, dev-status and dev-down verify usable workflow.
+
+**Status:** Code committed but no real macOS/Ubuntu Build, browser acceptance or positive Level 1/2 provisioning integration evidence has been independently observed. Pending Step 09 acceptance/security debt remains unchanged. A five-day completion target for the entire roadmap is an owner schedule objective, **not an evidenced commitment that all 18 phases or production-hardening gates can be safely completed in that period**. Prioritize gating on runnable tests and correctly scoped deliverables, not skipping validations.
+
 ## 5. Communication Convention
 
 The **repository phase plan and all step completion records are written in English only**. When implementing or reporting on a step in the chat, present its title in **both Persian and English** (for example: `گام ۱ — زیرساخت مدل هویت و ایجاد مدیر اولیه | Step 01 — Identity Data Model and Bootstrap`). Explain execution and acceptance in concise, right-to-left Persian, while keeping code and shell commands left-to-right. Do not change the planned English step title without an approved plan amendment.
