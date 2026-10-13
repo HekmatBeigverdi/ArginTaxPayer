@@ -35,6 +35,9 @@ test("Level1 can review legacy owners and approve partner attribution with CAS a
   assert.match(view, /transferReason\.trim/);
   assert.match(view, /ثبت اولیه مالکیت کاربر قدیمی/);
   assert.match(view, /transferHistory/);
+  assert.match(view, /\/api\/customer-owners\/partners/);
+  assert.match(view, /partners.map/);
+  assert.match(view, /ادمین سطح ۱ — مشتری مستقیم/);
   assert.match(api, /isSameLocalOrigin/);
   assert.doesNotMatch(view, /document\.cookie|localStorage|Authorization: "Bearer"/);
 });
