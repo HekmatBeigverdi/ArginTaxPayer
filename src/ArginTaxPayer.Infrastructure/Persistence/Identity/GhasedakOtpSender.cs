@@ -6,7 +6,7 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Identity;
 
 public interface IIdentityOtpSender
 {
-    Task<bool> SendAsync(string normalizedMobile, string code, Guid deliveryId,
+    Task<bool> SendAsync(string normalizedMobile, string code, string purpose, Guid deliveryId,
         CancellationToken cancellationToken = default);
 }
 
@@ -16,9 +16,10 @@ public interface IIdentityOtpSender
 /// </summary>
 public sealed class GhasedakOtpSender(HttpClient http, IConfiguration config, ILogger<GhasedakOtpSender> logger) : IIdentityOtpSender
 {
-    private const string Template = "TaxPayerActivationCode";
+    private const string RegistrationTemplate = "TaxPayerActivationCode";
+    private const string LoginTemplate = "TaxPayerLoginCode";
 
-    public async Task<bool> SendAsync(string normalizedMobile, string code, Guid deliveryId,
+    public async Task<bool> SendAsync(string normalizedMobile, string code, string purpose, Guid deliveryId,
         CancellationToken cancellationToken = default)
     {
         if (!config.GetValue<bool>("Ghasedak:EnableLiveSending"))
@@ -32,7 +33,9 @@ public sealed class GhasedakOtpSender(HttpClient http, IConfiguration config, IL
             logger.LogWarning("OTP_SMS_CONFIG_INVALID reason=api_key_missing");
             return false;
         }
-        if (config["Ghasedak:TemplateName"] != Template)
+        var template = purpose == "login" ? LoginTemplate : RegistrationTemplate;
+        if (purpose is not ("register" or "login" or "reset") ||
+            config["Ghasedak:TemplateName"] != RegistrationTemplate)
         {
             logger.LogWarning("OTP_SMS_CONFIG_INVALID reason=template_mismatch");
             return false;
@@ -44,10 +47,11 @@ public sealed class GhasedakOtpSender(HttpClient http, IConfiguration config, IL
             return false;
         }
 
-        // A live OTP test must be explicitly constrained to the operator's
-        // one verified recipient, not arbitrary public input from a form.
-        if (!IranianMobileNumber.TryNormalize(config["Ghasedak:TestRecipientMobile"],
-            out var permittedMobile) || mobile != permittedMobile)
+        // Keep live sending constrained by default. Development operators may
+        // explicitly disable this gate when testing an authorized number.
+        if (config.GetValue("Ghasedak:RestrictToTestRecipient", true) &&
+            (!IranianMobileNumber.TryNormalize(config["Ghasedak:TestRecipientMobile"],
+                out var permittedMobile) || mobile != permittedMobile))
         {
             logger.LogWarning("OTP_SMS_REJECTED reason=test_recipient_not_allowed");
             return false;
@@ -55,7 +59,7 @@ public sealed class GhasedakOtpSender(HttpClient http, IConfiguration config, IL
 
         var body = new
         {
-            TemplateName = Template,
+            TemplateName = template,
             Param1 = code,
             Receptors = new[] { new {
                 Mobile = "0" + mobile[3..],

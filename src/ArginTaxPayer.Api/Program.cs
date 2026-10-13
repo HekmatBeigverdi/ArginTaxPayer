@@ -71,6 +71,8 @@ if (app.Environment.IsDevelopment())
             smsSendingEnabled = app.Configuration.GetValue<bool>("Ghasedak:EnableLiveSending"),
             ghasedakApiKeyConfigured = !string.IsNullOrWhiteSpace(app.Configuration["Ghasedak:ApiKey"]),
             ghasedakTemplateConfigured = app.Configuration["Ghasedak:TemplateName"] == "TaxPayerActivationCode",
+            ghasedakLoginTemplateConfigured = true,
+            ghasedakRecipientRestrictionEnabled = app.Configuration.GetValue("Ghasedak:RestrictToTestRecipient", true),
             ghasedakTestRecipientConfigured = ArginTaxPayer.Infrastructure.Persistence.Identity.IranianMobileNumber.TryNormalize(
                 app.Configuration["Ghasedak:TestRecipientMobile"], out _),
             otpPepperConfigured = (app.Configuration["Identity:OtpPepper"]?.Length ?? 0) >= 32,

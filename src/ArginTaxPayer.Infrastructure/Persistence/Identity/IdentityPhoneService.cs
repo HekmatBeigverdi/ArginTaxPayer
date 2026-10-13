@@ -100,7 +100,7 @@ public sealed class IdentityPhoneService(ArginTaxPayerDbContext db, IIdentityOtp
         });
         await db.SaveChangesAsync(ct);
         logger.LogInformation("OTP_REQUEST_DISPATCH_STARTED purpose={OtpPurpose}", purpose);
-        bool delivered = await sender.SendAsync(mobile, code, id, ct);
+        bool delivered = await sender.SendAsync(mobile, code, purpose, id, ct);
         if (delivered)
             await db.IdentityPhoneChallenges.Where(x => x.Id == id)
                 .ExecuteUpdateAsync(s => s.SetProperty(x => x.Delivered, true), ct);

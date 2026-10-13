@@ -107,7 +107,7 @@ public sealed class IdentityPhoneOtpTests
     private sealed class FakeOtpSender : IIdentityOtpSender
     {
         public string? LastCode { get; private set; }
-        public Task<bool> SendAsync(string mobile, string code, Guid deliveryId,
+        public Task<bool> SendAsync(string mobile, string code, string purpose, Guid deliveryId,
             CancellationToken cancellationToken = default)
         {
             LastCode = code;

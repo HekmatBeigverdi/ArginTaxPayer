@@ -11,7 +11,7 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Identity;
 /// </summary>
 public sealed class LocalFileOtpSender(IConfiguration configuration) : IIdentityOtpSender
 {
-    public async Task<bool> SendAsync(string normalizedMobile, string code, Guid deliveryId,
+    public async Task<bool> SendAsync(string normalizedMobile, string code, string purpose, Guid deliveryId,
         CancellationToken cancellationToken = default)
     {
         if (configuration["Identity:OtpDeliveryMode"] != "LocalFile" ||

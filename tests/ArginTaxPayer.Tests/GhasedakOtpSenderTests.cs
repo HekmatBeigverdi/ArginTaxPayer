@@ -15,7 +15,7 @@ public sealed class GhasedakOtpSenderTests
         var handler = new RecordingHandler();
         var client = new HttpClient(handler);
         var sender = new GhasedakOtpSender(client, new ConfigurationBuilder().Build(), NullLogger<GhasedakOtpSender>.Instance);
-        Assert.False(await sender.SendAsync("+989123456789", "123456", Guid.NewGuid()));
+        Assert.False(await sender.SendAsync("+989123456789", "123456", "login", Guid.NewGuid()));
         Assert.Equal(0, handler.RequestCount);
     }
 
@@ -32,7 +32,7 @@ public sealed class GhasedakOtpSenderTests
             }).Build();
         var sender = new GhasedakOtpSender(new HttpClient(handler), settings, NullLogger<GhasedakOtpSender>.Instance);
         var id = Guid.NewGuid();
-        Assert.True(await sender.SendAsync("+989123456789", "654321", id));
+        Assert.True(await sender.SendAsync("+989123456789", "654321", "register", id));
         Assert.Equal(1, handler.RequestCount);
         Assert.Equal("https://gateway.ghasedak.me/rest/api/v1/WebService/SendOtpWithParams",
             handler.Url);
@@ -42,6 +42,42 @@ public sealed class GhasedakOtpSenderTests
         Assert.Contains("09123456789", handler.Body);
         Assert.Contains(id.ToString("N"), handler.Body);
         Assert.DoesNotContain("Param2", handler.Body);
+    }
+
+    [Fact]
+    public async Task LoginUsesLoginTemplate()
+    {
+        var handler = new RecordingHandler();
+        var settings = new ConfigurationBuilder().AddInMemoryCollection(
+            new Dictionary<string, string?> {
+                ["Ghasedak:EnableLiveSending"] = "true",
+                ["Ghasedak:ApiKey"] = "TEST_NOT_A_REAL_KEY",
+                ["Ghasedak:TemplateName"] = "TaxPayerActivationCode",
+                ["Ghasedak:TestRecipientMobile"] = "09123456789"
+            }).Build();
+        var sender = new GhasedakOtpSender(new HttpClient(handler), settings, NullLogger<GhasedakOtpSender>.Instance);
+
+        Assert.True(await sender.SendAsync("+989123456789", "654321", "login", Guid.NewGuid()));
+        Assert.Contains("TaxPayerLoginCode", handler.Body);
+        Assert.DoesNotContain("TaxPayerActivationCode", handler.Body);
+    }
+
+    [Fact]
+    public async Task LiveSendingCanBeEnabledForOtherRecipientsExplicitly()
+    {
+        var handler = new RecordingHandler();
+        var settings = new ConfigurationBuilder().AddInMemoryCollection(
+            new Dictionary<string, string?> {
+                ["Ghasedak:EnableLiveSending"] = "true",
+                ["Ghasedak:ApiKey"] = "TEST_NOT_A_REAL_KEY",
+                ["Ghasedak:TemplateName"] = "TaxPayerActivationCode",
+                ["Ghasedak:TestRecipientMobile"] = "09123456789",
+                ["Ghasedak:RestrictToTestRecipient"] = "false"
+            }).Build();
+        var sender = new GhasedakOtpSender(new HttpClient(handler), settings, NullLogger<GhasedakOtpSender>.Instance);
+
+        Assert.True(await sender.SendAsync("+989121112233", "654321", "login", Guid.NewGuid()));
+        Assert.Contains("09121112233", handler.Body);
     }
 
     private sealed class RecordingHandler : HttpMessageHandler
