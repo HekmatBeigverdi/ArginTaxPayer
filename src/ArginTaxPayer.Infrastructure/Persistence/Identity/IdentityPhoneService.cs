@@ -80,7 +80,7 @@ public sealed class IdentityPhoneService(ArginTaxPayerDbContext db, IIdentityOtp
             logger.LogInformation("OTP_REQUEST_SKIPPED reason=password_login_required");
             return false;
         }
-        if (purpose is "login" or "reset" && await db.IdentityUserRoles.AnyAsync(
+        if ((purpose is "login" or "reset") && await db.IdentityUserRoles.AnyAsync(
             x => x.UserId == actor!.Id && x.Role != IdentityRoleNames.Customer, ct))
         {
             logger.LogInformation("OTP_REQUEST_SKIPPED reason=administrator_mfa_required");
