@@ -50,17 +50,28 @@ public sealed class IdentityPhoneOtpTests
             var sessions = new IdentitySessionService(db);
             var phones = new IdentityPhoneService(db, fake, sessions, settings, NullLogger<IdentityPhoneService>.Instance);
             Assert.True(await phones.RequestAsync(phone, "register"));
+            var firstCooldown = await phones.RequestDetailedAsync(phone, "register");
+            Assert.Equal(PhoneOtpRequestStatus.RateLimited, firstCooldown.Status);
+            Assert.InRange(firstCooldown.RetryAfterSeconds, 175, 180);
+            await db.IdentityPhoneChallenges.Where(x => x.Mobile == phone)
+                .ExecuteUpdateAsync(s => s.SetProperty(x => x.CreatedAtUtc,
+                    DateTime.UtcNow.AddSeconds(-30)));
+            var remainingCooldown = await phones.RequestDetailedAsync(phone, "register");
+            Assert.Equal(PhoneOtpRequestStatus.RateLimited, remainingCooldown.Status);
+            Assert.InRange(remainingCooldown.RetryAfterSeconds, 145, 151);
             Assert.NotNull(fake.LastCode);
             Assert.NotEqual(fake.LastCode, (await db.IdentityPhoneChallenges.SingleAsync(x => x.Mobile == phone)).CodeDigest);
             Assert.False(await phones.ConfirmRegistrationAsync(phone,
                 fake.LastCode == "000000" ? "111111" : "000000", null));
             Assert.True(await phones.ConfirmRegistrationAsync(phone, fake.LastCode, null));
             Assert.False(await phones.ConfirmRegistrationAsync(phone, fake.LastCode, null));
+            var alreadyRegistered = await phones.RequestDetailedAsync(phone, "register");
+            Assert.Equal(PhoneOtpRequestStatus.AlreadyRegistered, alreadyRegistered.Status);
             userId = await db.IdentityUsers.Where(x => x.NormalizedMobile == phone)
                 .Select(x => x.Id).SingleAsync();
             Assert.Null(await sessions.LoginAsync(phone, "any password"));
             await db.IdentityPhoneChallenges.Where(x => x.Mobile == phone)
-                .ExecuteUpdateAsync(s => s.SetProperty(x => x.CreatedAtUtc, DateTime.UtcNow.AddMinutes(-2)));
+                .ExecuteUpdateAsync(s => s.SetProperty(x => x.CreatedAtUtc, DateTime.UtcNow.AddMinutes(-4)));
             Assert.True(await phones.RequestAsync(phone, "login"));
             var token = await phones.CompleteLoginAsync(phone, fake.LastCode);
             Assert.NotNull(token);
