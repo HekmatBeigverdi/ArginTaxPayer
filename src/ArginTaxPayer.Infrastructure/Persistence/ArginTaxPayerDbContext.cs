@@ -182,6 +182,9 @@ public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbConte
         });
         taxpayers.HasKey(x => x.Id);
         taxpayers.Property(x => x.Id).HasColumnName("id");
+        taxpayers.Property(x => x.CustomerUserId).HasColumnName("customer_user_id");
+        taxpayers.HasOne<IdentityUser>().WithMany().HasForeignKey(x => x.CustomerUserId).OnDelete(DeleteBehavior.Restrict);
+        taxpayers.HasIndex(x => x.CustomerUserId).HasDatabaseName("ix_taxpayer_profiles_customer_user_id");
         taxpayers.Property(x => x.Kind).HasColumnName("kind").HasConversion<int>().IsRequired();
         taxpayers.Property(x => x.NormalizedIdentifier).HasColumnName("normalized_identifier").HasMaxLength(32).IsRequired();
         taxpayers.Property(x => x.DisplayName).HasColumnName("display_name").HasMaxLength(256).IsRequired();
