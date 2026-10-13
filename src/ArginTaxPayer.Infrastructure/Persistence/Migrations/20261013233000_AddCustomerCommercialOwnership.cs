@@ -11,6 +11,10 @@ public sealed class AddCustomerCommercialOwnership : Migration
 {
     protected override void Up(MigrationBuilder m)
     {
+        m.AddColumn<Guid>("customer_user_id", "taxpayer_profiles", type: "uuid", nullable: true);
+        m.CreateIndex("ix_taxpayer_profiles_customer_user_id", "taxpayer_profiles", "customer_user_id");
+        m.AddForeignKey("FK_taxpayer_profiles_customer_user_id", "taxpayer_profiles",
+            "customer_user_id", "identity_users", "id", onDelete: ReferentialAction.Restrict);
         m.CreateTable("customer_commercial_owners", t => new
         {
             customer_user_id = t.Column<Guid>(type: "uuid", nullable: false),
@@ -61,6 +65,9 @@ public sealed class AddCustomerCommercialOwnership : Migration
 
     protected override void Down(MigrationBuilder m)
     {
+        m.DropForeignKey("FK_taxpayer_profiles_customer_user_id", "taxpayer_profiles");
+        m.DropIndex("ix_taxpayer_profiles_customer_user_id", "taxpayer_profiles");
+        m.DropColumn("customer_user_id", "taxpayer_profiles");
         m.DropTable("customer_commercial_owner_changes");
         m.DropTable("customer_commercial_owners");
     }
