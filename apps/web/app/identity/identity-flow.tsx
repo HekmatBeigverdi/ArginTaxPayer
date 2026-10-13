@@ -24,6 +24,7 @@ export default function IdentityFlow() {
   const [challenge,setChallenge] = useState("");
   const [recovery,setRecovery] = useState(false);
   const [pending,setPending] = useState(false);
+  const [navigating,setNavigating] = useState(false);
   const [error,setError] = useState("");
   const [message,setMessage] = useState("");
   const purpose: Purpose = forgot ? "reset" : tab === "register" ? "register" : "login";
@@ -43,13 +44,13 @@ export default function IdentityFlow() {
     return {response,result};
   }
   async function submit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault(); if (pending) return;
+    e.preventDefault(); if (pending || navigating) return;
     setError("");setMessage("");setPending(true);
     try {
       if (step === "mfa") {
         const {response} = await api("mfa/complete",{challenge,code,useRecoveryCode:recovery});
         if (!response.ok) { setError("کد تأیید دومرحله‌ای معتبر نیست یا منقضی شده است.");return; }
-        router.replace("/account");router.refresh();return;
+        setNavigating(true);router.replace("/account");router.refresh();return;
       }
       if (phoneOtp) {
         if (step === "details") {
@@ -89,7 +90,7 @@ export default function IdentityFlow() {
       setError(response.status === 429 ? "تعداد تلاش‌ها بیش از حد مجاز است؛ بعداً دوباره امتحان کنید." :
         "نام کاربری یا رمز عبور نادرست است.");
     } catch {setError("ارتباط با سرور برقرار نشد؛ وضعیت API را بررسی کنید.");}
-    finally {setPending(false);}
+    finally { if (!navigating) setPending(false); }
   }
 
   return <div className="auth-workflow">
@@ -160,8 +161,8 @@ export default function IdentityFlow() {
       </>}
       {message&&<p role="status" className="auth-info">{message}</p>}
       {error&&<p role="alert" className="form-error">{error}</p>}
-      <button className="identity-primary" type="submit" disabled={pending}>
-        {pending?"در حال بررسی...":step==="mfa"?"تأیید و ورود":step==="code"?"تأیید کد":
+      <button className="identity-primary" type="submit" disabled={pending || navigating} aria-busy={pending || navigating}>
+        {navigating?"در حال ورود به پنل...":pending?"در حال بررسی...":step==="mfa"?"تأیید و ورود":step==="code"?"تأیید کد":
           phoneOtp?"دریافت کد تأیید":tab==="register"?"ایجاد حساب":"ورود به حساب"}
       </button>
       {step==="code"&&<button className="identity-secondary" type="button"
