@@ -165,6 +165,51 @@ public static class TaxpayerDevelopmentEndpoints
             };
         }).WithTags("Taxpayer Scope (Development)");
 
+        routes.MapGet("/api/dev/customer-owners", async (
+            HttpContext http, CustomerCommercialOwnershipService service, CancellationToken ct) =>
+        {
+            if (!IsLocal(http)) return Results.NotFound();
+            var result = await service.ListAsync(Bearer(http), ct);
+            return result.Decision switch
+            {
+                CustomerOwnershipDecision.Unauthenticated => Results.Unauthorized(),
+                CustomerOwnershipDecision.Forbidden => Results.StatusCode(403),
+                _ => Results.Ok(result.Owners)
+            };
+        }).WithTags("Customer Commercial Ownership (Development)");
+
+        routes.MapGet("/api/dev/customer-owners/{customerId:guid}", async (
+            Guid customerId, HttpContext http, CustomerCommercialOwnershipService service,
+            CancellationToken ct) =>
+        {
+            if (!IsLocal(http)) return Results.NotFound();
+            var result = await service.GetAsync(Bearer(http), customerId, ct);
+            return result.Decision switch
+            {
+                CustomerOwnershipDecision.Unauthenticated => Results.Unauthorized(),
+                CustomerOwnershipDecision.Forbidden => Results.StatusCode(403),
+                CustomerOwnershipDecision.NotFound => Results.NotFound(),
+                _ => Results.Ok(result.Owner)
+            };
+        }).WithTags("Customer Commercial Ownership (Development)");
+
+        routes.MapPost("/api/dev/customer-owners/{customerId:guid}/transfer", async (
+            Guid customerId, [FromBody] TransferCustomerOwnerRequest request,
+            HttpContext http, CustomerCommercialOwnershipService service, CancellationToken ct) =>
+        {
+            if (!IsLocal(http)) return Results.NotFound();
+            var result = await service.TransferAsync(Bearer(http), customerId, request, ct);
+            return result.Decision switch
+            {
+                CustomerOwnershipDecision.Unauthenticated => Results.Unauthorized(),
+                CustomerOwnershipDecision.Forbidden => Results.StatusCode(403),
+                CustomerOwnershipDecision.Invalid => Results.BadRequest(new { error = "invalid_customer_transfer" }),
+                CustomerOwnershipDecision.NotFound => Results.NotFound(),
+                CustomerOwnershipDecision.Conflict => Results.Conflict(new { error = "stale_customer_owner_revision" }),
+                _ => Results.Ok(result.Owner)
+            };
+        }).WithTags("Customer Commercial Ownership (Development)");
+
         return routes;
     }
 
