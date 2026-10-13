@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { currentIdentity, identityUiEnabled } from "../../lib/identity";
 import AccountControls from "./account-controls";
+import AdminCreateCustomer from "./admin-create-customer";
 
 export const dynamic = "force-dynamic";
 
@@ -19,5 +20,6 @@ export default async function AccountPage() {
       <p>نقش‌های فعلی: {actor.roles.join("، ")}</p>
     </section>
     <AccountControls/>
+    {actor.roles.some(role => role === "Level1" || role === "Level2") && <AdminCreateCustomer/>}
   </main>;
 }
