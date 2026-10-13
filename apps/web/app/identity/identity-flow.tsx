@@ -73,7 +73,7 @@ export default function IdentityFlow() {
               && Number.isFinite(result.retryAfterSeconds)
               ? Math.max(1, Math.min(900, Math.ceil(result.retryAfterSeconds))) : 60;
             setRetryAfter(seconds);
-            setError("کاربر گرامی، برای دریافت مجدد کد تأیید کمی صبر کنید.");
+            setError("otp_cooldown");
             return;
           }
           if (response.status !== 202) {
@@ -158,7 +158,7 @@ export default function IdentityFlow() {
         <input id="auth-identifier" dir="ltr" type={phoneOtp?"tel":tab==="register"?"email":"text"}
           autoComplete={phoneOtp?"tel":"username"} required value={identifier}
           placeholder={phoneOtp?"09123456789":tab==="register"?"example@email.com":"ایمیل یا شماره همراه"}
-          onChange={e=>setIdentifier(e.target.value)} maxLength={320}/>
+          onChange={e=>{setIdentifier(e.target.value);setRetryAfter(0);setError("");}} maxLength={320}/>
         {!phoneOtp && <>
           <label htmlFor="auth-password">رمز عبور</label>
           <input id="auth-password" dir="ltr" type="password" required
@@ -187,7 +187,13 @@ export default function IdentityFlow() {
           onChange={e=>setRecovery(e.target.checked)}/>استفاده از کد بازیابی</label>
       </>}
       {message&&<p role="status" className="auth-info">{message}</p>}
-      {error&&<p role="alert" className="form-error">{error}{retryAfter > 0 && <strong dir="ltr" className="otp-countdown"> زمان باقی‌مانده: {Math.floor(retryAfter/60).toString().padStart(2,"0")}:{(retryAfter%60).toString().padStart(2,"0")}</strong>}</p>}
+      {error && <p role="alert" className="form-error">
+        {error === "otp_cooldown" ? (retryAfter > 0 ? <>
+          کاربر گرامی، لطفاً پس از <strong dir="ltr" className="otp-countdown">
+            {Math.floor(retryAfter/60).toString().padStart(2,"0")}:{(retryAfter%60).toString().padStart(2,"0")}
+          </strong> مجدداً تلاش کنید.
+        </> : "اکنون می‌توانید مجدداً درخواست کد تأیید بدهید.") : error}
+      </p>}
       <button className="identity-primary" type="submit" disabled={pending || navigating || (phoneOtp && step==="details" && retryAfter > 0)} aria-busy={pending || navigating}>
         {navigating?"در حال ورود به پنل...":pending?"در حال بررسی...":phoneOtp && step==="details" && retryAfter > 0?"امکان درخواست مجدد پس از پایان شمارش":step==="mfa"?"تأیید و ورود":step==="code"?"تأیید کد":
           phoneOtp?"دریافت کد تأیید":tab==="register"?"ایجاد حساب":"ورود به حساب"}
