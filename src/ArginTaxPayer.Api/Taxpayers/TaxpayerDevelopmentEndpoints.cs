@@ -102,6 +102,21 @@ public static class TaxpayerDevelopmentEndpoints
             };
         }).WithTags("Fiscal Memories (Development)");
 
+        routes.MapGet("/api/dev/taxpayers/{taxpayerId:guid}/memories/{memoryId:guid}/certificates", async (
+            Guid taxpayerId, Guid memoryId, HttpContext http,
+            FiscalCertificateMetadataService service, CancellationToken ct) =>
+        {
+            if (!IsLocal(http)) return Results.NotFound();
+            var result = await service.ListAsync(Bearer(http), taxpayerId, memoryId, ct);
+            return result.Status switch
+            {
+                CertificateMetadataReadStatus.Unauthenticated => Results.Unauthorized(),
+                CertificateMetadataReadStatus.Forbidden => Results.StatusCode(403),
+                CertificateMetadataReadStatus.NotFound => Results.NotFound(),
+                _ => Results.Ok(result.Certificates)
+            };
+        }).WithTags("Certificates (Development)");
+
         return routes;
     }
 
