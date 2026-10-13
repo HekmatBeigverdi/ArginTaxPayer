@@ -14,6 +14,7 @@ public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbConte
     : DbContext(options)
 {
     public DbSet<TaxpayerProfile> TaxpayerProfiles => Set<TaxpayerProfile>();
+    public DbSet<TaxpayerProfileChange> TaxpayerProfileChanges => Set<TaxpayerProfileChange>();
     public DbSet<IdentityUser> IdentityUsers => Set<IdentityUser>();
     public DbSet<IdentityUserRole> IdentityUserRoles => Set<IdentityUserRole>();
     public DbSet<IdentitySession> IdentitySessions => Set<IdentitySession>();
@@ -27,6 +28,23 @@ public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbConte
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
+        var changes = modelBuilder.Entity<TaxpayerProfileChange>();
+        changes.ToTable("taxpayer_profile_changes");
+        changes.HasKey(x => x.Id);
+        changes.Property(x => x.Id).HasColumnName("id");
+        changes.Property(x => x.TaxpayerId).HasColumnName("taxpayer_id");
+        changes.Property(x => x.ActorUserId).HasColumnName("actor_user_id");
+        changes.Property(x => x.FromRevision).HasColumnName("from_revision");
+        changes.Property(x => x.ToRevision).HasColumnName("to_revision");
+        changes.Property(x => x.PriorDisplayName).HasColumnName("prior_display_name").HasMaxLength(256).IsRequired();
+        changes.Property(x => x.NewDisplayName).HasColumnName("new_display_name").HasMaxLength(256).IsRequired();
+        changes.Property(x => x.PriorStatus).HasColumnName("prior_status").HasConversion<int>();
+        changes.Property(x => x.NewStatus).HasColumnName("new_status").HasConversion<int>();
+        changes.Property(x => x.ChangedAtUtc).HasColumnName("changed_at_utc").HasColumnType("timestamp with time zone");
+        changes.HasOne<TaxpayerProfile>().WithMany().HasForeignKey(x => x.TaxpayerId).OnDelete(DeleteBehavior.Restrict);
+        changes.HasOne<IdentityUser>().WithMany().HasForeignKey(x => x.ActorUserId).OnDelete(DeleteBehavior.Restrict);
+        changes.HasIndex(x => new { x.TaxpayerId, x.ToRevision }).IsUnique().HasDatabaseName("ux_taxpayer_profile_changes_revision");
 
         var taxpayers = modelBuilder.Entity<TaxpayerProfile>();
         taxpayers.ToTable("taxpayer_profiles", t =>
