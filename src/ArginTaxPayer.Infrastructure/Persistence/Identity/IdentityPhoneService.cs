@@ -82,6 +82,15 @@ public sealed class IdentityPhoneService(ArginTaxPayerDbContext db, IIdentityOtp
             return false;
         }
 
+        // Password ownership is independent of SMS login eligibility.
+        // But any separately enabled MFA remains mandatory and must not be bypassed.
+        if (purpose == "login" && await db.IdentityMfaStates.AsNoTracking().AnyAsync(
+            x => x.UserId == actor!.Id && x.EnabledAtUtc != null, ct))
+        {
+            logger.LogInformation("OTP_REQUEST_SKIPPED reason=mfa_required");
+            return false;
+        }
+
         var code = RandomNumberGenerator.GetInt32(0, 1_000_000).ToString("D6");
         var id = Guid.NewGuid();
         db.IdentityPhoneChallenges.Add(new IdentityPhoneChallenge {
