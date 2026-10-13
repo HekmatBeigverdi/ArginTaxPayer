@@ -17,7 +17,7 @@ test("software users are listed before nested fiscal taxpayers", () => {
   assert.match(workspace, /customerUserId/);
   assert.match(workspace, /taxpayerCount/);
   assert.match(workspace, /\/taxpayers/);
-  assert.match(workspace, /مؤدیان متعلق به این کاربر/);
+  assert.match(workspace, /مؤدیان وابسته به این کاربر/);
   assert.match(workspace, /نیازمند تعیین مالکیت/);
 });
 test("server-proxy retains secure session and operation allowlist", () => {
