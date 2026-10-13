@@ -1,7 +1,6 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
-import DelegateConsole from "./delegate-console";
 
 type Taxpayer = { id: string; kind: number; normalizedIdentifier: string; displayName: string; status: number; revision: number };
 type Memory = { id: string; taxpayerId: string; memoryIdentifier: string; status: number; revision: number };
@@ -42,6 +41,7 @@ export default function TaxpayerWorkspace({ isLevel1 }: { isLevel1: boolean }) {
   const [newKind, setNewKind] = useState(2);
   const [newIdentifier, setNewIdentifier] = useState("");
   const [newName, setNewName] = useState("");
+  const [newCustomerId, setNewCustomerId] = useState("");
   const [editName, setEditName] = useState("");
   const [newMemory, setNewMemory] = useState("");
 
@@ -66,9 +66,9 @@ export default function TaxpayerWorkspace({ isLevel1 }: { isLevel1: boolean }) {
     event.preventDefault(); if (busy) return;
     setBusy(true); setError(""); setNotice("");
     try {
-      await request("/new", "POST", { kind: newKind, identifier: newIdentifier, displayName: newName });
+      await request("/new", "POST", { kind: newKind, identifier: newIdentifier, displayName: newName, customerUserId: newCustomerId });
       setNotice("مؤدی ثبت شد. شناسه قانونی هنوز به معنی تأیید رسمی سازمان مالیاتی نیست.");
-      setNewIdentifier(""); setNewName(""); await reload();
+      setNewIdentifier(""); setNewName(""); setNewCustomerId(""); await reload();
     } catch (ex) { setError((ex as Error).message); } finally { setBusy(false); }
   }
   async function rename(event: FormEvent<HTMLFormElement>) {
@@ -139,7 +139,6 @@ export default function TaxpayerWorkspace({ isLevel1 }: { isLevel1: boolean }) {
           </form>
           <p className="field-hint">ویرایش نام به معنای تغییر شناسه رسمی، مالکیت مؤدی یا حافظه مالیاتی نیست.</p>
         </article>
-        {isLevel1 && <DelegateConsole key={details.id} taxpayerId={details.id} taxpayerName={details.displayName}/>}
         {isLevel1 && <article className="taxpayer-panel">
           <h2>حافظه‌های مالیاتی</h2>
           {memories.length === 0 ? <p className="identity-muted">هنوز حافظه‌ای ثبت نشده است.</p> :
@@ -172,6 +171,10 @@ export default function TaxpayerWorkspace({ isLevel1 }: { isLevel1: boolean }) {
       {isLevel1 && <article className="taxpayer-panel">
         <h2>ثبت مؤدی جدید</h2>
         <form className="identity-form" onSubmit={createTaxpayer}>
+          <label htmlFor="new-taxpayer-customer">شناسه حساب مشتری (UUID)</label>
+          <input id="new-taxpayer-customer" dir="ltr" required value={newCustomerId}
+            onChange={e => setNewCustomerId(e.target.value)}
+            pattern="[0-9a-fA-F-]{36}" placeholder="شناسه کاربری مشتری صاحب مؤدی"/>
           <label htmlFor="new-taxpayer-kind">نوع مؤدی</label>
           <select id="new-taxpayer-kind" value={newKind} onChange={e => setNewKind(Number(e.target.value))}>
             <option value={1}>شخص حقیقی</option><option value={2}>شخص حقوقی</option>
