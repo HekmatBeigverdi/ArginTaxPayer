@@ -84,6 +84,17 @@ async function callIdentity(operation: string, req: NextRequest, method: "GET" |
       saveTokens(result, tokens);
       return result;
     }
+    if (operation === "phone/request" && response.status === 429) {
+      const body = await response.json().catch(() => ({})) as { retryAfterSeconds?: number };
+      const remaining = Math.max(1, Math.min(900,
+        Number.isFinite(body.retryAfterSeconds) ? Math.ceil(body.retryAfterSeconds!) : 60));
+      return NextResponse.json({ error: "otp_cooldown", retryAfterSeconds: remaining },
+        { status: 429, headers: { "Cache-Control": "no-store" } });
+    }
+    if (operation === "phone/request" && response.status === 409)
+      return errorResult(409, "mobile_already_registered");
+    if (operation === "phone/request" && response.status === 503)
+      return errorResult(503, "otp_unavailable");
     const result = await response.text();
     // Never expose raw upstream diagnostics; for enrollment only, explicitly return
     // the one-time provisioning secret to an authenticated local development user.
