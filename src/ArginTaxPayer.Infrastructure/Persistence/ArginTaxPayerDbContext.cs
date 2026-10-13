@@ -38,7 +38,7 @@ public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbConte
         commercial.ToTable("customer_commercial_owners", t =>
         {
             t.HasCheckConstraint("ck_customer_owner_revision", "revision > 0");
-            t.HasCheckConstraint("ck_customer_owner_channel", "acquisition_channel IN (1, 2, 3, 4)");
+            t.HasCheckConstraint("ck_customer_owner_channel", "acquisition_channel IN (1, 2, 3, 4, 5)");
             t.HasCheckConstraint("ck_customer_owner_not_root_partner",
                 "partner_level2_user_id IS NULL OR partner_level2_user_id <> root_level1_user_id");
         });
