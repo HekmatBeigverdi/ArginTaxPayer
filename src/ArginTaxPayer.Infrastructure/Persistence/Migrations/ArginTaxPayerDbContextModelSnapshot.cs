@@ -13,6 +13,31 @@ public sealed class ArginTaxPayerDbContextModelSnapshot : ModelSnapshot
     {
         modelBuilder.HasAnnotation("ProductVersion", "9.0.4");
 
+        modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Taxpayers.TaxpayerProfileChange", b =>
+        {
+            b.Property<Guid>("Id").HasColumnName("id").HasColumnType("uuid");
+            b.Property<Guid>("TaxpayerId").HasColumnName("taxpayer_id").HasColumnType("uuid");
+            b.Property<Guid>("ActorUserId").HasColumnName("actor_user_id").HasColumnType("uuid");
+            b.Property<long>("FromRevision").HasColumnName("from_revision").HasColumnType("bigint");
+            b.Property<long>("ToRevision").HasColumnName("to_revision").HasColumnType("bigint");
+            b.Property<string>("PriorDisplayName").IsRequired().HasMaxLength(256).HasColumnName("prior_display_name").HasColumnType("character varying(256)");
+            b.Property<string>("NewDisplayName").IsRequired().HasMaxLength(256).HasColumnName("new_display_name").HasColumnType("character varying(256)");
+            b.Property<int>("PriorStatus").HasColumnName("prior_status").HasColumnType("integer");
+            b.Property<int>("NewStatus").HasColumnName("new_status").HasColumnType("integer");
+            b.Property<DateTime>("ChangedAtUtc").HasColumnName("changed_at_utc").HasColumnType("timestamp with time zone");
+            b.HasKey("Id");
+            b.HasIndex("TaxpayerId", "ToRevision").IsUnique().HasDatabaseName("ux_taxpayer_profile_changes_revision");
+            b.HasIndex("ActorUserId");
+            b.ToTable("taxpayer_profile_changes");
+        });
+        modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Taxpayers.TaxpayerProfileChange", b =>
+        {
+            b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Taxpayers.TaxpayerProfile", null)
+                .WithMany().HasForeignKey("TaxpayerId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+            b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null)
+                .WithMany().HasForeignKey("ActorUserId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+        });
+
         modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Taxpayers.TaxpayerProfile", b =>
         {
             b.Property<Guid>("Id").HasColumnName("id").HasColumnType("uuid");
