@@ -163,6 +163,50 @@ public static class TaxpayerDevelopmentEndpoints
                     _ => Results.Ok(result.Grant)
                 };
             });
+        routes.MapGet("/api/dev/taxpayers", async (
+            HttpContext http, TaxpayerScopeService service, CancellationToken ct) =>
+        {
+            if (!IsLocal(http)) return Results.NotFound();
+            var result = await service.ListAsync(Bearer(http), ct);
+            return result.Decision switch
+            {
+                TaxpayerScopeDecision.Unauthenticated => Results.Unauthorized(),
+                TaxpayerScopeDecision.Forbidden => Results.StatusCode(403),
+                _ => Results.Ok(result.Profiles)
+            };
+        }).WithTags("Taxpayer Scope (Development)");
+
+        routes.MapGet("/api/dev/taxpayers/{taxpayerId:guid}", async (
+            Guid taxpayerId, HttpContext http, TaxpayerScopeService service, CancellationToken ct) =>
+        {
+            if (!IsLocal(http)) return Results.NotFound();
+            var result = await service.GetAsync(Bearer(http), taxpayerId, ct);
+            return result.Decision switch
+            {
+                TaxpayerScopeDecision.Unauthenticated => Results.Unauthorized(),
+                TaxpayerScopeDecision.Forbidden => Results.StatusCode(403),
+                TaxpayerScopeDecision.NotFound => Results.NotFound(),
+                _ => Results.Ok(result.Profile)
+            };
+        }).WithTags("Taxpayer Scope (Development)");
+
+        routes.MapPatch("/api/dev/taxpayers/{taxpayerId:guid}/display-name", async (
+            Guid taxpayerId, [FromBody] ScopedRenameRequest request,
+            HttpContext http, TaxpayerScopeService service, CancellationToken ct) =>
+        {
+            if (!IsLocal(http)) return Results.NotFound();
+            var result = await service.RenameAsync(Bearer(http), taxpayerId, request, ct);
+            return result.Decision switch
+            {
+                TaxpayerScopeDecision.Unauthenticated => Results.Unauthorized(),
+                TaxpayerScopeDecision.Forbidden => Results.StatusCode(403),
+                TaxpayerScopeDecision.NotFound => Results.NotFound(),
+                TaxpayerScopeDecision.Conflict => Results.Conflict(new { error = "stale_revision_or_revoked_assignment" }),
+                TaxpayerScopeDecision.Invalid => Results.BadRequest(new { error = "invalid_display_name" }),
+                _ => Results.Ok(result.Profile)
+            };
+        }).WithTags("Taxpayer Scope (Development)");
+
         return routes;
     }
 
