@@ -24,8 +24,6 @@ export default async function UsersPage() {
       </nav>
     </header>
     <UsersWorkspace level1={isLevel1}/>
-    <section className="taxpayer-panel" aria-label="ایجاد حساب کاربر">
-      <AdminCreateCustomer/>
-    </section>
+    <AdminCreateCustomer/>
   </main>;
 }
