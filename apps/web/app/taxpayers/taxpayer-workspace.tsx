@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import DelegateConsole from "./delegate-console";
 
 type Taxpayer = { id: string; kind: number; normalizedIdentifier: string; displayName: string; status: number; revision: number };
 type Memory = { id: string; taxpayerId: string; memoryIdentifier: string; status: number; revision: number };
@@ -55,13 +56,11 @@ export default function TaxpayerWorkspace({ isLevel1 }: { isLevel1: boolean }) {
   const show = useCallback(async (id: string) => {
     setError(""); setNotice(""); setSelectedId(id); setDetails(null); setMemories([]); setCertificates({});
     try {
-      const [profile, list] = await Promise.all([
-        request<Taxpayer>("/" + id),
-        request<Memory[]>("/" + id + "/memories")
-      ]);
+      const profile = await request<Taxpayer>("/" + id);
+      const list = isLevel1 ? await request<Memory[]>("/" + id + "/memories") : [];
       setDetails(profile); setEditName(profile.displayName); setMemories(list);
     } catch (ex) { setError((ex as Error).message); }
-  }, []);
+  }, [isLevel1]);
 
   async function createTaxpayer(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (busy) return;
@@ -104,7 +103,7 @@ export default function TaxpayerWorkspace({ isLevel1 }: { isLevel1: boolean }) {
     .toLocaleLowerCase("fa").includes(search.toLocaleLowerCase("fa")));
   return <div className="taxpayer-workspace">
     <aside className="taxpayer-panel">
-      <div className="taxpayer-section-heading"><h2>فهرست مؤدیان</h2>
+      <div className="taxpayer-section-heading"><h2>{isLevel1 ? "فهرست همه مؤدیان" : "مؤدیان واگذارشده به من"}</h2>
         <button className="identity-secondary" type="button" disabled={loading} onClick={() => void reload()}>بازخوانی</button>
       </div>
       <label htmlFor="taxpayer-search">جست‌وجو در مؤدیان مجاز</label>
@@ -140,7 +139,8 @@ export default function TaxpayerWorkspace({ isLevel1 }: { isLevel1: boolean }) {
           </form>
           <p className="field-hint">ویرایش نام به معنای تغییر شناسه رسمی، مالکیت مؤدی یا حافظه مالیاتی نیست.</p>
         </article>
-        <article className="taxpayer-panel">
+        {isLevel1 && <DelegateConsole key={details.id} taxpayerId={details.id} taxpayerName={details.displayName}/>}
+        {isLevel1 && <article className="taxpayer-panel">
           <h2>حافظه‌های مالیاتی</h2>
           {memories.length === 0 ? <p className="identity-muted">هنوز حافظه‌ای ثبت نشده است.</p> :
             <ul className="taxpayer-memory-list">{memories.map(m => <li key={m.id}>
@@ -167,7 +167,7 @@ export default function TaxpayerWorkspace({ isLevel1 }: { isLevel1: boolean }) {
             <p className="field-hint">تأیید اتصال واقعی، تعویض حافظه و ورود کلید خصوصی در مراحل آتی فعال می‌شود.</p>
           </form>}
           <p className="taxpayer-warning">تست واقعی ارتباط با سازمان مالیاتی و تأیید توکن هنوز فعال نیست؛ هیچ وضعیت «اتصال موفق» به‌صورت نمایشی ساخته نمی‌شود.</p>
-        </article>
+        </article>}
       </>}
       {isLevel1 && <article className="taxpayer-panel">
         <h2>ثبت مؤدی جدید</h2>
