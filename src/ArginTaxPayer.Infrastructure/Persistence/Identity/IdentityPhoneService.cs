@@ -14,7 +14,7 @@ public sealed class IdentityPhoneService(ArginTaxPayerDbContext db, IIdentityOtp
     IdentitySessionService sessions, IConfiguration configuration, ILogger<IdentityPhoneService> logger)
 {
     private static readonly TimeSpan Lifetime = TimeSpan.FromMinutes(3);
-    private static readonly TimeSpan Cooldown = TimeSpan.FromSeconds(60);
+    private static readonly TimeSpan Cooldown = TimeSpan.FromMinutes(3);
 
     public static string CodeDigest(string pepper, Guid challengeId, string mobile, string purpose, string code)
     {
@@ -97,7 +97,7 @@ public sealed class IdentityPhoneService(ArginTaxPayerDbContext db, IIdentityOtp
         if (recent.Count > 0 && recent[0] > now.Subtract(Cooldown))
         {
             var wait = RemainingSeconds(recent[0].Add(Cooldown), now);
-            logger.LogWarning("OTP_REQUEST_SKIPPED reason=cooldown_60s remaining_seconds={RemainingSeconds}", wait);
+            logger.LogWarning("OTP_REQUEST_SKIPPED reason=cooldown_180s remaining_seconds={RemainingSeconds}", wait);
             return new(PhoneOtpRequestStatus.RateLimited, wait);
         }
 
