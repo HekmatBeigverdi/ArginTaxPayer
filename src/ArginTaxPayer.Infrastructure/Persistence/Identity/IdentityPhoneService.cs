@@ -163,6 +163,8 @@ public sealed class IdentityPhoneService(ArginTaxPayerDbContext db, IIdentityOtp
             try { IdentityPasswordHasher.Validate(password); }
             catch (ArgumentException) { return false; }
         }
+        // Do not consume a valid OTP when no unambiguous commercial root exists.
+        if (await ownership.ResolveRootAsync(null, ct) is null) return false;
         // Consume proof first, independently of account creation, so failed guesses
         // cannot be rolled back by a caller-managed transaction.
         var proof = await ConsumeAsync(mobile, "register", code, ct);
