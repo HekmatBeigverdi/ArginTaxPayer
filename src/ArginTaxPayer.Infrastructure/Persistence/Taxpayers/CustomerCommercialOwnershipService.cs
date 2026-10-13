@@ -1,0 +1,122 @@
+using ArginTaxPayer.Domain.Taxpayers;
+using ArginTaxPayer.Infrastructure.Persistence.Identity;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+
+namespace ArginTaxPayer.Infrastructure.Persistence.Taxpayers;
+
+public enum CustomerOwnershipDecision { Success, Unauthenticated, Forbidden, Invalid, NotFound, Conflict, RootNotConfigured }
+public sealed record TransferCustomerOwnerRequest(Guid? PartnerLevel2UserId, long ExpectedRevision,
+    CustomerOwnershipChangeReason Reason, string? Explanation);
+public sealed record CustomerCommercialOwnerView(Guid CustomerUserId, Guid RootLevel1UserId,
+    Guid? PartnerLevel2UserId, CustomerAcquisitionChannel AcquisitionChannel, long Revision);
+public sealed record CustomerOwnershipResponse(CustomerOwnershipDecision Decision, CustomerCommercialOwnerView? Owner = null);
+
+/// <summary>
+/// Assigns one commercial account to an entire customer. Does NOT assign
+/// individual fiscal taxpayers or retroactively rewrite booked transactions.
+/// </summary>
+public sealed class CustomerCommercialOwnershipService(
+    ArginTaxPayerDbContext db, IdentityAuthorizationService identity, IConfiguration configuration)
+{
+    public async Task<Guid?> ResolveRootAsync(Guid? creatorLevel1Id, CancellationToken ct = default)
+    {
+        if (creatorLevel1Id is { } directRoot)
+            return await IsRoleAsync(directRoot, IdentityRoleNames.Level1, ct) ? directRoot : null;
+        var configured = configuration["Ownership:DefaultLevel1UserId"];
+        if (Guid.TryParse(configured, out var rootId) && await IsRoleAsync(rootId, IdentityRoleNames.Level1, ct))
+            return rootId;
+        // Ambiguous Level1 owners cannot silently acquire someone else's customers.
+        var candidates = await db.IdentityUsers.AsNoTracking()
+            .Where(u => u.IsActive && u.Roles.Any(r => r.Role == IdentityRoleNames.Level1))
+            .Select(u => u.Id).Take(2).ToArrayAsync(ct);
+        return candidates.Length == 1 ? candidates[0] : null;
+    }
+
+    private Task<bool> IsRoleAsync(Guid id, string role, CancellationToken ct) =>
+        db.IdentityUsers.AsNoTracking().AnyAsync(u => u.Id == id && u.IsActive &&
+            u.Roles.Any(r => r.Role == role), ct);
+
+    public async Task<CustomerCommercialOwner?> PrepareInitialAsync(Guid customerUserId,
+        Guid? creatingAdminUserId, CancellationToken ct = default)
+    {
+        Guid? level1 = null;
+        Guid? level2 = null;
+        if (creatingAdminUserId is { } creator)
+        {
+            if (await IsRoleAsync(creator, IdentityRoleNames.Level1, ct)) level1 = creator;
+            else if (await IsRoleAsync(creator, IdentityRoleNames.Level2, ct)) level2 = creator;
+            else return null;
+        }
+        var root = await ResolveRootAsync(level1, ct);
+        if (root is null) return null;
+        var channel = creatingAdminUserId is null ? CustomerAcquisitionChannel.PublicSelfRegistration :
+            level1 is not null ? CustomerAcquisitionChannel.Level1Created :
+            CustomerAcquisitionChannel.Level2Created;
+        var now = DateTime.UtcNow;
+        return new CustomerCommercialOwner
+        {
+            CustomerUserId = customerUserId, RootLevel1UserId = root.Value,
+            PartnerLevel2UserId = CustomerCommercialOwnershipPolicy.InitialPartner(channel, level2),
+            AcquisitionChannel = channel, Revision = 1,
+            CreatedAtUtc = now, UpdatedAtUtc = now
+        };
+    }
+
+    public async Task<CustomerOwnershipResponse> TransferAsync(string? bearer, Guid customerUserId,
+        TransferCustomerOwnerRequest request, CancellationToken ct = default)
+    {
+        var actorId = await identity.CurrentUserIdAsync(bearer, ct);
+        if (actorId is null) return new(CustomerOwnershipDecision.Unauthenticated);
+        var isLevel1 = await db.IdentityUsers.AsNoTracking().AnyAsync(u =>
+            u.Id == actorId && u.IsActive &&
+            u.Roles.Any(r => r.Role == IdentityRoleNames.Level1) &&
+            db.IdentityMfaStates.Any(m => m.UserId == actorId && m.EnabledAtUtc != null), ct);
+        if (!isLevel1) return new(CustomerOwnershipDecision.Forbidden);
+        if (customerUserId == Guid.Empty || request is null || request.ExpectedRevision < 1 ||
+            !Enum.IsDefined(request.Reason) || string.IsNullOrWhiteSpace(request.Explanation))
+            return new(CustomerOwnershipDecision.Invalid);
+        var explanation = request.Explanation.Trim().Normalize(System.Text.NormalizationForm.FormC);
+        if (explanation.Length > 1000 || explanation.Any(char.IsControl))
+            return new(CustomerOwnershipDecision.Invalid);
+        if (request.PartnerLevel2UserId is { } partner &&
+            !await db.IdentityUsers.AsNoTracking().AnyAsync(u =>
+                u.Id == partner && u.IsActive && u.Roles.Any(r => r.Role == IdentityRoleNames.Level2) &&
+                !u.Roles.Any(r => r.Role == IdentityRoleNames.Level1) &&
+                db.IdentityMfaStates.Any(m => m.UserId == partner && m.EnabledAtUtc != null), ct))
+            return new(CustomerOwnershipDecision.Forbidden);
+        return await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+        {
+            await using var tx = await db.Database.BeginTransactionAsync(ct);
+            var owner = await db.CustomerCommercialOwners.AsNoTracking()
+                .SingleOrDefaultAsync(o => o.CustomerUserId == customerUserId && o.RootLevel1UserId == actorId, ct);
+            if (owner is null) return new CustomerOwnershipResponse(CustomerOwnershipDecision.NotFound);
+            if (owner.Revision != request.ExpectedRevision)
+                return new CustomerOwnershipResponse(CustomerOwnershipDecision.Conflict);
+            if (owner.PartnerLevel2UserId == request.PartnerLevel2UserId)
+                return new CustomerOwnershipResponse(CustomerOwnershipDecision.Invalid);
+            // Source state must be rechecked in SQL, not a previously cached UI decision.
+            var updated = await db.CustomerCommercialOwners.Where(o => o.CustomerUserId == customerUserId &&
+                o.RootLevel1UserId == actorId && o.Revision == request.ExpectedRevision &&
+                o.PartnerLevel2UserId == owner.PartnerLevel2UserId)
+                .ExecuteUpdateAsync(s => s.SetProperty(x => x.PartnerLevel2UserId, request.PartnerLevel2UserId)
+                    .SetProperty(x => x.Revision, x => x.Revision + 1)
+                    .SetProperty(x => x.UpdatedAtUtc, DateTime.UtcNow), ct);
+            if (updated != 1) return new CustomerOwnershipResponse(CustomerOwnershipDecision.Conflict);
+            db.CustomerCommercialOwnerChanges.Add(new CustomerCommercialOwnerChange
+            {
+                Id = Guid.NewGuid(), CustomerUserId = customerUserId, RootLevel1UserId = owner.RootLevel1UserId,
+                PreviousPartnerLevel2UserId = owner.PartnerLevel2UserId,
+                NewPartnerLevel2UserId = request.PartnerLevel2UserId,
+                ApprovedByLevel1UserId = actorId.Value, Reason = request.Reason,
+                Explanation = explanation, FromRevision = owner.Revision, ToRevision = owner.Revision + 1,
+                ChangedAtUtc = DateTime.UtcNow
+            });
+            await db.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
+            return new CustomerOwnershipResponse(CustomerOwnershipDecision.Success,
+                new CustomerCommercialOwnerView(customerUserId, owner.RootLevel1UserId,
+                    request.PartnerLevel2UserId, owner.AcquisitionChannel, owner.Revision + 1));
+        });
+    }
+}
