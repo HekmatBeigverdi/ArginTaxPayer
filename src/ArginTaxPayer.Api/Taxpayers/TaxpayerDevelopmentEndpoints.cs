@@ -117,6 +117,22 @@ public static class TaxpayerDevelopmentEndpoints
             };
         }).WithTags("Certificates (Development)");
 
+        routes.MapPost("/api/dev/taxpayers/{taxpayerId:guid}/delegates", async (
+            Guid taxpayerId, GrantDelegateRequest request, HttpContext http,
+            TaxpayerDelegateService service, CancellationToken ct) =>
+        {
+            if (!IsLocal(http)) return Results.NotFound();
+            var outcome = await service.GrantAsync(Bearer(http), taxpayerId, request, ct);
+            return outcome.Outcome switch
+            {
+                DelegateOperationOutcome.Unauthenticated => Results.Unauthorized(),
+                DelegateOperationOutcome.Forbidden => Results.StatusCode(403),
+                DelegateOperationOutcome.Invalid => Results.BadRequest(),
+                DelegateOperationOutcome.NotFound => Results.NotFound(),
+                DelegateOperationOutcome.Conflict => Results.Conflict(),
+                _ => Results.Ok(outcome.Grant)
+            };
+        });
         return routes;
     }
 
