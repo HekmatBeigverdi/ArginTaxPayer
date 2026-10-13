@@ -8,6 +8,7 @@ type Account = {
   acquisitionChannel: number; revision: number; mobile: string | null; email: string | null;
   createdAtUtc: string; isActive: boolean; taxpayerCount: number;
 };
+type Partner = { userId: string; mobile: string | null; email: string | null };
 type Taxpayer = { id: string; kind: number; normalizedIdentifier: string; displayName: string;
   status: number; revision: number };
 const acquisition: Record<number,string> = {
@@ -37,6 +38,8 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
   const [error, setError] = useState("");
   const [modalError, setModalError] = useState("");
   const [partnerId, setPartnerId] = useState("");
+  const [partners, setPartners] = useState<Partner[]>([]);
+  const [partnerLoadError, setPartnerLoadError] = useState("");
   const [transferReason, setTransferReason] = useState("");
   const [transferKind, setTransferKind] = useState(1);
   const [savingOwner, setSavingOwner] = useState(false);
@@ -65,6 +68,8 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
   }, []);
 
   useEffect(() => {
+    if (level1) void load<Partner[]>("/api/customer-owners/partners")
+      .then(setPartners).catch(() => setPartnerLoadError("فهرست شرکای مجاز دریافت نشد."));
     void refresh();
     const focus = () => void refresh();
     const visibility = () => { if (document.visibilityState === "visible") void refresh(); };
@@ -250,10 +255,17 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
           <h3>انتساب تجاری این کاربر</h3>
           <p>ثبت‌نام عمومی زیرمجموعه سطح ۱ است. واگذاری به شریک سطح ۲ فقط با تأیید شما انجام می‌شود.</p>
           <form onSubmit={assignOwner}>
-            <label htmlFor="owner-partner-id">شناسه ادمین سطح ۲ (برای مالکیت مستقیم سطح ۱، خالی بگذارید)
-              <input id="owner-partner-id" dir="ltr" value={partnerId} onChange={e => setPartnerId(e.target.value)}
-                placeholder="شناسه UUID شریک تجاری"/>
+            <label htmlFor="owner-partner-id">مالک تجاری مشتری
+              <select id="owner-partner-id" value={partnerId} onChange={e => setPartnerId(e.target.value)}>
+                <option value="">ادمین سطح ۱ — مشتری مستقیم</option>
+                {partnerId && !partners.some(p => p.userId === partnerId) &&
+                  <option value={partnerId}>شریک فعلی — {partnerId.slice(0, 8)}…</option>}
+                {partners.map(p => <option key={p.userId} value={p.userId}>
+                  {p.mobile || p.email || p.userId} — ادمین سطح ۲
+                </option>)}
+              </select>
             </label>
+            {partnerLoadError && <p role="alert" className="form-error">{partnerLoadError}</p>}
             <label htmlFor="owner-transfer-kind">علت انتساب
               <select id="owner-transfer-kind" value={transferKind} onChange={e => setTransferKind(Number(e.target.value))}>
                 <option value={1}>معرفی مشتری توسط شریک و تأیید سطح ۱</option>
@@ -267,7 +279,7 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
                 value={transferReason} onChange={e => setTransferReason(e.target.value)}/>
             </label>
             <button className="users-button" type="submit"
-              disabled={savingOwner || !transferReason.trim() ||
+              disabled={savingOwner || !!partnerLoadError || !transferReason.trim() ||
                 (!!selected.rootLevel1UserId && partnerId.trim() === (selected.partnerLevel2UserId || ""))}>
               {savingOwner ? "در حال ثبت…" : selected.rootLevel1UserId ? "تأیید تغییر انتساب" : "ثبت اولیه مالکیت کاربر قدیمی"}
             </button>
