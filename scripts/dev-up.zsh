@@ -99,6 +99,19 @@ if ! echo "$diagnostics" | grep -q '"otpPepperConfigured":true'; then
   print -u2 "OTP pepper not configured in running API."
   exit 1
 fi
+if [[ "${Identity__OtpDeliveryMode}" != "LocalFile" ]]; then
+  for field in ghasedakApiKeyConfigured ghasedakTemplateConfigured ghasedakTestRecipientConfigured; do
+    if ! echo "$diagnostics" | grep -q "\"$field\":true"; then
+      print -u2 "Ghasedak preflight FAILED: $field. Check .env.ghasedak.local."
+      exit 1
+    fi
+  done
+fi
+if echo "$diagnostics" | grep -q '"smsSendingEnabled":true'; then
+  print 'SMS MODE: LIVE (only permitted test recipient; provider charges possible)'
+else
+  print 'SMS MODE: DISABLED (no real messages will be sent)'
+fi
 
 if lsof -nP -iTCP:3000 -sTCP:LISTEN >/dev/null 2>&1; then
   print -u2 'Port 3000 already in use. Stop old Next.js before using dev-up.'
