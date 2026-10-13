@@ -226,6 +226,12 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
     </div>
 
     <dialog className="users-dialog" ref={dialogRef} onClose={close}
+      onClick={event => {
+        if (event.target !== event.currentTarget) return;
+        const r = event.currentTarget.getBoundingClientRect();
+        if (event.clientX < r.left || event.clientX > r.right ||
+            event.clientY < r.top || event.clientY > r.bottom) close();
+      }}
       aria-labelledby="user-detail-heading" dir="rtl">
       <div className="users-dialog-head">
         <div><p>پرونده حساب کاربری</p><h2 id="user-detail-heading">{selected?.mobile || selected?.email || "مشخصات کاربر"}</h2></div>
