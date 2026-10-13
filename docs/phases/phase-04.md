@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 04: Multi-Taxpayer Management
 
-**Status:** Steps 01–02 owner approved (2026-10-13; Step 02 test evidence owner-reported); Step 03 implemented in repository, verification and owner approval pending
+**Status:** Steps 01–03 owner approved (2026-10-13; local test evidence owner-reported); Step 04 implemented in source, local verification and owner approval pending
 **Branch:** `phase/04-multi-taxpayer-management`
 **Started:** 2026-10-13
 **Baseline:** `docs/roadmap/18-phases.md`, Phase 03 identity/authorization contracts
@@ -25,8 +25,8 @@ Manage natural/legal taxpayer profiles, fiscal memories, certificate metadata an
 |---|---|---|---|---|
 | 01 | Domain Contracts and Lifecycle Matrix | Taxpayer/memory/assignment state models, invariants, API contracts, migration plan | Identity, lifecycle and authorization matrix reviewed; no unapproved mutation | Owner approved (2026-10-13; automated test evidence not supplied) |
 | 02 | Taxpayer Persistence and Migration | Natural/legal taxpayer entities, normalized identifiers, constraints, EF migration | Safe migration and duplicate/constraint tests against test DB | Owner approved (2026-10-13; owner-reported) |
-| 03 | Taxpayer Creation and Validation | Level 1 controlled taxpayer registration, type-specific validation | Invalid/duplicate inputs rejected; authorization enforced | Implemented — local verification pending |
-| 04 | Taxpayer Profile and Lifecycle | Read/update/deactivate workflows, optimistic concurrency, history | Stale updates rejected; history preserved | Planned |
+| 03 | Taxpayer Creation and Validation | Level 1 controlled taxpayer registration, type-specific validation | Invalid/duplicate inputs rejected; authorization enforced | Owner approved (2026-10-13; owner-reported) |
+| 04 | Taxpayer Profile and Lifecycle | Read/update/deactivate workflows, optimistic concurrency, history | Stale updates rejected; history preserved | Implemented — verification pending |
 | 05 | Fiscal Memory Persistence | Memory identifiers, taxpayer relationship, lifecycle and constraints | No cross-taxpayer linking; unique/active policy tested | Planned |
 | 06 | Fiscal Memory Management API | Register/update/retire memory metadata and lifecycle | Unauthorized and invalid transitions denied | Planned |
 | 07 | Certificate Metadata and Custody Boundary | Fingerprint, expiry, issuer, secure key-reference contracts, rotation metadata | No secret leakage; expired/revoked states handled | Planned |
@@ -134,7 +134,27 @@ dotnet test ArginTaxPayer.sln -c Release --filter 'FullyQualifiedName~TaxpayerId
 zsh scripts/dev-status.zsh
 ```
 **Negative-path HTTP acceptance:** Without Authorization → 401; Level 2/Customer bearer → 403; invalid natural code/length → 400; Level 1 with enrolled MFA → 201; same kind and normalized ID twice → 409. Execute with throwaway test identifiers only, using the existing Phase 03 MFA flow. Cross-process/duplicate races must ultimately be exercised on PostgreSQL; unit test coverage of HTTP denial is not yet established. Never paste actual bearer tokens in issue comments or logs.
-**Evidence:** Code commits recorded; build, HTTP, real PostgreSQL duplicates, CI not executed by assistant. Ubuntu runtime deferred to end of phase, per owner cadence. **Owner acceptance:** Pending.
+**Evidence:** Code commits recorded; build, HTTP, real PostgreSQL duplicates, CI not executed by assistant. Ubuntu runtime deferred to end of phase, per owner cadence. **Owner acceptance:** Approved by owner 2026-10-13. Raw local test logs were not independently available.
+
+### Step 04 — Taxpayer Profile and Lifecycle
+
+**Implementation status:** Committed; no runtime acceptance claim. **Owner acceptance:** Pending.
+**Code:** `TaxpayerProfileLifecycleService.cs`, `TaxpayerProfileChange.cs`, `ArginTaxPayerDbContext.cs`, `20261013200000_AddTaxpayerProfileHistory.cs`, EF snapshot, `TaxpayerDevelopmentEndpoints.cs`, `Program.cs`.
+**API:** Development/loopback `PUT /api/dev/taxpayers/{taxpayerId}`. Requires a valid opaque bearer, active Level 1 and enabled MFA; no Level 2/Customer modification. Body: `{ "displayName": "New name", "status": 2, "expectedRevision": 1 }`. HTTP 200/400/401/403/404/409 responses. Taxpayer type and identifier intentionally immutable in this operation.
+**Concurrency:** In a database transaction, an update compares `id`, `revision`, old status and old name. Successful changes increment revision and insert an immutable change record (actor, before/after, time) in the same transaction. Archived state is terminal.
+**Migration:** `20261013200000_AddTaxpayerProfileHistory` creates only the history table and its FKs/indexes. It has NOT been applied. Confirm the database is `argintaxpayer_test` before explicit migration. Do not run migrations automatically at startup.
+**Security:** Existing Phase 03 MFA/opaque token authorization reused. No secret exposure or delegate privilege promotion.
+**Bug fix — stale Google Authenticator screen:** `apps/web/app/identity/identity-flow.tsx` uses `expiresAtUtc` supplied by `mfa/challenge` (currently server issues a five-minute challenge). The UI displays a second-level countdown, checks actual wall clock on page focus/visibility, blocks expired submissions, discards the challenge/code and returns to login with a clear Persian reason. The 30-second TOTP code cadence is *not* the five-minute challenge expiry. Neither lifetime nor server brute-force limit was extended.
+**New tests:** `tests/ArginTaxPayer.Tests/TaxpayerLifecycleTests.cs`, `apps/web/tests/mfa-expiry.test.mjs`.
+**macOS verification:**
+```bash
+zsh scripts/dev-up.zsh
+dotnet build ArginTaxPayer.sln -c Release
+dotnet test ArginTaxPayer.sln -c Release --filter 'FullyQualifiedName~TaxpayerLifecycleTests|FullyQualifiedName~TaxpayerPersistenceMetadataTests'
+(cd apps/web && npm test && npm run typecheck && npm run build)
+```
+After independent DB check `SELECT current_database();` returns `argintaxpayer_test`, explicitly apply `20261013200000_AddTaxpayerProfileHistory` using the known safe `dotnet ef database update` command. Verify 200 transition, 409 stale revision, 400 illegal archive reactivation, 403 Level 2, 401 unauthenticated, and history row writes. For MFA check auto-return after five minutes without reload and rejection of a stale challenge, as well as successful use before expiry.
+**Evidence:** macOS build not executed; targeted tests not executed; migration not applied; PostgreSQL HTTP integration and CI pending. **Ubuntu:** final-phase runtime test deferred (schema migration integrity check required locally).
 
 ## Phase Exit Gate
 All 13 steps accepted, focused regression passing, Ubuntu verification once, schema/security review, owner signoff. Merge to main, immutable tag, GitHub Release and production deployment are distinct gated actions and must never be assumed completed.
