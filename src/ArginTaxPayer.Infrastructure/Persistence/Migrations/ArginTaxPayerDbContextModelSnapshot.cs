@@ -13,6 +13,28 @@ public sealed class ArginTaxPayerDbContextModelSnapshot : ModelSnapshot
     {
         modelBuilder.HasAnnotation("ProductVersion", "9.0.4");
 
+        modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Taxpayers.TaxpayerProfile", b =>
+        {
+            b.Property<Guid>("Id").HasColumnName("id").HasColumnType("uuid");
+            b.Property<int>("Kind").HasColumnName("kind").HasColumnType("integer");
+            b.Property<string>("NormalizedIdentifier").IsRequired().HasMaxLength(32).HasColumnName("normalized_identifier").HasColumnType("character varying(32)");
+            b.Property<string>("DisplayName").IsRequired().HasMaxLength(256).HasColumnName("display_name").HasColumnType("character varying(256)");
+            b.Property<int>("Status").HasColumnName("status").HasColumnType("integer");
+            b.Property<long>("Revision").HasColumnName("revision").HasColumnType("bigint").HasDefaultValue(1L).IsConcurrencyToken();
+            b.Property<DateTime>("CreatedAtUtc").HasColumnName("created_at_utc").HasColumnType("timestamp with time zone");
+            b.Property<DateTime>("UpdatedAtUtc").HasColumnName("updated_at_utc").HasColumnType("timestamp with time zone");
+            b.HasKey("Id");
+            b.HasIndex("Kind", "NormalizedIdentifier").IsUnique().HasDatabaseName("ux_taxpayer_profiles_kind_identifier");
+            b.ToTable("taxpayer_profiles", t =>
+            {
+                t.HasCheckConstraint("ck_taxpayer_profiles_kind", "kind IN (1, 2)");
+                t.HasCheckConstraint("ck_taxpayer_profiles_status", "status IN (1, 2, 3)");
+                t.HasCheckConstraint("ck_taxpayer_profiles_identifier", "length(trim(normalized_identifier)) > 0");
+                t.HasCheckConstraint("ck_taxpayer_profiles_display_name", "length(trim(display_name)) > 0");
+                t.HasCheckConstraint("ck_taxpayer_profiles_revision", "revision > 0");
+            });
+        });
+
         modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", b =>
         {
             b.Property<Guid>("Id").HasColumnName("id").HasColumnType("uuid");
