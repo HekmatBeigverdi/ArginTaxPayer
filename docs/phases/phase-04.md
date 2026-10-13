@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 04: Multi-Taxpayer Management
 
-**Status:** Step 01 owner approved (2026-10-13); Step 02 implemented in repository — local build, PostgreSQL migration verification and owner acceptance pending
+**Status:** Steps 01–02 owner approved (2026-10-13; Step 02 test evidence owner-reported); Step 03 implemented in repository, verification and owner approval pending
 **Branch:** `phase/04-multi-taxpayer-management`
 **Started:** 2026-10-13
 **Baseline:** `docs/roadmap/18-phases.md`, Phase 03 identity/authorization contracts
@@ -24,8 +24,8 @@ Manage natural/legal taxpayer profiles, fiscal memories, certificate metadata an
 | Step | Title | Deliverable | Acceptance | Status |
 |---|---|---|---|---|
 | 01 | Domain Contracts and Lifecycle Matrix | Taxpayer/memory/assignment state models, invariants, API contracts, migration plan | Identity, lifecycle and authorization matrix reviewed; no unapproved mutation | Owner approved (2026-10-13; automated test evidence not supplied) |
-| 02 | Taxpayer Persistence and Migration | Natural/legal taxpayer entities, normalized identifiers, constraints, EF migration | Safe migration and duplicate/constraint tests against test DB | Implemented — verification pending |
-| 03 | Taxpayer Creation and Validation | Level 1 controlled taxpayer registration, type-specific validation | Invalid/duplicate inputs rejected; authorization enforced | Planned |
+| 02 | Taxpayer Persistence and Migration | Natural/legal taxpayer entities, normalized identifiers, constraints, EF migration | Safe migration and duplicate/constraint tests against test DB | Owner approved (2026-10-13; owner-reported) |
+| 03 | Taxpayer Creation and Validation | Level 1 controlled taxpayer registration, type-specific validation | Invalid/duplicate inputs rejected; authorization enforced | Implemented — local verification pending |
 | 04 | Taxpayer Profile and Lifecycle | Read/update/deactivate workflows, optimistic concurrency, history | Stale updates rejected; history preserved | Planned |
 | 05 | Fiscal Memory Persistence | Memory identifiers, taxpayer relationship, lifecycle and constraints | No cross-taxpayer linking; unique/active policy tested | Planned |
 | 06 | Fiscal Memory Management API | Register/update/retire memory metadata and lifecycle | Unauthorized and invalid transitions denied | Planned |
@@ -96,7 +96,7 @@ dotnet test ArginTaxPayer.sln -c Release --no-build
 No build or test pass is claimed until operator output/CI evidence exists.
 
 ### Step 02 — Taxpayer Persistence and Migration
-**Status:** Implemented in GitHub; local build, migration execution and owner acceptance pending. **Owner acceptance:** Pending.
+**Status:** Owner approved 2026-10-13; previous migration execution and raw test output not independently witnessed. **Owner acceptance:** Approved.
 **Files:** `src/ArginTaxPayer.Infrastructure/Persistence/Taxpayers/TaxpayerProfile.cs`, `src/ArginTaxPayer.Infrastructure/Persistence/ArginTaxPayerDbContext.cs`, `src/ArginTaxPayer.Infrastructure/Persistence/Migrations/20261013010000_AddTaxpayerProfiles.cs`, `src/ArginTaxPayer.Infrastructure/Persistence/Migrations/ArginTaxPayerDbContextModelSnapshot.cs`, `tests/ArginTaxPayer.Tests/TaxpayerPersistenceMetadataTests.cs`.
 **Commits:** `b9b91659`, `81bec434`, `f91ec9d1`, `2901d2a6`, `cecacb35`.
 **Design:** Taxpayer profiles are separate from authentication users. A natural/legal kind discriminator, normalized business identifier, display name, active/suspended/archived status, UTC timestamps and optimistic concurrency revision are persisted. Unique composite (kind, normalized_identifier), check constraints and positive revision protect DB integrity. Identifier semantic checks and normalization algorithms will be implemented in Step 03; Step 02 presently rejects blanks but is NOT an official Iranian identifier validator.
@@ -116,6 +116,25 @@ Then inspect `\\d taxpayer_profiles` in psql and verify duplicate identifier rej
 **Evidence:** Build not run; unit tests not run; PostgreSQL duplicate/constraint tests not run; migration not applied; CI not checked. Ubuntu runtime verification deferred to Step 13 except required migration integrity validation. Do not mark verified until evidence is provided.
 
 
+
+### Step 03 — Taxpayer Creation and Validation
+
+**Status:** Implemented in repository; macOS build/API integration tests and owner acceptance pending.
+**Code:** `src/ArginTaxPayer.Domain/Taxpayers/IranianTaxpayerIdentifier.cs`; `src/ArginTaxPayer.Infrastructure/Persistence/Taxpayers/TaxpayerCreationService.cs`; `src/ArginTaxPayer.Api/Taxpayers/TaxpayerDevelopmentEndpoints.cs`; API DI/route wiring in `src/ArginTaxPayer.Api/Program.cs`; tests in `tests/ArginTaxPayer.Tests/TaxpayerIdentifierValidationTests.cs`.
+**Commits:** `b483866a`, `e0932c81`, `c991c0da`, `7a8d3d9a`, `841a146c`, `bd975147`.
+**Architecture:** The POST `/api/dev/taxpayers` route is restricted to Development + loopback with a configured identity environment. Reuses Phase 03 opaque bearer session authentication. Live database validation requires an active Level 1 user with MFA enabled; Level 2/Customer/anonymous cannot create. Never accept role/actor/tenant IDs from the request. Creates a separate profile with timestamps and optimistic revision, accepts Persian/Arabic digits, checks the natural-person national code check digit, and checks legal-entity IDs for eleven digits and nontrivial pattern only. Official legal-entity ownership/checksum confirmation is NOT claimed: public checksum implementations disagree and the authoritative registry check is deferred to integration with a verified official source. Unique database index catches duplicates including concurrent submissions.
+**HTTP statuses:** 201 created, 400 invalid input, 401 unauthenticated, 403 forbidden, 409 duplicate. No production route is exposed.
+**Migration:** None (depends on Step 02 schema).
+**Verification required:**
+```bash
+git pull --ff-only origin phase/04-multi-taxpayer-management
+zsh scripts/dev-up.zsh
+dotnet build ArginTaxPayer.sln -c Release
+dotnet test ArginTaxPayer.sln -c Release --filter 'FullyQualifiedName~TaxpayerIdentifierValidationTests|FullyQualifiedName~TaxpayerPersistenceMetadataTests'
+zsh scripts/dev-status.zsh
+```
+**Negative-path HTTP acceptance:** Without Authorization → 401; Level 2/Customer bearer → 403; invalid natural code/length → 400; Level 1 with enrolled MFA → 201; same kind and normalized ID twice → 409. Execute with throwaway test identifiers only, using the existing Phase 03 MFA flow. Cross-process/duplicate races must ultimately be exercised on PostgreSQL; unit test coverage of HTTP denial is not yet established. Never paste actual bearer tokens in issue comments or logs.
+**Evidence:** Code commits recorded; build, HTTP, real PostgreSQL duplicates, CI not executed by assistant. Ubuntu runtime deferred to end of phase, per owner cadence. **Owner acceptance:** Pending.
 
 ## Phase Exit Gate
 All 13 steps accepted, focused regression passing, Ubuntu verification once, schema/security review, owner signoff. Merge to main, immutable tag, GitHub Release and production deployment are distinct gated actions and must never be assumed completed.
