@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import CustomerOwnershipConsole from "../account/customer-ownership-console";
 
 type Account = {
-  customerUserId: string; rootLevel1UserId: string; partnerLevel2UserId: string | null;
+  customerUserId: string; rootLevel1UserId: string | null; partnerLevel2UserId: string | null;
   acquisitionChannel: number; revision: number; mobile: string | null; email: string | null;
   createdAtUtc: string; isActive: boolean; taxpayerCount: number;
 };
@@ -25,7 +25,7 @@ async function getJson<T>(url: string): Promise<T> {
   return await response.json() as T;
 }
 const source: Record<number,string> = {
-  1: "ثبت‌نام عمومی", 2: "ثبت توسط ادمین سطح ۱",
+  0: "قدیمی؛ نیازمند تعیین مالکیت", 1: "ثبت‌نام عمومی", 2: "ثبت توسط ادمین سطح ۱",
   3: "ثبت توسط ادمین سطح ۲", 4: "معرفی تأییدشده"
 };
 
@@ -92,7 +92,7 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
             <strong dir={a.mobile ? "ltr" : "auto"}>{a.mobile || a.email || "کاربر بدون شماره همراه"}</strong>
             {a.mobile && a.email && <span dir="ltr">{a.email}</span>}
             <small dir="ltr">{a.customerUserId}</small>
-            <span>{a.taxpayerCount} مؤدی ثبت‌شده · {a.isActive ? "حساب فعال" : "حساب غیرفعال"}</span>
+            <span>{a.taxpayerCount} مؤدی ثبت‌شده · {a.isActive ? "حساب فعال" : "حساب غیرفعال"}{!a.rootLevel1UserId ? " · مالکیت نامشخص" : ""}</span>
           </button>
         </li>)}</ul>}
       <p className="field-hint">این فهرست شامل حساب‌های دارای مالکیت تجاری ثبت‌شده است. تطبیق حساب‌های قدیمیِ فاقد مالکیت باید جداگانه انجام شود.</p>
@@ -113,7 +113,7 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
           <div><dt>شناسه حساب</dt><dd dir="ltr">{chosen.customerUserId}</dd></div>
           <div><dt>وضعیت</dt><dd>{chosen.isActive ? "فعال" : "غیرفعال"}</dd></div>
           <div><dt>شیوه جذب</dt><dd>{source[chosen.acquisitionChannel] || "نامشخص"}</dd></div>
-          <div><dt>مالک تجاری</dt><dd>{chosen.partnerLevel2UserId ? "شریک سطح ۲" : "مستقیم سطح ۱"}</dd></div>
+          <div><dt>مالک تجاری</dt><dd>{!chosen.rootLevel1UserId ? "نیازمند تعیین مالکیت" : chosen.partnerLevel2UserId ? "شریک سطح ۲" : "مستقیم سطح ۱"}</dd></div>
           <div><dt>تعداد مؤدیان ثبت‌شده</dt><dd>{chosen.taxpayerCount}</dd></div>
           <div><dt>تاریخ ثبت‌نام</dt><dd>{new Date(chosen.createdAtUtc).toLocaleDateString("fa-IR")}</dd></div>
         </dl>
