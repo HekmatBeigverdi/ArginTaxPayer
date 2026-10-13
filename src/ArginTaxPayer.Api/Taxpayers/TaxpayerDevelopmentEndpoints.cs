@@ -210,6 +210,21 @@ public static class TaxpayerDevelopmentEndpoints
             };
         }).WithTags("Customer Commercial Ownership (Development)");
 
+        routes.MapGet("/api/dev/customer-owners/{customerId:guid}/history", async (
+            Guid customerId, HttpContext http, CustomerCommercialOwnershipService service,
+            CancellationToken ct) =>
+        {
+            if (!IsLocal(http)) return Results.NotFound();
+            var result = await service.HistoryAsync(Bearer(http), customerId, ct);
+            return result.Decision switch
+            {
+                CustomerOwnershipDecision.Unauthenticated => Results.Unauthorized(),
+                CustomerOwnershipDecision.Forbidden => Results.StatusCode(403),
+                CustomerOwnershipDecision.NotFound => Results.NotFound(),
+                _ => Results.Ok(result.History)
+            };
+        }).WithTags("Customer Commercial Ownership (Development)");
+
         return routes;
     }
 
