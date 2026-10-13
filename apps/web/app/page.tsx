@@ -10,7 +10,7 @@ const statusLabels: Record<ProbeState, string> = {
 
 const sections = [
   { title: "صورتحساب‌ها", description: "گردش کار صدور و پیگیری صورتحساب، در فازهای آینده" },
-  { title: "مؤدیان", description: "فهرست و جزئیات مؤدیان مجاز، فعال در محیط توسعه" },
+  { title: "کاربران نرم‌افزار", description: "مدیریت حساب کاربران، انتساب به شریک و نمایش مؤدیان هر کاربر" },
   { title: "اشتراک و تسویه", description: "مدیریت پلن‌ها، وصول وجه و سهم مشارکت، در فازهای آینده" },
 ] as const;
 
@@ -28,7 +28,7 @@ export default async function HomePage() {
       </header>
       <section className="intro" aria-labelledby="foundation-title">
         <h2 id="foundation-title">آماده‌سازی محیط کار</h2>
-        <p>این صفحه صرفاً نمای اولیه پلتفرم است. هنوز ورود کاربران، اطلاعات مؤدیان و عملیات مالیاتی واقعی فعال نشده‌اند.</p>
+        <p>این صفحه نمای توسعه سامانه است. مدیریت کاربران و هویت در محیط توسعه فعال است؛ ارسال مالیاتی واقعی هنوز فعال نیست.</p>
       </section>
       <section className="intro" aria-labelledby="api-health-title">
         <h2 id="api-health-title">وضعیت ارتباط آزمایشی با API</h2>
@@ -43,7 +43,7 @@ export default async function HomePage() {
           <article className="feature" key={section.title}>
             <h3>{section.title}</h3>
             <p>{section.description}</p>
-            {section.title === "مؤدیان" ? <a href="/taxpayers" className="identity-link">ورود به مدیریت مؤدیان ←</a> : <span aria-label="هنوز فعال نیست" className="planned">در دست طراحی</span>}
+            {section.title === "کاربران نرم‌افزار" ? <a href="/users" className="identity-link">ورود به مدیریت کاربران ←</a> : <span aria-label="هنوز فعال نیست" className="planned">در دست طراحی</span>}
           </article>
         ))}
       </section>
