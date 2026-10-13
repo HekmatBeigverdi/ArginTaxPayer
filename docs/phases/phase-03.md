@@ -1375,6 +1375,29 @@ The launcher starts the exact approved `AUTOSSH_GATETIME=0 autossh -M 0 -N` tunn
 
 **Status:** Code committed but no real macOS/Ubuntu Build, browser acceptance or positive Level 1/2 provisioning integration evidence has been independently observed. Pending Step 09 acceptance/security debt remains unchanged. A five-day completion target for the entire roadmap is an owner schedule objective, **not an evidenced commitment that all 18 phases or production-hardening gates can be safely completed in that period**. Prioritize gating on runnable tests and correctly scoped deliverables, not skipping validations.
 
+### Step 09 — Duplicate Registration and Precise OTP Retry UX (2026-10-13)
+
+**Owner-reported defects and implemented fix:**
+1. For a mobile already present in `identity_users`, the Development/loopback OTP registration request returns `409 Conflict` with `mobile_already_registered` instead of falsely returning 202 and showing the code-entry screen. The Persian RTL UI displays `این شماره همراه قبلاً ثبت‌نام شده است. از تب ورود استفاده کنید.`. Note: this explicit existence disclosure is **Development-only**; future public registration must be evaluated for account-enumeration resistance before production release.
+2. If the operator requests another code to the same mobile after a delivered OTP (including after entering an incorrect code and returning to edit the phone), the API returns `429` with calculated `retryAfterSeconds`. The cooldown is now **three minutes from the last provider-accepted OTP request**, with dynamic remaining time, e.g. `03:00`, then `02:30`. The Next.js same-origin BFF passes the bounded retry field without exposing secrets; the UI remains on the phone-entry step, renders `کاربر گرامی، لطفاً پس از MM:SS مجدداً تلاش کنید.` and disables the request button while the countdown runs. Editing the identifier resets the local timer; the server independently enforces the actual cooldown.
+3. Failed provider dispatch returns `503` and **does not create a successful-send cooldown**. Every attempt still counts toward the existing 5-attempts/15-minute abuse budget; the UI never navigates to code entry on 409/429/503. An HTTP 202 now represents accepted dispatch by the local SMS adapter, not verified handset delivery.
+
+**Regression evidence prepared, not claimed executed:** `IdentityPhoneOtpTests` covers registered-number conflict, immediate 180-second cooldown, approximately 150 seconds after a simulated 30-second passage, valid/invalid/replayed codes and reset/login. `apps/web/tests/identity-ui.test.mjs` guards 409/429 propagation and the countdown. The no-live-SMS HTTP smoke now correctly expects 503, not the older misleading 202. The macOS/Ubuntu builds, PostgreSQL integration tests, and manual browser scenarios require operator verification.
+
+**Local acceptance (same shared developer runner):**
+```bash
+git switch phase/03-identity-authorization
+git pull --ff-only origin phase/03-identity-authorization
+dotnet build ArginTaxPayer.sln -c Release
+dotnet test ArginTaxPayer.sln -c Release --no-build
+(cd apps/web && npm test && npm run typecheck && npm run build)
+zsh scripts/dev-up.zsh
+zsh scripts/dev-status.zsh
+```
+Confirm `current_database() = 'argintaxpayer_test'` before DB integration; use `RUN_ARGINTAXPAYER_PG_INTEGRATION=1 dotnet test ArginTaxPayer.sln -c Release --no-build --filter FullyQualifiedName~IdentityPhoneOtpTests`. Test a registered Customer's mobile in the registration tab (should show conflict, no code entry and no SMS), and one personally owned, unregistered test mobile (first accepted OTP, then wrong code, back to phone, immediate retry yields countdown; after 30 seconds it should decrease). Real SMS only with explicit restricted private Ghasedak configuration; it may incur provider charges. No database migration required for this fix.
+
+**Scope caveat:** The existing 15-minute request budget remains; if five attempts are recorded, the displayed remaining time can exceed three minutes based on that longer control. OTP expiration is three minutes independently of the resend cooldown. Do not mark Phase 03 Step 09 Owner Approved until live/negative UI and security tests are verified.
+
 ## 5. Communication Convention
 
 The **repository phase plan and all step completion records are written in English only**. When implementing or reporting on a step in the chat, present its title in **both Persian and English** (for example: `گام ۱ — زیرساخت مدل هویت و ایجاد مدیر اولیه | Step 01 — Identity Data Model and Bootstrap`). Explain execution and acceptance in concise, right-to-left Persian, while keeping code and shell commands left-to-right. Do not change the planned English step title without an approved plan amendment.
