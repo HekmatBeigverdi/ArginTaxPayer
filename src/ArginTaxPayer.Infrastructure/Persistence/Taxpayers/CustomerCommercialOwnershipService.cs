@@ -11,6 +11,9 @@ public sealed record TransferCustomerOwnerRequest(Guid? PartnerLevel2UserId, lon
     CustomerOwnershipChangeReason Reason, string? Explanation);
 public sealed record CustomerCommercialOwnerView(Guid CustomerUserId, Guid RootLevel1UserId,
     Guid? PartnerLevel2UserId, CustomerAcquisitionChannel AcquisitionChannel, long Revision);
+public sealed record CommercialPartnerOption(Guid UserId, string? Mobile, string? Email);
+public sealed record CommercialPartnerListResponse(CustomerOwnershipDecision Decision,
+    CommercialPartnerOption[]? Partners = null);
 public sealed record CustomerAccountSummary(Guid CustomerUserId, Guid? RootLevel1UserId,
     Guid? PartnerLevel2UserId, CustomerAcquisitionChannel AcquisitionChannel,
     long Revision, string? Mobile, string? Email, DateTime CreatedAtUtc, bool IsActive,
@@ -133,6 +136,24 @@ public sealed class CustomerCommercialOwnershipService(
             .OrderBy(h => h.ChangedAtUtc).ThenBy(h => h.ToRevision)
             .ToArrayAsync(ct);
         return (CustomerOwnershipDecision.Success, history);
+    }
+
+    /// <summary>Level1-only directory of eligible active Level2 partner identities.</summary>
+    public async Task<CommercialPartnerListResponse> ListPartnersAsync(
+        string? bearer, CancellationToken ct = default)
+    {
+        var actor = await identity.CurrentUserIdAsync(bearer, ct);
+        if (actor is null) return new(CustomerOwnershipDecision.Unauthenticated);
+        if (!await IsScopedAdministratorAsync(actor.Value, IdentityRoleNames.Level1, ct))
+            return new(CustomerOwnershipDecision.Forbidden);
+        var partners = await db.IdentityUsers.AsNoTracking()
+            .Where(u => u.IsActive && u.Roles.Any(r => r.Role == IdentityRoleNames.Level2) &&
+                !u.Roles.Any(r => r.Role == IdentityRoleNames.Level1) &&
+                db.IdentityMfaStates.Any(m => m.UserId == u.Id && m.EnabledAtUtc != null))
+            .OrderBy(u => u.NormalizedMobile).ThenBy(u => u.Id)
+            .Select(u => new CommercialPartnerOption(u.Id, u.NormalizedMobile, u.NormalizedEmail))
+            .ToArrayAsync(ct);
+        return new(CustomerOwnershipDecision.Success, partners);
     }
 
     /// <summary>Customer-first administrator listing; scoped before any materialization.</summary>
