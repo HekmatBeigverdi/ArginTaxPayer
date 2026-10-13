@@ -58,7 +58,7 @@ async function callIdentity(operation: string, req: NextRequest, method: "GET" |
   }
   const path = backendPath[operation];
   if (!path) return errorResult(404, "unavailable");
-  if (["me", "sessions", "mfa/enroll", "mfa/confirm", "sessions/revoke"].includes(operation) && !token)
+  if (["me", "sessions", "mfa/enroll", "mfa/confirm", "sessions/revoke", "admin/customers"].includes(operation) && !token)
     return errorResult(401, "unauthorized");
 
   let payload: unknown = undefined;
