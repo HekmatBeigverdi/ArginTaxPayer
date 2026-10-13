@@ -9,7 +9,7 @@ type Context = { params: Promise<{ path: string[] }> };
 async function handle(req: NextRequest, ctx: Context, method: "GET" | "POST") {
   if (!identityUiEnabled()) return error(404);
   const { path } = await ctx.params;
-  const valid = method === "GET" && path.length === 1 && (path[0] === "list" || path[0] === "accounts") ||
+  const valid = method === "GET" && path.length === 1 && (path[0] === "list" || path[0] === "accounts" || path[0] === "partners") ||
     method === "GET" && path.length === 2 && uuid.test(path[0]) && path[1] === "taxpayers" ||
     method === "GET" && path.length === 1 && uuid.test(path[0]) ||
     method === "GET" && path.length === 2 && uuid.test(path[0]) && path[1] === "history" ||
