@@ -197,7 +197,7 @@ public sealed class CustomerCommercialOwnershipService(
             u.Roles.Any(r => r.Role == IdentityRoleNames.Level1) &&
             db.IdentityMfaStates.Any(m => m.UserId == actorId && m.EnabledAtUtc != null), ct);
         if (!isLevel1) return new(CustomerOwnershipDecision.Forbidden);
-        if (customerUserId == Guid.Empty || request is null || request.ExpectedRevision < 1 ||
+        if (customerUserId == Guid.Empty || request is null || request.ExpectedRevision < 0 ||
             !Enum.IsDefined(request.Reason) || string.IsNullOrWhiteSpace(request.Explanation))
             return new(CustomerOwnershipDecision.Invalid);
         var explanation = request.Explanation.Trim().Normalize(System.Text.NormalizationForm.FormC);
@@ -214,7 +214,39 @@ public sealed class CustomerCommercialOwnershipService(
             await using var tx = await db.Database.BeginTransactionAsync(ct);
             var owner = await db.CustomerCommercialOwners.AsNoTracking()
                 .SingleOrDefaultAsync(o => o.CustomerUserId == customerUserId && o.RootLevel1UserId == actorId, ct);
-            if (owner is null) return new CustomerOwnershipResponse(CustomerOwnershipDecision.NotFound);
+            if (owner is null)
+            {
+                // Legacy customer has no commercial-owner record. Level1 must
+                // explicitly review this identity; never guess its acquisition source.
+                if (request.ExpectedRevision != 0)
+                    return new CustomerOwnershipResponse(CustomerOwnershipDecision.Conflict);
+                var isCustomer = await db.IdentityUsers.AsNoTracking().AnyAsync(u =>
+                    u.Id == customerUserId && u.Roles.Any(r => r.Role == IdentityRoleNames.Customer), ct);
+                if (!isCustomer) return new CustomerOwnershipResponse(CustomerOwnershipDecision.NotFound);
+                var createdAt = DateTime.UtcNow;
+                var initial = new CustomerCommercialOwner
+                {
+                    CustomerUserId = customerUserId, RootLevel1UserId = actorId.Value,
+                    PartnerLevel2UserId = request.PartnerLevel2UserId,
+                    AcquisitionChannel = CustomerAcquisitionChannel.LegacyReconciledByLevel1,
+                    Revision = 1, CreatedAtUtc = createdAt, UpdatedAtUtc = createdAt
+                };
+                db.CustomerCommercialOwners.Add(initial);
+                db.CustomerCommercialOwnerChanges.Add(new CustomerCommercialOwnerChange
+                {
+                    Id = Guid.NewGuid(), CustomerUserId = customerUserId,
+                    RootLevel1UserId = actorId.Value, PreviousPartnerLevel2UserId = null,
+                    NewPartnerLevel2UserId = request.PartnerLevel2UserId,
+                    ApprovedByLevel1UserId = actorId.Value, Reason = request.Reason,
+                    Explanation = explanation, FromRevision = 0, ToRevision = 1,
+                    ChangedAtUtc = createdAt
+                });
+                await db.SaveChangesAsync(ct);
+                await tx.CommitAsync(ct);
+                return new CustomerOwnershipResponse(CustomerOwnershipDecision.Success,
+                    new CustomerCommercialOwnerView(customerUserId, actorId.Value,
+                        request.PartnerLevel2UserId, initial.AcquisitionChannel, 1));
+            }
             if (owner.Revision != request.ExpectedRevision)
                 return new CustomerOwnershipResponse(CustomerOwnershipDecision.Conflict);
             if (owner.PartnerLevel2UserId == request.PartnerLevel2UserId)
