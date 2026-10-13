@@ -197,6 +197,23 @@ public static class IdentityDevelopmentEndpoints
                 Results.BadRequest(new { error = "verification_failed" });
         });
 
+        group.MapPost("/admin/customers", async (
+            [FromBody] AdminCreateCustomerRequest request, HttpContext http,
+            IdentityAdministratorUserProvisioning provisioning, CancellationToken ct) =>
+        {
+            if (!IsLoopback(http)) return Results.NotFound();
+            var result = await provisioning.CreateCustomerAsync(
+                ReadBearer(http), request.Mobile, request.Email, request.Password, ct);
+            return result switch
+            {
+                AdminUserCreationStatus.Created => Results.StatusCode(201),
+                AdminUserCreationStatus.Unauthenticated => Results.Unauthorized(),
+                AdminUserCreationStatus.Forbidden => Results.StatusCode(403),
+                AdminUserCreationStatus.Conflict => Results.Conflict(new { error = "account_unavailable" }),
+                _ => Results.BadRequest(new { error = "invalid_customer_data" })
+            };
+        });
+
         // Step 05: all role decisions are made from the persisted identity,
         // never from claimed roles, user IDs, or permissions in the request.
         group.MapGet("/authorization/me", async (
