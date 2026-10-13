@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 04: Multi-Taxpayer Management
 
-**Status:** Steps 01–05 owner approved (2026-10-13; owner-reported acceptance). Step 05 received a dated, owner-approved cross-phase contract clarification; Step 06 owner approved 2026-10-13; Step 07 owner approved 2026-10-13; Step 08 owner approved 2026-10-13; Step 09 scoped server query/command policies implemented, local verification pending.
+**Status:** Steps 01–05 owner approved (2026-10-13; owner-reported acceptance). Step 05 received a dated, owner-approved cross-phase contract clarification; Step 06 owner approved 2026-10-13; Step 07 owner approved 2026-10-13; Step 08 owner approved 2026-10-13; Step 09 implementation approved for progression with integration acceptance deferred to Step12; Step 10 RTL UI implemented, local test and owner signoff pending.
 **Branch:** `phase/04-multi-taxpayer-management`
 **Started:** 2026-10-13
 **Baseline:** `docs/roadmap/18-phases.md`, Phase 03 identity/authorization contracts
@@ -31,8 +31,8 @@ Manage natural/legal taxpayer profiles, fiscal memories, certificate metadata an
 | 06 | Fiscal Memory Management API | Register/update/retire memory metadata and lifecycle | Unauthorized and invalid transitions denied | Owner approved 2026-10-13; deferred activation/rebind constraints retained |
 | 07 | Certificate Metadata and Custody Boundary | Fingerprint, expiry, issuer, secure key-reference contracts, rotation metadata | No secret leakage; expired/revoked states handled | Owner approved 2026-10-13 |
 | 08 | Delegate Assignment Model | Level 1-to-Level 2 taxpayer grants, revocation, effective dates, history | Only Level 1 may grant/revoke; audit trail complete | Owner approved 2026-10-13 |
-| 09 | Server-Side Scoped Query and Command Policies | Query filters, resource policies, assignment checks | Cross-delegate isolation for reads/writes, deny by default | Source implemented — build, HTTP/DB verification and owner approval pending |
-| 10 | Taxpayer and Memory RTL Management UI | Persian responsive taxpayer list, forms, detail, memory views | RTL, validation, loading/error states, guarded routes | Planned |
+| 09 | Server-Side Scoped Query and Command Policies | Query filters, resource policies, assignment checks | Cross-delegate isolation for reads/writes, deny by default | Owner approved for progression 2026-10-13; final UI/HTTP/DB integration acceptance explicitly deferred to Step12 |
+| 10 | Taxpayer and Memory RTL Management UI | Persian responsive taxpayer list, forms, detail, memory views | RTL, validation, loading/error states, guarded routes | Implemented in GitHub; macOS UI test and owner acceptance pending |
 | 11 | Level 1 Assignment Console and Level 2 Workspace | Assignment/revocation UI, scoped delegate views | Revocation effective immediately; no unauthorized data shown | Planned |
 | 12 | Integration and Negative-Path Regression | PostgreSQL/API/UI security, concurrency and lifecycle tests | Identity regression and cross-scope negative paths pass | Planned |
 | 13 | Hardening and Phase Handoff | Review, local regression, final Ubuntu acceptance, documentation | Evidence, migration review, unresolved risks and owner signoff recorded | Planned |
@@ -359,6 +359,35 @@ dotnet test ArginTaxPayer.sln -c Release --filter 'FullyQualifiedName~TaxpayerSc
 zsh scripts/dev-status.zsh
 ```
 **Migration:** None in Step09. Requires Step08 `20261013230000_AddTaxpayerDelegateGrants` applied on verified `argintaxpayer_test` before local HTTP integration. **Ubuntu:** defer full runtime verification to Step13 absent platform-specific errors. **Owner acceptance:** pending.
+
+### Step 10 — Taxpayer and Fiscal Memory RTL Management UI
+
+**Status:** Implemented in GitHub, operator/local UI acceptance pending. **Step 09** accepted for continuation by owner on 2026-10-13; full end-to-end acceptance remains explicitly scheduled for Step 12, not falsely marked tested.
+
+**Source commits:**
+- `apps/web/app/api/taxpayers/[...path]/route.ts` (`388d3ecb`, `99abe71e`): strict allowlisted backend-for-frontend endpoint, HttpOnly cookie session, server-only bearer forwarding, same-origin write validation, no-store response, payload size limits, sanitized failure responses and Development-only activation. `/api/taxpayers/list` and `/api/taxpayers/new` intentionally map to the backend base path due to Next.js catch-all routing.
+- `apps/web/app/taxpayers/page.tsx` (`155605aa`): server-side authenticated role gate for Level1/Level2 with Persian RTL header.
+- `apps/web/app/taxpayers/taxpayer-workspace.tsx` (`c80ab8bb`, `145a53bb`): live list/search/detail of authorized taxpayer profiles; safe display-name editing with expectedRevision; Level1 creation of taxpayer and first unverified fiscal memory; memory state display, restricted certificate metadata lookup. Responsive states: loading/empty/busy/conflict/not-found/unauthorized/service outage.
+- `apps/web/app/globals.css` (`31e2132d`): responsive full-width desktop layout, RTL controls, mobile breakpoints.
+- Account/home navigation: `apps/web/app/account/page.tsx` (`8a6fa261`) and `apps/web/app/page.tsx` (`d244304b`).
+- `apps/web/tests/taxpayer-workspace.test.mjs` (`206cfa84`): static regression for role gate, server-only session proxy, allowlist and safe UI scope.
+
+**Available UI:** Start local services and open `http://127.0.0.1:3000/taxpayers` after login. Level1 can see all authorized taxpayers, create taxpayers, register first PendingVerification memory, rename display name and inspect restricted certificate metadata. Level2 can list/detail **only live assigned taxpayers** and rename allowed display names. UI does not accept client-supplied delegate actor, raw session tokens or private keys. The backend SQL policies from Step09 remain authoritative. Level2 cannot register/replace fiscal memory or view the custody metadata endpoint. Taxpayer archive/status transitions remain protected behind earlier Level1 API pending explicitly designed administrative forms.
+
+**Disabled/explicitly postponed:** Level1 grant/revoke UI and separate Level2 workspace are Step11. Real authority token connectivity test and imported `private.txt` key custody belong to roadmap Phases 10 and 09 respectively: the UI explicitly says unavailable, never fabricates a green connection or claims keys have been installed. Annual single-taxpayer subscription lock/review remains a binding Phase12 requirement. No business client or Level2 gets global audit read permissions.
+
+**Acceptance:** Test Level1 login and create a valid sample natural/legal profile, see it in list; open record and observe memory details, create first fiscal memory (only if none exists), and ensure duplicate/second memory is rejected. Test Level2 with active assignment sees only assigned profiles, not other taxpayer by direct UUID and not global memory/cert admin operations. Revoke assignment with Step08 API and refresh or reopen to verify list/detail access disappears. Try a stale revision and verify visible conflict. Test invalid MFA/expired session and 401/403 redirect/message; test network outage/loading/empty and RTL mobile viewport. **Source tests are static guards, not proof of live UI or DB behavior.** Test API requires earlier PostgreSQL migrations through Step08 on `argintaxpayer_test`.
+
+**Mac local commands:**
+```bash
+git switch phase/04-multi-taxpayer-management
+git pull --ff-only origin phase/04-multi-taxpayer-management
+zsh scripts/dev-up.zsh
+(cd apps/web && npm test && npm run typecheck && npm run build)
+dotnet test ArginTaxPayer.sln -c Release --filter 'FullyQualifiedName~TaxpayerScopePolicyTests|FullyQualifiedName~TaxpayerDelegatePersistenceTests'
+zsh scripts/dev-status.zsh
+```
+**Migration:** None in Step10. **Ubuntu:** deferred to Step13 except platform-specific regression. **macOS tests, CI and browser acceptance:** not independently executed by assistant. **Owner acceptance:** Pending.
 
 ## Phase Exit Gate
 All 13 steps accepted, focused regression passing, Ubuntu verification once, schema/security review, owner signoff. Merge to main, immutable tag, GitHub Release and production deployment are distinct gated actions and must never be assumed completed.
