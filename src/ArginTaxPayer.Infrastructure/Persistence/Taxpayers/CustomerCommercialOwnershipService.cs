@@ -19,6 +19,11 @@ public sealed record CustomerOwnershipResponse(CustomerOwnershipDecision Decisio
 public sealed class CustomerCommercialOwnershipService(
     ArginTaxPayerDbContext db, IdentityAuthorizationService identity, IConfiguration configuration)
 {
+    private Task<bool> IsScopedAdministratorAsync(Guid id, string role, CancellationToken ct) =>
+        db.IdentityUsers.AsNoTracking().AnyAsync(u => u.Id == id && u.IsActive &&
+            u.Roles.Any(r => r.Role == role) &&
+            db.IdentityMfaStates.Any(m => m.UserId == id && m.EnabledAtUtc != null), ct);
+
     public async Task<Guid?> ResolveRootAsync(Guid? creatorLevel1Id, CancellationToken ct = default)
     {
         if (creatorLevel1Id is { } directRoot)
@@ -68,8 +73,8 @@ public sealed class CustomerCommercialOwnershipService(
     {
         var actorId = await identity.CurrentUserIdAsync(bearer, ct);
         if (actorId is null) return new(CustomerOwnershipDecision.Unauthenticated);
-        var isRoot = await IsRoleAsync(actorId.Value, IdentityRoleNames.Level1, ct);
-        var isPartner = await IsRoleAsync(actorId.Value, IdentityRoleNames.Level2, ct);
+        var isRoot = await IsScopedAdministratorAsync(actorId.Value, IdentityRoleNames.Level1, ct);
+        var isPartner = await IsScopedAdministratorAsync(actorId.Value, IdentityRoleNames.Level2, ct);
         if (!isRoot && !isPartner) return new(CustomerOwnershipDecision.Forbidden);
         var record = await db.CustomerCommercialOwners.AsNoTracking().Where(o =>
             o.CustomerUserId == customerUserId &&
@@ -87,8 +92,8 @@ public sealed class CustomerCommercialOwnershipService(
     {
         var actorId = await identity.CurrentUserIdAsync(bearer, ct);
         if (actorId is null) return (CustomerOwnershipDecision.Unauthenticated, null);
-        var root = await IsRoleAsync(actorId.Value, IdentityRoleNames.Level1, ct);
-        var partner = await IsRoleAsync(actorId.Value, IdentityRoleNames.Level2, ct);
+        var root = await IsScopedAdministratorAsync(actorId.Value, IdentityRoleNames.Level1, ct);
+        var partner = await IsScopedAdministratorAsync(actorId.Value, IdentityRoleNames.Level2, ct);
         if (!root && !partner) return (CustomerOwnershipDecision.Forbidden, null);
         var result = await db.CustomerCommercialOwners.AsNoTracking()
             .Where(o => root && o.RootLevel1UserId == actorId.Value ||
