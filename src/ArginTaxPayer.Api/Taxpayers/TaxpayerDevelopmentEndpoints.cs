@@ -49,6 +49,69 @@ public static class TaxpayerDevelopmentEndpoints
                 _ => Results.Ok(result.Profile)
             };
         }).WithTags("Taxpayers (Development)");
+        routes.MapPost("/api/dev/taxpayers/{taxpayerId:guid}/memories", async (
+            Guid taxpayerId, [FromBody] RegisterFiscalMemoryRequest request, HttpContext http,
+            FiscalMemoryManagementService service, CancellationToken ct) =>
+        {
+            if (!IsLocal(http)) return Results.NotFound();
+            var result = await service.RegisterAsync(Bearer(http), taxpayerId, request, ct);
+            return result.Status switch
+            {
+                FiscalMemoryOperationStatus.Unauthenticated => Results.Unauthorized(),
+                FiscalMemoryOperationStatus.Forbidden => Results.StatusCode(403),
+                FiscalMemoryOperationStatus.Invalid => Results.BadRequest(new { error = "invalid_memory_identifier" }),
+                FiscalMemoryOperationStatus.NotFound => Results.NotFound(),
+                FiscalMemoryOperationStatus.Conflict => Results.Conflict(new { error = "memory_identifier_conflict" }),
+                FiscalMemoryOperationStatus.RequiresApprovedBindingReview => Results.Conflict(new { error = "binding_review_required" }),
+                _ => Results.Created($"/api/dev/taxpayers/{taxpayerId}/memories/{result.Memory!.Id}", result.Memory)
+            };
+        }).WithTags("Fiscal Memories (Development)");
+
+        routes.MapGet("/api/dev/taxpayers/{taxpayerId:guid}/memories", async (
+            Guid taxpayerId, HttpContext http, FiscalMemoryManagementService service,
+            CancellationToken ct) =>
+        {
+            if (!IsLocal(http)) return Results.NotFound();
+            var result = await service.ListAsync(Bearer(http), taxpayerId, ct);
+            return result.Status switch
+            {
+                FiscalMemoryOperationStatus.Unauthenticated => Results.Unauthorized(),
+                FiscalMemoryOperationStatus.Forbidden => Results.StatusCode(403),
+                FiscalMemoryOperationStatus.NotFound => Results.NotFound(),
+                _ => Results.Ok(result.Memories)
+            };
+        }).WithTags("Fiscal Memories (Development)");
+
+        routes.MapPut("/api/dev/taxpayers/{taxpayerId:guid}/memories/{memoryId:guid}/status", async (
+            Guid taxpayerId, Guid memoryId, [FromBody] ChangeFiscalMemoryStatusRequest request,
+            HttpContext http, FiscalMemoryManagementService service, CancellationToken ct) =>
+        {
+            if (!IsLocal(http)) return Results.NotFound();
+            var result = await service.TransitionAsync(Bearer(http), taxpayerId, memoryId, request, ct);
+            return result.Status switch
+            {
+                FiscalMemoryOperationStatus.Unauthenticated => Results.Unauthorized(),
+                FiscalMemoryOperationStatus.Forbidden => Results.StatusCode(403),
+                FiscalMemoryOperationStatus.NotFound => Results.NotFound(),
+                FiscalMemoryOperationStatus.Invalid => Results.BadRequest(new { error = "invalid_memory_transition" }),
+                FiscalMemoryOperationStatus.Conflict => Results.Conflict(new { error = "stale_memory_revision" }),
+                FiscalMemoryOperationStatus.RequiresApprovedBindingReview => Results.Conflict(new { error = "binding_review_required" }),
+                FiscalMemoryOperationStatus.AuthorityVerificationUnavailable =>
+                    Results.Conflict(new { error = "authority_verification_not_available" }),
+                _ => Results.Ok(result.Memory)
+            };
+        }).WithTags("Fiscal Memories (Development)");
+
         return routes;
+    }
+
+    private static bool IsLocal(HttpContext http) =>
+        http.Connection.RemoteIpAddress is { } ip &&
+        (IPAddress.IsLoopback(ip) || (ip.IsIPv4MappedToIPv6 && IPAddress.IsLoopback(ip.MapToIPv4())));
+
+    private static string? Bearer(HttpContext http)
+    {
+        var header = http.Request.Headers.Authorization.ToString();
+        return header.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) ? header[7..].Trim() : null;
     }
 }
