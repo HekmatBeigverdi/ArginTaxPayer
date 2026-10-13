@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 04: Multi-Taxpayer Management
 
-**Status:** Steps 01–05 owner approved (2026-10-13; owner-reported acceptance). Step 05 received a dated, owner-approved cross-phase contract clarification; Step 06 owner approved 2026-10-13; Step 07 certificate custody metadata implemented in source, verification pending.
+**Status:** Steps 01–05 owner approved (2026-10-13; owner-reported acceptance). Step 05 received a dated, owner-approved cross-phase contract clarification; Step 06 owner approved 2026-10-13; Step 07 owner approved 2026-10-13; Step 08 repository implementation completed, local verification and owner acceptance pending.
 **Branch:** `phase/04-multi-taxpayer-management`
 **Started:** 2026-10-13
 **Baseline:** `docs/roadmap/18-phases.md`, Phase 03 identity/authorization contracts
@@ -29,8 +29,8 @@ Manage natural/legal taxpayer profiles, fiscal memories, certificate metadata an
 | 04 | Taxpayer Profile and Lifecycle | Read/update/deactivate workflows, optimistic concurrency, history | Stale updates rejected; history preserved | Owner approved (2026-10-13; owner-reported) |
 | 05 | Fiscal Memory Persistence | Memory identifiers, taxpayer relationship, lifecycle and constraints | No cross-taxpayer linking; unique/active policy tested | Owner approved (2026-10-13), additional binding/connectivity/key-import contracts registered |
 | 06 | Fiscal Memory Management API | Register/update/retire memory metadata and lifecycle | Unauthorized and invalid transitions denied | Owner approved 2026-10-13; deferred activation/rebind constraints retained |
-| 07 | Certificate Metadata and Custody Boundary | Fingerprint, expiry, issuer, secure key-reference contracts, rotation metadata | No secret leakage; expired/revoked states handled | Implemented in repository; migration/build/owner acceptance pending |
-| 08 | Delegate Assignment Model | Level 1-to-Level 2 taxpayer grants, revocation, effective dates, history | Only Level 1 may grant/revoke; audit trail complete | Planned |
+| 07 | Certificate Metadata and Custody Boundary | Fingerprint, expiry, issuer, secure key-reference contracts, rotation metadata | No secret leakage; expired/revoked states handled | Owner approved 2026-10-13 |
+| 08 | Delegate Assignment Model | Level 1-to-Level 2 taxpayer grants, revocation, effective dates, history | Only Level 1 may grant/revoke; audit trail complete | Implemented — focused PostgreSQL/API tests and owner acceptance pending |
 | 09 | Server-Side Scoped Query and Command Policies | Query filters, resource policies, assignment checks | Cross-delegate isolation for reads/writes, deny by default | Planned |
 | 10 | Taxpayer and Memory RTL Management UI | Persian responsive taxpayer list, forms, detail, memory views | RTL, validation, loading/error states, guarded routes | Planned |
 | 11 | Level 1 Assignment Console and Level 2 Workspace | Assignment/revocation UI, scoped delegate views | Revocation effective immediately; no unauthorized data shown | Planned |
@@ -300,6 +300,36 @@ dotnet test ArginTaxPayer.sln -c Release --filter 'FullyQualifiedName~FiscalCert
 zsh scripts/dev-status.zsh
 ```
 **Acceptance negatives:** invalid fingerprint rejected, expired/revoked never treated valid, two current metadata versions rejected, historical superseded versions coexist, FK prevents cross/nonexistent memory linking, API never leaks custody reference/secret, Level2 denied and unrelated memory hidden. DB integration, full API HTTP regression and CI were **not executed** by assistant; tests currently assert EF metadata and pure policy/read-projection structure only. **Ubuntu:** routine runtime verification deferred to Step 13, schema verification required now. **Owner acceptance:** Pending.
+
+### Step 08 — Taxpayer Delegate Assignment Model
+
+**Status:** Implementation committed; build, live PostgreSQL, security integration tests and owner signoff are pending. Step 07 was approved by owner 2026-10-13.
+
+**Implementation:** `TaxpayerDelegateGrant`, `TaxpayerDelegateService`, EF configuration/model snapshot, migration `20261013230000_AddTaxpayerDelegateGrants`, scoped DI registration and three Development/loopback-only HTTP endpoints in `TaxpayerDevelopmentEndpoints`. Metadata tests: `TaxpayerDelegatePersistenceTests`. Existing commits `bb1cd935`, `0e711565`, `172cc240`, `d7558fc7`, `9fac23c6`, `b5df1d84`, `cfc8d27a`; review corrections `e18a9df1`, `1eb2d03f`, `e71733bf`.
+
+**Endpoints:**
+- `POST /api/dev/taxpayers/{taxpayerId}/delegates` with `{"delegateUserId":"<uuid>"}` grants to an active Level2 user with confirmed MFA, initiated by active Level1 with MFA.
+- `POST /api/dev/taxpayers/{taxpayerId}/delegates/{grantId}/revoke` with `{"expectedRevision":1,"reason":"<non-empty reason>"}` conditionally revokes without deletion. Stale revision returns conflict.
+- `GET /api/dev/taxpayers/{taxpayerId}/delegates/history` provides Level1-only chronological issue/revoke history.
+
+**Database:** Required FKs to taxpayer, delegate, Level1 grantor, optional revoker; `revoked_at_utc`, required reason for completed revocation, revision, UTC timestamps. Partial unique index on `(taxpayer_id,delegate_user_id) WHERE revoked_at_utc IS NULL` prevents duplicated concurrent active grants while preserving revoked history. Revocation uses conditional update, not a hard delete. Multiple separately granted Level2 users may be assigned the same taxpayer; this does **not** grant a second taxpayer to an annual subscriber.
+
+**Security:** Every operation authenticates Phase03 opaque session and checks live Level1 + MFA. Target delegate requires existing Level2 + MFA; no implicit role grant. No Level2 or customer global history access. Step09 is still responsible for adding live scope checks to every Level2 taxpayer read and mutation. As a result, this step does **not** claim that all future Level2 APIs are scoped yet.
+
+**Migration:** `20261013230000_AddTaxpayerDelegateGrants` committed, not executed by assistant. Verify `SELECT current_database()` is exactly `argintaxpayer_test` before applying and verify Step07 migration history first.
+
+**Targeted macOS validation:**
+```bash
+git switch phase/04-multi-taxpayer-management
+git pull --ff-only origin phase/04-multi-taxpayer-management
+zsh scripts/dev-up.zsh
+dotnet build ArginTaxPayer.sln -c Release
+dotnet test ArginTaxPayer.sln -c Release --filter FullyQualifiedName~TaxpayerDelegatePersistenceTests
+zsh scripts/dev-status.zsh
+```
+PostgreSQL integration acceptance: duplicate/concurrent grants must fail, revoked historical grants must remain, re-grant after revocation must succeed, revision collision must fail, invalid FK must fail. HTTP security acceptance: unauthenticated 401; Level2/Customer 403; wrong taxpayer 404; invalid delegate denied; revoke by Level1 with reason succeeds; stale revoke 409; Level2 history denied. **None of these runtime outcomes has been independently observed.** Ubuntu end-of-phase verification remains planned; DB migration verification must be performed now.
+
+**Owner acceptance:** Pending.
 
 ## Phase Exit Gate
 All 13 steps accepted, focused regression passing, Ubuntu verification once, schema/security review, owner signoff. Merge to main, immutable tag, GitHub Release and production deployment are distinct gated actions and must never be assumed completed.
