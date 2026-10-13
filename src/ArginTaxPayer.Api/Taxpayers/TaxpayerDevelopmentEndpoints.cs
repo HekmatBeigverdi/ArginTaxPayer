@@ -147,6 +147,22 @@ public static class TaxpayerDevelopmentEndpoints
                     _ => Results.Ok(result.History)
                 };
             });
+        routes.MapPost("/api/dev/taxpayers/{taxpayerId:guid}/delegates/{grantId:guid}/revoke",
+            async (Guid taxpayerId, Guid grantId, RevokeDelegateRequest request,
+                HttpContext http, TaxpayerDelegateService service, CancellationToken ct) =>
+            {
+                if (!IsLocal(http)) return Results.NotFound();
+                var result = await service.RevokeAsync(Bearer(http), taxpayerId, grantId, request, ct);
+                return result.Outcome switch
+                {
+                    DelegateOperationOutcome.Unauthenticated => Results.Unauthorized(),
+                    DelegateOperationOutcome.Forbidden => Results.StatusCode(403),
+                    DelegateOperationOutcome.Invalid => Results.BadRequest(),
+                    DelegateOperationOutcome.NotFound => Results.NotFound(),
+                    DelegateOperationOutcome.Conflict => Results.Conflict(),
+                    _ => Results.Ok(result.Grant)
+                };
+            });
         return routes;
     }
 
