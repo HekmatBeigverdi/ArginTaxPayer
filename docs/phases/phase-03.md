@@ -1335,6 +1335,15 @@ The first endpoint must show `otpPepperConfigured=true`, `ghasedakApiKeyConfigur
 
 **No assertion of successful delivery has been made.** Remain on Step 09 until operator evidence, email recovery and security hardening acceptance are complete.
 
+
+### Step 09 — Customer OTP Login Regardless of Password (2026-10-13)
+
+**Owner-approved behavior:** Verified Customer users may sign in using either password or SMS OTP even after creating or resetting a password. Admins (Level 1/2) and MFA-enabled users must not bypass MFA using SMS OTP. Both OTP issuance and session creation enforce role/MFA restrictions. No database migration is required for this change.
+
+**Implementation:** The password-null restriction was removed from `IdentityPhoneService.RequestAsync` and `IdentitySessionService.CreatePhoneSessionAsync`; the OTP request also rejects MFA-enabled accounts. `IdentityPhoneOtpTests` now exercises OTP and password access for a password-bearing Customer, one-time replay and MFA denial. Existing email/password and administrative MFA behavior remain unchanged.
+
+**Acceptance:** Pull the branch, build, run `dotnet test ArginTaxPayer.sln -c Release --filter FullyQualifiedName~IdentityPhoneOtpTests`, then run the same suite with `RUN_ARGINTAXPAYER_PG_INTEGRATION=1` against the confirmed `argintaxpayer_test` PostgreSQL database. Test the two login methods from the unified two-tab browser UI. Do not enable live Ghasedak except for the operator-owned test recipient. Step 09 remains verification-pending.
+
 ## 5. Communication Convention
 
 The **repository phase plan and all step completion records are written in English only**. When implementing or reporting on a step in the chat, present its title in **both Persian and English** (for example: `گام ۱ — زیرساخت مدل هویت و ایجاد مدیر اولیه | Step 01 — Identity Data Model and Bootstrap`). Explain execution and acceptance in concise, right-to-left Persian, while keeping code and shell commands left-to-right. Do not change the planned English step title without an approved plan amendment.
