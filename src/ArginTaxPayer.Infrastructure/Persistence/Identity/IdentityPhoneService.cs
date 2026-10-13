@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 
 namespace ArginTaxPayer.Infrastructure.Persistence.Identity;
 
@@ -10,7 +11,7 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Identity;
 /// Store only keyed code digests and metadata; never expose the raw OTP through HTTP.
 /// </summary>
 public sealed class IdentityPhoneService(ArginTaxPayerDbContext db, IIdentityOtpSender sender,
-    IdentitySessionService sessions, IConfiguration configuration)
+    IdentitySessionService sessions, IConfiguration configuration, ILogger<IdentityPhoneService> logger)
 {
     private static readonly TimeSpan Lifetime = TimeSpan.FromMinutes(3);
     private static readonly TimeSpan Cooldown = TimeSpan.FromSeconds(60);
@@ -26,29 +27,65 @@ public sealed class IdentityPhoneService(ArginTaxPayerDbContext db, IIdentityOtp
 
     public async Task<bool> RequestAsync(string? mobileInput, string? purpose, CancellationToken ct = default)
     {
-        if (!IranianMobileNumber.TryNormalize(mobileInput, out var mobile) ||
-            purpose is not ("register" or "login" or "reset")) return false;
+        // All diagnostic events contain *only* a reason or purpose, never
+        // recipient numbers, codes, credentials, or account identifiers.
+        if (!IranianMobileNumber.TryNormalize(mobileInput, out var mobile))
+        {
+            logger.LogWarning("OTP_REQUEST_SKIPPED reason=invalid_mobile");
+            return false;
+        }
+        if (purpose is not ("register" or "login" or "reset"))
+        {
+            logger.LogWarning("OTP_REQUEST_SKIPPED reason=invalid_purpose");
+            return false;
+        }
         if (!configuration.GetValue<bool>("Ghasedak:EnableLiveSending") &&
-            configuration["Identity:OtpDeliveryMode"] != "LocalFile") return false;
-        var now = DateTime.UtcNow;
+            configuration["Identity:OtpDeliveryMode"] != "LocalFile")
+        {
+            logger.LogWarning("OTP_REQUEST_SKIPPED reason=delivery_disabled");
+            return false;
+        }
 
-        // Prevent too many sends even across multiple API workers by checking persisted attempts.
+        var now = DateTime.UtcNow;
         var recent = await db.IdentityPhoneChallenges.AsNoTracking()
             .Where(x => x.Mobile == mobile && x.CreatedAtUtc > now.AddMinutes(-15))
-            .OrderByDescending(x => x.CreatedAtUtc).Select(x => x.CreatedAtUtc).Take(6).ToListAsync(ct);
-        if (recent.Count >= 5 || recent.Count != 0 && recent[0] > now.Subtract(Cooldown))
+            .OrderByDescending(x => x.CreatedAtUtc)
+            .Select(x => x.CreatedAtUtc).Take(6).ToListAsync(ct);
+        if (recent.Count >= 5)
+        {
+            logger.LogWarning("OTP_REQUEST_SKIPPED reason=rate_limit_15m");
             return false;
+        }
+        if (recent.Count != 0 && recent[0] > now.Subtract(Cooldown))
+        {
+            logger.LogWarning("OTP_REQUEST_SKIPPED reason=cooldown_60s");
+            return false;
+        }
         var actor = await db.IdentityUsers.AsNoTracking()
-            .Where(x => x.NormalizedMobile == mobile && x.MobileVerifiedAtUtc != null && x.IsActive)
+            .Where(x => x.NormalizedMobile == mobile &&
+                x.MobileVerifiedAtUtc != null && x.IsActive)
             .Select(x => new { x.Id, x.PasswordHash }).SingleOrDefaultAsync(ct);
-        if (purpose == "register" && actor is not null) return false;
-        if (purpose != "register" && actor is null) return false;
-        // OTP login is reserved for passwordless Customer accounts; admin always uses MFA.
-        if (purpose == "login" &&
-            (actor!.PasswordHash is not null || await db.IdentityUserRoles.AnyAsync(
-                x => x.UserId == actor.Id && x.Role != IdentityRoleNames.Customer, ct))) return false;
-        if (purpose == "reset" && await db.IdentityUserRoles.AnyAsync(
-            x => x.UserId == actor!.Id && x.Role != IdentityRoleNames.Customer, ct)) return false;
+        if (purpose == "register" && actor is not null)
+        {
+            logger.LogInformation("OTP_REQUEST_SKIPPED reason=mobile_already_registered");
+            return false;
+        }
+        if (purpose != "register" && actor is null)
+        {
+            logger.LogInformation("OTP_REQUEST_SKIPPED reason=no_verified_account");
+            return false;
+        }
+        if (purpose == "login" && actor!.PasswordHash is not null)
+        {
+            logger.LogInformation("OTP_REQUEST_SKIPPED reason=password_login_required");
+            return false;
+        }
+        if (purpose is "login" or "reset" && await db.IdentityUserRoles.AnyAsync(
+            x => x.UserId == actor!.Id && x.Role != IdentityRoleNames.Customer, ct))
+        {
+            logger.LogInformation("OTP_REQUEST_SKIPPED reason=administrator_mfa_required");
+            return false;
+        }
 
         var code = RandomNumberGenerator.GetInt32(0, 1_000_000).ToString("D6");
         var id = Guid.NewGuid();
@@ -58,10 +95,13 @@ public sealed class IdentityPhoneService(ArginTaxPayerDbContext db, IIdentityOtp
             UserId = actor?.Id, CreatedAtUtc = now, ExpiresAtUtc = now.Add(Lifetime)
         });
         await db.SaveChangesAsync(ct);
+        logger.LogInformation("OTP_REQUEST_DISPATCH_STARTED purpose={OtpPurpose}", purpose);
         bool delivered = await sender.SendAsync(mobile, code, id, ct);
         if (delivered)
             await db.IdentityPhoneChallenges.Where(x => x.Id == id)
                 .ExecuteUpdateAsync(s => s.SetProperty(x => x.Delivered, true), ct);
+        else
+            logger.LogWarning("OTP_REQUEST_DISPATCH_FAILED purpose={OtpPurpose}", purpose);
         return delivered;
     }
 
