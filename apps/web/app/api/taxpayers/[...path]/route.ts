@@ -8,13 +8,13 @@ const deny = (status: number, error: string) => NextResponse.json(
 
 function validPath(parts: string[], method: "GET" | "POST" | "PATCH") {
   if (method === "GET") {
-    return parts.length === 0 ||
+    return (parts.length === 1 && parts[0] === "list") ||
       (parts.length === 1 && uuid.test(parts[0])) ||
       (parts.length === 2 && uuid.test(parts[0]) && parts[1] === "memories") ||
       (parts.length === 4 && uuid.test(parts[0]) && parts[1] === "memories" &&
         uuid.test(parts[2]) && parts[3] === "certificates");
   }
-  if (method === "POST") return parts.length === 0 ||
+  if (method === "POST") return (parts.length === 1 && parts[0] === "new") ||
     (parts.length === 2 && uuid.test(parts[0]) && parts[1] === "memories");
   return parts.length === 2 && uuid.test(parts[0]) && parts[1] === "display-name";
 }
@@ -41,7 +41,7 @@ async function proxy(req: NextRequest, params: Promise<{ path: string[] }>,
   }
   try {
     const response = await fetch(identityApiOrigin() + "/api/dev/taxpayers" +
-      (path.length ? "/" + path.join("/") : ""), {
+      (path[0] === "list" || path[0] === "new" ? "" : "/" + path.join("/")), {
       method, headers: {
         Authorization: "Bearer " + token,
         ...(payload ? { "Content-Type": "application/json" } : {})
