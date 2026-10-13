@@ -19,7 +19,7 @@ export default async function AccountPage() {
     <header className="header"><div><p className="eyebrow">ArginTaxPayer · Identity</p>
       <h1>حساب و امنیت</h1>
       <p className="subtitle">مدیریت هویت و نشست‌های فعال</p></div>
-      <a href="/" className="identity-link">صفحه اصلی</a></header>
+      <nav className="taxpayer-nav"><a href="/" className="identity-link">صفحه اصلی</a>{actor.roles.some(role => role === "Level1" || role === "Level2") && <a href="/taxpayers" className="identity-link">مدیریت مؤدیان</a>}</nav></header>
     <section className="intro">
       <h2>حساب شما</h2>
       <p>شناسه کاربر: <bdi dir="ltr">{actor.userId}</bdi></p>
