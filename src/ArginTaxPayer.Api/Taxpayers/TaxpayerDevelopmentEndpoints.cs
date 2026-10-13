@@ -117,52 +117,10 @@ public static class TaxpayerDevelopmentEndpoints
             };
         }).WithTags("Certificates (Development)");
 
-        routes.MapPost("/api/dev/taxpayers/{taxpayerId:guid}/delegates", async (
-            Guid taxpayerId, GrantDelegateRequest request, HttpContext http,
-            TaxpayerDelegateService service, CancellationToken ct) =>
-        {
-            if (!IsLocal(http)) return Results.NotFound();
-            var outcome = await service.GrantAsync(Bearer(http), taxpayerId, request, ct);
-            return outcome.Outcome switch
-            {
-                DelegateOperationOutcome.Unauthenticated => Results.Unauthorized(),
-                DelegateOperationOutcome.Forbidden => Results.StatusCode(403),
-                DelegateOperationOutcome.Invalid => Results.BadRequest(),
-                DelegateOperationOutcome.NotFound => Results.NotFound(),
-                DelegateOperationOutcome.Conflict => Results.Conflict(),
-                _ => Results.Ok(outcome.Grant)
-            };
-        });
-        routes.MapGet("/api/dev/taxpayers/{taxpayerId:guid}/delegates/history",
-            async (Guid taxpayerId, HttpContext http, TaxpayerDelegateService service,
-                CancellationToken ct) =>
-            {
-                if (!IsLocal(http)) return Results.NotFound();
-                var result = await service.HistoryAsync(Bearer(http), taxpayerId, ct);
-                return result.Outcome switch
-                {
-                    DelegateOperationOutcome.Unauthenticated => Results.Unauthorized(),
-                    DelegateOperationOutcome.Forbidden => Results.StatusCode(403),
-                    DelegateOperationOutcome.NotFound => Results.NotFound(),
-                    _ => Results.Ok(result.History)
-                };
-            });
-        routes.MapPost("/api/dev/taxpayers/{taxpayerId:guid}/delegates/{grantId:guid}/revoke",
-            async (Guid taxpayerId, Guid grantId, RevokeDelegateRequest request,
-                HttpContext http, TaxpayerDelegateService service, CancellationToken ct) =>
-            {
-                if (!IsLocal(http)) return Results.NotFound();
-                var result = await service.RevokeAsync(Bearer(http), taxpayerId, grantId, request, ct);
-                return result.Outcome switch
-                {
-                    DelegateOperationOutcome.Unauthenticated => Results.Unauthorized(),
-                    DelegateOperationOutcome.Forbidden => Results.StatusCode(403),
-                    DelegateOperationOutcome.Invalid => Results.BadRequest(),
-                    DelegateOperationOutcome.NotFound => Results.NotFound(),
-                    DelegateOperationOutcome.Conflict => Results.Conflict(),
-                    _ => Results.Ok(result.Grant)
-                };
-            });
+        // Deprecated taxpayer-to-Level2 delegation endpoints intentionally removed.
+        // Ownership must be CustomerUser -> PartnerLevel2, never Taxpayer -> Level2.
+        // Historical grant rows remain in DB for review, but cannot authorize new access.
+
         routes.MapGet("/api/dev/taxpayers", async (
             HttpContext http, TaxpayerScopeService service, CancellationToken ct) =>
         {
