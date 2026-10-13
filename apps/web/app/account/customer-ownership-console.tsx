@@ -1,6 +1,9 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+type OwnerChange = { id: string; previousPartnerLevel2UserId: string | null;
+  newPartnerLevel2UserId: string | null; explanation: string; changedAtUtc: string;
+  approvedByLevel1UserId: string; fromRevision: number; toRevision: number };
 type CustomerOwner = {
   customerUserId: string; rootLevel1UserId: string; partnerLevel2UserId: string | null;
   acquisitionChannel: number; revision: number;
@@ -20,6 +23,7 @@ export default function CustomerOwnershipConsole({ level1 }: { level1: boolean }
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [history, setHistory] = useState<OwnerChange[] | null>(null);
 
   async function refresh() {
     setBusy(true); setError("");
@@ -34,6 +38,17 @@ export default function CustomerOwnershipConsole({ level1 }: { level1: boolean }
   }
   useEffect(() => { void refresh(); }, []);
   const current = customers.find(c => c.customerUserId === selection);
+  async function loadHistory(customerId: string) {
+    setBusy(true); setError("");
+    try {
+      const response = await fetch("/api/customer-owners/" + customerId + "/history",
+        { cache: "no-store", credentials: "same-origin" });
+      if (!response.ok) throw new Error(errorText(response.status));
+      setHistory(await response.json() as OwnerChange[]);
+    } catch (ex) { setError((ex as Error).message); setHistory(null); }
+    finally { setBusy(false); }
+  }
+
 
   async function transfer(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -54,7 +69,7 @@ export default function CustomerOwnershipConsole({ level1 }: { level1: boolean }
       });
       if (!response.ok) throw new Error(errorText(response.status));
       setNotice("مالک تجاری مشتری تغییر کرد؛ تاریخچه انتقال محفوظ است.");
-      setReason(""); await refresh();
+      setReason(""); setHistory(null); await refresh();
     } catch (ex) { setError((ex as Error).message); }
     finally { setBusy(false); }
   }
@@ -78,7 +93,7 @@ export default function CustomerOwnershipConsole({ level1 }: { level1: boolean }
           onChange={e => {
             const id = e.target.value; setSelection(id);
             const selected = customers.find(item => item.customerUserId === id);
-            setTargetPartner(selected?.partnerLevel2UserId || ""); setReason("");
+            setTargetPartner(selected?.partnerLevel2UserId || ""); setReason(""); setHistory(null);
           }}>
           <option value="">انتخاب مشتری</option>
           {customers.map(c => <option key={c.customerUserId} value={c.customerUserId}>
@@ -91,6 +106,18 @@ export default function CustomerOwnershipConsole({ level1 }: { level1: boolean }
           <div><dt>نسخه انتساب</dt><dd>{current.revision}</dd></div>
         </dl>}
       </div>
+      {level1 && current && <section className="taxpayer-panel">
+        <button type="button" className="identity-secondary" disabled={busy}
+          onClick={() => void loadHistory(current.customerUserId)}>مشاهده تاریخچه انتقال مشتری</button>
+        {history && (history.length ? <ul className="delegate-history">{history.map(change =>
+          <li key={change.id}>
+            <p>از: <bdi dir="ltr">{change.previousPartnerLevel2UserId || "سطح ۱"}</bdi></p>
+            <p>به: <bdi dir="ltr">{change.newPartnerLevel2UserId || "سطح ۱"}</bdi></p>
+            <p>علت: {change.explanation}</p>
+            <p>زمان: {new Date(change.changedAtUtc).toLocaleString("fa-IR")}</p>
+            <p>تأییدکننده: <bdi dir="ltr">{change.approvedByLevel1UserId}</bdi></p>
+          </li>)}</ul> : <p className="identity-muted">تغییر مالکیت ثبت نشده است.</p>)}
+      </section>}
       {level1 && current && <form className="identity-form" onSubmit={transfer}>
         <label htmlFor="commercial-partner">شناسه ادمین سطح ۲ (برای مشتری مستقیم، خالی بگذارید)</label>
         <input id="commercial-partner" dir="ltr" value={targetPartner}
