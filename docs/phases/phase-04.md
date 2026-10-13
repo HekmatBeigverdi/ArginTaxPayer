@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 04: Multi-Taxpayer Management
 
-**Status:** Steps 01–05 owner approved (2026-10-13; owner-reported acceptance). Step 05 received a dated, owner-approved cross-phase contract clarification; Step 06 safe baseline implemented; local test and owner acceptance pending.
+**Status:** Steps 01–05 owner approved (2026-10-13; owner-reported acceptance). Step 05 received a dated, owner-approved cross-phase contract clarification; Step 06 owner approved 2026-10-13; Step 07 certificate custody metadata implemented in source, verification pending.
 **Branch:** `phase/04-multi-taxpayer-management`
 **Started:** 2026-10-13
 **Baseline:** `docs/roadmap/18-phases.md`, Phase 03 identity/authorization contracts
@@ -28,8 +28,8 @@ Manage natural/legal taxpayer profiles, fiscal memories, certificate metadata an
 | 03 | Taxpayer Creation and Validation | Level 1 controlled taxpayer registration, type-specific validation | Invalid/duplicate inputs rejected; authorization enforced | Owner approved (2026-10-13; owner-reported) |
 | 04 | Taxpayer Profile and Lifecycle | Read/update/deactivate workflows, optimistic concurrency, history | Stale updates rejected; history preserved | Owner approved (2026-10-13; owner-reported) |
 | 05 | Fiscal Memory Persistence | Memory identifiers, taxpayer relationship, lifecycle and constraints | No cross-taxpayer linking; unique/active policy tested | Owner approved (2026-10-13), additional binding/connectivity/key-import contracts registered |
-| 06 | Fiscal Memory Management API | Register/update/retire memory metadata and lifecycle | Unauthorized and invalid transitions denied | Safe first-onboarding/list/pending-retire API committed; activation/rebind gated until authority/entitlement implementation; tests pending |
-| 07 | Certificate Metadata and Custody Boundary | Fingerprint, expiry, issuer, secure key-reference contracts, rotation metadata | No secret leakage; expired/revoked states handled | Planned |
+| 06 | Fiscal Memory Management API | Register/update/retire memory metadata and lifecycle | Unauthorized and invalid transitions denied | Owner approved 2026-10-13; deferred activation/rebind constraints retained |
+| 07 | Certificate Metadata and Custody Boundary | Fingerprint, expiry, issuer, secure key-reference contracts, rotation metadata | No secret leakage; expired/revoked states handled | Implemented in repository; migration/build/owner acceptance pending |
 | 08 | Delegate Assignment Model | Level 1-to-Level 2 taxpayer grants, revocation, effective dates, history | Only Level 1 may grant/revoke; audit trail complete | Planned |
 | 09 | Server-Side Scoped Query and Command Policies | Query filters, resource policies, assignment checks | Cross-delegate isolation for reads/writes, deny by default | Planned |
 | 10 | Taxpayer and Memory RTL Management UI | Persian responsive taxpayer list, forms, detail, memory views | RTL, validation, loading/error states, guarded routes | Planned |
@@ -272,6 +272,34 @@ zsh scripts/dev-status.zsh
 **Required API negative tests:** anonymous POST/GET/PUT => 401; Level 2/Customer => 403; unknown taxpayer => 404; invalid identifier => 400; duplicate memory ID => 409; second memory registration same taxpayer => 409 review required; cross-taxpayer URL => 404; illegal or stale transition => 400/409; no activation or memory replacement without review/authority/entitlement enforcement. DB race test must confirm concurrent first-register requests cannot both succeed. **Tests have not been executed by assistant** and no user acceptance is inferred.
 
 **Ubuntu:** Routine runtime verification deferred to end of phase; test-database PostgreSQL migration already owned by Step 05. **CI:** Not checked. **Owner acceptance:** Pending.
+
+### Step 07 — Certificate Metadata and Custody Boundary
+
+**Status:** Source implementation complete, local verification and owner approval pending (2026-10-13). **Step 06 owner acceptance:** Approved 2026-10-13; local execution evidence not independently available.
+
+**Changed files/commits:**
+- `src/ArginTaxPayer.Domain/Taxpayers/CertificateCustodyPolicy.cs` (`5aeb8bfa`): metadata validators, explicit origin Generated/ImportedExistingKey, protected vault custody interface; intentionally **no usable plaintext key ingestion implementation**.
+- `src/ArginTaxPayer.Infrastructure/Persistence/Taxpayers/FiscalCertificateMetadata.cs` (`63e9b1fc`), `ArginTaxPayerDbContext.cs` (`d9c451b7`), migration `20261013220000_AddFiscalCertificateMetadata` (`81799c2d`), EF snapshot (`f1d39bd4`).
+- `FiscalCertificateMetadataService.cs` (`321ba61e`), tests `FiscalCertificateMetadataTests.cs` (`30cde604`), DI in `Program.cs` (`cb32740d`), restricted API in `TaxpayerDevelopmentEndpoints.cs` (`5e785244`).
+
+**Schema and invariants:** Public SHA-256 fingerprint (lowercase 64 hex), optional issuer and UTC validity interval, MetadataOnly/Valid/Expired/Revoked, generated/imported origin, opaque vault custody reference, creation and supersession timestamps, required FK to fiscal memory. Restrict deletes. Unique partial index `fiscal_memory_id WHERE superseded_at_utc IS NULL` allows **one current certificate metadata record** while retaining historic rotations. DB check constraints validate enum ranges, fingerprint, dates. The vault reference itself must not contain actual credentials or key material.
+
+**Protected read API:** Development/loopback `GET /api/dev/taxpayers/{taxpayerId}/memories/{memoryId}/certificates`. Existing opaque bearer + current Level1 role + MFA required; not found for memory outside taxpayer; response excludes custody reference and secret material and computes an effective Expired status from UTC timestamps. Anonymous 401, Level2/Customer 403, wrong scope 404. No write/import/generation route is exposed; issuance and key ingestion remain **blocked** until secure custody in Phase 09 and authority verification in Phase 10.
+
+**Legacy `private.txt` requirement preserved:** ImportExistingPrivateKey is a first-class onboarding origin, not a forced public-key reissue. Later Phase 09 must parse supported private-key formats securely, derive its public key and SHA-256 fingerprint, verify public-key/certificate matching, provision into restricted vault (no plaintext in DB/logs), and allow the existing registered public key when evidence matches. No currently implemented code claims to accept or safely store the legacy plaintext file.
+
+**Cross-phase constraints:** Annual plan locks one taxpayer after confirmed successful real authority connectivity and allows only reviewed manual reassignment; metadata rows never unlock annual binding. Connection diagnostics must distinguish invalid token, signer mismatch, service outage, timeout and network failure; **no live tax authority call** is claimed here.
+
+**Migration:** New `20261013220000_AddFiscalCertificateMetadata` committed; **NOT applied by assistant**. Operator must verify database name exactly `argintaxpayer_test`, confirm earlier migrations `20261013210000_AddFiscalMemories`, and run explicit migration only on test DB. No automatic migration at startup.
+
+**Focused macOS verification after pull:**
+```bash
+zsh scripts/dev-up.zsh
+dotnet build ArginTaxPayer.sln -c Release
+dotnet test ArginTaxPayer.sln -c Release --filter 'FullyQualifiedName~FiscalCertificateMetadataTests|FullyQualifiedName~FiscalMemoryManagementPolicyTests'
+zsh scripts/dev-status.zsh
+```
+**Acceptance negatives:** invalid fingerprint rejected, expired/revoked never treated valid, two current metadata versions rejected, historical superseded versions coexist, FK prevents cross/nonexistent memory linking, API never leaks custody reference/secret, Level2 denied and unrelated memory hidden. DB integration, full API HTTP regression and CI were **not executed** by assistant; tests currently assert EF metadata and pure policy/read-projection structure only. **Ubuntu:** routine runtime verification deferred to Step 13, schema verification required now. **Owner acceptance:** Pending.
 
 ## Phase Exit Gate
 All 13 steps accepted, focused regression passing, Ubuntu verification once, schema/security review, owner signoff. Merge to main, immutable tag, GitHub Release and production deployment are distinct gated actions and must never be assumed completed.
