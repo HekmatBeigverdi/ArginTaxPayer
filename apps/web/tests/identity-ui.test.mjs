@@ -77,3 +77,18 @@ test("administrator customer form requires role-gated UI and authenticated BFF o
   assert.match(proxy, /"admin\/customers"/);
   assert.match(proxy, /httpOnly: true/);
 });
+
+test("OTP sign-up shows existing-user conflict and live 3-minute resend countdown", () => {
+  const flow = read("app/identity/identity-flow.tsx");
+  const proxy = read("app/api/identity/[...path]/route.ts");
+  assert.match(flow, /response.status === 409/);
+  assert.match(flow, /mobile_already_registered/);
+  assert.match(flow, /response.status === 429/);
+  assert.match(flow, /result.retryAfterSeconds/);
+  assert.match(flow, /otp-countdown/);
+  assert.match(flow, /setInterval/);
+  assert.match(flow, /disabled=\{pending \|\| navigating \|\| \(phoneOtp/);
+  assert.match(proxy, /response.status === 429/);
+  assert.match(proxy, /retryAfterSeconds: remaining/);
+  assert.match(proxy, /response.status === 409/);
+});
