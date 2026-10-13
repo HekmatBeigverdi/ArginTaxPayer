@@ -1,5 +1,7 @@
 using ArginTaxPayer.Api.Health;
 using ArginTaxPayer.Api.Identity;
+using ArginTaxPayer.Api.Taxpayers;
+using ArginTaxPayer.Infrastructure.Persistence.Taxpayers;
 using ArginTaxPayer.Infrastructure.Persistence.Identity;
 using ArginTaxPayer.Api.Observability;
 using ArginTaxPayer.Application;
@@ -33,6 +35,7 @@ if (identityDevelopmentEnabled)
             client.Timeout = TimeSpan.FromSeconds(12));
     builder.Services.AddScoped<IdentityPhoneService>();
     builder.Services.AddScoped<IdentityAuthorizationService>();
+    builder.Services.AddScoped<TaxpayerCreationService>();
     builder.Services.AddScoped<IIdentityResourceOwnershipResolver, IdentityResourceOwnershipResolver>();
     builder.Services.AddScoped<IdentityResourceAuthorizationService>();
     var mfaEncryptionKey = builder.Configuration["Identity:MfaEncryptionKey"];
@@ -82,7 +85,10 @@ if (app.Environment.IsDevelopment())
     }).ExcludeFromDescription();
     app.MapOpenApi();
     if (identityDevelopmentEnabled)
+    {
         app.MapIdentityDevelopmentEndpoints();
+        app.MapTaxpayerDevelopmentEndpoints();
+    }
 }
 
 // Preserve the existing bootstrap endpoint.
