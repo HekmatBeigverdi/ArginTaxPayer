@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 04: Multi-Taxpayer Management
 
-**Status:** Steps 01–03 owner approved (2026-10-13; local test evidence owner-reported); Step 04 implemented in source, local verification and owner approval pending
+**Status:** Steps 01–04 owner approved (2026-10-13; owner-reported local acceptance). Step 05 implemented in source; local PostgreSQL acceptance and owner approval pending
 **Branch:** `phase/04-multi-taxpayer-management`
 **Started:** 2026-10-13
 **Baseline:** `docs/roadmap/18-phases.md`, Phase 03 identity/authorization contracts
@@ -26,8 +26,8 @@ Manage natural/legal taxpayer profiles, fiscal memories, certificate metadata an
 | 01 | Domain Contracts and Lifecycle Matrix | Taxpayer/memory/assignment state models, invariants, API contracts, migration plan | Identity, lifecycle and authorization matrix reviewed; no unapproved mutation | Owner approved (2026-10-13; automated test evidence not supplied) |
 | 02 | Taxpayer Persistence and Migration | Natural/legal taxpayer entities, normalized identifiers, constraints, EF migration | Safe migration and duplicate/constraint tests against test DB | Owner approved (2026-10-13; owner-reported) |
 | 03 | Taxpayer Creation and Validation | Level 1 controlled taxpayer registration, type-specific validation | Invalid/duplicate inputs rejected; authorization enforced | Owner approved (2026-10-13; owner-reported) |
-| 04 | Taxpayer Profile and Lifecycle | Read/update/deactivate workflows, optimistic concurrency, history | Stale updates rejected; history preserved | Implemented — verification pending |
-| 05 | Fiscal Memory Persistence | Memory identifiers, taxpayer relationship, lifecycle and constraints | No cross-taxpayer linking; unique/active policy tested | Planned |
+| 04 | Taxpayer Profile and Lifecycle | Read/update/deactivate workflows, optimistic concurrency, history | Stale updates rejected; history preserved | Owner approved (2026-10-13; owner-reported) |
+| 05 | Fiscal Memory Persistence | Memory identifiers, taxpayer relationship, lifecycle and constraints | No cross-taxpayer linking; unique/active policy tested | Implemented — test and owner approval pending |
 | 06 | Fiscal Memory Management API | Register/update/retire memory metadata and lifecycle | Unauthorized and invalid transitions denied | Planned |
 | 07 | Certificate Metadata and Custody Boundary | Fingerprint, expiry, issuer, secure key-reference contracts, rotation metadata | No secret leakage; expired/revoked states handled | Planned |
 | 08 | Delegate Assignment Model | Level 1-to-Level 2 taxpayer grants, revocation, effective dates, history | Only Level 1 may grant/revoke; audit trail complete | Planned |
@@ -155,6 +155,41 @@ dotnet test ArginTaxPayer.sln -c Release --filter 'FullyQualifiedName~TaxpayerLi
 ```
 After independent DB check `SELECT current_database();` returns `argintaxpayer_test`, explicitly apply `20261013200000_AddTaxpayerProfileHistory` using the known safe `dotnet ef database update` command. Verify 200 transition, 409 stale revision, 400 illegal archive reactivation, 403 Level 2, 401 unauthenticated, and history row writes. For MFA check auto-return after five minutes without reload and rejection of a stale challenge, as well as successful use before expiry.
 **Evidence:** macOS build not executed; targeted tests not executed; migration not applied; PostgreSQL HTTP integration and CI pending. **Ubuntu:** final-phase runtime test deferred (schema migration integrity check required locally).
+
+### Step 05 — Fiscal Memory Persistence
+
+**Status:** Implemented in GitHub, not yet locally verified; owner acceptance pending.
+**Commits:** `06767747` (entity), `dbc11bba` (EF mapping), `15441ab3` (migration), `200bae8e` (snapshot), `6e3fa89c` (focused tests).
+**Files:**
+- `src/ArginTaxPayer.Infrastructure/Persistence/Taxpayers/FiscalMemory.cs`
+- `src/ArginTaxPayer.Infrastructure/Persistence/ArginTaxPayerDbContext.cs`
+- `src/ArginTaxPayer.Infrastructure/Persistence/Migrations/20261013210000_AddFiscalMemories.cs`
+- `src/ArginTaxPayer.Infrastructure/Persistence/Migrations/ArginTaxPayerDbContextModelSnapshot.cs`
+- `tests/ArginTaxPayer.Tests/FiscalMemoryPersistenceTests.cs`
+
+**Design:** Fiscal-memory entity contains immutable UUID, required taxpayer FK, authority-issued memory identifier, PendingVerification/Active/Suspended/Retired state, optimistic revision and UTC timestamps. It contains **no private signing keys or certificate secrets**. Restrict FK deletion prevents deleting a taxpayer that still has memories. A globally unique memory identifier prevents associating one identifier with two taxpayers. A PostgreSQL partial unique index on `taxpayer_id WHERE status = 2` enforces a maximum of one **active** fiscal memory per taxpayer, including concurrent attempts. Historical suspended/retired records remain possible. This physical constraint is independent of (and must not be confused with) the Phase 12 per-subscription/entitlement rule. The status transition policy already exists in the Phase 04 domain and is tested at the metadata/pure-policy level; persisted transitions and authorized commands are reserved for Step 06.
+
+**Migration:** `20261013210000_AddFiscalMemories`. Schema adds a new table, FK and indexes; existing taxpayer rows are unchanged. Migration committed but **not applied**. Never auto-migrate.
+**Focused macOS testing:**
+```bash
+git switch phase/04-multi-taxpayer-management
+git pull --ff-only origin phase/04-multi-taxpayer-management
+zsh scripts/dev-up.zsh
+dotnet build ArginTaxPayer.sln -c Release
+dotnet test ArginTaxPayer.sln -c Release --filter FullyQualifiedName~FiscalMemoryPersistenceTests
+zsh scripts/dev-status.zsh
+```
+Before applying migration, explicitly verify database identity and prior migration history:
+```bash
+psql -h 127.0.0.1 -p 15432 -U argintaxpayer -d argintaxpayer_test -W -tAc 'SELECT current_database();'
+dotnet ef migrations list --project src/ArginTaxPayer.Infrastructure --startup-project src/ArginTaxPayer.Api --context ArginTaxPayerDbContext
+```
+Require exact database result `argintaxpayer_test`, verify that prior phase-04 migrations have been applied, then **and only then**:
+```bash
+dotnet ef database update 20261013210000_AddFiscalMemories --project src/ArginTaxPayer.Infrastructure --startup-project src/ArginTaxPayer.Api --context ArginTaxPayerDbContext
+```
+**Database acceptance:** In a rollback-only transaction, test valid taxpayer FK, missing taxpayer FK rejection, duplicate memory identifier rejection across taxpayers, two active memories for the same taxpayer rejected, and historical suspended/retired coexistence. Test checks must not leave fixture data behind. Compare live schema and EF snapshot after application. These actual PostgreSQL constraint tests have **not been executed by assistant**; the included unit tests check EF metadata and pure lifecycle predicates, not concurrent live-DB inserts.
+**macOS status:** Not run by assistant. **Ubuntu:** Full runtime verification deferred to phase end; migration/schema verification is required now on the shared test PostgreSQL. **CI:** Not checked. **Owner acceptance:** Pending.
 
 ## Phase Exit Gate
 All 13 steps accepted, focused regression passing, Ubuntu verification once, schema/security review, owner signoff. Merge to main, immutable tag, GitHub Release and production deployment are distinct gated actions and must never be assumed completed.
