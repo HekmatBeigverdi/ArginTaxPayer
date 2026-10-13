@@ -361,3 +361,5 @@ public sealed record PhoneRequest(string? Mobile, string? Purpose);
 public sealed record PhoneComplete(string? Mobile, string? Code);
 public sealed record PhoneRegisterComplete(string? Mobile, string? Code, string? Password);
 public sealed record PhoneResetComplete(string? Mobile, string? Code, string? NewPassword);
+
+public sealed record AdminCreateCustomerRequest(string? Mobile, string? Email, string? Password);
