@@ -78,8 +78,8 @@ public sealed class IdentityMfaPostgresTests
         Assert.NotNull(pending);
         Assert.Contains("otpauth://totp/", pending!.ProvisioningUri);
         Assert.Null(await mfa.BeginLoginAsync(email, password)); // unconfirmed MFA not sufficient
-        var codes = await mfa.ConfirmEnrollmentAsync(user.Id,
-            IdentityTotp.Generate(pending.Secret, DateTime.UtcNow));
+        var enrollmentCode = IdentityTotp.Generate(pending.Secret, DateTime.UtcNow);
+        var codes = await mfa.ConfirmEnrollmentAsync(user.Id, enrollmentCode);
         Assert.NotNull(codes);
         Assert.Equal(10, codes!.Codes.Length);
         Assert.Null(await sessions.AuthenticateAsync(initial!.AccessToken)); // prior session revoked
@@ -91,8 +91,7 @@ public sealed class IdentityMfaPostgresTests
 
         // The enrollment time-step is already used: a second-factor code from that
         // same 30-second period must be rejected as replay.
-        Assert.Null(await mfa.CompleteLoginAsync(challenge.Challenge,
-            IdentityTotp.Generate(pending.Secret, DateTime.UtcNow), false));
+        Assert.Null(await mfa.CompleteLoginAsync(challenge.Challenge, enrollmentCode, false));
 
         var tokens = await mfa.CompleteLoginAsync(challenge.Challenge, codes.Codes[0], true);
         Assert.NotNull(tokens);

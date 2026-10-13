@@ -36,7 +36,8 @@ public sealed class IdentitySessionService(ArginTaxPayerDbContext db)
 
         // Administrative identities always require a completed MFA challenge.
         if (await db.IdentityUserRoles.AsNoTracking().AnyAsync(
-                x => x.UserId == user.Id && x.Role != IdentityRoleNames.Customer, ct))
+                x => x.UserId == user.Id && x.Role != IdentityRoleNames.Customer &&
+                    x.Role != IdentityRoleNames.PendingLevel1 && x.Role != IdentityRoleNames.PendingLevel2, ct))
             return null;
 
         var now = DateTime.UtcNow;
@@ -124,7 +125,8 @@ public sealed class IdentitySessionService(ArginTaxPayerDbContext db)
         var updated = await db.IdentitySessions
             .Where(x => x.Id == session.Id && x.RefreshTokenHash == digest &&
                 x.RevokedAtUtc == null && x.RefreshExpiresAtUtc > now && x.User.IsActive &&
-                (!x.User.Roles.Any(r => r.Role != IdentityRoleNames.Customer) ||
+                (!x.User.Roles.Any(r => r.Role != IdentityRoleNames.Customer &&
+                    r.Role != IdentityRoleNames.PendingLevel1 && r.Role != IdentityRoleNames.PendingLevel2) ||
                     db.IdentityMfaStates.Any(m => m.UserId == x.UserId && m.EnabledAtUtc != null)))
             .ExecuteUpdateAsync(setters => setters
                 .SetProperty(x => x.AccessTokenHash, newAccessDigest)
@@ -145,7 +147,8 @@ public sealed class IdentitySessionService(ArginTaxPayerDbContext db)
         return await db.IdentitySessions.AsNoTracking()
             .Where(x => x.AccessTokenHash == digest && x.AccessExpiresAtUtc > now &&
                 x.RefreshExpiresAtUtc > now && x.RevokedAtUtc == null && x.User.IsActive &&
-                (!x.User.Roles.Any(r => r.Role != IdentityRoleNames.Customer) ||
+                (!x.User.Roles.Any(r => r.Role != IdentityRoleNames.Customer &&
+                    r.Role != IdentityRoleNames.PendingLevel1 && r.Role != IdentityRoleNames.PendingLevel2) ||
                     db.IdentityMfaStates.Any(m => m.UserId == x.UserId && m.EnabledAtUtc != null)))
             .Select(x => (Guid?)x.UserId).SingleOrDefaultAsync(ct);
     }

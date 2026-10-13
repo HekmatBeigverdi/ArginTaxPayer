@@ -72,6 +72,7 @@ if (app.Environment.IsDevelopment())
             registrationEnabled = app.Configuration.GetValue<bool>(
                 "Identity:AllowDevelopmentRegistration"),
             smsSendingEnabled = app.Configuration.GetValue<bool>("Ghasedak:EnableLiveSending"),
+            mfaConfigured = !string.IsNullOrWhiteSpace(app.Configuration["Identity:MfaEncryptionKey"]),
             ghasedakApiKeyConfigured = !string.IsNullOrWhiteSpace(app.Configuration["Ghasedak:ApiKey"]),
             ghasedakTemplateConfigured = app.Configuration["Ghasedak:TemplateName"] == "TaxPayerActivationCode",
             ghasedakLoginTemplateConfigured = true,

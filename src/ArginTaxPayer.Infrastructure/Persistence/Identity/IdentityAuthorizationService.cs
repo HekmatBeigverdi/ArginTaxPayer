@@ -90,6 +90,54 @@ public sealed class IdentityAuthorizationService(
             .ToArrayAsync(ct);
     }
 
+    public async Task<Level2RoleGrantResult> NominateLevel2Async(
+        string? actorAccessToken, string? mobileInput, CancellationToken ct = default)
+    {
+        if (!IranianMobileNumber.TryNormalize(mobileInput, out var mobile))
+            return Level2RoleGrantResult.TargetNotFound;
+        var actorId = await sessions.AuthenticateAsync(actorAccessToken, ct);
+        if (actorId is null) return Level2RoleGrantResult.Unauthenticated;
+        try
+        {
+            return await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+            {
+                await using var tx = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, ct);
+                if (await sessions.AuthenticateAsync(actorAccessToken, ct) != actorId ||
+                    !await db.IdentityUserRoles.AnyAsync(r => r.UserId == actorId && r.Role == IdentityRoleNames.Level1, ct) ||
+                    !await db.IdentityMfaStates.AnyAsync(m => m.UserId == actorId && m.EnabledAtUtc != null, ct))
+                    return Level2RoleGrantResult.Forbidden;
+                var target = await db.IdentityUsers.Include(u => u.Roles).SingleOrDefaultAsync(u =>
+                    u.NormalizedMobile == mobile && u.IsActive && u.MobileVerifiedAtUtc != null, ct);
+                if (target is null) return Level2RoleGrantResult.TargetNotFound;
+                if (target.Id == actorId || target.PasswordHash is null)
+                    return Level2RoleGrantResult.Forbidden;
+                if (!target.Roles.Any(r => r.Role == IdentityRoleNames.Customer) ||
+                    target.Roles.Any(r => r.Role != IdentityRoleNames.Customer))
+                    return Level2RoleGrantResult.Conflict;
+                var enabled = await db.IdentityMfaStates.AnyAsync(m => m.UserId == target.Id && m.EnabledAtUtc != null, ct);
+                db.IdentityUserRoles.Add(new IdentityUserRole {
+                    UserId = target.Id, Role = enabled ? IdentityRoleNames.Level2 : IdentityRoleNames.PendingLevel2,
+                    AssignedAtUtc = DateTime.UtcNow
+                });
+                await db.SaveChangesAsync(ct);
+                await db.IdentitySessions.Where(s => s.UserId == target.Id && s.RevokedAtUtc == null)
+                    .ExecuteUpdateAsync(s => s.SetProperty(x => x.RevokedAtUtc, DateTime.UtcNow), ct);
+                await tx.CommitAsync(ct);
+                return Level2RoleGrantResult.Granted;
+            });
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+        {
+            db.ChangeTracker.Clear();
+            return Level2RoleGrantResult.Conflict;
+        }
+        catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.SerializationFailure)
+        {
+            db.ChangeTracker.Clear();
+            return Level2RoleGrantResult.Conflict;
+        }
+    }
+
     public async Task<Level2RoleGrantResult> GrantLevel2Async(
         string? actorAccessToken, Guid targetUserId, CancellationToken ct = default)
     {

@@ -1,4 +1,6 @@
 using ArginTaxPayer.Infrastructure.Persistence.Identity;
+using ArginTaxPayer.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Mvc;
 using System.Net;
 
@@ -101,26 +103,45 @@ public static class IdentityDevelopmentEndpoints
         });
 
         // MFA endpoints are restricted to Development and loopback, matching session routes.
-        group.MapPost("/mfa/enroll", async (HttpContext http, IdentitySessionService sessions,
-            IServiceProvider provider, CancellationToken ct) =>
+        group.MapGet("/mfa/status", async (HttpContext http, IdentityAuthorizationService authorization,
+            ArginTaxPayerDbContext db, IServiceProvider provider, CancellationToken ct) =>
         {
             if (!IsLoopback(http)) return Results.NotFound();
-            var identity = provider.GetService<IdentityMfaService>();
-            if (identity is null) return Results.NotFound();
+            http.Response.Headers.CacheControl = "no-store";
+            var userId = await authorization.CurrentUserIdAsync(ReadBearer(http), ct);
+            if (userId is null) return Results.Unauthorized();
+            var roles = await authorization.GetCurrentRolesAsync(ReadBearer(http), ct);
+            if (roles is null || !roles.Any(IdentityRoleNames.CanEnrollMfa)) return Results.StatusCode(403);
+            var enabled = await db.IdentityMfaStates.AnyAsync(m => m.UserId == userId && m.EnabledAtUtc != null, ct);
+            return Results.Ok(new { enabled, available = provider.GetService<IdentityMfaService>() is not null });
+        });
+        group.MapPost("/mfa/enroll", async (HttpContext http, IdentitySessionService sessions,
+            IdentityAuthorizationService authorization, IServiceProvider provider, CancellationToken ct) =>
+        {
+            if (!IsLoopback(http)) return Results.NotFound();
+            http.Response.Headers.CacheControl = "no-store";
             var userId = await sessions.AuthenticateAsync(ReadBearer(http), ct);
             if (userId is null) return Results.Unauthorized();
+            var roles = await authorization.GetCurrentRolesAsync(ReadBearer(http), ct);
+            if (roles is null || !roles.Any(IdentityRoleNames.CanEnrollMfa)) return Results.StatusCode(403);
+            var identity = provider.GetService<IdentityMfaService>();
+            if (identity is null) return Results.Json(new { error = "mfa_not_configured" }, statusCode: 503);
             var enrollment = await identity.BeginEnrollmentAsync(userId.Value, ct);
             return enrollment is null ? Results.BadRequest(new { error = "mfa_unavailable" }) : Results.Ok(enrollment);
         });
 
         group.MapPost("/mfa/confirm", async ([FromBody] TotpConfirmRequest request,
-            HttpContext http, IdentitySessionService sessions, IServiceProvider provider, CancellationToken ct) =>
+            HttpContext http, IdentitySessionService sessions, IdentityAuthorizationService authorization,
+            IServiceProvider provider, CancellationToken ct) =>
         {
             if (!IsLoopback(http)) return Results.NotFound();
-            var identity = provider.GetService<IdentityMfaService>();
-            if (identity is null) return Results.NotFound();
+            http.Response.Headers.CacheControl = "no-store";
             var userId = await sessions.AuthenticateAsync(ReadBearer(http), ct);
             if (userId is null) return Results.Unauthorized();
+            var roles = await authorization.GetCurrentRolesAsync(ReadBearer(http), ct);
+            if (roles is null || !roles.Any(IdentityRoleNames.CanEnrollMfa)) return Results.StatusCode(403);
+            var identity = provider.GetService<IdentityMfaService>();
+            if (identity is null) return Results.Json(new { error = "mfa_not_configured" }, statusCode: 503);
             var codes = await identity.ConfirmEnrollmentAsync(userId.Value, request.Code, ct);
             return codes is null ? Results.Unauthorized() : Results.Ok(codes);
         });
@@ -269,6 +290,22 @@ public static class IdentityDevelopmentEndpoints
             };
         });
 
+        group.MapPost("/roles/level2/nominate", async (
+            [FromBody] AdministratorNominationRequest request, HttpContext http,
+            IdentityAuthorizationService authorization, CancellationToken ct) =>
+        {
+            if (!IsLoopback(http)) return Results.NotFound();
+            var result = await authorization.NominateLevel2Async(ReadBearer(http), request.Mobile, ct);
+            return result switch
+            {
+                Level2RoleGrantResult.Unauthenticated => Results.Unauthorized(),
+                Level2RoleGrantResult.Forbidden => Results.StatusCode(403),
+                Level2RoleGrantResult.TargetNotFound => Results.NotFound(),
+                Level2RoleGrantResult.Conflict => Results.Conflict(),
+                _ => Results.Ok(new { status = "administrator_nominated" })
+            };
+        });
+
         group.MapPost("/roles/level2/grant", async (
             [FromBody] Level2GrantRequest request, HttpContext http,
             IdentityAuthorizationService authorization, CancellationToken ct) =>
@@ -370,6 +407,7 @@ public sealed record TotpConfirmRequest(string? Code);
 public sealed record MfaCompleteRequest(string? Challenge, string? Code, bool UseRecoveryCode);
 
 public sealed record Level2GrantRequest(Guid TargetUserId);
+public sealed record AdministratorNominationRequest(string? Mobile);
 
 public sealed record PhoneRequest(string? Mobile, string? Purpose);
 public sealed record PhoneComplete(string? Mobile, string? Code);
