@@ -508,7 +508,41 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Taxpayers.FiscalMemory", b =>
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Taxpayers.TaxpayerDelegateGrant", b =>
+        {
+            b.Property<Guid>("Id").HasColumnName("id").HasColumnType("uuid");
+            b.Property<Guid>("TaxpayerId").HasColumnName("taxpayer_id").HasColumnType("uuid");
+            b.Property<Guid>("DelegateUserId").HasColumnName("delegate_user_id").HasColumnType("uuid");
+            b.Property<Guid>("GrantedByLevel1UserId").HasColumnName("granted_by_level1_user_id").HasColumnType("uuid");
+            b.Property<DateTime>("GrantedAtUtc").HasColumnName("granted_at_utc").HasColumnType("timestamp with time zone");
+            b.Property<DateTime?>("RevokedAtUtc").HasColumnName("revoked_at_utc").HasColumnType("timestamp with time zone");
+            b.Property<Guid?>("RevokedByLevel1UserId").HasColumnName("revoked_by_level1_user_id").HasColumnType("uuid");
+            b.Property<string>("RevocationReason").HasMaxLength(500).HasColumnName("revocation_reason").HasColumnType("character varying(500)");
+            b.Property<long>("Revision").HasColumnName("revision").HasColumnType("bigint").HasDefaultValue(1L).IsConcurrencyToken();
+            b.HasKey("Id");
+            b.HasIndex("TaxpayerId", "DelegateUserId").IsUnique().HasFilter("revoked_at_utc IS NULL").HasDatabaseName("ux_taxpayer_delegate_active");
+            b.HasIndex("DelegateUserId", "RevokedAtUtc").HasDatabaseName("ix_delegate_current_scope");
+            b.HasIndex("GrantedByLevel1UserId");
+            b.HasIndex("RevokedByLevel1UserId");
+            b.ToTable("taxpayer_delegate_grants", t =>
+            {
+                t.HasCheckConstraint("ck_delegate_revision", "revision > 0");
+                t.HasCheckConstraint("ck_delegate_revocation", "revoked_at_utc IS NULL OR (revoked_at_utc >= granted_at_utc AND revoked_by_level1_user_id IS NOT NULL AND length(trim(revocation_reason)) > 0)");
+            });
+        });
+        modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Taxpayers.TaxpayerDelegateGrant", b =>
+        {
+            b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Taxpayers.TaxpayerProfile", null).WithMany()
+                .HasForeignKey("TaxpayerId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+            b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null).WithMany()
+                .HasForeignKey("DelegateUserId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+            b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null).WithMany()
+                .HasForeignKey("GrantedByLevel1UserId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+            b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null).WithMany()
+                .HasForeignKey("RevokedByLevel1UserId").OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Taxpayers.FiscalMemory", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
