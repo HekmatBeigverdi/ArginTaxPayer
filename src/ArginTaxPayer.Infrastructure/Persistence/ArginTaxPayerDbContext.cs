@@ -14,6 +14,7 @@ public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbConte
     : DbContext(options)
 {
     public DbSet<TaxpayerProfile> TaxpayerProfiles => Set<TaxpayerProfile>();
+    public DbSet<FiscalMemory> FiscalMemories => Set<FiscalMemory>();
     public DbSet<TaxpayerProfileChange> TaxpayerProfileChanges => Set<TaxpayerProfileChange>();
     public DbSet<IdentityUser> IdentityUsers => Set<IdentityUser>();
     public DbSet<IdentityUserRole> IdentityUserRoles => Set<IdentityUserRole>();
@@ -28,6 +29,28 @@ public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbConte
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
+        var memories = modelBuilder.Entity<FiscalMemory>();
+        memories.ToTable("fiscal_memories", table =>
+        {
+            table.HasCheckConstraint("ck_fiscal_memories_status", "status IN (1, 2, 3, 4)");
+            table.HasCheckConstraint("ck_fiscal_memories_identifier", "length(trim(memory_identifier)) > 0");
+            table.HasCheckConstraint("ck_fiscal_memories_revision", "revision > 0");
+        });
+        memories.HasKey(x => x.Id);
+        memories.Property(x => x.Id).HasColumnName("id");
+        memories.Property(x => x.TaxpayerId).HasColumnName("taxpayer_id").IsRequired();
+        memories.Property(x => x.MemoryIdentifier).HasColumnName("memory_identifier").HasMaxLength(64).IsRequired();
+        memories.Property(x => x.Status).HasColumnName("status").HasConversion<int>().IsRequired();
+        memories.Property(x => x.Revision).HasColumnName("revision").HasDefaultValue(1L).IsConcurrencyToken();
+        memories.Property(x => x.CreatedAtUtc).HasColumnName("created_at_utc").HasColumnType("timestamp with time zone");
+        memories.Property(x => x.UpdatedAtUtc).HasColumnName("updated_at_utc").HasColumnType("timestamp with time zone");
+        memories.HasOne(x => x.Taxpayer).WithMany().HasForeignKey(x => x.TaxpayerId)
+            .OnDelete(DeleteBehavior.Restrict);
+        memories.HasIndex(x => x.MemoryIdentifier).IsUnique()
+            .HasDatabaseName("ux_fiscal_memories_identifier");
+        memories.HasIndex(x => x.TaxpayerId).IsUnique()
+            .HasFilter("status = 2").HasDatabaseName("ux_fiscal_memories_active_taxpayer");
 
         var changes = modelBuilder.Entity<TaxpayerProfileChange>();
         changes.ToTable("taxpayer_profile_changes");
