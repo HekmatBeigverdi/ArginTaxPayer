@@ -3,6 +3,7 @@ using ArginTaxPayer.Infrastructure.Persistence.Identity;
 using ArginTaxPayer.Infrastructure.Persistence.Taxpayers;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Npgsql;
 
 namespace ArginTaxPayer.Tests;
 
@@ -18,7 +19,11 @@ internal static class IdentityTestServices
         // Integration fixtures may coexist with multiple privileged Level1 identities.
         // Explicitly choose a current Level1 in the test database; never weaken
         // the production ResolveRootAsync ambiguity guard.
-        if (configuration is null)
+        var connection = new NpgsqlConnectionStringBuilder(db.Database.GetDbConnection().ConnectionString);
+        var isRealIntegration = Environment.GetEnvironmentVariable("RUN_ARGINTAXPAYER_PG_INTEGRATION") == "1" &&
+            connection.Database == "argintaxpayer_test" &&
+            connection.Username is not ("unused" or "x");
+        if (configuration is null && isRealIntegration)
         {
             var root = db.IdentityUsers.AsNoTracking()
                 .Where(u => u.IsActive &&
