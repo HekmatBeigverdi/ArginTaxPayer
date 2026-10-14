@@ -578,3 +578,17 @@ Ubuntu script uses loopback-only `argintaxpayer_test` and never auto-applies mig
 
 
 **Review PR:** [#6 — Phase 04 Customer-owned taxpayer management and commercial partner scope](https://github.com/HekmatBeigverdi/ArginTaxPayer/pull/6), opened **DRAFT** on 2026-10-14 against `main`. Not merged, not tagged, not released. Mergeability shown by GitHub does not certify build/test success. Owner must provide local and Ubuntu verification and explicit final phase release approval before making it ready and merging.
+
+
+### Step 13 Ubuntu full-test regression: 8 failed, remediation committed (2026-10-14)
+
+**Observed:** Operator supplied `bash scripts/ubuntu-dev.sh verify` output: 189 total tests, 181 succeeded and **8 failed**, before Node/Next.js Ubuntu verification. This supersedes any prior expectation of clean Ubuntu acceptance. Two common signatures:
+1. PostgreSQL `23503` on `FK_customer_owner_customer` when legacy Identity integration tests cleaned up disposable `identity_users` without deleting their new `customer_commercial_owner_changes` / `customer_commercial_owners` dependents.
+2. Legacy registration tests expected `Created` but got `Invalid` because the Phase04 mandatory root attribution rejects ambiguous/missing `Ownership:DefaultLevel1UserId` when PostgreSQL contains several active Level1 accounts.
+
+**Remediation source:** Test-only `tests/ArginTaxPayer.Tests/IdentityTestServices.cs` chooses an existing active Level1 explicitly in integration test configuration, preserving any passed OTP configuration; offline unit tests do not connect to PostgreSQL for test fixture setup. Production ownership remains fail-closed when the default root is ambiguous. The same helper exposes `CleanupCustomerFixturesAsync` to remove only commercial transfer history and owner rows of disposable test identities, then delete the identities inside an EF execution strategy transaction. Six legacy test files were switched to the helper (MFA retry, phone OTP, admin provisioning, MFA onboarding, resource scope, role authorization). Underlying live FKs remain Restrict, not cascade. Stable oldest active Level1 is preferred for fixture attribution. Do not delete unrelated customers, production accounts or weaken schema constraints.
+
+**Evidence:** User-provided Ubuntu result (failed 8/189). **Fixes committed, not yet re-executed**. Next operator action after pull: run `bash scripts/ubuntu-dev.sh verify` again. If an actual active Level1 bootstrap account is unavailable in `argintaxpayer_test`, fix test fixture setup explicitly (do not weaken production registration). Old failed test attempts may have left disposable `@example.invalid` accounts; do not mass-delete them before reviewing dependencies.
+
+**Release decision:** Phase04 PR #6 remains DRAFT and should NOT be merged, tagged or released while Ubuntu full test suite has 8 reported failures or before successful repeat evidence.
+
