@@ -74,6 +74,25 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Customers.CustomerAccountProfile", b =>
+                {
+                    b.Property<Guid>("CustomerUserId").HasColumnType("uuid").HasColumnName("customer_user_id");
+                    b.Property<string>("DisplayName").IsRequired().HasMaxLength(256).HasColumnType("character varying(256)").HasColumnName("display_name");
+                    b.Property<int>("Status").HasColumnType("integer").HasColumnName("status");
+                    b.Property<Guid?>("PreferredPartyId").HasColumnType("uuid").HasColumnName("preferred_party_id");
+                    b.Property<long>("Revision").IsConcurrencyToken().ValueGeneratedOnAdd().HasDefaultValue(1L).HasColumnType("bigint").HasColumnName("revision");
+                    b.Property<DateTime>("CreatedAtUtc").HasColumnType("timestamp with time zone").HasColumnName("created_at_utc");
+                    b.Property<DateTime>("UpdatedAtUtc").HasColumnType("timestamp with time zone").HasColumnName("updated_at_utc");
+                    b.HasKey("CustomerUserId");
+                    b.HasIndex("PreferredPartyId").HasDatabaseName("ix_customer_account_profiles_party");
+                    b.ToTable("customer_account_profiles", t =>
+                        {
+                            t.HasCheckConstraint("ck_customer_profile_status", "status IN (1, 2)");
+                            t.HasCheckConstraint("ck_customer_profile_revision", "revision > 0");
+                            t.HasCheckConstraint("ck_customer_profile_name", "length(trim(display_name)) > 0");
+                        });
+                });
+
             modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Parties.PartyDuplicateReview", b =>
                 {
                     b.Property<Guid>("Id").HasColumnType("uuid").HasColumnName("id");
@@ -1007,6 +1026,18 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
                     b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Parties.Party", null)
                         .WithMany().HasForeignKey("PartyId").OnDelete(DeleteBehavior.Restrict)
                         .IsRequired().HasConstraintName("FK_customer_party_links_party");
+                });
+
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Customers.CustomerAccountProfile", b =>
+                {
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null)
+                        .WithOne().HasForeignKey("ArginTaxPayer.Infrastructure.Persistence.Customers.CustomerAccountProfile", "CustomerUserId")
+                        .OnDelete(DeleteBehavior.Restrict).IsRequired()
+                        .HasConstraintName("FK_customer_account_profiles_identity");
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Parties.Party", null)
+                        .WithMany().HasForeignKey("PreferredPartyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("FK_customer_account_profiles_party");
                 });
 
             modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Parties.PartyDuplicateReview", b =>
