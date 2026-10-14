@@ -22,6 +22,42 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Parties.Party", b =>
+                {
+                    b.Property<Guid>("Id").HasColumnType("uuid").HasColumnName("id");
+                    b.Property<int>("Kind").HasColumnType("integer").HasColumnName("kind");
+                    b.Property<string>("NormalizedIdentifier").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)").HasColumnName("normalized_identifier");
+                    b.Property<string>("DisplayName").IsRequired().HasMaxLength(256).HasColumnType("character varying(256)").HasColumnName("display_name");
+                    b.Property<int>("Status").HasColumnType("integer").HasColumnName("status");
+                    b.Property<long>("Revision").IsConcurrencyToken().ValueGeneratedOnAdd().HasColumnType("bigint").HasDefaultValue(1L).HasColumnName("revision");
+                    b.Property<DateTime>("CreatedAtUtc").HasColumnType("timestamp with time zone").HasColumnName("created_at_utc");
+                    b.Property<DateTime>("UpdatedAtUtc").HasColumnType("timestamp with time zone").HasColumnName("updated_at_utc");
+                    b.HasKey("Id");
+                    b.HasIndex("Kind", "NormalizedIdentifier").IsUnique().HasDatabaseName("ux_parties_kind_identifier");
+                    b.ToTable("parties", t =>
+                        {
+                            t.HasCheckConstraint("ck_parties_kind", "kind IN (1, 2)");
+                            t.HasCheckConstraint("ck_parties_status", "status IN (1, 2)");
+                            t.HasCheckConstraint("ck_parties_revision", "revision > 0");
+                            t.HasCheckConstraint("ck_parties_identifier", "length(trim(normalized_identifier)) > 0");
+                            t.HasCheckConstraint("ck_parties_name", "length(trim(display_name)) > 0");
+                        });
+                });
+
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Parties.CustomerPartyLink", b =>
+                {
+                    b.Property<Guid>("Id").HasColumnType("uuid").HasColumnName("id");
+                    b.Property<Guid>("CustomerUserId").HasColumnType("uuid").HasColumnName("customer_user_id");
+                    b.Property<Guid>("PartyId").HasColumnType("uuid").HasColumnName("party_id");
+                    b.Property<DateTime>("LinkedAtUtc").HasColumnType("timestamp with time zone").HasColumnName("linked_at_utc");
+                    b.Property<DateTime?>("UnlinkedAtUtc").HasColumnType("timestamp with time zone").HasColumnName("unlinked_at_utc");
+                    b.HasKey("Id");
+                    b.HasIndex("CustomerUserId").HasDatabaseName("ix_customer_party_links_customer");
+                    b.HasIndex("PartyId").HasDatabaseName("ix_customer_party_links_party");
+                    b.HasIndex("CustomerUserId", "PartyId").IsUnique().HasFilter("unlinked_at_utc IS NULL").HasDatabaseName("ux_customer_party_links_active");
+                    b.ToTable("customer_party_links", t => t.HasCheckConstraint("ck_customer_party_links_dates", "unlinked_at_utc IS NULL OR unlinked_at_utc >= linked_at_utc"));
+                });
+
             modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Idempotency.IdempotencyReservation", b =>
                 {
                     b.Property<Guid>("Id")
@@ -883,6 +919,16 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
                         .HasForeignKey("TaxpayerId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Parties.CustomerPartyLink", b =>
+                {
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null)
+                        .WithMany().HasForeignKey("CustomerUserId").OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired().HasConstraintName("FK_customer_party_links_customer");
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Parties.Party", null)
+                        .WithMany().HasForeignKey("PartyId").OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired().HasConstraintName("FK_customer_party_links_party");
                 });
 
             modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", b =>
