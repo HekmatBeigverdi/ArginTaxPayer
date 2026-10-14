@@ -137,3 +137,36 @@ The project-root untracked `.env.dev.local` (copy from `.env.dev.local.example`,
 - **Signoff stages:** Step implementation + focused tests → Mac functional test as needed → accumulated phase regression on macOS → one Ubuntu phase acceptance run → record evidence in the phase's single canonical `docs/phases/phase-XX.md` file → owner approval → phase close. No main merge, immutable tag, GitHub Release or production deployment without the separately established gates.
 - **Ubuntu first-time-only setup:** private file `~/.argintaxpayer-test/ubuntu.env`, mode 600, containing `ConnectionStrings__ArginTaxPayerDb` for `Host=127.0.0.1;Port=5432;Database=argintaxpayer_test` with private credentials. The Ubuntu launcher loads this itself; OTP pepper stays at `~/.argintaxpayer-test/otp-pepper`. `dotnet`, `node/npm`, `psql`, and other prerequisites must be installed. Migrations are inspected and applied **only explicitly** to the verified test database, never automatically by the launcher. Default Ubuntu verification and Development launcher force Ghasedak live sending **off**.
 - This cadence reduces duplicate manual Ubuntu tests, but does **not** mean that using the same remote PostgreSQL makes macOS and Ubuntu runtimes equivalent; differences in OS/permissions, Node/.NET runtime and process configuration are precisely why each phase still needs its final Ubuntu acceptance.
+
+
+## Canonical manual PostgreSQL CLI verification on macOS (owner-approved 2026-10-14)
+
+For **all subsequent ArginTaxPayer steps and phases**, do not pass the Npgsql semicolon-delimited `ConnectionStrings__ArginTaxPayerDb` directly to `psql`; it is not a libpq connection string. Use the verified Codex/operator approach: load private `.env.dev.local`, split exact Npgsql keys, connect with `psql -W`. Do not echo the password or commit the environment file. When testing schema or migration, verify the actual database using `SELECT current_database();` before changes and require exactly `argintaxpayer_test`.
+
+```bash
+set -a
+source .env.dev.local
+set +a
+
+npgsql_value() {
+  printf '%s\n' "$ConnectionStrings__ArginTaxPayerDb" |
+    tr ';' '\n' |
+    awk -F= -v key="$1" '$1 == key { sub(/^[^=]*=/, ""); print; exit }'
+}
+
+DB_HOST="$(npgsql_value Host)"
+DB_PORT="$(npgsql_value Port)"
+DB_NAME="$(npgsql_value Database)"
+DB_USER="$(npgsql_value Username)"
+
+[[ "$DB_HOST" == "127.0.0.1" && "$DB_PORT" == "15432" && "$DB_NAME" == "argintaxpayer_test" ]] || {
+  echo "Refusing non-test DB settings" >&2
+  return 1
+}
+
+psql -X -h "$DB_HOST" -p "$DB_PORT" \
+  -U "$DB_USER" -d "$DB_NAME" -W \
+  -c 'SELECT current_database();'
+```
+
+For repeated `psql` commands in the same terminal, reuse the extracted `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER` and `-W`. Confirm actual returned database equals `argintaxpayer_test` before applying migrations. The existing `scripts/dev-up.zsh` AutoSSH launcher remains the canonical way to prepare Mac connection. Keep this convention in every new phase master plan; do not recommend the former invalid `psql "$ConnectionStrings__ArginTaxPayerDb"` command.
