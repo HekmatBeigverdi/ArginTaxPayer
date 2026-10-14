@@ -59,7 +59,7 @@ public sealed class IdentityAdminProvisioningTests
             if (id != Guid.Empty)
             {
                 await using var db = new ArginTaxPayerDbContext(options);
-                await db.IdentityUsers.Where(x => x.Id == id).ExecuteDeleteAsync();
+                await IdentityTestServices.CleanupCustomerFixturesAsync(db, new[] { id });
             }
         }
     }
@@ -149,7 +149,7 @@ public sealed class IdentityAdminProvisioningTests
             if (created.Count > 0)
             {
                 await using var cleanup = new ArginTaxPayerDbContext(options);
-                await cleanup.IdentityUsers.Where(u => created.Contains(u.Id)).ExecuteDeleteAsync();
+                await IdentityTestServices.CleanupCustomerFixturesAsync(cleanup, created);
             }
         }
     }
