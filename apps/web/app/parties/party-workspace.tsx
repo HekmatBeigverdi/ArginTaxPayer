@@ -133,7 +133,7 @@ export default function PartyWorkspace({
   canCreateTaxpayer: boolean;
   customerId: string;
 }) {
-  const [customer, setCustomer] = useState(isAdmin ? "" : customerId);
+  const [customer, setCustomer] = useState(customerId);
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
   const [customerLoadError, setCustomerLoadError] = useState("");
   const [taxpayers, setTaxpayers] = useState<Taxpayer[]>([]);
