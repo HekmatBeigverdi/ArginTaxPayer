@@ -311,3 +311,39 @@ zsh scripts/dev-up.zsh
 zsh scripts/dev-status.zsh
 ```
 **Acceptance matrix:** Verify MFA/password and OTP login and click-lock, same visible sidebar/topbar across /dashboard /users /parties /account, avatar logout and cookie invalidation, compact table column densities and overflow, buyer filters with real linked Party types, Level1 and Level2 distinct scope, creating both buyer kinds and taxpayer kinds and fiscal-memory code, malformed/nonscoped customer denial, browser sizes 1440/1024/768/390px, and keyboard accessibility. No database migration. **Assistant verification:** GitHub writes succeeded; GitHub remote DNS was unavailable inside local test container, so local code execution was not independently possible. Owner acceptance pending.
+
+## Step 12 — Navigation loaders and fiscal identity form completion (2026-10-15; approval pending)
+
+**User feedback:** Route transitions must visibly block the *content panel* (not the sidebar/topbar), tables must use a Semantic-UI-style centered indicator, and buyer/taxpayer data should not appear empty while many authorized customers are being queried. Buyer and seller forms should capture invoice header attributes relevant to invoice types, grounded in the supplied tax authority SDK and the Sepidar explanatory article. This is a Step12 correction, not Step13.
+
+**Frontend:** `apps/web/app/components/console-loader.tsx`, `apps/web/app/(console)/loading.tsx`, `apps/web/app/components/console-shell.tsx` and global CSS now provide an accessible teal spinning indicator (`role=status`, `aria-busy`, reduced motion) for route suspension and sidebar navigation. `apps/web/app/parties/buyer-taxpayer-directory.tsx` shows initial scoped account rows promptly, then incrementally joins up to six buyer profiles and taxpayer lists per batch, with overlay progress, no initial misleading empty state, and a true loadedOnce gate. No data from another customer's scope is included. Client-side aggregation should later be replaced by server-side paginated aggregation for high-volume accounts.
+
+**Fiscal header model:** `InvoiceParticipantDetails` is a distinct persisted record for one scoped buyer Party or one seller TaxpayerProfile, never a login credential or proof of official tax authority verification. The additive `20261015101000_AddInvoiceParticipantDetails` migration adds `invoice_participant_details`, customer FK, mutually-exclusive PartyId/TaxpayerId, unique ownership indexes, restrictive FK relationships, revision concurrency, timestamps, and:
+- `economic_code` (SDK `tinb` for buyer / `tins` for seller);
+- `branch_code` (`bbc` for buyer / `sbc` for seller);
+- `postal_code` (`bpc` for buyer; seller location metadata);
+- `province`, `city`, `address`, `phone`;
+- `foreign_national_code` (buyer `bid` can be national/civil participation/foreign code, handled separately from `Party.NormalizedIdentifier`);
+- `passport_number` (`bpn` in applicable airline/travel schemes);
+- `contract_reference` (for contract-specific invoices).
+Identity person's name, national/legal identifier and legal registration number remain in `Party`; fiscal seller's assigned identifier and fiscal memory code stay with `TaxpayerProfile` and fiscal-memory tables. The new metadata deliberately does NOT overwrite those fields or store private keys.
+
+**API and UI:** `InvoiceParticipantDetailsService` and `InvoiceParticipantEndpoints` expose scoped DEV-only GET/PUT under `/api/dev/customers/{customerId}/invoice-details/{buyer|seller}/{subjectId}`. Same-origin HTTP-only-cookie BFF exact-allowlists the path. Level1 with MFA/root commercial ownership can write seller or buyer; Level2 can write buyer for its currently owned customers, while seller writes remain Level1-only to match existing backend taxpayer write restriction. Customer self-service writes remain disabled. `ExpectedRevision` 0 creates; stale revisions get 409. Shared Party cross-customer mutation denied. `apps/web/app/parties/invoice-participant-form.tsx` is embedded in buyer Party details and seller TaxpayerWorkspace, with optional field guidance and invoice type selector.
+
+**Invoice-type requirements and limits:** From Iranian tax-invoice guidelines and SDK: Type1 requires buyer/seller identities as applicable, Type2 generally allows omission of buyer identity, and Type3 is a different POS/electronic payment receipt workflow. **These guidance rules are not a substitute for a full official template-by-template validation engine.** Requirements depend on current official instruction version, invoice pattern and business context; final invoice template mandatory/conditional fields, buyer business type, foreign buyer/civil partnership support, and mapping to `tob/bid/tinb` must be enforced when invoice issuance is implemented. Partial metadata is saved as draft data, never claimed as officially valid. No real invoice transmission, memory certification, activation or payment occurs here.
+
+**Tests:** `tests/ArginTaxPayer.Tests/InvoiceParticipantDetailsTests.cs`, `apps/web/tests/phase05-step12-loader-fiscal.test.mjs`; GitHub Actions `.github/workflows/phase-05-ui-ci.yml` runs frontend TS/Node/Next build and offline .NET Build/tests. Only a verified local test database named `argintaxpayer_test` may receive the migration. Review the generated SQL before applying; never auto-migrate or touch production.
+
+**Local commands (Mac):**
+```bash
+git switch phase/05-parties-customers
+git pull --ff-only origin phase/05-parties-customers
+npm --prefix apps/web run typecheck
+npm --prefix apps/web test
+npm --prefix apps/web run build
+dotnet build ArginTaxPayer.sln -c Release
+dotnet test ArginTaxPayer.sln -c Release --no-build
+```
+**Migration control:** Verify the current PostgreSQL database is exactly `argintaxpayer_test` through the established local AutoSSH tunnel and canonical `npgsql_value` connection parser, then inspect `dotnet ef migrations script 20261014190000_AddCustomerTaxpayerMemberships 20261015101000_AddInvoiceParticipantDetails --project src/ArginTaxPayer.Infrastructure --startup-project src/ArginTaxPayer.Api -o /tmp/phase05-step12-fiscal.sql`; apply target migration explicitly only after SQL review. Test DB-level XOR, FK, unique buyer/seller, revision, and scoped HTTP 401/403/404/409 negative scenarios.
+
+**Status:** GitHub code committed. Automated test outcome recorded through Phase05 UI CI separately. Owner real-browser UX and DB migration signoff pending.
