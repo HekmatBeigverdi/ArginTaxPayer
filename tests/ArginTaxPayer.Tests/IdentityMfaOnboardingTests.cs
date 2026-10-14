@@ -113,7 +113,7 @@ public sealed class IdentityMfaOnboardingTests
         finally
         {
             await using var cleanup = new ArginTaxPayerDbContext(options);
-            await cleanup.IdentityUsers.Where(u => ids.Contains(u.Id)).ExecuteDeleteAsync();
+            await IdentityTestServices.CleanupCustomerFixturesAsync(cleanup, ids);
         }
     }
 
