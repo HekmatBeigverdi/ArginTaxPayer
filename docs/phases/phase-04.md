@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 04: Multi-Taxpayer Management
 
-**Status:** Steps 01–05 owner approved (2026-10-13; owner-reported acceptance). Step 05 received a dated, owner-approved cross-phase contract clarification; Step 06 owner approved 2026-10-13; Step 07 owner approved 2026-10-13; Step 08 owner approved 2026-10-13; Step 09 implementation approved for progression with integration acceptance deferred to Step12; Step 10 owner approved 2026-10-13; Step 11 customer ownership and paginated user/modal UX owner approved 2026-10-14; Step 12 owner approved 2026-10-14 with explicit acceptance of unexecuted three-account HTTP smoke; Step 13 OWNER APPROVED 2026-10-14; owner reports successful latest local macOS and Ubuntu verification after the 8-test regression fixes. Phase04 release integration pending merge/tag confirmation.
+**Status:** Steps 01–05 owner approved (2026-10-13; owner-reported acceptance). Step 05 received a dated, owner-approved cross-phase contract clarification; Step 06 owner approved 2026-10-13; Step 07 owner approved 2026-10-13; Step 08 owner approved 2026-10-13; Step 09 implementation approved for progression with integration acceptance deferred to Step12; Step 10 owner approved 2026-10-13; Step 11 customer ownership and paginated user/modal UX owner approved 2026-10-14; Step 12 owner approved 2026-10-14 with explicit acceptance of unexecuted three-account HTTP smoke; Step 13 OWNER APPROVED 2026-10-14; owner reports successful latest local macOS and Ubuntu verification after the 8-test regression fixes. Phase04 merged into main with merge commit 422437c49fd153d5f749d1533d0bee3f5d40383e; annotated tag / GitHub release pending operator execution.
 **Branch:** `phase/04-multi-taxpayer-management`
 **Started:** 2026-10-13
 **Baseline:** `docs/roadmap/18-phases.md`, Phase 03 identity/authorization contracts
@@ -603,3 +603,12 @@ Ubuntu script uses loopback-only `argintaxpayer_test` and never auto-applies mig
 **Handoff:** Customer-first identity ownership and delegation stays in Phase04. Plan-specific taxpayer-count entitlements, collection-based commercial partner net-profit and verified tax/expense deduction remain in Phase12. Formal partner referral request queue in Phase16. Private-key custody and authority diagnostics in Phases09/10.
 
 **Release operations:** Pull Request #6 is the integration vehicle to `main`. After its successful GitHub merge and verifying the merged commit, create an annotated `v0.4.0` tag **only if not already present**, and publish an accurately labeled Phase04 development release. Never pretend release or tag exists before checking GitHub. Keep development endpoints private and do not deploy to production as part of phase completion.
+
+
+### Final integration record — 2026-10-14
+
+- Step 13: **OWNER APPROVED**. Owner reported latest macOS and Ubuntu verification success after test-fixture compatibility fixes.
+- Pull Request [#6](https://github.com/HekmatBeigverdi/ArginTaxPayer/pull/6): **MERGED** into `main` using merge commit `422437c49fd153d5f749d1533d0bee3f5d40383e`.
+- GitHub Release survey before publication: existing latest Phase03 release `v0.3.0-phase03`; Phase04 tag/release **not yet created**. Suggested consistent tag: `v0.4.0-phase04` (check remote refs first).
+- Formal Phase04 steps 01–13 accepted. Separate release/tag publication remains an operator action and should not be marked completed without GitHub confirmation. The Level1/Level2 three-account HTTP smoke remains a knowingly waived security acceptance item for future independent testing.
+- Handoff to Phase05 may start from updated `main`. A phase-specific Release is development-stage documentation, not approval to expose dev-only endpoints in production.
