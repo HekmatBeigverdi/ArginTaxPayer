@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import ConsoleLoader from "../components/console-loader";
 
 
 type Account = {
@@ -195,7 +196,7 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
           <th scope="col">ثبت‌نام</th><th scope="col">عملیات</th>
         </tr></thead>
         <tbody>
-          {loading ? <tr><td colSpan={7} role="status">در حال دریافت کاربران…</td></tr> :
+          {loading ? <tr><td colSpan={7}><ConsoleLoader label="در حال دریافت کاربران…" /></td></tr> :
             pageRows.length === 0 ? <tr><td colSpan={7}>کاربری با این معیارها پیدا نشد.</td></tr> :
             pageRows.map((a, i) => <tr key={a.customerUserId}>
               <td>{firstIndex + i}</td>
