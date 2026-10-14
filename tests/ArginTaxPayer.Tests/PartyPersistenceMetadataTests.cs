@@ -20,6 +20,17 @@ public sealed class PartyPersistenceMetadataTests
     }
 
     [Fact]
+    public void Natural_person_name_fields_are_optional_for_legacy_and_legal_parties()
+    {
+        using var db = CreateContext();
+        var entity = db.Model.FindEntityType(typeof(Party))!;
+        Assert.True(entity.FindProperty(nameof(Party.FirstName))!.IsNullable);
+        Assert.True(entity.FindProperty(nameof(Party.LastName))!.IsNullable);
+        Assert.Equal(100, entity.FindProperty(nameof(Party.FirstName))!.GetMaxLength());
+        Assert.Equal(100, entity.FindProperty(nameof(Party.LastName))!.GetMaxLength());
+    }
+
+    [Fact]
     public void Customer_party_link_has_restrictive_foreign_keys_and_active_uniqueness()
     {
         using var db = CreateContext();
