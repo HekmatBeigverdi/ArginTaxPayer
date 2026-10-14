@@ -3,6 +3,7 @@ using ArginTaxPayer.Infrastructure.Persistence.Idempotency;
 using Microsoft.EntityFrameworkCore;
 using ArginTaxPayer.Infrastructure.Persistence.Identity;
 using ArginTaxPayer.Infrastructure.Persistence.Taxpayers;
+using ArginTaxPayer.Infrastructure.Persistence.Parties;
 
 namespace ArginTaxPayer.Infrastructure.Persistence;
 
@@ -13,6 +14,8 @@ namespace ArginTaxPayer.Infrastructure.Persistence;
 public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbContext> options)
     : DbContext(options)
 {
+    public DbSet<Party> Parties => Set<Party>();
+    public DbSet<CustomerPartyLink> CustomerPartyLinks => Set<CustomerPartyLink>();
     public DbSet<TaxpayerProfile> TaxpayerProfiles => Set<TaxpayerProfile>();
     public DbSet<CustomerCommercialOwner> CustomerCommercialOwners => Set<CustomerCommercialOwner>();
     public DbSet<CustomerCommercialOwnerChange> CustomerCommercialOwnerChanges => Set<CustomerCommercialOwnerChange>();
@@ -33,6 +36,45 @@ public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbConte
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
+        var parties = modelBuilder.Entity<Party>();
+        parties.ToTable("parties", t =>
+        {
+            t.HasCheckConstraint("ck_parties_kind", "kind IN (1, 2)");
+            t.HasCheckConstraint("ck_parties_status", "status IN (1, 2)");
+            t.HasCheckConstraint("ck_parties_revision", "revision > 0");
+            t.HasCheckConstraint("ck_parties_identifier", "length(trim(normalized_identifier)) > 0");
+            t.HasCheckConstraint("ck_parties_name", "length(trim(display_name)) > 0");
+        });
+        parties.HasKey(x => x.Id);
+        parties.Property(x => x.Id).HasColumnName("id");
+        parties.Property(x => x.Kind).HasColumnName("kind").HasConversion<int>();
+        parties.Property(x => x.NormalizedIdentifier).HasColumnName("normalized_identifier").HasMaxLength(32).IsRequired();
+        parties.Property(x => x.DisplayName).HasColumnName("display_name").HasMaxLength(256).IsRequired();
+        parties.Property(x => x.Status).HasColumnName("status").HasConversion<int>();
+        parties.Property(x => x.Revision).HasColumnName("revision").HasDefaultValue(1L).IsConcurrencyToken();
+        parties.Property(x => x.CreatedAtUtc).HasColumnName("created_at_utc").HasColumnType("timestamp with time zone");
+        parties.Property(x => x.UpdatedAtUtc).HasColumnName("updated_at_utc").HasColumnType("timestamp with time zone");
+        parties.HasIndex(x => new { x.Kind, x.NormalizedIdentifier }).IsUnique().HasDatabaseName("ux_parties_kind_identifier");
+
+        var links = modelBuilder.Entity<CustomerPartyLink>();
+        links.ToTable("customer_party_links", t =>
+            t.HasCheckConstraint("ck_customer_party_links_dates",
+                "unlinked_at_utc IS NULL OR unlinked_at_utc >= linked_at_utc"));
+        links.HasKey(x => x.Id);
+        links.Property(x => x.Id).HasColumnName("id");
+        links.Property(x => x.CustomerUserId).HasColumnName("customer_user_id");
+        links.Property(x => x.PartyId).HasColumnName("party_id");
+        links.Property(x => x.LinkedAtUtc).HasColumnName("linked_at_utc").HasColumnType("timestamp with time zone");
+        links.Property(x => x.UnlinkedAtUtc).HasColumnName("unlinked_at_utc").HasColumnType("timestamp with time zone");
+        links.HasOne<IdentityUser>().WithMany().HasForeignKey(x => x.CustomerUserId)
+            .OnDelete(DeleteBehavior.Restrict).HasConstraintName("FK_customer_party_links_customer");
+        links.HasOne<Party>().WithMany().HasForeignKey(x => x.PartyId)
+            .OnDelete(DeleteBehavior.Restrict).HasConstraintName("FK_customer_party_links_party");
+        links.HasIndex(x => x.CustomerUserId).HasDatabaseName("ix_customer_party_links_customer");
+        links.HasIndex(x => x.PartyId).HasDatabaseName("ix_customer_party_links_party");
+        links.HasIndex(x => new { x.CustomerUserId, x.PartyId }).IsUnique()
+            .HasFilter("unlinked_at_utc IS NULL").HasDatabaseName("ux_customer_party_links_active");
 
         var commercial = modelBuilder.Entity<CustomerCommercialOwner>();
         commercial.ToTable("customer_commercial_owners", t =>
