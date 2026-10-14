@@ -179,7 +179,7 @@ export default function BuyerTaxpayerDirectory({ admin, level1 }: { admin: boole
         <p>ثبت کد حافظه مالیاتی و مشاهده وضعیت گواهی در این بخش انجام می‌شود.
           اطلاعات گواهی و اتصال در سامانه صرفاً فراداده هستند؛ ذخیره کلید خصوصی و اتصال عملیاتی مالیاتی در این مرحله فعال نیست.</p>
         {createdTaxpayerId && <p>مؤدی انتخاب‌شده: <bdi dir="ltr">{createdTaxpayerId}</bdi></p>}
-        <TaxpayerWorkspace isLevel1={level1}/>
+        <TaxpayerWorkspace key={createdTaxpayerId || selectedBuyer} isLevel1={level1} initialTaxpayerId={createdTaxpayerId || undefined} showCreateForm={false}/>
       </>}
     </div>}
     {view === "list" && <>
