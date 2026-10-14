@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react
 import AdminCreateCustomer from "../account/admin-create-customer";
 import PartyWorkspace from "./party-workspace";
 import TaxpayerWorkspace from "../taxpayers/taxpayer-workspace";
+import ConsoleLoader from "../components/console-loader";
 
 type Buyer = { customerUserId: string; mobile: string | null; email: string | null;
   isActive: boolean; taxpayerCount: number };
@@ -36,6 +37,8 @@ export default function BuyerTaxpayerDirectory({ admin, level1 }: { admin: boole
   const [page, setPage] = useState(1);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [progress, setProgress] = useState({ done: 0, total: 0 });
+  const [loadedOnce, setLoadedOnce] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [newKind, setNewKind] = useState("1");
@@ -44,7 +47,7 @@ export default function BuyerTaxpayerDirectory({ admin, level1 }: { admin: boole
   const [createdTaxpayerId, setCreatedTaxpayerId] = useState("");
 
   const reload = useCallback(async () => {
-    setLoading(true); setError("");
+    setLoading(true); setError(""); setProgress({ done: 0, total: 0 });
     try {
       if (!admin) {
         const mine = await get<{ customerUserId: string; taxpayers: Taxpayer[]; displayName: string | null }>(
@@ -59,7 +62,12 @@ export default function BuyerTaxpayerDirectory({ admin, level1 }: { admin: boole
       }
       const accounts = await get<Buyer[]>("/api/customer-owners/accounts");
       setBuyers(accounts);
-      const combined: Row[] = [];
+      setProgress({ done: 0, total: accounts.length });
+      const combined: Row[] = accounts.map(b => ({ id: b.customerUserId, buyerId: b.customerUserId,
+        type: "buyer", kind: null, name: b.mobile || b.email || b.customerUserId,
+        identifier: b.mobile || b.email || "", status: b.isActive ? "فعال" : "غیرفعال",
+        ownerName: b.mobile || b.email || b.customerUserId }));
+      setRows([...combined]);
       // Bounded batches avoid unbounded HTTP concurrency; the API still enforces authorization.
       for (let offset = 0; offset < accounts.length; offset += 6) {
         const batch = accounts.slice(offset, offset + 6);
@@ -87,11 +95,15 @@ export default function BuyerTaxpayerDirectory({ admin, level1 }: { admin: boole
           }));
           return [...buyerRows, ...taxpayerRows];
         }));
-        combined.push(...records.flat());
+        const resolved = new Set(batch.map(a => a.customerUserId));
+        const next = [...combined.filter(r => !resolved.has(r.buyerId)), ...records.flat()];
+        combined.splice(0, combined.length, ...next);
+        setRows([...combined]);
+        setProgress({ done: Math.min(offset + batch.length, accounts.length), total: accounts.length });
       }
       setRows(combined);
     } catch (e) { setError((e as Error).message); setRows([]); }
-    finally { setLoading(false); }
+    finally { setLoading(false); setLoadedOnce(true); }
   }, [admin]);
   useEffect(() => { void reload(); }, [reload]);
 
@@ -200,7 +212,10 @@ export default function BuyerTaxpayerDirectory({ admin, level1 }: { admin: boole
       </div>
       {error && <p role="alert" className="party-error">{error}</p>}
       {notice && <p role="status" className="party-success">{notice}</p>}
-      {loading ? <p role="status">در حال دریافت اطلاعات خریداران و مؤدیان…</p> :
+      <div className="console-table-stage" aria-busy={loading}>
+        {loading && <ConsoleLoader full label={progress.total ?
+          `در حال تکمیل فهرست خریداران و مؤدیان (${progress.done} از ${progress.total})` :
+          "در حال دریافت فهرست خریداران و مؤدیان…"} />}
         <div className="console-table-scroll"><table className="console-table">
           <thead><tr><th>ردیف</th><th>نوع</th><th>شخصیت</th><th>نام / عنوان</th>
             <th>شناسه / موبایل</th><th>خریدار مرتبط</th><th>وضعیت</th><th>عملیات</th></tr></thead>
@@ -214,14 +229,15 @@ export default function BuyerTaxpayerDirectory({ admin, level1 }: { admin: boole
                 open(r.type === "buyer" ? "buyer-details" : "taxpayer-connection", r.buyerId); }}>
               مشاهده پرونده</button></td>
           </tr>)}</tbody>
-        </table></div>}
-      {!loading && shown.length === 0 && <p className="console-empty">رکوردی مطابق فیلتر پیدا نشد.</p>}
+        </table></div>
+      </div>
+      {!loading && loadedOnce && !error && shown.length === 0 && <p className="console-empty">رکوردی مطابق فیلتر پیدا نشد.</p>}
       <footer className="console-table-footer"><span>{filtered.length} رکورد</span>
         <div><button disabled={activePage <= 1} onClick={() => setPage(p => p-1)}>قبلی</button>
           <span>صفحه {activePage} از {maxPage}</span>
           <button disabled={activePage >= maxPage} onClick={() => setPage(p => p+1)}>بعدی</button></div>
       </footer>
-      {admin && <p className="field-hint">نوع شخصیت خریدار از اولین شخص مرتبط با حساب استخراج می‌شود؛ حساب بدون شخص با «تعیین‌نشده» مشخص شده است. این فیلتر فقط اطلاعات دارای نوع ثبت‌شده را نمایش می‌دهد.</p>}
+      {admin && <p className="field-hint">نوع شخصیت برای هر شخص مرتبط به‌صورت مستقل ثبت می‌شود؛ حساب فاقد مشخصات شخص به‌عنوان «تعیین‌نشده» نمایش داده می‌شود.</p>}
     </>}
   </section>;
 }
