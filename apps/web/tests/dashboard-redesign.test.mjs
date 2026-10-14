@@ -30,7 +30,7 @@ test("software users and parties are reachable by navigation and selectable cust
   const workspace = read("app/parties/party-workspace.tsx");
   assert.match(workspace, /api\/customer-owners\/accounts/);
   assert.match(workspace, /party-customer-choice/);
-  assert.match(workspace, /onSubmit=\\{createTaxpayer\\}/);
+  assert.match(workspace, /onSubmit=\{createTaxpayer\}/);
   assert.match(workspace, /canCreateTaxpayer/);
   assert.match(workspace, /href="\/users"/);
   assert.match(workspace, /api\/customer-owners\/\$\{customer\}\/taxpayers/);
