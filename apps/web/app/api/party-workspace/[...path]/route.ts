@@ -15,6 +15,12 @@ function target(path: string[], method: Method): string | null {
   const rest = path.slice(2);
   if (rest.length === 1 && rest[0] === "profile" && (method === "GET" || method === "PUT"))
     return "/api/dev/customers/" + path[1] + "/profile";
+  if (rest[0] === "invoice-details") {
+    if (rest.length === 3 && ["buyer", "seller"].includes(rest[1]) && uuid.test(rest[2]) &&
+      (method === "GET" || method === "PUT"))
+      return "/api/dev/customers/" + path[1] + "/" + rest.join("/");
+    return null;
+  }
   if (rest[0] === "taxpayer-memberships") {
     if (rest.length === 1 && method === "GET" ||
         rest.length === 2 && uuid.test(rest[1]) && (method === "POST" || method === "DELETE"))
