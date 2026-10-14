@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { currentIdentity, identityUiEnabled } from "../../lib/identity";
 import AccountControls from "./account-controls";
 import AdminCreateCustomer from "./admin-create-customer";
@@ -19,7 +20,7 @@ export default async function AccountPage() {
     <header className="header"><div><p className="eyebrow">ArginTaxPayer · Identity</p>
       <h1>حساب و امنیت</h1>
       <p className="subtitle">مدیریت هویت و نشست‌های فعال</p></div>
-      <nav className="taxpayer-nav"><a href="/" className="identity-link">صفحه اصلی</a>{actor.roles.some(role => role === "Level1" || role === "Level2") && <a href="/users" className="identity-link">مدیریت کاربران نرم‌افزار</a>}</nav></header>
+      <nav className="taxpayer-nav"><Link href="/dashboard" className="identity-link">داشبورد</Link><a href="/" className="identity-link">صفحه اصلی</a>{actor.roles.some(role => role === "Level1" || role === "Level2") && <a href="/users" className="identity-link">مدیریت کاربران نرم‌افزار</a>}</nav></header>
     <section className="intro">
       <h2>حساب شما</h2>
       <p>شناسه کاربر: <bdi dir="ltr">{actor.userId}</bdi></p>
