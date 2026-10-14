@@ -46,7 +46,7 @@ WITH required(name) AS (VALUES
  ('20261013233000_AddCustomerCommercialOwnership'),
  ('20261014002000_AllowLegacyCommercialAcquisition'))
 SELECT name FROM required
-WHERE NOT EXISTS (SELECT 1 FROM \"\"__EFMigrationsHistory\"\" h WHERE h.\"\"MigrationId\"\"=required.name)
+WHERE NOT EXISTS (SELECT 1 FROM \"__EFMigrationsHistory\" h WHERE h.\"MigrationId\"=required.name)
 ORDER BY name;
 ")"
 if [[ -n "$missing" ]]; then
