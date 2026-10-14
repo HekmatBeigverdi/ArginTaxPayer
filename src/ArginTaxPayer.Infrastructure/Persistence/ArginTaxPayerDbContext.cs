@@ -55,13 +55,13 @@ public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbConte
         duplicateReviews.Property(x => x.Reason).HasColumnName("reason").HasMaxLength(500).IsRequired();
         duplicateReviews.Property(x => x.ReviewedAtUtc).HasColumnName("reviewed_at_utc").HasColumnType("timestamp with time zone");
         duplicateReviews.HasOne<IdentityUser>().WithMany().HasForeignKey(x => x.CustomerUserId)
-            .OnDelete(DeleteBehavior.Restrict);
+            .OnDelete(DeleteBehavior.Restrict).HasConstraintName("FK_party_duplicate_reviews_customer");
         duplicateReviews.HasOne<IdentityUser>().WithMany().HasForeignKey(x => x.ReviewerUserId)
-            .OnDelete(DeleteBehavior.Restrict);
+            .OnDelete(DeleteBehavior.Restrict).HasConstraintName("FK_party_duplicate_reviews_reviewer");
         duplicateReviews.HasOne<Party>().WithMany().HasForeignKey(x => x.CandidatePartyId)
-            .OnDelete(DeleteBehavior.Restrict);
+            .OnDelete(DeleteBehavior.Restrict).HasConstraintName("FK_party_duplicate_reviews_candidate");
         duplicateReviews.HasOne<Party>().WithMany().HasForeignKey(x => x.ExistingPartyId)
-            .OnDelete(DeleteBehavior.Restrict);
+            .OnDelete(DeleteBehavior.Restrict).HasConstraintName("FK_party_duplicate_reviews_existing");
         duplicateReviews.HasIndex(x => new { x.CustomerUserId, x.ReviewedAtUtc })
             .HasDatabaseName("ix_duplicate_reviews_customer_time");
 
