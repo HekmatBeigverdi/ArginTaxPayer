@@ -74,6 +74,29 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Customers.CustomerTaxpayerMembership", b =>
+                {
+                    b.Property<Guid>("Id").HasColumnType("uuid").HasColumnName("id");
+                    b.Property<Guid>("CustomerUserId").HasColumnType("uuid").HasColumnName("customer_user_id");
+                    b.Property<Guid>("TaxpayerId").HasColumnType("uuid").HasColumnName("taxpayer_id");
+                    b.Property<Guid>("LinkedByUserId").HasColumnType("uuid").HasColumnName("linked_by_user_id");
+                    b.Property<DateTime>("LinkedAtUtc").HasColumnType("timestamp with time zone").HasColumnName("linked_at_utc");
+                    b.Property<Guid?>("UnlinkedByUserId").HasColumnType("uuid").HasColumnName("unlinked_by_user_id");
+                    b.Property<DateTime?>("UnlinkedAtUtc").HasColumnType("timestamp with time zone").HasColumnName("unlinked_at_utc");
+                    b.Property<long>("Revision").IsConcurrencyToken().ValueGeneratedOnAdd().HasDefaultValue(1L).HasColumnType("bigint").HasColumnName("revision");
+                    b.HasKey("Id");
+                    b.HasIndex("CustomerUserId", "TaxpayerId").IsUnique().HasFilter("unlinked_at_utc IS NULL").HasDatabaseName("ux_customer_taxpayer_memberships_active");
+                    b.HasIndex("CustomerUserId", "LinkedAtUtc").HasDatabaseName("ix_customer_taxpayer_memberships_history");
+                    b.HasIndex("TaxpayerId");
+                    b.HasIndex("LinkedByUserId");
+                    b.HasIndex("UnlinkedByUserId");
+                    b.ToTable("customer_taxpayer_memberships", t =>
+                        {
+                            t.HasCheckConstraint("ck_customer_taxpayer_memberships_revision", "revision > 0");
+                            t.HasCheckConstraint("ck_customer_taxpayer_memberships_unlink", "(unlinked_at_utc IS NULL AND unlinked_by_user_id IS NULL) OR (unlinked_at_utc IS NOT NULL AND unlinked_by_user_id IS NOT NULL AND unlinked_at_utc >= linked_at_utc)");
+                        });
+                });
+
             modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Customers.CustomerAccountProfile", b =>
                 {
                     b.Property<Guid>("CustomerUserId").HasColumnType("uuid").HasColumnName("customer_user_id");
@@ -1026,6 +1049,22 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
                     b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Parties.Party", null)
                         .WithMany().HasForeignKey("PartyId").OnDelete(DeleteBehavior.Restrict)
                         .IsRequired().HasConstraintName("FK_customer_party_links_party");
+                });
+
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Customers.CustomerTaxpayerMembership", b =>
+                {
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null).WithMany()
+                        .HasForeignKey("CustomerUserId").OnDelete(DeleteBehavior.Restrict).IsRequired()
+                        .HasConstraintName("FK_customer_taxpayer_memberships_customer");
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Taxpayers.TaxpayerProfile", null).WithMany()
+                        .HasForeignKey("TaxpayerId").OnDelete(DeleteBehavior.Restrict).IsRequired()
+                        .HasConstraintName("FK_customer_taxpayer_memberships_taxpayer");
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null).WithMany()
+                        .HasForeignKey("LinkedByUserId").OnDelete(DeleteBehavior.Restrict).IsRequired()
+                        .HasConstraintName("FK_customer_taxpayer_memberships_linked_by");
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null).WithMany()
+                        .HasForeignKey("UnlinkedByUserId").OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("FK_customer_taxpayer_memberships_unlinked_by");
                 });
 
             modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Customers.CustomerAccountProfile", b =>
