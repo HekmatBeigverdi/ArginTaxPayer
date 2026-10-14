@@ -224,3 +224,14 @@ dotnet test ArginTaxPayer.sln -c Release --no-build
 
 ## Step Completion Record Contract
 Append Step02–15 completion records here with scope, paths, commit, migration, local focused test evidence, Ubuntu verification/deferment, CI, security negative tests, owner acceptance and unresolved blockers. Phase close requires separately approved main merge, tag and GitHub Release.
+
+## Step 09 — Customer Account Profile (Implementation committed; acceptance pending)
+- Step08 owner approved 2026-10-14.
+- New `CustomerAccountProfile` entity and `CustomerAccountProfileService` maintain independently versioned business display name, Active/Suspended profile status, and optional PreferredPartyId. No login credential or TaxpayerProfile changes. Status does not activate/deactivate IdentityUser.
+- Customer may read own profile; Level1 or current Level2 partner administrators with MFA can read or write within live commercial ownership scope. Self-service writes deferred.
+- Create/upsert expects revision 0 for first creation and expected revision thereafter. PreferredPartyId must be actively linked to same customer. Invalid/stale revisions fail closed.
+- Development-loopback GET/PUT endpoints: `/api/dev/customers/{customerId}/profile`. Not exposed in production.
+- Additive migration `20261014173000_AddCustomerAccountProfiles` and model snapshot. Migration must only target verified `argintaxpayer_test`, via canonical `npgsql_value` + `psql -W` workflow. Never auto-apply.
+- Changed: `src/ArginTaxPayer.Infrastructure/Persistence/Customers/`, `src/ArginTaxPayer.Api/Customers/`, EF DbContext/snapshot/migration, API Program, and `tests/ArginTaxPayer.Tests/CustomerAccountProfileTests.cs`, `CustomerProfileApiTests.cs`.
+- Focused macOS: `dotnet build ArginTaxPayer.sln -c Release`, then `dotnet test ArginTaxPayer.sln -c Release --no-build --filter "FullyQualifiedName~CustomerAccountProfileTests|FullyQualifiedName~CustomerProfileApiTests"`. Follow with full regression. Manually test owner transfer, foreign preferred party, revisions and FK constraints.
+- Build, PostgreSQL migration, API smoke, integration tests, Ubuntu and CI were not executed by assistant. Owner signoff pending.
