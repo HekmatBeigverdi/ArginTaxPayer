@@ -27,7 +27,8 @@ async function request<T>(path: string, method: "GET" | "POST" | "PATCH" = "GET"
   return response.json() as Promise<T>;
 }
 
-export default function TaxpayerWorkspace({ isLevel1 }: { isLevel1: boolean }) {
+export default function TaxpayerWorkspace({ isLevel1, initialTaxpayerId, showCreateForm = true }:
+  { isLevel1: boolean; initialTaxpayerId?: string; showCreateForm?: boolean }) {
   const [taxpayers, setTaxpayers] = useState<Taxpayer[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [details, setDetails] = useState<Taxpayer | null>(null);
@@ -71,6 +72,8 @@ export default function TaxpayerWorkspace({ isLevel1 }: { isLevel1: boolean }) {
       setDetails(profile); setEditName(profile.displayName); setMemories(list);
     } catch (ex) { setError((ex as Error).message); }
   }, [isLevel1]);
+
+  useEffect(() => { if (initialTaxpayerId) void show(initialTaxpayerId); }, [initialTaxpayerId, show]);
 
   async function createTaxpayer(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (busy) return;
@@ -178,7 +181,7 @@ export default function TaxpayerWorkspace({ isLevel1 }: { isLevel1: boolean }) {
           <p className="taxpayer-warning">تست واقعی ارتباط با سازمان مالیاتی و تأیید توکن هنوز فعال نیست؛ هیچ وضعیت «اتصال موفق» به‌صورت نمایشی ساخته نمی‌شود.</p>
         </article>}
       </>}
-      {isLevel1 && <article className="taxpayer-panel">
+      {isLevel1 && showCreateForm && <article className="taxpayer-panel">
         <h2>ثبت مؤدی جدید</h2>
         <form className="identity-form" onSubmit={createTaxpayer}>
           <label htmlFor="new-taxpayer-customer">شناسه حساب مشتری (UUID)</label>
