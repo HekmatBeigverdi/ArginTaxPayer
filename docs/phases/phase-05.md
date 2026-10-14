@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 05: Parties and Customers
 
-**Status:** Steps 01–02 owner approved 2026-10-14. Step 02 six test criteria confirmed by owner (macOS/build, migration, PostgreSQL indexes/constraints). Step 03 implementation started; owner acceptance pending.
+**Status:** Steps 01–02 owner approved 2026-10-14. Step 02 six test criteria confirmed by owner (macOS/build, migration, PostgreSQL indexes/constraints). Step 03 implementation committed (including owner-pushed validation fix), pending executed migration/build/tests and owner acceptance.
 **Branch:** `phase/05-parties-customers`
 **Baseline:** `docs/roadmap/18-phases.md`, `docs/phases/phase-04.md`, Phase 03 identity contracts.
 **Policy:** This is the single evolving master plan. Changes to step count/scope require dated owner approval. Do not create per-step progress documents.
@@ -13,7 +13,7 @@ Deliver natural/legal party records, economic identifiers, validation and dedupl
 |---|---|---|---|---|
 | 01 | Domain and API Contracts | Party/Customer/Taxpayer model, ownership matrix, migration strategy | No ambiguous identity or authorization semantics | Owner approved 2026-10-14 |
 | 02 | Persistence and Migration | Entities, FKs, uniqueness, concurrency | Test DB migration reviewed; rollback and constraint tests | Owner approved 2026-10-14 |
-| 03 | Natural Person Profiles | Personal identity validation and lifecycle | Invalid/duplicate data rejected | Started; focused validation implemented, unverified |
+| 03 | Natural Person Profiles | Personal identity validation and lifecycle | Invalid/duplicate data rejected | Implemented; verification/owner acceptance pending |
 | 04 | Legal Entity Profiles | Corporate identity and economic identifiers | Type-specific validation and unique rules | Planned |
 | 05 | Validation Engine | Normalization, versioned rules, error contract | Golden and negative fixtures | Planned |
 | 06 | Deduplication and Conflicts | Candidate matching, review, safe resolution | No silent merge or ownership change | Planned |
@@ -84,17 +84,28 @@ The returned database name must be exactly `argintaxpayer_test`. Inspect the gen
 **Operator correction:** Parsing the Npgsql connection string as a libpq DSN caused a previous test command failure. Use the canonical `npgsql_value` helper, exact Host/Port/Database/Username extraction, and `psql -W` recorded in `docs/roadmap/18-phases.md` in all future steps/phases; ensure `current_database() = 'argintaxpayer_test'`.
 **Residual risk:** Type-specific identifier normalization and legal national-ID rules are Step03–05. Global uniqueness may need an owner-approved policy change for special counterparty identifiers; do not silently change it.
 
-## Step 03 — Natural Person Profiles (Started 2026-10-14)
-**Status:** Domain validation baseline and focused tests committed, not independently executed; step remains open until lifecycle/persistence and acceptance criteria complete.
-**Changed:** `src/ArginTaxPayer.Domain/Parties/NaturalPersonProfilePolicy.cs`, `tests/ArginTaxPayer.Tests/NaturalPersonProfilePolicyTests.cs`.
-**Design:** Reuses the Phase04 `IranianTaxpayerIdentifier` national-code checksum and Persian/Arabic digit normalization. Validates normalized nonempty given/family names, rejects control characters, overlong input and invalid national codes. Returns a normalized value object, not a persisted record or official identity verification.
-**Pending Step03 scope:** Decide storage of natural-person given/family names without breaking Party schema, implement lifecycle-safe mutation/read on existing party persistence under resource-scoped authorization, ensure duplicate conflict behavior with database constraint, and run focused tests. No automatic merge, external government registry confirmation or self-service entitlement assumed.
-**macOS focused test:**
+## Step 03 — Natural Person Profiles (Implementation complete; testing/acceptance pending)
+**Status:** Implementation committed to `phase/05-parties-customers`; owner-pushed validation correction preserved (commit `8ee5c054e55a1279d96fcde8b25789dea1e621b4`). No claim of executed tests, schema application or owner signoff.
+**Files:**
+- `src/ArginTaxPayer.Domain/Parties/NaturalPersonProfilePolicy.cs` (owner correction: reject control characters in original input)
+- `src/ArginTaxPayer.Infrastructure/Persistence/Parties/Party.cs`
+- `src/ArginTaxPayer.Infrastructure/Persistence/Parties/NaturalPersonService.cs`
+- `src/ArginTaxPayer.Infrastructure/Persistence/ArginTaxPayerDbContext.cs`
+- `src/ArginTaxPayer.Infrastructure/Persistence/Migrations/20261014110000_AddNaturalPersonNames.cs`
+- `src/ArginTaxPayer.Infrastructure/Persistence/Migrations/ArginTaxPayerDbContextModelSnapshot.cs`
+- `tests/ArginTaxPayer.Tests/NaturalPersonProfilePolicyTests.cs`
+- `tests/ArginTaxPayer.Tests/PartyPersistenceMetadataTests.cs`
+
+**Behavior:** Natural-person input validation reuses Phase04 Iranian national-code checksum and Unicode digit normalization, requires first/last names, rejects control characters and bad lengths; never claims authoritative government verification. New nullable `first_name`/`last_name` columns on `parties` preserve legal-person records and old rows. Scoped service handles creation (Party + CustomerPartyLink in serializable transaction), read, update and archival with expected revision, active customer association, live root/partner commercial owner, admin MFA, duplicate database unique-conflict handling and restrictive foreign keys. Customer self-service writes are deliberately blocked until Phase12 plan enforcement. If a Party is actively linked to another customer, mutation is denied pending Phase06 conflict-resolution policy. Archived parties cannot be restored or edited by this service.
+**Boundary:** No public endpoint in Step03: publication belongs to Step08; no new taxpayer or certificate changes, no forced legacy name splitting/automatic deduplication, no money flows changed.
+**Migration:** `20261014110000_AddNaturalPersonNames` is additive and must be explicitly applied ONLY to verified `argintaxpayer_test`. No schema migration executed by assistant. Any Down would discard structured names and requires review.
+**Verification:** On Mac after pulling, run
 ```bash
 dotnet build ArginTaxPayer.sln -c Release
-dotnet test ArginTaxPayer.sln -c Release --no-build --filter FullyQualifiedName~NaturalPersonProfilePolicyTests
+dotnet test ArginTaxPayer.sln -c Release --no-build --filter "FullyQualifiedName~NaturalPersonProfilePolicyTests|FullyQualifiedName~PartyPersistenceMetadataTests"
 ```
-**Migration:** None in current Step03 code. **Ubuntu:** Deferred unless schema change requires focused review. **CI:** Not verified. **Owner signoff:** Pending.
+Use the approved `npgsql_value` extraction from `docs/roadmap/18-phases.md`, `psql -W` and `SELECT current_database()` before inspecting history/DDL. Generate EF SQL for `20261014090000_AddPartiesAndCustomerPartyLinks` → `20261014110000_AddNaturalPersonNames`, review then explicitly apply target migration, verify nullable columns and history. No connection strings/passwords in logs. Negative-path database/service integration tests of duplicate codes, stale revision, former partner isolation, shared party denial and rollback remain a gate before owner signoff.
+**Actual verification:** macOS automated: not observed; test DB migration: not applied by assistant; Ubuntu: deferred pending schema-related focused operator verification; CI: not checked. **Owner approval:** Pending.
 
 ## Step Completion Record Contract
 Append Step02–15 completion records here with scope, paths, commit, migration, local focused test evidence, Ubuntu verification/deferment, CI, security negative tests, owner acceptance and unresolved blockers. Phase close requires separately approved main merge, tag and GitHub Release.
