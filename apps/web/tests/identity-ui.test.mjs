@@ -47,10 +47,11 @@ test("unified identity screen uses simple actions, OTP and recovery path", () =>
   assert.match(flow, /ورود به حساب/);
   assert.match(flow, /ایجاد حساب جدید/);
   assert.match(flow, /ورود با کد پیامکی/);
+  assert.match(flow, /className="auth-secondary-links"/);
   assert.match(flow, /رمز عبور را فراموش کرده‌اید/);
   assert.match(flow, /mfa\/challenge/);
   assert.match(flow, /mfa\/complete/);
-  assert.match(flow, /useRecoveryCode:recovery/);
+  assert.match(flow, /useRecoveryCode:\s*recovery/);
   assert.match(flow, /phone\/request/);
   assert.match(flow, /register\/complete/);
   assert.match(flow, /login\/complete/);
