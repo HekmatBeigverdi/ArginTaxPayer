@@ -29,7 +29,6 @@ function target(path: string[], method: Method): string | null {
     suffix.length === 2 && uuid.test(suffix[0]) &&
       (["natural", "legal"].includes(suffix[1]) && ["GET", "PUT"].includes(method) ||
        ["details", "duplicates"].includes(suffix[1]) && method === "GET") ||
-    suffix.length === 3 && suffix[0] === "duplicates" && suffix[1] === "reviews" && false ||
     suffix.length === 2 && suffix[0] === "duplicates" && suffix[1] === "reviews" && method === "POST" ||
     suffix.length === 2 && uuid.test(suffix[0]) &&
       ["contacts", "addresses"].includes(suffix[1]) && method === "POST" ||
