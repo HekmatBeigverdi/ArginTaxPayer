@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import InvoiceParticipantForm from "../parties/invoice-participant-form";
 
 type Taxpayer = { id: string; kind: number; normalizedIdentifier: string; displayName: string; status: number; revision: number };
 type Memory = { id: string; taxpayerId: string; memoryIdentifier: string; status: number; revision: number };
@@ -27,8 +28,8 @@ async function request<T>(path: string, method: "GET" | "POST" | "PATCH" = "GET"
   return response.json() as Promise<T>;
 }
 
-export default function TaxpayerWorkspace({ isLevel1, initialTaxpayerId, showCreateForm = true }:
-  { isLevel1: boolean; initialTaxpayerId?: string; showCreateForm?: boolean }) {
+export default function TaxpayerWorkspace({ isLevel1, initialTaxpayerId, showCreateForm = true, customerId }:
+  { isLevel1: boolean; initialTaxpayerId?: string; showCreateForm?: boolean; customerId?: string }) {
   const [taxpayers, setTaxpayers] = useState<Taxpayer[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [details, setDetails] = useState<Taxpayer | null>(null);
@@ -137,6 +138,7 @@ export default function TaxpayerWorkspace({ isLevel1, initialTaxpayerId, showCre
       {!details && <div className="taxpayer-panel"><h2>جزئیات مؤدی</h2>
         <p className="identity-muted">برای مشاهده اطلاعات، یک مؤدی را از فهرست انتخاب کنید.</p></div>}
       {details && <>
+        {isLevel1 && customerId && <InvoiceParticipantForm key={details.id} customerId={customerId} subjectId={details.id} role="seller" />}
         <article className="taxpayer-panel">
           <div className="taxpayer-section-heading"><h2>{details.displayName}</h2>
             <button type="button" className="identity-secondary" onClick={() => void show(details.id)}>بازخوانی جزئیات</button></div>
