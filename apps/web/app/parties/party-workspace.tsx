@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 
 const PAGE_SIZE = 20;
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
@@ -13,6 +14,8 @@ const errors: Record<number, string> = {
   409: "رکورد تکراری است یا نسخه اطلاعات تغییر کرده؛ بازخوانی کنید.",
   503: "اتصال به سرویس برقرار نشد.",
 };
+
+type CustomerOption = { customerUserId: string; mobile: string | null; email: string | null; taxpayerCount: number; isActive: boolean };
 
 type Party = {
   id: string;
@@ -128,7 +131,10 @@ export default function PartyWorkspace({
   isAdmin: boolean;
   customerId: string;
 }) {
-  const [customer, setCustomer] = useState(customerId);
+  const [customer, setCustomer] = useState(isAdmin ? "" : customerId);
+  const [customers, setCustomers] = useState<CustomerOption[]>([]);
+  const [customerLoadError, setCustomerLoadError] = useState("");
+  const [taxpayers, setTaxpayers] = useState<Taxpayer[]>([]);
   const [page, setPage] = useState(1);
   const [kind, setKind] = useState("all");
   const [query, setQuery] = useState("");
@@ -196,13 +202,16 @@ export default function PartyWorkspace({
         partyQuery.set("kind", kind);
       }
 
-      const [parties, account] = await Promise.all([
+      const [parties, account, customerTaxpayers] = await Promise.all([
         api<PartyPage>(`${basePath}/parties?${partyQuery}`),
         api<Profile>(`${basePath}/profile`).catch(() => null),
+        fetch(`/api/customer-owners/${customer}/taxpayers`, { cache: "no-store", credentials: "same-origin" })
+          .then(async r => r.ok ? await r.json() as Taxpayer[] : []),
       ]);
 
       setItems(parties);
       setProfile(account);
+      setTaxpayers(customerTaxpayers);
 
       if (selected && !parties.items.some((party) => party.id === selected.id)) {
         resetSelected();
@@ -213,6 +222,16 @@ export default function PartyWorkspace({
       setLoading(false);
     }
   }, [customer, isAdmin, kind, page, query, resetSelected, selected]);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    let active = true;
+    fetch("/api/customer-owners/accounts", { credentials: "same-origin", cache: "no-store" })
+      .then(async result => { if (!result.ok) throw new Error("فهرست مشتریان دریافت نشد."); return result.json() as Promise<CustomerOption[]>; })
+      .then(rows => { if (active) setCustomers(rows); })
+      .catch(() => { if (active) setCustomerLoadError("دریافت مشتریان ممکن نشد؛ از صفحه کاربران نرم‌افزار اقدام کنید."); });
+    return () => { active = false; };
+  }, [isAdmin]);
 
   useEffect(() => {
     void load();
@@ -396,6 +415,19 @@ export default function PartyWorkspace({
       <section className="party-card">
         <h2>انتخاب مشتری و جست‌وجوی اشخاص</h2>
 
+        <div className="party-onboarding"><strong>افزودن مشتری و مؤدی</strong>
+          <p>ابتدا در بخش کاربران نرم‌افزار، حساب خریدار را ایجاد کنید. سپس همین‌جا شخص حقیقی/حقوقی را ثبت کنید. مؤدی مالیاتی مشتری را از بخش کاربران نرم‌افزار مدیریت کنید.</p>
+          <Link href="/users" className="app-module-link">مدیریت حساب‌ها و مؤدیان ←</Link>
+        </div>
+        <label htmlFor="party-customer-choice">انتخاب مشتری از فهرست مجاز</label>
+        <select id="party-customer-choice" value={customers.some(c => c.customerUserId === customer) ? customer : ""}
+          onChange={event => { setCustomer(event.target.value); setPage(1); resetSelected(); }}>
+          <option value="">انتخاب مشتری…</option>
+          {customers.map(c => <option key={c.customerUserId} value={c.customerUserId}>
+            {c.mobile || c.email || c.customerUserId} — {c.taxpayerCount} مؤدی
+          </option>)}
+        </select>
+        {customerLoadError && <p role="alert" className="party-error">{customerLoadError}</p>}
         <label htmlFor="party-customer">شناسه حساب مشتری</label>
         <input
           id="party-customer"
@@ -447,6 +479,10 @@ export default function PartyWorkspace({
           </p>
         )}
         <p>تعداد اشخاص: {items.total}</p>
+        {uuid.test(customer) && <div className="party-taxpayer-preview"><h3>مؤدیان این مشتری ({taxpayers.length})</h3>
+          {taxpayers.length ? <ul>{taxpayers.map(t => <li key={t.id}>{t.displayName} — {t.kind === 1 ? "حقیقی" : "حقوقی"}</li>)}</ul> : <p>مؤدی مرتبط ثبت نشده است.</p>}
+          <Link href="/users" className="app-module-link">افزودن و مدیریت مؤدیان ←</Link>
+        </div>}
 
         <ul className="party-list">
           {items.items.map((party) => (
