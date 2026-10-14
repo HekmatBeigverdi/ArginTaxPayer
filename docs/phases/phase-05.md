@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 05: Parties and Customers
 
-**Status:** Steps 01–02 owner approved 2026-10-14. Step 02 six test criteria confirmed by owner (macOS/build, migration, PostgreSQL indexes/constraints). Step 03 implementation committed (including owner-pushed validation fix), pending executed migration/build/tests and owner acceptance.
+**Status:** Steps 01–02 owner approved 2026-10-14. Step 02 six test criteria confirmed by owner (macOS/build, migration, PostgreSQL indexes/constraints). Step 03 owner approved 2026-10-14 (operator acceptance). Step 04 implemented on branch; local build/tests and migration verification pending.
 **Branch:** `phase/05-parties-customers`
 **Baseline:** `docs/roadmap/18-phases.md`, `docs/phases/phase-04.md`, Phase 03 identity contracts.
 **Policy:** This is the single evolving master plan. Changes to step count/scope require dated owner approval. Do not create per-step progress documents.
@@ -13,8 +13,8 @@ Deliver natural/legal party records, economic identifiers, validation and dedupl
 |---|---|---|---|---|
 | 01 | Domain and API Contracts | Party/Customer/Taxpayer model, ownership matrix, migration strategy | No ambiguous identity or authorization semantics | Owner approved 2026-10-14 |
 | 02 | Persistence and Migration | Entities, FKs, uniqueness, concurrency | Test DB migration reviewed; rollback and constraint tests | Owner approved 2026-10-14 |
-| 03 | Natural Person Profiles | Personal identity validation and lifecycle | Invalid/duplicate data rejected | Implemented; verification/owner acceptance pending |
-| 04 | Legal Entity Profiles | Corporate identity and economic identifiers | Type-specific validation and unique rules | Planned |
+| 03 | Natural Person Profiles | Personal identity validation and lifecycle | Invalid/duplicate data rejected | Owner approved 2026-10-14 |
+| 04 | Legal Entity Profiles | Corporate identity and economic identifiers | Type-specific validation and unique rules | Implemented; verification pending |
 | 05 | Validation Engine | Normalization, versioned rules, error contract | Golden and negative fixtures | Planned |
 | 06 | Deduplication and Conflicts | Candidate matching, review, safe resolution | No silent merge or ownership change | Planned |
 | 07 | Contacts and Addresses | Contacts, email, phone, addresses, history | Ownership and data validation enforced | Planned |
@@ -84,7 +84,7 @@ The returned database name must be exactly `argintaxpayer_test`. Inspect the gen
 **Operator correction:** Parsing the Npgsql connection string as a libpq DSN caused a previous test command failure. Use the canonical `npgsql_value` helper, exact Host/Port/Database/Username extraction, and `psql -W` recorded in `docs/roadmap/18-phases.md` in all future steps/phases; ensure `current_database() = 'argintaxpayer_test'`.
 **Residual risk:** Type-specific identifier normalization and legal national-ID rules are Step03–05. Global uniqueness may need an owner-approved policy change for special counterparty identifiers; do not silently change it.
 
-## Step 03 — Natural Person Profiles (Implementation complete; testing/acceptance pending)
+## Step 03 — Natural Person Profiles (Owner approved 2026-10-14)
 **Status:** Implementation committed to `phase/05-parties-customers`; owner-pushed validation correction preserved (commit `8ee5c054e55a1279d96fcde8b25789dea1e621b4`). No claim of executed tests, schema application or owner signoff.
 **Files:**
 - `src/ArginTaxPayer.Domain/Parties/NaturalPersonProfilePolicy.cs` (owner correction: reject control characters in original input)
@@ -105,7 +105,33 @@ dotnet build ArginTaxPayer.sln -c Release
 dotnet test ArginTaxPayer.sln -c Release --no-build --filter "FullyQualifiedName~NaturalPersonProfilePolicyTests|FullyQualifiedName~PartyPersistenceMetadataTests"
 ```
 Use the approved `npgsql_value` extraction from `docs/roadmap/18-phases.md`, `psql -W` and `SELECT current_database()` before inspecting history/DDL. Generate EF SQL for `20261014090000_AddPartiesAndCustomerPartyLinks` → `20261014110000_AddNaturalPersonNames`, review then explicitly apply target migration, verify nullable columns and history. No connection strings/passwords in logs. Negative-path database/service integration tests of duplicate codes, stale revision, former partner isolation, shared party denial and rollback remain a gate before owner signoff.
-**Actual verification:** macOS automated: not observed; test DB migration: not applied by assistant; Ubuntu: deferred pending schema-related focused operator verification; CI: not checked. **Owner approval:** Pending.
+**Actual verification:** macOS automated: not observed; test DB migration: not applied by assistant; Ubuntu: deferred pending schema-related focused operator verification; CI: not checked. **Owner approval:** Approved 2026-10-14; implementation and test history above retained. Operator supplied approval; assistant did not independently execute migration or tests.
+
+## Step 04 — Legal Entity Profiles (Implementation committed; acceptance pending)
+**Scope:** Legal-entity identity validation, registration number, guarded create/read/update/archive and EF persistence. The step follows the approved 15-step plan and leaves HTTP publication until Step08.
+
+**Changes:**
+- `src/ArginTaxPayer.Domain/Parties/LegalEntityProfilePolicy.cs`
+- `src/ArginTaxPayer.Infrastructure/Persistence/Parties/LegalEntityService.cs`
+- `src/ArginTaxPayer.Infrastructure/Persistence/Parties/Party.cs`
+- `src/ArginTaxPayer.Infrastructure/Persistence/ArginTaxPayerDbContext.cs`
+- `src/ArginTaxPayer.Infrastructure/Persistence/Migrations/20261014123000_AddLegalEntityRegistrationNumber.cs`
+- `src/ArginTaxPayer.Infrastructure/Persistence/Migrations/ArginTaxPayerDbContextModelSnapshot.cs`
+- `tests/ArginTaxPayer.Tests/LegalEntityProfilePolicyTests.cs`
+- `tests/ArginTaxPayer.Tests/PartyPersistenceMetadataTests.cs`
+
+**Contracts and behavior:** Reuse Phase04 11-digit legal identifier normalization (Persian, Arabic and Latin numerals) without falsely claiming authoritative registry verification. Required registered name is normalized Unicode NFC, non-blank, 2–256 characters and rejects raw controls; optional registration number accepts only 1–32 normalized ASCII digits when supplied, and never serves as a substitute for national identifier. No VAT rate, official tax confirmation or registry status is assumed. Unique `(kind, normalized_identifier)` index from Step02 prevents duplicate economic actors. No silent party merge or ownership reassignment.
+**Authorization and lifecycle:** EF-backed `LegalEntityService` is NOT a public endpoint. Root/Level2 must hold active role + MFA and live commercial ownership of the target customer. Customer writes are blocked until Phase12 entitlement boundary. Party and link creation run together inside a serializable transaction. Read is scoped to active customer links. Update/archive require expected revision and deny archived entities, stale versions or a shared active party; no physical deletes. Phase04 commercial ownership and taxpayer tables remain untouched.
+**Migration:** Additive `20261014123000_AddLegalEntityRegistrationNumber` adds nullable `registration_number VARCHAR(32)` to `parties`. No backfill or automated runtime migration. Down would drop data and is not a routine rollback strategy.
+**Mac verification:**
+```bash
+git switch phase/05-parties-customers
+git pull --ff-only origin phase/05-parties-customers
+dotnet build ArginTaxPayer.sln -c Release
+dotnet test ArginTaxPayer.sln -c Release --no-build --filter "FullyQualifiedName~LegalEntityProfilePolicyTests|FullyQualifiedName~PartyPersistenceMetadataTests|FullyQualifiedName~NaturalPersonProfilePolicyTests"
+```
+Use the owner-approved `npgsql_value` parsing of `.env.dev.local`, `psql -W`, and actual `SELECT current_database()` guard from `docs/roadmap/18-phases.md`. Inspect EF SQL from `20261014110000_AddNaturalPersonNames` to `20261014123000_AddLegalEntityRegistrationNumber`, explicitly apply to verified `argintaxpayer_test`, inspect `\\d+ parties` and `__EFMigrationsHistory`. The PostgreSQL negative-path tests for uniqueness, scope reassignment, concurrency and rollback are required before owner acceptance.
+**Evidence:** Build/tests not executed by assistant, PostgreSQL migration not applied by assistant, Ubuntu final phase verification deferred, CI not verified. **Owner signoff:** Pending.
 
 ## Step Completion Record Contract
 Append Step02–15 completion records here with scope, paths, commit, migration, local focused test evidence, Ubuntu verification/deferment, CI, security negative tests, owner acceptance and unresolved blockers. Phase close requires separately approved main merge, tag and GitHub Release.
