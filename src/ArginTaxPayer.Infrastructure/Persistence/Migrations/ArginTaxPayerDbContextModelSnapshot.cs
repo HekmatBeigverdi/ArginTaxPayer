@@ -960,13 +960,17 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Parties.PartyDuplicateReview", b =>
                 {
                     b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null)
-                        .WithMany().HasForeignKey("CustomerUserId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                        .WithMany().HasForeignKey("CustomerUserId").OnDelete(DeleteBehavior.Restrict).IsRequired()
+                        .HasConstraintName("FK_party_duplicate_reviews_customer");
                     b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null)
-                        .WithMany().HasForeignKey("ReviewerUserId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                        .WithMany().HasForeignKey("ReviewerUserId").OnDelete(DeleteBehavior.Restrict).IsRequired()
+                        .HasConstraintName("FK_party_duplicate_reviews_reviewer");
                     b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Parties.Party", null)
-                        .WithMany().HasForeignKey("CandidatePartyId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                        .WithMany().HasForeignKey("CandidatePartyId").OnDelete(DeleteBehavior.Restrict).IsRequired()
+                        .HasConstraintName("FK_party_duplicate_reviews_candidate");
                     b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Parties.Party", null)
-                        .WithMany().HasForeignKey("ExistingPartyId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                        .WithMany().HasForeignKey("ExistingPartyId").OnDelete(DeleteBehavior.Restrict).IsRequired()
+                        .HasConstraintName("FK_party_duplicate_reviews_existing");
                 });
 
             modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", b =>
