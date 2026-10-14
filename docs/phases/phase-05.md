@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 05: Parties and Customers
 
-**Status:** Steps 01–02 owner approved 2026-10-14. Step 02 six test criteria confirmed by owner (macOS/build, migration, PostgreSQL indexes/constraints). Step 03 owner approved 2026-10-14 (operator acceptance). Step 04 OWNER APPROVED 2026-10-14 (operator confirmation; automated logs not independently observed). Step 05 implementation committed; focused execution and owner acceptance pending.
+**Status:** Steps 01–02 owner approved 2026-10-14. Step 02 six test criteria confirmed by owner (macOS/build, migration, PostgreSQL indexes/constraints). Step 03 owner approved 2026-10-14 (operator acceptance). Step 04 OWNER APPROVED 2026-10-14 (operator confirmation; automated logs not independently observed). Step 05 owner approved 2026-10-14 (owner reported tests successful). Step 06 implementation committed; local build/migration/integration acceptance pending.
 **Branch:** `phase/05-parties-customers`
 **Baseline:** `docs/roadmap/18-phases.md`, `docs/phases/phase-04.md`, Phase 03 identity contracts.
 **Policy:** This is the single evolving master plan. Changes to step count/scope require dated owner approval. Do not create per-step progress documents.
@@ -15,8 +15,8 @@ Deliver natural/legal party records, economic identifiers, validation and dedupl
 | 02 | Persistence and Migration | Entities, FKs, uniqueness, concurrency | Test DB migration reviewed; rollback and constraint tests | Owner approved 2026-10-14 |
 | 03 | Natural Person Profiles | Personal identity validation and lifecycle | Invalid/duplicate data rejected | Owner approved 2026-10-14 |
 | 04 | Legal Entity Profiles | Corporate identity and economic identifiers | Type-specific validation and unique rules | Owner approved 2026-10-14 |
-| 05 | Validation Engine | Normalization, versioned rules, error contract | Golden and negative fixtures | Implemented; local verification pending |
-| 06 | Deduplication and Conflicts | Candidate matching, review, safe resolution | No silent merge or ownership change | Planned |
+| 05 | Validation Engine | Normalization, versioned rules, error contract | Golden and negative fixtures | Owner approved 2026-10-14 |
+| 06 | Deduplication and Conflicts | Candidate matching, review, safe resolution | No silent merge or ownership change | Implemented; verification pending |
 | 07 | Contacts and Addresses | Contacts, email, phone, addresses, history | Ownership and data validation enforced | Planned |
 | 08 | Parties API | CRUD, pagination, filtering, concurrency | Authorized CRUD, negative paths, idempotency where applicable | Planned |
 | 09 | Customer Account Profile | Profile status, party associations | No conflation of login identity and taxpayer identity | Planned |
@@ -153,8 +153,30 @@ dotnet build ArginTaxPayer.sln -c Release
 dotnet test ArginTaxPayer.sln -c Release --no-build --filter "FullyQualifiedName~PartyValidationEngineTests|FullyQualifiedName~NaturalPersonProfilePolicyTests|FullyQualifiedName~LegalEntityProfilePolicyTests"
 dotnet test ArginTaxPayer.sln -c Release --no-build
 ```
-**Migration:** NONE; therefore no new PostgreSQL DDL or schema apply for Step05. **Ubuntu:** Deferred to Step15 unless OS-specific failure. **CI/actual test execution:** Not independently verified. **Owner approval:** Pending.
+**Migration:** NONE; therefore no new PostgreSQL DDL or schema apply for Step05. **Ubuntu:** Deferred to Step15 unless OS-specific failure. **CI/actual test execution:** Not independently verified. **Owner approval:** Owner approved 2026-10-14; run logs not independently observed.
 **Known boundary:** Official rule changes must create a new rule-version implementation instead of silently changing historical validation expectations; any future field-level rule changes require versioned fixtures and documented impact.
+
+## Step 06 — Deduplication and Conflicts (Implementation committed; acceptance pending)
+**Owner authorization:** Step05 approved 2026-10-14. **Step06 state:** Code and additive EF migration pushed, awaiting focused tests, database migration, and owner signoff.
+**Files:** `src/ArginTaxPayer.Infrastructure/Persistence/Parties/PartyDuplicateReview.cs`, `src/ArginTaxPayer.Infrastructure/Persistence/Parties/PartyDeduplicationService.cs`, `src/ArginTaxPayer.Infrastructure/Persistence/ArginTaxPayerDbContext.cs`, `src/ArginTaxPayer.Infrastructure/Persistence/Migrations/20261014143000_AddPartyDuplicateReviews.cs`, `src/ArginTaxPayer.Infrastructure/Persistence/Migrations/ArginTaxPayerDbContextModelSnapshot.cs`, `tests/ArginTaxPayer.Tests/PartyDuplicateReviewMetadataTests.cs`.
+**Candidate finding:** Requires active Level1/Level2 identity with MFA and currently authorized commercial customer ownership. Retrieve target only through active customer-party link. Search same-kind exact normalized identifier or exact normalized display name among the *same customer's* active links; cap results at 50, stable ordering. Never query/return other customers' party records. Potential matches are review-only; no automatic merge. A global unique index from Step02 continues rejecting duplicate kind+identifier and may cause conflicts across customers without disclosing third-party details; review and linking decisions remain explicit future work.
+**Review decision:** `ConfirmedDuplicate` or `NotDuplicate` with reason (3–500 chars), reviewer, customer, two different party IDs and UTC timestamp in append-only `party_duplicate_reviews`; transactional check both currently linked to same customer and same kind; uses PostgreSQL serializable transaction. Reviews **do not** alter Party, CustomerPartyLink, TaxpayerProfile, customer ownership or financial history. Previous reviews are retained as history; no destructive auto resolution. No HTTP routes until Step08.
+**Migration:** `20261014143000_AddPartyDuplicateReviews` creates table with foreign keys to both parties, reviewer and customer, status/reason constraints, and customer/time index. Zero changes to existing Party or Phase04 tables. Applying migration is operator-owned, *only* after verifying actual `current_database() = 'argintaxpayer_test'`; use established `npgsql_value` helper and `psql -W`.
+**Focused Mac tests:**
+```bash
+git switch phase/05-parties-customers
+git pull --ff-only origin phase/05-parties-customers
+dotnet build ArginTaxPayer.sln -c Release
+dotnet test ArginTaxPayer.sln -c Release --no-build --filter "FullyQualifiedName~PartyDuplicateReviewMetadataTests|FullyQualifiedName~PartyPersistenceMetadataTests"
+dotnet test ArginTaxPayer.sln -c Release --no-build
+```
+**EF SQL review:**
+```bash
+dotnet ef migrations script 20261014123000_AddLegalEntityRegistrationNumber 20261014143000_AddPartyDuplicateReviews --project src/ArginTaxPayer.Infrastructure --startup-project src/ArginTaxPayer.Api --output /tmp/phase05-step06.sql
+```
+After reviewing SQL and actual database name, apply target migration explicitly; verify table schema with `psql -W -c '\\d+ party_duplicate_reviews'` and history table. Test duplicate FK, distinct-party constraint, scoped negative paths and immutable history; require postgres integration evidence for accepted step. A transaction rollback test must not leave fixture records.
+**Evidence:** Build/test/CI not independently run; migration not applied by assistant; Ubuntu phase gate remains Step15 with focused earlier checks only if needed. **Owner signoff:** Pending.
+**Important limitations:** Cross-customer deduplication is deliberately not exposed (privacy). Name matching is exact rather than fuzzy and is a *candidate*, never proof. No physical merge workflow authorized in this step.
 
 ## Step Completion Record Contract
 Append Step02–15 completion records here with scope, paths, commit, migration, local focused test evidence, Ubuntu verification/deferment, CI, security negative tests, owner acceptance and unresolved blockers. Phase close requires separately approved main merge, tag and GitHub Release.
