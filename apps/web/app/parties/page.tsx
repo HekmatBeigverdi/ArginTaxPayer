@@ -20,8 +20,9 @@ export default async function PartiesPage() {
           "نمایش اطلاعات حساب و مؤدیان شما — فقط خواندنی"}</p>
       </div>
       <nav className="taxpayer-nav" aria-label="ناوبری">
+        <Link href="/dashboard">داشبورد</Link>
         <Link href="/account">حساب و امنیت</Link>
-        {admin && <Link href="/users">کاربران</Link>}
+        {admin && <Link href="/users">کاربران نرم‌افزار</Link>}
         <Link href="/">صفحه اصلی</Link>
       </nav>
     </header>
