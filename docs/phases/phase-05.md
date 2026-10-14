@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 05: Parties and Customers
 
-**Status:** Steps 01–02 owner approved 2026-10-14. Step 02 six test criteria confirmed by owner (macOS/build, migration, PostgreSQL indexes/constraints). Step 03 owner approved 2026-10-14 (operator acceptance). Step 04 OWNER APPROVED 2026-10-14 (operator confirmation; automated logs not independently observed). Step 05 owner approved 2026-10-14 (owner reported tests successful). Step 06 OWNER APPROVED 2026-10-14 (owner confirms tests passed). Step 07 owner approved 2026-10-14 after operator testing. Step 08 implemented and committed; focused API tests/owner acceptance pending.
+**Status:** Steps 01–09 owner approved by 2026-10-14; Step10 implementation pushed, operator tests/migration pending. Historical details: Steps 01–02 owner approved 2026-10-14. Step 02 six test criteria confirmed by owner (macOS/build, migration, PostgreSQL indexes/constraints). Step 03 owner approved 2026-10-14 (operator acceptance). Step 04 OWNER APPROVED 2026-10-14 (operator confirmation; automated logs not independently observed). Step 05 owner approved 2026-10-14 (owner reported tests successful). Step 06 OWNER APPROVED 2026-10-14 (owner confirms tests passed). Step 07 owner approved 2026-10-14 after operator testing. Step 08 implemented and committed; focused API tests/owner acceptance pending.
 **Branch:** `phase/05-parties-customers`
 **Baseline:** `docs/roadmap/18-phases.md`, `docs/phases/phase-04.md`, Phase 03 identity contracts.
 **Policy:** This is the single evolving master plan. Changes to step count/scope require dated owner approval. Do not create per-step progress documents.
@@ -19,8 +19,8 @@ Deliver natural/legal party records, economic identifiers, validation and dedupl
 | 06 | Deduplication and Conflicts | Candidate matching, review, safe resolution | No silent merge or ownership change | Owner approved 2026-10-14 |
 | 07 | Contacts and Addresses | Contacts, email, phone, addresses, history | Ownership and data validation enforced | Owner approved 2026-10-14 |
 | 08 | Parties API | CRUD, pagination, filtering, concurrency | Authorized CRUD, negative paths, idempotency where applicable | Owner approved 2026-10-14 |
-| 09 | Customer Account Profile | Profile status, party associations | No conflation of login identity and taxpayer identity | Code committed; awaiting tests |
-| 10 | Customer-to-Many-Taxpayer Membership | Membership API and guarded linking | Customer owner scope and historic links preserved | Planned |
+| 09 | Customer Account Profile | Profile status, party associations | No conflation of login identity and taxpayer identity | Owner approved 2026-10-14 |
+| 10 | Customer-to-Many-Taxpayer Membership | Membership API and guarded linking | Customer owner scope and historic links preserved | Implemented; test/migration acceptance pending |
 | 11 | Customer Self-Service | Account profile and taxpayer management subject to current entitlement | Unauthorized operations blocked; entitlement integration deferred to Phase 12 | Planned |
 | 12 | Persian RTL UI | Lists, forms, search, details and accessibility | UI state, validation and route guards tested | Planned |
 | 13 | Level1/Level2 Support Scope | Root and partner workflows | Former owner denied after transfer; global logs root only | Planned |
@@ -235,3 +235,20 @@ Append Step02–15 completion records here with scope, paths, commit, migration,
 - Changed: `src/ArginTaxPayer.Infrastructure/Persistence/Customers/`, `src/ArginTaxPayer.Api/Customers/`, EF DbContext/snapshot/migration, API Program, and `tests/ArginTaxPayer.Tests/CustomerAccountProfileTests.cs`, `CustomerProfileApiTests.cs`.
 - Focused macOS: `dotnet build ArginTaxPayer.sln -c Release`, then `dotnet test ArginTaxPayer.sln -c Release --no-build --filter "FullyQualifiedName~CustomerAccountProfileTests|FullyQualifiedName~CustomerProfileApiTests"`. Follow with full regression. Manually test owner transfer, foreign preferred party, revisions and FK constraints.
 - Build, PostgreSQL migration, API smoke, integration tests, Ubuntu and CI were not executed by assistant. Owner signoff pending.
+
+## Step 10 — Customer-to-Many-Taxpayer Membership (Implemented; acceptance pending)
+**Step09 owner acceptance:** Confirmed by owner 2026-10-14.
+**Design:** Customer account can have multiple fiscal taxpayer profiles. The Phase04 authoritative `TaxpayerProfile.CustomerUserId` is never changed. New explicit `customer_taxpayer_memberships` tracks opt-in active relation plus unlinked history, actor IDs and UTC timestamps. Only allow link if existing TaxpayerProfile.CustomerUserId is exactly the requested customer. This prevents automatic migration of taxpayers between customers, reassignment of commercial partner, or rewriting past transactions. A previously unlinked membership can be re-linked as a new row, preserving prior history.
+**Implementation:** `CustomerTaxpayerMembership`, scoped `CustomerTaxpayerMembershipService` (list active/all, link, unlink), `CustomerTaxpayerMembershipEndpoints` under `/api/dev/customers/{customerId}/taxpayer-memberships`, DI registration, EF mapping/snapshot, additive migration `20261014190000_AddCustomerTaxpayerMemberships`, and `CustomerTaxpayerMembershipTests`.
+**Security:** Authenticated active customer can read own scoped memberships; writes require current Level1/Level2 owner with active MFA. Endpoints Development + loopback only. Non-members, former partners and unauthorized foreign IDs denied. The service rechecks authorization and taxpayer ownership inside serializable transactions. Deactivation requires expected Revision and records UnlinkedByUserId/UnlinkedAtUtc, never physically deletes rows.
+**Database:** Restrictive FKs to customer, taxpayer, linking actor, unlinking actor; unique partial index on (customer_user_id,taxpayer_id) WHERE unlinked_at_utc IS NULL; check constraints on revision and unlink timestamp/actor consistency. Existing TaxpayerProfile records are NOT automatically linked or altered; those need deliberate authorized linking. The standalone FK does not enforce matching TaxpayerProfile.CustomerUserId; application transaction enforces the invariant and future security testing should evaluate DB-level composite FK for defense in depth.
+**Mac verification:**
+```bash
+git switch phase/05-parties-customers
+git pull --ff-only origin phase/05-parties-customers
+dotnet build ArginTaxPayer.sln -c Release
+dotnet test ArginTaxPayer.sln -c Release --no-build --filter "FullyQualifiedName~CustomerTaxpayerMembershipTests|FullyQualifiedName~CustomerAccountProfileTests"
+dotnet test ArginTaxPayer.sln -c Release --no-build
+```
+**Test database migration:** Explicitly verify `current_database() = 'argintaxpayer_test'` using the owner-approved `npgsql_value` parsing and `psql -W` described in the canonical roadmap. Generate and inspect SQL from `20261014173000_AddCustomerAccountProfiles` to `20261014190000_AddCustomerTaxpayerMemberships`, then apply only on verified TEST database. Inspect `\\d+ customer_taxpayer_memberships` and EF migration history. No automatic migration by runtime.
+**Required HTTP negative tests:** unauthed 401, wrong customer 403, nonexistent/foreign taxpayer 404, repeated link 409, unlink with stale Revision 409, customer GET own list 200, no production exposure; verify history retained and Phase04 ownership unchanged. **Execution:** Not independently tested by assistant; CI/Ubuntu pending normal phase gates. **Owner signoff:** Pending.
