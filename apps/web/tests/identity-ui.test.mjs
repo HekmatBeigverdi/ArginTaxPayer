@@ -6,11 +6,11 @@ const read = (path) => readFileSync(new URL("../" + path, import.meta.url), "utf
 
 test("identity and account pages use Persian RTL and server-side identity checks", () => {
   const login = read("app/identity/page.tsx");
-  const account = read("app/account/page.tsx");
+  const account = read("app/(console)/account/page.tsx");
   const root = read("app/layout.tsx");
   assert.match(root, /lang="fa" dir="rtl"/);
   assert.match(login, /currentIdentity\(\)/);
-  assert.match(login, /redirect\("\/account"\)/);
+  assert.match(login, /redirect\("\/dashboard"\)/);
   assert.match(account, /if \(!actor\) redirect\("\/identity"\)/);
   assert.match(account, /currentIdentity\(\)/);
 });
@@ -38,15 +38,15 @@ test("protected account provides logout, MFA, and owned-session controls", () =>
   assert.match(account, /setRecoveryCodes\(\[\]\)/);
 });
 
-test("unified identity screen has two top-level tabs, OTP choice and recovery path", () => {
+test("unified identity screen uses simple actions, OTP and recovery path", () => {
   const page = read("app/identity/page.tsx");
   const flow = read("app/identity/identity-flow.tsx");
   const proxy = read("app/api/identity/[...path]/route.ts");
   assert.match(page, /<IdentityFlow \/>/);
-  assert.match(flow, /role="tablist"/);
-  assert.match(flow, />ورود<\/button>/);
-  assert.match(flow, />ثبت‌نام<\/button>/);
-  assert.match(flow, /role="group" aria-label="روش ورود"/);
+  assert.doesNotMatch(flow, /role="tablist"/);
+  assert.match(flow, /ورود به حساب/);
+  assert.match(flow, /ایجاد حساب جدید/);
+  assert.match(flow, /ورود با کد پیامکی/);
   assert.match(flow, /رمز عبور را فراموش کرده‌اید/);
   assert.match(flow, /mfa\/challenge/);
   assert.match(flow, /mfa\/complete/);
