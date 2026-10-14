@@ -22,6 +22,29 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Parties.PartyDuplicateReview", b =>
+                {
+                    b.Property<Guid>("Id").HasColumnType("uuid").HasColumnName("id");
+                    b.Property<Guid>("CustomerUserId").HasColumnType("uuid").HasColumnName("customer_user_id");
+                    b.Property<Guid>("CandidatePartyId").HasColumnType("uuid").HasColumnName("candidate_party_id");
+                    b.Property<Guid>("ExistingPartyId").HasColumnType("uuid").HasColumnName("existing_party_id");
+                    b.Property<Guid>("ReviewerUserId").HasColumnType("uuid").HasColumnName("reviewer_user_id");
+                    b.Property<int>("Decision").HasColumnType("integer").HasColumnName("decision");
+                    b.Property<string>("Reason").IsRequired().HasMaxLength(500).HasColumnType("character varying(500)").HasColumnName("reason");
+                    b.Property<DateTime>("ReviewedAtUtc").HasColumnType("timestamp with time zone").HasColumnName("reviewed_at_utc");
+                    b.HasKey("Id");
+                    b.HasIndex("CustomerUserId", "ReviewedAtUtc").HasDatabaseName("ix_duplicate_reviews_customer_time");
+                    b.HasIndex("ReviewerUserId");
+                    b.HasIndex("CandidatePartyId");
+                    b.HasIndex("ExistingPartyId");
+                    b.ToTable("party_duplicate_reviews", t =>
+                        {
+                            t.HasCheckConstraint("ck_duplicate_review_distinct", "candidate_party_id <> existing_party_id");
+                            t.HasCheckConstraint("ck_duplicate_review_decision", "decision IN (1, 2)");
+                            t.HasCheckConstraint("ck_duplicate_review_reason", "length(trim(reason)) > 0");
+                        });
+                });
+
             modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Parties.Party", b =>
                 {
                     b.Property<Guid>("Id").HasColumnType("uuid").HasColumnName("id");
@@ -932,6 +955,18 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
                     b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Parties.Party", null)
                         .WithMany().HasForeignKey("PartyId").OnDelete(DeleteBehavior.Restrict)
                         .IsRequired().HasConstraintName("FK_customer_party_links_party");
+                });
+
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Parties.PartyDuplicateReview", b =>
+                {
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null)
+                        .WithMany().HasForeignKey("CustomerUserId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null)
+                        .WithMany().HasForeignKey("ReviewerUserId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Parties.Party", null)
+                        .WithMany().HasForeignKey("CandidatePartyId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Parties.Party", null)
+                        .WithMany().HasForeignKey("ExistingPartyId").OnDelete(DeleteBehavior.Restrict).IsRequired();
                 });
 
             modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", b =>
