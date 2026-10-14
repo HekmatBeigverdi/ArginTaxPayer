@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 04: Multi-Taxpayer Management
 
-**Status:** Steps 01–05 owner approved (2026-10-13; owner-reported acceptance). Step 05 received a dated, owner-approved cross-phase contract clarification; Step 06 owner approved 2026-10-13; Step 07 owner approved 2026-10-13; Step 08 owner approved 2026-10-13; Step 09 implementation approved for progression with integration acceptance deferred to Step12; Step 10 owner approved 2026-10-13; Step 11 customer ownership and paginated user/modal UX owner approved 2026-10-14; Step 12 integration/negative-path tests committed; live DB/API/browser acceptance pending.
+**Status:** Steps 01–05 owner approved (2026-10-13; owner-reported acceptance). Step 05 received a dated, owner-approved cross-phase contract clarification; Step 06 owner approved 2026-10-13; Step 07 owner approved 2026-10-13; Step 08 owner approved 2026-10-13; Step 09 implementation approved for progression with integration acceptance deferred to Step12; Step 10 owner approved 2026-10-13; Step 11 customer ownership and paginated user/modal UX owner approved 2026-10-14; Step 12 owner approved 2026-10-14 with explicit acceptance of unexecuted three-account HTTP smoke; Step 13 hardening source and final handoff checks implemented, local/Ubuntu evidence pending.
 **Branch:** `phase/04-multi-taxpayer-management`
 **Started:** 2026-10-13
 **Baseline:** `docs/roadmap/18-phases.md`, Phase 03 identity/authorization contracts
@@ -34,8 +34,8 @@ Manage natural/legal taxpayer profiles, fiscal memories, certificate metadata an
 | 09 | Server-Side Customer-Scoped Query and Command Policies | Customer-to-many-taxpayer join, partner owner checks, deny by default | Level2 cannot see another partner's customers or taxpayers | Customer-owner query correction committed 2026-10-13; integration regression pending Step12 |
 | 10 | Taxpayer and Memory RTL Management UI | Persian responsive taxpayer list, forms, detail, memory views | RTL, validation, loading/error states, guarded routes | Owner approved 2026-10-13 |
 | 11 | Level1 Customer Commercial Ownership Console and Level2 Workspace (approved correction) | Transfer entire customer relationship to Level2 and show scoped customer accounts | No taxpayer-level grants; root-approved customer reattribution, preserve financial history | Owner approved 2026-10-14; final integration validation belongs to Step12 |
-| 12 | Integration and Negative-Path Regression | PostgreSQL/API/UI security, concurrency and lifecycle tests | Identity regression and cross-scope negative paths pass | Planned |
-| 13 | Hardening and Phase Handoff | Review, local regression, final Ubuntu acceptance, documentation | Evidence, migration review, unresolved risks and owner signoff recorded | Planned |
+| 12 | Integration and Negative-Path Regression | PostgreSQL/API/UI security, concurrency and lifecycle tests | Identity regression and cross-scope negative paths pass | Owner-approved for progression on 2026-10-14; three-account HTTP smoke not executed, explicitly recorded residual risk |
+| 13 | Hardening and Phase Handoff | Review, local regression, final Ubuntu acceptance, documentation | Evidence, migration review, unresolved risks and owner signoff recorded | Hardening implemented; local/Ubuntu verification and final release approval pending |
 
 ## Testing Cadence — Owner Approved
 **Every step (macOS):** focused automated tests and relevant local UI/API smoke only. Existing commands:
@@ -526,4 +526,53 @@ Requires separately configured `PHASE04_FIXTURE_CUSTOMER_ID` (Level1 direct cust
 8. Migration audit with only `argintaxpayer_test`, no unreviewed destructive writes. Verify EF latest applied migration and no snapshot/schema drift.
 
 **Explicit limitations:** Only source/test additions were committed by assistant; no live test execution on macOS VPS DB, no browser E2E or SQL transaction race execution. Read-only HTTP smoke and opt-in mutation smoke test complementary cases; neither is equivalent to exhaustive production certification. Report failures before Step12 owner approval; Step13 is final hardening and release handoff, not an excuse to waive the acceptance gate.
+
+
+
+### Step 13 — Hardening and Phase Handoff (2026-10-14)
+
+**Owner disposition:** Step12 approved for progression on 2026-10-14. This is an explicit waiver of the **three-account, token-based HTTP smoke not executed**, not an assertion that authorization, concurrency and browser tests passed. The unexecuted smoke and mutation/race test remain tracked open verification items. Step13 implementation is complete in source; final production release is **not approved** until external acceptance checks are supplied.
+
+**Hardening committed:**
+- `TaxpayerScopeService.RenameAsync`: PostgreSQL `Serializable` isolation so a delegated Level2 write and an owner transfer cannot both commit under stale access assumptions; database serialization abort maps to `Conflict`, including EF-wrapped failures. The owner must verify the actual race scenario on PostgreSQL.
+- `CustomerCommercialOwnershipService.TransferAsync`: PostgreSQL `Serializable` isolation, re-authenticated Level1 session/MFA, target Level2 active-role/MFA recheck within the transaction, CAS `expectedRevision` and append-only owner-change row within the same transaction. Concurrent and legacy conflicting requests fail closed.
+- `scripts/phase04-step13-verify.zsh`: safety-gated, **read-only** local release evidence runner. Rejects wrong branch or uncommitted files, invokes Step12 model/tests/UI/DB checks, verifies connected database is `argintaxpayer_test`, then reads `__EFMigrationsHistory` to confirm the four relevant migration IDs. No implicit migration, reassignment, deletion, tag, merge or release.
+- Step12 scripts retained for role-based readonly smoke, explicit opt-in disposable-owner mutation smoke and PostgreSQL audit.
+
+**Local verification command:** with AutoSSH and Development environment already running, use:
+```bash
+git switch phase/04-multi-taxpayer-management
+git pull --ff-only origin phase/04-multi-taxpayer-management
+zsh scripts/dev-up.zsh
+zsh scripts/phase04-step13-verify.zsh
+```
+If services are already running, skip `dev-up` and check `zsh scripts/dev-status.zsh`. Any failed build, migration audit, model drift or negative-path test blocks final release. An approval to skip the three-token smoke must remain visible as a risk, not changed to PASS.
+
+**Ubuntu final verification, only at the end of the phase:**
+```bash
+git switch phase/04-multi-taxpayer-management
+git pull --ff-only origin phase/04-multi-taxpayer-management
+bash scripts/ubuntu-dev.sh verify
+```
+Ubuntu script uses loopback-only `argintaxpayer_test` and never auto-applies migrations. Do not use production DB or expose Development routes publicly. Confirm Release build, full test suite, Next.js typecheck/build and migration consistency. Only the local operator can attest to results; assistant does not have a dotnet runtime or VPS test execution evidence.
+
+**Schema gate:** Ensure EF history contains these four migration IDs (without re-running them):
+1. `20261013220000_AddFiscalCertificateMetadata`
+2. `20261013230000_AddTaxpayerDelegateGrants` (deprecated legacy schema retained for audit; cannot authorize new partner access)
+3. `20261013233000_AddCustomerCommercialOwnership`
+4. `20261014002000_AllowLegacyCommercialAcquisition`
+
+**Cross-phase handoff, not silently changed:** Phase05 can enhance customer record management and taxpayer CRUD based on current customer account ownership. Phase09 handles secure private key/CSR or existing-key import; Phase10 handles actual tax authority connectivity; Phase12 is authoritative for subscription entitlement enforcement, single-taxpayer annual plan binding, invoice/receipt attribution, cash-based net profit sharing, Level1 approved tax/cost deduction and per-deal partner settlement; Phase16 handles formal Level2 referral request/approval workflow and financial administration; Phase17 handles comprehensive pen tests and race/load regression. None of these is marked implemented by Phase04.
+
+**Formal release gates before merge/tag:** (a) successful macOS final script, (b) successful Ubuntu `verify`, (c) no unknown EF schema drift, (d) clean verified branch, (e) manual browser smoke for Level1/Level2 customer table, modal and reassignment, (f) recorded owner acknowledgment of intentionally skipped three-account negative-path smoke, (g) reviewed PR to main. Only after these checks and **explicit final phase release approval** may the operator merge to main and create a single annotated release tag (suggested `v0.4.0`, check existing tags first). A GitHub commit or draft PR is not a finished release.
+
+**Outstanding risks (carry as OPEN until evidenced):**
+- Historical unowned customer accounts and unlinked taxpayer rows require explicit supervised reconciliation; do not infer from old deprecated grants or tax IDs.
+- Concurrent partner reassignment and a delegated taxpayer edit are now transactionally protected but still require a real PostgreSQL race acceptance test.
+- Three-account HTTP isolation smoke and browser end-to-end authorization have not been run.
+- Phase03 security gap register remains valid; secrets and taxpayer private keys cannot be exposed in Step04/Phase04 metadata UI.
+- No customer invoice-count quota or unlimited annual plan is enforced in the Phase04 UI. Do not enable a public add-taxpayer flow before Phase12 server entitlements.
+- No Ubuntu and no local build/test output has been provided to assistant in this step.
+
+**Status:** Source and handoff checklist prepared; **final Step13 operator acceptance, tag, merge, release and Phase04 closure remain pending verified evidence and explicit approval.**
 
