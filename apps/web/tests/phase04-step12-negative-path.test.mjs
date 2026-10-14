@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-const usersPage = readFileSync(new URL("../app/users/page.tsx", import.meta.url), "utf8");
+const usersPage = readFileSync(new URL("../app/(console)/users/page.tsx", import.meta.url), "utf8");
 const users = readFileSync(new URL("../app/users/users-workspace.tsx", import.meta.url), "utf8");
 const bff = readFileSync(new URL("../app/api/customer-owners/[...path]/route.ts", import.meta.url), "utf8");
 const old = readFileSync(new URL("../app/taxpayers/page.tsx", import.meta.url), "utf8");
