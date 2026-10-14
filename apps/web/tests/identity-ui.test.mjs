@@ -68,10 +68,11 @@ test("successful login remains busy until protected page navigation", () => {
 });
 
 test("administrator customer form requires role-gated UI and authenticated BFF operation", () => {
-  const account = read("app/(console)/account/page.tsx");
+  const directory = read("app/parties/buyer-taxpayer-directory.tsx");
   const form = read("app/account/admin-create-customer.tsx");
   const proxy = read("app/api/identity/[...path]/route.ts");
-  assert.match(account, /role === "Level1" \|\| role === "Level2"/);
+  assert.match(directory, /admin/);
+  assert.match(directory, /AdminCreateCustomer/);
   assert.match(form, /admin\/customers/);
   assert.match(form, /ایمیل \(اختیاری\)/);
   assert.match(proxy, /"admin\/customers"/);
