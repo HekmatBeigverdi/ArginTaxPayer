@@ -117,3 +117,5 @@
 @media(prefers-reduced-motion:reduce){.auth-spinner{animation:none}.app-module{transition:none}.app-module:hover{transform:none}}
 
 :root,body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif}
+
+.party-onboarding{background:#edf7f8;border:1px solid #cfe6e7;border-radius:12px;padding:15px 17px;margin:12px 0 22px;line-height:1.9}.party-onboarding p{color:#586d7e;font-size:13px;margin:6px 0 10px}.party-taxpayer-preview{margin:20px 0;border-top:1px solid #e5eaf1;padding-top:15px}.party-taxpayer-preview ul{padding-right:20px;color:#556d80;font-size:13px}
