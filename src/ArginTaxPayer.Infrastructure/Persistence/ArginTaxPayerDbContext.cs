@@ -52,6 +52,7 @@ public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbConte
         parties.Property(x => x.NormalizedIdentifier).HasColumnName("normalized_identifier").HasMaxLength(32).IsRequired();
         parties.Property(x => x.FirstName).HasColumnName("first_name").HasMaxLength(100);
         parties.Property(x => x.LastName).HasColumnName("last_name").HasMaxLength(100);
+        parties.Property(x => x.RegistrationNumber).HasColumnName("registration_number").HasMaxLength(32);
         parties.Property(x => x.DisplayName).HasColumnName("display_name").HasMaxLength(256).IsRequired();
         parties.Property(x => x.Status).HasColumnName("status").HasConversion<int>();
         parties.Property(x => x.Revision).HasColumnName("revision").HasDefaultValue(1L).IsConcurrencyToken();
