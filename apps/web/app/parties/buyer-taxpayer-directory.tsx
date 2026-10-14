@@ -70,17 +70,22 @@ export default function BuyerTaxpayerDirectory({ admin, level1 }: { admin: boole
               .catch(() => null),
             get<Taxpayer[]>(`/api/customer-owners/${buyer.customerUserId}/taxpayers`).catch(() => null)
           ]);
-          const primary = parties?.items?.[0];
-          const buyerRow: Row = { id: buyer.customerUserId, buyerId: buyer.customerUserId,
-            type: "buyer", kind: primary?.kind ?? null,
-            name: primary?.displayName || account, identifier: account,
-            status: buyer.isActive ? "فعال" : "غیرفعال", ownerName: account };
+          // Each linked legal/natural Party is its own buyer-facing record.
+          // Do not misclassify an account that is linked to both types.
+          const buyerRows: Row[] = parties?.items?.length
+            ? parties.items.map(p => ({ id: p.id, buyerId: buyer.customerUserId,
+                type: "buyer" as const, kind: p.kind, name: p.displayName,
+                identifier: account, status: buyer.isActive ? "فعال" : "غیرفعال",
+                ownerName: account }))
+            : [{ id: buyer.customerUserId, buyerId: buyer.customerUserId,
+                type: "buyer", kind: null, name: account, identifier: account,
+                status: buyer.isActive ? "فعال" : "غیرفعال", ownerName: account }];
           const taxpayerRows: Row[] = (taxpayers || []).map(t => ({
             id: t.id, buyerId: buyer.customerUserId, type: "taxpayer", kind: t.kind,
             name: t.displayName, identifier: t.normalizedIdentifier,
             status: t.status === 1 ? "فعال" : "غیرفعال", ownerName: account
           }));
-          return [buyerRow, ...taxpayerRows];
+          return [...buyerRows, ...taxpayerRows];
         }));
         combined.push(...records.flat());
       }
