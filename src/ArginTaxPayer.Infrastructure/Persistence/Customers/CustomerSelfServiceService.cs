@@ -1,4 +1,5 @@
 using ArginTaxPayer.Domain.Customers;
+using ArginTaxPayer.Domain.Taxpayers;
 using ArginTaxPayer.Infrastructure.Persistence.Identity;
 using ArginTaxPayer.Infrastructure.Persistence.Taxpayers;
 using Microsoft.EntityFrameworkCore;
