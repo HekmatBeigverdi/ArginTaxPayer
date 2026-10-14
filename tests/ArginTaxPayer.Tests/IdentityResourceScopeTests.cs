@@ -117,7 +117,7 @@ public sealed class IdentityResourceScopePostgresTests
             if (ids.Count != 0)
             {
                 await using var cleanup = new ArginTaxPayerDbContext(options);
-                await cleanup.IdentityUsers.Where(x => ids.Contains(x.Id)).ExecuteDeleteAsync();
+                await IdentityTestServices.CleanupCustomerFixturesAsync(cleanup, ids);
             }
         }
     }
