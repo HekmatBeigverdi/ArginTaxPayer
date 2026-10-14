@@ -1,6 +1,7 @@
 using ArginTaxPayer.Infrastructure.Persistence.Identity;
 using ArginTaxPayer.Domain.Taxpayers;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace ArginTaxPayer.Infrastructure.Persistence.Taxpayers;
 
@@ -84,9 +85,14 @@ public sealed class TaxpayerScopeService(ArginTaxPayerDbContext db, IdentityAuth
         if (name.Length > 256 || name.Any(char.IsControl))
             return new(TaxpayerScopeDecision.Invalid);
 
-        return await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+        try
         {
-            await using var tx = await db.Database.BeginTransactionAsync(ct);
+            return await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+            {
+            // Serializable checks prevent a former partner's edit from committing
+            // using a grant that changed concurrently in another transaction.
+            await using var tx = await db.Database.BeginTransactionAsync(
+                System.Data.IsolationLevel.Serializable, ct);
             var previous = await ScopedQuery(actor.ActorId, actor.Level1).Where(p => p.Id == taxpayerId)
                 .Select(p => new { p.Kind, p.NormalizedIdentifier, p.DisplayName, p.Status, p.Revision })
                 .SingleOrDefaultAsync(ct);
@@ -123,7 +129,13 @@ public sealed class TaxpayerScopeService(ArginTaxPayerDbContext db, IdentityAuth
             return new ScopedTaxpayerResult(TaxpayerScopeDecision.Allowed,
                 new TaxpayerProfileView(taxpayerId, previous.Kind, previous.NormalizedIdentifier,
                     name, previous.Status, previous.Revision + 1));
-        });
+            });
+        }
+        catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.SerializationFailure)
+        {
+            db.ChangeTracker.Clear();
+            return new ScopedTaxpayerResult(TaxpayerScopeDecision.Conflict);
+        }
     }
 
     /// <summary>
