@@ -15,6 +15,7 @@ namespace ArginTaxPayer.Infrastructure.Persistence;
 public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbContext> options)
     : DbContext(options)
 {
+    public DbSet<CustomerTaxpayerMembership> CustomerTaxpayerMemberships => Set<CustomerTaxpayerMembership>();
     public DbSet<CustomerAccountProfile> CustomerAccountProfiles => Set<CustomerAccountProfile>();
     public DbSet<PartyContact> PartyContacts => Set<PartyContact>();
     public DbSet<PartyAddress> PartyAddresses => Set<PartyAddress>();
@@ -42,6 +43,36 @@ public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbConte
     {
         base.OnModelCreating(modelBuilder);
 
+
+        var memberships = modelBuilder.Entity<CustomerTaxpayerMembership>();
+        memberships.ToTable("customer_taxpayer_memberships", t =>
+        {
+            t.HasCheckConstraint("ck_customer_taxpayer_memberships_revision", "revision > 0");
+            t.HasCheckConstraint("ck_customer_taxpayer_memberships_unlink", 
+                "(unlinked_at_utc IS NULL AND unlinked_by_user_id IS NULL) OR " +
+                "(unlinked_at_utc IS NOT NULL AND unlinked_by_user_id IS NOT NULL AND unlinked_at_utc >= linked_at_utc)");
+        });
+        memberships.HasKey(x => x.Id);
+        memberships.Property(x => x.Id).HasColumnName("id");
+        memberships.Property(x => x.CustomerUserId).HasColumnName("customer_user_id");
+        memberships.Property(x => x.TaxpayerId).HasColumnName("taxpayer_id");
+        memberships.Property(x => x.LinkedByUserId).HasColumnName("linked_by_user_id");
+        memberships.Property(x => x.LinkedAtUtc).HasColumnName("linked_at_utc").HasColumnType("timestamp with time zone");
+        memberships.Property(x => x.UnlinkedByUserId).HasColumnName("unlinked_by_user_id");
+        memberships.Property(x => x.UnlinkedAtUtc).HasColumnName("unlinked_at_utc").HasColumnType("timestamp with time zone");
+        memberships.Property(x => x.Revision).HasColumnName("revision").IsConcurrencyToken().HasDefaultValue(1L);
+        memberships.HasOne<IdentityUser>().WithMany().HasForeignKey(x => x.CustomerUserId)
+            .OnDelete(DeleteBehavior.Restrict).HasConstraintName("FK_customer_taxpayer_memberships_customer");
+        memberships.HasOne<TaxpayerProfile>().WithMany().HasForeignKey(x => x.TaxpayerId)
+            .OnDelete(DeleteBehavior.Restrict).HasConstraintName("FK_customer_taxpayer_memberships_taxpayer");
+        memberships.HasOne<IdentityUser>().WithMany().HasForeignKey(x => x.LinkedByUserId)
+            .OnDelete(DeleteBehavior.Restrict).HasConstraintName("FK_customer_taxpayer_memberships_linked_by");
+        memberships.HasOne<IdentityUser>().WithMany().HasForeignKey(x => x.UnlinkedByUserId)
+            .OnDelete(DeleteBehavior.Restrict).HasConstraintName("FK_customer_taxpayer_memberships_unlinked_by");
+        memberships.HasIndex(x => new { x.CustomerUserId, x.TaxpayerId }).IsUnique()
+            .HasFilter("unlinked_at_utc IS NULL").HasDatabaseName("ux_customer_taxpayer_memberships_active");
+        memberships.HasIndex(x => new { x.CustomerUserId, x.LinkedAtUtc })
+            .HasDatabaseName("ix_customer_taxpayer_memberships_history");
 
         var customerProfiles = modelBuilder.Entity<CustomerAccountProfile>();
         customerProfiles.ToTable("customer_account_profiles", t =>
