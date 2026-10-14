@@ -30,6 +30,8 @@ test("software users and parties are reachable by navigation and selectable cust
   const workspace = read("app/parties/party-workspace.tsx");
   assert.match(workspace, /api\/customer-owners\/accounts/);
   assert.match(workspace, /party-customer-choice/);
+  assert.match(workspace, /onSubmit=\\{createTaxpayer\\}/);
+  assert.match(workspace, /canCreateTaxpayer/);
   assert.match(workspace, /href="\/users"/);
   assert.match(workspace, /api\/customer-owners\/\$\{customer\}\/taxpayers/);
 });
@@ -40,4 +42,11 @@ test("dashboard mobile layout and Persian font fallbacks exist", () => {
   assert.match(css, /\.app-module-grid/);
   assert.match(css, /max-width:780px/);
   assert.match(css, /\.auth-navigation-lock/);
+});
+
+test("authenticated landing and identity screen redirect to dashboard", () => {
+  const home = read("app/page.tsx");
+  const identity = read("app/identity/page.tsx");
+  assert.match(home, /redirect\("\/dashboard"\)/);
+  assert.match(identity, /redirect\("\/dashboard"\)/);
 });
