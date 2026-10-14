@@ -14,6 +14,8 @@ namespace ArginTaxPayer.Infrastructure.Persistence;
 public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbContext> options)
     : DbContext(options)
 {
+    public DbSet<PartyContact> PartyContacts => Set<PartyContact>();
+    public DbSet<PartyAddress> PartyAddresses => Set<PartyAddress>();
     public DbSet<PartyDuplicateReview> PartyDuplicateReviews => Set<PartyDuplicateReview>();
     public DbSet<Party> Parties => Set<Party>();
     public DbSet<CustomerPartyLink> CustomerPartyLinks => Set<CustomerPartyLink>();
@@ -37,6 +39,60 @@ public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbConte
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
+
+        var contacts = modelBuilder.Entity<PartyContact>();
+        contacts.ToTable("party_contacts", t =>
+        {
+            t.HasCheckConstraint("ck_party_contact_kind", "kind IN (1,2,3)");
+            t.HasCheckConstraint("ck_party_contact_revision", "revision > 0");
+            t.HasCheckConstraint("ck_party_contact_value", "length(trim(value)) > 0");
+            t.HasCheckConstraint("ck_party_contact_deactivation", "(is_active AND deactivated_at_utc IS NULL) OR (NOT is_active AND deactivated_at_utc IS NOT NULL)");
+        });
+        contacts.HasKey(x => x.Id);
+        contacts.Property(x => x.Id).HasColumnName("id");
+        contacts.Property(x => x.PartyId).HasColumnName("party_id");
+        contacts.Property(x => x.Kind).HasColumnName("kind").HasConversion<int>();
+        contacts.Property(x => x.Value).HasColumnName("value").HasMaxLength(320).IsRequired();
+        contacts.Property(x => x.ContactPerson).HasColumnName("contact_person").HasMaxLength(120);
+        contacts.Property(x => x.IsPrimary).HasColumnName("is_primary");
+        contacts.Property(x => x.IsActive).HasColumnName("is_active");
+        contacts.Property(x => x.Revision).HasColumnName("revision").IsConcurrencyToken().HasDefaultValue(1L);
+        contacts.Property(x => x.CreatedAtUtc).HasColumnName("created_at_utc").HasColumnType("timestamp with time zone");
+        contacts.Property(x => x.UpdatedAtUtc).HasColumnName("updated_at_utc").HasColumnType("timestamp with time zone");
+        contacts.Property(x => x.DeactivatedAtUtc).HasColumnName("deactivated_at_utc").HasColumnType("timestamp with time zone");
+        contacts.HasOne<Party>().WithMany().HasForeignKey(x => x.PartyId).OnDelete(DeleteBehavior.Restrict)
+            .HasConstraintName("FK_party_contacts_party");
+        contacts.HasIndex(x => new { x.PartyId, x.Kind, x.Value }).IsUnique()
+            .HasFilter("is_active").HasDatabaseName("ux_party_contacts_active_value");
+        contacts.HasIndex(x => new { x.PartyId, x.Kind }).IsUnique()
+            .HasFilter("is_active AND is_primary").HasDatabaseName("ux_party_contacts_primary");
+
+        var addresses = modelBuilder.Entity<PartyAddress>();
+        addresses.ToTable("party_addresses", t =>
+        {
+            t.HasCheckConstraint("ck_party_address_revision", "revision > 0");
+            t.HasCheckConstraint("ck_party_address_deactivation", "(is_active AND deactivated_at_utc IS NULL) OR (NOT is_active AND deactivated_at_utc IS NOT NULL)");
+        });
+        addresses.HasKey(x => x.Id);
+        addresses.Property(x => x.Id).HasColumnName("id");
+        addresses.Property(x => x.PartyId).HasColumnName("party_id");
+        addresses.Property(x => x.Label).HasColumnName("label").HasMaxLength(80).IsRequired();
+        addresses.Property(x => x.CountryCode).HasColumnName("country_code").HasMaxLength(2).IsRequired();
+        addresses.Property(x => x.Province).HasColumnName("province").HasMaxLength(120).IsRequired();
+        addresses.Property(x => x.City).HasColumnName("city").HasMaxLength(120).IsRequired();
+        addresses.Property(x => x.StreetAddress).HasColumnName("street_address").HasMaxLength(500).IsRequired();
+        addresses.Property(x => x.PostalCode).HasColumnName("postal_code").HasMaxLength(20);
+        addresses.Property(x => x.IsPrimary).HasColumnName("is_primary");
+        addresses.Property(x => x.IsActive).HasColumnName("is_active");
+        addresses.Property(x => x.Revision).HasColumnName("revision").IsConcurrencyToken().HasDefaultValue(1L);
+        addresses.Property(x => x.CreatedAtUtc).HasColumnName("created_at_utc").HasColumnType("timestamp with time zone");
+        addresses.Property(x => x.UpdatedAtUtc).HasColumnName("updated_at_utc").HasColumnType("timestamp with time zone");
+        addresses.Property(x => x.DeactivatedAtUtc).HasColumnName("deactivated_at_utc").HasColumnType("timestamp with time zone");
+        addresses.HasOne<Party>().WithMany().HasForeignKey(x => x.PartyId).OnDelete(DeleteBehavior.Restrict)
+            .HasConstraintName("FK_party_addresses_party");
+        addresses.HasIndex(x => x.PartyId).IsUnique().HasFilter("is_active AND is_primary")
+            .HasDatabaseName("ux_party_addresses_primary");
 
         var duplicateReviews = modelBuilder.Entity<PartyDuplicateReview>();
         duplicateReviews.ToTable("party_duplicate_reviews", t =>
