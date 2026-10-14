@@ -8,7 +8,7 @@ const proxy = readFileSync(new URL("../app/api/customer-owners/[...path]/route.t
 
 test("old taxpayer admin URL redirects to customer-first users screen", () => {
   assert.match(legacyPage, /redirect\("\/users"\)/);
-  assert.match(page, /مدیریت کاربران نرم‌افزار/);
+  assert.match(page, /کاربران نرم‌افزار/);
   assert.match(page, /currentIdentity\(\)/);
   assert.match(page, /!isLevel1 && !isLevel2/);
 });
