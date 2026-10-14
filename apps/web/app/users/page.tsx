@@ -19,6 +19,8 @@ export default async function UsersPage() {
         <p className="subtitle">کاربران، مالکیت تجاری و مؤدیان وابسته به هر حساب</p>
       </div>
       <nav className="taxpayer-nav" aria-label="ناوبری">
+        <Link href="/dashboard">داشبورد</Link>
+        <Link href="/parties">خریداران و مؤدیان</Link>
         <Link href="/account">حساب و امنیت</Link>
         <Link href="/">صفحه اصلی</Link>
       </nav>
