@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import InvoiceParticipantForm from "./invoice-participant-form";
+import ConsoleLoader from "../components/console-loader";
 
 const PAGE_SIZE = 20;
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
@@ -406,7 +407,7 @@ export default function PartyWorkspace({
         </p>
 
         {error && <p className="party-error" role="alert">{error}</p>}
-        {loading && <p role="status">در حال دریافت اطلاعات…</p>}
+        {loading && <ConsoleLoader label="در حال دریافت اطلاعات حساب…" />}
 
         {mine && (
           <>
@@ -497,7 +498,7 @@ export default function PartyWorkspace({
 
         {error && <p className="party-error" role="alert">{error}</p>}
         {notice && <p className="party-success" role="status">{notice}</p>}
-        {loading && <p role="status">در حال بارگذاری…</p>}
+        {loading && <ConsoleLoader label="در حال دریافت اطلاعات اشخاص…" />}
         {profile && (
           <p>
             پروفایل حساب: {profile.displayName} — {profile.status === 1 ? "فعال" : "تعلیق"}
