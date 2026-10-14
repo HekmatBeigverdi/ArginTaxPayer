@@ -29,8 +29,9 @@ public static class NaturalPersonProfilePolicy
     {
         normalized = string.Empty;
         if (input is null || input.Length > 512) return false;
+        if (input.Any(char.IsControl)) return false;
         var value = input.Trim().Normalize(NormalizationForm.FormC);
-        if (value.Length is < 1 or > 100 || value.Any(char.IsControl)) return false;
+        if (value.Length is < 1 or > 100) return false;
         // Reject whitespace-only inputs; do not impose a language/character-set assumption.
         if (!value.Any(c => !char.IsWhiteSpace(c))) return false;
         normalized = value;
