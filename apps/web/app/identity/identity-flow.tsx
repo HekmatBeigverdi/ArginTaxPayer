@@ -181,7 +181,7 @@ export default function IdentityFlow() {
         if (step === "details") {
           const {response,result} = await api("phone/request",{mobile:identifier,purpose});
           if (response.status === 409 && result.error === "mobile_already_registered") {
-            setError("این شماره همراه قبلاً ثبت‌نام شده است. از تب ورود استفاده کنید.");
+            setError("این شماره همراه قبلاً ثبت‌نام شده است. از گزینه ورود استفاده کنید.");
             return;
           }
           if (response.status === 429) {
@@ -252,7 +252,7 @@ export default function IdentityFlow() {
 
   return <div className="auth-workflow auth-simplified" aria-busy={pending || navigating}>
     {navigating && <div className="auth-navigation-lock" role="status" aria-live="assertive"><span className="auth-spinner" aria-hidden="true" /><strong>در حال ورود به داشبورد…</strong><small>لطفاً منتظر تکمیل انتقال بمانید.</small></div>}
-    <fieldset className="auth-lock-fieldset" disabled={navigating}>
+    <fieldset className="auth-lock-fieldset" disabled={pending || navigating}>
     {forgot ? <div className="auth-section-heading">
       <button type="button" className="auth-back" onClick={()=>{setForgot(false);reset();}}>‹ بازگشت به ورود</button>
       <h2>بازیابی رمز عبور</h2>
@@ -328,7 +328,7 @@ export default function IdentityFlow() {
     </form>
     <p className="auth-footer-note">حساب‌های مدیریتی همچنان ملزم به احراز هویت دومرحله‌ای هستند.</p>
     </fieldset>
-    {step === "details" && !navigating && <div className="auth-secondary-links">
+    {step === "details" && !pending && !navigating && <div className="auth-secondary-links">
       {tab === "login" && !forgot && <button type="button" onClick={() => changeMode(mode === "password" ? "otp" : "password")}>{mode === "password" ? "ورود با کد پیامکی" : "ورود با رمز عبور"}</button>}
       {!forgot && <button type="button" onClick={() => changeTab(tab === "login" ? "register" : "login")}>{tab === "login" ? "ایجاد حساب جدید" : "حساب دارید؟ ورود"}</button>}
       {tab === "register" && <button type="button" onClick={() => {setEmailRegistration(v => !v);reset();}}>{emailRegistration ? "ثبت‌نام با موبایل" : "ثبت‌نام با ایمیل (آزمایشی)"}</button>}
