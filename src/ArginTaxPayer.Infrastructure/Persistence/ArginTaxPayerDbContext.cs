@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using ArginTaxPayer.Infrastructure.Persistence.Identity;
 using ArginTaxPayer.Infrastructure.Persistence.Taxpayers;
 using ArginTaxPayer.Infrastructure.Persistence.Parties;
+using ArginTaxPayer.Infrastructure.Persistence.Customers;
 
 namespace ArginTaxPayer.Infrastructure.Persistence;
 
@@ -14,6 +15,7 @@ namespace ArginTaxPayer.Infrastructure.Persistence;
 public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbContext> options)
     : DbContext(options)
 {
+    public DbSet<CustomerAccountProfile> CustomerAccountProfiles => Set<CustomerAccountProfile>();
     public DbSet<PartyContact> PartyContacts => Set<PartyContact>();
     public DbSet<PartyAddress> PartyAddresses => Set<PartyAddress>();
     public DbSet<PartyDuplicateReview> PartyDuplicateReviews => Set<PartyDuplicateReview>();
@@ -40,6 +42,27 @@ public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbConte
     {
         base.OnModelCreating(modelBuilder);
 
+
+        var customerProfiles = modelBuilder.Entity<CustomerAccountProfile>();
+        customerProfiles.ToTable("customer_account_profiles", t =>
+        {
+            t.HasCheckConstraint("ck_customer_profile_status", "status IN (1, 2)");
+            t.HasCheckConstraint("ck_customer_profile_revision", "revision > 0");
+            t.HasCheckConstraint("ck_customer_profile_name", "length(trim(display_name)) > 0");
+        });
+        customerProfiles.HasKey(x => x.CustomerUserId);
+        customerProfiles.Property(x => x.CustomerUserId).HasColumnName("customer_user_id");
+        customerProfiles.Property(x => x.DisplayName).HasColumnName("display_name").HasMaxLength(256).IsRequired();
+        customerProfiles.Property(x => x.Status).HasColumnName("status").HasConversion<int>();
+        customerProfiles.Property(x => x.PreferredPartyId).HasColumnName("preferred_party_id");
+        customerProfiles.Property(x => x.Revision).HasColumnName("revision").IsConcurrencyToken().HasDefaultValue(1L);
+        customerProfiles.Property(x => x.CreatedAtUtc).HasColumnName("created_at_utc").HasColumnType("timestamp with time zone");
+        customerProfiles.Property(x => x.UpdatedAtUtc).HasColumnName("updated_at_utc").HasColumnType("timestamp with time zone");
+        customerProfiles.HasOne<IdentityUser>().WithOne().HasForeignKey<CustomerAccountProfile>(x => x.CustomerUserId)
+            .OnDelete(DeleteBehavior.Restrict).HasConstraintName("FK_customer_account_profiles_identity");
+        customerProfiles.HasOne<Party>().WithMany().HasForeignKey(x => x.PreferredPartyId)
+            .OnDelete(DeleteBehavior.Restrict).HasConstraintName("FK_customer_account_profiles_party");
+        customerProfiles.HasIndex(x => x.PreferredPartyId).HasDatabaseName("ix_customer_account_profiles_party");
 
         var contacts = modelBuilder.Entity<PartyContact>();
         contacts.ToTable("party_contacts", t =>
