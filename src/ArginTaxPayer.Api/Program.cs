@@ -42,6 +42,7 @@ if (identityDevelopmentEnabled)
     builder.Services.AddScoped<CustomerSelfServiceService>();
     builder.Services.AddScoped<CustomerTaxpayerMembershipService>();
     builder.Services.AddScoped<CustomerAccountProfileService>();
+    builder.Services.AddScoped<InvoiceParticipantDetailsService>();
     builder.Services.AddScoped<PartyDirectoryService>();
     builder.Services.AddScoped<NaturalPersonService>();
     builder.Services.AddScoped<LegalEntityService>();
@@ -107,6 +108,7 @@ if (app.Environment.IsDevelopment())
         app.MapIdentityDevelopmentEndpoints();
         app.MapTaxpayerDevelopmentEndpoints();
         app.MapPartyDevelopmentEndpoints();
+        app.MapInvoiceParticipantEndpoints();
         app.MapCustomerProfileDevelopmentEndpoints();
         app.MapCustomerTaxpayerMembershipEndpoints();
         app.MapCustomerSelfServiceEndpoints();
