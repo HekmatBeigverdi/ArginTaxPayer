@@ -32,6 +32,7 @@ public sealed class AddPartyContactsAndAddresses : Migration
             t.CheckConstraint("ck_party_contact_value", "length(trim(value)) > 0");
             t.CheckConstraint("ck_party_contact_deactivation", "(is_active AND deactivated_at_utc IS NULL) OR (NOT is_active AND deactivated_at_utc IS NOT NULL)");
         });
+        m.CreateIndex("IX_party_contacts_party_id", "party_contacts", "party_id");
         m.CreateIndex("ux_party_contacts_active_value", "party_contacts",
             new[] { "party_id", "kind", "value" }, unique: true, filter: "is_active");
         m.CreateIndex("ux_party_contacts_primary", "party_contacts",
@@ -60,6 +61,7 @@ public sealed class AddPartyContactsAndAddresses : Migration
             t.CheckConstraint("ck_party_address_revision", "revision > 0");
             t.CheckConstraint("ck_party_address_deactivation", "(is_active AND deactivated_at_utc IS NULL) OR (NOT is_active AND deactivated_at_utc IS NOT NULL)");
         });
+        m.CreateIndex("IX_party_addresses_party_id", "party_addresses", "party_id");
         m.CreateIndex("ux_party_addresses_primary", "party_addresses", "party_id",
             unique: true, filter: "is_active AND is_primary");
     }
