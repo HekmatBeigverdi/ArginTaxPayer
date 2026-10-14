@@ -64,7 +64,7 @@ public sealed class IdentityMfaRetryStrategyPostgresTests
             if (userId != Guid.Empty)
             {
                 await using var cleanup = new ArginTaxPayerDbContext(options);
-                await cleanup.IdentityUsers.Where(x => x.Id == userId).ExecuteDeleteAsync();
+                await IdentityTestServices.CleanupCustomerFixturesAsync(cleanup, new[] { userId });
             }
         }
     }
