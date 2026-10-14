@@ -73,8 +73,8 @@ export default function PartyWorkspace({ isAdmin, customerId }: { isAdmin: boole
       if (!uuid.test(customer)) { setItems({ items: [], page: 1, pageSize: 20, total: 0 }); return; }
       const base = "customers/" + customer;
       const [parties, account] = await Promise.all([
-        api<Page>(base + "/parties?page=" + page + "&pageSize=20&kind=" +
-          (kind === "all" ? "" : kind) + "&query=" + encodeURIComponent(query.trim())),
+        api<Page>(base + "/parties?page=" + page + "&pageSize=20" +
+          (kind === "all" ? "" : "&kind=" + kind) + "&query=" + encodeURIComponent(query.trim())),
         api<Profile>(base + "/profile").catch(() => null)
       ]);
       setItems(parties); setProfile(account);
