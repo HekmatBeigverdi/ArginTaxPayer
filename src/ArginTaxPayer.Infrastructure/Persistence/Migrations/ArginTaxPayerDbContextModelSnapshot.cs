@@ -29,6 +29,7 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
                     b.Property<string>("NormalizedIdentifier").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)").HasColumnName("normalized_identifier");
                     b.Property<string>("FirstName").HasMaxLength(100).HasColumnType("character varying(100)").HasColumnName("first_name");
                     b.Property<string>("LastName").HasMaxLength(100).HasColumnType("character varying(100)").HasColumnName("last_name");
+                    b.Property<string>("RegistrationNumber").HasMaxLength(32).HasColumnType("character varying(32)").HasColumnName("registration_number");
                     b.Property<string>("DisplayName").IsRequired().HasMaxLength(256).HasColumnType("character varying(256)").HasColumnName("display_name");
                     b.Property<int>("Status").HasColumnType("integer").HasColumnName("status");
                     b.Property<long>("Revision").IsConcurrencyToken().ValueGeneratedOnAdd().HasColumnType("bigint").HasDefaultValue(1L).HasColumnName("revision");
