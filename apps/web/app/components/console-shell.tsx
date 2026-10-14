@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import ConsoleLoader from "./console-loader";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
@@ -16,6 +17,7 @@ export default function ConsoleShell({ roles, userId, children }:
   const pathname = usePathname();
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [navigatingTo, setNavigatingTo] = useState<string | null>(null);
   const [exiting, setExiting] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const admin = roles.includes("Level1") || roles.includes("Level2");
@@ -23,7 +25,7 @@ export default function ConsoleShell({ roles, userId, children }:
     roles.includes("Level2") ? "مدیر سطح دو" : "کاربر پنل";
   const navigation = admin ? [base[0],
     { title: "کاربران نرم‌افزار", path: "/users", glyph: "♟" }, base[1], base[2]] : base;
-  useEffect(() => { setMenuOpen(false); }, [pathname]);
+  useEffect(() => { setMenuOpen(false); setNavigatingTo(null); }, [pathname]);
   useEffect(() => {
     function dismiss(e: MouseEvent) { if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false); }
     function escape(e: KeyboardEvent) { if (e.key === "Escape") setMenuOpen(false); }
@@ -49,11 +51,12 @@ export default function ConsoleShell({ roles, userId, children }:
   const activeName = navigation.find(n => pathname === n.path || pathname.startsWith(n.path + "/"))?.title ?? "پنل";
   return <div className="app-shell argin-console" dir="rtl" lang="fa">
     <aside className="app-sidebar">
-      <Link href="/dashboard" className="app-brand"><span className="app-brand-mark">آ</span>
+      <Link href="/dashboard" onClick={() => { if (pathname !== "/dashboard") setNavigatingTo("/dashboard"); }} className="app-brand"><span className="app-brand-mark">آ</span>
         <span><strong>آرگین</strong><small>سامانه یکپارچه مؤدیان</small></span></Link>
       <p className="app-nav-heading">فضای کاری</p>
       <nav className="app-nav" aria-label="ناوبری اصلی">
         {navigation.map(n => <Link key={n.path} href={n.path}
+          onClick={() => { if (pathname !== n.path) setNavigatingTo(n.path); }}
           aria-current={pathname === n.path ? "page" : undefined}>
           <span className="console-nav-label"><span aria-hidden="true">{n.glyph}</span>{n.title}</span>
           <span aria-hidden="true">←</span></Link>)}
@@ -81,7 +84,10 @@ export default function ConsoleShell({ roles, userId, children }:
           </div>}
         </div>
       </header>
-      <div className="app-content" id="console-content">{children}</div>
+      <div className="app-content console-content-host" id="console-content" aria-busy={Boolean(navigatingTo)}>
+        {children}
+        {navigatingTo && <ConsoleLoader full label="در حال انتقال به بخش انتخاب‌شده…" />}
+      </div>
     </div>
   </div>;
 }
