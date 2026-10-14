@@ -28,7 +28,8 @@ internal static class IdentityTestServices
             var root = db.IdentityUsers.AsNoTracking()
                 .Where(u => u.IsActive &&
                     u.Roles.Any(r => r.Role == IdentityRoleNames.Level1))
-                .OrderBy(u => u.Id).Select(u => (Guid?)u.Id).FirstOrDefault();
+                .OrderBy(u => u.CreatedAtUtc).ThenBy(u => u.Id)
+                .Select(u => (Guid?)u.Id).FirstOrDefault();
             if (root is null)
                 throw new InvalidOperationException(
                     "Phase04 PostgreSQL identity integration fixtures require an existing active Level1 root.");
