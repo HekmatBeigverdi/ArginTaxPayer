@@ -238,6 +238,16 @@ public sealed class CustomerCommercialOwnershipService(
             // Serializable owner change conflicts with concurrent partner-scoped edits.
             await using var tx = await db.Database.BeginTransactionAsync(
                 System.Data.IsolationLevel.Serializable, ct);
+            if (await identity.CurrentUserIdAsync(bearer, ct) != actorId ||
+                !await IsScopedAdministratorAsync(actorId.Value, IdentityRoleNames.Level1, ct))
+                return new CustomerOwnershipResponse(CustomerOwnershipDecision.Forbidden);
+            if (request.PartnerLevel2UserId is { } proposedPartner &&
+                !await db.IdentityUsers.AsNoTracking().AnyAsync(u =>
+                    u.Id == proposedPartner && u.IsActive &&
+                    u.Roles.Any(r => r.Role == IdentityRoleNames.Level2) &&
+                    !u.Roles.Any(r => r.Role == IdentityRoleNames.Level1) &&
+                    db.IdentityMfaStates.Any(m => m.UserId == proposedPartner && m.EnabledAtUtc != null), ct))
+                return new CustomerOwnershipResponse(CustomerOwnershipDecision.Forbidden);
             var owner = await db.CustomerCommercialOwners.AsNoTracking()
                 .SingleOrDefaultAsync(o => o.CustomerUserId == customerUserId && o.RootLevel1UserId == actorId, ct);
             if (owner is null)
