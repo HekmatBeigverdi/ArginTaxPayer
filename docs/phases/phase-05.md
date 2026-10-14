@@ -18,8 +18,8 @@ Deliver natural/legal party records, economic identifiers, validation and dedupl
 | 05 | Validation Engine | Normalization, versioned rules, error contract | Golden and negative fixtures | Owner approved 2026-10-14 |
 | 06 | Deduplication and Conflicts | Candidate matching, review, safe resolution | No silent merge or ownership change | Owner approved 2026-10-14 |
 | 07 | Contacts and Addresses | Contacts, email, phone, addresses, history | Ownership and data validation enforced | Owner approved 2026-10-14 |
-| 08 | Parties API | CRUD, pagination, filtering, concurrency | Authorized CRUD, negative paths, idempotency where applicable | Implemented; verification pending |
-| 09 | Customer Account Profile | Profile status, party associations | No conflation of login identity and taxpayer identity | Planned |
+| 08 | Parties API | CRUD, pagination, filtering, concurrency | Authorized CRUD, negative paths, idempotency where applicable | Owner approved 2026-10-14 |
+| 09 | Customer Account Profile | Profile status, party associations | No conflation of login identity and taxpayer identity | Code committed; awaiting tests |
 | 10 | Customer-to-Many-Taxpayer Membership | Membership API and guarded linking | Customer owner scope and historic links preserved | Planned |
 | 11 | Customer Self-Service | Account profile and taxpayer management subject to current entitlement | Unauthorized operations blocked; entitlement integration deferred to Phase 12 | Planned |
 | 12 | Persian RTL UI | Lists, forms, search, details and accessibility | UI state, validation and route guards tested | Planned |
