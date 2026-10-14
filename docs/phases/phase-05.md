@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 05: Parties and Customers
 
-**Status:** IN PROGRESS — Step 01 started 2026-10-14; implementation and owner acceptance pending.
+**Status:** Step 01 owner approved 2026-10-14; Step 02 implementation committed, test/migration execution and owner acceptance pending.
 **Branch:** `phase/05-parties-customers`
 **Baseline:** `docs/roadmap/18-phases.md`, `docs/phases/phase-04.md`, Phase 03 identity contracts.
 **Policy:** This is the single evolving master plan. Changes to step count/scope require dated owner approval. Do not create per-step progress documents.
@@ -11,8 +11,8 @@ Deliver natural/legal party records, economic identifiers, validation and dedupl
 ## Fixed 15-Step Plan
 | Step | Title | Deliverable | Acceptance | Status |
 |---|---|---|---|---|
-| 01 | Domain and API Contracts | Party/Customer/Taxpayer model, ownership matrix, migration strategy | No ambiguous identity or authorization semantics | In progress |
-| 02 | Persistence and Migration | Entities, FKs, uniqueness, concurrency | Test DB migration reviewed; rollback and constraint tests | Planned |
+| 01 | Domain and API Contracts | Party/Customer/Taxpayer model, ownership matrix, migration strategy | No ambiguous identity or authorization semantics | Owner approved 2026-10-14 |
+| 02 | Persistence and Migration | Entities, FKs, uniqueness, concurrency | Test DB migration reviewed; rollback and constraint tests | Implemented; verification pending |
 | 03 | Natural Person Profiles | Personal identity validation and lifecycle | Invalid/duplicate data rejected | Planned |
 | 04 | Legal Entity Profiles | Corporate identity and economic identifiers | Type-specific validation and unique rules | Planned |
 | 05 | Validation Engine | Normalization, versioned rules, error contract | Golden and negative fixtures | Planned |
@@ -48,8 +48,39 @@ Every step: focused .NET and frontend tests; use `zsh scripts/dev-up.zsh`, `zsh 
 **Acceptance:** Review identity distinctions, role/action matrix, duplicate handling, safe migration, self-service entitlement boundary, negative-path tests, and Phase04 compatibility before Step02.
 **Migration:** None in Step01.
 **macOS/Ubuntu/CI:** Not run or verified.
-**Owner approval:** Pending.
+**Owner approval:** Approved 2026-10-14.
 **Risks:** Existing customer and party schema must be inspected before selecting FK/cardinality; do not implement speculative destructive migration.
+
+## Step 02 — Persistence and Migration (Implemented; acceptance pending)
+**Status:** New EF entities, mappings, additive migration, snapshot and metadata tests committed to `phase/05-parties-customers`; no database migration was executed by the assistant.
+**Changed paths:**
+- `src/ArginTaxPayer.Infrastructure/Persistence/Parties/Party.cs`
+- `src/ArginTaxPayer.Infrastructure/Persistence/Parties/CustomerPartyLink.cs`
+- `src/ArginTaxPayer.Infrastructure/Persistence/ArginTaxPayerDbContext.cs`
+- `src/ArginTaxPayer.Infrastructure/Persistence/Migrations/20261014090000_AddPartiesAndCustomerPartyLinks.cs`
+- `src/ArginTaxPayer.Infrastructure/Persistence/Migrations/ArginTaxPayerDbContextModelSnapshot.cs`
+- `tests/ArginTaxPayer.Tests/PartyPersistenceMetadataTests.cs`
+
+**Data model:** Party holds immutable UUID, natural/legal kind, normalized identifier, display name, status, optimistic concurrency revision and UTC audit timestamps. Database uniqueness on (kind, normalized_identifier) is deliberate pending Phase05 identifier policy review. CustomerPartyLink stores explicit customer identity FK and Party FK, keeps unlink history, restricts deletes, and prevents duplicate *active* links. Phase04 taxpayer and commercial ownership schema is unchanged. No automatic taxpayer-to-party matching or legacy backfill.
+
+**Migration safety:** Additive schema only; does not touch customer ownership, taxpayers, identities, or financial history. PostgreSQL migration `20261014090000_AddPartiesAndCustomerPartyLinks` has Down operations for newly created tables; treat these as destructive if data is subsequently written. The operator must first verify `current_database() = 'argintaxpayer_test'`; back up test data when appropriate. Never run against production. No auto migration at runtime.
+
+**Security:** No endpoints are exposed in this step. Authorization will be enforced when CRUD/membership APIs are introduced. Persistence FKs restrict accidental deletion; UI filtering alone is never sufficient.
+
+**Verification required on macOS:**
+```bash
+dotnet build ArginTaxPayer.sln -c Release
+dotnet test ArginTaxPayer.sln -c Release --no-build --filter FullyQualifiedName~PartyPersistenceMetadataTests
+```
+Before applying migrations, confirm the **test** DB explicitly:
+```bash
+psql "$ConnectionStrings__ArginTaxPayerDb" -tAc 'SELECT current_database();'
+```
+The returned database name must be exactly `argintaxpayer_test`. Inspect the generated EF SQL script and migration history before explicit apply. CLI environment variable names may differ from the developer's local launcher; never echo a connection string containing secrets. An optional PostgreSQL integration test must assert unique (kind, identifier), active customer link dedupe, FK restriction and rollback.
+
+**Actual results:** macOS build/test: NOT RUN by assistant; PostgreSQL migration: NOT APPLIED; Ubuntu: deferred except required schema-specific check; CI: NOT VERIFIED.
+**Owner approval:** Pending acceptance results.
+**Residual risk:** Type-specific identifier normalization and legal national-ID rules are Step03–05. Global uniqueness may need an owner-approved policy change for special counterparty identifiers; do not silently change it.
 
 ## Step Completion Record Contract
 Append Step02–15 completion records here with scope, paths, commit, migration, local focused test evidence, Ubuntu verification/deferment, CI, security negative tests, owner acceptance and unresolved blockers. Phase close requires separately approved main merge, tag and GitHub Release.
