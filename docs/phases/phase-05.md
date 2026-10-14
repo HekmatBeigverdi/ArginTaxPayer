@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 05: Parties and Customers
 
-**Status:** Steps 01–09 owner approved by 2026-10-14; Step10 implementation pushed, operator tests/migration pending. Historical details: Steps 01–02 owner approved 2026-10-14. Step 02 six test criteria confirmed by owner (macOS/build, migration, PostgreSQL indexes/constraints). Step 03 owner approved 2026-10-14 (operator acceptance). Step 04 OWNER APPROVED 2026-10-14 (operator confirmation; automated logs not independently observed). Step 05 owner approved 2026-10-14 (owner reported tests successful). Step 06 OWNER APPROVED 2026-10-14 (owner confirms tests passed). Step 07 owner approved 2026-10-14 after operator testing. Step 08 implemented and committed; focused API tests/owner acceptance pending.
+**Status:** Steps 01–10 owner approved by 2026-10-14; Step11 read-only customer self-service implemented, verification and owner acceptance pending. Historical details: Steps 01–02 owner approved 2026-10-14. Step 02 six test criteria confirmed by owner (macOS/build, migration, PostgreSQL indexes/constraints). Step 03 owner approved 2026-10-14 (operator acceptance). Step 04 OWNER APPROVED 2026-10-14 (operator confirmation; automated logs not independently observed). Step 05 owner approved 2026-10-14 (owner reported tests successful). Step 06 OWNER APPROVED 2026-10-14 (owner confirms tests passed). Step 07 owner approved 2026-10-14 after operator testing. Step 08 implemented and committed; focused API tests/owner acceptance pending.
 **Branch:** `phase/05-parties-customers`
 **Baseline:** `docs/roadmap/18-phases.md`, `docs/phases/phase-04.md`, Phase 03 identity contracts.
 **Policy:** This is the single evolving master plan. Changes to step count/scope require dated owner approval. Do not create per-step progress documents.
@@ -20,8 +20,8 @@ Deliver natural/legal party records, economic identifiers, validation and dedupl
 | 07 | Contacts and Addresses | Contacts, email, phone, addresses, history | Ownership and data validation enforced | Owner approved 2026-10-14 |
 | 08 | Parties API | CRUD, pagination, filtering, concurrency | Authorized CRUD, negative paths, idempotency where applicable | Owner approved 2026-10-14 |
 | 09 | Customer Account Profile | Profile status, party associations | No conflation of login identity and taxpayer identity | Owner approved 2026-10-14 |
-| 10 | Customer-to-Many-Taxpayer Membership | Membership API and guarded linking | Customer owner scope and historic links preserved | Implemented; test/migration acceptance pending |
-| 11 | Customer Self-Service | Account profile and taxpayer management subject to current entitlement | Unauthorized operations blocked; entitlement integration deferred to Phase 12 | Planned |
+| 10 | Customer-to-Many-Taxpayer Membership | Membership API and guarded linking | Customer owner scope and historic links preserved | Owner approved 2026-10-14 |
+| 11 | Customer Self-Service | Account profile and taxpayer management subject to current entitlement | Unauthorized operations blocked; entitlement integration deferred to Phase 12 | Implemented; verification pending |
 | 12 | Persian RTL UI | Lists, forms, search, details and accessibility | UI state, validation and route guards tested | Planned |
 | 13 | Level1/Level2 Support Scope | Root and partner workflows | Former owner denied after transfer; global logs root only | Planned |
 | 14 | Integration and Security Regression | API/DB/UI tests and concurrent operations | Cross-customer isolation and Phase03/04 regression | Planned |
@@ -252,3 +252,22 @@ dotnet test ArginTaxPayer.sln -c Release --no-build
 ```
 **Test database migration:** Explicitly verify `current_database() = 'argintaxpayer_test'` using the owner-approved `npgsql_value` parsing and `psql -W` described in the canonical roadmap. Generate and inspect SQL from `20261014173000_AddCustomerAccountProfiles` to `20261014190000_AddCustomerTaxpayerMemberships`, then apply only on verified TEST database. Inspect `\\d+ customer_taxpayer_memberships` and EF migration history. No automatic migration by runtime.
 **Required HTTP negative tests:** unauthed 401, wrong customer 403, nonexistent/foreign taxpayer 404, repeated link 409, unlink with stale Revision 409, customer GET own list 200, no production exposure; verify history retained and Phase04 ownership unchanged. **Execution:** Not independently tested by assistant; CI/Ubuntu pending normal phase gates. **Owner signoff:** Pending.
+
+## Step 11 — Customer Self-Service (Implementation committed; acceptance pending)
+**Owner signoff for Step10:** Confirmed by owner 2026-10-14. The membership migration and prior test results were owner-reported; not independently observed by the assistant.
+**Scope:** Read-only, server-authorized customer self-service dashboard. Keep `IdentityUser`, `CustomerAccountProfile`, `Party` and `TaxpayerProfile` strictly distinct. A login never gains administrative rights or paid-plan entitlements by having a profile, party link or taxpayer association.
+**Implementation paths:** `src/ArginTaxPayer.Domain/Customers/CustomerSelfServicePolicy.cs`, `src/ArginTaxPayer.Infrastructure/Persistence/Customers/CustomerSelfServiceService.cs`, `src/ArginTaxPayer.Api/Customers/CustomerSelfServiceEndpoints.cs`, `src/ArginTaxPayer.Api/Program.cs`, `tests/ArginTaxPayer.Tests/CustomerSelfServicePolicyTests.cs`, `CustomerSelfServiceApiTests.cs`.
+**Policy:** Version `phase05.selfservice.v1` is explicit allowlist. Only own-dashboard, own-profile, own-taxpayer and own-membership reads are free. Profile edits, fiscal taxpayer create/edit, linking/unlinking taxpayers and invoice submission are categorically denied to the customer before Phase12 entitlement implementation. Unknown actions also fail closed. No feature flag or pseudo-subscription may silently grant these operations.
+**API:** GET `/api/dev/customer/self-service` on Development, configured database, local loopback only. Caller identity comes from validated Bearer session, never a supplied customer ID. Requires active IdentityUser and Customer role. Response includes own customer ID, optional business profile name/status/linked preferred Party ID, list of taxpayer IDs/kind/display name/status/revision filtered by authoritative `TaxpayerProfile.CustomerUserId`, count of active same-customer memberships, policy version, and `writesEnabled=false`. No raw national ID, email, mobile, certificate material or unrelated party is returned. Existing customer profile and membership reads continue to use prior scoped endpoints; no new write endpoints.
+**Migration:** NONE. Uses existing Phase04 and Phase05 Step09–10 schema; do not reapply migrations.
+**macOS tests:**
+```bash
+git switch phase/05-parties-customers
+git pull --ff-only origin phase/05-parties-customers
+dotnet build ArginTaxPayer.sln -c Release
+dotnet test ArginTaxPayer.sln -c Release --no-build --filter "FullyQualifiedName~CustomerSelfServicePolicyTests|FullyQualifiedName~CustomerSelfServiceApiTests|FullyQualifiedName~CustomerTaxpayerMembershipTests"
+dotnet test ArginTaxPayer.sln -c Release --no-build
+```
+**HTTP acceptance:** With `zsh scripts/dev-up.zsh`, verify GET `/api/dev/customer/self-service` returns 401 without bearer, 403 for non-customer administrator, 200 for active customer; verify returned taxpayer IDs all belong to the authenticated customer and `writesEnabled=false`. Re-test with two distinct customer sessions; no cross-customer data. Verify POST/PUT on this route are unmapped (405 or 404) and authenticated customer cannot use administrator membership/Profile mutation routes.
+**Known deferred work:** UI is Step12; full production entitlement provider and permitted paid operations are Phase12. Server authorization and future entitlement gates must be integration-tested before production release.
+**Execution state:** Code and focused test fixtures committed; macOS build, HTTP smoke, cross-customer integration, Ubuntu and CI not independently executed. **Owner acceptance:** Pending.
