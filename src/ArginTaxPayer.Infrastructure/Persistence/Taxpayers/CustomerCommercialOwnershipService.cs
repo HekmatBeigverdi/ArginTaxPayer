@@ -235,7 +235,9 @@ public sealed class CustomerCommercialOwnershipService(
         {
             return await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
         {
-            await using var tx = await db.Database.BeginTransactionAsync(ct);
+            // Serializable owner change conflicts with concurrent partner-scoped edits.
+            await using var tx = await db.Database.BeginTransactionAsync(
+                System.Data.IsolationLevel.Serializable, ct);
             var owner = await db.CustomerCommercialOwners.AsNoTracking()
                 .SingleOrDefaultAsync(o => o.CustomerUserId == customerUserId && o.RootLevel1UserId == actorId, ct);
             if (owner is null)
@@ -300,7 +302,12 @@ public sealed class CustomerCommercialOwnershipService(
             });
         }
         catch (DbUpdateException ex) when (ex.InnerException is PostgresException
-            { SqlState: PostgresErrorCodes.UniqueViolation or PostgresErrorCodes.ForeignKeyViolation })
+            { SqlState: PostgresErrorCodes.UniqueViolation or PostgresErrorCodes.ForeignKeyViolation or PostgresErrorCodes.SerializationFailure })
+        {
+            db.ChangeTracker.Clear();
+            return new(CustomerOwnershipDecision.Conflict);
+        }
+        catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.SerializationFailure)
         {
             db.ChangeTracker.Clear();
             return new(CustomerOwnershipDecision.Conflict);
