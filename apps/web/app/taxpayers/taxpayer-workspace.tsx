@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import InvoiceParticipantForm from "../parties/invoice-participant-form";
+import ConsoleLoader from "../components/console-loader";
 
 type Taxpayer = { id: string; kind: number; normalizedIdentifier: string; displayName: string; status: number; revision: number };
 type Memory = { id: string; taxpayerId: string; memoryIdentifier: string; status: number; revision: number };
@@ -123,7 +124,7 @@ export default function TaxpayerWorkspace({ isLevel1, initialTaxpayerId, showCre
       <label htmlFor="taxpayer-search">جست‌وجو در مؤدیان مجاز</label>
       <input id="taxpayer-search" type="search" value={search} onChange={e => setSearch(e.target.value)}
         placeholder="نام یا شناسه قانونی"/>
-      {loading ? <p role="status">در حال بارگذاری…</p> :
+      {loading ? <ConsoleLoader label="در حال دریافت پرونده‌های مالیاتی…" /> :
         filtered.length === 0 ? <p className="identity-muted">مؤدی مجازی برای نمایش وجود ندارد.</p> :
         <ul className="taxpayer-list">{filtered.map(t => <li key={t.id}>
           <button type="button" aria-pressed={t.id === selectedId} onClick={() => void show(t.id)}>
