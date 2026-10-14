@@ -119,3 +119,51 @@
 :root,body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif}
 
 .party-onboarding{background:#edf7f8;border:1px solid #cfe6e7;border-radius:12px;padding:15px 17px;margin:12px 0 22px;line-height:1.9}.party-onboarding p{color:#586d7e;font-size:13px;margin:6px 0 10px}.party-taxpayer-preview{margin:20px 0;border-top:1px solid #e5eaf1;padding-top:15px}.party-taxpayer-preview ul{padding-right:20px;color:#556d80;font-size:13px}
+
+/* Shared ArginTaxPayer design tokens and compact ERP tables */
+:root{--argin-primary:#177f81;--argin-dark:#10283f;--argin-surface:#fff;--argin-page:#f3f6fa;--argin-line:#dae6ed;--argin-text:#20344b;--argin-muted:#64788c}
+body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page);color:var(--argin-text)}
+.argin-console{min-height:100vh;grid-template-columns:240px minmax(0,1fr)}
+.argin-console .app-sidebar{position:sticky;top:0;height:100vh;overflow:auto;min-height:0}
+.argin-console .app-main{min-width:0;min-height:100vh}
+.argin-console .app-topbar{position:sticky;top:0;z-index:15;border-color:var(--argin-line)}
+.argin-console .app-content{max-width:none;width:100%;padding:24px 28px 45px}
+.console-nav-label{display:flex;align-items:center;gap:13px}
+.console-nav-label>span{display:grid;place-items:center;width:21px;color:#a6d3d4}
+.console-crumb strong{color:#214459}
+.console-account{position:relative}
+.console-account-trigger{display:flex;align-items:center;gap:11px;background:transparent;border:0;border-radius:12px;padding:6px 9px;font:inherit;cursor:pointer;color:var(--argin-text)}
+.console-account-trigger:hover{background:#f1f7f9}.console-account-trigger:focus-visible{outline:3px solid var(--argin-primary)}
+.console-avatar{width:41px;height:41px;display:grid;place-items:center;border-radius:50%;background:#daf2ee;color:#167773;font-size:22px;font-weight:800;border:1px solid #b6dfd9}
+.console-account-name{text-align:right;display:grid;gap:2px}.console-account-name strong{font-size:13px}.console-account-name small{font-size:11px;color:var(--argin-muted)}
+.console-account-dropdown{position:absolute;top:calc(100% + 12px);left:0;width:260px;max-width:85vw;padding:9px;background:white;border:1px solid var(--argin-line);box-shadow:0 18px 50px #15374f22;border-radius:14px;z-index:35}
+.console-account-dropdown>a,.console-account-dropdown>button{display:block;width:100%;border:0;border-radius:9px;padding:11px 12px;background:none;font:inherit;color:#24445b;text-align:right;text-decoration:none;font-size:13px;cursor:pointer}
+.console-account-dropdown>a:hover,.console-account-dropdown>button:hover{background:#eaf6f4}
+.console-account-dropdown>button{color:#b23838;font-weight:700}.console-menu-identity{padding:9px 12px;font-size:11px;color:var(--argin-muted);margin:0}.console-menu-divider{height:1px;background:var(--argin-line);margin:7px 0}
+.console-page-heading{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:18px}.console-page-heading h1{font-size:24px;margin:0 0 6px;color:#20344b}.console-page-heading p:last-child{margin:0;color:var(--argin-muted);font-size:13px}
+.console-page .intro{border-color:var(--argin-line);padding:19px;margin-bottom:16px}.console-page .users-table,.console-table{width:100%;border-collapse:collapse;font-size:12px;line-height:1.45;text-align:right;white-space:nowrap}
+.console-page .users-table th,.console-page .users-table td,.console-table th,.console-table td{padding:8px 10px;vertical-align:middle;border-bottom:1px solid #e8edf1}
+.console-page .users-table th,.console-table th{background:#eef4f6;color:#476176;font-size:12px;font-weight:750;position:sticky;top:0;z-index:1}
+.console-page .users-table tbody tr:hover,.console-table tbody tr:hover{background:#f2f9f9}
+.console-page .users-table :is(button,a),.console-row-action{font:inherit;font-size:12px;white-space:nowrap;padding:5px 9px;border-radius:7px;border:1px solid #c9dee9;background:#f4fafb;color:#205c71;cursor:pointer}
+.console-directory{background:white;border:1px solid var(--argin-line);border-radius:16px;padding:17px 19px;min-width:0;box-shadow:0 5px 25px #19364f06}
+.console-directory-actions{display:flex;justify-content:flex-start;gap:9px;flex-wrap:wrap;padding-bottom:16px;border-bottom:1px solid var(--argin-line)}
+.console-directory-actions button{font:inherit;font-size:13px;padding:9px 13px;border-radius:9px;cursor:pointer}
+.console-directory-filters{display:grid;grid-template-columns:180px 180px minmax(220px,1fr);gap:14px;padding:17px 0;align-items:end}
+.console-directory-filters label{display:grid;gap:7px;font-size:12px;color:#596d7c;font-weight:650}
+.console-directory-filters select,.console-directory-filters input,.console-narrow-form input,.console-narrow-form select{width:100%;min-height:39px;border:1px solid #c9d8e2;border-radius:8px;padding:7px 10px;font:inherit;background:white;color:#20344b}
+.console-table-scroll{overflow:auto;border:1px solid #e1e9ef;border-radius:9px;max-height:62vh}
+.console-status{display:inline-block;border-radius:6px;background:#e4f5ec;color:#216444;padding:3px 9px;font-size:11px}
+.console-empty{padding:25px;text-align:center;color:var(--argin-muted)}
+.console-table-footer{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:14px 4px 0;font-size:12px;color:var(--argin-muted)}
+.console-table-footer div{display:flex;align-items:center;gap:11px}.console-table-footer button{border:1px solid var(--argin-line);background:white;border-radius:7px;padding:5px 10px;font:inherit;cursor:pointer}.console-table-footer button:disabled{opacity:.45;cursor:not-allowed}
+.console-directory-panel{margin-top:17px;padding:19px;background:#f9fcfd;border-radius:13px;border:1px solid var(--argin-line)}
+.console-directory-panel-header{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px}.console-directory-panel-header h2{font-size:19px;margin:0}.console-directory-panel-header button{padding:8px 14px;border:1px solid var(--argin-line);background:#fff;border-radius:9px;font:inherit;cursor:pointer}
+.console-directory-panel .intro{background:white}.console-narrow-form{max-width:560px}.console-directory-panel .party-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+.identity-layout{background:radial-gradient(circle at 15% 10%,#d9f2ef,transparent 36%),#f3f6fa}
+.identity-card{border-color:#d7e8e9;box-shadow:0 22px 65px #143d4a18}
+.identity-primary{background:var(--argin-primary)!important;color:white!important;border-color:var(--argin-primary)!important}
+.identity-primary:hover:not(:disabled){background:#096a6d!important}
+:is(button,a,input,select,textarea):focus-visible{outline:3px solid #188d90;outline-offset:2px}
+@media(max-width:1000px){.console-directory-filters{grid-template-columns:repeat(2,minmax(0,1fr))}.console-filter-search{grid-column:1/-1}.console-directory-panel .party-grid{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:780px){.argin-console{display:block}.argin-console .app-sidebar{position:relative;height:auto}.argin-console .app-content{padding:16px 12px 38px}.console-directory-filters{grid-template-columns:1fr}.console-filter-search{grid-column:auto}.console-table-scroll{max-height:64vh}.console-page-heading h1{font-size:21px}.console-account-name{display:none}}
