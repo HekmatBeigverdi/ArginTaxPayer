@@ -18,7 +18,8 @@ public sealed class PartyApiContractTests
                 {
                     ["ConnectionStrings:ArginTaxPayerDb"] = configureDb
                         ? "Host=127.0.0.1;Port=5432;Database=argintaxpayer_test;Username=unused;Password=unused;SSL Mode=Require"
-                        : ""
+                        : "",
+                    ["ArginTaxPayer:PublicBaseUrl"] = "https://example.test"
                 }));
             return base.CreateHost(builder);
         }
