@@ -17,6 +17,7 @@ public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbConte
 {
     public DbSet<CustomerTaxpayerMembership> CustomerTaxpayerMemberships => Set<CustomerTaxpayerMembership>();
     public DbSet<CustomerAccountProfile> CustomerAccountProfiles => Set<CustomerAccountProfile>();
+    public DbSet<InvoiceParticipantDetails> InvoiceParticipantDetails => Set<InvoiceParticipantDetails>();
     public DbSet<PartyContact> PartyContacts => Set<PartyContact>();
     public DbSet<PartyAddress> PartyAddresses => Set<PartyAddress>();
     public DbSet<PartyDuplicateReview> PartyDuplicateReviews => Set<PartyDuplicateReview>();
@@ -174,6 +175,36 @@ public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbConte
             .OnDelete(DeleteBehavior.Restrict).HasConstraintName("FK_party_duplicate_reviews_existing");
         duplicateReviews.HasIndex(x => new { x.CustomerUserId, x.ReviewedAtUtc })
             .HasDatabaseName("ix_duplicate_reviews_customer_time");
+
+        var invoiceParticipants = modelBuilder.Entity<InvoiceParticipantDetails>();
+        invoiceParticipants.ToTable("invoice_participant_details", t =>
+        {
+            t.HasCheckConstraint("ck_invoice_participant_owner", "(party_id IS NOT NULL AND taxpayer_id IS NULL) OR (party_id IS NULL AND taxpayer_id IS NOT NULL)");
+            t.HasCheckConstraint("ck_invoice_participant_revision", "revision > 0");
+        });
+        invoiceParticipants.HasKey(x => x.Id);
+        invoiceParticipants.Property(x => x.Id).HasColumnName("id") ;
+        invoiceParticipants.Property(x => x.CustomerUserId).HasColumnName("customer_user_id") ;
+        invoiceParticipants.Property(x => x.PartyId).HasColumnName("party_id") ;
+        invoiceParticipants.Property(x => x.TaxpayerId).HasColumnName("taxpayer_id") ;
+        invoiceParticipants.Property(x => x.EconomicCode).HasColumnName("economic_code").HasMaxLength(32) ;
+        invoiceParticipants.Property(x => x.BranchCode).HasColumnName("branch_code").HasMaxLength(16) ;
+        invoiceParticipants.Property(x => x.PostalCode).HasColumnName("postal_code").HasMaxLength(10) ;
+        invoiceParticipants.Property(x => x.Province).HasColumnName("province").HasMaxLength(120) ;
+        invoiceParticipants.Property(x => x.City).HasColumnName("city").HasMaxLength(120) ;
+        invoiceParticipants.Property(x => x.Address).HasColumnName("address").HasMaxLength(500) ;
+        invoiceParticipants.Property(x => x.Phone).HasColumnName("phone").HasMaxLength(20) ;
+        invoiceParticipants.Property(x => x.ForeignNationalCode).HasColumnName("foreign_national_code").HasMaxLength(32) ;
+        invoiceParticipants.Property(x => x.PassportNumber).HasColumnName("passport_number").HasMaxLength(32) ;
+        invoiceParticipants.Property(x => x.ContractReference).HasColumnName("contract_reference").HasMaxLength(64) ;
+        invoiceParticipants.Property(x => x.Revision).HasColumnName("revision").IsConcurrencyToken().HasDefaultValue(1L);
+        invoiceParticipants.Property(x => x.CreatedAtUtc).HasColumnName("created_at_utc").HasColumnType("timestamp with time zone") ;
+        invoiceParticipants.Property(x => x.UpdatedAtUtc).HasColumnName("updated_at_utc").HasColumnType("timestamp with time zone") ;
+        invoiceParticipants.HasOne<IdentityUser>().WithMany().HasForeignKey(x => x.CustomerUserId).OnDelete(DeleteBehavior.Restrict).HasConstraintName("FK_invoice_participants_customer");
+        invoiceParticipants.HasOne<Party>().WithMany().HasForeignKey(x => x.PartyId).OnDelete(DeleteBehavior.Restrict).HasConstraintName("FK_invoice_participants_party");
+        invoiceParticipants.HasOne<TaxpayerProfile>().WithMany().HasForeignKey(x => x.TaxpayerId).OnDelete(DeleteBehavior.Restrict).HasConstraintName("FK_invoice_participants_taxpayer");
+        invoiceParticipants.HasIndex(x => new { x.CustomerUserId, x.PartyId }).IsUnique().HasFilter("party_id IS NOT NULL").HasDatabaseName("ux_invoice_participants_buyer");
+        invoiceParticipants.HasIndex(x => new { x.CustomerUserId, x.TaxpayerId }).IsUnique().HasFilter("taxpayer_id IS NOT NULL").HasDatabaseName("ux_invoice_participants_seller");
 
         var parties = modelBuilder.Entity<Party>();
         parties.ToTable("parties", t =>
