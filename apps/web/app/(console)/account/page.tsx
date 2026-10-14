@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import { currentIdentity, identityUiEnabled } from "../../../lib/identity";
 import AccountControls from "../../account/account-controls";
-import AdminCreateCustomer from "../../account/admin-create-customer";
 import AdminNomination from "../../account/admin-nomination";
 
 export const dynamic = "force-dynamic";
@@ -26,6 +25,5 @@ export default async function AccountPage() {
     <div id="security"><AccountControls canEnrollMfa={actor.roles.some(role =>
       ["Level1", "Level2", "PendingLevel1", "PendingLevel2"].includes(role))}/></div>
     {actor.roles.includes("Level1") && <AdminNomination/>}
-    {actor.roles.some(role => role === "Level1" || role === "Level2") && <AdminCreateCustomer/>}
   </div>;
 }
