@@ -129,6 +129,11 @@ public sealed class NaturalPersonService(ArginTaxPayerDbContext db, IdentityAuth
                 if (person is null) return new NaturalPersonResult(NaturalPersonDecision.NotFound);
                 if (person.Revision != expectedRevision || person.Status == PartyStatus.Archived)
                     return new NaturalPersonResult(NaturalPersonDecision.Conflict);
+                // Phase06 will define shared-party conflict resolution. Never mutate an
+                // economic actor visible to another customer through an unrelated link.
+                if (await db.CustomerPartyLinks.AnyAsync(l => l.PartyId == person.Id &&
+                    l.CustomerUserId != customerId && l.UnlinkedAtUtc == null, ct))
+                    return new NaturalPersonResult(NaturalPersonDecision.Conflict);
                 person.NormalizedIdentifier = validated!.NormalizedNationalCode;
                 person.FirstName = validated.FirstName;
                 person.LastName = validated.LastName;
