@@ -5,12 +5,13 @@ import assert from "node:assert/strict";
 const read = path => readFileSync(new URL("../" + path, import.meta.url), "utf8");
 
 test("RTL parties page requires authenticated identity and role", () => {
-  const page = read("app/parties/page.tsx");
-  assert.match(page, /identityUiEnabled\(\)/);
+  const page = read("app/(console)/parties/page.tsx");
+  const layout = read("app/(console)/layout.tsx");
+  assert.match(layout, /identityUiEnabled\(\)/);
   assert.match(page, /currentIdentity\(\)/);
   assert.match(page, /redirect\("\/identity"\)/);
   assert.match(page, /if \(!admin && !customer\) redirect/);
-  assert.match(page, /dir="rtl"/);
+  assert.match(layout, /ConsoleShell/);
 });
 
 test("same-origin proxy never accepts arbitrary paths or browser-supplied Bearer", () => {
