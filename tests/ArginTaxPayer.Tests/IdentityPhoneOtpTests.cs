@@ -112,7 +112,7 @@ public sealed class IdentityPhoneOtpTests
         {
             await using var cleanup = new ArginTaxPayerDbContext(options);
             if (userId != Guid.Empty)
-                await cleanup.IdentityUsers.Where(x => x.Id == userId).ExecuteDeleteAsync();
+                await IdentityTestServices.CleanupCustomerFixturesAsync(cleanup, new[] { userId });
             await cleanup.IdentityPhoneChallenges.Where(x => x.Mobile == phone).ExecuteDeleteAsync();
         }
     }
