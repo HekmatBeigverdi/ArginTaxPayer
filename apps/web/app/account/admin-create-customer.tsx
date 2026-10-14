@@ -2,7 +2,7 @@
 
 import { FormEvent, useState } from "react";
 
-export default function AdminCreateCustomer() {
+export default function AdminCreateCustomer({ onCreated }: { onCreated?: (mobile: string) => void } = {}) {
   const [mobile,setMobile] = useState("");
   const [email,setEmail] = useState("");
   const [password,setPassword] = useState("");
@@ -19,6 +19,7 @@ export default function AdminCreateCustomer() {
         body:JSON.stringify({mobile,email:email.trim()||null,password})
       });
       if (response.status===201) {
+        onCreated?.(mobile);
         setMobile("");setEmail("");setPassword("");
         setMessage("مشتری ایجاد شد. شماره ثبت‌شده به روش اداری تأیید شده و کد پیامکی ارسال نشد.");
       } else {
