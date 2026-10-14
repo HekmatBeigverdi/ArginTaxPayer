@@ -21,7 +21,7 @@ test("sidebar navigation and account menu are shared, with secure logout", () =>
   assert.match(shell, /aria-current/);
   assert.match(shell, /Level1/);
   assert.match(shell, /Level2/);
-  assert.match(shell, /Customer/); // role gate is in root layout/page
+  assert.match(shell, /کاربر پنل/);
   assert.match(shell, /\/api\/identity\/logout/);
   assert.match(shell, /role="menu"/);
   assert.match(shell, /router\.replace\("\/identity"\)/);
