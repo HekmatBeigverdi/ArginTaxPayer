@@ -39,6 +39,7 @@ if (identityDevelopmentEnabled)
             client.Timeout = TimeSpan.FromSeconds(12));
     builder.Services.AddScoped<IdentityPhoneService>();
     builder.Services.AddScoped<IdentityAuthorizationService>();
+    builder.Services.AddScoped<CustomerSelfServiceService>();
     builder.Services.AddScoped<CustomerTaxpayerMembershipService>();
     builder.Services.AddScoped<CustomerAccountProfileService>();
     builder.Services.AddScoped<PartyDirectoryService>();
@@ -108,6 +109,7 @@ if (app.Environment.IsDevelopment())
         app.MapPartyDevelopmentEndpoints();
         app.MapCustomerProfileDevelopmentEndpoints();
         app.MapCustomerTaxpayerMembershipEndpoints();
+        app.MapCustomerSelfServiceEndpoints();
     }
 }
 
