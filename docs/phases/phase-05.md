@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 05: Parties and Customers
 
-**Status:** Steps 01–02 owner approved 2026-10-14. Step 02 six test criteria confirmed by owner (macOS/build, migration, PostgreSQL indexes/constraints). Step 03 owner approved 2026-10-14 (operator acceptance). Step 04 OWNER APPROVED 2026-10-14 (operator confirmation; automated logs not independently observed). Step 05 owner approved 2026-10-14 (owner reported tests successful). Step 06 OWNER APPROVED 2026-10-14 (owner confirms tests passed). Step 07 implementation committed; build, migration and owner acceptance pending.
+**Status:** Steps 01–02 owner approved 2026-10-14. Step 02 six test criteria confirmed by owner (macOS/build, migration, PostgreSQL indexes/constraints). Step 03 owner approved 2026-10-14 (operator acceptance). Step 04 OWNER APPROVED 2026-10-14 (operator confirmation; automated logs not independently observed). Step 05 owner approved 2026-10-14 (owner reported tests successful). Step 06 OWNER APPROVED 2026-10-14 (owner confirms tests passed). Step 07 owner approved 2026-10-14 after operator testing. Step 08 implemented and committed; focused API tests/owner acceptance pending.
 **Branch:** `phase/05-parties-customers`
 **Baseline:** `docs/roadmap/18-phases.md`, `docs/phases/phase-04.md`, Phase 03 identity contracts.
 **Policy:** This is the single evolving master plan. Changes to step count/scope require dated owner approval. Do not create per-step progress documents.
@@ -17,8 +17,8 @@ Deliver natural/legal party records, economic identifiers, validation and dedupl
 | 04 | Legal Entity Profiles | Corporate identity and economic identifiers | Type-specific validation and unique rules | Owner approved 2026-10-14 |
 | 05 | Validation Engine | Normalization, versioned rules, error contract | Golden and negative fixtures | Owner approved 2026-10-14 |
 | 06 | Deduplication and Conflicts | Candidate matching, review, safe resolution | No silent merge or ownership change | Owner approved 2026-10-14 |
-| 07 | Contacts and Addresses | Contacts, email, phone, addresses, history | Ownership and data validation enforced | Implemented; verification pending |
-| 08 | Parties API | CRUD, pagination, filtering, concurrency | Authorized CRUD, negative paths, idempotency where applicable | Planned |
+| 07 | Contacts and Addresses | Contacts, email, phone, addresses, history | Ownership and data validation enforced | Owner approved 2026-10-14 |
+| 08 | Parties API | CRUD, pagination, filtering, concurrency | Authorized CRUD, negative paths, idempotency where applicable | Implemented; verification pending |
 | 09 | Customer Account Profile | Profile status, party associations | No conflation of login identity and taxpayer identity | Planned |
 | 10 | Customer-to-Many-Taxpayer Membership | Membership API and guarded linking | Customer owner scope and historic links preserved | Planned |
 | 11 | Customer Self-Service | Account profile and taxpayer management subject to current entitlement | Unauthorized operations blocked; entitlement integration deferred to Phase 12 | Planned |
@@ -194,7 +194,33 @@ dotnet test ArginTaxPayer.sln -c Release --no-build --filter "FullyQualifiedName
 dotnet test ArginTaxPayer.sln -c Release --no-build
 ```
 **Migration acceptance:** use `scripts/dev-up.zsh` for tunnel and the canonical `npgsql_value` + `psql -W` approach documented in `docs/roadmap/18-phases.md`. Confirm actual `current_database() = 'argintaxpayer_test'` and the prior migration applied. Generate and inspect EF script between `20261014143000_AddPartyDuplicateReviews` and `20261014160000_AddPartyContactsAndAddresses`. Then explicitly apply target migration on TEST only; verify `\\d+ party_contacts`, `\\d+ party_addresses`, and `__EFMigrationsHistory`. A rollback-only fixture should test duplicate active primary, duplicate active contact value, FK restriction and soft-deactivation.
-**Not yet verified:** Local build/tests and PostgreSQL schema have not been run by assistant; focused service negative-path integration (former partner, wrong customer, stale Revision, concurrent primary updates) remains a signoff gate. Ubuntu final verification in Step15, or earlier if platform-specific issue. No Step07 HTTP endpoints; Step08 owns API publication. **Owner approval:** Pending.
+**Not yet verified:** Local build/tests and PostgreSQL schema have not been run by assistant; focused service negative-path integration (former partner, wrong customer, stale Revision, concurrent primary updates) remains a signoff gate. Ubuntu final verification in Step15, or earlier if platform-specific issue. No Step07 HTTP endpoints; Step08 owns API publication. **Owner approval:** Approved by owner 2026-10-14; operator-reported tests successful, no independent raw terminal logs.
+
+## Step 08 — Parties API (Implementation committed; acceptance pending)
+**Owner context:** Step07 owner approved 2026-10-14. No new database schema in Step08.
+**Changed files:** `src/ArginTaxPayer.Api/Parties/PartyDevelopmentEndpoints.cs`; `src/ArginTaxPayer.Api/Program.cs`; `src/ArginTaxPayer.Infrastructure/Persistence/Parties/PartyDirectoryService.cs`; `tests/ArginTaxPayer.Tests/PartyApiContractTests.cs`.
+**Exposure:** All routes are mapped **only** when `Development` and PostgreSQL connection configured, and explicitly deny non-loopback callers at handler entry. Not exposed in Production or database-free hosts. Registration uses scoped DI for NaturalPersonService, LegalEntityService, PartyContactAddressService, PartyDirectoryService and PartyDeduplicationService. No public reverse proxy forwarding assumptions. Production activation requires separate review.
+**Endpoints (all under `/api/dev/customers/{customerId}/parties`):**
+- `GET /`: customer-scoped stable ordering, page (default 1), pageSize (default 20, max 100), optional name/identifier query (max 100 chars) and kind, total count, empty out-of-range page.
+- `POST /natural`, `POST /legal`: create validated party with customer link, HTTP 201.
+- `GET /{partyId}/natural`, `GET /{partyId}/legal`: type-specific details, never arbitrary cross-customer lookup.
+- `PUT /{partyId}/natural`, `PUT /{partyId}/legal`: expectedRevision optimistic concurrency; archive flag implements soft archival, no hard delete.
+- `GET /{partyId}/details`: active contacts and addresses.
+- `POST /{partyId}/contacts`, `PUT /{partyId}/contacts/{id}?expectedRevision=N`, `DELETE /{partyId}/contacts/{id}?expectedRevision=N`: create/update/deactivate.
+- `POST /{partyId}/addresses`, `PUT /{partyId}/addresses/{id}?expectedRevision=N`, `DELETE /{partyId}/addresses/{id}?expectedRevision=N`: create/update/deactivate.
+- `GET /{partyId}/duplicates`, `POST /duplicates/reviews`: restricted review candidates / append-only review decision without automatic merge.
+**Safety:** HTTP handlers map unauthenticated to 401, forbidden 403, invalid 400, absent 404, stale revision and uniqueness violations 409. Services enforce live MFA + role + current customer ownership, active association and cross-customer conflict policy; self-service writes remain deny-by-default until Phase12 entitlements. No raw connection secrets, official registry claims or identity/ownership auto merge.
+**Idempotency:** Creation is protected by unique party-identifier index but does not offer HTTP Idempotency-Key replay yet. Calls with equivalent requests can produce 409; retry-safe client semantics should be evaluated before any production exposure. Client-controlled expectedRevision required for updates.
+**Focused Mac:**
+```bash
+git switch phase/05-parties-customers
+git pull --ff-only origin phase/05-parties-customers
+dotnet build ArginTaxPayer.sln -c Release
+dotnet test ArginTaxPayer.sln -c Release --no-build --filter "FullyQualifiedName~PartyApiContractTests|FullyQualifiedName~PartyContactAddressTests|FullyQualifiedName~PartyValidationEngineTests"
+dotnet test ArginTaxPayer.sln -c Release --no-build
+```
+**Manual HTTP smoke:** Use existing `zsh scripts/dev-up.zsh`; with no token, `GET /api/dev/customers/{customerId}/parties` must return 401. Authorized Level1 with MFA/root ownership or current Level2 partner should list, create and update only their customer's records, while former partner/wrong customer must receive denial. Attempt duplicate identifier, stale revision, repeated primary contact and foreign party IDs; expect 409/403/404 without information leakage. No live SMS used.
+**Migration:** NONE in Step08. Existing Step07 PostgreSQL migration is prerequisite. **Actual evidence:** commit only; build, HTTP smoke, macOS tests, Ubuntu and CI not independently executed. **Owner acceptance:** Pending; targeted integration tests and idempotency recovery are residual risk gates.
 
 ## Step Completion Record Contract
 Append Step02–15 completion records here with scope, paths, commit, migration, local focused test evidence, Ubuntu verification/deferment, CI, security negative tests, owner acceptance and unresolved blockers. Phase close requires separately approved main merge, tag and GitHub Release.
