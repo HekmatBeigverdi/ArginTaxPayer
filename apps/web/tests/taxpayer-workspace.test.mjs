@@ -29,6 +29,6 @@ test("server-proxy retains secure session and operation allowlist", () => {
   assert.doesNotMatch(workspace, /localStorage|document\.cookie|Authorization: "Bearer"/);
 });
 test("UI does not invent subscription limits or enable blind taxpayer creation", () => {
-  assert.match(workspace, /محدودیت یک یا چند مؤدی باید از پلن فعال/);
+  assert.match(workspace, /تعداد مؤدیان مجاز باید براساس پلن فعال در Backend کنترل شود/);
   assert.doesNotMatch(workspace, /\/api\/taxpayers\/new/);
 });

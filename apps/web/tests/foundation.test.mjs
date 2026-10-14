@@ -9,9 +9,10 @@ test("root layout explicitly declares Persian language and RTL direction", () =>
   assert.match(source, /<html lang="fa" dir="rtl">/);
 });
 
-test("foundation page does not impersonate a working login or invoice flow", () => {
+test("foundation page links to implemented identity flows and marks planned modules", () => {
   const source = read("app/page.tsx");
-  assert.match(source, /هنوز ورود کاربران/);
+  assert.match(source, /href="\/identity"/);
+  assert.match(source, /href="\/users"/);
   assert.match(source, /در دست طراحی/);
 });
 
