@@ -576,3 +576,5 @@ Ubuntu script uses loopback-only `argintaxpayer_test` and never auto-applies mig
 
 **Status:** Source and handoff checklist prepared; **final Step13 operator acceptance, tag, merge, release and Phase04 closure remain pending verified evidence and explicit approval.**
 
+
+**Review PR:** [#6 — Phase 04 Customer-owned taxpayer management and commercial partner scope](https://github.com/HekmatBeigverdi/ArginTaxPayer/pull/6), opened **DRAFT** on 2026-10-14 against `main`. Not merged, not tagged, not released. Mergeability shown by GitHub does not certify build/test success. Owner must provide local and Ubuntu verification and explicit final phase release approval before making it ready and merging.
