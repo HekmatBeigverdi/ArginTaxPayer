@@ -126,15 +126,20 @@ async function api<T>(
 
 export default function PartyWorkspace({
   isAdmin,
+  canCreateTaxpayer,
   customerId,
 }: {
   isAdmin: boolean;
+  canCreateTaxpayer: boolean;
   customerId: string;
 }) {
   const [customer, setCustomer] = useState(isAdmin ? "" : customerId);
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
   const [customerLoadError, setCustomerLoadError] = useState("");
   const [taxpayers, setTaxpayers] = useState<Taxpayer[]>([]);
+  const [taxpayerName, setTaxpayerName] = useState("");
+  const [taxpayerIdentifier, setTaxpayerIdentifier] = useState("");
+  const [taxpayerKind, setTaxpayerKind] = useState("1");
   const [page, setPage] = useState(1);
   const [kind, setKind] = useState("all");
   const [query, setQuery] = useState("");
@@ -303,6 +308,25 @@ export default function PartyWorkspace({
     } finally {
       setBusy(false);
     }
+  }
+
+  async function createTaxpayer(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!canCreateTaxpayer || busy || !uuid.test(customer)) return;
+    setBusy(true); setError(""); setNotice("");
+    try {
+      const response = await fetch("/api/taxpayers/new", {
+        method: "POST", credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ customerUserId: customer, kind: Number(taxpayerKind),
+          identifier: taxpayerIdentifier.trim(), displayName: taxpayerName.trim() })
+      });
+      if (!response.ok) throw new Error(errors[response.status] ?? "ثبت مؤدی انجام نشد.");
+      setTaxpayerName(""); setTaxpayerIdentifier("");
+      setNotice("مؤدی برای حساب انتخاب‌شده ایجاد شد. این ثبت به معنی تأیید رسمی شناسه نیست.");
+      await load();
+    } catch (ex) { setError((ex as Error).message); }
+    finally { setBusy(false); }
   }
 
   async function addContact(event: FormEvent<HTMLFormElement>) {
@@ -481,7 +505,18 @@ export default function PartyWorkspace({
         <p>تعداد اشخاص: {items.total}</p>
         {uuid.test(customer) && <div className="party-taxpayer-preview"><h3>مؤدیان این مشتری ({taxpayers.length})</h3>
           {taxpayers.length ? <ul>{taxpayers.map(t => <li key={t.id}>{t.displayName} — {t.kind === 1 ? "حقیقی" : "حقوقی"}</li>)}</ul> : <p>مؤدی مرتبط ثبت نشده است.</p>}
-          <Link href="/users" className="app-module-link">افزودن و مدیریت مؤدیان ←</Link>
+          {canCreateTaxpayer ? <form className="party-form" onSubmit={createTaxpayer}>
+            <label htmlFor="taxpayer-new-kind">نوع مؤدی</label>
+            <select id="taxpayer-new-kind" value={taxpayerKind} onChange={e => setTaxpayerKind(e.target.value)}>
+              <option value="1">حقیقی</option><option value="2">حقوقی</option>
+            </select>
+            <label htmlFor="taxpayer-new-identifier">کد/شناسه ملی</label>
+            <input id="taxpayer-new-identifier" required dir="ltr" value={taxpayerIdentifier} onChange={e => setTaxpayerIdentifier(e.target.value)}/>
+            <label htmlFor="taxpayer-new-name">نام نمایشی مؤدی</label>
+            <input id="taxpayer-new-name" required value={taxpayerName} onChange={e => setTaxpayerName(e.target.value)}/>
+            <button type="submit" disabled={busy}>ثبت مؤدی برای این مشتری</button>
+          </form> : <p className="identity-muted">ثبت مؤدی طبق مجوز فعلی فاز ۴ مختص ادمین سطح ۱ است؛ سطح ۲ می‌تواند مؤدیان مشتریان خودش را مشاهده کند.</p>}
+          <Link href="/users" className="app-module-link">بازگشت به مدیریت حساب‌های نرم‌افزار ←</Link>
         </div>}
 
         <ul className="party-list">
