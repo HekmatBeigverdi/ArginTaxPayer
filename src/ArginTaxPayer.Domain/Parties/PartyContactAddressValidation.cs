@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Net.Mail;
 using System.Text;
 
@@ -36,7 +35,7 @@ public static class PartyContactAddressValidation
             {
                 var parsed = new MailAddress(cleaned);
                 if (!string.Equals(parsed.Address, cleaned, StringComparison.Ordinal) ||
-                    !parsed.Host.Contains('.', StringComparison.Ordinal)) return false;
+                    !parsed.Host.Contains('.')) return false;
             }
             catch (FormatException) { return false; }
             value = cleaned.ToLowerInvariant();
