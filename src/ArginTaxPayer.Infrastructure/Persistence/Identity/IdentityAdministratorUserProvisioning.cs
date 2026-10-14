@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using ArginTaxPayer.Infrastructure.Persistence.Taxpayers;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 
@@ -12,7 +13,8 @@ public enum AdminUserCreationStatus { Created, Invalid, Unauthenticated, Forbidd
 /// </summary>
 public sealed class IdentityAdministratorUserProvisioning(
     ArginTaxPayerDbContext db, IdentitySessionService sessions,
-    ILogger<IdentityAdministratorUserProvisioning> logger)
+    ILogger<IdentityAdministratorUserProvisioning> logger,
+    CustomerCommercialOwnershipService ownership)
 {
     public async Task<AdminUserCreationStatus> CreateCustomerAsync(
         string? bearer, string? mobileInput, string? emailInput,
@@ -44,6 +46,9 @@ public sealed class IdentityAdministratorUserProvisioning(
 
         var userId = Guid.NewGuid();
         var now = DateTime.UtcNow;
+        var initialOwner = await ownership.PrepareInitialAsync(userId, operatorId, ct);
+        if (initialOwner is null) return AdminUserCreationStatus.Forbidden;
+        db.CustomerCommercialOwners.Add(initialOwner);
         db.IdentityUsers.Add(new IdentityUser {
             Id = userId, NormalizedMobile = mobile, NormalizedEmail = email,
             // Trusted administrative provisioning explicitly bypasses SMS proof.

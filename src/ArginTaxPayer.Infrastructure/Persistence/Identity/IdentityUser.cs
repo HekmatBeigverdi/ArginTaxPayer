@@ -28,4 +28,9 @@ public static class IdentityRoleNames
     public const string Level1 = "Level1";
     public const string Level2 = "Level2";
     public const string Customer = "Customer";
+    // Invitations carry no administrative permissions. Confirmation activates the role.
+    public const string PendingLevel1 = "PendingLevel1";
+    public const string PendingLevel2 = "PendingLevel2";
+
+    public static bool CanEnrollMfa(string role) => role is Level1 or Level2 or PendingLevel1 or PendingLevel2;
 }

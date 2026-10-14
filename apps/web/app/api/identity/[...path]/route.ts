@@ -5,6 +5,8 @@ import { ACCESS_COOKIE, REFRESH_COOKIE, identityBackend, identityUiEnabled } fro
 type TokenResponse = { accessToken: string; refreshToken: string; accessExpiresAtUtc?: string; refreshExpiresAtUtc?: string };
 const operations = new Set(["register", "login", "logout", "mfa/challenge", "mfa/complete", "mfa/enroll", "mfa/confirm", "refresh", "me", "sessions", "sessions/revoke", "phone/request", "phone/register/complete", "phone/login/complete", "phone/reset/complete", "admin/customers"]);
 const cookieOptions = { httpOnly: true, sameSite: "strict" as const, secure: false, path: "/" };
+operations.add("mfa/status");
+operations.add("roles/level2/nominate");
 const errorResult = (code: number, message: string) =>
   NextResponse.json({ error: message }, { status: code, headers: { "Cache-Control": "no-store" } });
 
@@ -43,6 +45,7 @@ async function callIdentity(operation: string, req: NextRequest, method: "GET" |
     register: "register", login: "login", refresh: "refresh", me: "authorization/me",
     "mfa/challenge": "mfa/challenge", "mfa/complete": "mfa/complete",
     "mfa/enroll": "mfa/enroll", "mfa/confirm": "mfa/confirm",
+    "mfa/status": "mfa/status", "roles/level2/nominate": "roles/level2/nominate",
     sessions: "resources/sessions",
     "phone/request": "phone/request",
     "phone/register/complete": "phone/register/complete",
@@ -58,12 +61,13 @@ async function callIdentity(operation: string, req: NextRequest, method: "GET" |
   }
   const path = backendPath[operation];
   if (!path) return errorResult(404, "unavailable");
-  if (["me", "sessions", "mfa/enroll", "mfa/confirm", "sessions/revoke", "admin/customers"].includes(operation) && !token)
+  if (["me", "sessions", "mfa/enroll", "mfa/confirm", "mfa/status", "roles/level2/nominate", "sessions/revoke", "admin/customers"].includes(operation) && !token)
     return errorResult(401, "unauthorized");
 
   let payload: unknown = undefined;
   if (method === "POST" && operation !== "sessions/revoke") {
-    try { payload = operation === "refresh" ? { refreshToken: refresh } : await req.json(); }
+    try { payload = operation === "refresh" ? { refreshToken: refresh }
+      : operation === "mfa/enroll" ? {} : await req.json(); }
     catch { return errorResult(400, "invalid_request"); }
   }
 
@@ -99,14 +103,16 @@ async function callIdentity(operation: string, req: NextRequest, method: "GET" |
     // Never expose raw upstream diagnostics; for enrollment only, explicitly return
     // the one-time provisioning secret to an authenticated local development user.
     if (response.ok) {
-      if (operation === "mfa/enroll" || operation === "mfa/confirm" || operation === "sessions" || operation === "me" || operation === "mfa/challenge") {
-        return new NextResponse(result, { status: response.status, headers: {
+      if (operation === "mfa/enroll" || operation === "mfa/confirm" || operation === "mfa/status" || operation === "sessions" || operation === "me" || operation === "mfa/challenge") {
+        const forwarded = new NextResponse(result, { status: response.status, headers: {
           "Content-Type": "application/json", "Cache-Control": "no-store"
         } });
+        if (operation === "mfa/confirm") clearTokens(forwarded);
+        return forwarded;
       }
       return NextResponse.json({ status: "ok" }, { status: response.status });
     }
-    return errorResult([400, 401, 403, 404, 409, 429].includes(response.status) ? response.status : 502,
+    return errorResult([400, 401, 403, 404, 409, 429, 503].includes(response.status) ? response.status : 502,
       response.status === 429 ? "too_many_attempts" : "request_rejected");
   } catch {
     return errorResult(503, "identity_service_unavailable");
@@ -120,6 +126,6 @@ export async function POST(req: NextRequest, context: { params: Promise<{ path: 
 export async function GET(req: NextRequest, context: { params: Promise<{ path: string[] }> }) {
   const { path } = await context.params;
   const operation = path.join("/");
-  if (!["me", "sessions"].includes(operation)) return errorResult(404, "unavailable");
+  if (!["me", "sessions", "mfa/status"].includes(operation)) return errorResult(404, "unavailable");
   return callIdentity(operation, req, "GET");
 }

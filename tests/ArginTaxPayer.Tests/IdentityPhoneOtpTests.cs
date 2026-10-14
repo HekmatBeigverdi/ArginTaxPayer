@@ -48,7 +48,9 @@ public sealed class IdentityPhoneOtpTests
         {
             await using var db = new ArginTaxPayerDbContext(options);
             var sessions = new IdentitySessionService(db);
-            var phones = new IdentityPhoneService(db, fake, sessions, settings, NullLogger<IdentityPhoneService>.Instance);
+            var phones = new IdentityPhoneService(db, fake, sessions, settings,
+                NullLogger<IdentityPhoneService>.Instance,
+                IdentityTestServices.CreateOwnership(db, sessions, settings));
             Assert.True(await phones.RequestAsync(phone, "register"));
             var firstCooldown = await phones.RequestDetailedAsync(phone, "register");
             Assert.Equal(PhoneOtpRequestStatus.RateLimited, firstCooldown.Status);
@@ -110,7 +112,7 @@ public sealed class IdentityPhoneOtpTests
         {
             await using var cleanup = new ArginTaxPayerDbContext(options);
             if (userId != Guid.Empty)
-                await cleanup.IdentityUsers.Where(x => x.Id == userId).ExecuteDeleteAsync();
+                await IdentityTestServices.CleanupCustomerFixturesAsync(cleanup, new[] { userId });
             await cleanup.IdentityPhoneChallenges.Where(x => x.Mobile == phone).ExecuteDeleteAsync();
         }
     }

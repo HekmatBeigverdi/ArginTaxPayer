@@ -3,9 +3,11 @@ using ArginTaxPayer.Infrastructure.Persistence.Identity;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 
-if (args.Length != 1 || (args[0] != "enroll-level1-test" && args[0] != "bootstrap-level1-test" && args[0] != "inspect-level1-test"))
+var nominateLevel1 = args.Length == 2 && args[0] == "nominate-level1-test";
+if (!nominateLevel1 && (args.Length != 1 || (args[0] != "enroll-level1-test" && args[0] != "bootstrap-level1-test" && args[0] != "inspect-level1-test")))
 {
     Console.Error.WriteLine("Usage: dotnet run --project tools/ArginTaxPayer.IdentityOperator -- enroll-level1-test|bootstrap-level1-test|inspect-level1-test");
+    Console.Error.WriteLine("Trusted operator only: nominate-level1-test <mobile> (activation requires the user's Authenticator proof)");
     return 2;
 }
 
@@ -31,6 +33,43 @@ catch (NpgsqlException)
 {
     Console.Error.WriteLine("PostgreSQL connection failed. Check the macOS SSH tunnel at 127.0.0.1:15432 and verify the test database is reachable.");
     return 2;
+}
+
+if (nominateLevel1)
+{
+    if (!IranianMobileNumber.TryNormalize(args[1], out var mobile))
+    {
+        Console.Error.WriteLine("Invalid mobile.");
+        return 2;
+    }
+    await using var tx = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
+    var target = await db.IdentityUsers.Include(u => u.Roles).SingleOrDefaultAsync(u =>
+        u.NormalizedMobile == mobile && u.IsActive && u.MobileVerifiedAtUtc != null);
+    if (target is null || target.PasswordHash is null)
+    {
+        Console.Error.WriteLine("An active, verified account with a password is required.");
+        return 2;
+    }
+    if (target.Roles.Any(r => r.Role is IdentityRoleNames.Level1 or IdentityRoleNames.PendingLevel1))
+    {
+        Console.WriteLine("Level1 already assigned or awaiting MFA confirmation; no changes made.");
+        return 0;
+    }
+    if (!target.Roles.Any(r => r.Role == IdentityRoleNames.Customer) ||
+        target.Roles.Any(r => r.Role != IdentityRoleNames.Customer))
+    {
+        Console.Error.WriteLine("Conflicting role assignment; no changes made.");
+        return 2;
+    }
+    var enabled = await db.IdentityMfaStates.AnyAsync(m => m.UserId == target.Id && m.EnabledAtUtc != null);
+    var role = enabled ? IdentityRoleNames.Level1 : IdentityRoleNames.PendingLevel1;
+    db.IdentityUserRoles.Add(new IdentityUserRole { UserId = target.Id, Role = role, AssignedAtUtc = DateTime.UtcNow });
+    await db.SaveChangesAsync();
+    await db.IdentitySessions.Where(s => s.UserId == target.Id && s.RevokedAtUtc == null)
+        .ExecuteUpdateAsync(s => s.SetProperty(x => x.RevokedAtUtc, DateTime.UtcNow));
+    await tx.CommitAsync();
+    Console.WriteLine($"Operator nomination committed: user={target.Id}; role={role}; previous sessions revoked.");
+    return 0;
 }
 
 if (args[0] == "inspect-level1-test")

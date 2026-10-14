@@ -33,7 +33,7 @@ public sealed class IdentityMfaRetryStrategyPostgresTests
         try
         {
             await using var db = new ArginTaxPayerDbContext(options);
-            var credentials = new IdentityCredentialService(db);
+            var credentials = new IdentityCredentialService(db, IdentityTestServices.CreateOwnership(db));
             const string password = "Disposable-MFA-Retry-Password-2026!";
             Assert.Equal(IdentityRegistrationResult.Created,
                 await credentials.RegisterCustomerAsync(email, password));
@@ -64,7 +64,7 @@ public sealed class IdentityMfaRetryStrategyPostgresTests
             if (userId != Guid.Empty)
             {
                 await using var cleanup = new ArginTaxPayerDbContext(options);
-                await cleanup.IdentityUsers.Where(x => x.Id == userId).ExecuteDeleteAsync();
+                await IdentityTestServices.CleanupCustomerFixturesAsync(cleanup, new[] { userId });
             }
         }
     }

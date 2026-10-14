@@ -58,7 +58,7 @@ public sealed class IdentityRolePostgresTests
         try
         {
             await using var db = new ArginTaxPayerDbContext(options);
-            var credential = new IdentityCredentialService(db);
+            var credential = new IdentityCredentialService(db, IdentityTestServices.CreateOwnership(db));
             var sessions = new IdentitySessionService(db);
             var authorization = new IdentityAuthorizationService(db, sessions);
             var crypto = new IdentityMfaCrypto(Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)));
@@ -154,7 +154,7 @@ public sealed class IdentityRolePostgresTests
             if (ids.Count != 0)
             {
                 await using var cleanup = new ArginTaxPayerDbContext(options);
-                await cleanup.IdentityUsers.Where(u => ids.Contains(u.Id)).ExecuteDeleteAsync();
+                await IdentityTestServices.CleanupCustomerFixturesAsync(cleanup, ids);
             }
         }
     }

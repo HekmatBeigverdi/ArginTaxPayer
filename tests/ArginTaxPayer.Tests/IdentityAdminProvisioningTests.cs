@@ -16,8 +16,10 @@ public sealed class IdentityAdminProvisioningTests
         await using var db = new ArginTaxPayerDbContext(
             new DbContextOptionsBuilder<ArginTaxPayerDbContext>()
                 .UseNpgsql("Host=localhost;Database=argintaxpayer_test;Username=unused;Password=unused").Options);
-        var provisioner = new IdentityAdministratorUserProvisioning(db,
-            new IdentitySessionService(db), NullLogger<IdentityAdministratorUserProvisioning>.Instance);
+        var sessions = new IdentitySessionService(db);
+        var provisioner = new IdentityAdministratorUserProvisioning(db, sessions,
+            NullLogger<IdentityAdministratorUserProvisioning>.Instance,
+            IdentityTestServices.CreateOwnership(db, sessions));
         Assert.Equal(AdminUserCreationStatus.Unauthenticated,
             await provisioner.CreateCustomerAsync(null, "09123456789", null, "TestPassword123!"));
     }
@@ -36,15 +38,17 @@ public sealed class IdentityAdminProvisioningTests
         {
             await using var db = new ArginTaxPayerDbContext(options);
             var email = "admin-create-deny-" + Guid.NewGuid().ToString("N") + "@example.invalid";
-            var credentials = new IdentityCredentialService(db);
+            var credentials = new IdentityCredentialService(db, IdentityTestServices.CreateOwnership(db));
             Assert.Equal(IdentityRegistrationResult.Created, await credentials.RegisterCustomerAsync(
                 email, "Disposable-Password-2026!"));
             id = await db.IdentityUsers.Where(x => x.NormalizedEmail == email.ToUpperInvariant())
                 .Select(x => x.Id).SingleAsync();
             var tokens = await new IdentitySessionService(db).LoginAsync(email, "Disposable-Password-2026!");
             Assert.NotNull(tokens);
-            var provisioner = new IdentityAdministratorUserProvisioning(db,
-                new IdentitySessionService(db), NullLogger<IdentityAdministratorUserProvisioning>.Instance);
+            var sessions = new IdentitySessionService(db);
+            var provisioner = new IdentityAdministratorUserProvisioning(db, sessions,
+                NullLogger<IdentityAdministratorUserProvisioning>.Instance,
+                IdentityTestServices.CreateOwnership(db, sessions));
             var mobile = "+989" + RandomNumberGenerator.GetInt32(100000000, 999999999);
             Assert.Equal(AdminUserCreationStatus.Forbidden, await provisioner.CreateCustomerAsync(
                 tokens!.AccessToken, mobile, null, "Disposable-Password-2026!"));
@@ -55,7 +59,7 @@ public sealed class IdentityAdminProvisioningTests
             if (id != Guid.Empty)
             {
                 await using var db = new ArginTaxPayerDbContext(options);
-                await db.IdentityUsers.Where(x => x.Id == id).ExecuteDeleteAsync();
+                await IdentityTestServices.CleanupCustomerFixturesAsync(db, new[] { id });
             }
         }
     }
@@ -77,7 +81,7 @@ public sealed class IdentityAdminProvisioningTests
         {
             await using var db = new ArginTaxPayerDbContext(options);
             var sessions = new IdentitySessionService(db);
-            var credentials = new IdentityCredentialService(db);
+            var credentials = new IdentityCredentialService(db, IdentityTestServices.CreateOwnership(db));
             var email = $"step10-admin-{Guid.NewGuid():N}@example.invalid";
             const string password = "Step10-Admin-Password-2026!";
             Assert.Equal(IdentityRegistrationResult.Created,
@@ -110,7 +114,8 @@ public sealed class IdentityAdminProvisioningTests
             Assert.NotNull(operatorTokens);
 
             var provisioner = new IdentityAdministratorUserProvisioning(db, sessions,
-                NullLogger<IdentityAdministratorUserProvisioning>.Instance);
+                NullLogger<IdentityAdministratorUserProvisioning>.Instance,
+                IdentityTestServices.CreateOwnership(db, sessions));
             var mobile = "+989" + RandomNumberGenerator.GetInt32(100000000, 999999999);
             const string customerPassword = "Step10-Customer-Password-2026!";
             Assert.Equal(AdminUserCreationStatus.Invalid,
@@ -144,7 +149,7 @@ public sealed class IdentityAdminProvisioningTests
             if (created.Count > 0)
             {
                 await using var cleanup = new ArginTaxPayerDbContext(options);
-                await cleanup.IdentityUsers.Where(u => created.Contains(u.Id)).ExecuteDeleteAsync();
+                await IdentityTestServices.CleanupCustomerFixturesAsync(cleanup, created);
             }
         }
     }

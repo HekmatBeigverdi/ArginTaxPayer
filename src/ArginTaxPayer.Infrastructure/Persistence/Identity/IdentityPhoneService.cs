@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
+using ArginTaxPayer.Infrastructure.Persistence.Taxpayers;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
@@ -11,7 +12,8 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Identity;
 /// Store only keyed code digests and metadata; never expose the raw OTP through HTTP.
 /// </summary>
 public sealed class IdentityPhoneService(ArginTaxPayerDbContext db, IIdentityOtpSender sender,
-    IdentitySessionService sessions, IConfiguration configuration, ILogger<IdentityPhoneService> logger)
+    IdentitySessionService sessions, IConfiguration configuration, ILogger<IdentityPhoneService> logger,
+    CustomerCommercialOwnershipService ownership)
 {
     private static readonly TimeSpan Lifetime = TimeSpan.FromMinutes(3);
     private static readonly TimeSpan Cooldown = TimeSpan.FromMinutes(3);
@@ -161,6 +163,8 @@ public sealed class IdentityPhoneService(ArginTaxPayerDbContext db, IIdentityOtp
             try { IdentityPasswordHasher.Validate(password); }
             catch (ArgumentException) { return false; }
         }
+        // Do not consume a valid OTP when no unambiguous commercial root exists.
+        if (await ownership.ResolveRootAsync(null, ct) is null) return false;
         // Consume proof first, independently of account creation, so failed guesses
         // cannot be rolled back by a caller-managed transaction.
         var proof = await ConsumeAsync(mobile, "register", code, ct);
@@ -168,6 +172,9 @@ public sealed class IdentityPhoneService(ArginTaxPayerDbContext db, IIdentityOtp
         if (await db.IdentityUsers.AnyAsync(x => x.NormalizedMobile == proof.Mobile, ct)) return false;
         var id = Guid.NewGuid();
         var now = DateTime.UtcNow;
+        var initialOwner = await ownership.PrepareInitialAsync(id, null, ct);
+        if (initialOwner is null) return false;
+        db.CustomerCommercialOwners.Add(initialOwner);
         db.IdentityUsers.Add(new IdentityUser {
             Id = id, NormalizedMobile = proof.Mobile, MobileVerifiedAtUtc = now,
             PasswordHash = password is null ? null : IdentityPasswordHasher.Hash(password),

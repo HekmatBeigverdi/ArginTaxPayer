@@ -21,22 +21,20 @@ public sealed class IdentityMfaService(ArginTaxPayerDbContext db, IdentityMfaCry
         var existing = await db.IdentityMfaStates.AsNoTracking().SingleOrDefaultAsync(x => x.UserId == userId, ct);
         if (existing?.EnabledAtUtc is not null) return null;
 
+        // Reuse an unconfirmed secret: repeated clicks/tabs must not invalidate a scanned QR.
+        if (existing is not null)
+        {
+            var pendingSecret = crypto.Decrypt(existing.EncryptedSecret);
+            return new MfaEnrollment(pendingSecret, IdentityTotp.Uri(
+                user.NormalizedEmail ?? user.NormalizedMobile ?? user.Id.ToString("N"), pendingSecret));
+        }
         var secret = IdentityTotp.NewSecret();
         var encrypted = crypto.Encrypt(secret);
-        if (existing is null)
-        {
-            db.IdentityMfaStates.Add(new IdentityMfaState {
-                UserId = userId, EncryptedSecret = encrypted, LastAcceptedTotpStep = -1
-            });
-        }
-        else
-        {
-            await db.IdentityMfaStates.Where(x => x.UserId == userId && x.EnabledAtUtc == null)
-                .ExecuteUpdateAsync(s => s.SetProperty(x => x.EncryptedSecret, encrypted)
-                    .SetProperty(x => x.LastAcceptedTotpStep, -1L), ct);
-        }
+        db.IdentityMfaStates.Add(new IdentityMfaState {
+            UserId = userId, EncryptedSecret = encrypted, LastAcceptedTotpStep = -1
+        });
         await db.SaveChangesAsync(ct);
-        // The URI/secret is returned once and must not be logged.
+        // The URI/secret is available only during enrollment and must not be logged.
         return new MfaEnrollment(secret, IdentityTotp.Uri(user.NormalizedEmail ?? user.NormalizedMobile ?? user.Id.ToString("N"), secret));
     }
 
@@ -75,6 +73,23 @@ public sealed class IdentityMfaService(ArginTaxPayerDbContext db, IdentityMfaCry
                 .SetProperty(x => x.LastAcceptedTotpStep, step.Value)
                 .SetProperty(x => x.RecoveryGeneration, x => x.RecoveryGeneration + 1), ct);
         if (claimed != 1) return null;
+
+        // Only server-assigned invitations can activate an administrator role.
+        var invitations = await db.IdentityUserRoles.AsNoTracking().Where(r => r.UserId == userId &&
+            (r.Role == IdentityRoleNames.PendingLevel1 || r.Role == IdentityRoleNames.PendingLevel2))
+            .ToListAsync(ct);
+        foreach (var invitation in invitations)
+        {
+            var role = invitation.Role == IdentityRoleNames.PendingLevel1
+                ? IdentityRoleNames.Level1 : IdentityRoleNames.Level2;
+            if (!await db.IdentityUserRoles.AnyAsync(r => r.UserId == userId && r.Role == role, ct))
+                db.IdentityUserRoles.Add(new IdentityUserRole {
+                    UserId = userId, Role = role, AssignedAtUtc = now
+                });
+        }
+        await db.IdentityUserRoles.Where(r => r.UserId == userId &&
+            (r.Role == IdentityRoleNames.PendingLevel1 || r.Role == IdentityRoleNames.PendingLevel2))
+            .ExecuteDeleteAsync(ct);
 
         var codes = Enumerable.Range(0, 10).Select(_ => NewRandom()).ToArray();
         foreach (var code in codes)
