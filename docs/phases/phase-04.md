@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 04: Multi-Taxpayer Management
 
-**Status:** Steps 01–05 owner approved (2026-10-13; owner-reported acceptance). Step 05 received a dated, owner-approved cross-phase contract clarification; Step 06 owner approved 2026-10-13; Step 07 owner approved 2026-10-13; Step 08 owner approved 2026-10-13; Step 09 implementation approved for progression with integration acceptance deferred to Step12; Step 10 owner approved 2026-10-13; Step 11 customer ownership and paginated user/modal UX owner approved 2026-10-14; Step 12 owner approved 2026-10-14 with explicit acceptance of unexecuted three-account HTTP smoke; Step 13 hardening source and final handoff checks implemented, local/Ubuntu evidence pending.
+**Status:** Steps 01–05 owner approved (2026-10-13; owner-reported acceptance). Step 05 received a dated, owner-approved cross-phase contract clarification; Step 06 owner approved 2026-10-13; Step 07 owner approved 2026-10-13; Step 08 owner approved 2026-10-13; Step 09 implementation approved for progression with integration acceptance deferred to Step12; Step 10 owner approved 2026-10-13; Step 11 customer ownership and paginated user/modal UX owner approved 2026-10-14; Step 12 owner approved 2026-10-14 with explicit acceptance of unexecuted three-account HTTP smoke; Step 13 OWNER APPROVED 2026-10-14; owner reports successful latest local macOS and Ubuntu verification after the 8-test regression fixes. Phase04 release integration pending merge/tag confirmation.
 **Branch:** `phase/04-multi-taxpayer-management`
 **Started:** 2026-10-13
 **Baseline:** `docs/roadmap/18-phases.md`, Phase 03 identity/authorization contracts
@@ -35,7 +35,7 @@ Manage natural/legal taxpayer profiles, fiscal memories, certificate metadata an
 | 10 | Taxpayer and Memory RTL Management UI | Persian responsive taxpayer list, forms, detail, memory views | RTL, validation, loading/error states, guarded routes | Owner approved 2026-10-13 |
 | 11 | Level1 Customer Commercial Ownership Console and Level2 Workspace (approved correction) | Transfer entire customer relationship to Level2 and show scoped customer accounts | No taxpayer-level grants; root-approved customer reattribution, preserve financial history | Owner approved 2026-10-14; final integration validation belongs to Step12 |
 | 12 | Integration and Negative-Path Regression | PostgreSQL/API/UI security, concurrency and lifecycle tests | Identity regression and cross-scope negative paths pass | Owner-approved for progression on 2026-10-14; three-account HTTP smoke not executed, explicitly recorded residual risk |
-| 13 | Hardening and Phase Handoff | Review, local regression, final Ubuntu acceptance, documentation | Evidence, migration review, unresolved risks and owner signoff recorded | Hardening implemented; local/Ubuntu verification and final release approval pending |
+| 13 | Hardening and Phase Handoff | Review, local regression, final Ubuntu acceptance, documentation | Evidence, migration review, unresolved risks and owner signoff recorded | Owner approved 2026-10-14; macOS + Ubuntu latest checks reported successful; merge/tag pending |
 
 ## Testing Cadence — Owner Approved
 **Every step (macOS):** focused automated tests and relevant local UI/API smoke only. Existing commands:
@@ -592,3 +592,14 @@ Ubuntu script uses loopback-only `argintaxpayer_test` and never auto-applies mig
 
 **Release decision:** Phase04 PR #6 remains DRAFT and should NOT be merged, tagged or released while Ubuntu full test suite has 8 reported failures or before successful repeat evidence.
 
+
+
+### Step 13 Owner Acceptance and Phase 04 Handoff — 2026-10-14
+
+**Owner-confirmed:** After fixing the previously observed Ubuntu regression (8/189 failures), the owner reports that updated Ubuntu VPS and macOS local verifications both passed. This is **owner-reported evidence**, not separately retrieved CI logs or an independent remote command execution. The owner explicitly approved closing Step13. The Phase04 original fixed plan of 13 steps is now owner accepted.
+
+**Signoff:** Step01–Step13 owner accepted for development phase completion. Step12 three-account HTTP smoke was intentionally waived at the owner's request and remains a documented residual validation item; authorization/security promises beyond tested paths must not be interpreted as independently certified. Phase17 formal isolation and penetration-testing gates remain.
+
+**Handoff:** Customer-first identity ownership and delegation stays in Phase04. Plan-specific taxpayer-count entitlements, collection-based commercial partner net-profit and verified tax/expense deduction remain in Phase12. Formal partner referral request queue in Phase16. Private-key custody and authority diagnostics in Phases09/10.
+
+**Release operations:** Pull Request #6 is the integration vehicle to `main`. After its successful GitHub merge and verifying the merged commit, create an annotated `v0.4.0` tag **only if not already present**, and publish an accurately labeled Phase04 development release. Never pretend release or tag exists before checking GitHub. Keep development endpoints private and do not deploy to production as part of phase completion.
