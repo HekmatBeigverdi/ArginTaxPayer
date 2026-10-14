@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import InvoiceParticipantForm from "./invoice-participant-form";
 
 const PAGE_SIZE = 20;
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
@@ -630,6 +631,7 @@ export default function PartyWorkspace({
           </button>
         </form>
 
+        {selected && person && <InvoiceParticipantForm key={selected.id} customerId={customer} subjectId={selected.id} role="buyer" />}
         {selected && person && (
           <div className="party-details">
             <h3>اطلاعات تماس</h3>
