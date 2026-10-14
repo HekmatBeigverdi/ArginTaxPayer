@@ -28,9 +28,9 @@ test("login remains locked across successful navigation rather than reenabling s
 
 test("software users and parties are reachable by navigation and selectable customer", () => {
   const workspace = read("app/parties/buyer-taxpayer-directory.tsx");
-  assert.match(workspace, /api\\/customer-owners\\/accounts/);
+  assert.ok(workspace.includes("/api/customer-owners/accounts"));
   assert.match(workspace, /console-directory-filters/);
-  assert.match(workspace, /onSubmit=\\{addTaxpayer\\}/);
+  assert.ok(workspace.includes("onSubmit={addTaxpayer}"));
   assert.match(workspace, /buyer-new/);
   assert.match(workspace, /taxpayer-connection/);
 });
