@@ -175,7 +175,7 @@ export default function IdentityFlow() {
           } else setError("کد تأیید دومرحله‌ای معتبر نیست یا منقضی شده است.");
           return;
         }
-        leavingForAccount = true;setNavigating(true);router.replace("/account");router.refresh();return;
+        leavingForAccount = true;setNavigating(true);setNavigating(true);router.replace("/dashboard");router.refresh();return;
       }
       if (phoneOtp) {
         if (step === "details") {
@@ -211,7 +211,7 @@ export default function IdentityFlow() {
         }
         setPassword("");
         setCode("");
-        if (purpose === "login") {router.replace("/account");router.refresh();return;}
+        if (purpose === "login") {leavingForAccount = true;setNavigating(true);router.replace("/dashboard");router.refresh();return;}
         const wasReset = purpose === "reset";
         setTab("login");
         setForgot(false);
@@ -230,7 +230,7 @@ export default function IdentityFlow() {
         setTab("login");setPassword("");setMessage("ثبت‌نام انجام شد. اکنون وارد شوید.");return;
       }
       const {response} = await api("login",{email:identifier,password});
-      if (response.ok) {setPassword("");router.replace("/account");router.refresh();return;}
+      if (response.ok) {setPassword("");leavingForAccount = true;setNavigating(true);router.replace("/dashboard");router.refresh();return;}
       if (response.status === 401) {
         const challengeResponse = await api("mfa/challenge",{email:identifier,password});
         if (challengeResponse.response.ok && typeof challengeResponse.result.challenge === "string") {
@@ -250,13 +250,9 @@ export default function IdentityFlow() {
     }
   }
 
-  return <div className="auth-workflow">
-    <div className="identity-tabs identity-main-tabs" role="tablist" aria-label="ورود و ثبت‌نام">
-      <button type="button" role="tab" aria-selected={tab==="login"&&!forgot}
-        onClick={()=>changeTab("login")}>ورود</button>
-      <button type="button" role="tab" aria-selected={tab==="register"&&!forgot}
-        onClick={()=>changeTab("register")}>ثبت‌نام</button>
-    </div>
+  return <div className="auth-workflow auth-simplified" aria-busy={pending || navigating}>
+    {navigating && <div className="auth-navigation-lock" role="status" aria-live="assertive"><span className="auth-spinner" aria-hidden="true" /><strong>در حال ورود به داشبورد…</strong><small>لطفاً منتظر تکمیل انتقال بمانید.</small></div>}
+    <fieldset className="auth-lock-fieldset" disabled={navigating}>
     {forgot ? <div className="auth-section-heading">
       <button type="button" className="auth-back" onClick={()=>{setForgot(false);reset();}}>‹ بازگشت به ورود</button>
       <h2>بازیابی رمز عبور</h2>
@@ -264,14 +260,6 @@ export default function IdentityFlow() {
     </div> : step!=="mfa" && <div className="auth-section-heading">
       <h2>{tab==="login"?"ورود به حساب کاربری":"ایجاد حساب کاربری"}</h2>
       <p className="identity-muted">{tab==="login"?"با رمز عبور یا پیامک وارد شوید.":"شماره موبایل را تأیید کنید یا از ثبت‌نام آزمایشی ایمیلی استفاده کنید."}</p>
-    </div>}
-    {!forgot && step==="details" && tab==="login" && <div className="auth-choice" role="group" aria-label="روش ورود">
-      <button type="button" aria-pressed={mode==="password"} onClick={()=>changeMode("password")}>رمز عبور</button>
-      <button type="button" aria-pressed={mode==="otp"} onClick={()=>changeMode("otp")}>کد پیامکی</button>
-    </div>}
-    {!forgot && step==="details" && tab==="register" && <div className="auth-choice" role="group" aria-label="روش ثبت‌نام">
-      <button type="button" aria-pressed={!emailRegistration} onClick={()=>{setEmailRegistration(false);reset();}}>شماره همراه</button>
-      <button type="button" aria-pressed={emailRegistration} onClick={()=>{setEmailRegistration(true);reset();}}>ایمیل (آزمایشی)</button>
     </div>}
     {step==="code" && <div className="auth-code-info">
       <strong>{purposeCaptions[purpose]}</strong>
@@ -339,5 +327,11 @@ export default function IdentityFlow() {
         onClick={()=>{reset();}}>بازگشت به ورود</button>}
     </form>
     <p className="auth-footer-note">حساب‌های مدیریتی همچنان ملزم به احراز هویت دومرحله‌ای هستند.</p>
+    </fieldset>
+    {step === "details" && !navigating && <div className="auth-secondary-links">
+      {tab === "login" && !forgot && <button type="button" onClick={() => changeMode(mode === "password" ? "otp" : "password")}>{mode === "password" ? "ورود با کد پیامکی" : "ورود با رمز عبور"}</button>}
+      {!forgot && <button type="button" onClick={() => changeTab(tab === "login" ? "register" : "login")}>{tab === "login" ? "ایجاد حساب جدید" : "حساب دارید؟ ورود"}</button>}
+      {tab === "register" && <button type="button" onClick={() => {setEmailRegistration(v => !v);reset();}}>{emailRegistration ? "ثبت‌نام با موبایل" : "ثبت‌نام با ایمیل (آزمایشی)"}</button>}
+    </div>}
   </div>;
 }
