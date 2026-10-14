@@ -136,6 +136,12 @@ public sealed class TaxpayerScopeService(ArginTaxPayerDbContext db, IdentityAuth
             db.ChangeTracker.Clear();
             return new ScopedTaxpayerResult(TaxpayerScopeDecision.Conflict);
         }
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException
+            { SqlState: PostgresErrorCodes.SerializationFailure })
+        {
+            db.ChangeTracker.Clear();
+            return new ScopedTaxpayerResult(TaxpayerScopeDecision.Conflict);
+        }
     }
 
     /// <summary>
