@@ -9,6 +9,7 @@ public sealed class Party
     // Type-specific fields are optional for legacy/legal parties; required by Step03 natural-person commands.
     public string? FirstName { get; set; }
     public string? LastName { get; set; }
+    public string? RegistrationNumber { get; set; }
     public string DisplayName { get; set; } = string.Empty;
     public PartyStatus Status { get; set; } = PartyStatus.Active;
     public long Revision { get; set; } = 1;
