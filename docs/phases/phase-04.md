@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 04: Multi-Taxpayer Management
 
-**Status:** Steps 01–05 owner approved (2026-10-13; owner-reported acceptance). Step 05 received a dated, owner-approved cross-phase contract clarification; Step 06 owner approved 2026-10-13; Step 07 owner approved 2026-10-13; Step 08 owner approved 2026-10-13; Step 09 implementation approved for progression with integration acceptance deferred to Step12; Step 10 owner approved 2026-10-13; Step 11 Level1 assignment and Level2 workspace implemented in GitHub; local test and owner acceptance pending.
+**Status:** Steps 01–05 owner approved (2026-10-13; owner-reported acceptance). Step 05 received a dated, owner-approved cross-phase contract clarification; Step 06 owner approved 2026-10-13; Step 07 owner approved 2026-10-13; Step 08 owner approved 2026-10-13; Step 09 implementation approved for progression with integration acceptance deferred to Step12; Step 10 owner approved 2026-10-13; Step 11 customer ownership and paginated user/modal UX owner approved 2026-10-14; Step 12 integration/negative-path tests committed; live DB/API/browser acceptance pending.
 **Branch:** `phase/04-multi-taxpayer-management`
 **Started:** 2026-10-13
 **Baseline:** `docs/roadmap/18-phases.md`, Phase 03 identity/authorization contracts
@@ -33,7 +33,7 @@ Manage natural/legal taxpayer profiles, fiscal memories, certificate metadata an
 | 08 | Commercial Customer Assignment Model (approved correction) | Level1 ownership of customer accounts, Level2 partner association, customer-level reassignment history | Role-based automatic acquisition and Level1-only partner transfer, historical preservation | Original implementation approved; customer-level correction committed 2026-10-13; local verification pending |
 | 09 | Server-Side Customer-Scoped Query and Command Policies | Customer-to-many-taxpayer join, partner owner checks, deny by default | Level2 cannot see another partner's customers or taxpayers | Customer-owner query correction committed 2026-10-13; integration regression pending Step12 |
 | 10 | Taxpayer and Memory RTL Management UI | Persian responsive taxpayer list, forms, detail, memory views | RTL, validation, loading/error states, guarded routes | Owner approved 2026-10-13 |
-| 11 | Level1 Customer Commercial Ownership Console and Level2 Workspace (approved correction) | Transfer entire customer relationship to Level2 and show scoped customer accounts | No taxpayer-level grants; root-approved customer reattribution, preserve financial history | Customer-level replacement UI/backend committed; local verification pending |
+| 11 | Level1 Customer Commercial Ownership Console and Level2 Workspace (approved correction) | Transfer entire customer relationship to Level2 and show scoped customer accounts | No taxpayer-level grants; root-approved customer reattribution, preserve financial history | Owner approved 2026-10-14; final integration validation belongs to Step12 |
 | 12 | Integration and Negative-Path Regression | PostgreSQL/API/UI security, concurrency and lifecycle tests | Identity regression and cross-scope negative paths pass | Planned |
 | 13 | Hardening and Phase Handoff | Review, local regression, final Ubuntu acceptance, documentation | Evidence, migration review, unresolved risks and owner signoff recorded | Planned |
 
@@ -487,4 +487,43 @@ All 13 steps accepted, focused regression passing, Ubuntu verification once, sch
 3. Browser at `/users`: test full-width RTL table with paging, search and owner filters; modal per user; outside click/Escape; user details and nested taxpayers; partner dropdown; Root assignment with reason, history, 409 on stale revision; public signup owned by configured root; Level2-created customer automatically assigned; Level2 never sees other owners' customers; legacy unowned user manual resolution revision 0 to 1. Browser, PostgreSQL concurrency and end-to-end behavior **have not been independently tested by assistant**.
 
 **Source status:** Implementation is in GitHub; no claim of successful local/Ubuntu build, application or migration. The formal Level2 partner claim inbox is a Phase16 administration UX item, not a prerequisite for Level1's manual approval in Step11. **Step11 owner re-acceptance pending actual browser and database tests.**
+
+
+
+### Step 12 — Integration and Negative-Path Regression (2026-10-14)
+
+**Step11 owner approval:** Confirmed 2026-10-14, including customer-first paginated RTL `/users` page, modal and root-approved customer-level commercial partner changes. Acceptance of Step12 requires evidence from runnable tests; source commits are NOT evidence of tests passing. Do not proceed to Phase04 Step13 until critical policy and transactional negative-path checks pass.
+
+**Committed artifacts:**
+- `tests/ArginTaxPayer.Tests/Phase04ScopeRegressionTests.cs`: EF PostgreSQL provider SQL-shape and model integrity assertions for live customer owner scoping; ensures deprecated `taxpayer_delegate_grants` are not consulted and owner/history FK consistency.
+- `scripts/phase04-step12-smoke.mjs`: **read-only** authenticated HTTP smoke with three independent role sessions (Level1, assigned Level2, unrelated Level2), including 401/403/404, customer detail, nested taxpayer lists and privileged partner directory. All responses are checked for scope leaks. Session tokens must only be in transient environment variables, never committed or printed.
+- `scripts/phase04-step12-transfer.mjs`: explicitly opt-in mutation smoke restricted to a dedicated disposable customer, verifying Level1 assignment to partner, revision conflict, scoped read, subsequent revocation to Level1, former partner denied and persistent audit. Refuses to run without `PHASE04_ALLOW_MUTATION=YES`, special fixture IDs and separate valid test sessions. Attempts fixture restoration in `finally` and warns on failure; never run on real customers.
+- `scripts/phase04-step12-audit.sql`: transaction `BEGIN READ ONLY`, hard guard for `current_database() = 'argintaxpayer_test'`, checks ownership role/revision invariants, summarizes root/partner ownership, unlinked legacy accounts/taxpayers without revealing identities.
+- `scripts/phase04-step12-check.zsh`: guarded quick macOS .NET build, targeted tests, Next.js tests/typecheck/build, and read-only PostgreSQL audit; respects `.env.dev.local`, no schema mutation, no UI login automation.
+
+**One-command owner local test:** With the preexisting AutoSSH tunnel and Development services started via `zsh scripts/dev-up.zsh` (or `zsh scripts/dev-status.zsh` if already up), execute:
+```bash
+zsh scripts/phase04-step12-check.zsh
+```
+No new migration is introduced in Step12; the database MUST already contain prior approved migrations `20261013233000_AddCustomerCommercialOwnership` and `20261014002000_AllowLegacyCommercialAcquisition`. Never apply them blindly to a non-test DB. Standalone auth HTTP smoke requires `PHASE04_ROOT_TOKEN`, `PHASE04_PARTNER_TOKEN`, `PHASE04_OTHER_TOKEN`, `PHASE04_CUSTOMER_ID`, and optional `PHASE04_TAXPAYER_ID` / `PHASE04_LEGACY_CUSTOMER_ID`:
+```bash
+node scripts/phase04-step12-smoke.mjs
+```
+Fixtures and session tokens are read from the environment (see the script header); do not paste tokens into bug reports or screenshots. For disposable owner-transfer fixture only, separate opt-in:
+```bash
+PHASE04_ALLOW_MUTATION=YES node scripts/phase04-step12-transfer.mjs
+```
+Requires separately configured `PHASE04_FIXTURE_CUSTOMER_ID` (Level1 direct customer) and `PHASE04_FIXTURE_PARTNER_ID`. Confirm no pending financial transactions on that fixture. It restores root ownership in `finally`. Do not run for real customers.
+
+**Step12 acceptance matrix:**
+1. Existing root account with MFA can list all Customer identities including unreconciled legacy (annotated, not auto-claimed); assigned Level2 sees only its current customer list; unauthenticated 401; unrelated partner's guessed customer UUID and nested taxpayer URL both 404; customer role 403.
+2. Every Customer-owned taxpayer belongs to one identity. The same Customer may have multiple taxpayers where future plan entitlements allow it; creating fiscal taxpayer via development API is restricted to Level1 and requires an explicit owner customer ID. Never infer a Level2 or a subscription entitlement from tax identifiers.
+3. Public email/mobile registration chooses configured unique root; Level1-created customers stay root-direct; Level2-created customers belong automatically to creating partner. If configured default Level1 is missing/ambiguous, fail closed rather than silently inventing attribution; verify registration does not leave partial identity rows or burn verified OTP.
+4. Root manual transfer with reason and revision creates exactly one immutable history entry, cannot self-approve from Level2, stale revision conflicts 409, concurrent initial legacy assignment conflicts not duplicate, reattribution affects subsequent access but never modifies past payments or settlements.
+5. Reassigned away Level2 must receive 404 on next customer detail, nested taxpayer list and taxpayer detail/edit; ensure old deprecated taxpayer grant never yields access. Compare assignment and scoped mutation race on live PostgreSQL and verify there is no unauthorized committed change. UI state refetches on focus and modal closes for removed customer.
+6. Certificate list still Level1-only, opaque custody reference must not leak; invalid/revoked/mismatched memory lifecycle requests denied; archived taxpayers filtered where promised. Annual plan lock, real tax authority verification and billing settlement remain future phase feature gates, not fake green statuses.
+7. Validate RTL browser table pagination and responsive user modal, session expiry and 401/403/409 displays; verify HTTP smoke uses loopback Development endpoints only.
+8. Migration audit with only `argintaxpayer_test`, no unreviewed destructive writes. Verify EF latest applied migration and no snapshot/schema drift.
+
+**Explicit limitations:** Only source/test additions were committed by assistant; no live test execution on macOS VPS DB, no browser E2E or SQL transaction race execution. Read-only HTTP smoke and opt-in mutation smoke test complementary cases; neither is equivalent to exhaustive production certification. Report failures before Step12 owner approval; Step13 is final hardening and release handoff, not an excuse to waive the acceptance gate.
 
