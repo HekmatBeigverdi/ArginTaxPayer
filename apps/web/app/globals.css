@@ -178,3 +178,17 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 .argin-loader-subtitle{font-size:11px;color:#74899a}
 .argin-loader-spinner{width:41px;height:41px;border:4px solid #dbebee;border-top-color:#15868a;border-right-color:#15868a;border-radius:50%;animation:argin-spin .85s linear infinite}
 @media(prefers-reduced-motion:reduce){.argin-loader-spinner{animation:none;border-color:#bedee1;border-top-color:#147f85}}
+
+/* Fiscal invoice participant identity, based on Iranian taxpayer header keys */
+.invoice-participant{margin:22px 0;padding:19px;background:#fff;border:1px solid #d8e6eb;border-radius:13px;min-width:0}
+.invoice-participant h3{font-size:17px;margin:0}
+.invoice-participant>label{display:block;font-weight:700;font-size:12px;margin:12px 0 6px}
+.invoice-participant>select{width:100%;min-height:40px;border-radius:9px;padding:8px 12px;border:1px solid #c7dae2;background:#fff;font:inherit}
+.invoice-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 18px;align-items:start}
+.invoice-fields label{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:700;color:#2d485b;min-width:0}
+.invoice-fields label small{font-size:10px;color:#8494a1;min-height:13px;font-weight:400}
+.invoice-fields input{width:100%;padding:9px 11px;min-height:38px;font:inherit;border-radius:8px;border:1px solid #c7dae2;background:#fff;color:#233e50}
+.invoice-fields button,.invoice-fields p{grid-column:1/-1}
+.invoice-help,.invoice-missing{font-size:12px;padding:11px 13px;border-radius:8px;line-height:1.85}
+.invoice-help{background:#eef7f8;color:#2a6471}.invoice-missing{background:#fff7eb;color:#895d20}
+@media(max-width:700px){.invoice-fields{grid-template-columns:1fr}}
