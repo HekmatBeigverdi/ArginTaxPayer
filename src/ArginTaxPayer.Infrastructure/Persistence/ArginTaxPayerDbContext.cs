@@ -14,6 +14,7 @@ namespace ArginTaxPayer.Infrastructure.Persistence;
 public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbContext> options)
     : DbContext(options)
 {
+    public DbSet<PartyDuplicateReview> PartyDuplicateReviews => Set<PartyDuplicateReview>();
     public DbSet<Party> Parties => Set<Party>();
     public DbSet<CustomerPartyLink> CustomerPartyLinks => Set<CustomerPartyLink>();
     public DbSet<TaxpayerProfile> TaxpayerProfiles => Set<TaxpayerProfile>();
@@ -36,6 +37,33 @@ public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbConte
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
+        var duplicateReviews = modelBuilder.Entity<PartyDuplicateReview>();
+        duplicateReviews.ToTable("party_duplicate_reviews", t =>
+        {
+            t.HasCheckConstraint("ck_duplicate_review_distinct", "candidate_party_id <> existing_party_id");
+            t.HasCheckConstraint("ck_duplicate_review_decision", "decision IN (1, 2)");
+            t.HasCheckConstraint("ck_duplicate_review_reason", "length(trim(reason)) > 0");
+        });
+        duplicateReviews.HasKey(x => x.Id);
+        duplicateReviews.Property(x => x.Id).HasColumnName("id");
+        duplicateReviews.Property(x => x.CustomerUserId).HasColumnName("customer_user_id");
+        duplicateReviews.Property(x => x.CandidatePartyId).HasColumnName("candidate_party_id");
+        duplicateReviews.Property(x => x.ExistingPartyId).HasColumnName("existing_party_id");
+        duplicateReviews.Property(x => x.ReviewerUserId).HasColumnName("reviewer_user_id");
+        duplicateReviews.Property(x => x.Decision).HasColumnName("decision").HasConversion<int>();
+        duplicateReviews.Property(x => x.Reason).HasColumnName("reason").HasMaxLength(500).IsRequired();
+        duplicateReviews.Property(x => x.ReviewedAtUtc).HasColumnName("reviewed_at_utc").HasColumnType("timestamp with time zone");
+        duplicateReviews.HasOne<IdentityUser>().WithMany().HasForeignKey(x => x.CustomerUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+        duplicateReviews.HasOne<IdentityUser>().WithMany().HasForeignKey(x => x.ReviewerUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+        duplicateReviews.HasOne<Party>().WithMany().HasForeignKey(x => x.CandidatePartyId)
+            .OnDelete(DeleteBehavior.Restrict);
+        duplicateReviews.HasOne<Party>().WithMany().HasForeignKey(x => x.ExistingPartyId)
+            .OnDelete(DeleteBehavior.Restrict);
+        duplicateReviews.HasIndex(x => new { x.CustomerUserId, x.ReviewedAtUtc })
+            .HasDatabaseName("ix_duplicate_reviews_customer_time");
 
         var parties = modelBuilder.Entity<Party>();
         parties.ToTable("parties", t =>
