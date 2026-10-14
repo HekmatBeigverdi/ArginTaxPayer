@@ -23,7 +23,7 @@ internal static class IdentityTestServices
         var isRealIntegration = Environment.GetEnvironmentVariable("RUN_ARGINTAXPAYER_PG_INTEGRATION") == "1" &&
             connection.Database == "argintaxpayer_test" &&
             connection.Username is not ("unused" or "x");
-        if (configuration is null && isRealIntegration)
+        if (isRealIntegration && string.IsNullOrWhiteSpace(configuration?["Ownership:DefaultLevel1UserId"]))
         {
             var root = db.IdentityUsers.AsNoTracking()
                 .Where(u => u.IsActive &&
@@ -32,7 +32,9 @@ internal static class IdentityTestServices
             if (root is null)
                 throw new InvalidOperationException(
                     "Phase04 PostgreSQL identity integration fixtures require an existing active Level1 root.");
-            configuration = new ConfigurationBuilder().AddInMemoryCollection(
+            var builder = new ConfigurationBuilder();
+            if (configuration is not null) builder.AddConfiguration(configuration);
+            configuration = builder.AddInMemoryCollection(
                 new Dictionary<string, string?>
                 {
                     ["Ownership:DefaultLevel1UserId"] = root.Value.ToString()
