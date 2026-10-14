@@ -31,6 +31,16 @@ public sealed class PartyPersistenceMetadataTests
     }
 
     [Fact]
+    public void Legal_registration_number_is_nullable_and_bounded()
+    {
+        using var db = CreateContext();
+        var entity = db.Model.FindEntityType(typeof(Party))!;
+        var property = entity.FindProperty(nameof(Party.RegistrationNumber))!;
+        Assert.True(property.IsNullable);
+        Assert.Equal(32, property.GetMaxLength());
+    }
+
+    [Fact]
     public void Customer_party_link_has_restrictive_foreign_keys_and_active_uniqueness()
     {
         using var db = CreateContext();
