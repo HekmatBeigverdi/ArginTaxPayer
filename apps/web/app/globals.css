@@ -74,3 +74,29 @@
 .users-owner-edit input,.users-owner-edit select,.users-owner-edit textarea{min-width:0;width:100%;font:inherit;font-size:13px;padding:10px 12px;border:1px solid #c9d7e6;border-radius:8px;background:white;color:#152b43}
 .users-owner-edit form .users-button{justify-self:start}
 .users-owner-history{margin:14px 0 0;padding:0 20px;font-size:12px;overflow-wrap:anywhere;line-height:1.9}
+
+/* Phase 05 Step 12: responsive accessible Persian parties workspace */
+.party-layout{max-width:1440px}
+.party-grid{display:grid;grid-template-columns:minmax(310px,1fr) minmax(350px,1.3fr);gap:20px;align-items:start}
+.party-card{background:#fff;border:1px solid #dce5ef;border-radius:16px;padding:22px;min-width:0;box-shadow:0 8px 26px #17395509}
+.party-card h2{font-size:19px;margin-bottom:15px}
+.party-card h3{font-size:16px;margin:24px 0 10px}
+.party-card label{display:block;margin:12px 0 5px;font-size:13px;font-weight:700}
+.party-card input,.party-card select,.party-card textarea{width:100%;min-height:42px;background:white;border:1px solid #bbcbdc;border-radius:9px;padding:9px 11px;font:inherit;color:#18314c}
+.party-card input[dir=ltr]{text-align:left}
+.party-card :is(input,select,textarea,button):focus-visible{outline:3px solid #3182b5;outline-offset:2px}
+.party-form{display:flex;flex-direction:column;gap:4px}
+.party-form button,.party-actions button,.party-card form>button{font:inherit;border:1px solid #1d5478;border-radius:9px;background:#f8fcff;color:#173e5e;padding:9px 15px;cursor:pointer}
+.party-card button:disabled{opacity:.55;cursor:not-allowed}
+.party-list{list-style:none;padding:0;margin:14px 0}
+.party-list li{margin-bottom:7px}
+.party-list button{width:100%;text-align:right;font:inherit;border:1px solid #dce5ef;background:#f8fafc;border-radius:9px;padding:10px;cursor:pointer}
+.party-list button[aria-pressed=true]{border-color:#31749e;background:#e6f2fa}
+.party-list small{display:block;color:#60748c;margin-top:4px}
+.party-actions{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:10px 0 16px}
+.party-actions h2{margin:0}
+.party-error{border-inline-start:4px solid #b42318;background:#fff0ee;padding:10px;color:#902119;border-radius:5px}
+.party-success{border-inline-start:4px solid #21825b;background:#ecfff5;padding:10px;color:#176046;border-radius:5px}
+.party-details{border-top:1px solid #e0e7ef;margin-top:24px;padding-top:10px}
+.party-card bdi{unicode-bidi:isolate;direction:ltr}
+@media(max-width:850px){.party-grid{grid-template-columns:minmax(0,1fr)}.party-card{padding:16px}}
