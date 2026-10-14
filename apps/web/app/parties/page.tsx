@@ -26,6 +26,6 @@ export default async function PartiesPage() {
         <Link href="/">صفحه اصلی</Link>
       </nav>
     </header>
-    <PartyWorkspace isAdmin={admin} customerId={actor.userId}/>
+    <PartyWorkspace isAdmin={admin} canCreateTaxpayer={actor.roles.includes("Level1")} customerId={actor.userId}/>
   </main>;
 }
