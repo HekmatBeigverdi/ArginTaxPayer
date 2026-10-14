@@ -104,6 +104,19 @@ export default function BuyerTaxpayerDirectory({ admin, level1 }: { admin: boole
     setView(mode); setSelectedBuyer(customer); setError(""); setNotice("");
   }
 
+  async function buyerCreated(mobile: string) {
+    setNotice("حساب ورود خریدار ایجاد شد؛ اکنون اطلاعات حقیقی/حقوقی او را ثبت کنید.");
+    try {
+      const current = await get<Buyer[]>("/api/customer-owners/accounts");
+      setBuyers(current);
+      const found = current.find(b => b.mobile === mobile);
+      if (found) open("buyer-details", found.customerUserId);
+      else setNotice("خریدار ثبت شد، اما هنوز در فهرست مجاز دیده نمی‌شود. دسترسی تجاری او را بررسی و سپس صفحه را بازخوانی کنید.");
+    } catch {
+      setError("حساب ایجاد شد ولی دریافت پرونده خریدار ممکن نیست؛ برای جلوگیری از ثبت تکراری، از فهرست کاربران آن را پیدا کنید.");
+    }
+  }
+
   async function addTaxpayer(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (busy || !level1 || !isUuid(selectedBuyer)) return;
@@ -138,7 +151,7 @@ export default function BuyerTaxpayerDirectory({ admin, level1 }: { admin: boole
       }[view]}</h2><button type="button" onClick={() => { setView("list"); void reload(); }}>بازگشت به فهرست</button></div>
       {view === "buyer-new" && <>
         <p>خریدار دارای حساب ورود مستقل است. پس از ایجاد حساب، شخص حقیقی یا حقوقی او را در پرونده مشخص کنید.</p>
-        <AdminCreateCustomer />
+        <AdminCreateCustomer onCreated={mobile => void buyerCreated(mobile)} />
       </>}
       {view === "buyer-details" && <PartyWorkspace key={selectedBuyer}
         isAdmin={true} canCreateTaxpayer={level1} customerId={selectedBuyer} />}
