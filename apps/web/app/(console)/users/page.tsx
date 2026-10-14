@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import { currentIdentity, identityUiEnabled } from "../../../lib/identity";
 import UsersWorkspace from "../../users/users-workspace";
-import AdminCreateCustomer from "../../account/admin-create-customer";
 
 export const dynamic = "force-dynamic";
 export default async function UsersPage() {
