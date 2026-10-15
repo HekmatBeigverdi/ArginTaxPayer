@@ -1,6 +1,5 @@
 "use client";
 import { useCallback, useEffect, useRef, useState, type DragEvent, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
 
 type Profile = { userId: string; firstName: string; lastName: string;
   companyName: string | null; address: string; hasLogo: boolean;
@@ -67,7 +66,6 @@ async function toNormalizedPng(file: File): Promise<Blob> {
 }
 
 export default function SoftwareProfileForm({ required = false }: { required?: boolean }) {
-  const router = useRouter();
   const fileInput = useRef<HTMLInputElement>(null);
   const [profile, setProfile] = useState<Profile>(initial);
   const [loading, setLoading] = useState(true);
@@ -112,9 +110,14 @@ export default function SoftwareProfileForm({ required = false }: { required?: b
         "پروفایل در جای دیگری تغییر کرده؛ ابتدا بازخوانی کنید." :
         res.status === 400 ? "نام، نام خانوادگی و نشانی را با طول معتبر وارد کنید." :
         "ذخیره اطلاعات پروفایل ناموفق بود.");
-      setProfile(await res.json() as Profile);
+      const saved = await res.json() as Profile;
+      setProfile(saved);
       setNotice("اطلاعات پروفایل با موفقیت ذخیره شد.");
-      router.refresh();
+      // Update the persistent console guard immediately after a confirmed save.
+      // Avoid refreshing the layout, which would reset unrelated page state.
+      window.dispatchEvent(new CustomEvent("argin:software-profile-saved", {
+        detail: { complete: saved.complete }
+      }));
     } catch (e) { setError((e as Error).message); }
     finally { setSaving(false); }
   }
