@@ -16,7 +16,8 @@ test("selected fiscal record ID not customer account ID drives its modal", () =>
 test("buyer edit is revision guarded and archive preserves persisted identity", () => {
   const modal = read("app/parties/fiscal-record-modal.tsx");
   assert.match(modal, /expectedRevision: person\.revision/);
-  assert.match(modal, /archive: mode === "archive"/);
+  assert.match(modal, /archive: true/);
+  assert.match(modal, /mode === "archive" \? buyerPath/);
   assert.doesNotMatch(modal, /method: "DELETE"/);
   assert.match(modal, /بایگانی خریدار|بایگانی /);
 });
