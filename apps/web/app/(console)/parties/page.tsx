@@ -15,6 +15,6 @@ export default async function PartiesPage() {
       <h1>خریداران و مؤدیان</h1>
       <p>{admin ? "فهرست خریداران و مؤدیان مرتبط، ثبت حساب و مدیریت پرونده مالیاتی" :
         "مشاهده اشخاص و مؤدیان وابسته به حساب شما"}</p></div></div>
-    <BuyerTaxpayerDirectory admin={admin} level1={level1}/>
+    <BuyerTaxpayerDirectory admin={admin} level1={level1} actorUserId={actor.userId}/>
   </div>;
 }
