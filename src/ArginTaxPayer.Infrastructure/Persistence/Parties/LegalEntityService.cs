@@ -134,6 +134,8 @@ public sealed class LegalEntityService(ArginTaxPayerDbContext db, IdentityAuthor
                 if (await db.CustomerPartyLinks.AnyAsync(l => l.PartyId == person.Id &&
                     l.CustomerUserId != customerId && l.UnlinkedAtUtc == null, ct))
                     return new LegalEntityResult(LegalEntityDecision.Conflict);
+                db.PartyIdentityHistories.Add(PartyIdentityEditService.CapturePrevious(
+                    person, actor.Value, DateTime.UtcNow));
                 person.NormalizedIdentifier = validated!.NormalizedNationalIdentifier;
                 person.RegistrationNumber = validated.RegistrationNumber;
                 person.DisplayName = validated.RegisteredName;
