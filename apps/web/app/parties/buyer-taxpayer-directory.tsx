@@ -58,7 +58,9 @@ export default function BuyerTaxpayerDirectory({ admin, level1, actorUserId }: {
           name: t.displayName, identifier: "", status: t.status === 1 ? "فعال" : "غیرفعال",
           ownerName: mine.displayName || "حساب شما"
         }));
-        setRows(mineRows); setBuyers([]);
+        setRows(mineRows); setBuyers([{ customerUserId: mine.customerUserId, mobile: null,
+          email: mine.displayName, isActive: true, taxpayerCount: mine.taxpayers.length,
+          rootLevel1UserId: null, partnerLevel2UserId: null }]);
         return;
       }
       const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
@@ -113,7 +115,7 @@ export default function BuyerTaxpayerDirectory({ admin, level1, actorUserId }: {
   return <section className="console-directory">
     {registerMode && <ParticipantRegistrationModal mode={registerMode} buyers={buyers} actorUserId={actorUserId}
       level1={level1} onClose={() => setRegisterMode(null)} onCompleted={reload}/> }
-    {admin && <div className="console-directory-actions">
+    {<div className="console-directory-actions">
       <button className="identity-primary" type="button" onClick={() => setRegisterMode("buyer")}>+ افزودن خریدار</button>
       <button className="identity-secondary" type="button" onClick={() => setRegisterMode("seller")}>+ افزودن مؤدی</button>
       <button type="button" className="identity-secondary" onClick={() => { setError(""); void reload(); }} disabled={loading}>بازخوانی فهرست</button>
