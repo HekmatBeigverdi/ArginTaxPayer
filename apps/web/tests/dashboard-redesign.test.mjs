@@ -31,7 +31,7 @@ test("software users and parties are reachable by navigation and selectable cust
   assert.ok(workspace.includes("/api/customer-owners/directory/page"));
   assert.match(workspace, /console-directory-filters/);
   assert.ok(workspace.includes("ParticipantRegistrationModal"));
-  assert.match(workspace, /setRegisterMode\("buyer"\)/);
+  assert.match(workspace, /startRegistration\("buyer"\)/);
   assert.match(workspace, /taxpayer-connection/);
 });
 
