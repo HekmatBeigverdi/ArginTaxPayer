@@ -32,6 +32,7 @@ public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbConte
     public DbSet<FiscalCertificateMetadata> FiscalCertificateMetadata => Set<FiscalCertificateMetadata>();
     public DbSet<TaxpayerProfileChange> TaxpayerProfileChanges => Set<TaxpayerProfileChange>();
     public DbSet<IdentityUser> IdentityUsers => Set<IdentityUser>();
+    public DbSet<SoftwareUserProfile> SoftwareUserProfiles => Set<SoftwareUserProfile>();
     public DbSet<IdentityUserRole> IdentityUserRoles => Set<IdentityUserRole>();
     public DbSet<IdentitySession> IdentitySessions => Set<IdentitySession>();
     public DbSet<IdentityMfaState> IdentityMfaStates => Set<IdentityMfaState>();
@@ -75,6 +76,27 @@ public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbConte
             .HasFilter("unlinked_at_utc IS NULL").HasDatabaseName("ux_customer_taxpayer_memberships_active");
         memberships.HasIndex(x => new { x.CustomerUserId, x.LinkedAtUtc })
             .HasDatabaseName("ix_customer_taxpayer_memberships_history");
+
+        var softwareProfile = modelBuilder.Entity<SoftwareUserProfile>();
+        softwareProfile.ToTable("software_user_profiles", t =>
+        {
+            t.HasCheckConstraint("ck_software_user_profiles_revision", "revision > 0");
+            t.HasCheckConstraint("ck_software_user_profiles_name",
+                "length(trim(first_name)) >= 2 AND length(trim(last_name)) >= 2");
+            t.HasCheckConstraint("ck_software_user_profiles_address", "length(trim(address)) >= 2");
+        });
+        softwareProfile.HasKey(x => x.UserId);
+        softwareProfile.Property(x => x.UserId).HasColumnName("user_id");
+        softwareProfile.Property(x => x.FirstName).HasColumnName("first_name").HasMaxLength(100).IsRequired();
+        softwareProfile.Property(x => x.LastName).HasColumnName("last_name").HasMaxLength(100).IsRequired();
+        softwareProfile.Property(x => x.CompanyName).HasColumnName("company_name").HasMaxLength(256);
+        softwareProfile.Property(x => x.Address).HasColumnName("address").HasMaxLength(500).IsRequired();
+        softwareProfile.Property(x => x.InvoiceLogoPng).HasColumnName("invoice_logo_png").HasColumnType("bytea");
+        softwareProfile.Property(x => x.Revision).HasColumnName("revision").IsConcurrencyToken().HasDefaultValue(1L);
+        softwareProfile.Property(x => x.CompletedAtUtc).HasColumnName("completed_at_utc").HasColumnType("timestamp with time zone");
+        softwareProfile.Property(x => x.UpdatedAtUtc).HasColumnName("updated_at_utc").HasColumnType("timestamp with time zone");
+        softwareProfile.HasOne<IdentityUser>().WithOne().HasForeignKey<SoftwareUserProfile>(x => x.UserId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         var customerProfiles = modelBuilder.Entity<CustomerAccountProfile>();
         customerProfiles.ToTable("customer_account_profiles", t =>
