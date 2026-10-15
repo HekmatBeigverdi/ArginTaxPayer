@@ -134,6 +134,8 @@ public sealed class NaturalPersonService(ArginTaxPayerDbContext db, IdentityAuth
                 if (await db.CustomerPartyLinks.AnyAsync(l => l.PartyId == person.Id &&
                     l.CustomerUserId != customerId && l.UnlinkedAtUtc == null, ct))
                     return new NaturalPersonResult(NaturalPersonDecision.Conflict);
+                db.PartyIdentityHistories.Add(PartyIdentityEditService.CapturePrevious(
+                    person, actor.Value, DateTime.UtcNow));
                 person.NormalizedIdentifier = validated!.NormalizedNationalCode;
                 person.FirstName = validated.FirstName;
                 person.LastName = validated.LastName;
