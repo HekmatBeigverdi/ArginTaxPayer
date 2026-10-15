@@ -1,6 +1,10 @@
 using ArginTaxPayer.Api.Health;
 using ArginTaxPayer.Api.Identity;
 using ArginTaxPayer.Api.Taxpayers;
+using ArginTaxPayer.Api.Parties;
+using ArginTaxPayer.Api.Customers;
+using ArginTaxPayer.Infrastructure.Persistence.Customers;
+using ArginTaxPayer.Infrastructure.Persistence.Parties;
 using ArginTaxPayer.Infrastructure.Persistence.Taxpayers;
 using ArginTaxPayer.Infrastructure.Persistence.Identity;
 using ArginTaxPayer.Api.Observability;
@@ -35,6 +39,19 @@ if (identityDevelopmentEnabled)
             client.Timeout = TimeSpan.FromSeconds(12));
     builder.Services.AddScoped<IdentityPhoneService>();
     builder.Services.AddScoped<IdentityAuthorizationService>();
+    builder.Services.AddScoped<CustomerSelfServiceService>();
+    builder.Services.AddScoped<SoftwareUserProfileService>();
+    builder.Services.AddScoped<CustomerTaxpayerMembershipService>();
+    builder.Services.AddScoped<CustomerAccountProfileService>();
+    builder.Services.AddScoped<ParticipantScopeService>();
+    builder.Services.AddScoped<PartyIdentityEditService>();
+    builder.Services.AddScoped<InvoiceParticipantDetailsService>();
+    builder.Services.AddScoped<FiscalParticipantDirectoryService>();
+    builder.Services.AddScoped<PartyDirectoryService>();
+    builder.Services.AddScoped<NaturalPersonService>();
+    builder.Services.AddScoped<LegalEntityService>();
+    builder.Services.AddScoped<PartyContactAddressService>();
+    builder.Services.AddScoped<PartyDeduplicationService>();
     builder.Services.AddScoped<TaxpayerCreationService>();
     builder.Services.AddScoped<TaxpayerProfileLifecycleService>();
     builder.Services.AddScoped<FiscalMemoryManagementService>();
@@ -93,7 +110,14 @@ if (app.Environment.IsDevelopment())
     if (identityDevelopmentEnabled)
     {
         app.MapIdentityDevelopmentEndpoints();
+        app.MapSoftwareUserProfileEndpoints();
         app.MapTaxpayerDevelopmentEndpoints();
+        app.MapPartyDevelopmentEndpoints();
+        app.MapFiscalParticipantDirectoryEndpoints();
+        app.MapInvoiceParticipantEndpoints();
+        app.MapCustomerProfileDevelopmentEndpoints();
+        app.MapCustomerTaxpayerMembershipEndpoints();
+        app.MapCustomerSelfServiceEndpoints();
     }
 }
 

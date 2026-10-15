@@ -15,8 +15,12 @@ test("software customers are a data table, not top-level taxpayer cards", () => 
 });
 test("pagination is coupled to search and ownership filtering", () => {
   assert.match(view, /PAGE_SIZES = \[10, 20, 50\]/);
-  assert.match(view, /Math\.ceil\(filtered\.length \/ pageSize\)/);
-  assert.match(view, /filtered\.slice/);
+  assert.match(view, /\/api\/customer-owners\/accounts\/page/);
+  assert.match(view, /pageSize: String\(pageSize\)/);
+  assert.match(view, /params\.set\("query"/);
+  assert.match(view, /params\.set\("ownership"/);
+  assert.match(view, /Math\.ceil\(total \/ pageSize\)/);
+  assert.doesNotMatch(view, /filtered\.slice/);
   assert.match(view, /setPage\(1\)/);
   assert.match(view, /setPage\(p => p \+ 1\)/);
   assert.match(view, /setPage\(p => p - 1\)/);
@@ -25,7 +29,8 @@ test("native accessible dialog loads only one customer's taxpayers", () => {
   assert.match(view, /<dialog className="users-dialog"/);
   assert.match(view, /showModal\(\)/);
   assert.match(view, /aria-labelledby="user-detail-heading"/);
-  assert.match(view, /\/taxpayers/);
+  assert.doesNotMatch(view, /مؤدیان وابسته به این کاربر/);
+  assert.match(view, /انتساب تجاری این کاربر/);
   assert.match(view, /onClose=\{close\}/);
   assert.match(css, /users-dialog::backdrop/);
 });

@@ -612,3 +612,11 @@ Ubuntu script uses loopback-only `argintaxpayer_test` and never auto-applies mig
 - GitHub Release survey before publication: existing latest Phase03 release `v0.3.0-phase03`; Phase04 tag/release **not yet created**. Suggested consistent tag: `v0.4.0-phase04` (check remote refs first).
 - Formal Phase04 steps 01–13 accepted. Separate release/tag publication remains an operator action and should not be marked completed without GitHub confirmation. The Level1/Level2 three-account HTTP smoke remains a knowingly waived security acceptance item for future independent testing.
 - Handoff to Phase05 may start from updated `main`. A phase-specific Release is development-stage documentation, not approval to expose dev-only endpoints in production.
+
+
+## Cross-phase fiscal taxpayer correction — 2026-10-15 (Phase05 implementation)
+`TaxpayerProfile` is a seller/fiscal-taxpayer record, distinct from `IdentityUser` and `Party`. Its `CustomerUserId` references the account managing it and does not create or imply another software login. `FiscalMemory` and connection/certificate metadata belong to the seller, never to buyer/person rows or the owning software user itself. New Phase05 fiscal directory reads taxpayer records directly from `TaxpayerProfiles` with query-time account ownership and role/MFA scope. Seller onboarding by a customer, owned Level2, or owning Level1 is separate from tax authority confirmation, subscription entitlement, or invoice submission. Existing tax custody/authority connectivity milestones remain governed by Phases09–12. Fiscal directory pagination counts seller rows, not software accounts. No automatic reownership/backfill.
+
+
+## Phase05 selected-seller record edit/archival clarification (2026-10-15)
+The user-facing fiscal seller detail modal loads the exact TaxpayerProfile selected from the fiscal directory, not an owning IdentityUser account. Authorized customer/partner/root users may edit the seller's non-identity display name, and soft archive only an active profile without fiscal memory; revision and ownership checks are enforced server-side. Memory binding, certificate history, official authority status, key custody and subscription locks are NOT deleted by that action. Issued invoice FK preservation and immutable snapshots are mandatory for the future invoice-domain phase.

@@ -6,11 +6,11 @@ const read = (path) => readFileSync(new URL("../" + path, import.meta.url), "utf
 
 test("identity and account pages use Persian RTL and server-side identity checks", () => {
   const login = read("app/identity/page.tsx");
-  const account = read("app/account/page.tsx");
+  const account = read("app/(console)/account/page.tsx");
   const root = read("app/layout.tsx");
   assert.match(root, /lang="fa" dir="rtl"/);
   assert.match(login, /currentIdentity\(\)/);
-  assert.match(login, /redirect\("\/account"\)/);
+  assert.match(login, /redirect\("\/dashboard"\)/);
   assert.match(account, /if \(!actor\) redirect\("\/identity"\)/);
   assert.match(account, /currentIdentity\(\)/);
 });
@@ -29,28 +29,29 @@ test("identity proxy fails closed outside development and keeps credentials Http
   assert.doesNotMatch(proxy, /console\.log/);
 });
 
-test("protected account provides logout, MFA, and owned-session controls", () => {
+test("protected account separates MFA security from sessions and retains shell logout", () => {
   const account = read("app/account/account-controls.tsx");
-  assert.match(account, /\/api\/identity\/logout/);
-  assert.match(account, /\/api\/identity\/sessions\/revoke/);
+  assert.match(read("app/components/console-shell.tsx"), /\/api\/identity\/logout/);
+  assert.doesNotMatch(account, /\/api\/identity\/sessions/);
   assert.match(account, /\/api\/identity\/mfa\/enroll/);
   assert.match(account, /\/api\/identity\/mfa\/confirm/);
   assert.match(account, /setRecoveryCodes\(\[\]\)/);
 });
 
-test("unified identity screen has two top-level tabs, OTP choice and recovery path", () => {
+test("unified identity screen uses simple actions, OTP and recovery path", () => {
   const page = read("app/identity/page.tsx");
   const flow = read("app/identity/identity-flow.tsx");
   const proxy = read("app/api/identity/[...path]/route.ts");
   assert.match(page, /<IdentityFlow \/>/);
-  assert.match(flow, /role="tablist"/);
-  assert.match(flow, />ورود<\/button>/);
-  assert.match(flow, />ثبت‌نام<\/button>/);
-  assert.match(flow, /role="group" aria-label="روش ورود"/);
+  assert.doesNotMatch(flow, /role="tablist"/);
+  assert.match(flow, /ورود به حساب/);
+  assert.match(flow, /ایجاد حساب جدید/);
+  assert.match(flow, /ورود با کد پیامکی/);
+  assert.match(flow, /className="auth-secondary-links"/);
   assert.match(flow, /رمز عبور را فراموش کرده‌اید/);
   assert.match(flow, /mfa\/challenge/);
   assert.match(flow, /mfa\/complete/);
-  assert.match(flow, /useRecoveryCode:recovery/);
+  assert.match(flow, /useRecoveryCode:\s*recovery/);
   assert.match(flow, /phone\/request/);
   assert.match(flow, /register\/complete/);
   assert.match(flow, /login\/complete/);
@@ -68,10 +69,12 @@ test("successful login remains busy until protected page navigation", () => {
 });
 
 test("administrator customer form requires role-gated UI and authenticated BFF operation", () => {
-  const account = read("app/account/page.tsx");
+  const directory = read("app/parties/buyer-taxpayer-directory.tsx");
   const form = read("app/account/admin-create-customer.tsx");
   const proxy = read("app/api/identity/[...path]/route.ts");
-  assert.match(account, /role === "Level1" \|\| role === "Level2"/);
+  assert.match(directory, /admin/);
+  assert.match(directory, /ParticipantRegistrationModal/);
+  assert.doesNotMatch(directory, /AdminCreateCustomer/);
   assert.match(form, /admin\/customers/);
   assert.match(form, /ایمیل \(اختیاری\)/);
   assert.match(proxy, /"admin\/customers"/);

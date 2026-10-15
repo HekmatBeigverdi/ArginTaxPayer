@@ -1,4 +1,6 @@
 import { getApiHealth, type ProbeState } from "../lib/api-health";
+import { redirect } from "next/navigation";
+import { currentIdentity, identityUiEnabled } from "../lib/identity";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +17,7 @@ const sections = [
 ] as const;
 
 export default async function HomePage() {
+  if (identityUiEnabled() && await currentIdentity()) redirect("/dashboard");
   const api = await getApiHealth();
   return (
     <main className="shell">

@@ -137,3 +137,69 @@ The project-root untracked `.env.dev.local` (copy from `.env.dev.local.example`,
 - **Signoff stages:** Step implementation + focused tests → Mac functional test as needed → accumulated phase regression on macOS → one Ubuntu phase acceptance run → record evidence in the phase's single canonical `docs/phases/phase-XX.md` file → owner approval → phase close. No main merge, immutable tag, GitHub Release or production deployment without the separately established gates.
 - **Ubuntu first-time-only setup:** private file `~/.argintaxpayer-test/ubuntu.env`, mode 600, containing `ConnectionStrings__ArginTaxPayerDb` for `Host=127.0.0.1;Port=5432;Database=argintaxpayer_test` with private credentials. The Ubuntu launcher loads this itself; OTP pepper stays at `~/.argintaxpayer-test/otp-pepper`. `dotnet`, `node/npm`, `psql`, and other prerequisites must be installed. Migrations are inspected and applied **only explicitly** to the verified test database, never automatically by the launcher. Default Ubuntu verification and Development launcher force Ghasedak live sending **off**.
 - This cadence reduces duplicate manual Ubuntu tests, but does **not** mean that using the same remote PostgreSQL makes macOS and Ubuntu runtimes equivalent; differences in OS/permissions, Node/.NET runtime and process configuration are precisely why each phase still needs its final Ubuntu acceptance.
+
+
+## Canonical manual PostgreSQL CLI verification on macOS (owner-approved 2026-10-14)
+
+For **all subsequent ArginTaxPayer steps and phases**, do not pass the Npgsql semicolon-delimited `ConnectionStrings__ArginTaxPayerDb` directly to `psql`; it is not a libpq connection string. Use the verified Codex/operator approach: load private `.env.dev.local`, split exact Npgsql keys, connect with `psql -W`. Do not echo the password or commit the environment file. When testing schema or migration, verify the actual database using `SELECT current_database();` before changes and require exactly `argintaxpayer_test`.
+
+```bash
+set -a
+source .env.dev.local
+set +a
+
+npgsql_value() {
+  printf '%s\n' "$ConnectionStrings__ArginTaxPayerDb" |
+    tr ';' '\n' |
+    awk -F= -v key="$1" '$1 == key { sub(/^[^=]*=/, ""); print; exit }'
+}
+
+DB_HOST="$(npgsql_value Host)"
+DB_PORT="$(npgsql_value Port)"
+DB_NAME="$(npgsql_value Database)"
+DB_USER="$(npgsql_value Username)"
+
+[[ "$DB_HOST" == "127.0.0.1" && "$DB_PORT" == "15432" && "$DB_NAME" == "argintaxpayer_test" ]] || {
+  echo "Refusing non-test DB settings" >&2
+  return 1
+}
+
+psql -X -h "$DB_HOST" -p "$DB_PORT" \
+  -U "$DB_USER" -d "$DB_NAME" -W \
+  -c 'SELECT current_database();'
+```
+
+For repeated `psql` commands in the same terminal, reuse the extracted `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER` and `-W`. Confirm actual returned database equals `argintaxpayer_test` before applying migrations. The existing `scripts/dev-up.zsh` AutoSSH launcher remains the canonical way to prepare Mac connection. Keep this convention in every new phase master plan; do not recommend the former invalid `psql "$ConnectionStrings__ArginTaxPayerDb"` command.
+
+
+## Authoritative entity separation for all phases — 2026-10-15
+Three independently persisted bounded contexts: (1) `IdentityUser` = software login, session, roles and partner-owned customer account; (2) `Party` + `CustomerPartyLink` = fiscal invoice buyer/counterparty with person/company fields, no login; (3) `TaxpayerProfile` + fiscal memories/certificates = fiscal seller, separate from buyer and login. A customer can own many buyers and many sellers. Merely registering or creating a software account MUST NEVER create a buyer or seller list row, and no party/taxpayer registration creates login credentials. Level1 sees/manages its authorized root portfolio, Level2 its assigned customers, Customer only its own records, with server query-level isolation and checked mutations.
+- Phase03: login identity only. Administrative provisioning, activation/locking/deletion must be authorized and independently audited.
+- Phase04: seller ownership and fiscal-memory lifecycle only; does not define buyer creation as part of login registration.
+- Phase05: separate role-scoped buyer/seller CRUD and independent fiscal record server-side pagination/filtering. `/api/dev/fiscal-participants` is an internal development-only read model combining distinct Party and TaxpayerProfile projections; underlying tables remain independent, with no automatic conversions.
+- Phase06: goods/services catalog belongs to account tenant; seller selection is explicit.
+- Phase07–08: invoice snapshot references one seller TaxpayerProfile and optional/required buyer Party per official invoice type/pattern; never reference IdentityUser as an invoice party. Validation is rule-versioned and uses archived snapshots.
+- Phase09–11: keys, fiscal memories, tax authority submission, receipts and reconciliation reference fiscal seller, never a buyer or authentication session.
+- Phase12: plans/billing belong to customer accounts; entitlements constrain use of taxpayer sellers and invoice quotas but never turn buyer into login identity.
+- Phase13–16: imports, accounting synchronization, administration, reporting and migrations preserve typed IDs and foreign-key relationship provenance; no guessed buyer from phone/email, no global account pagination as substitute for fiscal person pagination.
+- Phase17–18: enforce integration regressions proving account-only registration yields zero new buyer/seller rows and no cross-customer record leakage.
+
+
+## Immutability of fiscal invoice counterparties — owner clarification (2026-10-15)
+Phases07/08 MUST add typed `buyer_party_id` and `seller_taxpayer_id` FK fields to every issued invoice header, with restrictive deletion, and retain immutable name/identifier/location/tax snapshots at issuance time. Edits to Party or TaxpayerProfile master data affect only future drafts and new invoices; historical invoices and transmitted payloads preserve exactly the values used at issuance. Linked buyers and sellers must not be physically deleted; use soft archive and keep their FK targets. Phase05 defines soft archive and stable identity IDs but cannot enforce invoice-reference queries until invoice tables are implemented. Every later import, correction, credit note, inquiry and accounting integration must preserve historical invoice participant snapshots and original FK traceability.
+
+
+## Buyer master-identity updates and future invoice snapshot integration — 2026-10-15
+Owner policy: allow changing name, legal identifier and natural/legal person kind after checking invoice references. Draft invoices should be revalidated upon master changes. Already issued/transmitted invoices MUST retain original signed/transmitted header details and exact old identity, with typed FK buyer_party_id pointing to Party. Copies must be captured at ISSUE/SEND time (from the exact sent payload), BEFORE any subsequent mutation; reconstructing from mutable Party state at edit time is unsafe. Once an immutable issued snapshot exists, subsequent edits to master Party may proceed without changing historical documents. Physical delete must be forbidden for referenced records.
+**Phase05 implementation (NOT invoice engine):** Versioned PUT `/api/dev/customers/{customerId}/parties/{partyId}/identity` accepts `Kind, Identifier, Name, LastName, RegistrationNumber, ExpectedRevision`. It atomically validates destination kind (natural/legal domain rules), checks active commercial ownership and shared Party conflict, rejects stale revision, inserts `party_identity_history` with old Kind/Identifier/Name/First/Last/Registration/Revision/Actor/Time, then updates the original stable Party ID. Existing natural/legal PUT paths now write the same audit trail. Frontend modal provides kind selection and validates matching name/identifier. New additive migration `20261015170000_AddPartyIdentityHistory` (Restrict FKs, unique prior Party/revision), plus EF snapshot. No existing software-user account is changed.
+**Current boundary:** There is **no invoice-header, issuance state or outbound fiscal payload table in Phase05**, thus no invoice scan or snapshot capture from a sent invoice can honestly execute yet. This is NOT equivalent to treating submitted invoices as absent; before enabling issuance (Phase07/08), add authoritative immutable header snapshots, sent-payload hash, transactional snapshot-before-commit/send, FK Restrict constraints and invoice-aware permission checks. Integration test must cover Draft, Created, PendingSend, Sent, Accepted, Rejected, Canceled, Corrective invoices and concurrent edits. Do not backfill old invoice snapshots from current Party.
+**Acceptance:** migration on verified `argintaxpayer_test`, user browser tests changing Natural→Legal→Natural, legal identifier checksum, immutable previous versions, conflicting shared Party revisions, cross-tenant protection. No invoice-state acceptance until the invoice subsystem exists.
+
+
+## Identity account profile onboarding and invoice branding — 2026-10-15
+- **Distinct bounded context:** `SoftwareUserProfile` belongs to authenticated `IdentityUser`, NOT `Party`, `TaxpayerProfile`, or fiscal invoice participant metadata. Source table `software_user_profiles` is keyed by `user_id` with a restrictive FK. Fields: `first_name`, `last_name`, nullable `company_name`, `address`, optional `invoice_logo_png`, revision and completion timestamps. User mobile/email and sessions remain in the identity subsystem. Owner-only GET/PUT and logo upload/read API; no arbitrary user ID from client. Existing customer commercial ownership is unaffected.
+- **First login:** Customer role must complete first/last name and address in the `/account` profile panel before accessing fiscal workspaces. Company name and logo optional for natural-person accounts; users who wish to place organizational branding on invoices can provide both. After login, a missing profile blocks normal console navigation; authoritatively, `ParticipantScopeService` also checks profile completion for customer fiscal actions. Administrators see incomplete customers only on the Software Users management screen; they are not selectable as owner for new buyers/sellers until completion. Accounts are never synthesized as a fiscal buyer/seller.
+- **Logo security:** Browser accepts PNG/JPEG/WebP up to 5 MB, resizes and letterboxes to PNG 512×512, preserving transparency; backend checks PNG signature, IHDR, dimensions, 8-bit RGB/RGBA and max 350KB before storing bytea. This is company artwork, not a session/avatar image. It is provided through private authenticated BFF, no public filesystem path, base64 exposure or cross-tenant logo URL. Official invoice print rendering in Phase07/08 must consume a snapshot of invoice owner branding and preserve the branding used at issuance; it must never derive a historical logo from a mutable latest profile.
+- **UI:** The Account page presents the editable user profile separately from the MFA/security section; session IDs and session enumeration are removed from this page. The fiscal owner picker displays `companyName || personName` only for active, completed profiles; admin Software Users table shows person/company in column 1 and truncated, accessible phone/email in column 2, including incomplete/unvisited accounts. Software-user names are not renamed into fiscal Party or taxpayer rows.
+- **Migration:** `20261015190000_AddSoftwareUserProfiles` is additive and reversible; old accounts remain pending-completion and are not silently populated. No changes to existing buyer/taxpayer/legal identity records. Apply only after reviewing prior migrations on `argintaxpayer_test`. Full browser/operator acceptance and the real PostgreSQL smoke test remain pending.
+- **Testing:** Model check for profile FK, image bytea, completion policy; UI tests for MFA/no-session, first-use gate, name selector and missing-profile admin visibility. Negative tests include invalid PNG, invalid dimensions, spoofed content-type, >350KB, stale revisions, cross-user access and direct buyer create before profile completion. Future invoice rendering requires a separate design-stage integration test.

@@ -1,6 +1,8 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import InvoiceParticipantForm from "../parties/invoice-participant-form";
+import ConsoleLoader from "../components/console-loader";
 
 type Taxpayer = { id: string; kind: number; normalizedIdentifier: string; displayName: string; status: number; revision: number };
 type Memory = { id: string; taxpayerId: string; memoryIdentifier: string; status: number; revision: number };
@@ -27,7 +29,8 @@ async function request<T>(path: string, method: "GET" | "POST" | "PATCH" = "GET"
   return response.json() as Promise<T>;
 }
 
-export default function TaxpayerWorkspace({ isLevel1 }: { isLevel1: boolean }) {
+export default function TaxpayerWorkspace({ isLevel1, initialTaxpayerId, showCreateForm = true, customerId }:
+  { isLevel1: boolean; initialTaxpayerId?: string; showCreateForm?: boolean; customerId?: string }) {
   const [taxpayers, setTaxpayers] = useState<Taxpayer[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [details, setDetails] = useState<Taxpayer | null>(null);
@@ -67,10 +70,12 @@ export default function TaxpayerWorkspace({ isLevel1 }: { isLevel1: boolean }) {
     setError(""); setNotice(""); setSelectedId(id); setDetails(null); setMemories([]); setCertificates({});
     try {
       const profile = await request<Taxpayer>("/" + id);
-      const list = isLevel1 ? await request<Memory[]>("/" + id + "/memories") : [];
+      const list = await request<Memory[]>("/" + id + "/memories");
       setDetails(profile); setEditName(profile.displayName); setMemories(list);
     } catch (ex) { setError((ex as Error).message); }
-  }, [isLevel1]);
+  }, []);
+
+  useEffect(() => { if (initialTaxpayerId) void show(initialTaxpayerId); }, [initialTaxpayerId, show]);
 
   async function createTaxpayer(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (busy) return;
@@ -119,7 +124,7 @@ export default function TaxpayerWorkspace({ isLevel1 }: { isLevel1: boolean }) {
       <label htmlFor="taxpayer-search">جست‌وجو در مؤدیان مجاز</label>
       <input id="taxpayer-search" type="search" value={search} onChange={e => setSearch(e.target.value)}
         placeholder="نام یا شناسه قانونی"/>
-      {loading ? <p role="status">در حال بارگذاری…</p> :
+      {loading ? <ConsoleLoader label="در حال دریافت پرونده‌های مالیاتی…" /> :
         filtered.length === 0 ? <p className="identity-muted">مؤدی مجازی برای نمایش وجود ندارد.</p> :
         <ul className="taxpayer-list">{filtered.map(t => <li key={t.id}>
           <button type="button" aria-pressed={t.id === selectedId} onClick={() => void show(t.id)}>
@@ -134,6 +139,7 @@ export default function TaxpayerWorkspace({ isLevel1 }: { isLevel1: boolean }) {
       {!details && <div className="taxpayer-panel"><h2>جزئیات مؤدی</h2>
         <p className="identity-muted">برای مشاهده اطلاعات، یک مؤدی را از فهرست انتخاب کنید.</p></div>}
       {details && <>
+        {customerId && <InvoiceParticipantForm key={details.id} customerId={customerId} subjectId={details.id} role="seller" personKind={details.kind} />}
         <article className="taxpayer-panel">
           <div className="taxpayer-section-heading"><h2>{details.displayName}</h2>
             <button type="button" className="identity-secondary" onClick={() => void show(details.id)}>بازخوانی جزئیات</button></div>
@@ -141,15 +147,15 @@ export default function TaxpayerWorkspace({ isLevel1 }: { isLevel1: boolean }) {
             <div><dt>شناسه قانونی</dt><dd dir="ltr">{details.normalizedIdentifier}</dd></div>
             <div><dt>وضعیت</dt><dd>{taxpayerLabels[details.status] ?? "نامشخص"}</dd></div>
             <div><dt>نسخه</dt><dd dir="ltr">{details.revision}</dd></div></dl>
-          <form className="identity-form" onSubmit={rename}>
+          {isLevel1 && <form className="identity-form" onSubmit={rename}>
             <label htmlFor="taxpayer-display-name">تغییر نام نمایشی</label>
             <input id="taxpayer-display-name" required maxLength={256} value={editName}
               onChange={e => setEditName(e.target.value)}/>
             <button type="submit" className="identity-primary" disabled={busy || editName.trim() === details.displayName}>ذخیره نام</button>
-          </form>
+          </form>}
           <p className="field-hint">ویرایش نام به معنای تغییر شناسه رسمی، مالکیت مؤدی یا حافظه مالیاتی نیست.</p>
         </article>
-        {isLevel1 && <article className="taxpayer-panel">
+        {<article className="taxpayer-panel">
           <h2>حافظه‌های مالیاتی</h2>
           {memories.length === 0 ? <p className="identity-muted">هنوز حافظه‌ای ثبت نشده است.</p> :
             <ul className="taxpayer-memory-list">{memories.map(m => <li key={m.id}>
@@ -168,7 +174,7 @@ export default function TaxpayerWorkspace({ isLevel1 }: { isLevel1: boolean }) {
                   </dl>)}
               </div>}
             </li>)}</ul>}
-          {isLevel1 && memories.length === 0 && <form className="identity-form" onSubmit={addMemory}>
+          {memories.length === 0 && <form className="identity-form" onSubmit={addMemory}>
             <label htmlFor="new-memory">کد حافظه مالیاتی موجود</label>
             <input id="new-memory" dir="ltr" required maxLength={64} pattern="[A-Za-z0-9]+"
               value={newMemory} onChange={e => setNewMemory(e.target.value)}/>
@@ -178,7 +184,7 @@ export default function TaxpayerWorkspace({ isLevel1 }: { isLevel1: boolean }) {
           <p className="taxpayer-warning">تست واقعی ارتباط با سازمان مالیاتی و تأیید توکن هنوز فعال نیست؛ هیچ وضعیت «اتصال موفق» به‌صورت نمایشی ساخته نمی‌شود.</p>
         </article>}
       </>}
-      {isLevel1 && <article className="taxpayer-panel">
+      {isLevel1 && showCreateForm && <article className="taxpayer-panel">
         <h2>ثبت مؤدی جدید</h2>
         <form className="identity-form" onSubmit={createTaxpayer}>
           <label htmlFor="new-taxpayer-customer">شناسه حساب مشتری (UUID)</label>

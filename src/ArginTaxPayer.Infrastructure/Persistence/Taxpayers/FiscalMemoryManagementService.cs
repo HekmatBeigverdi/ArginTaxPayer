@@ -1,5 +1,6 @@
 using ArginTaxPayer.Domain.Taxpayers;
 using ArginTaxPayer.Infrastructure.Persistence.Identity;
+using ArginTaxPayer.Infrastructure.Persistence.Parties;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 
@@ -22,7 +23,8 @@ public sealed record FiscalMemoryOperationResult(FiscalMemoryOperationStatus Sta
 /// reactivate, suspend or retire an active fiscal memory or add a second memory.
 /// </summary>
 public sealed class FiscalMemoryManagementService(
-    ArginTaxPayerDbContext db, IdentityAuthorizationService authorization)
+    ArginTaxPayerDbContext db, IdentityAuthorizationService authorization,
+    ParticipantScopeService scope)
 {
     private async Task<FiscalMemoryOperationStatus?> AuthenticateLevel1Async(string? bearer, CancellationToken ct)
     {
@@ -36,11 +38,23 @@ public sealed class FiscalMemoryManagementService(
         return null;
     }
 
+    private async Task<FiscalMemoryOperationStatus?> AuthenticateParticipantAsync(
+        string? bearer, Guid taxpayerId, CancellationToken ct)
+    {
+        var actor = await authorization.CurrentUserIdAsync(bearer, ct);
+        if (actor is null) return FiscalMemoryOperationStatus.Unauthenticated;
+        var owner = await db.TaxpayerProfiles.AsNoTracking()
+            .Where(p => p.Id == taxpayerId).Select(p => p.CustomerUserId).SingleOrDefaultAsync(ct);
+        if (owner is null || !await scope.CanManageAsync(actor.Value, owner.Value, ct))
+            return FiscalMemoryOperationStatus.Forbidden;
+        return null;
+    }
+
     public async Task<FiscalMemoryOperationResult> RegisterAsync(
         string? bearer, Guid taxpayerId, RegisterFiscalMemoryRequest? request,
         CancellationToken ct = default)
     {
-        var denied = await AuthenticateLevel1Async(bearer, ct);
+        var denied = await AuthenticateParticipantAsync(bearer, taxpayerId, ct);
         if (denied is { } failure) return new(failure);
         if (taxpayerId == Guid.Empty ||
             !FiscalMemoryOnboardingPolicy.TryNormalizeIdentifier(request?.MemoryIdentifier, out var identifier))
@@ -60,7 +74,9 @@ public sealed class FiscalMemoryManagementService(
             {
                 await using var tx = await db.Database.BeginTransactionAsync(
                     System.Data.IsolationLevel.Serializable, ct);
-                // Recheck inside transaction; no implicit read access for Level 2.
+                if (await AuthenticateParticipantAsync(bearer, taxpayerId, ct) is { } revoked)
+                    return new FiscalMemoryOperationResult(revoked);
+                // Recheck authorization before initial metadata registration.
                 if (await db.FiscalMemories.AsNoTracking().AnyAsync(x => x.TaxpayerId == taxpayerId, ct))
                     return new FiscalMemoryOperationResult(FiscalMemoryOperationStatus.RequiresApprovedBindingReview);
                 var now = DateTime.UtcNow;

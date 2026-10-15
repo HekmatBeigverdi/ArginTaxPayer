@@ -1,5 +1,6 @@
 using ArginTaxPayer.Domain.Taxpayers;
 using ArginTaxPayer.Infrastructure.Persistence.Identity;
+using ArginTaxPayer.Infrastructure.Persistence.Parties;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Npgsql;
@@ -17,10 +18,18 @@ public sealed record CommercialPartnerListResponse(CustomerOwnershipDecision Dec
 public sealed record CustomerAccountSummary(Guid CustomerUserId, Guid? RootLevel1UserId,
     Guid? PartnerLevel2UserId, CustomerAcquisitionChannel AcquisitionChannel,
     long Revision, string? Mobile, string? Email, DateTime CreatedAtUtc, bool IsActive,
-    int TaxpayerCount);
+    int TaxpayerCount, string? PersonName = null, string? CompanyName = null, bool ProfileComplete = false);
 
 public sealed record CustomerAccountListResponse(CustomerOwnershipDecision Decision,
     CustomerAccountSummary[]? Customers = null);
+public sealed record PagedCustomerAccountListResponse(CustomerOwnershipDecision Decision,
+    CustomerAccountSummary[] Items, int Page, int PageSize, int Total);
+public sealed record CustomerDirectoryEntry(CustomerAccountSummary Account,
+    PartyDirectoryItem[] Parties, TaxpayerProfileView[] Taxpayers);
+public sealed record CustomerDirectoryListResponse(CustomerOwnershipDecision Decision,
+    CustomerDirectoryEntry[]? Entries = null);
+public sealed record PagedCustomerDirectoryListResponse(CustomerOwnershipDecision Decision,
+    CustomerDirectoryEntry[] Items, int Page, int PageSize, int Total);
 public sealed record CustomerTaxpayerListResponse(CustomerOwnershipDecision Decision,
     TaxpayerProfileView[]? Taxpayers = null);
 public sealed record CustomerOwnershipResponse(CustomerOwnershipDecision Decision, CustomerCommercialOwnerView? Owner = null);
@@ -181,9 +190,168 @@ public sealed class CustomerCommercialOwnershipService(
                 o == null ? 0 : o.AcquisitionChannel,
                 o == null ? 0 : o.Revision,
                 u.NormalizedMobile, u.NormalizedEmail, u.CreatedAtUtc, u.IsActive,
-                db.TaxpayerProfiles.Count(t => t.CustomerUserId == u.Id))
+                db.TaxpayerProfiles.Count(t => t.CustomerUserId == u.Id),
+                db.SoftwareUserProfiles.Where(p => p.UserId == u.Id)
+                    .Select(p => p.FirstName + " " + p.LastName).FirstOrDefault(),
+                db.SoftwareUserProfiles.Where(p => p.UserId == u.Id)
+                    .Select(p => p.CompanyName).FirstOrDefault(),
+                db.SoftwareUserProfiles.Any(p => p.UserId == u.Id &&
+                    p.FirstName.Length >= 2 && p.LastName.Length >= 2 && p.Address.Length >= 2))
         ).ToArrayAsync(ct);
         return new(CustomerOwnershipDecision.Success, rows);
+    }
+
+    public async Task<PagedCustomerAccountListResponse> ListCustomerAccountsPageAsync(
+        string? bearer, int page, int pageSize, string? query, string? ownership,
+        CancellationToken ct = default)
+    {
+        var actor = await identity.CurrentUserIdAsync(bearer, ct);
+        if (actor is null) return new(CustomerOwnershipDecision.Unauthenticated, [], page, pageSize, 0);
+        if (page < 1 || pageSize is < 1 or > 100 || query?.Length > 100 ||
+            ownership is not (null or "all" or "root" or "partner" or "unresolved"))
+            return new(CustomerOwnershipDecision.Invalid, [], page, pageSize, 0);
+        var root = await IsScopedAdministratorAsync(actor.Value, IdentityRoleNames.Level1, ct);
+        var partner = await IsScopedAdministratorAsync(actor.Value, IdentityRoleNames.Level2, ct);
+        if (!root && !partner) return new(CustomerOwnershipDecision.Forbidden, [], page, pageSize, 0);
+
+        var safeQuery = query?.Trim();
+        var normalizedQuery = safeQuery ?? string.Empty;
+        var scoped =
+            from u in db.IdentityUsers.AsNoTracking()
+            where u.Roles.Any(role => role.Role == IdentityRoleNames.Customer)
+            join assignment in db.CustomerCommercialOwners.AsNoTracking()
+                on u.Id equals assignment.CustomerUserId into matches
+            from o in matches.DefaultIfEmpty()
+            where root || partner && o != null && o.PartnerLevel2UserId == actor.Value
+            select new { u, o };
+        if (!string.IsNullOrWhiteSpace(safeQuery))
+            scoped = scoped.Where(x => (x.u.NormalizedMobile ?? string.Empty).Contains(normalizedQuery) ||
+                (x.u.NormalizedEmail ?? string.Empty).Contains(normalizedQuery) ||
+                x.u.Id.ToString().Contains(normalizedQuery) ||
+                db.SoftwareUserProfiles.Any(p => p.UserId == x.u.Id &&
+                    ((p.FirstName + " " + p.LastName).Contains(normalizedQuery) ||
+                     (p.CompanyName ?? string.Empty).Contains(normalizedQuery))));
+        if (ownership == "root") scoped = scoped.Where(x => x.o != null && x.o.RootLevel1UserId == actor.Value && x.o.PartnerLevel2UserId == null);
+        if (ownership == "partner") scoped = scoped.Where(x => x.o != null && x.o.PartnerLevel2UserId != null);
+        if (ownership == "unresolved") scoped = scoped.Where(x => x.o == null);
+
+        var total = await scoped.CountAsync(ct);
+        var items = await scoped.OrderByDescending(x => x.u.CreatedAtUtc).ThenBy(x => x.u.Id)
+            .Skip((page - 1) * pageSize).Take(pageSize)
+            .Select(x => new CustomerAccountSummary(
+                x.u.Id, x.o == null ? null : x.o.RootLevel1UserId,
+                x.o == null ? null : x.o.PartnerLevel2UserId,
+                x.o == null ? 0 : x.o.AcquisitionChannel,
+                x.o == null ? 0 : x.o.Revision,
+                x.u.NormalizedMobile, x.u.NormalizedEmail, x.u.CreatedAtUtc, x.u.IsActive,
+                db.TaxpayerProfiles.Count(t => t.CustomerUserId == x.u.Id),
+                db.SoftwareUserProfiles.Where(p => p.UserId == x.u.Id)
+                    .Select(p => p.FirstName + " " + p.LastName).FirstOrDefault(),
+                db.SoftwareUserProfiles.Where(p => p.UserId == x.u.Id)
+                    .Select(p => p.CompanyName).FirstOrDefault(),
+                db.SoftwareUserProfiles.Any(p => p.UserId == x.u.Id &&
+                    p.FirstName.Length >= 2 && p.LastName.Length >= 2 && p.Address.Length >= 2)))
+            .ToArrayAsync(ct);
+        return new(CustomerOwnershipDecision.Success, items, page, pageSize, total);
+    }
+
+    /// <summary>Returns the customer directory in one scoped response for the admin UI.</summary>
+    public async Task<CustomerDirectoryListResponse> ListCustomerDirectoryAsync(
+        string? bearer, CancellationToken ct = default)
+    {
+        var actor = await identity.CurrentUserIdAsync(bearer, ct);
+        if (actor is null) return new(CustomerOwnershipDecision.Unauthenticated);
+        var root = await IsScopedAdministratorAsync(actor.Value, IdentityRoleNames.Level1, ct);
+        var partner = await IsScopedAdministratorAsync(actor.Value, IdentityRoleNames.Level2, ct);
+        if (!root && !partner) return new(CustomerOwnershipDecision.Forbidden);
+
+        var accounts = await (
+            from u in db.IdentityUsers.AsNoTracking()
+            where u.Roles.Any(role => role.Role == IdentityRoleNames.Customer)
+            join assignment in db.CustomerCommercialOwners.AsNoTracking()
+                on u.Id equals assignment.CustomerUserId into matches
+            from o in matches.DefaultIfEmpty()
+            where root || partner && o != null && o.PartnerLevel2UserId == actor.Value
+            orderby u.CreatedAtUtc descending, u.Id
+            select new CustomerAccountSummary(
+                u.Id, o == null ? null : o.RootLevel1UserId,
+                o == null ? null : o.PartnerLevel2UserId,
+                o == null ? 0 : o.AcquisitionChannel,
+                o == null ? 0 : o.Revision,
+                u.NormalizedMobile, u.NormalizedEmail, u.CreatedAtUtc, u.IsActive,
+                db.TaxpayerProfiles.Count(t => t.CustomerUserId == u.Id),
+                db.SoftwareUserProfiles.Where(p => p.UserId == u.Id)
+                    .Select(p => p.FirstName + " " + p.LastName).FirstOrDefault(),
+                db.SoftwareUserProfiles.Where(p => p.UserId == u.Id)
+                    .Select(p => p.CompanyName).FirstOrDefault(),
+                db.SoftwareUserProfiles.Any(p => p.UserId == u.Id &&
+                    p.FirstName.Length >= 2 && p.LastName.Length >= 2 && p.Address.Length >= 2))
+        ).ToArrayAsync(ct);
+
+        var permittedCustomerIds = accounts
+            .Where(a => root && a.RootLevel1UserId == actor.Value ||
+                        partner && a.PartnerLevel2UserId == actor.Value)
+            .Select(a => a.CustomerUserId).ToArray();
+        var partyRows = await (
+            from link in db.CustomerPartyLinks.AsNoTracking()
+            join party in db.Parties.AsNoTracking() on link.PartyId equals party.Id
+            where permittedCustomerIds.Contains(link.CustomerUserId) && link.UnlinkedAtUtc == null
+            select new
+            {
+                link.CustomerUserId,
+                Item = new PartyDirectoryItem(party.Id, party.Kind, party.DisplayName,
+                    party.Status, party.Revision)
+            }
+        ).ToArrayAsync(ct);
+        var taxpayerRows = await db.TaxpayerProfiles.AsNoTracking()
+            .Where(t => t.CustomerUserId.HasValue &&
+                        permittedCustomerIds.Contains(t.CustomerUserId.Value))
+            .Select(t => new
+            {
+                t.CustomerUserId,
+                Item = new TaxpayerProfileView(t.Id, t.Kind, t.NormalizedIdentifier,
+                    t.DisplayName, t.Status, t.Revision)
+            }).ToArrayAsync(ct);
+        var partiesByCustomer = partyRows.ToLookup(x => x.CustomerUserId, x => x.Item);
+        var taxpayersByCustomer = taxpayerRows.ToLookup(x => x.CustomerUserId, x => x.Item);
+        var entries = accounts.Select(account => new CustomerDirectoryEntry(
+            account, partiesByCustomer[account.CustomerUserId].ToArray(),
+            taxpayersByCustomer[account.CustomerUserId].ToArray())).ToArray();
+        return new(CustomerOwnershipDecision.Success, entries);
+    }
+
+    public async Task<PagedCustomerDirectoryListResponse> ListCustomerDirectoryPageAsync(
+        string? bearer, int page, int pageSize, string? query, string? ownership,
+        CancellationToken ct = default)
+    {
+        var accounts = await ListCustomerAccountsPageAsync(bearer, page, pageSize, query, ownership, ct);
+        if (accounts.Decision != CustomerOwnershipDecision.Success)
+            return new(accounts.Decision, [], accounts.Page, accounts.PageSize, accounts.Total);
+        var actor = await identity.CurrentUserIdAsync(bearer, ct);
+        if (actor is null) return new(CustomerOwnershipDecision.Unauthenticated, [], page, pageSize, 0);
+        var root = await IsScopedAdministratorAsync(actor.Value, IdentityRoleNames.Level1, ct);
+        var partner = await IsScopedAdministratorAsync(actor.Value, IdentityRoleNames.Level2, ct);
+        var permittedCustomerIds = accounts.Items
+            .Where(a => root && a.RootLevel1UserId == actor.Value ||
+                        partner && a.PartnerLevel2UserId == actor.Value)
+            .Select(a => a.CustomerUserId).ToArray();
+        var partyRows = await (
+            from link in db.CustomerPartyLinks.AsNoTracking()
+            join party in db.Parties.AsNoTracking() on link.PartyId equals party.Id
+            where permittedCustomerIds.Contains(link.CustomerUserId) && link.UnlinkedAtUtc == null
+            select new { link.CustomerUserId, Item = new PartyDirectoryItem(party.Id, party.Kind, party.DisplayName, party.Status, party.Revision) }
+        ).ToArrayAsync(ct);
+        var taxpayerRows = await db.TaxpayerProfiles.AsNoTracking()
+            .Where(t => t.CustomerUserId.HasValue && permittedCustomerIds.Contains(t.CustomerUserId.Value))
+            .Select(t => new { CustomerUserId = t.CustomerUserId!.Value,
+                Item = new TaxpayerProfileView(t.Id, t.Kind, t.NormalizedIdentifier, t.DisplayName, t.Status, t.Revision) })
+            .ToArrayAsync(ct);
+        var partiesByCustomer = partyRows.ToLookup(x => x.CustomerUserId, x => x.Item);
+        var taxpayersByCustomer = taxpayerRows.ToLookup(x => x.CustomerUserId, x => x.Item);
+        var entries = accounts.Items.Select(account => new CustomerDirectoryEntry(
+            account, partiesByCustomer[account.CustomerUserId].ToArray(),
+            taxpayersByCustomer[account.CustomerUserId].ToArray())).ToArray();
+        return new(CustomerOwnershipDecision.Success, entries, accounts.Page, accounts.PageSize, accounts.Total);
     }
 
     /// <summary>Taxpayers belong to the selected customer; never fetch unrelated profiles.</summary>
@@ -196,9 +364,10 @@ public sealed class CustomerCommercialOwnershipService(
         var partner = await IsScopedAdministratorAsync(actor.Value, IdentityRoleNames.Level2, ct);
         if (!root && !partner) return new(CustomerOwnershipDecision.Forbidden);
         var permitted = db.IdentityUsers.AsNoTracking().Where(u => u.Id == customerId &&
-            u.Roles.Any(role => role.Role == IdentityRoleNames.Customer) &&
-            (root || partner && db.CustomerCommercialOwners.Any(o =>
-                o.CustomerUserId == u.Id && o.PartnerLevel2UserId == actor.Value)));
+            u.IsActive && u.Roles.Any(role => role.Role == IdentityRoleNames.Customer) &&
+            db.CustomerCommercialOwners.Any(o => o.CustomerUserId == u.Id &&
+                (root && o.RootLevel1UserId == actor.Value ||
+                 partner && o.PartnerLevel2UserId == actor.Value)));
         var profiles = await db.TaxpayerProfiles.AsNoTracking().Where(t =>
             t.CustomerUserId == customerId && permitted.Any())
             .OrderBy(t => t.DisplayName).ThenBy(t => t.Id)

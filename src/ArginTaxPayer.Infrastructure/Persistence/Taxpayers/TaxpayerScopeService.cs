@@ -1,4 +1,5 @@
 using ArginTaxPayer.Infrastructure.Persistence.Identity;
+using ArginTaxPayer.Infrastructure.Persistence.Parties;
 using ArginTaxPayer.Domain.Taxpayers;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -8,13 +9,15 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Taxpayers;
 public enum TaxpayerScopeDecision { Allowed, Unauthenticated, Forbidden, NotFound, Conflict, Invalid }
 public sealed record ScopedTaxpayerResult(TaxpayerScopeDecision Decision, TaxpayerProfileView? Profile = null);
 public sealed record ScopedRenameRequest(string? DisplayName, long ExpectedRevision);
+public sealed record ScopedArchiveRequest(long ExpectedRevision);
 public sealed record ScopedTaxpayerListResult(TaxpayerScopeDecision Decision, TaxpayerProfileView[]? Profiles = null);
 
 /// <summary>
 /// Re-evaluates the live session, active role and non-revoked grants in every DB query.
 /// Caller-controlled taxpayer IDs never become implicit access grants.
 /// </summary>
-public sealed class TaxpayerScopeService(ArginTaxPayerDbContext db, IdentityAuthorizationService identity)
+public sealed class TaxpayerScopeService(ArginTaxPayerDbContext db, IdentityAuthorizationService identity,
+    ParticipantScopeService participantScope)
 {
     public async Task<(TaxpayerScopeDecision Decision, Guid ActorId, bool Level1)> ResolveAsync(
         string? token, CancellationToken ct = default)
@@ -22,24 +25,37 @@ public sealed class TaxpayerScopeService(ArginTaxPayerDbContext db, IdentityAuth
         var id = await identity.CurrentUserIdAsync(token, ct);
         if (id is null) return (TaxpayerScopeDecision.Unauthenticated, Guid.Empty, false);
         var roles = await db.IdentityUsers.AsNoTracking().Where(u =>
-            u.Id == id.Value && u.IsActive &&
-            db.IdentityMfaStates.Any(m => m.UserId == u.Id && m.EnabledAtUtc != null))
+            u.Id == id.Value && u.IsActive)
             .Select(u => new
             {
                 Root = u.Roles.Any(r => r.Role == IdentityRoleNames.Level1),
-                Delegate = u.Roles.Any(r => r.Role == IdentityRoleNames.Level2)
+                Delegate = u.Roles.Any(r => r.Role == IdentityRoleNames.Level2),
+                Customer = u.Roles.Any(r => r.Role == IdentityRoleNames.Customer),
+                Mfa = db.IdentityMfaStates.Any(m => m.UserId == u.Id && m.EnabledAtUtc != null)
             }).SingleOrDefaultAsync(ct);
-        if (roles is null || (!roles.Root && !roles.Delegate))
+        if (roles is null || !(roles.Customer || roles.Mfa && (roles.Root || roles.Delegate)))
             return (TaxpayerScopeDecision.Forbidden, Guid.Empty, false);
         return (TaxpayerScopeDecision.Allowed, id.Value, roles.Root);
     }
 
-    public IQueryable<TaxpayerProfile> ScopedQuery(Guid actorId, bool level1)
-    {
-        var profiles = db.TaxpayerProfiles.AsNoTracking();
-        if (level1) return profiles;
-        return profiles.Where(p => db.CustomerCommercialOwners.Any(o => o.CustomerUserId == p.CustomerUserId && o.PartnerLevel2UserId == actorId));
-    }
+    /// <summary>One live SQL predicate for customer, Level1 and Level2 scope.
+    /// Level1 has global customer access with current MFA; Level2 requires current
+    /// commercial ownership for every read and mutation.</summary>
+    private IQueryable<TaxpayerProfile> ScopedProfiles(Guid actorId) =>
+        db.TaxpayerProfiles.Where(p => p.CustomerUserId.HasValue &&
+            db.IdentityUsers.Any(customer => customer.Id == p.CustomerUserId &&
+                customer.IsActive && customer.Roles.Any(r => r.Role == IdentityRoleNames.Customer)) &&
+            db.IdentityUsers.Any(u => u.Id == actorId && u.IsActive &&
+                (u.Id == p.CustomerUserId &&
+                    u.Roles.Any(r => r.Role == IdentityRoleNames.Customer) ||
+                 db.IdentityMfaStates.Any(m => m.UserId == actorId && m.EnabledAtUtc != null) &&
+                 (u.Roles.Any(r => r.Role == IdentityRoleNames.Level1) ||
+                 db.CustomerCommercialOwners.Any(o => o.CustomerUserId == p.CustomerUserId &&
+                      u.Roles.Any(r => r.Role == IdentityRoleNames.Level2) &&
+                         o.PartnerLevel2UserId == actorId)))));
+
+    public IQueryable<TaxpayerProfile> ScopedQuery(Guid actorId, bool level1) =>
+        ScopedProfiles(actorId).AsNoTracking();
 
     public async Task<ScopedTaxpayerListResult> ListAsync(string? token, CancellationToken ct = default)
     {
@@ -69,6 +85,58 @@ public sealed class TaxpayerScopeService(ArginTaxPayerDbContext db, IdentityAuth
     }
 
     /// <summary>
+    /// Soft archive only. Keep fiscal IDs, history and any invoice FK alive.
+    /// Reject when a memory already exists; no deletion of bound fiscal identities.
+    /// Invoice references will be immutable FK + document snapshots in Phase07.
+    /// </summary>
+    public async Task<ScopedTaxpayerResult> ArchiveAsync(
+        string? token, Guid taxpayerId, ScopedArchiveRequest? request, CancellationToken ct = default)
+    {
+        var actorId = await identity.CurrentUserIdAsync(token, ct);
+        if (actorId is null) return new(TaxpayerScopeDecision.Unauthenticated);
+        if (request is null || request.ExpectedRevision < 1) return new(TaxpayerScopeDecision.Invalid);
+        try
+        {
+            return await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+            {
+                // Ownership transfers and profile archiving must serialize against
+                // each other; never rely on a stale pre-transaction role check.
+                await using var tx = await db.Database.BeginTransactionAsync(
+                    System.Data.IsolationLevel.Serializable, ct);
+                if (await identity.CurrentUserIdAsync(token, ct) != actorId)
+                    return new ScopedTaxpayerResult(TaxpayerScopeDecision.Unauthenticated);
+                var taxpayer = await ScopedCommandQuery(actorId.Value, false)
+                    .AsNoTracking()
+                    .Where(p => p.Id == taxpayerId)
+                    .Select(p => new { p.CustomerUserId, p.Revision, p.Status })
+                    .SingleOrDefaultAsync(ct);
+                if (taxpayer is null || taxpayer.CustomerUserId is null ||
+                    !await participantScope.CanManageAsync(actorId.Value, taxpayer.CustomerUserId.Value, ct))
+                    return new ScopedTaxpayerResult(TaxpayerScopeDecision.Forbidden);
+                if (taxpayer.Revision != request.ExpectedRevision ||
+                    taxpayer.Status != TaxpayerStatus.Active)
+                    return new ScopedTaxpayerResult(TaxpayerScopeDecision.Conflict);
+                var now = DateTime.UtcNow;
+                var changed = await ScopedCommandQuery(actorId.Value, false)
+                    .Where(p => p.Id == taxpayerId && p.Revision == request.ExpectedRevision &&
+                        p.Status == TaxpayerStatus.Active &&
+                        !db.FiscalMemories.Any(m => m.TaxpayerId == p.Id))
+                    .ExecuteUpdateAsync(u => u.SetProperty(p => p.Status, TaxpayerStatus.Archived)
+                        .SetProperty(p => p.Revision, p => p.Revision + 1)
+                        .SetProperty(p => p.UpdatedAtUtc, now), ct);
+                if (changed != 1) return new ScopedTaxpayerResult(TaxpayerScopeDecision.Conflict);
+                await tx.CommitAsync(ct);
+                return new ScopedTaxpayerResult(TaxpayerScopeDecision.Allowed);
+            });
+        }
+        catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.SerializationFailure)
+        {
+            db.ChangeTracker.Clear();
+            return new(TaxpayerScopeDecision.Conflict);
+        }
+    }
+
+    /// <summary>
     /// Delegate can edit only a non-identity display name, not legal identifier,
     /// taxpayer status, fiscal-memory bindings or any subscription/authority data.
     /// Live grant scope is part of the atomic SQL UPDATE predicate.
@@ -93,6 +161,10 @@ public sealed class TaxpayerScopeService(ArginTaxPayerDbContext db, IdentityAuth
             // using a grant that changed concurrently in another transaction.
             await using var tx = await db.Database.BeginTransactionAsync(
                 System.Data.IsolationLevel.Serializable, ct);
+            var ownerId = await db.TaxpayerProfiles.AsNoTracking()
+                .Where(p => p.Id == taxpayerId).Select(p => p.CustomerUserId).SingleOrDefaultAsync(ct);
+            if (ownerId is null || !await participantScope.CanManageAsync(actor.ActorId, ownerId.Value, ct))
+                return new ScopedTaxpayerResult(TaxpayerScopeDecision.Forbidden);
             var previous = await ScopedQuery(actor.ActorId, actor.Level1).Where(p => p.Id == taxpayerId)
                 .Select(p => new { p.Kind, p.NormalizedIdentifier, p.DisplayName, p.Status, p.Revision })
                 .SingleOrDefaultAsync(ct);
@@ -107,6 +179,8 @@ public sealed class TaxpayerScopeService(ArginTaxPayerDbContext db, IdentityAuth
             var current = await ResolveAsync(token, ct);
             if (current.Decision != TaxpayerScopeDecision.Allowed ||
                 current.ActorId != actor.ActorId)
+                return new ScopedTaxpayerResult(TaxpayerScopeDecision.Forbidden);
+            if (!await participantScope.CanManageAsync(actor.ActorId, ownerId.Value, ct))
                 return new ScopedTaxpayerResult(TaxpayerScopeDecision.Forbidden);
             var updated = await ScopedCommandQuery(actor.ActorId, current.Level1)
                 .Where(p => p.Id == taxpayerId && p.Revision == request.ExpectedRevision &&
@@ -149,6 +223,5 @@ public sealed class TaxpayerScopeService(ArginTaxPayerDbContext db, IdentityAuth
     /// UPDATE/transaction; do NOT authorize once then perform an unscoped write.
     /// </summary>
     public IQueryable<TaxpayerProfile> ScopedCommandQuery(Guid actorId, bool level1) =>
-        level1 ? db.TaxpayerProfiles :
-            db.TaxpayerProfiles.Where(p => db.CustomerCommercialOwners.Any(o => o.CustomerUserId == p.CustomerUserId && o.PartnerLevel2UserId == actorId));
+        ScopedProfiles(actorId);
 }

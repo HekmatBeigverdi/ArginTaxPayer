@@ -1,16 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import ConsoleLoader from "../components/console-loader";
 
 
 type Account = {
   customerUserId: string; rootLevel1UserId: string | null; partnerLevel2UserId: string | null;
   acquisitionChannel: number; revision: number; mobile: string | null; email: string | null;
   createdAtUtc: string; isActive: boolean; taxpayerCount: number;
+  personName?: string | null; companyName?: string | null; profileComplete?: boolean;
 };
 type Partner = { userId: string; mobile: string | null; email: string | null };
-type Taxpayer = { id: string; kind: number; normalizedIdentifier: string; displayName: string;
-  status: number; revision: number };
+type AccountPage = { items: Account[]; page: number; pageSize: number; total: number };
 const acquisition: Record<number,string> = {
   0: "نیازمند تعیین مالکیت", 1: "ثبت‌نام مستقیم", 2: "ثبت توسط سطح ۱",
   3: "ثبت توسط سطح ۲", 4: "معرفی تأییدشده", 5: "بازیابی مالکیت کاربر قدیمی"
@@ -27,14 +28,13 @@ async function load<T>(url: string): Promise<T> {
 
 export default function UsersWorkspace({ level1 }: { level1: boolean }) {
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [total, setTotal] = useState(0);
   const [selected, setSelected] = useState<Account | null>(null);
-  const [taxpayers, setTaxpayers] = useState<Taxpayer[]>([]);
   const [search, setSearch] = useState("");
   const [ownershipFilter, setOwnershipFilter] = useState("all");
   const [pageSize, setPageSize] = useState(10);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
-  const [detailsLoading, setDetailsLoading] = useState(false);
   const [error, setError] = useState("");
   const [modalError, setModalError] = useState("");
   const [partnerId, setPartnerId] = useState("");
@@ -51,21 +51,24 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
   const refresh = useCallback(async () => {
     setLoading(true); setError("");
     try {
-      const rows = await load<Account[]>("/api/customer-owners/accounts");
-      setAccounts(rows);
+      const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+      if (search.trim()) params.set("query", search.trim());
+      if (ownershipFilter !== "all") params.set("ownership", ownershipFilter);
+      const result = await load<AccountPage>("/api/customer-owners/accounts/page?" + params);
+      setAccounts(result.items); setTotal(result.total);
       // A revoked partner must not keep a customer's information in a previously opened dialog.
       setSelected(previous => {
-        if (previous && !rows.some(x => x.customerUserId === previous.customerUserId)) {
+        if (previous && !result.items.some(x => x.customerUserId === previous.customerUserId)) {
           dialogRef.current?.close();
           return null;
         }
-        return previous ? rows.find(x => x.customerUserId === previous.customerUserId) || null : null;
+        return previous ? result.items.find(x => x.customerUserId === previous.customerUserId) || null : null;
       });
     } catch (e) {
-      setAccounts([]); setSelected(null); dialogRef.current?.close();
+      setAccounts([]); setTotal(0); setSelected(null); dialogRef.current?.close();
       setError((e as Error).message);
     } finally { setLoading(false); }
-  }, []);
+  }, [page, pageSize, search, ownershipFilter]);
 
   useEffect(() => {
     if (level1) void load<Partner[]>("/api/customer-owners/partners")
@@ -81,41 +84,24 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
     };
   }, [refresh]);
 
-  const filtered = useMemo(() => accounts.filter(a => {
-    const key = (a.mobile || "") + " " + (a.email || "") + " " + a.customerUserId;
-    if (!key.toLocaleLowerCase("fa").includes(search.trim().toLocaleLowerCase("fa"))) return false;
-    return ownershipFilter === "all" ||
-      ownershipFilter === "root" && !!a.rootLevel1UserId && !a.partnerLevel2UserId ||
-      ownershipFilter === "partner" && !!a.partnerLevel2UserId ||
-      ownershipFilter === "unresolved" && !a.rootLevel1UserId;
-  }), [accounts, search, ownershipFilter]);
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const activePage = Math.min(page, totalPages);
-  const pageRows = filtered.slice((activePage - 1) * pageSize, activePage * pageSize);
-  const firstIndex = filtered.length ? (activePage - 1) * pageSize + 1 : 0;
-  const lastIndex = Math.min(activePage * pageSize, filtered.length);
+  const pageRows = accounts;
+  const firstIndex = total ? (activePage - 1) * pageSize + 1 : 0;
+  const lastIndex = Math.min(activePage * pageSize, total);
 
   function close() {
     requestRef.current++;
     if (dialogRef.current?.open) dialogRef.current.close();
-    setSelected(null); setTaxpayers([]); setModalError("");
+    setSelected(null); setModalError("");
   }
 
-  async function open(account: Account) {
-    setSelected(account); setTaxpayers([]); setModalError(""); setDetailsLoading(true);
-    setPartnerId(account.partnerLevel2UserId || ""); setTransferReason(""); setTransferNotice(""); setTransferHistory(null);
+  function open(account: Account) {
+    setSelected(account); setModalError("");
+    setPartnerId(account.partnerLevel2UserId || "");
+    setTransferReason(""); setTransferNotice(""); setTransferHistory(null);
     dialogRef.current?.showModal();
-    const requestId = ++requestRef.current;
-    try {
-      const rows = await load<Taxpayer[]>("/api/customer-owners/" + account.customerUserId + "/taxpayers");
-      if (requestId === requestRef.current) setTaxpayers(rows);
-    } catch (e) {
-      if (requestId === requestRef.current) {
-        setModalError((e as Error).message);
-        if (!level1) { close(); void refresh(); }
-      }
-    } finally { if (requestId === requestRef.current) setDetailsLoading(false); }
+    requestRef.current++;
   }
 
   async function assignOwner(event: FormEvent<HTMLFormElement>) {
@@ -160,7 +146,7 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
   return <section className="users-panel" aria-label="فهرست کاربران نرم‌افزار">
     <div className="users-toolbar">
       <div><h2>{level1 ? "کاربران ثبت‌نام‌شده" : "مشتریان من"}</h2>
-        <p>هر ردیف یک حساب کاربری است؛ مؤدیان داخل پرونده همان کاربر قرار دارند.</p></div>
+        <p>هر ردیف صرفاً یک حساب ورود نرم‌افزار است؛ خریداران و مؤدیان در فهرست مالیاتی مستقل مدیریت می‌شوند.</p></div>
       <button type="button" className="users-button" disabled={loading} onClick={() => void refresh()}>
         بازخوانی کاربران
       </button>
@@ -190,23 +176,21 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
     <div className="users-table-scroll">
       <table className="users-table">
         <thead><tr>
-          <th scope="col">ردیف</th><th scope="col">کاربر</th><th scope="col">وضعیت</th>
-          <th scope="col">مالکیت تجاری</th><th scope="col">مؤدیان</th>
+          <th scope="col">نام شخص / شرکت</th><th scope="col">ایمیل / موبایل</th><th scope="col">وضعیت</th>
+          <th scope="col">مالکیت تجاری</th>
           <th scope="col">ثبت‌نام</th><th scope="col">عملیات</th>
         </tr></thead>
         <tbody>
-          {loading ? <tr><td colSpan={7} role="status">در حال دریافت کاربران…</td></tr> :
-            pageRows.length === 0 ? <tr><td colSpan={7}>کاربری با این معیارها پیدا نشد.</td></tr> :
+          {loading ? <tr><td colSpan={6}><ConsoleLoader label="در حال دریافت کاربران…" /></td></tr> :
+            pageRows.length === 0 ? <tr><td colSpan={6}>کاربری با این معیارها پیدا نشد.</td></tr> :
             pageRows.map((a, i) => <tr key={a.customerUserId}>
-              <td>{firstIndex + i}</td>
-              <td><strong dir="auto">{a.mobile || a.email || "کاربر بدون اطلاعات تماس"}</strong>
-                {a.mobile && a.email && <small dir="ltr">{a.email}</small>}
-                <small dir="ltr" title={a.customerUserId}>{a.customerUserId.slice(0, 8)}…</small></td>
+              <td><strong>{a.companyName || a.personName || "پروفایل تکمیل‌نشده"}</strong>
+                {!a.profileComplete && <small>هنوز وارد نشده / تکمیل‌نشده</small>}</td>
+              <td><span className="users-contact-truncated" title={[a.mobile,a.email].filter(Boolean).join(" / ")} dir="ltr">{a.mobile || a.email || "فاقد اطلاعات تماس"}</span></td>
               <td><span className={a.isActive ? "users-state" : "users-state users-state-muted"}>
                 {a.isActive ? "فعال" : "غیرفعال"}</span></td>
               <td><span className={!a.rootLevel1UserId ? "users-state users-state-warning" : ""}>
                 {ownerLabel(a)}</span></td>
-              <td>{a.taxpayerCount.toLocaleString("fa-IR")}</td>
               <td>{new Date(a.createdAtUtc).toLocaleDateString("fa-IR")}</td>
               <td><button className="users-action" type="button" onClick={() => void open(a)}>
                 مشاهده پرونده
@@ -217,7 +201,7 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
     </div>
 
     <div className="users-pagination" aria-label="صفحه‌بندی کاربران">
-      <span>نمایش {firstIndex.toLocaleString("fa-IR")} تا {lastIndex.toLocaleString("fa-IR")} از {filtered.length.toLocaleString("fa-IR")} کاربر</span>
+      <span>نمایش {firstIndex.toLocaleString("fa-IR")} تا {lastIndex.toLocaleString("fa-IR")} از {total.toLocaleString("fa-IR")} کاربر</span>
       <div>
         <button type="button" disabled={activePage <= 1 || loading} onClick={() => setPage(p => p - 1)}>قبلی</button>
         <span>صفحه {activePage.toLocaleString("fa-IR")} از {totalPages.toLocaleString("fa-IR")}</span>
@@ -246,17 +230,7 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
           <div><dt>مالکیت</dt><dd>{ownerLabel(selected)}</dd></div>
           <div><dt>شیوه ثبت‌نام</dt><dd>{acquisition[selected.acquisitionChannel] || "نامشخص"}</dd></div>
           <div><dt>تاریخ ثبت‌نام</dt><dd>{new Date(selected.createdAtUtc).toLocaleString("fa-IR")}</dd></div>
-          <div><dt>تعداد مؤدیان</dt><dd>{selected.taxpayerCount.toLocaleString("fa-IR")}</dd></div>
         </dl>
-        <h3>مؤدیان وابسته به این کاربر</h3>
-        {modalError && <p role="alert" className="form-error">{modalError}</p>}
-        {detailsLoading ? <p role="status">در حال بارگذاری پرونده مالیاتی…</p> :
-          taxpayers.length === 0 ? <p className="identity-muted">مؤدی ثبت‌شده‌ای در این حساب وجود ندارد.</p> :
-          <div className="users-taxpayers">{taxpayers.map(t => <div key={t.id}>
-            <strong>{t.displayName}</strong>
-            <small>{t.kind === 1 ? "حقیقی" : "حقوقی"}</small>
-            <small dir="ltr">{t.normalizedIdentifier}</small>
-          </div>)}</div>}
         {level1 && <section className="users-owner-edit">
           <h3>انتساب تجاری این کاربر</h3>
           <p>ثبت‌نام عمومی زیرمجموعه سطح ۱ است. واگذاری به شریک سطح ۲ فقط با تأیید شما انجام می‌شود.</p>
@@ -300,7 +274,7 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
               {item.explanation}
             </li>)}</ul>}
         </section>}
-        <p className="field-hint">تعداد مؤدیان مجاز باید براساس پلن فعال در Backend کنترل شود؛ تا آن زمان این پنجره فقط نمایش می‌دهد.</p>
+        <p className="field-hint">این پنجره فقط اطلاعات حساب ورود و انتساب تجاری را مدیریت می‌کند؛ سوابق خریدار و مؤدی در بخش مالیاتی مستقل هستند.</p>
       </div>}
       <div className="users-dialog-footer"><button type="button" className="users-button"
         onClick={close}>بستن</button></div>

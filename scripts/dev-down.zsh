@@ -12,6 +12,19 @@ stop_pid_tree() {
   kill "$pid" 2>/dev/null || true
 }
 
+stop_service_listeners() {
+  local port="$1"
+  local marker="$2"
+  local pid command
+  for pid in ${(f)"$(lsof -nP -t -iTCP:$port -sTCP:LISTEN 2>/dev/null || true)"}; do
+    command="$(ps -ww -p "$pid" -o command= 2>/dev/null || true)"
+    if [[ "$command" == *"$marker"* ]]; then
+      stop_pid_tree "$pid"
+      print "Stopped $marker listener (PID $pid, port $port)"
+    fi
+  done
+}
+
 for service in web api autossh; do
   pidfile="$STATE/$service.pid"
   if [[ -f "$pidfile" ]]; then
@@ -23,4 +36,11 @@ for service in web api autossh; do
     rm -f "$pidfile"
   fi
 done
+
+# dotnet run and npm may orphan their actual listener after the launcher exits.
+# Fall back to the exact project ports, but validate the process identity first.
+stop_service_listeners 15089 'ArginTaxPayer.Api'
+stop_service_listeners 3000 'next-server'
+stop_service_listeners 15432 'autossh'
+
 print 'All tracked ArginTaxPayer development launchers were signaled to stop.'

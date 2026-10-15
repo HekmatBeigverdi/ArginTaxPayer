@@ -148,6 +148,23 @@ public static class TaxpayerDevelopmentEndpoints
             };
         }).WithTags("Taxpayer Scope (Development)");
 
+        routes.MapPost("/api/dev/taxpayers/{taxpayerId:guid}/archive", async (
+            Guid taxpayerId, [FromBody] ScopedArchiveRequest request,
+            HttpContext http, TaxpayerScopeService service, CancellationToken ct) =>
+        {
+            if (!IsLocal(http)) return Results.NotFound();
+            var result = await service.ArchiveAsync(Bearer(http), taxpayerId, request, ct);
+            return result.Decision switch
+            {
+                TaxpayerScopeDecision.Unauthenticated => Results.Unauthorized(),
+                TaxpayerScopeDecision.Forbidden => Results.StatusCode(403),
+                TaxpayerScopeDecision.NotFound => Results.NotFound(),
+                TaxpayerScopeDecision.Conflict => Results.Conflict(new { error = "taxpayer_in_use_or_stale_revision" }),
+                TaxpayerScopeDecision.Invalid => Results.BadRequest(new { error = "invalid_archive_request" }),
+                _ => Results.Ok(new { archived = true })
+            };
+        }).WithTags("Taxpayer Scope (Development)");
+
         routes.MapPatch("/api/dev/taxpayers/{taxpayerId:guid}/display-name", async (
             Guid taxpayerId, [FromBody] ScopedRenameRequest request,
             HttpContext http, TaxpayerScopeService service, CancellationToken ct) =>
@@ -237,6 +254,51 @@ public static class TaxpayerDevelopmentEndpoints
                 _ => Results.Ok(result.Customers)
             };
         }).WithTags("Customer Accounts (Development)");
+
+        routes.MapGet("/api/dev/customer-owners/accounts/page", async (
+            int? page, int? pageSize, string? query, string? ownership,
+            HttpContext http, CustomerCommercialOwnershipService service, CancellationToken ct) =>
+        {
+            if (!IsLocal(http)) return Results.NotFound();
+            var result = await service.ListCustomerAccountsPageAsync(
+                Bearer(http), page ?? 1, pageSize ?? 10, query, ownership, ct);
+            return result.Decision switch
+            {
+                CustomerOwnershipDecision.Unauthenticated => Results.Unauthorized(),
+                CustomerOwnershipDecision.Forbidden => Results.StatusCode(403),
+                CustomerOwnershipDecision.Invalid => Results.BadRequest(new { error = "invalid_customer_page" }),
+                _ => Results.Ok(result)
+            };
+        }).WithTags("Customer Accounts (Development)");
+
+        routes.MapGet("/api/dev/customer-owners/directory", async (
+            HttpContext http, CustomerCommercialOwnershipService service, CancellationToken ct) =>
+        {
+            if (!IsLocal(http)) return Results.NotFound();
+            var result = await service.ListCustomerDirectoryAsync(Bearer(http), ct);
+            return result.Decision switch
+            {
+                CustomerOwnershipDecision.Unauthenticated => Results.Unauthorized(),
+                CustomerOwnershipDecision.Forbidden => Results.StatusCode(403),
+                _ => Results.Ok(result.Entries)
+            };
+        }).WithTags("Customer Directory (Development)");
+
+        routes.MapGet("/api/dev/customer-owners/directory/page", async (
+            int? page, int? pageSize, string? query, string? ownership,
+            HttpContext http, CustomerCommercialOwnershipService service, CancellationToken ct) =>
+        {
+            if (!IsLocal(http)) return Results.NotFound();
+            var result = await service.ListCustomerDirectoryPageAsync(
+                Bearer(http), page ?? 1, pageSize ?? 20, query, ownership, ct);
+            return result.Decision switch
+            {
+                CustomerOwnershipDecision.Unauthenticated => Results.Unauthorized(),
+                CustomerOwnershipDecision.Forbidden => Results.StatusCode(403),
+                CustomerOwnershipDecision.Invalid => Results.BadRequest(new { error = "invalid_directory_page" }),
+                _ => Results.Ok(result)
+            };
+        }).WithTags("Customer Directory (Development)");
 
         routes.MapGet("/api/dev/customer-owners/{customerId:guid}/taxpayers", async (
             Guid customerId, HttpContext http, CustomerCommercialOwnershipService service,
