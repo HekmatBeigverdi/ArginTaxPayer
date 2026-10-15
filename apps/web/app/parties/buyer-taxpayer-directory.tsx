@@ -7,7 +7,8 @@ import ConsoleLoader from "../components/console-loader";
 
 type Buyer = { customerUserId: string; mobile: string | null; email: string | null;
   isActive: boolean; taxpayerCount: number; rootLevel1UserId: string | null;
-  partnerLevel2UserId: string | null };
+  partnerLevel2UserId: string | null; personName?: string | null;
+  companyName?: string | null; profileComplete?: boolean };
 type Taxpayer = { id: string; kind: number; displayName: string; status: number;
   normalizedIdentifier: string; revision: number };
 type Party = { id: string; kind: number; displayName: string; status: number };
