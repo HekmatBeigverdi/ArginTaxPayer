@@ -115,11 +115,6 @@ public sealed class TaxpayerScopeService(ArginTaxPayerDbContext db, IdentityAuth
     {
         var actor = await ResolveAsync(token, ct);
         if (actor.Decision != TaxpayerScopeDecision.Allowed) return new(actor.Decision);
-        if (!await db.IdentityUsers.AsNoTracking().AnyAsync(u => u.Id == actor.ActorId &&
-            u.IsActive && (u.Roles.Any(r => r.Role == IdentityRoleNames.Level1) ||
-            u.Roles.Any(r => r.Role == IdentityRoleNames.Level2)) &&
-            db.IdentityMfaStates.Any(m => m.UserId == actor.ActorId && m.EnabledAtUtc != null), ct))
-            return new(TaxpayerScopeDecision.Forbidden);
         if (request is null || request.ExpectedRevision < 1 ||
             string.IsNullOrWhiteSpace(request.DisplayName))
             return new(TaxpayerScopeDecision.Invalid);
@@ -135,6 +130,10 @@ public sealed class TaxpayerScopeService(ArginTaxPayerDbContext db, IdentityAuth
             // using a grant that changed concurrently in another transaction.
             await using var tx = await db.Database.BeginTransactionAsync(
                 System.Data.IsolationLevel.Serializable, ct);
+            var ownerId = await db.TaxpayerProfiles.AsNoTracking()
+                .Where(p => p.Id == taxpayerId).Select(p => p.CustomerUserId).SingleOrDefaultAsync(ct);
+            if (ownerId is null || !await participantScope.CanManageAsync(actor.ActorId, ownerId.Value, ct))
+                return new ScopedTaxpayerResult(TaxpayerScopeDecision.Forbidden);
             var previous = await ScopedQuery(actor.ActorId, actor.Level1).Where(p => p.Id == taxpayerId)
                 .Select(p => new { p.Kind, p.NormalizedIdentifier, p.DisplayName, p.Status, p.Revision })
                 .SingleOrDefaultAsync(ct);
@@ -149,6 +148,8 @@ public sealed class TaxpayerScopeService(ArginTaxPayerDbContext db, IdentityAuth
             var current = await ResolveAsync(token, ct);
             if (current.Decision != TaxpayerScopeDecision.Allowed ||
                 current.ActorId != actor.ActorId)
+                return new ScopedTaxpayerResult(TaxpayerScopeDecision.Forbidden);
+            if (!await participantScope.CanManageAsync(actor.ActorId, ownerId.Value, ct))
                 return new ScopedTaxpayerResult(TaxpayerScopeDecision.Forbidden);
             var updated = await ScopedCommandQuery(actor.ActorId, current.Level1)
                 .Where(p => p.Id == taxpayerId && p.Revision == request.ExpectedRevision &&
