@@ -9,7 +9,8 @@ type Context = { params: Promise<{ path: string[] }> };
 async function handle(req: NextRequest, ctx: Context, method: "GET" | "POST") {
   if (!identityUiEnabled()) return error(404);
   const { path } = await ctx.params;
-  const valid = method === "GET" && path.length === 1 && (path[0] === "list" || path[0] === "accounts" || path[0] === "partners") ||
+  const valid = method === "GET" && path.length === 1 && (path[0] === "list" || path[0] === "accounts" || path[0] === "directory" || path[0] === "partners") ||
+    method === "GET" && path.length === 2 && ["accounts", "directory"].includes(path[0]) && path[1] === "page" ||
     method === "GET" && path.length === 2 && uuid.test(path[0]) && path[1] === "taxpayers" ||
     method === "GET" && path.length === 1 && uuid.test(path[0]) ||
     method === "GET" && path.length === 2 && uuid.test(path[0]) && path[1] === "history" ||
@@ -29,8 +30,14 @@ async function handle(req: NextRequest, ctx: Context, method: "GET" | "POST") {
     } catch { return error(400); }
   }
   const target = path[0] === "list" ? "" : "/" + path.join("/");
+  const allowed = new URLSearchParams();
+  for (const key of ["page", "pageSize", "query", "ownership"]) {
+    const value = req.nextUrl.searchParams.get(key);
+    if (value !== null) allowed.set(key, value.slice(0, 120));
+  }
   try {
-    const response = await fetch(identityApiOrigin() + "/api/dev/customer-owners" + target, {
+    const response = await fetch(identityApiOrigin() + "/api/dev/customer-owners" + target +
+      (allowed.size ? "?" + allowed : ""), {
       method, cache: "no-store", redirect: "manual", signal: AbortSignal.timeout(10000),
       headers: { Authorization: "Bearer " + token, ...(payload ? { "Content-Type": "application/json" } : {}) },
       ...(payload ? { body: payload } : {})

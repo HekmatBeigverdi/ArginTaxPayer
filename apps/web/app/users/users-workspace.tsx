@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import ConsoleLoader from "../components/console-loader";
 
 
@@ -12,6 +12,7 @@ type Account = {
 type Partner = { userId: string; mobile: string | null; email: string | null };
 type Taxpayer = { id: string; kind: number; normalizedIdentifier: string; displayName: string;
   status: number; revision: number };
+type AccountPage = { items: Account[]; page: number; pageSize: number; total: number };
 const acquisition: Record<number,string> = {
   0: "نیازمند تعیین مالکیت", 1: "ثبت‌نام مستقیم", 2: "ثبت توسط سطح ۱",
   3: "ثبت توسط سطح ۲", 4: "معرفی تأییدشده", 5: "بازیابی مالکیت کاربر قدیمی"
@@ -28,6 +29,7 @@ async function load<T>(url: string): Promise<T> {
 
 export default function UsersWorkspace({ level1 }: { level1: boolean }) {
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [total, setTotal] = useState(0);
   const [selected, setSelected] = useState<Account | null>(null);
   const [taxpayers, setTaxpayers] = useState<Taxpayer[]>([]);
   const [search, setSearch] = useState("");
@@ -52,21 +54,24 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
   const refresh = useCallback(async () => {
     setLoading(true); setError("");
     try {
-      const rows = await load<Account[]>("/api/customer-owners/accounts");
-      setAccounts(rows);
+      const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+      if (search.trim()) params.set("query", search.trim());
+      if (ownershipFilter !== "all") params.set("ownership", ownershipFilter);
+      const result = await load<AccountPage>("/api/customer-owners/accounts/page?" + params);
+      setAccounts(result.items); setTotal(result.total);
       // A revoked partner must not keep a customer's information in a previously opened dialog.
       setSelected(previous => {
-        if (previous && !rows.some(x => x.customerUserId === previous.customerUserId)) {
+        if (previous && !result.items.some(x => x.customerUserId === previous.customerUserId)) {
           dialogRef.current?.close();
           return null;
         }
-        return previous ? rows.find(x => x.customerUserId === previous.customerUserId) || null : null;
+        return previous ? result.items.find(x => x.customerUserId === previous.customerUserId) || null : null;
       });
     } catch (e) {
-      setAccounts([]); setSelected(null); dialogRef.current?.close();
+      setAccounts([]); setTotal(0); setSelected(null); dialogRef.current?.close();
       setError((e as Error).message);
     } finally { setLoading(false); }
-  }, []);
+  }, [page, pageSize, search, ownershipFilter]);
 
   useEffect(() => {
     if (level1) void load<Partner[]>("/api/customer-owners/partners")
@@ -82,20 +87,11 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
     };
   }, [refresh]);
 
-  const filtered = useMemo(() => accounts.filter(a => {
-    const key = (a.mobile || "") + " " + (a.email || "") + " " + a.customerUserId;
-    if (!key.toLocaleLowerCase("fa").includes(search.trim().toLocaleLowerCase("fa"))) return false;
-    return ownershipFilter === "all" ||
-      ownershipFilter === "root" && !!a.rootLevel1UserId && !a.partnerLevel2UserId ||
-      ownershipFilter === "partner" && !!a.partnerLevel2UserId ||
-      ownershipFilter === "unresolved" && !a.rootLevel1UserId;
-  }), [accounts, search, ownershipFilter]);
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const activePage = Math.min(page, totalPages);
-  const pageRows = filtered.slice((activePage - 1) * pageSize, activePage * pageSize);
-  const firstIndex = filtered.length ? (activePage - 1) * pageSize + 1 : 0;
-  const lastIndex = Math.min(activePage * pageSize, filtered.length);
+  const pageRows = accounts;
+  const firstIndex = total ? (activePage - 1) * pageSize + 1 : 0;
+  const lastIndex = Math.min(activePage * pageSize, total);
 
   function close() {
     requestRef.current++;
@@ -218,7 +214,7 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
     </div>
 
     <div className="users-pagination" aria-label="صفحه‌بندی کاربران">
-      <span>نمایش {firstIndex.toLocaleString("fa-IR")} تا {lastIndex.toLocaleString("fa-IR")} از {filtered.length.toLocaleString("fa-IR")} کاربر</span>
+      <span>نمایش {firstIndex.toLocaleString("fa-IR")} تا {lastIndex.toLocaleString("fa-IR")} از {total.toLocaleString("fa-IR")} کاربر</span>
       <div>
         <button type="button" disabled={activePage <= 1 || loading} onClick={() => setPage(p => p - 1)}>قبلی</button>
         <span>صفحه {activePage.toLocaleString("fa-IR")} از {totalPages.toLocaleString("fa-IR")}</span>

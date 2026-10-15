@@ -7,11 +7,13 @@ import TaxpayerWorkspace from "../taxpayers/taxpayer-workspace";
 import ConsoleLoader from "../components/console-loader";
 
 type Buyer = { customerUserId: string; mobile: string | null; email: string | null;
-  isActive: boolean; taxpayerCount: number };
+  isActive: boolean; taxpayerCount: number; rootLevel1UserId: string | null;
+  partnerLevel2UserId: string | null };
 type Taxpayer = { id: string; kind: number; displayName: string; status: number;
   normalizedIdentifier: string; revision: number };
 type Party = { id: string; kind: number; displayName: string; status: number };
-type PartyPage = { items: Party[]; total: number };
+type DirectoryEntry = { account: Buyer; parties: Party[]; taxpayers: Taxpayer[] };
+type DirectoryPage = { items: DirectoryEntry[]; page: number; pageSize: number; total: number };
 type Row = { id: string; buyerId: string; type: "buyer" | "taxpayer"; kind: number | null;
   name: string; identifier: string; status: string; ownerName: string };
 type View = "list" | "buyer-details" | "taxpayer-connection";
@@ -35,6 +37,8 @@ export default function BuyerTaxpayerDirectory({ admin, level1 }: { admin: boole
   const [query, setQuery] = useState("");
   const [selectedBuyer, setSelectedBuyer] = useState("");
   const [page, setPage] = useState(1);
+  const pageSize = 20;
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [loadedOnce, setLoadedOnce] = useState(false);
@@ -57,52 +61,39 @@ export default function BuyerTaxpayerDirectory({ admin, level1 }: { admin: boole
         setRows(mineRows); setBuyers([]);
         return;
       }
-      const accounts = await get<Buyer[]>("/api/customer-owners/accounts");
+      const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+      if (query.trim()) params.set("query", query.trim());
+      const result = await get<DirectoryPage>("/api/customer-owners/directory/page?" + params);
+      const directory = result.items;
+      const accounts = directory.map(entry => entry.account);
       setBuyers(accounts);
+      setTotal(result.total);
       setProgress({ done: 0, total: accounts.length });
-      const combined: Row[] = accounts.map(b => ({ id: b.customerUserId, buyerId: b.customerUserId,
-        type: "buyer", kind: null, name: b.mobile || b.email || b.customerUserId,
-        identifier: b.mobile || b.email || "", status: b.isActive ? "فعال" : "غیرفعال",
-        ownerName: b.mobile || b.email || b.customerUserId }));
-      setRows([...combined]);
-      // Bounded batches avoid unbounded HTTP concurrency; the API still enforces authorization.
-      for (let offset = 0; offset < accounts.length; offset += 6) {
-        const batch = accounts.slice(offset, offset + 6);
-        const records = await Promise.all(batch.map(async buyer => {
+      const combined: Row[] = directory.flatMap(({ account: buyer, parties, taxpayers }) => {
           const account = buyer.mobile || buyer.email || buyer.customerUserId;
-          const [parties, taxpayers] = await Promise.all([
-            get<PartyPage>(`/api/party-workspace/customers/${buyer.customerUserId}/parties?page=1&pageSize=100`)
-              .catch(() => null),
-            get<Taxpayer[]>(`/api/customer-owners/${buyer.customerUserId}/taxpayers`).catch(() => null)
-          ]);
           // Each linked legal/natural Party is its own buyer-facing record.
           // Do not misclassify an account that is linked to both types.
-          const buyerRows: Row[] = parties?.items?.length
-            ? parties.items.map(p => ({ id: p.id, buyerId: buyer.customerUserId,
+          const buyerRows: Row[] = parties.length
+            ? parties.map(p => ({ id: p.id, buyerId: buyer.customerUserId,
                 type: "buyer" as const, kind: p.kind, name: p.displayName,
                 identifier: account, status: buyer.isActive ? "فعال" : "غیرفعال",
                 ownerName: account }))
             : [{ id: buyer.customerUserId, buyerId: buyer.customerUserId,
                 type: "buyer", kind: null, name: account, identifier: account,
                 status: buyer.isActive ? "فعال" : "غیرفعال", ownerName: account }];
-          const taxpayerRows: Row[] = (taxpayers || []).map(t => ({
+          const taxpayerRows: Row[] = taxpayers.map(t => ({
             id: t.id, buyerId: buyer.customerUserId, type: "taxpayer", kind: t.kind,
             name: t.displayName, identifier: t.normalizedIdentifier,
             status: t.status === 1 ? "فعال" : "غیرفعال", ownerName: account
           }));
           return [...buyerRows, ...taxpayerRows];
-        }));
-        const resolved = new Set(batch.map(a => a.customerUserId));
-        const next = [...combined.filter(r => !resolved.has(r.buyerId)), ...records.flat()];
-        combined.splice(0, combined.length, ...next);
-        setRows([...combined]);
-        setProgress({ done: Math.min(offset + batch.length, accounts.length), total: accounts.length });
-      }
+        });
+      setProgress({ done: accounts.length, total: accounts.length });
       setRows(combined);
     } catch (e) { setError((e as Error).message); setRows([]); }
     finally { setLoading(false); setLoadedOnce(true);
       setRefreshedAt(new Date().toLocaleTimeString("fa-IR")); }
-  }, [admin]);
+  }, [admin, page, query]);
   useEffect(() => { void reload(); }, [reload]);
 
   const filtered = useMemo(() => rows.filter(r => {
@@ -111,9 +102,9 @@ export default function BuyerTaxpayerDirectory({ admin, level1 }: { admin: boole
     return (r.name + " " + r.identifier + " " + r.ownerName)
       .toLocaleLowerCase("fa").includes(query.trim().toLocaleLowerCase("fa"));
   }), [rows, filter, kind, query]);
-  const maxPage = Math.max(1, Math.ceil(filtered.length / 20));
+  const maxPage = Math.max(1, Math.ceil(total / pageSize));
   const activePage = Math.min(page, maxPage);
-  const shown = filtered.slice((activePage - 1) * 20, activePage * 20);
+  const shown = filtered;
 
   function open(mode: View, customer = "") {
     setView(mode); setSelectedBuyer(customer); setError(""); setNotice("");
