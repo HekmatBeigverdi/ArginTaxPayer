@@ -12,7 +12,7 @@ namespace ArginTaxPayer.Tests;
 public sealed class ParticipantAdministratorScopeTests
 {
     [Fact]
-    public async Task Scope_requires_completed_profile_current_assignment_and_active_mfa()
+    public async Task Level1_has_global_access_while_Level2_requires_profile_assignment_and_mfa()
     {
         if (Environment.GetEnvironmentVariable("RUN_ARGINTAXPAYER_PG_INTEGRATION") != "1") return;
         var cs = Environment.GetEnvironmentVariable("ConnectionStrings__ArginTaxPayerDb")
@@ -88,7 +88,11 @@ public sealed class ParticipantAdministratorScopeTests
         Assert.True(await scope.CanManageAsync(partner.Id, customer.Id));
         Assert.True(await scope.CanManageAsync(customer.Id, customer.Id));
         Assert.False(await scope.CanManageAsync(replacement.Id, customer.Id));
-        Assert.False(await scope.CanManageAsync(root.Id, otherCustomer.Id));
+        // Level1 can manage even an unassigned customer without a software profile.
+        Assert.True(await scope.CanManageAsync(root.Id, otherCustomer.Id));
+        Assert.False(await scope.CanManageAsync(partner.Id, otherCustomer.Id));
+        Assert.False(await scope.CanManageAsync(otherCustomer.Id, customer.Id));
+        Assert.False(await scope.CanManageAsync(root.Id, Guid.NewGuid()));
         var taxpayerScope = new TaxpayerScopeService(db, null!, scope);
         Assert.Equal(1, await taxpayerScope.ScopedQuery(root.Id, true)
             .CountAsync(t => t.Id == taxpayer.Id));
@@ -123,12 +127,24 @@ public sealed class ParticipantAdministratorScopeTests
         partner.IsActive = false;
         await db.SaveChangesAsync();
         Assert.False(await scope.CanManageAsync(partner.Id, customer.Id));
-        // Profile completion and MFA are independent mandatory gates.
+        // Profile completion gates Level2, but must not block Level1 support.
         var profile = await db.SoftwareUserProfiles.SingleAsync(p => p.UserId == customer.Id);
         db.SoftwareUserProfiles.Remove(profile);
         await db.SaveChangesAsync();
-        Assert.False(await scope.CanManageAsync(root.Id, customer.Id));
+        Assert.True(await scope.CanManageAsync(root.Id, customer.Id));
         Assert.False(await scope.CanManageAsync(replacement.Id, customer.Id));
+        // Global access still requires an active administrator with current MFA.
+        root.IsActive = false;
+        await db.SaveChangesAsync();
+        Assert.False(await scope.CanManageAsync(root.Id, customer.Id));
+        Assert.Equal(0, await taxpayerScope.ScopedQuery(root.Id, true)
+            .CountAsync(t => t.Id == taxpayer.Id));
+        root.IsActive = true;
+        await db.SaveChangesAsync();
+        await db.IdentityMfaStates.Where(m => m.UserId == root.Id).ExecuteDeleteAsync();
+        Assert.False(await scope.CanManageAsync(root.Id, customer.Id));
+        Assert.Equal(0, await taxpayerScope.ScopedQuery(root.Id, true)
+            .CountAsync(t => t.Id == taxpayer.Id));
         await tx.RollbackAsync();
     }
 
