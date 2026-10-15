@@ -38,13 +38,25 @@ public sealed class TaxpayerScopeService(ArginTaxPayerDbContext db, IdentityAuth
         return (TaxpayerScopeDecision.Allowed, id.Value, roles.Root);
     }
 
-    public IQueryable<TaxpayerProfile> ScopedQuery(Guid actorId, bool level1)
-    {
-        var profiles = db.TaxpayerProfiles.AsNoTracking();
-        if (level1) return profiles;
-        return profiles.Where(p => p.CustomerUserId == actorId ||
-            db.CustomerCommercialOwners.Any(o => o.CustomerUserId == p.CustomerUserId && o.PartnerLevel2UserId == actorId));
-    }
+    /// <summary>One live SQL predicate for customer, Level1 and Level2 scope.
+    /// Root must not receive globally unowned taxpayer profiles; current MFA and
+    /// customer commercial ownership are evaluated for every read and mutation.</summary>
+    private IQueryable<TaxpayerProfile> ScopedProfiles(Guid actorId) =>
+        db.TaxpayerProfiles.Where(p => p.CustomerUserId.HasValue &&
+            db.IdentityUsers.Any(customer => customer.Id == p.CustomerUserId &&
+                customer.IsActive && customer.Roles.Any(r => r.Role == IdentityRoleNames.Customer)) &&
+            db.IdentityUsers.Any(u => u.Id == actorId && u.IsActive &&
+                (u.Id == p.CustomerUserId &&
+                    u.Roles.Any(r => r.Role == IdentityRoleNames.Customer) ||
+                 db.IdentityMfaStates.Any(m => m.UserId == actorId && m.EnabledAtUtc != null) &&
+                 db.CustomerCommercialOwners.Any(o => o.CustomerUserId == p.CustomerUserId &&
+                     (u.Roles.Any(r => r.Role == IdentityRoleNames.Level1) &&
+                         o.RootLevel1UserId == actorId ||
+                      u.Roles.Any(r => r.Role == IdentityRoleNames.Level2) &&
+                         o.PartnerLevel2UserId == actorId)))));
+
+    public IQueryable<TaxpayerProfile> ScopedQuery(Guid actorId, bool level1) =>
+        ScopedProfiles(actorId).AsNoTracking();
 
     public async Task<ScopedTaxpayerListResult> ListAsync(string? token, CancellationToken ct = default)
     {
@@ -192,6 +204,5 @@ public sealed class TaxpayerScopeService(ArginTaxPayerDbContext db, IdentityAuth
     /// UPDATE/transaction; do NOT authorize once then perform an unscoped write.
     /// </summary>
     public IQueryable<TaxpayerProfile> ScopedCommandQuery(Guid actorId, bool level1) =>
-        level1 ? db.TaxpayerProfiles :
-            db.TaxpayerProfiles.Where(p => db.CustomerCommercialOwners.Any(o => o.CustomerUserId == p.CustomerUserId && o.PartnerLevel2UserId == actorId));
+        ScopedProfiles(actorId);
 }
