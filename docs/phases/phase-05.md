@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 05: Parties and Customers
 
-**Status:** Steps 01–13 owner approved (Step13 approved 2026-10-15); Step14 integration and security regression implemented, automated CI and operator acceptance tracked below. Historical details: Steps 01–02 owner approved 2026-10-14. Step 02 six test criteria confirmed by owner (macOS/build, migration, PostgreSQL indexes/constraints). Step 03 owner approved 2026-10-14 (operator acceptance). Step 04 OWNER APPROVED 2026-10-14 (operator confirmation; automated logs not independently observed). Step 05 owner approved 2026-10-14 (owner reported tests successful). Step 06 OWNER APPROVED 2026-10-14 (owner confirms tests passed). Step 07 owner approved 2026-10-14 after operator testing. Step 08 implemented and committed; focused API tests/owner acceptance pending.
+**Status:** Steps 01–13 owner approved (Step13 approved 2026-10-15); Step14 integration and security regression implemented; GitHub CI green, operator PostgreSQL/API acceptance pending. Historical details: Steps 01–02 owner approved 2026-10-14. Step 02 six test criteria confirmed by owner (macOS/build, migration, PostgreSQL indexes/constraints). Step 03 owner approved 2026-10-14 (operator acceptance). Step 04 OWNER APPROVED 2026-10-14 (operator confirmation; automated logs not independently observed). Step 05 owner approved 2026-10-14 (owner reported tests successful). Step 06 OWNER APPROVED 2026-10-14 (owner confirms tests passed). Step 07 owner approved 2026-10-14 after operator testing. Step 08 implemented and committed; focused API tests/owner acceptance pending.
 **Branch:** `phase/05-parties-customers`
 **Baseline:** `docs/roadmap/18-phases.md`, `docs/phases/phase-04.md`, Phase 03 identity contracts.
 **Policy:** This is the single evolving master plan. Changes to step count/scope require dated owner approval. Do not create per-step progress documents.
@@ -24,7 +24,7 @@ Deliver natural/legal party records, economic identifiers, validation and dedupl
 | 11 | Customer Self-Service | Account profile and taxpayer management subject to current entitlement | Unauthorized operations blocked; entitlement integration deferred to Phase 12 | Owner approved 2026-10-14 |
 | 12 | Persian RTL UI | Lists, forms, search, details and accessibility | UI state, validation and route guards tested | Owner approved 2026-10-15 |
 | 13 | Level1/Level2 Support Scope | Root and partner workflows | Former owner denied after transfer; global logs root only | Owner approved 2026-10-15 |
-| 14 | Integration and Security Regression | API/DB/UI tests and concurrent operations | Cross-customer isolation and Phase03/04 regression | Implemented; CI and operator integration acceptance pending |
+| 14 | Integration and Security Regression | API/DB/UI tests and concurrent operations | Cross-customer isolation and Phase03/04 regression | Implemented; automated CI passed, operator integration acceptance pending |
 | 15 | Final Hardening and Handoff | Mac regression, Ubuntu verification, risk register, signoff | Evidence recorded, owner approval; merge/tag/release separate | Planned |
 
 ## Invariants and Phase Boundaries
@@ -492,3 +492,5 @@ Owner policy: allow changing name, legal identifier and natural/legal person kin
 - Historical ownership changes and buyer identity snapshots are retained by existing append-only tables. Phase07/08 must separately capture actual issued invoice data; this is not a sent-invoice integration test.
 
 **Evidence/state:** CI run and SHA must be recorded only after successful GitHub Actions. No operator PostgreSQL, HTTP sessions, GUI/macOS or Ubuntu logs have been observed by the assistant; these are explicit acceptance gates. No new EF migration in Step14. Step15 owns Ubuntu verification, release readiness and owner signoff; no merge, tag or release is authorized in Step14.
+
+**CI evidence (2026-10-15):** GitHub Actions run [38791491242](https://github.com/HekmatBeigverdi/ArginTaxPayer/actions/runs/38791491242), source commit `c6f24d8b69ec1214cd77c68bb43fdb8e6edde7b6`: `web` and `dotnet-contract` jobs BOTH succeeded. Web typecheck, unit tests and production build passed; .NET restore, Release build and full test suite passed. This is automated/offline verification, not a claim of running the explicitly opt-in PostgreSQL or live authenticated HTTP tests.
