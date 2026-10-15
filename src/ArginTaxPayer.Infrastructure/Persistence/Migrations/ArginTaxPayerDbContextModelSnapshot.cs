@@ -186,6 +186,7 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("UpdatedAtUtc").HasColumnType("timestamp with time zone").HasColumnName("updated_at_utc");
                     b.HasKey("Id");
                     b.HasIndex("Kind", "NormalizedIdentifier").IsUnique().HasDatabaseName("ux_parties_kind_identifier");
+                    b.HasIndex("CreatedAtUtc", "Id").HasDatabaseName("ix_parties_fiscal_directory");
                     b.ToTable("parties", t =>
                         {
                             t.HasCheckConstraint("ck_parties_kind", "kind IN (1, 2)");
@@ -887,6 +888,7 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CustomerUserId").HasDatabaseName("ix_taxpayer_profiles_customer_user_id");
+                    b.HasIndex("CreatedAtUtc", "Id").HasDatabaseName("ix_taxpayer_profiles_fiscal_directory");
 
                     b.HasIndex("Kind", "NormalizedIdentifier")
                         .IsUnique()
