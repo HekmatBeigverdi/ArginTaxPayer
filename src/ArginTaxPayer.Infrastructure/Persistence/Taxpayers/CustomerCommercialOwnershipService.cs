@@ -244,7 +244,13 @@ public sealed class CustomerCommercialOwnershipService(
                 x.o == null ? 0 : x.o.AcquisitionChannel,
                 x.o == null ? 0 : x.o.Revision,
                 x.u.NormalizedMobile, x.u.NormalizedEmail, x.u.CreatedAtUtc, x.u.IsActive,
-                db.TaxpayerProfiles.Count(t => t.CustomerUserId == x.u.Id)))
+                db.TaxpayerProfiles.Count(t => t.CustomerUserId == x.u.Id),
+                db.SoftwareUserProfiles.Where(p => p.UserId == x.u.Id)
+                    .Select(p => p.FirstName + " " + p.LastName).FirstOrDefault(),
+                db.SoftwareUserProfiles.Where(p => p.UserId == x.u.Id)
+                    .Select(p => p.CompanyName).FirstOrDefault(),
+                db.SoftwareUserProfiles.Any(p => p.UserId == x.u.Id &&
+                    p.FirstName.Length >= 2 && p.LastName.Length >= 2 && p.Address.Length >= 2)))
             .ToArrayAsync(ct);
         return new(CustomerOwnershipDecision.Success, items, page, pageSize, total);
     }
