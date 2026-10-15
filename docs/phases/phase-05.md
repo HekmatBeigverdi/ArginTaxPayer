@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 05: Parties and Customers
 
-**Status:** Steps 01–12 owner approved (Step12 approved 2026-10-15); Step13 Level1/Level2 support scope implemented, CI and owner acceptance pending. Historical details: Steps 01–02 owner approved 2026-10-14. Step 02 six test criteria confirmed by owner (macOS/build, migration, PostgreSQL indexes/constraints). Step 03 owner approved 2026-10-14 (operator acceptance). Step 04 OWNER APPROVED 2026-10-14 (operator confirmation; automated logs not independently observed). Step 05 owner approved 2026-10-14 (owner reported tests successful). Step 06 OWNER APPROVED 2026-10-14 (owner confirms tests passed). Step 07 owner approved 2026-10-14 after operator testing. Step 08 implemented and committed; focused API tests/owner acceptance pending.
+**Status:** Steps 01–13 owner approved (Step13 approved 2026-10-15); Step14 integration and security regression implemented, automated CI and operator acceptance tracked below. Historical details: Steps 01–02 owner approved 2026-10-14. Step 02 six test criteria confirmed by owner (macOS/build, migration, PostgreSQL indexes/constraints). Step 03 owner approved 2026-10-14 (operator acceptance). Step 04 OWNER APPROVED 2026-10-14 (operator confirmation; automated logs not independently observed). Step 05 owner approved 2026-10-14 (owner reported tests successful). Step 06 OWNER APPROVED 2026-10-14 (owner confirms tests passed). Step 07 owner approved 2026-10-14 after operator testing. Step 08 implemented and committed; focused API tests/owner acceptance pending.
 **Branch:** `phase/05-parties-customers`
 **Baseline:** `docs/roadmap/18-phases.md`, `docs/phases/phase-04.md`, Phase 03 identity contracts.
 **Policy:** This is the single evolving master plan. Changes to step count/scope require dated owner approval. Do not create per-step progress documents.
@@ -23,8 +23,8 @@ Deliver natural/legal party records, economic identifiers, validation and dedupl
 | 10 | Customer-to-Many-Taxpayer Membership | Membership API and guarded linking | Customer owner scope and historic links preserved | Owner approved 2026-10-14 |
 | 11 | Customer Self-Service | Account profile and taxpayer management subject to current entitlement | Unauthorized operations blocked; entitlement integration deferred to Phase 12 | Owner approved 2026-10-14 |
 | 12 | Persian RTL UI | Lists, forms, search, details and accessibility | UI state, validation and route guards tested | Owner approved 2026-10-15 |
-| 13 | Level1/Level2 Support Scope | Root and partner workflows | Former owner denied after transfer; global logs root only | Implemented; CI and owner verification pending |
-| 14 | Integration and Security Regression | API/DB/UI tests and concurrent operations | Cross-customer isolation and Phase03/04 regression | Planned |
+| 13 | Level1/Level2 Support Scope | Root and partner workflows | Former owner denied after transfer; global logs root only | Owner approved 2026-10-15 |
+| 14 | Integration and Security Regression | API/DB/UI tests and concurrent operations | Cross-customer isolation and Phase03/04 regression | Implemented; CI and operator integration acceptance pending |
 | 15 | Final Hardening and Handoff | Mac regression, Ubuntu verification, risk register, signoff | Evidence recorded, owner approval; merge/tag/release separate | Planned |
 
 ## Invariants and Phase Boundaries
@@ -474,3 +474,21 @@ Owner policy: allow changing name, legal identifier and natural/legal person kin
 - **Approval:** pending explicit operator result and owner signoff.
 
 **Step13 additional hardening:** `PartyContactAddressService` uses `ParticipantScopeService.CanManageAsync` for the selected customer's contact/address operations; the prior admin-only duplicate predicate is retired. `TaxpayerCreationService` now checks the current grant inside a serializable PostgreSQL transaction before inserting the seller, preventing a stale pre-transfer check from authorizing a new seller under the former partner. Fiscal registration owner choices are reduced to active completed customer profiles currently assigned to the acting Level1/Level2, not every software user visible in root's global administrative directory. No schema changes are needed for Step13.
+
+
+## Step 14 — Integration and Security Regression (2026-10-15)
+**Step13 approved:** Owner explicitly approved Step13; no renumbering of the original fixed fifteen steps.
+
+**Delivered test matrix and code**
+1. `tests/ArginTaxPayer.Tests/Phase05Step14QuerySecurityTests.cs`: always-on, no-DB EF/Npgsql SQL translation checks for Level1 root and Level2 partner live assignment, active actor/customer, MFA, restrictive Party/taxpayer/metadata FK, optimistic `Revision` and separation of `IdentityUser` from fiscal records. Never accepts old `TaxpayerDelegateGrant` as an authorization source.
+2. `tests/ArginTaxPayer.Tests/ParticipantAdministratorScopeTests.cs`: corrected stale pre-Step13 expectation that Level1 may manage an unassigned/unprofiled customer. Opt-in test creates isolated root, Level2-A, Level2-B and customers, completed software profile, scoped Party/Taxpayer and owner, validates customer/root/partner access and cross-customer refusal, performs a portfolio transfer A→B and validates immediate revocation and grant, validates an EF conditional update with an old `Revision` returns zero affected rows, checks missing profile and deactivated actor deny. Uses a single explicit PostgreSQL transaction and `RollbackAsync` on `argintaxpayer_test`; no external gateway, real customer mutation or migration.
+3. `scripts/phase05-step14-smoke.mjs`: **READ-ONLY** authenticated loopback Development API checks for anonymous 401, pagination validation, current root and partner scoped buyer/seller lists/details, unrelated Level2 forbidden/not-found, inaccessible unknown UUIDs, and no cross-partner fiscal leak. Requires explicitly supplied existing Level1, assigned Level2, unrelated Level2 bearer sessions plus active customer/buyer/taxpayer fixture IDs; never prints tokens or issues POST/PUT/DELETE. Operator must provide actual sessions; automated CI cannot safely fabricate these.
+4. `scripts/phase05-step14-verify.zsh`: canonical macOS shortcut for Release build, isolated EF/ownership/Phase03–04 regressions, TypeScript, frontend tests and Next build. The explicit `--pg` switch first validates local `.env.dev.local`, the exact `argintaxpayer_test` database by PostgreSQL `SELECT current_database()`, four required EF migrations, and then runs ONLY the rollback-only PostgreSQL fixture. The script NEVER runs `dotnet ef database update` or any user data migration. Local connection relies on the established `scripts/dev-up.zsh` AutoSSH tunnel, not the outdated manual SSH command.
+
+**Security acceptance criteria**
+- A logged-in Level2-A loses buyer, seller, address and metadata read/write access immediately after approved owner transfer to B; B gains current access, no cross-root/other Level2 leaks.
+- An expired/unknown token, missing MFA on an administrator, inactive customer, absent profile, forbidden UUID, and stale revision fail closed. Live write mutations must validate assignment in the transaction (not only a UI dropdown).
+- When simultaneous edits target the same `Revision`, at most one update succeeds. Serializability conflicts return conflict; never silently overwrite fiscal metadata or previously approved customer ownership. Existing identity Phase03, ownership Phase04, initial-profile and fiscal-directory frontend regressions pass.
+- Historical ownership changes and buyer identity snapshots are retained by existing append-only tables. Phase07/08 must separately capture actual issued invoice data; this is not a sent-invoice integration test.
+
+**Evidence/state:** CI run and SHA must be recorded only after successful GitHub Actions. No operator PostgreSQL, HTTP sessions, GUI/macOS or Ubuntu logs have been observed by the assistant; these are explicit acceptance gates. No new EF migration in Step14. Step15 owns Ubuntu verification, release readiness and owner signoff; no merge, tag or release is authorized in Step14.
