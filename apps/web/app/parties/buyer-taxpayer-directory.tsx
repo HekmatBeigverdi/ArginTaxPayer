@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import ParticipantRegistrationModal from "./participant-registration-modal";
 import PartyWorkspace from "./party-workspace";
 import TaxpayerWorkspace from "../taxpayers/taxpayer-workspace";
@@ -30,6 +30,7 @@ async function get<T>(url: string): Promise<T> {
 
 export default function BuyerTaxpayerDirectory({ admin, level1, actorUserId }: { admin: boolean; level1: boolean; actorUserId: string }) {
   const [rows, setRows] = useState<Row[]>([]);
+  const requestVersion = useRef(0);
   const [buyers, setBuyers] = useState<Buyer[]>([]);
   const [registrationBuyers, setRegistrationBuyers] = useState<Buyer[]>([]);
   const [view, setView] = useState<View>("list");
@@ -49,6 +50,7 @@ export default function BuyerTaxpayerDirectory({ admin, level1, actorUserId }: {
   const [createdTaxpayerId, setCreatedTaxpayerId] = useState("");
 
   const reload = useCallback(async () => {
+    const version = ++requestVersion.current;
     setLoading(true); setError("");
     try {
       const parameters = new URLSearchParams({ page: String(page), pageSize: String(pageSize),
@@ -56,6 +58,7 @@ export default function BuyerTaxpayerDirectory({ admin, level1, actorUserId }: {
       if (query.trim()) parameters.set("query", query.trim());
       // This is a fiscal row query, not a query of software login accounts.
       const fiscal = await get<FiscalPage>("/api/fiscal-participants?" + parameters);
+      if (version !== requestVersion.current) return;
       setRows(fiscal.items.map(item => ({
         id: item.id, buyerId: item.customerUserId, type: item.type,
         kind: item.kind, name: item.displayName, identifier: item.identifier,
@@ -66,17 +69,26 @@ export default function BuyerTaxpayerDirectory({ admin, level1, actorUserId }: {
       if (!admin) {
         const mine = await get<{ customerUserId: string; displayName: string | null }>(
           "/api/party-workspace/mine");
+        if (version !== requestVersion.current) return;
         setBuyers([{ customerUserId: mine.customerUserId, mobile: null,
           email: mine.displayName, isActive: true, taxpayerCount: 0,
           rootLevel1UserId: null, partnerLevel2UserId: null }]);
       }
-    } catch (e) { setError((e as Error).message); setRows([]); setTotal(0); }
-    finally {
-      setLoading(false); setLoadedOnce(true);
-      setRefreshedAt(new Date().toLocaleTimeString("fa-IR"));
+    } catch (e) {
+      if (version === requestVersion.current) {
+        setError((e as Error).message); setRows([]); setTotal(0);
+      }
+    } finally {
+      if (version === requestVersion.current) {
+        setLoading(false); setLoadedOnce(true);
+        setRefreshedAt(new Date().toLocaleTimeString("fa-IR"));
+      }
     }
   }, [admin, page, pageSize, query, filter, kind]);
-  useEffect(() => { void reload(); }, [reload]);
+  useEffect(() => {
+    void reload();
+    return () => { requestVersion.current++; };
+  }, [reload]);
 
   const maxPage = Math.max(1, Math.ceil(total / pageSize));
   const activePage = Math.min(page, maxPage);
