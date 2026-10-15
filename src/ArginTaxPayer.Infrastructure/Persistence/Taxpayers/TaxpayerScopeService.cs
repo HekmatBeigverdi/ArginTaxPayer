@@ -1,4 +1,5 @@
 using ArginTaxPayer.Infrastructure.Persistence.Identity;
+using ArginTaxPayer.Infrastructure.Persistence.Parties;
 using ArginTaxPayer.Domain.Taxpayers;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -8,13 +9,15 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Taxpayers;
 public enum TaxpayerScopeDecision { Allowed, Unauthenticated, Forbidden, NotFound, Conflict, Invalid }
 public sealed record ScopedTaxpayerResult(TaxpayerScopeDecision Decision, TaxpayerProfileView? Profile = null);
 public sealed record ScopedRenameRequest(string? DisplayName, long ExpectedRevision);
+public sealed record ScopedArchiveRequest(long ExpectedRevision);
 public sealed record ScopedTaxpayerListResult(TaxpayerScopeDecision Decision, TaxpayerProfileView[]? Profiles = null);
 
 /// <summary>
 /// Re-evaluates the live session, active role and non-revoked grants in every DB query.
 /// Caller-controlled taxpayer IDs never become implicit access grants.
 /// </summary>
-public sealed class TaxpayerScopeService(ArginTaxPayerDbContext db, IdentityAuthorizationService identity)
+public sealed class TaxpayerScopeService(ArginTaxPayerDbContext db, IdentityAuthorizationService identity,
+    ParticipantScopeService participantScope)
 {
     public async Task<(TaxpayerScopeDecision Decision, Guid ActorId, bool Level1)> ResolveAsync(
         string? token, CancellationToken ct = default)
@@ -68,6 +71,38 @@ public sealed class TaxpayerScopeService(ArginTaxPayerDbContext db, IdentityAuth
                 p.DisplayName, p.Status, p.Revision)).SingleOrDefaultAsync(ct);
         return profile is null ? new(TaxpayerScopeDecision.NotFound) :
             new(TaxpayerScopeDecision.Allowed, profile);
+    }
+
+    /// <summary>
+    /// Soft archive only. Keep fiscal IDs, history and any invoice FK alive.
+    /// Reject when a memory already exists; no deletion of bound fiscal identities.
+    /// Invoice references will be immutable FK + document snapshots in Phase07.
+    /// </summary>
+    public async Task<ScopedTaxpayerResult> ArchiveAsync(
+        string? token, Guid taxpayerId, ScopedArchiveRequest? request, CancellationToken ct = default)
+    {
+        var actorId = await identity.CurrentUserIdAsync(token, ct);
+        if (actorId is null) return new(TaxpayerScopeDecision.Unauthenticated);
+        if (request is null || request.ExpectedRevision < 1) return new(TaxpayerScopeDecision.Invalid);
+        var taxpayer = await db.TaxpayerProfiles.AsNoTracking()
+            .Where(p => p.Id == taxpayerId)
+            .Select(p => new { p.CustomerUserId, p.Revision, p.Status }).SingleOrDefaultAsync(ct);
+        if (taxpayer is null || taxpayer.CustomerUserId is null) return new(TaxpayerScopeDecision.NotFound);
+        if (!await participantScope.CanManageAsync(actorId.Value, taxpayer.CustomerUserId.Value, ct))
+            return new(TaxpayerScopeDecision.Forbidden);
+        if (taxpayer.Revision != request.ExpectedRevision || taxpayer.Status != TaxpayerStatus.Active)
+            return new(TaxpayerScopeDecision.Conflict);
+        if (await db.FiscalMemories.AnyAsync(m => m.TaxpayerId == taxpayerId, ct))
+            return new(TaxpayerScopeDecision.Conflict);
+        var now = DateTime.UtcNow;
+        var changed = await db.TaxpayerProfiles
+            .Where(p => p.Id == taxpayerId && p.CustomerUserId == taxpayer.CustomerUserId &&
+                p.Revision == request.ExpectedRevision && p.Status == TaxpayerStatus.Active &&
+                !db.FiscalMemories.Any(m => m.TaxpayerId == p.Id))
+            .ExecuteUpdateAsync(u => u.SetProperty(p => p.Status, TaxpayerStatus.Archived)
+                .SetProperty(p => p.Revision, p => p.Revision + 1)
+                .SetProperty(p => p.UpdatedAtUtc, now), ct);
+        return new(changed == 1 ? TaxpayerScopeDecision.Allowed : TaxpayerScopeDecision.Conflict);
     }
 
     /// <summary>
