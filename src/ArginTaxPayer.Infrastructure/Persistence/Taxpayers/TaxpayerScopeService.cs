@@ -22,14 +22,15 @@ public sealed class TaxpayerScopeService(ArginTaxPayerDbContext db, IdentityAuth
         var id = await identity.CurrentUserIdAsync(token, ct);
         if (id is null) return (TaxpayerScopeDecision.Unauthenticated, Guid.Empty, false);
         var roles = await db.IdentityUsers.AsNoTracking().Where(u =>
-            u.Id == id.Value && u.IsActive &&
-            db.IdentityMfaStates.Any(m => m.UserId == u.Id && m.EnabledAtUtc != null))
+            u.Id == id.Value && u.IsActive)
             .Select(u => new
             {
                 Root = u.Roles.Any(r => r.Role == IdentityRoleNames.Level1),
-                Delegate = u.Roles.Any(r => r.Role == IdentityRoleNames.Level2)
+                Delegate = u.Roles.Any(r => r.Role == IdentityRoleNames.Level2),
+                Customer = u.Roles.Any(r => r.Role == IdentityRoleNames.Customer),
+                Mfa = db.IdentityMfaStates.Any(m => m.UserId == u.Id && m.EnabledAtUtc != null)
             }).SingleOrDefaultAsync(ct);
-        if (roles is null || (!roles.Root && !roles.Delegate))
+        if (roles is null || !(roles.Customer || roles.Mfa && (roles.Root || roles.Delegate)))
             return (TaxpayerScopeDecision.Forbidden, Guid.Empty, false);
         return (TaxpayerScopeDecision.Allowed, id.Value, roles.Root);
     }
@@ -38,7 +39,8 @@ public sealed class TaxpayerScopeService(ArginTaxPayerDbContext db, IdentityAuth
     {
         var profiles = db.TaxpayerProfiles.AsNoTracking();
         if (level1) return profiles;
-        return profiles.Where(p => db.CustomerCommercialOwners.Any(o => o.CustomerUserId == p.CustomerUserId && o.PartnerLevel2UserId == actorId));
+        return profiles.Where(p => p.CustomerUserId == actorId ||
+            db.CustomerCommercialOwners.Any(o => o.CustomerUserId == p.CustomerUserId && o.PartnerLevel2UserId == actorId));
     }
 
     public async Task<ScopedTaxpayerListResult> ListAsync(string? token, CancellationToken ct = default)
@@ -78,6 +80,11 @@ public sealed class TaxpayerScopeService(ArginTaxPayerDbContext db, IdentityAuth
     {
         var actor = await ResolveAsync(token, ct);
         if (actor.Decision != TaxpayerScopeDecision.Allowed) return new(actor.Decision);
+        if (!await db.IdentityUsers.AsNoTracking().AnyAsync(u => u.Id == actor.ActorId &&
+            u.IsActive && (u.Roles.Any(r => r.Role == IdentityRoleNames.Level1) ||
+            u.Roles.Any(r => r.Role == IdentityRoleNames.Level2)) &&
+            db.IdentityMfaStates.Any(m => m.UserId == actor.ActorId && m.EnabledAtUtc != null), ct))
+            return new(TaxpayerScopeDecision.Forbidden);
         if (request is null || request.ExpectedRevision < 1 ||
             string.IsNullOrWhiteSpace(request.DisplayName))
             return new(TaxpayerScopeDecision.Invalid);
