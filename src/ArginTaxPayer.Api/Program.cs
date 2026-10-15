@@ -40,6 +40,7 @@ if (identityDevelopmentEnabled)
     builder.Services.AddScoped<IdentityPhoneService>();
     builder.Services.AddScoped<IdentityAuthorizationService>();
     builder.Services.AddScoped<CustomerSelfServiceService>();
+    builder.Services.AddScoped<SoftwareUserProfileService>();
     builder.Services.AddScoped<CustomerTaxpayerMembershipService>();
     builder.Services.AddScoped<CustomerAccountProfileService>();
     builder.Services.AddScoped<ParticipantScopeService>();
@@ -109,6 +110,7 @@ if (app.Environment.IsDevelopment())
     if (identityDevelopmentEnabled)
     {
         app.MapIdentityDevelopmentEndpoints();
+        app.MapSoftwareUserProfileEndpoints();
         app.MapTaxpayerDevelopmentEndpoints();
         app.MapPartyDevelopmentEndpoints();
         app.MapFiscalParticipantDirectoryEndpoints();
