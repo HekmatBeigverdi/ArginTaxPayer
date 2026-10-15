@@ -98,7 +98,8 @@ export default function FiscalRecordModal({ record, isLevel1, onClose, onChanged
       setMode("view"); setNotice(mode === "archive"
         ? "پرونده بایگانی شد؛ سوابق آن به‌صورت فیزیکی حذف نشده‌اند."
         : "اطلاعات پرونده ویرایش شد.");
-      await onChanged(); await load();
+      await onChanged();
+      onClose();
     } catch (ex) { setError((ex as Error).message); }
     finally { setBusy(false); }
   }
@@ -117,8 +118,8 @@ export default function FiscalRecordModal({ record, isLevel1, onClose, onChanged
       <div className="argin-modal-body">
         {loading ? <ConsoleLoader label={"در حال دریافت پرونده " + title + "…"} /> : person && <>
           {mode === "view" && <div className="console-directory-actions">
-            <button type="button" className="identity-primary" onClick={() => setMode("edit")}>ویرایش {title}</button>
-            <button type="button" className="identity-secondary" onClick={() => setMode("archive")}>بایگانی {title}</button>
+            {record.status === "فعال" && <button type="button" className="identity-primary" onClick={() => setMode("edit")}>ویرایش {title}</button>}
+            {record.status === "فعال" && <button type="button" className="identity-secondary" onClick={() => setMode("archive")}>بایگانی {title}</button>}
             <button type="button" className="identity-secondary" onClick={() => void load()}>بازخوانی پرونده</button>
           </div>}
           {mode === "archive" && <p className="invoice-missing">
