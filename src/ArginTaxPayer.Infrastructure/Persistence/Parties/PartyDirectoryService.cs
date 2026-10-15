@@ -23,12 +23,14 @@ public sealed class PartyDirectoryService(ArginTaxPayerDbContext db, IdentityAut
             kind is not null && !Enum.IsDefined(kind.Value))
             return new(PartyDetailsDecision.Invalid, empty, page, pageSize, 0);
         var authorized = await db.IdentityUsers.AsNoTracking().AnyAsync(u => u.Id == actor.Value &&
-            u.IsActive && db.IdentityMfaStates.Any(m => m.UserId == u.Id && m.EnabledAtUtc != null) &&
+            u.IsActive && (u.Id == customerId ||
+                db.IdentityMfaStates.Any(m => m.UserId == u.Id && m.EnabledAtUtc != null)) &&
+            (u.Id == customerId && u.Roles.Any(role => role.Role == IdentityRoleNames.Customer) ||
             db.CustomerCommercialOwners.Any(o => o.CustomerUserId == customerId &&
                 (u.Roles.Any(role => role.Role == IdentityRoleNames.Level1) &&
                     o.RootLevel1UserId == actor.Value ||
                  u.Roles.Any(role => role.Role == IdentityRoleNames.Level2) &&
-                    o.PartnerLevel2UserId == actor.Value)), ct);
+                    o.PartnerLevel2UserId == actor.Value))), ct);
         if (!authorized) return new(PartyDetailsDecision.Forbidden, empty, page, pageSize, 0);
         var safeQuery = query?.Trim();
         var scoped = db.Parties.AsNoTracking().Where(p =>
