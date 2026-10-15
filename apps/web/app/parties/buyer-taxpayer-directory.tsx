@@ -66,10 +66,12 @@ export default function BuyerTaxpayerDirectory({ admin, level1, actorUserId }: {
       if (!admin) {
         const mine = await get<{ customerUserId: string; displayName: string | null }>(
           "/api/party-workspace/mine");
+        const ownProfile = await get<{ firstName: string; lastName: string; companyName: string | null; complete: boolean }>("/api/software-profile/me");
         if (version !== requestVersion.current) return;
         setBuyers([{ customerUserId: mine.customerUserId, mobile: null,
-          email: mine.displayName, isActive: true, taxpayerCount: 0, profileComplete: true,
-          personName: mine.displayName,
+          email: null, isActive: true, taxpayerCount: 0, profileComplete: ownProfile.complete,
+          personName: [ownProfile.firstName, ownProfile.lastName].filter(Boolean).join(" "),
+          companyName: ownProfile.companyName,
           rootLevel1UserId: null, partnerLevel2UserId: null }]);
       }
     } catch (e) {
