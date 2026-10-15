@@ -4,13 +4,15 @@ import assert from "node:assert/strict";
 
 const read = path => readFileSync(new URL("../" + path, import.meta.url), "utf8");
 
-test("registered identity accounts never become buyer rows without a stored Party", () => {
+test("fiscal directory is independent of software-user account pagination", () => {
   const page = read("app/parties/buyer-taxpayer-directory.tsx");
-  assert.match(page, /const buyerRows: Row\[\] = parties\.map/);
-  assert.doesNotMatch(page, /type: "buyer", kind: null, name: account/);
-  assert.doesNotMatch(page, /id: buyer\.customerUserId, buyerId: buyer\.customerUserId,\s*type: "buyer"/);
-  assert.match(page, /const taxpayerRows: Row\[\] = taxpayers\.map/);
-  assert.match(page, /type: "taxpayer"/);
+  const backend = read("../../src/ArginTaxPayer.Infrastructure/Persistence/Parties/FiscalParticipantDirectoryService.cs");
+  assert.match(page, /\/api\/fiscal-participants/);
+  assert.doesNotMatch(page, /directory\/page/);
+  assert.match(backend, /CustomerPartyLinks/);
+  assert.match(backend, /TaxpayerProfiles/);
+  assert.match(backend, /\.Skip\(\(page - 1\) \* pageSize\)\.Take\(pageSize\)/);
+  assert.doesNotMatch(backend, /CustomerAccountSummary/);
 });
 
 test("buyer and seller registrations do not create software login accounts", () => {
