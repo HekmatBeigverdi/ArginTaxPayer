@@ -1,114 +1,129 @@
 "use client";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import ConsoleLoader from "../components/console-loader";
+import { fieldSpecs, normalizeFiscalField, validateFiscalField, type FiscalField } from "./invoice-participant-validation";
 
-type Details = {
-  economicCode: string | null; branchCode: string | null; postalCode: string | null;
-  province: string | null; city: string | null; address: string | null;
-  phone: string | null; foreignNationalCode: string | null; passportNumber: string | null;
-  contractReference: string | null; revision: number
-};
-type Key = Exclude<keyof Details, "revision">;
-const fields: { key: Key; label: string; hint?: string; max: number; inputMode?: "numeric" | "tel" }[] = [
-  { key: "economicCode", label: "شماره اقتصادی", hint: "tinb برای خریدار / tins برای فروشنده", max: 32, inputMode: "numeric" },
-  { key: "branchCode", label: "کد شعبه", hint: "bbc برای خریدار / sbc برای فروشنده", max: 16, inputMode: "numeric" },
-  { key: "postalCode", label: "کد پستی ده‌رقمی", hint: "bpc برای خریدار؛ اطلاعات مکانی فروشنده", max: 10, inputMode: "numeric" },
-  { key: "province", label: "استان", max: 120 },
-  { key: "city", label: "شهر", max: 120 },
-  { key: "address", label: "نشانی دقیق", max: 500 },
-  { key: "phone", label: "شماره تلفن", max: 20, inputMode: "tel" },
-  { key: "foreignNationalCode", label: "کد فراگیر اتباع خارجی (در صورت نیاز)", max: 32 },
-  { key: "passportNumber", label: "شماره گذرنامه (الگوهای مرتبط)", max: 32 },
-  { key: "contractReference", label: "شناسه قرارداد (الگوهای مرتبط)", max: 64 }
-];
-const initial = (): Details => ({
-  economicCode: null, branchCode: null, postalCode: null,
-  province: null, city: null, address: null, phone: null,
-  foreignNationalCode: null, passportNumber: null, contractReference: null, revision: 0
+type Details = Record<FiscalField, string | null> & { revision: number };
+const blank = (): Details => ({
+  economicCode: null, branchCode: null, postalCode: null, province: null,
+  city: null, address: null, phone: null, foreignNationalCode: null,
+  passportNumber: null, contractReference: null, revision: 0
 });
-const api = (customerId: string, role: "buyer" | "seller", subjectId: string) =>
-  "/api/party-workspace/customers/" + customerId + "/invoice-details/" + role + "/" + subjectId;
+const urlFor = (customer: string, role: "buyer" | "seller", id: string) =>
+  "/api/party-workspace/customers/" + customer + "/invoice-details/" + role + "/" + id;
+async function bodyOrNull(res: Response): Promise<Details | null> {
+  const body = await res.text();
+  if (!body.trim()) return null;
+  try { return JSON.parse(body) as Details | null; }
+  catch { throw new Error("پاسخ سرویس قابل خواندن نیست؛ لطفاً بازخوانی کنید."); }
+}
+function responseError(status: number, body: string): string {
+  let code = "";
+  try { code = (JSON.parse(body) as {error?: string}).error ?? ""; } catch {}
+  if (status === 401) return "نشست ورود منقضی شده است.";
+  if (status === 403) return "اجازه ویرایش اطلاعات این پرونده را ندارید.";
+  if (status === 404) return "پرونده یافت نشد یا دیگر به این حساب تعلق ندارد.";
+  if (status === 409) return "اطلاعات از زمان باز شدن فرم تغییر کرده است؛ بازخوانی کنید و دوباره ویرایش کنید.";
+  if (status === 502 || status === 503)
+    return "سرویس یا دیتابیس پاسخ معتبر نداد. وضعیت API و Migration اطلاعات مالیاتی را بررسی کنید.";
+  if (status === 400 || code.includes("invalid"))
+    return "یک مقدار با قواعد اعتبارسنجی سرور سازگار نیست. فقط فیلد تغییرکرده را بررسی کنید.";
+  return "ذخیره ناموفق بود (کد " + status + ").";
+}
 
 export default function InvoiceParticipantForm({ customerId, subjectId, role }:
   { customerId: string; subjectId: string; role: "buyer" | "seller" }) {
-  const [details, setDetails] = useState<Details>(initial);
+  const [details, setDetails] = useState<Details>(blank);
+  const [changed, setChanged] = useState<FiscalField[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [invoiceType, setInvoiceType] = useState("1");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const endpoint = urlFor(customerId, role, subjectId);
   const load = useCallback(async () => {
     setLoading(true); setError("");
     try {
-      const res = await fetch(api(customerId, role, subjectId), { credentials: "same-origin", cache: "no-store" });
-      if (!res.ok) throw new Error("اطلاعات مالیاتی این پرونده قابل دریافت نیست.");
-      const stored = await res.json() as Details | null;
-      setDetails(stored || initial());
+      const res = await fetch(endpoint, { cache: "no-store", credentials: "same-origin" });
+      if (!res.ok) throw new Error(responseError(res.status, await res.text()));
+      const stored = await bodyOrNull(res);
+      setDetails(stored ? { ...blank(), ...stored } : blank());
+      setChanged([]);
     } catch (ex) { setError((ex as Error).message); }
     finally { setLoading(false); }
-  }, [customerId, role, subjectId]);
+  }, [endpoint]);
   useEffect(() => { void load(); }, [load]);
 
-  function update(key: Key, value: string) {
-    setDetails(current => ({ ...current, [key]: value || null }));
+  function update(key: FiscalField, value: string) {
+    setDetails(current => ({ ...current, [key]: value }));
+    setChanged(current => current.includes(key) ? current : [...current, key]);
+    setError(""); setMessage("");
   }
-  const needBuyer = role === "buyer" && invoiceType === "1";
-  const needSeller = role === "seller";
-  const missing = [
-    ...(needBuyer || needSeller ? !details.economicCode ? ["شماره اقتصادی"] : [] : []),
-    ...(needBuyer ? !details.postalCode ? ["کد پستی"] : [] : []),
-    ...(needSeller ? !details.address ? ["نشانی"] : [] : [])
-  ];
+  const problems = changed.map(key => ({ key, error: validateFiscalField(key, details[key] ?? "") }))
+    .filter(x => x.error !== null);
+  const readiness = role === "buyer" && invoiceType === "1" ?
+    "در صورتحساب نوع اول، اطلاعات الزامی خریدار به نوع شخص و الگوی صورتحساب وابسته است؛ ثبت پیش‌نویس پرونده به تکمیل همه این فیلدها نیاز ندارد." :
+    role === "seller" ? "الزامات فروشنده هنگام صدور صورتحساب با توجه به الگو بررسی می‌شود؛ اینجا هر فیلد جداگانه قابل ذخیره است." :
+    "اطلاعات خریدار در نوع دوم و سوم عموماً اختیاری است؛ قواعد دقیق هنگام صدور اعمال می‌شوند.";
+
   async function save(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); if (saving) return;
-    setSaving(true); setMessage(""); setError("");
+    event.preventDefault();
+    if (saving || loading) return;
+    if (!changed.length) { setMessage("تغییری برای ذخیره وجود ندارد."); return; }
+    if (problems.length) { setError("مقادیر مشخص‌شده را اصلاح کنید."); return; }
+    setSaving(true); setError(""); setMessage("");
     try {
-      const res = await fetch(api(customerId, role, subjectId), {
-        method: "PUT", credentials: "same-origin",
-        headers: { "Content-Type": "application/json" }, body: JSON.stringify({
-          ...details, expectedRevision: details.revision
-        })
+      const modifications: Record<string, string | number | null> = { expectedRevision: details.revision };
+      for (const key of changed) {
+        const value = normalizeFiscalField(key, details[key] ?? "");
+        modifications[key] = value || null;
+      }
+      const res = await fetch(endpoint, {
+        method: "PATCH", credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(modifications)
       });
-      if (!res.ok) throw new Error(res.status === 409
-        ? "اطلاعات توسط شخص دیگری ویرایش شده؛ ابتدا بازخوانی کنید."
-        : res.status === 403 ? "مجوز ثبت این اطلاعات را ندارید."
-        : "ثبت اطلاعات مالیاتی ناموفق بود؛ مقادیر را بررسی کنید.");
-      const result = await res.json() as Details;
-      setDetails(result); setMessage("اطلاعات سربرگ مالیاتی در دیتابیس تست ذخیره شد.");
+      if (!res.ok) throw new Error(responseError(res.status, await res.text()));
+      const result = await bodyOrNull(res);
+      if (!result) throw new Error("سرور نتیجه ذخیره را برنگرداند؛ پیش از تلاش مجدد بازخوانی کنید.");
+      setDetails({ ...blank(), ...result }); setChanged([]);
+      setMessage("فقط فیلدهای تغییرکرده با موفقیت ذخیره شدند.");
     } catch (ex) { setError((ex as Error).message); }
     finally { setSaving(false); }
   }
+
   return <section className="invoice-participant" aria-busy={loading || saving}>
-    <div className="taxpayer-section-heading"><h3>مشخصات تکمیلی {role === "seller" ? "فروشنده / مؤدی" : "خریدار"} برای صورتحساب</h3>
-      <button className="identity-secondary" disabled={loading || saving} onClick={() => void load()}>بازخوانی</button></div>
-    <p className="field-hint">شناسه ملی و نام شخص در پرونده اصلی ثبت می‌شوند. این بخش فقط مشخصات تکمیلی سربرگ صورتحساب را ذخیره می‌کند.</p>
-    <label htmlFor={"invoice-kind-"+role}>نوع صورتحساب موردنظر برای بررسی آمادگی اطلاعات</label>
-    <select id={"invoice-kind-"+role} value={invoiceType} onChange={e => setInvoiceType(e.target.value)}>
-      <option value="1">نوع اول — مشخصات خریدار و فروشنده</option>
-      <option value="2">نوع دوم — اطلاعات خریدار اختیاری</option>
-      <option value="3">نوع سوم — رسید پرداخت (نیازمند مسیر جداگانه)</option>
+    <div className="taxpayer-section-heading">
+      <h3>اطلاعات تکمیلی {role === "seller" ? "مؤدی" : "خریدار"}</h3>
+      <button className="identity-secondary" type="button" disabled={loading || saving}
+        onClick={() => void load()}>بازخوانی</button>
+    </div>
+    <p className="field-hint">هر کدام از فیلدها مستقل و اختیاری است. می‌توانید تنها یک مورد مانند استان یا شهر را ثبت یا ویرایش کنید. اطلاعات هویتی اصلی در پرونده شخص نگهداری می‌شوند.</p>
+    <label htmlFor={"invoice-type-" + role}>نوع صورتحساب برای راهنمای تکمیل اطلاعات (نه اعتبارسنجی ذخیره)</label>
+    <select id={"invoice-type-" + role} value={invoiceType} onChange={e => setInvoiceType(e.target.value)}>
+      <option value="1">نوع اول</option><option value="2">نوع دوم</option><option value="3">نوع سوم</option>
     </select>
-    {invoiceType === "3" ? <p className="party-error">نوع سوم مبتنی بر پایانه فروش است؛ تکمیل این فرم به معنی ایجاد رسید یا اتصال به پایانه نیست.</p> :
-      <p className="invoice-help">{role === "buyer" && invoiceType === "2"
-        ? "برای نوع دوم معمولاً درج مشخصات خریدار اختیاری است؛ اطلاعات فروشنده همچنان اهمیت دارد."
-        : "برای صورتحساب نوع اول، اطلاعات هویتی طرفین در زمان صدور باید طبق الگو کنترل شوند."}</p>}
-    {missing.length > 0 && invoiceType !== "3" && <p className="invoice-missing">
-      اطلاعات پیشنهادی برای تکمیل: {missing.join("، ")}. اعتبارسنجی نهایی به نوع و الگوی صورتحساب وابسته است.
-    </p>}
-    {loading ? <div className="console-table-stage"><ConsoleLoader full label="در حال دریافت اطلاعات هویتی مالیاتی…" /></div> :
-      <form className="invoice-fields" onSubmit={save}>
-        {fields.map(f => <label key={f.key}>{f.label}
-          {f.hint && <small>{f.hint}</small>}
-          <input type="text" dir={f.inputMode ? "ltr" : "rtl"} inputMode={f.inputMode}
-            maxLength={f.max} value={details[f.key] ?? ""}
-            onChange={e => update(f.key, e.target.value)}
-            placeholder={f.key === "postalCode" ? "۱۲۳۴۵۶۷۸۹۰" : undefined}/>
-        </label>)}
+    <p className="invoice-help">{readiness}</p>
+    {loading ? <ConsoleLoader label="در حال دریافت اطلاعات مالیاتی…" /> :
+      <form className="invoice-fields" onSubmit={save} noValidate>
+        {fieldSpecs.map(field => {
+          const value = details[field.key] ?? "";
+          const problem = changed.includes(field.key) ? validateFiscalField(field.key, value) : null;
+          return <label key={field.key}>{field.label} <small>(اختیاری)</small>
+            {field.hint && <small>{field.hint}</small>}
+            <input type="text" dir={field.inputMode ? "ltr" : "rtl"} inputMode={field.inputMode}
+              maxLength={field.max} value={value} aria-invalid={Boolean(problem)}
+              onChange={e => update(field.key, e.target.value)}/>
+            {problem && <small role="alert" className="party-error">{problem}</small>}
+          </label>;
+        })}
         {error && <p role="alert" className="party-error">{error}</p>}
         {message && <p role="status" className="party-success">{message}</p>}
-        <button className="identity-primary" disabled={saving}>{saving ? "در حال ثبت…" : "ذخیره مشخصات مالیاتی"}</button>
+        <button type="submit" className="identity-primary" disabled={saving || Boolean(problems.length) || !changed.length}>
+          {saving ? "در حال ذخیره…" : "ذخیره تغییرات (" + changed.length.toLocaleString("fa-IR") + " فیلد)"}
+        </button>
       </form>}
     {loading && error && <p role="alert" className="party-error">{error}</p>}
-    <p className="field-hint">این فرم صحت شناسه نزد سازمان امور مالیاتی را تأیید نمی‌کند؛ اطلاعات کد حافظه و گواهی مالیاتی فروشنده در پرونده مستقل مؤدی مدیریت می‌شوند.</p>
+    <p className="field-hint">قواعد اجباری بودن اطلاعات، اعتبار شماره اقتصادی نزد سازمان و ترکیب فیلدهای صورتحساب در مرحله صدور و بر اساس نوع و الگو بررسی می‌شوند؛ ثبت این فرم به معنی تأیید سازمان امور مالیاتی نیست.</p>
   </section>;
 }
