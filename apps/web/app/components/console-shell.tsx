@@ -19,6 +19,7 @@ export default function ConsoleShell({ roles, userId, children }:
   const [menuOpen, setMenuOpen] = useState(false);
   const [navigatingTo, setNavigatingTo] = useState<string | null>(null);
   const [exiting, setExiting] = useState(false);
+  const [profileReady, setProfileReady] = useState<boolean | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const admin = roles.includes("Level1") || roles.includes("Level2");
   const role = roles.includes("Level1") ? "مدیر سطح یک" :
@@ -26,6 +27,20 @@ export default function ConsoleShell({ roles, userId, children }:
   const navigation = admin ? [base[0],
     { title: "کاربران نرم‌افزار", path: "/users", glyph: "♟" }, base[1], base[2]] : base;
   useEffect(() => { setMenuOpen(false); setNavigatingTo(null); }, [pathname]);
+  useEffect(() => {
+    if (!roles.includes("Customer")) { setProfileReady(true); return; }
+    let cancelled = false;
+    setProfileReady(null);
+    fetch("/api/software-profile/me", {cache:"no-store"}).then(async res => {
+      if (!res.ok) throw new Error("profile_unavailable");
+      const p = await res.json() as {complete:boolean};
+      if (!cancelled) {
+        setProfileReady(Boolean(p.complete));
+        if (!p.complete && pathname !== "/account") router.replace("/account");
+      }
+    }).catch(() => { if (!cancelled) { setProfileReady(false); if (pathname !== "/account") router.replace("/account"); } });
+    return () => { cancelled = true; };
+  }, [pathname, roles.join(","), router]);
   useEffect(() => {
     function dismiss(e: MouseEvent) { if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false); }
     function escape(e: KeyboardEvent) { if (e.key === "Escape") setMenuOpen(false); }
@@ -76,7 +91,7 @@ export default function ConsoleShell({ roles, userId, children }:
           {menuOpen && <div className="console-account-dropdown" role="menu" aria-label="حساب کاربری">
             <p className="console-menu-identity">شناسه حساب <bdi dir="ltr">{userId.slice(0, 8)}…</bdi></p>
             <Link role="menuitem" href="/account" onClick={() => setMenuOpen(false)}>پروفایل و حساب من</Link>
-            <Link role="menuitem" href="/account#security" onClick={() => setMenuOpen(false)}>امنیت و نشست‌ها</Link>
+            <Link role="menuitem" href="/account#security" onClick={() => setMenuOpen(false)}>اطلاعات امنیتی</Link>
             <div className="console-menu-divider"/>
             <button role="menuitem" type="button" onClick={() => void logout()} disabled={exiting}>
               {exiting ? "در حال خروج…" : "خروج از حساب"}
@@ -85,7 +100,11 @@ export default function ConsoleShell({ roles, userId, children }:
         </div>
       </header>
       <div className="app-content console-content-host" id="console-content" aria-busy={Boolean(navigatingTo)}>
-        {children}
+        {(profileReady === true || pathname === "/account") ? children :
+          <section className="intro" role="status"><h2>تکمیل پروفایل الزامی است</h2>
+            <p>برای ادامه، نام و نام خانوادگی و نشانی خود را در قسمت پروفایل وارد کنید.</p>
+            {profileReady === null && <ConsoleLoader label="در حال بررسی وضعیت پروفایل…"/>}
+          </section>}
         {navigatingTo && <ConsoleLoader full label="در حال انتقال به بخش انتخاب‌شده…" />}
       </div>
     </div>
