@@ -49,3 +49,16 @@ test("profile and security routes are isolated and have compact separate surface
  assert.match(css,/\.console-logo-dropzone\{border:2px dashed/);
  assert.match(css,/\.console-settings-page/);
 });
+
+test("profile completion gate does not re-check or flash on every page navigation",()=>{
+ const gate=read("app/components/console-shell.tsx");
+ const form=read("app/account/software-profile-form.tsx");
+ assert.match(gate,/\[userId, requiresProfile, profileRetry\]/);
+ assert.doesNotMatch(gate,/\[pathname, roles\.join/);
+ assert.match(gate,/profileState === "checking"/);
+ assert.match(gate,/profileState === "error"/);
+ assert.match(gate,/profileState === "incomplete" && pathname !== "\/profile"/);
+ assert.match(gate,/argin:software-profile-saved/);
+ assert.match(form,/window\.dispatchEvent\(new CustomEvent\("argin:software-profile-saved"/);
+ assert.doesNotMatch(form,/router\.refresh\(\)/);
+});
