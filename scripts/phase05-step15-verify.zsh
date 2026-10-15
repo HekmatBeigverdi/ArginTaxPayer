@@ -15,11 +15,11 @@ if [[ -n "$(git status --porcelain)" ]]; then
   exit 2
 fi
 print '=== Phase05 final local static and security regression ==='
-zsh scripts/phase05-step14-verify.zsh
 if [[ "${1:-}" == "--pg" ]]; then
   print '=== Phase05 explicit opt-in rollback-only PostgreSQL checks ==='
-  # Prior checker performs the test DB and applied migration validation.
   zsh scripts/phase05-step14-verify.zsh --pg
+else
+  zsh scripts/phase05-step14-verify.zsh
 fi
 print '=== Phase05 final API/UI readiness (read-only) ==='
 zsh scripts/dev-status.zsh
@@ -27,6 +27,6 @@ print '=== Git release candidate identity ==='
 git log -1 --format='%h %s'
 print '=== Phase05 final test script ==='
 print 'Optional authenticated read-only Level1/Level2 HTTP smoke: node scripts/phase05-step14-smoke.mjs'
-print 'Ubuntu test environment: bash scripts/ubuntu-dev.sh verify'
+print 'Ubuntu test environment: bash scripts/phase05-step15-ubuntu.sh'
 print 'Step15 is not approved until macOS, Ubuntu and any applicable HTTP/PG acceptance gates are acknowledged.'
 print 'No merge, tag or release was created.'
