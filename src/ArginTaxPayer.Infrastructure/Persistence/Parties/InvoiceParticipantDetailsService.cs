@@ -152,9 +152,9 @@ public sealed class InvoiceParticipantDetailsService(
                 return new(InvoiceParticipantOutcome.Forbidden);
             if (!await ValidOwnerAsync(customer, subject, seller, ct))
                 return new(InvoiceParticipantOutcome.NotFound);
-            if (!seller && await db.CustomerPartyLinks.AsNoTracking().AnyAsync(l =>
-                l.PartyId == subject && l.CustomerUserId != customer && l.UnlinkedAtUtc == null, ct))
-                return new(InvoiceParticipantOutcome.Conflict);
+            // The fiscal metadata row is keyed by (customer, party/taxpayer).
+            // A Party shared between customers does not prevent editing THIS account's
+            // own metadata. We do not update the underlying shared Party identity here.
             var row = await db.InvoiceParticipantDetails.SingleOrDefaultAsync(d =>
                 d.CustomerUserId == customer &&
                 (seller ? d.TaxpayerId == subject : d.PartyId == subject), ct);
