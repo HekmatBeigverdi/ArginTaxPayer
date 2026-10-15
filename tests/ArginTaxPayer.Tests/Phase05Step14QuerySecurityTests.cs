@@ -28,6 +28,7 @@ public sealed class Phase05Step14QuerySecurityTests
             scope.ScopedCommandQuery(actor, root).ToQueryString()
         })
         {
+            Console.WriteLine("Phase05 Step14 scoped SQL: " + sql);
             Assert.Contains("customer_commercial_owners", sql);
             Assert.Contains("root_level1_user_id", sql);
             Assert.Contains("partner_level2_user_id", sql);
