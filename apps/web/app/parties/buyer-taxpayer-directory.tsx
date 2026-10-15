@@ -30,6 +30,7 @@ async function get<T>(url: string): Promise<T> {
 export default function BuyerTaxpayerDirectory({ admin, level1, actorUserId }: { admin: boolean; level1: boolean; actorUserId: string }) {
   const [rows, setRows] = useState<Row[]>([]);
   const [buyers, setBuyers] = useState<Buyer[]>([]);
+  const [registrationBuyers, setRegistrationBuyers] = useState<Buyer[]>([]);
   const [view, setView] = useState<View>("list");
   const [registerMode, setRegisterMode] = useState<"buyer" | "seller" | null>(null);
   const [filter, setFilter] = useState<"all" | "buyer" | "taxpayer">("all");
@@ -116,16 +117,28 @@ export default function BuyerTaxpayerDirectory({ admin, level1, actorUserId }: {
   const activePage = Math.min(page, maxPage);
   const shown = filtered;
 
+  async function startRegistration(mode: "buyer" | "seller") {
+    setRegisterMode(mode);
+    if (!admin) return;
+    try {
+      const all = await get<Buyer[]>("/api/customer-owners/accounts");
+      setRegistrationBuyers(all);
+    } catch (e) {
+      setError((e as Error).message);
+      setRegisterMode(null);
+    }
+  }
+
   function open(mode: View, customer = "") {
     setView(mode); setSelectedBuyer(customer); setError(""); setNotice("");
   }
 
   return <section className="console-directory">
-    {registerMode && <ParticipantRegistrationModal mode={registerMode} buyers={buyers} actorUserId={actorUserId}
+    {registerMode && <ParticipantRegistrationModal mode={registerMode} buyers={admin ? registrationBuyers : buyers} actorUserId={actorUserId}
       level1={level1} onClose={() => setRegisterMode(null)} onCompleted={reload}/> }
     {<div className="console-directory-actions">
-      <button className="identity-primary" type="button" onClick={() => setRegisterMode("buyer")}>+ افزودن خریدار</button>
-      <button className="identity-secondary" type="button" onClick={() => setRegisterMode("seller")}>+ افزودن مؤدی</button>
+      <button className="identity-primary" type="button" onClick={() => void startRegistration("buyer")}>+ افزودن خریدار</button>
+      <button className="identity-secondary" type="button" onClick={() => void startRegistration("seller")}>+ افزودن مؤدی</button>
       <button type="button" className="identity-secondary" onClick={() => { setError(""); void reload(); }} disabled={loading}>بازخوانی فهرست</button>
     </div>}
     {view !== "list" && <div className="console-directory-panel">
