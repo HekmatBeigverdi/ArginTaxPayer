@@ -27,7 +27,7 @@ test("administrator sees profiles by name, incomplete accounts stay only in user
  assert.match(users,/users-contact-truncated/);
  assert.match(picker,/b\.companyName \|\| b\.personName/);
  assert.doesNotMatch(picker,/\{b\.mobile \|\| b\.email/);
- assert.match(directory,/\.filter\(x => x\.isActive && x\.profileComplete\)/);
+ assert.match(directory,/\.filter\(x => x\.isActive && x\.profileComplete &&/);
 });
 
 test("profile and security routes are isolated and have compact separate surfaces",()=>{

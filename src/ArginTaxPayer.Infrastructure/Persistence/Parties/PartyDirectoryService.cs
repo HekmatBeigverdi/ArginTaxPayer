@@ -9,7 +9,8 @@ public sealed record PartyDirectoryPage(PartyDetailsDecision Decision,
     PartyDirectoryItem[] Items, int Page, int PageSize, int Total);
 
 /// <summary>Never materialize global records before applying live customer ownership scope.</summary>
-public sealed class PartyDirectoryService(ArginTaxPayerDbContext db, IdentityAuthorizationService identity)
+public sealed class PartyDirectoryService(ArginTaxPayerDbContext db, IdentityAuthorizationService identity,
+    ParticipantScopeService participantScope)
 {
     public async Task<PartyDirectoryPage> ListAsync(string? bearer, Guid customerId,
         int page, int pageSize, string? query, PartyKind? kind,
@@ -22,16 +23,10 @@ public sealed class PartyDirectoryService(ArginTaxPayerDbContext db, IdentityAut
             query?.Length > 100 || query?.Any(char.IsControl) == true ||
             kind is not null && !Enum.IsDefined(kind.Value))
             return new(PartyDetailsDecision.Invalid, empty, page, pageSize, 0);
-        var authorized = await db.IdentityUsers.AsNoTracking().AnyAsync(u => u.Id == actor.Value &&
-            u.IsActive && (u.Id == customerId ||
-                db.IdentityMfaStates.Any(m => m.UserId == u.Id && m.EnabledAtUtc != null)) &&
-            (u.Id == customerId && u.Roles.Any(role => role.Role == IdentityRoleNames.Customer) ||
-            db.CustomerCommercialOwners.Any(o => o.CustomerUserId == customerId &&
-                (u.Roles.Any(role => role.Role == IdentityRoleNames.Level1) &&
-                    o.RootLevel1UserId == actor.Value ||
-                 u.Roles.Any(role => role.Role == IdentityRoleNames.Level2) &&
-                    o.PartnerLevel2UserId == actor.Value))), ct);
-        if (!authorized) return new(PartyDetailsDecision.Forbidden, empty, page, pageSize, 0);
+        // Centralize live role, MFA, active target and customer-profile checks.
+        // A former partner loses access immediately after ownership transfer.
+        if (!await participantScope.CanManageAsync(actor.Value, customerId, ct))
+            return new(PartyDetailsDecision.Forbidden, empty, page, pageSize, 0);
         var safeQuery = query?.Trim();
         var scoped = db.Parties.AsNoTracking().Where(p =>
             db.CustomerPartyLinks.Any(l => l.PartyId == p.Id &&

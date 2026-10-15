@@ -18,25 +18,8 @@ public sealed record NaturalPersonResult(NaturalPersonDecision Decision, Natural
 /// </summary>
 public sealed class NaturalPersonService(ArginTaxPayerDbContext db, IdentityAuthorizationService identity, ParticipantScopeService scope)
 {
-    private async Task<bool> HasScopeAsync(Guid actor, Guid customer, CancellationToken ct)
-    {
-        var role = await db.IdentityUsers.AsNoTracking().Where(u => u.Id == actor && u.IsActive)
-            .Select(u => new
-            {
-                Root = u.Roles.Any(x => x.Role == IdentityRoleNames.Level1),
-                Partner = u.Roles.Any(x => x.Role == IdentityRoleNames.Level2),
-                Customer = u.Roles.Any(x => x.Role == IdentityRoleNames.Customer),
-                Mfa = db.IdentityMfaStates.Any(m => m.UserId == u.Id && m.EnabledAtUtc != null)
-            }).SingleOrDefaultAsync(ct);
-        if (role is null) return false;
-        if (role.Customer && actor == customer) return true;
-        if (!role.Mfa) return false;
-        if (role.Root) return true;
-        return await db.CustomerCommercialOwners.AsNoTracking().AnyAsync(o =>
-            o.CustomerUserId == customer &&
-            (role.Root && o.RootLevel1UserId == actor ||
-             role.Partner && o.PartnerLevel2UserId == actor), ct);
-    }
+    private Task<bool> HasScopeAsync(Guid actor, Guid customer, CancellationToken ct) =>
+        scope.CanManageAsync(actor, customer, ct);
 
     private static NaturalPersonView Map(Party person, Guid customer) =>
         new(person.Id, customer, person.NormalizedIdentifier,

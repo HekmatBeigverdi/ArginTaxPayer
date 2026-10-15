@@ -13,7 +13,8 @@ public sealed record PartyDetailsResult(PartyDetailsDecision Decision, Guid? Id 
 
 /// <summary>Scoped domain application operations; Step08 will expose authorized HTTP endpoints.</summary>
 public sealed class PartyContactAddressService(
-    ArginTaxPayerDbContext db, IdentityAuthorizationService identity)
+    ArginTaxPayerDbContext db, IdentityAuthorizationService identity,
+    ParticipantScopeService scope)
 {
     private async Task<PartyDetailsDecision?> AuthorizeAsync(string? token,
         Guid customerId, Guid partyId, CancellationToken ct)
@@ -22,14 +23,7 @@ public sealed class PartyContactAddressService(
         if (actor is null) return PartyDetailsDecision.Unauthenticated;
         if (customerId == Guid.Empty || partyId == Guid.Empty)
             return PartyDetailsDecision.Invalid;
-        var permitted = await db.IdentityUsers.AsNoTracking().AnyAsync(u =>
-            u.Id == actor.Value && u.IsActive &&
-            db.IdentityMfaStates.Any(m => m.UserId == u.Id && m.EnabledAtUtc != null) &&
-            db.CustomerCommercialOwners.Any(o => o.CustomerUserId == customerId &&
-                (u.Roles.Any(role => role.Role == IdentityRoleNames.Level1) &&
-                    o.RootLevel1UserId == actor.Value ||
-                 u.Roles.Any(role => role.Role == IdentityRoleNames.Level2) &&
-                    o.PartnerLevel2UserId == actor.Value)), ct);
+        var permitted = await scope.CanManageAsync(actor.Value, customerId, ct);
         if (!permitted) return PartyDetailsDecision.Forbidden;
         var member = await db.CustomerPartyLinks.AsNoTracking().AnyAsync(l =>
             l.PartyId == partyId && l.CustomerUserId == customerId && l.UnlinkedAtUtc == null &&

@@ -27,7 +27,8 @@ test("backend participant authorization uses scope service rather than global ro
   const legal = read("../../src/ArginTaxPayer.Infrastructure/Persistence/Parties/LegalEntityService.cs");
   const scope = read("../../src/ArginTaxPayer.Infrastructure/Persistence/Parties/ParticipantScopeService.cs");
   for (const code of [natural, legal]) assert.match(code, /scope.CanManageAsync/);
-  assert.match(scope, /o.RootLevel1UserId == actor/);
+  assert.match(scope, /u.Roles.Any\(r => r.Role == IdentityRoleNames.Level1\)/);
+  assert.doesNotMatch(scope, /o.RootLevel1UserId == actor/);
   assert.match(scope, /o.PartnerLevel2UserId == actor/);
   assert.match(scope, /u.Id == customer/);
   assert.match(scope, /m.EnabledAtUtc != null/);

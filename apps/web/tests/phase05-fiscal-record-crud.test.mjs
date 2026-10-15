@@ -25,7 +25,7 @@ test("buyer edit is revision guarded and archive preserves persisted identity", 
 test("seller memory binding blocks archive but allows scoped rename", () => {
   const service = read("../../src/ArginTaxPayer.Infrastructure/Persistence/Taxpayers/TaxpayerScopeService.cs");
   assert.match(service, /ArchiveAsync/);
-  assert.match(service, /FiscalMemories\.AnyAsync/);
+  assert.match(service, /FiscalMemories\.Any\(/);
   assert.match(service, /TaxpayerStatus\.Archived/);
   assert.match(service, /participantScope\.CanManageAsync/);
 });

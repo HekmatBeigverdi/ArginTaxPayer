@@ -44,8 +44,13 @@ public sealed class TaxpayerCreationService(
         };
         try
         {
+            await using var transaction = await db.Database.BeginTransactionAsync(
+                System.Data.IsolationLevel.Serializable, ct);
+            if (!await scope.CanManageAsync(actor.Value, request.CustomerUserId.Value, ct))
+                return new(CreateTaxpayerStatus.Forbidden);
             db.TaxpayerProfiles.Add(profile);
             await db.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
             return new(CreateTaxpayerStatus.Created,
                 new TaxpayerCreated(profile.Id, profile.Kind, identifier, name));
         }
@@ -53,6 +58,11 @@ public sealed class TaxpayerCreationService(
             { SqlState: PostgresErrorCodes.UniqueViolation })
         {
             db.Entry(profile).State = EntityState.Detached;
+            return new(CreateTaxpayerStatus.Conflict);
+        }
+        catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.SerializationFailure)
+        {
+            db.ChangeTracker.Clear();
             return new(CreateTaxpayerStatus.Conflict);
         }
     }
