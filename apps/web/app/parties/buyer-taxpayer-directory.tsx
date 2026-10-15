@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
-import AdminCreateCustomer from "../account/admin-create-customer";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import ParticipantRegistrationModal from "./participant-registration-modal";
 import PartyWorkspace from "./party-workspace";
 import TaxpayerWorkspace from "../taxpayers/taxpayer-workspace";
 import ConsoleLoader from "../components/console-loader";
@@ -14,7 +14,7 @@ type Party = { id: string; kind: number; displayName: string; status: number };
 type PartyPage = { items: Party[]; total: number };
 type Row = { id: string; buyerId: string; type: "buyer" | "taxpayer"; kind: number | null;
   name: string; identifier: string; status: string; ownerName: string };
-type View = "list" | "buyer-new" | "buyer-details" | "taxpayer-new" | "taxpayer-connection";
+type View = "list" | "buyer-details" | "taxpayer-connection";
 const kindLabel = (kind: number | null) => kind === 1 ? "شخص حقیقی" : kind === 2 ? "شخص حقوقی" : "تعیین‌نشده";
 const formatError = (status: number) => status === 401 ? "نشست معتبر نیست." :
   status === 403 ? "مجوز دسترسی ندارید." : status === 409 ? "اطلاعات تکراری است." :
@@ -24,26 +24,22 @@ async function get<T>(url: string): Promise<T> {
   if (!res.ok) throw new Error(formatError(res.status));
   return res.json() as Promise<T>;
 }
-const isUuid = (id: string) => /^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(id);
 
 export default function BuyerTaxpayerDirectory({ admin, level1 }: { admin: boolean; level1: boolean }) {
   const [rows, setRows] = useState<Row[]>([]);
   const [buyers, setBuyers] = useState<Buyer[]>([]);
   const [view, setView] = useState<View>("list");
+  const [registerMode, setRegisterMode] = useState<"buyer" | "seller" | null>(null);
   const [filter, setFilter] = useState<"all" | "buyer" | "taxpayer">("all");
   const [kind, setKind] = useState("all");
   const [query, setQuery] = useState("");
   const [selectedBuyer, setSelectedBuyer] = useState("");
   const [page, setPage] = useState(1);
-  const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [loadedOnce, setLoadedOnce] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [newKind, setNewKind] = useState("1");
-  const [taxpayerName, setTaxpayerName] = useState("");
-  const [taxpayerId, setTaxpayerId] = useState("");
   const [createdTaxpayerId, setCreatedTaxpayerId] = useState("");
 
   const reload = useCallback(async () => {
@@ -121,77 +117,22 @@ export default function BuyerTaxpayerDirectory({ admin, level1 }: { admin: boole
     setView(mode); setSelectedBuyer(customer); setError(""); setNotice("");
   }
 
-  async function buyerCreated(mobile: string) {
-    setNotice("حساب ورود خریدار ایجاد شد؛ اکنون اطلاعات حقیقی/حقوقی او را ثبت کنید.");
-    try {
-      const current = await get<Buyer[]>("/api/customer-owners/accounts");
-      setBuyers(current);
-      const found = current.find(b => b.mobile === mobile);
-      if (found) open("buyer-details", found.customerUserId);
-      else setNotice("خریدار ثبت شد، اما هنوز در فهرست مجاز دیده نمی‌شود. دسترسی تجاری او را بررسی و سپس صفحه را بازخوانی کنید.");
-    } catch {
-      setError("حساب ایجاد شد ولی دریافت پرونده خریدار ممکن نیست؛ برای جلوگیری از ثبت تکراری، از فهرست کاربران آن را پیدا کنید.");
-    }
-  }
-
-  async function addTaxpayer(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    if (busy || !level1 || !isUuid(selectedBuyer)) return;
-    setBusy(true); setError("");
-    try {
-      const response = await fetch("/api/taxpayers/new", { method: "POST", credentials: "same-origin",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ customerUserId: selectedBuyer, kind: Number(newKind),
-          identifier: taxpayerId, displayName: taxpayerName }) });
-      if (!response.ok) throw new Error(formatError(response.status));
-      const result = await response.json() as { id?: string };
-      setCreatedTaxpayerId(result.id || "");
-      setTaxpayerId(""); setTaxpayerName("");
-      setNotice("مؤدی ثبت شد. اتصال حافظه مالیاتی باید جداگانه ثبت و بررسی شود.");
-      await reload();
-      setView("taxpayer-connection");
-    } catch (ex) { setError((ex as Error).message); }
-    finally { setBusy(false); }
-  }
-
   return <section className="console-directory">
+    {registerMode && <ParticipantRegistrationModal mode={registerMode} buyers={buyers}
+      level1={level1} onClose={() => setRegisterMode(null)} onCompleted={reload}/> }
     {admin && <div className="console-directory-actions">
-      <button className="identity-primary" type="button" onClick={() => open("buyer-new")}>+ افزودن خریدار</button>
-      <button className="identity-secondary" type="button" onClick={() => open("taxpayer-new")}>+ افزودن مؤدی</button>
+      <button className="identity-primary" type="button" onClick={() => setRegisterMode("buyer")}>+ افزودن خریدار</button>
+      <button className="identity-secondary" type="button" onClick={() => setRegisterMode("seller")}>+ افزودن مؤدی</button>
       <button type="button" className="identity-secondary" onClick={() => void reload()} disabled={loading}>بازخوانی فهرست</button>
     </div>}
     {view !== "list" && <div className="console-directory-panel">
       <div className="console-directory-panel-header"><h2>{{
-        "buyer-new": "ایجاد حساب خریدار", "buyer-details": "اشخاص خریدار و اطلاعات تماس",
-        "taxpayer-new": "افزودن مؤدی به خریدار", "taxpayer-connection": "پرونده و حافظه مالیاتی مؤدی",
+        "buyer-details": "اشخاص خریدار و اطلاعات تماس",
+        "taxpayer-connection": "پرونده و حافظه مالیاتی مؤدی",
         list: ""
       }[view]}</h2><button type="button" onClick={() => { setView("list"); void reload(); }}>بازگشت به فهرست</button></div>
-      {view === "buyer-new" && <>
-        <p>خریدار دارای حساب ورود مستقل است. پس از ایجاد حساب، شخص حقیقی یا حقوقی او را در پرونده مشخص کنید.</p>
-        <AdminCreateCustomer onCreated={mobile => void buyerCreated(mobile)} />
-      </>}
       {view === "buyer-details" && <PartyWorkspace key={selectedBuyer}
         isAdmin={true} canCreateTaxpayer={level1} customerId={selectedBuyer} />}
-      {view === "taxpayer-new" && <form className="party-form console-narrow-form" onSubmit={addTaxpayer}>
-        <label htmlFor="choose-buyer">خریدار مرتبط</label>
-        <select id="choose-buyer" required value={selectedBuyer} onChange={e => setSelectedBuyer(e.target.value)}>
-          <option value="">انتخاب خریدار</option>
-          {buyers.map(b => <option key={b.customerUserId} value={b.customerUserId}>
-            {b.mobile || b.email || b.customerUserId}</option>)}
-        </select>
-        <label htmlFor="new-taxpayer-kind">نوع مؤدی</label>
-        <select id="new-taxpayer-kind" value={newKind} onChange={e => setNewKind(e.target.value)}>
-          <option value="1">شخص حقیقی</option><option value="2">شخص حقوقی</option>
-        </select>
-        <label htmlFor="new-taxpayer-id">کد ملی / شناسه ملی</label>
-        <input id="new-taxpayer-id" required dir="ltr" value={taxpayerId} onChange={e => setTaxpayerId(e.target.value)} />
-        <label htmlFor="new-taxpayer-name">نام مؤدی</label>
-        <input id="new-taxpayer-name" required value={taxpayerName} onChange={e => setTaxpayerName(e.target.value)}/>
-        {!level1 && <p className="party-error">ثبت مؤدی فعلاً فقط برای ادمین سطح یک مجاز است.</p>}
-        <button className="identity-primary" disabled={!level1 || busy || !isUuid(selectedBuyer)}>
-          {busy ? "در حال ثبت…" : "ثبت مؤدی و ادامه به اتصال مالیاتی"}
-        </button>
-      </form>}
       {view === "taxpayer-connection" && <>
         <p>ثبت کد حافظه مالیاتی و مشاهده وضعیت گواهی در این بخش انجام می‌شود.
           اطلاعات گواهی و اتصال در سامانه صرفاً فراداده هستند؛ ذخیره کلید خصوصی و اتصال عملیاتی مالیاتی در این مرحله فعال نیست.</p>
