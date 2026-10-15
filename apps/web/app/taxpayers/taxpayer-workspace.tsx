@@ -70,10 +70,10 @@ export default function TaxpayerWorkspace({ isLevel1, initialTaxpayerId, showCre
     setError(""); setNotice(""); setSelectedId(id); setDetails(null); setMemories([]); setCertificates({});
     try {
       const profile = await request<Taxpayer>("/" + id);
-      const list = isLevel1 ? await request<Memory[]>("/" + id + "/memories") : [];
+      const list = await request<Memory[]>("/" + id + "/memories");
       setDetails(profile); setEditName(profile.displayName); setMemories(list);
     } catch (ex) { setError((ex as Error).message); }
-  }, [isLevel1]);
+  }, []);
 
   useEffect(() => { if (initialTaxpayerId) void show(initialTaxpayerId); }, [initialTaxpayerId, show]);
 
@@ -139,7 +139,7 @@ export default function TaxpayerWorkspace({ isLevel1, initialTaxpayerId, showCre
       {!details && <div className="taxpayer-panel"><h2>جزئیات مؤدی</h2>
         <p className="identity-muted">برای مشاهده اطلاعات، یک مؤدی را از فهرست انتخاب کنید.</p></div>}
       {details && <>
-        {isLevel1 && customerId && <InvoiceParticipantForm key={details.id} customerId={customerId} subjectId={details.id} role="seller" />}
+        {customerId && <InvoiceParticipantForm key={details.id} customerId={customerId} subjectId={details.id} role="seller" />}
         <article className="taxpayer-panel">
           <div className="taxpayer-section-heading"><h2>{details.displayName}</h2>
             <button type="button" className="identity-secondary" onClick={() => void show(details.id)}>بازخوانی جزئیات</button></div>
@@ -147,15 +147,15 @@ export default function TaxpayerWorkspace({ isLevel1, initialTaxpayerId, showCre
             <div><dt>شناسه قانونی</dt><dd dir="ltr">{details.normalizedIdentifier}</dd></div>
             <div><dt>وضعیت</dt><dd>{taxpayerLabels[details.status] ?? "نامشخص"}</dd></div>
             <div><dt>نسخه</dt><dd dir="ltr">{details.revision}</dd></div></dl>
-          <form className="identity-form" onSubmit={rename}>
+          {isLevel1 && <form className="identity-form" onSubmit={rename}>
             <label htmlFor="taxpayer-display-name">تغییر نام نمایشی</label>
             <input id="taxpayer-display-name" required maxLength={256} value={editName}
               onChange={e => setEditName(e.target.value)}/>
             <button type="submit" className="identity-primary" disabled={busy || editName.trim() === details.displayName}>ذخیره نام</button>
-          </form>
+          </form>}
           <p className="field-hint">ویرایش نام به معنای تغییر شناسه رسمی، مالکیت مؤدی یا حافظه مالیاتی نیست.</p>
         </article>
-        {isLevel1 && <article className="taxpayer-panel">
+        {<article className="taxpayer-panel">
           <h2>حافظه‌های مالیاتی</h2>
           {memories.length === 0 ? <p className="identity-muted">هنوز حافظه‌ای ثبت نشده است.</p> :
             <ul className="taxpayer-memory-list">{memories.map(m => <li key={m.id}>
@@ -174,7 +174,7 @@ export default function TaxpayerWorkspace({ isLevel1, initialTaxpayerId, showCre
                   </dl>)}
               </div>}
             </li>)}</ul>}
-          {isLevel1 && memories.length === 0 && <form className="identity-form" onSubmit={addMemory}>
+          {memories.length === 0 && <form className="identity-form" onSubmit={addMemory}>
             <label htmlFor="new-memory">کد حافظه مالیاتی موجود</label>
             <input id="new-memory" dir="ltr" required maxLength={64} pattern="[A-Za-z0-9]+"
               value={newMemory} onChange={e => setNewMemory(e.target.value)}/>
