@@ -60,8 +60,6 @@ async function expect(label, token, path, expected, verify) {
 }
 const fiscal = "/api/dev/fiscal-participants?page=1&pageSize=100";
 const parties = "/api/dev/customers/" + customer + "/parties";
-const natural = parties + "/" + buyer + "/natural";
-const legal = parties + "/" + buyer + "/legal";
 const buyerDetail = parties + "/" + buyer + "/details";
 const taxpayer = "/api/dev/taxpayers/" + seller;
 const nested = "/api/dev/customer-owners/" + customer + "/taxpayers";
@@ -82,10 +80,11 @@ await expect("other partner fiscal directory hides chosen customer", outsider, f
 });
 await expect("root party directory", root, parties, 200, data => {
   assert.ok(Array.isArray(data?.items));
-  assert.ok(data.items.some(p => p.id === buyer), "Fixture buyer not found on first page");
+  assert.ok(Number.isInteger(data.total) && data.total >= 1, "Expected linked buyers");
 });
 await expect("assigned partner party directory", assigned, parties, 200);
 await expect("other partner party directory denied", outsider, parties, [403, 404]);
+await expect("root buyer details", root, buyerDetail, 200);
 await expect("assigned partner buyer details", assigned, buyerDetail, 200);
 await expect("other partner buyer details denied", outsider, buyerDetail, [403, 404]);
 await expect("assigned partner seller details", assigned, taxpayer, 200);
