@@ -38,11 +38,10 @@ public sealed class FiscalParticipantDirectoryService(
                     actorUser.Roles.Any(r => r.Role == IdentityRoleNames.Customer) ||
                  db.IdentityMfaStates.Any(m =>
                     m.UserId == actor.Value && m.EnabledAtUtc != null) &&
+                 (actorUser.Roles.Any(r => r.Role == IdentityRoleNames.Level1) ||
                  db.CustomerCommercialOwners.Any(o =>
                     o.CustomerUserId == customer.Id &&
-                    (actorUser.Roles.Any(r => r.Role == IdentityRoleNames.Level1) &&
-                        o.RootLevel1UserId == actor.Value ||
-                     actorUser.Roles.Any(r => r.Role == IdentityRoleNames.Level2) &&
+                    actorUser.Roles.Any(r => r.Role == IdentityRoleNames.Level2) &&
                         o.PartnerLevel2UserId == actor.Value))))
             select customer.Id;
 

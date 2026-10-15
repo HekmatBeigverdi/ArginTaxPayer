@@ -31,6 +31,7 @@ public sealed class NaturalPersonService(ArginTaxPayerDbContext db, IdentityAuth
         if (role is null) return false;
         if (role.Customer && actor == customer) return true;
         if (!role.Mfa) return false;
+        if (role.Root) return true;
         return await db.CustomerCommercialOwners.AsNoTracking().AnyAsync(o =>
             o.CustomerUserId == customer &&
             (role.Root && o.RootLevel1UserId == actor ||
