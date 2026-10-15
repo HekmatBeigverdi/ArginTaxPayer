@@ -78,6 +78,10 @@ export default function BuyerTaxpayerDirectory({ admin, level1, actorUserId }: {
   }, [admin, page, pageSize, query, filter, kind]);
   useEffect(() => { void reload(); }, [reload]);
 
+  const maxPage = Math.max(1, Math.ceil(total / pageSize));
+  const activePage = Math.min(page, maxPage);
+  const shown = rows;
+
   async function startRegistration(mode: "buyer" | "seller") {
     setRegisterMode(mode);
     if (!admin) return;
