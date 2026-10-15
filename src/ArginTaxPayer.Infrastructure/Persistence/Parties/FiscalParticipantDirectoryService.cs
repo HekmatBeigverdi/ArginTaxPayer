@@ -46,22 +46,31 @@ public sealed class FiscalParticipantDirectoryService(
                         o.PartnerLevel2UserId == actor.Value))))
             select customer.Id;
 
+        // Concat primitive SQL projections BEFORE constructing DTOs; this keeps UNION ALL
+        // and pagination fully translatable by EF Core/Npgsql.
         var buyers =
             from link in db.CustomerPartyLinks.AsNoTracking()
             join party in db.Parties.AsNoTracking() on link.PartyId equals party.Id
             where link.UnlinkedAtUtc == null && allowedCustomers.Contains(link.CustomerUserId)
-            select new FiscalParticipantRow(party.Id, link.CustomerUserId, "buyer",
-                (int)party.Kind, party.DisplayName, party.NormalizedIdentifier,
-                (int)party.Status, party.CreatedAtUtc);
+            select new
+            {
+                party.Id, link.CustomerUserId, Type = "buyer", Kind = (int)party.Kind,
+                party.DisplayName, Identifier = party.NormalizedIdentifier,
+                Status = (int)party.Status, party.CreatedAtUtc
+            };
 
         var sellers = db.TaxpayerProfiles.AsNoTracking()
             .Where(p => p.CustomerUserId.HasValue &&
                 allowedCustomers.Contains(p.CustomerUserId.Value))
-            .Select(p => new FiscalParticipantRow(p.Id, p.CustomerUserId!.Value, "taxpayer",
-                (int)p.Kind, p.DisplayName, p.NormalizedIdentifier,
-                (int)p.Status, p.CreatedAtUtc));
+            .Select(p => new
+            {
+                p.Id, CustomerUserId = p.CustomerUserId!.Value, Type = "taxpayer",
+                Kind = (int)p.Kind, p.DisplayName,
+                Identifier = p.NormalizedIdentifier, Status = (int)p.Status,
+                p.CreatedAtUtc
+            });
 
-        IQueryable<FiscalParticipantRow> records = type switch
+        var records = type switch
         {
             "buyer" => buyers,
             "taxpayer" => sellers,
@@ -77,7 +86,10 @@ public sealed class FiscalParticipantDirectoryService(
         var count = await records.CountAsync(ct);
         var items = await records.OrderByDescending(r => r.CreatedAtUtc)
             .ThenBy(r => r.Type).ThenBy(r => r.Id)
-            .Skip((page - 1) * pageSize).Take(pageSize).ToArrayAsync(ct);
+            .Skip((page - 1) * pageSize).Take(pageSize)
+            .Select(r => new FiscalParticipantRow(r.Id, r.CustomerUserId, r.Type,
+                r.Kind, r.DisplayName, r.Identifier, r.Status, r.CreatedAtUtc))
+            .ToArrayAsync(ct);
         return new(PartyDetailsDecision.Success, items, page, pageSize, count);
     }
 }
