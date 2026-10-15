@@ -9,6 +9,7 @@ type Item = { title: string; path: string; glyph: string };
 const base: Item[] = [
   { title: "داشبورد", path: "/dashboard", glyph: "▦" },
   { title: "خریداران و مؤدیان", path: "/parties", glyph: "♧" },
+  { title: "پروفایل و حساب من", path: "/profile", glyph: "♙" },
   { title: "حساب و امنیت", path: "/account", glyph: "⚙" }
 ];
 
@@ -36,7 +37,7 @@ export default function ConsoleShell({ roles, userId, children }:
       const p = await res.json() as {complete:boolean};
       if (!cancelled) {
         setProfileReady(Boolean(p.complete));
-        if (!p.complete && pathname !== "/account") router.replace("/account");
+        if (!p.complete && pathname !== "/profile") router.replace("/profile");
       }
     }).catch(() => { if (!cancelled) { setProfileReady(false); if (pathname !== "/account") router.replace("/account"); } });
     return () => { cancelled = true; };
@@ -90,8 +91,8 @@ export default function ConsoleShell({ roles, userId, children }:
           </button>
           {menuOpen && <div className="console-account-dropdown" role="menu" aria-label="حساب کاربری">
             <p className="console-menu-identity">شناسه حساب <bdi dir="ltr">{userId.slice(0, 8)}…</bdi></p>
-            <Link role="menuitem" href="/account" onClick={() => setMenuOpen(false)}>پروفایل و حساب من</Link>
-            <Link role="menuitem" href="/account#security" onClick={() => setMenuOpen(false)}>اطلاعات امنیتی</Link>
+            <Link role="menuitem" href="/profile" onClick={() => setMenuOpen(false)}>پروفایل و حساب من</Link>
+            <Link role="menuitem" href="/account" onClick={() => setMenuOpen(false)}>حساب و امنیت</Link>
             <div className="console-menu-divider"/>
             <button role="menuitem" type="button" onClick={() => void logout()} disabled={exiting}>
               {exiting ? "در حال خروج…" : "خروج از حساب"}
@@ -100,9 +101,9 @@ export default function ConsoleShell({ roles, userId, children }:
         </div>
       </header>
       <div className="app-content console-content-host" id="console-content" aria-busy={Boolean(navigatingTo)}>
-        {(profileReady === true || pathname === "/account") ? children :
+        {(profileReady === true || pathname === "/profile") ? children :
           <section className="intro" role="status"><h2>تکمیل پروفایل الزامی است</h2>
-            <p>برای ادامه، نام و نام خانوادگی و نشانی خود را در قسمت پروفایل وارد کنید.</p>
+            <p>برای ادامه، نام و نام خانوادگی و نشانی خود را در صفحه پروفایل و حساب من وارد کنید.</p>
             {profileReady === null && <ConsoleLoader label="در حال بررسی وضعیت پروفایل…"/>}
           </section>}
         {navigatingTo && <ConsoleLoader full label="در حال انتقال به بخش انتخاب‌شده…" />}
