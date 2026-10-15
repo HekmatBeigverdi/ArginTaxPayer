@@ -22,6 +22,14 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Parties.PartyIdentityHistory", b =>
+                {
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Parties.Party", null)
+                        .WithMany().HasForeignKey("PartyId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null)
+                        .WithMany().HasForeignKey("ActorUserId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                });
+
             modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Parties.PartyContact", b =>
                 {
                     b.Property<Guid>("Id").HasColumnType("uuid").HasColumnName("id");
@@ -195,6 +203,26 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("ck_parties_identifier", "length(trim(normalized_identifier)) > 0");
                             t.HasCheckConstraint("ck_parties_name", "length(trim(display_name)) > 0");
                         });
+                });
+
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Parties.PartyIdentityHistory", b =>
+                {
+                    b.Property<Guid>("Id").HasColumnType("uuid").HasColumnName("id");
+                    b.Property<Guid>("PartyId").HasColumnType("uuid").HasColumnName("party_id");
+                    b.Property<Guid>("ActorUserId").HasColumnType("uuid").HasColumnName("actor_user_id");
+                    b.Property<long>("PriorRevision").HasColumnType("bigint").HasColumnName("prior_revision");
+                    b.Property<int>("PriorKind").HasColumnType("integer").HasColumnName("prior_kind");
+                    b.Property<string>("PriorNormalizedIdentifier").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)").HasColumnName("prior_normalized_identifier");
+                    b.Property<string>("PriorDisplayName").IsRequired().HasMaxLength(256).HasColumnType("character varying(256)").HasColumnName("prior_display_name");
+                    b.Property<string>("PriorFirstName").HasMaxLength(100).HasColumnType("character varying(100)").HasColumnName("prior_first_name");
+                    b.Property<string>("PriorLastName").HasMaxLength(100).HasColumnType("character varying(100)").HasColumnName("prior_last_name");
+                    b.Property<string>("PriorRegistrationNumber").HasMaxLength(32).HasColumnType("character varying(32)").HasColumnName("prior_registration_number");
+                    b.Property<DateTime>("CapturedAtUtc").HasColumnType("timestamp with time zone").HasColumnName("captured_at_utc");
+                    b.HasKey("Id");
+                    b.HasIndex("PartyId", "PriorRevision").IsUnique().HasDatabaseName("ux_party_identity_history_revision");
+                    b.HasIndex("ActorUserId");
+                    b.ToTable("party_identity_history", t =>
+                        t.HasCheckConstraint("ck_party_identity_history_revision", "prior_revision > 0"));
                 });
 
             modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Parties.CustomerPartyLink", b =>
