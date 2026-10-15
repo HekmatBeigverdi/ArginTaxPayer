@@ -22,12 +22,13 @@ test("inaccessible customers are disabled and cannot submit even with modified c
   assert.match(modal, /disabled=\{busy \|\| !authorizedCustomer/);
 });
 
-test("backend commercial ownership checks remain untouched", () => {
+test("backend participant authorization uses scope service rather than global role alone", () => {
   const natural = read("../../src/ArginTaxPayer.Infrastructure/Persistence/Parties/NaturalPersonService.cs");
   const legal = read("../../src/ArginTaxPayer.Infrastructure/Persistence/Parties/LegalEntityService.cs");
-  for (const code of [natural, legal]) {
-    assert.match(code, /IsAdminScopedAsync/);
-    assert.match(code, /RootLevel1UserId == actor/);
-    assert.match(code, /PartnerLevel2UserId == actor/);
-  }
+  const scope = read("../../src/ArginTaxPayer.Infrastructure/Persistence/Parties/ParticipantScopeService.cs");
+  for (const code of [natural, legal]) assert.match(code, /scope.CanManageAsync/);
+  assert.match(scope, /o.RootLevel1UserId == actor/);
+  assert.match(scope, /o.PartnerLevel2UserId == actor/);
+  assert.match(scope, /u.Id == customer/);
+  assert.match(scope, /m.EnabledAtUtc != null/);
 });
