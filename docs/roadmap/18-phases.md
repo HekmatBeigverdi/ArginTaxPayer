@@ -183,3 +183,7 @@ Three independently persisted bounded contexts: (1) `IdentityUser` = software lo
 - Phase12: plans/billing belong to customer accounts; entitlements constrain use of taxpayer sellers and invoice quotas but never turn buyer into login identity.
 - Phase13–16: imports, accounting synchronization, administration, reporting and migrations preserve typed IDs and foreign-key relationship provenance; no guessed buyer from phone/email, no global account pagination as substitute for fiscal person pagination.
 - Phase17–18: enforce integration regressions proving account-only registration yields zero new buyer/seller rows and no cross-customer record leakage.
+
+
+## Immutability of fiscal invoice counterparties — owner clarification (2026-10-15)
+Phases07/08 MUST add typed `buyer_party_id` and `seller_taxpayer_id` FK fields to every issued invoice header, with restrictive deletion, and retain immutable name/identifier/location/tax snapshots at issuance time. Edits to Party or TaxpayerProfile master data affect only future drafts and new invoices; historical invoices and transmitted payloads preserve exactly the values used at issuance. Linked buyers and sellers must not be physically deleted; use soft archive and keep their FK targets. Phase05 defines soft archive and stable identity IDs but cannot enforce invoice-reference queries until invoice tables are implemented. Every later import, correction, credit note, inquiry and accounting integration must preserve historical invoice participant snapshots and original FK traceability.
