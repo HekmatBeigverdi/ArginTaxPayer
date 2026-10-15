@@ -18,7 +18,8 @@ export default function ParticipantRegistrationModal({ mode, buyers, level1, act
   mode: Mode; buyers: Buyer[]; level1: boolean; actorUserId: string; onClose: () => void;
   onCompleted: () => Promise<void>; initialCustomerId?: string; initialSubjectId?: string;
 }) {
-  const [customerId, setCustomerId] = useState(initialCustomerId);
+  const [customerId, setCustomerId] = useState(initialCustomerId ||
+    (buyers.length === 1 ? buyers[0].customerUserId : ""));
   const [kind, setKind] = useState("1");
   const [identifier, setIdentifier] = useState("");
   const [firstName, setFirstName] = useState("");
@@ -34,8 +35,9 @@ export default function ParticipantRegistrationModal({ mode, buyers, level1, act
   const complete = Boolean(subjectId);
   const chosenCustomer = buyers.find(b => b.customerUserId === customerId);
   const authorizedCustomer = Boolean(chosenCustomer?.isActive &&
-    (level1 ? chosenCustomer.rootLevel1UserId === actorUserId :
-      chosenCustomer.partnerLevel2UserId === actorUserId));
+    (chosenCustomer.customerUserId === actorUserId ||
+      (level1 ? chosenCustomer.rootLevel1UserId === actorUserId :
+        chosenCustomer.partnerLevel2UserId === actorUserId)));
 
   useEffect(() => {
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -60,7 +62,7 @@ export default function ParticipantRegistrationModal({ mode, buyers, level1, act
 
   async function create(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (busy || !authorizedCustomer || (mode === "seller" && !level1)) {
+    if (busy || !authorizedCustomer) {
       setError("مالکیت تجاری حساب انتخاب‌شده به ادمین فعلی اختصاص ندارد. ابتدا انتساب مشتری را در بخش کاربران بررسی کنید.");
       return;
     }
@@ -117,8 +119,8 @@ export default function ParticipantRegistrationModal({ mode, buyers, level1, act
             <select value={customerId} onChange={e => setCustomerId(e.target.value)} required>
               <option value="">حساب مرتبط را انتخاب کنید</option>
               {buyers.map(b => {
-                const permitted = b.isActive && (level1 ?
-                  b.rootLevel1UserId === actorUserId : b.partnerLevel2UserId === actorUserId);
+                const permitted = b.isActive && (b.customerUserId === actorUserId || (level1 ?
+                  b.rootLevel1UserId === actorUserId : b.partnerLevel2UserId === actorUserId));
                 return <option value={b.customerUserId} key={b.customerUserId} disabled={!permitted}>
                   {b.mobile || b.email || b.customerUserId}
                   {!permitted ? " — بدون انتساب مجاز / غیرفعال" : ""}
@@ -129,7 +131,7 @@ export default function ParticipantRegistrationModal({ mode, buyers, level1, act
           {customerId && !authorizedCustomer && <p role="alert" className="party-error">
             این حساب در محدوده مالکیت تجاری ادمین فعلی نیست. از بخش کاربران نرم‌افزار، انتساب تجاری مشتری را بررسی کنید.
           </p>}
-          {buyers.every(b => !b.isActive || (level1 ? b.rootLevel1UserId !== actorUserId : b.partnerLevel2UserId !== actorUserId)) &&
+          {buyers.every(b => !b.isActive || (b.customerUserId !== actorUserId && (level1 ? b.rootLevel1UserId !== actorUserId : b.partnerLevel2UserId !== actorUserId))) &&
             <p role="alert" className="party-error">در فهرست فعلی مشتری مجاز برای ثبت وجود ندارد. ابتدا انتساب تجاری مشتری را بررسی کنید.</p>}
           <label>نوع شخصیت
             <select value={kind} onChange={e => setKind(e.target.value)}>
@@ -151,11 +153,9 @@ export default function ParticipantRegistrationModal({ mode, buyers, level1, act
               <input value={registrationNumber} maxLength={32} dir="ltr"
                 onChange={e => setRegistrationNumber(e.target.value)}/></label>}
           <p className="field-hint">اطلاعات تکمیلی مانند شماره اقتصادی، کد شعبه، کد پستی، نشانی و تلفن در مرحله بعد ذخیره می‌شوند. الزامات نهایی به نوع و الگوی صورتحساب وابسته است.</p>
-          {mode === "seller" && !level1 && <p role="alert" className="party-error">
-            طبق مجوز فعلی، ایجاد مؤدی مالیاتی فقط برای ادمین سطح یک مجاز است.</p>}
           {error && <p role="alert" className="party-error">{error}</p>}
           <button className="identity-primary" type="submit"
-            disabled={busy || !authorizedCustomer || (mode === "seller" && !level1)}>
+            disabled={busy || !authorizedCustomer}>
             {busy ? "در حال ثبت…" : "ثبت هویت و ادامه به مشخصات مالیاتی"}</button>
         </form> : <>
           <p className="party-success" role="status">پرونده هویتی ثبت شد. اکنون اطلاعات مالیاتی را تکمیل و ذخیره کنید.</p>
