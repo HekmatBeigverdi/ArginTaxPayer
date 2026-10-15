@@ -5,7 +5,7 @@ import { isSameLocalOrigin } from "../../../../lib/identity-origin.mjs";
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 type Context = { params: Promise<{ path: string[] }> };
 type Method = "GET" | "POST" | "PUT" | "DELETE";
-const reject = (status: number) => NextResponse.json({ error: "request_rejected" },
+const reject = (status: number, code = "request_rejected") => NextResponse.json({ error: code },
   { status, headers: { "Cache-Control": "no-store" } });
 
 function target(path: string[], method: Method): string | null {
@@ -54,7 +54,7 @@ async function handle(req: NextRequest, ctx: Context, method: Method) {
   if (!token) return reject(401);
   if (method !== "GET" && !isSameLocalOrigin(
       req.headers.get("origin"), req.headers.get("host"), req.nextUrl.protocol))
-    return reject(403);
+    return reject(403, "origin_not_allowed");
   let payload: string | undefined;
   if (method === "POST" || method === "PUT") {
     if (!(req.headers.get("content-type") || "").startsWith("application/json")) return reject(415);
@@ -77,7 +77,8 @@ async function handle(req: NextRequest, ctx: Context, method: Method) {
       ...(payload ? { body: payload } : {})
     });
     if (![200, 201].includes(response.status))
-      return reject([400, 401, 403, 404, 409].includes(response.status) ? response.status : 502);
+      return reject([400, 401, 403, 404, 409].includes(response.status) ? response.status : 502,
+        response.status === 403 ? "backend_permission_denied" : "request_rejected");
     const body = await response.text();
     if (body.length > 500000) return reject(502);
     return new NextResponse(body, {
