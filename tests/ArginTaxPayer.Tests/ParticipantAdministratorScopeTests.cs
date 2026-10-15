@@ -1,3 +1,4 @@
+using ArginTaxPayer.Domain.Taxpayers;
 using ArginTaxPayer.Infrastructure.Persistence;
 using ArginTaxPayer.Infrastructure.Persistence.Identity;
 using ArginTaxPayer.Infrastructure.Persistence.Parties;
@@ -58,6 +59,29 @@ public sealed class ParticipantAdministratorScopeTests
             Revision = 1, CreatedAtUtc = now, UpdatedAtUtc = now
         };
         db.CustomerCommercialOwners.Add(owner);
+        var buyer = new Party
+        {
+            Id = Guid.NewGuid(), Kind = PartyKind.NaturalPerson,
+            NormalizedIdentifier = Random.Shared.NextInt64(1_000_000_000, 9_999_999_999).ToString("D10"),
+            DisplayName = "Step14 Buyer", FirstName = "علی", LastName = "سهرابی",
+            Revision = 1, Status = PartyStatus.Active,
+            CreatedAtUtc = now, UpdatedAtUtc = now
+        };
+        db.Parties.Add(buyer);
+        db.CustomerPartyLinks.Add(new CustomerPartyLink
+        {
+            Id = Guid.NewGuid(), CustomerUserId = customer.Id, PartyId = buyer.Id,
+            LinkedAtUtc = now
+        });
+        var taxpayer = new TaxpayerProfile
+        {
+            Id = Guid.NewGuid(), CustomerUserId = customer.Id,
+            Kind = (TaxpayerKind)1,
+            NormalizedIdentifier = Random.Shared.NextInt64(1_000_000_000, 9_999_999_999).ToString("D10"),
+            DisplayName = "Step14 Seller", Revision = 1, Status = TaxpayerStatus.Active,
+            CreatedAtUtc = now, UpdatedAtUtc = now
+        };
+        db.TaxpayerProfiles.Add(taxpayer);
         await db.SaveChangesAsync();
         var scope = new ParticipantScopeService(db);
         Assert.True(await scope.CanManageAsync(root.Id, customer.Id));
@@ -65,6 +89,26 @@ public sealed class ParticipantAdministratorScopeTests
         Assert.True(await scope.CanManageAsync(customer.Id, customer.Id));
         Assert.False(await scope.CanManageAsync(replacement.Id, customer.Id));
         Assert.False(await scope.CanManageAsync(root.Id, otherCustomer.Id));
+        var taxpayerScope = new TaxpayerScopeService(db, null!, scope);
+        Assert.Equal(1, await taxpayerScope.ScopedQuery(root.Id, true)
+            .CountAsync(t => t.Id == taxpayer.Id));
+        Assert.Equal(1, await taxpayerScope.ScopedQuery(partner.Id, false)
+            .CountAsync(t => t.Id == taxpayer.Id));
+        Assert.Equal(0, await taxpayerScope.ScopedQuery(replacement.Id, false)
+            .CountAsync(t => t.Id == taxpayer.Id));
+        // Optimistic version check: only one of two updates with the same revision wins.
+        var firstWrite = await db.Parties.Where(p => p.Id == buyer.Id && p.Revision == 1)
+            .ExecuteUpdateAsync(change => change
+                .SetProperty(p => p.DisplayName, "Step14 Buyer edited")
+                .SetProperty(p => p.Revision, p => p.Revision + 1));
+        var staleWrite = await db.Parties.Where(p => p.Id == buyer.Id && p.Revision == 1)
+            .ExecuteUpdateAsync(change => change
+                .SetProperty(p => p.DisplayName, "Step14 Buyer stale overwrite")
+                .SetProperty(p => p.Revision, p => p.Revision + 1));
+        Assert.Equal(1, firstWrite);
+        Assert.Equal(0, staleWrite);
+        Assert.Equal("Step14 Buyer edited", await db.Parties.AsNoTracking()
+            .Where(p => p.Id == buyer.Id).Select(p => p.DisplayName).SingleAsync());
 
         owner.PartnerLevel2UserId = replacement.Id;
         owner.Revision++;
@@ -72,6 +116,10 @@ public sealed class ParticipantAdministratorScopeTests
         await db.SaveChangesAsync();
         Assert.False(await scope.CanManageAsync(partner.Id, customer.Id));
         Assert.True(await scope.CanManageAsync(replacement.Id, customer.Id));
+        Assert.Equal(0, await taxpayerScope.ScopedQuery(partner.Id, false)
+            .CountAsync(t => t.Id == taxpayer.Id));
+        Assert.Equal(1, await taxpayerScope.ScopedQuery(replacement.Id, false)
+            .CountAsync(t => t.Id == taxpayer.Id));
         partner.IsActive = false;
         await db.SaveChangesAsync();
         Assert.False(await scope.CanManageAsync(partner.Id, customer.Id));
