@@ -18,6 +18,9 @@ public sealed class ParticipantScopeService(ArginTaxPayerDbContext db)
             u.Id == actor && u.IsActive &&
             db.IdentityUsers.Any(target => target.Id == customer && target.IsActive &&
                 target.Roles.Any(r => r.Role == IdentityRoleNames.Customer)) &&
+            db.SoftwareUserProfiles.Any(profile => profile.UserId == customer &&
+                profile.FirstName.Length >= 2 && profile.LastName.Length >= 2 &&
+                profile.Address.Length >= 2) &&
             (
                 u.Id == customer && u.Roles.Any(r => r.Role == IdentityRoleNames.Customer) ||
                 db.IdentityMfaStates.Any(m => m.UserId == actor && m.EnabledAtUtc != null) &&
