@@ -16,7 +16,7 @@ public sealed record LegalEntityResult(LegalEntityDecision Decision, LegalEntity
 /// Legal entity service, not an HTTP endpoint. Phase05 Step08 publishes scoped APIs.
 /// No party may be linked to a customer without checking live commercial ownership.
 /// </summary>
-public sealed class LegalEntityService(ArginTaxPayerDbContext db, IdentityAuthorizationService identity)
+public sealed class LegalEntityService(ArginTaxPayerDbContext db, IdentityAuthorizationService identity, ParticipantScopeService scope)
 {
     private async Task<bool> HasScopeAsync(Guid actor, Guid customer, CancellationToken ct)
     {
@@ -51,14 +51,14 @@ public sealed class LegalEntityService(ArginTaxPayerDbContext db, IdentityAuthor
             !LegalEntityProfilePolicy.TryValidate(nationalIdentifier, registeredName, registrationNumber, out var validated))
             return new(LegalEntityDecision.Invalid);
         // Customer self-service activation is reserved for the Phase12 entitlement boundary.
-        if (!await IsAdminScopedAsync(actor.Value, customerId, ct))
+        if (!await scope.CanManageAsync(actor.Value, customerId, ct))
             return new(LegalEntityDecision.Forbidden);
         try
         {
             return await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
             {
                 await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
-                if (!await IsAdminScopedAsync(actor.Value, customerId, ct))
+                if (!await scope.CanManageAsync(actor.Value, customerId, ct))
                     return new LegalEntityResult(LegalEntityDecision.Forbidden);
                 var now = DateTime.UtcNow;
                 var person = new Party
@@ -113,14 +113,14 @@ public sealed class LegalEntityService(ArginTaxPayerDbContext db, IdentityAuthor
         if (customerId == Guid.Empty || partyId == Guid.Empty || expectedRevision < 1 ||
             !LegalEntityProfilePolicy.TryValidate(nationalIdentifier, registeredName, registrationNumber, out var validated))
             return new(LegalEntityDecision.Invalid);
-        if (!await IsAdminScopedAsync(actor.Value, customerId, ct))
+        if (!await scope.CanManageAsync(actor.Value, customerId, ct))
             return new(LegalEntityDecision.Forbidden);
         try
         {
             return await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
             {
                 await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
-                if (!await IsAdminScopedAsync(actor.Value, customerId, ct))
+                if (!await scope.CanManageAsync(actor.Value, customerId, ct))
                     return new LegalEntityResult(LegalEntityDecision.Forbidden);
                 var person = await db.Parties.SingleOrDefaultAsync(p =>
                     p.Id == partyId && p.Kind == PartyKind.LegalEntity &&
@@ -158,15 +158,4 @@ public sealed class LegalEntityService(ArginTaxPayerDbContext db, IdentityAuthor
         }
     }
 
-    private async Task<bool> IsAdminScopedAsync(Guid actor, Guid customer, CancellationToken ct)
-    {
-        if (customer == Guid.Empty) return false;
-        var admin = await db.IdentityUsers.AsNoTracking().AnyAsync(u =>
-            u.Id == actor && u.IsActive &&
-            (u.Roles.Any(r => r.Role == IdentityRoleNames.Level1) ||
-             u.Roles.Any(r => r.Role == IdentityRoleNames.Level2)) &&
-            db.IdentityMfaStates.Any(m => m.UserId == u.Id && m.EnabledAtUtc != null), ct);
-        if (!admin) return false;
-        return await HasScopeAsync(actor, customer, ct);
-    }
 }
