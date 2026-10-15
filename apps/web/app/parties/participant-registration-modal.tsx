@@ -160,7 +160,7 @@ export default function ParticipantRegistrationModal({ mode, buyers, level1, act
         </form> : <>
           <p className="party-success" role="status">پرونده هویتی ثبت شد. اکنون اطلاعات مالیاتی را تکمیل و ذخیره کنید.</p>
           <InvoiceParticipantForm key={subjectId} customerId={customerId}
-            subjectId={subjectId} role={mode === "buyer" ? "buyer" : "seller"}/>
+            subjectId={subjectId} role={mode === "buyer" ? "buyer" : "seller"} personKind={Number(kind)}/>
           {mode === "seller" && <div className="argin-memory-step">
             <h3>حافظه مالیاتی و اطلاعات گواهی</h3>
             <p>ثبت شناسه حافظه و فراداده گواهی مستقل از ذخیره مشخصات فروشنده است؛ تأیید یا اتصال واقعی به سازمان در این مرحله انجام نمی‌شود.</p>
