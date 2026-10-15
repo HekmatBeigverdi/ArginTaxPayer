@@ -31,8 +31,8 @@ function responseError(status: number, body: string): string {
   return "ذخیره ناموفق بود (کد " + status + ").";
 }
 
-export default function InvoiceParticipantForm({ customerId, subjectId, role }:
-  { customerId: string; subjectId: string; role: "buyer" | "seller" }) {
+export default function InvoiceParticipantForm({ customerId, subjectId, role, personKind }:
+  { customerId: string; subjectId: string; role: "buyer" | "seller"; personKind?: number }) {
   const [details, setDetails] = useState<Details>(blank);
   const [changed, setChanged] = useState<FiscalField[]>([]);
   const [loading, setLoading] = useState(true);
@@ -61,10 +61,18 @@ export default function InvoiceParticipantForm({ customerId, subjectId, role }:
   }
   const problems = changed.map(key => ({ key, error: validateFiscalField(key, details[key] ?? "") }))
     .filter(x => x.error !== null);
+  // Reference: RC_IITP.IS V7.9.2, buyer-information rules (type 1).
+  // These are informational at dossier-draft stage; final requirements are checked
+  // in the invoice rule engine with both invoice type and pattern.
   const readiness = role === "buyer" && invoiceType === "1" ?
-    "در صورتحساب نوع اول، اطلاعات الزامی خریدار به نوع شخص و الگوی صورتحساب وابسته است؛ ثبت پیش‌نویس پرونده به تکمیل همه این فیلدها نیاز ندارد." :
-    role === "seller" ? "الزامات فروشنده هنگام صدور صورتحساب با توجه به الگو بررسی می‌شود؛ اینجا هر فیلد جداگانه قابل ذخیره است." :
-    "اطلاعات خریدار در نوع دوم و سوم عموماً اختیاری است؛ قواعد دقیق هنگام صدور اعمال می‌شوند.";
+    personKind === 1
+      ? "برای خریدار حقیقی در صورتحساب نوع اول، هنگام صدور معمولاً شماره اقتصادی یا ترکیب شماره ملی و کد پستی لازم است. ثبت اطلاعات این پرونده مستقل از تکمیل شرایط صدور است."
+      : personKind === 2
+        ? "برای خریدار حقوقی در صورتحساب نوع اول، درج شماره اقتصادی هنگام صدور الزامی است؛ ولی ذخیره جزئی پرونده اکنون مجاز است."
+        : "در نوع اول، اطلاعات موردنیاز خریدار به نوع شخصیت و الگوی رسمی وابسته است. در این فرم می‌توان هر فیلد را جداگانه ذخیره کرد."
+    : role === "seller"
+      ? "شناسه اقتصادی و کد شعبه فروشنده هنگام صدور طبق نوع و الگوی صورتحساب بررسی می‌شوند؛ ثبت این پرونده به تکمیل همه فیلدها نیاز ندارد."
+      : "برای نوع دوم و سوم، مشخصات خریدار عموماً الزامی نیستند؛ قواعد الگوی رسمی در مرحله صدور اعمال خواهند شد.";
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
