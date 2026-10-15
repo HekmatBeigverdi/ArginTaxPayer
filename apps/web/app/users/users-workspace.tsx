@@ -186,7 +186,7 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
             pageRows.map((a, i) => <tr key={a.customerUserId}>
               <td><strong>{a.companyName || a.personName || "پروفایل تکمیل‌نشده"}</strong>
                 {!a.profileComplete && <small>هنوز وارد نشده / تکمیل‌نشده</small>}</td>
-              <td><span className="users-contact-truncated" title={[a.mobile,a.email].filter(Boolean).join(" / ")} dir="ltr">{a.mobile || a.email || "فاقد اطلاعات تماس"}</span></td></td>
+              <td><span className="users-contact-truncated" title={[a.mobile,a.email].filter(Boolean).join(" / ")} dir="ltr">{a.mobile || a.email || "فاقد اطلاعات تماس"}</span></td>
               <td><span className={a.isActive ? "users-state" : "users-state users-state-muted"}>
                 {a.isActive ? "فعال" : "غیرفعال"}</span></td>
               <td><span className={!a.rootLevel1UserId ? "users-state users-state-warning" : ""}>
