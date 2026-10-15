@@ -8,6 +8,7 @@ type Account = {
   customerUserId: string; rootLevel1UserId: string | null; partnerLevel2UserId: string | null;
   acquisitionChannel: number; revision: number; mobile: string | null; email: string | null;
   createdAtUtc: string; isActive: boolean; taxpayerCount: number;
+  personName?: string | null; companyName?: string | null; profileComplete?: boolean;
 };
 type Partner = { userId: string; mobile: string | null; email: string | null };
 type AccountPage = { items: Account[]; page: number; pageSize: number; total: number };
@@ -175,18 +176,17 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
     <div className="users-table-scroll">
       <table className="users-table">
         <thead><tr>
-          <th scope="col">ردیف</th><th scope="col">کاربر</th><th scope="col">وضعیت</th>
+          <th scope="col">نام شخص / شرکت</th><th scope="col">ایمیل / موبایل</th><th scope="col">وضعیت</th>
           <th scope="col">مالکیت تجاری</th>
           <th scope="col">ثبت‌نام</th><th scope="col">عملیات</th>
         </tr></thead>
         <tbody>
           {loading ? <tr><td colSpan={6}><ConsoleLoader label="در حال دریافت کاربران…" /></td></tr> :
-            pageRows.length === 0 ? <tr><td colSpan={7}>کاربری با این معیارها پیدا نشد.</td></tr> :
+            pageRows.length === 0 ? <tr><td colSpan={6}>کاربری با این معیارها پیدا نشد.</td></tr> :
             pageRows.map((a, i) => <tr key={a.customerUserId}>
-              <td>{firstIndex + i}</td>
-              <td><strong dir="auto">{a.mobile || a.email || "کاربر بدون اطلاعات تماس"}</strong>
-                {a.mobile && a.email && <small dir="ltr">{a.email}</small>}
-                <small dir="ltr" title={a.customerUserId}>{a.customerUserId.slice(0, 8)}…</small></td>
+              <td><strong>{a.companyName || a.personName || "پروفایل تکمیل‌نشده"}</strong>
+                {!a.profileComplete && <small>هنوز وارد نشده / تکمیل‌نشده</small>}</td>
+              <td><span className="users-contact-truncated" title={[a.mobile,a.email].filter(Boolean).join(" / ")} dir="ltr">{a.mobile || a.email || "فاقد اطلاعات تماس"}</span></td></td>
               <td><span className={a.isActive ? "users-state" : "users-state users-state-muted"}>
                 {a.isActive ? "فعال" : "غیرفعال"}</span></td>
               <td><span className={!a.rootLevel1UserId ? "users-state users-state-warning" : ""}>
