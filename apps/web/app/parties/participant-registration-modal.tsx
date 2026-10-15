@@ -4,7 +4,8 @@ import InvoiceParticipantForm from "./invoice-participant-form";
 import TaxpayerWorkspace from "../taxpayers/taxpayer-workspace";
 
 type Buyer = { customerUserId: string; mobile: string | null; email: string | null;
-  isActive: boolean; rootLevel1UserId: string | null; partnerLevel2UserId: string | null };
+  isActive: boolean; rootLevel1UserId: string | null; partnerLevel2UserId: string | null;
+  personName?: string | null; companyName?: string | null; profileComplete?: boolean };
 type Mode = "buyer" | "seller";
 type Created = { id: string };
 const normalize = (s: string) => s.trim();
@@ -34,7 +35,7 @@ export default function ParticipantRegistrationModal({ mode, buyers, level1, act
   const closeRef = useRef<HTMLButtonElement>(null);
   const complete = Boolean(subjectId);
   const chosenCustomer = buyers.find(b => b.customerUserId === customerId);
-  const authorizedCustomer = Boolean(chosenCustomer?.isActive &&
+  const authorizedCustomer = Boolean(chosenCustomer?.isActive && chosenCustomer.profileComplete &&
     (chosenCustomer.customerUserId === actorUserId ||
       (level1 ? chosenCustomer.rootLevel1UserId === actorUserId :
         chosenCustomer.partnerLevel2UserId === actorUserId)));
@@ -119,10 +120,10 @@ export default function ParticipantRegistrationModal({ mode, buyers, level1, act
             <select value={customerId} onChange={e => setCustomerId(e.target.value)} required>
               <option value="">حساب مرتبط را انتخاب کنید</option>
               {buyers.map(b => {
-                const permitted = b.isActive && (b.customerUserId === actorUserId || (level1 ?
+                const permitted = b.isActive && b.profileComplete && (b.customerUserId === actorUserId || (level1 ?
                   b.rootLevel1UserId === actorUserId : b.partnerLevel2UserId === actorUserId));
                 return <option value={b.customerUserId} key={b.customerUserId} disabled={!permitted}>
-                  {b.mobile || b.email || b.customerUserId}
+                  {b.companyName || b.personName || "پروفایل تکمیل‌نشده"}
                   {!permitted ? " — بدون انتساب مجاز / غیرفعال" : ""}
                 </option>;
               })}
