@@ -1613,3 +1613,7 @@ The **repository phase plan and all step completion records are written in Engli
 ## 6. Phase Closure
 
 Phase 03 development handoff closed by owner request on 2026-10-13, while independent release/CI/security evidence remains pending as recorded above. Merge, immutable tag, GitHub Release, and deployment remain separate explicitly authorized gates. Phase 04 begins under its own single-file plan.
+
+
+## Cross-phase architecture correction — 2026-10-15 (Phase05 implementation)
+`IdentityUser` is an account for signing into ArginTaxPayer, **not** an invoice buyer, seller, economic party or fiscal taxpayer. Self-registration by mobile/email creates only an account; Level1/Level2 administrative account provisioning is governed by role and commercial-ownership access. No identity registration implicitly inserts `Party`, `CustomerPartyLink`, `TaxpayerProfile` or `FiscalMemory`. The Software Users view and identity APIs remain distinct from fiscal buyer/seller records. Phase05 uses a separate server-side fiscal row directory to prevent login accounts appearing as invoice counterparties. This is a clarification of identity invariants, not a retrospective change to completed Phase03 tests or releases.
