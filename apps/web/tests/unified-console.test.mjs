@@ -34,8 +34,8 @@ test("buyer and taxpayer list has separate create and fiscal connection actions"
   assert.match(read("app/parties/participant-registration-modal.tsx"), /شخص حقیقی/);
   assert.match(read("app/parties/participant-registration-modal.tsx"), /شخص حقوقی/);
   assert.match(directory, /console-table/);
-  assert.match(directory, /TaxpayerWorkspace/);
-  assert.match(directory, /memoryIdentifier|حافظه مالیاتی/);
+  assert.match(read("app/parties/fiscal-record-modal.tsx"), /TaxpayerWorkspace/);
+  assert.match(read("app/parties/fiscal-record-modal.tsx"), /حافظه/);
   assert.match(directory, /ParticipantRegistrationModal/);
   assert.doesNotMatch(directory, /AdminCreateCustomer/);
 });
