@@ -1,7 +1,7 @@
 namespace ArginTaxPayer.Infrastructure.Persistence.Identity;
 
 /// <summary>Optional organization branding and mandatory first-use identification for a login account.
-— Never a buyer Party or seller taxpayer identity.</summary>
+/// Never a buyer Party or seller taxpayer identity.</summary>
 public sealed class SoftwareUserProfile
 {
     public Guid UserId { get; set; }
