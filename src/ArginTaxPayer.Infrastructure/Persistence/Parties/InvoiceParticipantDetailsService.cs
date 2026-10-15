@@ -60,6 +60,10 @@ public sealed class InvoiceParticipantDetailsService(
             var city = Normalize(input.City, 120);
             var address = Normalize(input.Address, 500);
             var phone = Normalize(input.Phone, 20);
+            if (phone is not null)
+                phone = new string(phone.Select(ch => ch is >= '۰' and <= '۹'
+                    ? (char)('0' + ch - '۰') : ch is >= '٠' and <= '٩'
+                    ? (char)('0' + ch - '٠') : ch).ToArray());
             if (phone is not null && phone.Any(ch => ch is not (>= '0' and <= '9') and not '+' and not '-' and not ' ')) return null;
             var foreign = Normalize(input.ForeignNationalCode, 32);
             var passport = Normalize(input.PassportNumber, 32);
