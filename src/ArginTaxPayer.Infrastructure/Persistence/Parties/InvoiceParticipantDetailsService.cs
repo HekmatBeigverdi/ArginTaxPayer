@@ -1,4 +1,5 @@
 using System.Data;
+using System.Text.Json;
 using System.Text;
 using ArginTaxPayer.Infrastructure.Persistence.Identity;
 using ArginTaxPayer.Infrastructure.Persistence.Taxpayers;
@@ -83,6 +84,54 @@ public sealed class InvoiceParticipantDetailsService(
             d.CustomerUserId == customer &&
             (seller ? d.TaxpayerId == subject : d.PartyId == subject), ct);
         return new(InvoiceParticipantOutcome.Success, profile);
+    }
+
+    /// <summary>
+    /// Partial, revision-guarded updates: omitted fields retain their prior persisted values.
+    /// Explicit JSON null/empty string clears only that field. All fields are optional.
+    /// </summary>
+    public async Task<InvoiceParticipantResult> PatchAsync(string? bearer, Guid customer,
+        Guid subject, bool seller, JsonElement changes, CancellationToken ct = default)
+    {
+        if (changes.ValueKind != JsonValueKind.Object ||
+            !changes.TryGetProperty("expectedRevision", out var expected) ||
+            expected.ValueKind != JsonValueKind.Number || !expected.TryGetInt64(out var revision) ||
+            revision < 0) return new(InvoiceParticipantOutcome.Invalid);
+        var current = await GetAsync(bearer, customer, subject, seller, ct);
+        if (current.Outcome != InvoiceParticipantOutcome.Success) return current;
+        if ((current.Details?.Revision ?? 0) != revision)
+            return new(InvoiceParticipantOutcome.Conflict);
+
+        var values = new Dictionary<string, string?>(StringComparer.Ordinal)
+        {
+            ["economicCode"] = current.Details?.EconomicCode,
+            ["branchCode"] = current.Details?.BranchCode,
+            ["postalCode"] = current.Details?.PostalCode,
+            ["province"] = current.Details?.Province,
+            ["city"] = current.Details?.City,
+            ["address"] = current.Details?.Address,
+            ["phone"] = current.Details?.Phone,
+            ["foreignNationalCode"] = current.Details?.ForeignNationalCode,
+            ["passportNumber"] = current.Details?.PassportNumber,
+            ["contractReference"] = current.Details?.ContractReference
+        };
+        var touched = false;
+        foreach (var property in changes.EnumerateObject())
+        {
+            if (property.Name == "expectedRevision") continue;
+            if (!values.ContainsKey(property.Name) ||
+                property.Value.ValueKind is not (JsonValueKind.String or JsonValueKind.Null))
+                return new(InvoiceParticipantOutcome.Invalid);
+            values[property.Name] = property.Value.ValueKind == JsonValueKind.Null
+                ? null : property.Value.GetString();
+            touched = true;
+        }
+        if (!touched) return new(InvoiceParticipantOutcome.Invalid);
+        return await SaveAsync(bearer, customer, subject, seller, new InvoiceParticipantWrite(
+            values["economicCode"], values["branchCode"], values["postalCode"],
+            values["province"], values["city"], values["address"], values["phone"],
+            values["foreignNationalCode"], values["passportNumber"],
+            values["contractReference"], revision), ct);
     }
 
     public async Task<InvoiceParticipantResult> SaveAsync(
