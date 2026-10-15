@@ -20,7 +20,8 @@ export default function ConsoleShell({ roles, userId, children }:
   const [menuOpen, setMenuOpen] = useState(false);
   const [navigatingTo, setNavigatingTo] = useState<string | null>(null);
   const [exiting, setExiting] = useState(false);
-  const [profileReady, setProfileReady] = useState<boolean | null>(null);
+  const [profileState, setProfileState] = useState<"checking" | "complete" | "incomplete" | "error">("checking");
+  const [profileRetry, setProfileRetry] = useState(0);
   const menuRef = useRef<HTMLDivElement>(null);
   const admin = roles.includes("Level1") || roles.includes("Level2");
   const role = roles.includes("Level1") ? "مدیر سطح یک" :
@@ -28,20 +29,42 @@ export default function ConsoleShell({ roles, userId, children }:
   const navigation = admin ? [base[0],
     { title: "کاربران نرم‌افزار", path: "/users", glyph: "♟" }, base[1], base[2]] : base;
   useEffect(() => { setMenuOpen(false); setNavigatingTo(null); }, [pathname]);
+  const requiresProfile = roles.includes("Customer");
+  // Read the verified profile once per signed-in user (or explicit retry), NOT once
+  // per navigation. Route changes must never reset a completed profile to checking.
   useEffect(() => {
-    if (!roles.includes("Customer")) { setProfileReady(true); return; }
-    let cancelled = false;
-    setProfileReady(null);
-    fetch("/api/software-profile/me", {cache:"no-store"}).then(async res => {
-      if (!res.ok) throw new Error("profile_unavailable");
-      const p = await res.json() as {complete:boolean};
-      if (!cancelled) {
-        setProfileReady(Boolean(p.complete));
-        if (!p.complete && pathname !== "/profile") router.replace("/profile");
+    if (!requiresProfile) { setProfileState("complete"); return; }
+    const controller = new AbortController();
+    setProfileState("checking");
+    fetch("/api/software-profile/me", { cache: "no-store", signal: controller.signal })
+      .then(async response => {
+        if (!response.ok) throw new Error("profile_unavailable");
+        const data = await response.json() as { complete?: boolean };
+        if (typeof data.complete !== "boolean") throw new Error("invalid_profile_response");
+        if (!controller.signal.aborted) setProfileState(data.complete ? "complete" : "incomplete");
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setProfileState("error");
+      });
+    return () => controller.abort();
+  }, [userId, requiresProfile, profileRetry]);
+
+  // The profile form publishes this only after a successful authenticated PUT.
+  // No extra redirect or refetch is needed after saving a completed profile.
+  useEffect(() => {
+    function onSaved(event: Event) {
+      const detail = (event as CustomEvent<{ complete: boolean }>).detail;
+      if (typeof detail?.complete === "boolean") {
+        setProfileState(detail.complete ? "complete" : "incomplete");
       }
-    }).catch(() => { if (!cancelled) { setProfileReady(false); if (pathname !== "/account") router.replace("/account"); } });
-    return () => { cancelled = true; };
-  }, [pathname, roles.join(","), router]);
+    }
+    window.addEventListener("argin:software-profile-saved", onSaved);
+    return () => window.removeEventListener("argin:software-profile-saved", onSaved);
+  }, [userId]);
+
+  useEffect(() => {
+    if (profileState === "incomplete" && pathname !== "/profile") router.replace("/profile");
+  }, [profileState, pathname, router]);
   useEffect(() => {
     function dismiss(e: MouseEvent) { if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false); }
     function escape(e: KeyboardEvent) { if (e.key === "Escape") setMenuOpen(false); }
@@ -101,11 +124,21 @@ export default function ConsoleShell({ roles, userId, children }:
         </div>
       </header>
       <div className="app-content console-content-host" id="console-content" aria-busy={Boolean(navigatingTo)}>
-        {(profileReady === true || pathname === "/profile") ? children :
-          <section className="intro" role="status"><h2>تکمیل پروفایل الزامی است</h2>
-            <p>برای ادامه، نام و نام خانوادگی و نشانی خود را در صفحه پروفایل و حساب من وارد کنید.</p>
-            {profileReady === null && <ConsoleLoader label="در حال بررسی وضعیت پروفایل…"/>}
-          </section>}
+        {(profileState === "complete" || pathname === "/profile") ? children :
+          profileState === "checking" ?
+            <ConsoleLoader label="در حال بررسی وضعیت پروفایل…" /> :
+          profileState === "error" ?
+            <section className="intro" role="alert">
+              <h2>بررسی پروفایل ممکن نشد</h2>
+              <p>ارتباط با سرویس پروفایل برقرار نشد. این وضعیت به معنی ناقص بودن پروفایل نیست.</p>
+              <button type="button" className="identity-secondary"
+                onClick={() => setProfileRetry(n => n + 1)}>تلاش مجدد</button>
+            </section> :
+            <section className="intro" role="status">
+              <h2>تکمیل پروفایل الزامی است</h2>
+              <p>برای ادامه نام، نام خانوادگی و نشانی خود را تکمیل کنید.</p>
+              <Link href="/profile">رفتن به پروفایل و حساب من</Link>
+            </section>}
         {navigatingTo && <ConsoleLoader full label="در حال انتقال به بخش انتخاب‌شده…" />}
       </div>
     </div>
