@@ -158,7 +158,7 @@ export default function FiscalRecordModal({ record, isLevel1, onClose, onChanged
               <div><dt>شناسه پرونده</dt><dd dir="ltr">{record.id}</dd></div>
             </dl>
             <InvoiceParticipantForm key={record.id} customerId={record.buyerId} subjectId={record.id}
-              role={record.type === "buyer" ? "buyer" : "seller"}/>
+              role={record.type === "buyer" ? "buyer" : "seller"} personKind={record.kind ?? undefined}/>
             {record.type === "taxpayer" && <section className="argin-memory-step">
               <h3>حافظه و مشخصات اتصال مؤدی</h3>
               <TaxpayerWorkspace initialTaxpayerId={record.id} customerId={record.buyerId}
