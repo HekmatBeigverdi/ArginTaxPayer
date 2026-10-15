@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.Json;
 using ArginTaxPayer.Infrastructure.Persistence.Parties;
 using Microsoft.AspNetCore.Mvc;
 
@@ -24,6 +25,14 @@ public static class InvoiceParticipantEndpoints
             if (!Local(http) || role is not ("buyer" or "seller")) return Results.NotFound();
             return Result(await service.SaveAsync(Token(http), customerId, subjectId, role == "seller", body, ct));
         });
+        group.MapMethods("/{role}/{subjectId:guid}", new[] { "PATCH" }, async (
+            Guid customerId, string role, Guid subjectId, [FromBody] JsonElement body,
+            HttpContext http, InvoiceParticipantDetailsService service, CancellationToken ct) =>
+        {
+            if (!Local(http) || role is not ("buyer" or "seller")) return Results.NotFound();
+            return Result(await service.PatchAsync(Token(http), customerId, subjectId,
+                role == "seller", body, ct));
+        });
         return app;
     }
 
@@ -42,6 +51,6 @@ public static class InvoiceParticipantEndpoints
         InvoiceParticipantOutcome.Invalid => Results.BadRequest(new { error = "invalid_invoice_participant_details" }),
         InvoiceParticipantOutcome.NotFound => Results.NotFound(),
         InvoiceParticipantOutcome.Conflict => Results.Conflict(new { error = "stale_or_shared_party" }),
-        _ => Results.Ok(result.Details)
+        _ => Results.Json(result.Details)
     };
 }
