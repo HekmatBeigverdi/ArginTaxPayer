@@ -2,8 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import ParticipantRegistrationModal from "./participant-registration-modal";
-import PartyWorkspace from "./party-workspace";
-import TaxpayerWorkspace from "../taxpayers/taxpayer-workspace";
+import FiscalRecordModal from "./fiscal-record-modal";
 import ConsoleLoader from "../components/console-loader";
 
 type Buyer = { customerUserId: string; mobile: string | null; email: string | null;
@@ -17,7 +16,7 @@ type FiscalEntry = { id: string; customerUserId: string; type: "buyer" | "taxpay
 type FiscalPage = { items: FiscalEntry[]; page: number; pageSize: number; total: number };
 type Row = { id: string; buyerId: string; type: "buyer" | "taxpayer"; kind: number | null;
   name: string; identifier: string; status: string; ownerName: string };
-type View = "list" | "buyer-details" | "taxpayer-connection";
+
 const kindLabel = (kind: number | null) => kind === 1 ? "شخص حقیقی" : kind === 2 ? "شخص حقوقی" : "تعیین‌نشده";
 const formatError = (status: number) => status === 401 ? "نشست معتبر نیست." :
   status === 403 ? "مجوز دسترسی ندارید." : status === 409 ? "اطلاعات تکراری است." :
@@ -33,12 +32,11 @@ export default function BuyerTaxpayerDirectory({ admin, level1, actorUserId }: {
   const requestVersion = useRef(0);
   const [buyers, setBuyers] = useState<Buyer[]>([]);
   const [registrationBuyers, setRegistrationBuyers] = useState<Buyer[]>([]);
-  const [view, setView] = useState<View>("list");
+  const [selectedRecord, setSelectedRecord] = useState<Row | null>(null);
   const [registerMode, setRegisterMode] = useState<"buyer" | "seller" | null>(null);
   const [filter, setFilter] = useState<"all" | "buyer" | "taxpayer">("all");
   const [kind, setKind] = useState("all");
   const [query, setQuery] = useState("");
-  const [selectedBuyer, setSelectedBuyer] = useState("");
   const [page, setPage] = useState(1);
   const pageSize = 20;
   const [total, setTotal] = useState(0);
@@ -46,8 +44,6 @@ export default function BuyerTaxpayerDirectory({ admin, level1, actorUserId }: {
   const [loadedOnce, setLoadedOnce] = useState(false);
   const [refreshedAt, setRefreshedAt] = useState<string | null>(null);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
-  const [createdTaxpayerId, setCreatedTaxpayerId] = useState("");
 
   const reload = useCallback(async () => {
     const version = ++requestVersion.current;
@@ -106,11 +102,10 @@ export default function BuyerTaxpayerDirectory({ admin, level1, actorUserId }: {
     }
   }
 
-  function open(mode: View, customer = "") {
-    setView(mode); setSelectedBuyer(customer); setError(""); setNotice("");
-  }
-
   return <section className="console-directory">
+    {selectedRecord && <FiscalRecordModal key={selectedRecord.type + selectedRecord.id}
+      record={selectedRecord} isLevel1={level1}
+      onClose={() => setSelectedRecord(null)} onChanged={reload} />}
     {registerMode && <ParticipantRegistrationModal mode={registerMode} buyers={admin ? registrationBuyers : buyers} actorUserId={actorUserId}
       level1={level1} onClose={() => setRegisterMode(null)} onCompleted={reload}/> }
     {<div className="console-directory-actions">
@@ -118,22 +113,6 @@ export default function BuyerTaxpayerDirectory({ admin, level1, actorUserId }: {
       <button className="identity-secondary" type="button" onClick={() => void startRegistration("seller")}>+ افزودن مؤدی</button>
       <button type="button" className="identity-secondary" onClick={() => { setError(""); void reload(); }} disabled={loading}>بازخوانی فهرست</button>
     </div>}
-    {view !== "list" && <div className="console-directory-panel">
-      <div className="console-directory-panel-header"><h2>{{
-        "buyer-details": "اشخاص خریدار و اطلاعات تماس",
-        "taxpayer-connection": "پرونده و حافظه مالیاتی مؤدی",
-        list: ""
-      }[view]}</h2><button type="button" onClick={() => { setView("list"); void reload(); }}>بازگشت به فهرست</button></div>
-      {view === "buyer-details" && <PartyWorkspace key={selectedBuyer}
-        isAdmin={admin} canCreateTaxpayer={true} customerId={selectedBuyer} />}
-      {view === "taxpayer-connection" && <>
-        <p>ثبت کد حافظه مالیاتی و مشاهده وضعیت گواهی در این بخش انجام می‌شود.
-          اطلاعات گواهی و اتصال در سامانه صرفاً فراداده هستند؛ ذخیره کلید خصوصی و اتصال عملیاتی مالیاتی در این مرحله فعال نیست.</p>
-        {createdTaxpayerId && <p>مؤدی انتخاب‌شده: <bdi dir="ltr">{createdTaxpayerId}</bdi></p>}
-        <TaxpayerWorkspace key={createdTaxpayerId || selectedBuyer} isLevel1={level1} initialTaxpayerId={createdTaxpayerId || undefined} customerId={selectedBuyer} showCreateForm={false}/>
-      </>}
-    </div>}
-    {view === "list" && <>
       <div className="console-directory-filters">
         <label>نوع رکورد<select value={filter} onChange={e => { setFilter(e.target.value as typeof filter); setPage(1); }}>
           <option value="all">همه</option><option value="buyer">خریداران</option><option value="taxpayer">مؤدیان</option>
@@ -145,7 +124,6 @@ export default function BuyerTaxpayerDirectory({ admin, level1, actorUserId }: {
           placeholder="نام خریدار / مؤدی یا شناسه قانونی"/></label>
       </div>
       {error && <p role="alert" className="party-error">{error}</p>}
-      {notice && <p role="status" className="party-success">{notice}</p>}
       <div className="console-table-stage" aria-busy={loading}>
         {loading && <ConsoleLoader full label="در حال دریافت خریداران و مؤدیان ثبت‌شده…" />}
         <div className="console-table-scroll"><table className="console-table">
@@ -157,8 +135,7 @@ export default function BuyerTaxpayerDirectory({ admin, level1, actorUserId }: {
             <td>{r.name}</td><td><bdi dir="ltr">{r.identifier}</bdi></td>
             <td>{r.ownerName}</td><td><span className="console-status">{r.status}</span></td>
             <td><button className="console-row-action" type="button"
-              onClick={() => { setCreatedTaxpayerId(r.type === "taxpayer" ? r.id : "");
-                open(r.type === "buyer" ? "buyer-details" : "taxpayer-connection", r.buyerId); }}>
+              onClick={() => setSelectedRecord(r)}>
               مشاهده پرونده</button></td>
           </tr>)}</tbody>
         </table></div>
@@ -170,6 +147,5 @@ export default function BuyerTaxpayerDirectory({ admin, level1, actorUserId }: {
           <button disabled={activePage >= maxPage} onClick={() => setPage(p => p+1)}>بعدی</button></div>
       </footer>
       <p className="field-hint">این فهرست مستقلاً از سوابق خریدار و مؤدی ساخته می‌شود، نه از حساب‌های ثبت‌نام‌شده نرم‌افزار.</p>
-    </>}
   </section>;
 }
