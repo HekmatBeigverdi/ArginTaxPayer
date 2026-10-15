@@ -60,6 +60,7 @@ public sealed class InvoiceParticipantDetailsTests
                     new() { UserId = customerId, Role = IdentityRoleNames.Customer, AssignedAtUtc = now }
                 }
             });
+            db.SoftwareUserProfiles.Add(new SoftwareUserProfile { UserId = customerId, FirstName = "Test", LastName = "Customer", Address = "Tehran", CompletedAtUtc = now, UpdatedAtUtc = now });
             db.Parties.Add(new Party
             {
                 Id = partyId, Kind = PartyKind.NaturalPerson,
@@ -96,6 +97,7 @@ public sealed class InvoiceParticipantDetailsTests
                 await cleanup.InvoiceParticipantDetails.Where(x => x.CustomerUserId == customerId).ExecuteDeleteAsync();
                 await cleanup.CustomerPartyLinks.Where(x => x.CustomerUserId == customerId).ExecuteDeleteAsync();
                 await cleanup.Parties.Where(x => x.Id == partyId).ExecuteDeleteAsync();
+                await cleanup.SoftwareUserProfiles.Where(x => x.UserId == customerId).ExecuteDeleteAsync();
                 await cleanup.IdentitySessions.Where(x => x.UserId == customerId).ExecuteDeleteAsync();
                 await cleanup.IdentityUsers.Where(x => x.Id == customerId).ExecuteDeleteAsync();
                 await tx.CommitAsync();
