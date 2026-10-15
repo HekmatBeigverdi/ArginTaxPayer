@@ -30,7 +30,7 @@ public sealed class PartyDirectoryService(ArginTaxPayerDbContext db, IdentityAut
                 (u.Roles.Any(role => role.Role == IdentityRoleNames.Level1) &&
                     o.RootLevel1UserId == actor.Value ||
                  u.Roles.Any(role => role.Role == IdentityRoleNames.Level2) &&
-                    o.PartnerLevel2UserId == actor.Value))), ct);
+                    o.PartnerLevel2UserId == actor.Value)))), ct);
         if (!authorized) return new(PartyDetailsDecision.Forbidden, empty, page, pageSize, 0);
         var safeQuery = query?.Trim();
         var scoped = db.Parties.AsNoTracking().Where(p =>
