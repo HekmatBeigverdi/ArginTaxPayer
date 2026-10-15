@@ -227,7 +227,10 @@ public sealed class CustomerCommercialOwnershipService(
         if (!string.IsNullOrWhiteSpace(safeQuery))
             scoped = scoped.Where(x => (x.u.NormalizedMobile ?? string.Empty).Contains(normalizedQuery) ||
                 (x.u.NormalizedEmail ?? string.Empty).Contains(normalizedQuery) ||
-                x.u.Id.ToString().Contains(normalizedQuery));
+                x.u.Id.ToString().Contains(normalizedQuery) ||
+                db.SoftwareUserProfiles.Any(p => p.UserId == x.u.Id &&
+                    ((p.FirstName + " " + p.LastName).Contains(normalizedQuery) ||
+                     (p.CompanyName ?? string.Empty).Contains(normalizedQuery))));
         if (ownership == "root") scoped = scoped.Where(x => x.o != null && x.o.RootLevel1UserId == actor.Value && x.o.PartnerLevel2UserId == null);
         if (ownership == "partner") scoped = scoped.Where(x => x.o != null && x.o.PartnerLevel2UserId != null);
         if (ownership == "unresolved") scoped = scoped.Where(x => x.o == null);
