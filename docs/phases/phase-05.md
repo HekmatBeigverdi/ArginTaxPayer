@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 05: Parties and Customers
 
-**Status:** Steps 01–13 owner approved (Step13 approved 2026-10-15); Step14 integration and security regression implemented; GitHub CI green, operator PostgreSQL/API acceptance pending. Historical details: Steps 01–02 owner approved 2026-10-14. Step 02 six test criteria confirmed by owner (macOS/build, migration, PostgreSQL indexes/constraints). Step 03 owner approved 2026-10-14 (operator acceptance). Step 04 OWNER APPROVED 2026-10-14 (operator confirmation; automated logs not independently observed). Step 05 owner approved 2026-10-14 (owner reported tests successful). Step 06 OWNER APPROVED 2026-10-14 (owner confirms tests passed). Step 07 owner approved 2026-10-14 after operator testing. Step 08 implemented and committed; focused API tests/owner acceptance pending.
+**Status:** Steps 01–14 owner approved (Step14 explicitly approved 2026-10-15); Step15 final hardening and handoff implemented, CI and operator macOS/Ubuntu acceptance pending. No merge/tag/release yet. Historical details: Steps 01–02 owner approved 2026-10-14. Step 02 six test criteria confirmed by owner (macOS/build, migration, PostgreSQL indexes/constraints). Step 03 owner approved 2026-10-14 (operator acceptance). Step 04 OWNER APPROVED 2026-10-14 (operator confirmation; automated logs not independently observed). Step 05 owner approved 2026-10-14 (owner reported tests successful). Step 06 OWNER APPROVED 2026-10-14 (owner confirms tests passed). Step 07 owner approved 2026-10-14 after operator testing. Step 08 implemented and committed; focused API tests/owner acceptance pending.
 **Branch:** `phase/05-parties-customers`
 **Baseline:** `docs/roadmap/18-phases.md`, `docs/phases/phase-04.md`, Phase 03 identity contracts.
 **Policy:** This is the single evolving master plan. Changes to step count/scope require dated owner approval. Do not create per-step progress documents.
@@ -24,8 +24,8 @@ Deliver natural/legal party records, economic identifiers, validation and dedupl
 | 11 | Customer Self-Service | Account profile and taxpayer management subject to current entitlement | Unauthorized operations blocked; entitlement integration deferred to Phase 12 | Owner approved 2026-10-14 |
 | 12 | Persian RTL UI | Lists, forms, search, details and accessibility | UI state, validation and route guards tested | Owner approved 2026-10-15 |
 | 13 | Level1/Level2 Support Scope | Root and partner workflows | Former owner denied after transfer; global logs root only | Owner approved 2026-10-15 |
-| 14 | Integration and Security Regression | API/DB/UI tests and concurrent operations | Cross-customer isolation and Phase03/04 regression | Implemented; automated CI passed, operator integration acceptance pending |
-| 15 | Final Hardening and Handoff | Mac regression, Ubuntu verification, risk register, signoff | Evidence recorded, owner approval; merge/tag/release separate | Planned |
+| 14 | Integration and Security Regression | API/DB/UI tests and concurrent operations | Cross-customer isolation and Phase03/04 regression | Owner approved 2026-10-15 (operator evidence not independently supplied) |
+| 15 | Final Hardening and Handoff | Mac regression, Ubuntu verification, risk register, signoff | Evidence recorded, owner approval; merge/tag/release separate | Implementation delivered; CI/operator approval pending |
 
 ## Invariants and Phase Boundaries
 1. `CustomerUser` (authenticated account), `Party` (natural/legal economic actor), and `TaxpayerProfile` (fiscal subject) are distinct. A customer may have multiple taxpayers.
@@ -494,3 +494,29 @@ Owner policy: allow changing name, legal identifier and natural/legal person kin
 **Evidence/state:** CI run and SHA must be recorded only after successful GitHub Actions. No operator PostgreSQL, HTTP sessions, GUI/macOS or Ubuntu logs have been observed by the assistant; these are explicit acceptance gates. No new EF migration in Step14. Step15 owns Ubuntu verification, release readiness and owner signoff; no merge, tag or release is authorized in Step14.
 
 **CI evidence (2026-10-15):** GitHub Actions run [38791491242](https://github.com/HekmatBeigverdi/ArginTaxPayer/actions/runs/38791491242), source commit `c6f24d8b69ec1214cd77c68bb43fdb8e6edde7b6`: `web` and `dotnet-contract` jobs BOTH succeeded. Web typecheck, unit tests and production build passed; .NET restore, Release build and full test suite passed. This is automated/offline verification, not a claim of running the explicitly opt-in PostgreSQL or live authenticated HTTP tests.
+
+## Step 15 — Final Hardening and Handoff (2026-10-15)
+
+**Owner acceptance:** Step14 explicitly approved by owner on 2026-10-15, without additional user-supplied operator logs. Fixed Phase05 plan remains 15 steps, unchanged.
+
+### Release candidate controls
+- `scripts/phase05-step15-verify.zsh`: macOS branch/clean-tree preflight, Release build, .NET contract/security regression, Next.js typecheck/tests/build, read-only local API status, git identity; optional `--pg` delegates to the guarded rollback-only test in Step14. It uses the established `dev-up.zsh` AutoSSH tunnel, not a manual or unstable SSH tunnel. No migration/production action.
+- `scripts/phase05-step15-ubuntu.sh`: Ubuntu test-VPS branch/clean-tree preflight; reads only the operator's private `~/.argintaxpayer-test/ubuntu.env`, requires local `127.0.0.1:5432` **and** `argintaxpayer_test`, calls PostgreSQL `current_database()`, asserts Phase05 migration history, then runs existing `bash scripts/ubuntu-dev.sh verify` and `status`. It neither applies migrations nor sends messages itself. The underlying Ubuntu verification sets `RUN_ARGINTAXPAYER_PG_INTEGRATION=1`, so the *existing* opt-in integration tests may create isolated fixture rows and clean them; do not run against real tenant data or a non-dedicated test database.
+- Authenticated cross-tenant HTTP proof: `node scripts/phase05-step14-smoke.mjs` remains manual and read-only (requires three real distinct test tokens, customer/buyer/taxpayer IDs); developer-mode API only.
+- No schema changes for Step15. Migration IDs required by final preflights: `20261015101000_AddInvoiceParticipantDetails`, `20261015143000_AddFiscalDirectoryIndexes`, `20261015170000_AddPartyIdentityHistory`, `20261015190000_AddSoftwareUserProfiles`. Operators must apply any pending migration only after independently verifying DB and reviewing SQL. No automatic database update.
+
+### Risk register / future phase boundary
+| Risk | State | Mitigation / follow-up |
+|---|---|---|
+| Actual macOS–VPS PostgreSQL and Ubuntu acceptance not visible to GitHub CI | Open acceptance gate | Operator runs both final scripts and submits PASS/failure lines; no automatic sign-off |
+| Live three-session access/revocation across real authenticated API cannot be inferred from unit tests | Open acceptance gate | Execute Step14 read-only smoke; verify A→B transfer in separate authorized procedure |
+| Issued/transmitted invoice payload snapshots do not exist in Phase05 | Deliberate Phase07/08 dependency | Transactional immutable header/party/branding snapshot at issuance, signed payload hash and FK restrictions; never backfill from mutable current Party/Profile |
+| First-use profile required and logo rendered later | Accepted bounded-scope design | Keep login User/Profile distinct from Party/Taxpayer; require completed profile for customer fiscal operations and private logo access |
+| Serializability and concurrent updates under production load | Not production-proven | Dedicated PostgreSQL isolation/regression and Phase08 transaction stress tests; no assertion of production readiness |
+| Payment, entitlements and commercial net-receipt settlement are not in this phase | Deferred | Phase12 and Phase16 preserve customer-specific transaction-level net collections and Level1 approved costs |
+| Development-only endpoints not public production API | Accepted phase boundary | Require independent production authentication and gateway security assessment before exposing |
+
+### Release/handoff state
+GitHub `main` and `phase/05-parties-customers` remain separate. Branch compare should be checked immediately before merge; previous observation: Phase05 ahead of main, behind=0. Create/merge the pull request only after the operator confirms final macOS and Ubuntu results and the project owner explicitly signs off Step15. **Do not tag or publish a release based only on GitHub CI.** Proposed release label `phase-05` is not a command to create a tag. No secrets or customer data should appear in release notes.
+
+**Operator approval checklist:** [ ] Mac static/build, [ ] Mac PostgreSQL rollback-only, [ ] Ubuntu test VPS Build/PG, [ ] HTTP cross-owner smoke or explicit exception documented, [ ] no migration pending, [ ] final UI acceptance, [ ] owner signoff. Until satisfied, Step15 is **implemented, not owner-approved**, and the phase is **not formally closed**.
