@@ -35,7 +35,13 @@ export default function FiscalRecordModal({ record, isLevel1, onClose, onChanged
     try {
       const res = await fetch(source, { credentials: "same-origin", cache: "no-store" });
       if (!res.ok) throw new Error(errorText(res.status));
-      const details = await res.json() as BuyerDetails & Taxpayer;
+      const raw = await res.text();
+      if (!raw.trim()) throw new Error("سرویس پرونده پاسخ خالی برگرداند؛ API را بررسی کنید.");
+      let details: BuyerDetails & Taxpayer;
+      try { details = JSON.parse(raw) as BuyerDetails & Taxpayer; }
+      catch { throw new Error("پاسخ پرونده JSON معتبر نیست؛ API را بررسی کنید."); }
+      if (!details || details.id !== record.id)
+        throw new Error("اطلاعات برگشتی با شناسه پرونده انتخاب‌شده مطابقت ندارد.");
       setPerson(details);
       setName(record.type === "buyer"
         ? (record.kind === 1 ? details.firstName || "" : details.registeredName || "")
