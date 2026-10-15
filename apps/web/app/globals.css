@@ -192,3 +192,17 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 .invoice-help,.invoice-missing{font-size:12px;padding:11px 13px;border-radius:8px;line-height:1.85}
 .invoice-help{background:#eef7f8;color:#2a6471}.invoice-missing{background:#fff7eb;color:#895d20}
 @media(max-width:700px){.invoice-fields{grid-template-columns:1fr}}
+
+/* Taxpayer/Buyer identity modal: center overlay, comfortable scroll and compact ERP forms */
+.argin-modal-backdrop{position:fixed;inset:0;z-index:110;background:rgba(14,34,51,.6);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:24px}
+.argin-modal{width:min(900px,100%);max-height:min(88vh,1000px);display:flex;flex-direction:column;background:#fff;border-radius:18px;border:1px solid #cfdee6;box-shadow:0 24px 85px #071d3050;color:#243b4c;direction:rtl}
+.argin-modal-header{display:flex;justify-content:space-between;align-items:center;padding:20px 24px;border-bottom:1px solid #dce6ec;gap:16px}
+.argin-modal-header h2{margin:0 0 8px;font-size:21px}.argin-modal-header p{font-size:12px;color:#718499;margin:0}
+.argin-modal-close{border:1px solid #cbdde5;background:#f7fafb;color:#365365;width:37px;height:37px;border-radius:50%;font-size:26px;cursor:pointer;flex-shrink:0}
+.argin-modal-body{padding:22px 24px;overflow-y:auto;overscroll-behavior:contain;min-height:0}
+.argin-modal-body .invoice-fields select{width:100%;min-height:38px;border:1px solid #c7dae2;border-radius:8px;font:inherit;padding:8px 10px;background:#fff;color:#233e50}
+.argin-modal-body .invoice-fields .identity-primary{width:100%;min-height:44px;margin:8px 0}
+.argin-modal-body .invoice-participant{margin:10px 0 22px}
+.argin-memory-step{border-top:1px solid #dce6ec;padding-top:16px;margin-top:18px}
+.argin-memory-step>p{font-size:12px;color:#587084;line-height:1.9}
+@media(max-width:650px){.argin-modal-backdrop{padding:7px}.argin-modal{max-height:96vh;border-radius:12px}.argin-modal-header,.argin-modal-body{padding:16px}.argin-modal-header h2{font-size:18px}}
