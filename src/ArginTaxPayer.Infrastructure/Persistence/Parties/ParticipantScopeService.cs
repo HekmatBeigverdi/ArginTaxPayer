@@ -11,8 +11,10 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Parties;
 /// </summary>
 public sealed class ParticipantScopeService(ArginTaxPayerDbContext db)
 {
-    public Task<bool> CanManageAsync(Guid actor, Guid customer, CancellationToken ct = default) =>
-        customer != Guid.Empty && db.IdentityUsers.AsNoTracking().AnyAsync(u =>
+    public async Task<bool> CanManageAsync(Guid actor, Guid customer, CancellationToken ct = default)
+    {
+        if (customer == Guid.Empty) return false;
+        return await db.IdentityUsers.AsNoTracking().AnyAsync(u =>
             u.Id == actor && u.IsActive &&
             db.IdentityUsers.Any(target => target.Id == customer && target.IsActive &&
                 target.Roles.Any(r => r.Role == IdentityRoleNames.Customer)) &&
@@ -25,4 +27,5 @@ public sealed class ParticipantScopeService(ArginTaxPayerDbContext db)
                      u.Roles.Any(r => r.Role == IdentityRoleNames.Level2) &&
                         o.PartnerLevel2UserId == actor))
             ), ct);
+    }
 }
