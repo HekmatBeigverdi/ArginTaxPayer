@@ -96,25 +96,45 @@ public sealed class TaxpayerScopeService(ArginTaxPayerDbContext db, IdentityAuth
         var actorId = await identity.CurrentUserIdAsync(token, ct);
         if (actorId is null) return new(TaxpayerScopeDecision.Unauthenticated);
         if (request is null || request.ExpectedRevision < 1) return new(TaxpayerScopeDecision.Invalid);
-        var taxpayer = await db.TaxpayerProfiles.AsNoTracking()
-            .Where(p => p.Id == taxpayerId)
-            .Select(p => new { p.CustomerUserId, p.Revision, p.Status }).SingleOrDefaultAsync(ct);
-        if (taxpayer is null || taxpayer.CustomerUserId is null) return new(TaxpayerScopeDecision.NotFound);
-        if (!await participantScope.CanManageAsync(actorId.Value, taxpayer.CustomerUserId.Value, ct))
-            return new(TaxpayerScopeDecision.Forbidden);
-        if (taxpayer.Revision != request.ExpectedRevision || taxpayer.Status != TaxpayerStatus.Active)
+        try
+        {
+            return await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+            {
+                // Ownership transfers and profile archiving must serialize against
+                // each other; never rely on a stale pre-transaction role check.
+                await using var tx = await db.Database.BeginTransactionAsync(
+                    System.Data.IsolationLevel.Serializable, ct);
+                if (await identity.CurrentUserIdAsync(token, ct) != actorId)
+                    return new ScopedTaxpayerResult(TaxpayerScopeDecision.Unauthenticated);
+                var taxpayer = await ScopedCommandQuery(actorId.Value, false)
+                    .AsNoTracking()
+                    .Where(p => p.Id == taxpayerId)
+                    .Select(p => new { p.CustomerUserId, p.Revision, p.Status })
+                    .SingleOrDefaultAsync(ct);
+                if (taxpayer is null || taxpayer.CustomerUserId is null ||
+                    !await participantScope.CanManageAsync(actorId.Value, taxpayer.CustomerUserId.Value, ct))
+                    return new ScopedTaxpayerResult(TaxpayerScopeDecision.Forbidden);
+                if (taxpayer.Revision != request.ExpectedRevision ||
+                    taxpayer.Status != TaxpayerStatus.Active)
+                    return new ScopedTaxpayerResult(TaxpayerScopeDecision.Conflict);
+                var now = DateTime.UtcNow;
+                var changed = await ScopedCommandQuery(actorId.Value, false)
+                    .Where(p => p.Id == taxpayerId && p.Revision == request.ExpectedRevision &&
+                        p.Status == TaxpayerStatus.Active &&
+                        !db.FiscalMemories.Any(m => m.TaxpayerId == p.Id))
+                    .ExecuteUpdateAsync(u => u.SetProperty(p => p.Status, TaxpayerStatus.Archived)
+                        .SetProperty(p => p.Revision, p => p.Revision + 1)
+                        .SetProperty(p => p.UpdatedAtUtc, now), ct);
+                if (changed != 1) return new ScopedTaxpayerResult(TaxpayerScopeDecision.Conflict);
+                await tx.CommitAsync(ct);
+                return new ScopedTaxpayerResult(TaxpayerScopeDecision.Allowed);
+            });
+        }
+        catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.SerializationFailure)
+        {
+            db.ChangeTracker.Clear();
             return new(TaxpayerScopeDecision.Conflict);
-        if (await db.FiscalMemories.AnyAsync(m => m.TaxpayerId == taxpayerId, ct))
-            return new(TaxpayerScopeDecision.Conflict);
-        var now = DateTime.UtcNow;
-        var changed = await db.TaxpayerProfiles
-            .Where(p => p.Id == taxpayerId && p.CustomerUserId == taxpayer.CustomerUserId &&
-                p.Revision == request.ExpectedRevision && p.Status == TaxpayerStatus.Active &&
-                !db.FiscalMemories.Any(m => m.TaxpayerId == p.Id))
-            .ExecuteUpdateAsync(u => u.SetProperty(p => p.Status, TaxpayerStatus.Archived)
-                .SetProperty(p => p.Revision, p => p.Revision + 1)
-                .SetProperty(p => p.UpdatedAtUtc, now), ct);
-        return new(changed == 1 ? TaxpayerScopeDecision.Allowed : TaxpayerScopeDecision.Conflict);
+        }
     }
 
     /// <summary>
