@@ -206,3 +206,18 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 .argin-memory-step{border-top:1px solid #dce6ec;padding-top:16px;margin-top:18px}
 .argin-memory-step>p{font-size:12px;color:#587084;line-height:1.9}
 @media(max-width:650px){.argin-modal-backdrop{padding:7px}.argin-modal{max-height:96vh;border-radius:12px}.argin-modal-header,.argin-modal-body{padding:16px}.argin-modal-header h2{font-size:18px}}
+
+/* Software user identity remains visually distinct from fiscal parties. */
+.users-contact-truncated {
+  display: inline-block;
+  direction: ltr;
+  text-align: left;
+  max-width: min(24ch, 19vw);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+@media (max-width: 760px) {
+  .users-contact-truncated { max-width: 14ch; }
+}
