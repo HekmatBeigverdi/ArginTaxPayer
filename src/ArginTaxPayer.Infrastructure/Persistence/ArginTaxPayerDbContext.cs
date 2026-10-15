@@ -228,6 +228,7 @@ public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbConte
         parties.Property(x => x.CreatedAtUtc).HasColumnName("created_at_utc").HasColumnType("timestamp with time zone");
         parties.Property(x => x.UpdatedAtUtc).HasColumnName("updated_at_utc").HasColumnType("timestamp with time zone");
         parties.HasIndex(x => new { x.Kind, x.NormalizedIdentifier }).IsUnique().HasDatabaseName("ux_parties_kind_identifier");
+        parties.HasIndex(x => new { x.CreatedAtUtc, x.Id }).HasDatabaseName("ix_parties_fiscal_directory");
 
         var links = modelBuilder.Entity<CustomerPartyLink>();
         links.ToTable("customer_party_links", t =>
@@ -399,6 +400,7 @@ public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbConte
         taxpayers.Property(x => x.CustomerUserId).HasColumnName("customer_user_id");
         taxpayers.HasOne<IdentityUser>().WithMany().HasForeignKey(x => x.CustomerUserId).OnDelete(DeleteBehavior.Restrict).HasConstraintName("FK_taxpayer_profiles_customer_user_id");
         taxpayers.HasIndex(x => x.CustomerUserId).HasDatabaseName("ix_taxpayer_profiles_customer_user_id");
+        taxpayers.HasIndex(x => new { x.CreatedAtUtc, x.Id }).HasDatabaseName("ix_taxpayer_profiles_fiscal_directory");
         taxpayers.Property(x => x.Kind).HasColumnName("kind").HasConversion<int>().IsRequired();
         taxpayers.Property(x => x.NormalizedIdentifier).HasColumnName("normalized_identifier").HasMaxLength(32).IsRequired();
         taxpayers.Property(x => x.DisplayName).HasColumnName("display_name").HasMaxLength(256).IsRequired();
