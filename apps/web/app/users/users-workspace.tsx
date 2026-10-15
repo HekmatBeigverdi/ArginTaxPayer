@@ -10,8 +10,6 @@ type Account = {
   createdAtUtc: string; isActive: boolean; taxpayerCount: number;
 };
 type Partner = { userId: string; mobile: string | null; email: string | null };
-type Taxpayer = { id: string; kind: number; normalizedIdentifier: string; displayName: string;
-  status: number; revision: number };
 type AccountPage = { items: Account[]; page: number; pageSize: number; total: number };
 const acquisition: Record<number,string> = {
   0: "نیازمند تعیین مالکیت", 1: "ثبت‌نام مستقیم", 2: "ثبت توسط سطح ۱",
@@ -31,13 +29,11 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [total, setTotal] = useState(0);
   const [selected, setSelected] = useState<Account | null>(null);
-  const [taxpayers, setTaxpayers] = useState<Taxpayer[]>([]);
   const [search, setSearch] = useState("");
   const [ownershipFilter, setOwnershipFilter] = useState("all");
   const [pageSize, setPageSize] = useState(10);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
-  const [detailsLoading, setDetailsLoading] = useState(false);
   const [error, setError] = useState("");
   const [modalError, setModalError] = useState("");
   const [partnerId, setPartnerId] = useState("");
@@ -96,23 +92,15 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
   function close() {
     requestRef.current++;
     if (dialogRef.current?.open) dialogRef.current.close();
-    setSelected(null); setTaxpayers([]); setModalError("");
+    setSelected(null); setModalError("");
   }
 
-  async function open(account: Account) {
-    setSelected(account); setTaxpayers([]); setModalError(""); setDetailsLoading(true);
-    setPartnerId(account.partnerLevel2UserId || ""); setTransferReason(""); setTransferNotice(""); setTransferHistory(null);
+  function open(account: Account) {
+    setSelected(account); setModalError("");
+    setPartnerId(account.partnerLevel2UserId || "");
+    setTransferReason(""); setTransferNotice(""); setTransferHistory(null);
     dialogRef.current?.showModal();
-    const requestId = ++requestRef.current;
-    try {
-      const rows = await load<Taxpayer[]>("/api/customer-owners/" + account.customerUserId + "/taxpayers");
-      if (requestId === requestRef.current) setTaxpayers(rows);
-    } catch (e) {
-      if (requestId === requestRef.current) {
-        setModalError((e as Error).message);
-        if (!level1) { close(); void refresh(); }
-      }
-    } finally { if (requestId === requestRef.current) setDetailsLoading(false); }
+    requestRef.current++;
   }
 
   async function assignOwner(event: FormEvent<HTMLFormElement>) {
@@ -157,7 +145,7 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
   return <section className="users-panel" aria-label="فهرست کاربران نرم‌افزار">
     <div className="users-toolbar">
       <div><h2>{level1 ? "کاربران ثبت‌نام‌شده" : "مشتریان من"}</h2>
-        <p>هر ردیف یک حساب کاربری است؛ مؤدیان داخل پرونده همان کاربر قرار دارند.</p></div>
+        <p>هر ردیف صرفاً یک حساب ورود نرم‌افزار است؛ خریداران و مؤدیان در فهرست مالیاتی مستقل مدیریت می‌شوند.</p></div>
       <button type="button" className="users-button" disabled={loading} onClick={() => void refresh()}>
         بازخوانی کاربران
       </button>
@@ -188,11 +176,11 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
       <table className="users-table">
         <thead><tr>
           <th scope="col">ردیف</th><th scope="col">کاربر</th><th scope="col">وضعیت</th>
-          <th scope="col">مالکیت تجاری</th><th scope="col">مؤدیان</th>
+          <th scope="col">مالکیت تجاری</th>
           <th scope="col">ثبت‌نام</th><th scope="col">عملیات</th>
         </tr></thead>
         <tbody>
-          {loading ? <tr><td colSpan={7}><ConsoleLoader label="در حال دریافت کاربران…" /></td></tr> :
+          {loading ? <tr><td colSpan={6}><ConsoleLoader label="در حال دریافت کاربران…" /></td></tr> :
             pageRows.length === 0 ? <tr><td colSpan={7}>کاربری با این معیارها پیدا نشد.</td></tr> :
             pageRows.map((a, i) => <tr key={a.customerUserId}>
               <td>{firstIndex + i}</td>
@@ -243,17 +231,7 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
           <div><dt>مالکیت</dt><dd>{ownerLabel(selected)}</dd></div>
           <div><dt>شیوه ثبت‌نام</dt><dd>{acquisition[selected.acquisitionChannel] || "نامشخص"}</dd></div>
           <div><dt>تاریخ ثبت‌نام</dt><dd>{new Date(selected.createdAtUtc).toLocaleString("fa-IR")}</dd></div>
-          <div><dt>تعداد مؤدیان</dt><dd>{selected.taxpayerCount.toLocaleString("fa-IR")}</dd></div>
         </dl>
-        <h3>مؤدیان وابسته به این کاربر</h3>
-        {modalError && <p role="alert" className="form-error">{modalError}</p>}
-        {detailsLoading ? <p role="status">در حال بارگذاری پرونده مالیاتی…</p> :
-          taxpayers.length === 0 ? <p className="identity-muted">مؤدی ثبت‌شده‌ای در این حساب وجود ندارد.</p> :
-          <div className="users-taxpayers">{taxpayers.map(t => <div key={t.id}>
-            <strong>{t.displayName}</strong>
-            <small>{t.kind === 1 ? "حقیقی" : "حقوقی"}</small>
-            <small dir="ltr">{t.normalizedIdentifier}</small>
-          </div>)}</div>}
         {level1 && <section className="users-owner-edit">
           <h3>انتساب تجاری این کاربر</h3>
           <p>ثبت‌نام عمومی زیرمجموعه سطح ۱ است. واگذاری به شریک سطح ۲ فقط با تأیید شما انجام می‌شود.</p>
@@ -297,7 +275,7 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
               {item.explanation}
             </li>)}</ul>}
         </section>}
-        <p className="field-hint">تعداد مؤدیان مجاز باید براساس پلن فعال در Backend کنترل شود؛ تا آن زمان این پنجره فقط نمایش می‌دهد.</p>
+        <p className="field-hint">این پنجره فقط اطلاعات حساب ورود و انتساب تجاری را مدیریت می‌کند؛ سوابق خریدار و مؤدی در بخش مالیاتی مستقل هستند.</p>
       </div>}
       <div className="users-dialog-footer"><button type="button" className="users-button"
         onClick={close}>بستن</button></div>
