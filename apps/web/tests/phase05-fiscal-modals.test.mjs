@@ -5,8 +5,8 @@ const read = file => readFileSync(new URL("../" + file, import.meta.url), "utf8"
 
 test("buyer button opens fiscal person modal, never software account creation", () => {
   const directory = read("app/parties/buyer-taxpayer-directory.tsx");
-  assert.match(directory, /setRegisterMode\("buyer"\)/);
-  assert.match(directory, /setRegisterMode\("seller"\)/);
+  assert.match(directory, /startRegistration\("buyer"\)/);
+  assert.match(directory, /startRegistration\("seller"\)/);
   assert.match(directory, /ParticipantRegistrationModal/);
   assert.doesNotMatch(directory, /<AdminCreateCustomer/);
   assert.match(directory, /onCompleted=\{reload\}/);
