@@ -81,9 +81,15 @@ export default function ParticipantRegistrationModal({ mode, buyers, level1, act
       };
       const response = await fetch(path, { method: "POST", credentials: "same-origin",
         headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-      if (!response.ok) throw new Error(response.status === 403 ?
-        "سرور اجازه ثبت برای این مشتری را صادر نکرد. نقش و MFA ادمین و انتساب تجاری مشتری را بررسی کنید." :
-        errorMessage(response.status));
+      if (!response.ok) {
+        if (response.status === 403) {
+          const diagnostic = await response.json().catch(() => null) as { error?: string } | null;
+          throw new Error(diagnostic?.error === "origin_not_allowed"
+            ? "درخواست در کنترل امنیتی آدرس مرورگر رد شد. پنل را با آدرس محلی صحیح باز کنید."
+            : "بک‌اند اجازه ثبت را نداد. وضعیت MFA و انتساب مالکیت تجاری مشتری به ادمین فعلی را بررسی کنید.");
+        }
+        throw new Error(errorMessage(response.status));
+      }
       const created = await response.json() as Created;
       if (!created.id) throw new Error("شناسه ثبت‌شده دریافت نشد؛ قبل از تلاش مجدد، فهرست را بازخوانی کنید.");
       setSubjectId(created.id);
