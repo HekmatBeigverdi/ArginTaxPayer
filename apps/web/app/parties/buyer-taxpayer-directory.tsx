@@ -53,12 +53,20 @@ export default function BuyerTaxpayerDirectory({ admin, level1, actorUserId }: {
       if (!admin) {
         const mine = await get<{ customerUserId: string; taxpayers: Taxpayer[]; displayName: string | null }>(
           "/api/party-workspace/mine");
+        const ownParties = await get<{ items: Party[] }>(
+          "/api/party-workspace/customers/" + mine.customerUserId + "/parties?page=1&pageSize=100")
+          .catch(() => ({ items: [] as Party[] }));
+        const ownBuyerRows: Row[] = ownParties.items.map(p => ({
+          id: p.id, buyerId: mine.customerUserId, type: "buyer" as const, kind: p.kind,
+          name: p.displayName, identifier: "", status: p.status === 1 ? "فعال" : "غیرفعال",
+          ownerName: mine.displayName || "حساب شما"
+        }));
         const mineRows: Row[] = mine.taxpayers.map(t => ({
           id: t.id, buyerId: mine.customerUserId, type: "taxpayer", kind: t.kind,
           name: t.displayName, identifier: "", status: t.status === 1 ? "فعال" : "غیرفعال",
           ownerName: mine.displayName || "حساب شما"
         }));
-        setRows(mineRows); setBuyers([{ customerUserId: mine.customerUserId, mobile: null,
+        setRows([...ownBuyerRows, ...mineRows]); setBuyers([{ customerUserId: mine.customerUserId, mobile: null,
           email: mine.displayName, isActive: true, taxpayerCount: mine.taxpayers.length,
           rootLevel1UserId: null, partnerLevel2UserId: null }]);
         return;
@@ -127,7 +135,7 @@ export default function BuyerTaxpayerDirectory({ admin, level1, actorUserId }: {
         list: ""
       }[view]}</h2><button type="button" onClick={() => { setView("list"); void reload(); }}>بازگشت به فهرست</button></div>
       {view === "buyer-details" && <PartyWorkspace key={selectedBuyer}
-        isAdmin={true} canCreateTaxpayer={level1} customerId={selectedBuyer} />}
+        isAdmin={admin} canCreateTaxpayer={true} customerId={selectedBuyer} />}
       {view === "taxpayer-connection" && <>
         <p>ثبت کد حافظه مالیاتی و مشاهده وضعیت گواهی در این بخش انجام می‌شود.
           اطلاعات گواهی و اتصال در سامانه صرفاً فراداده هستند؛ ذخیره کلید خصوصی و اتصال عملیاتی مالیاتی در این مرحله فعال نیست.</p>
