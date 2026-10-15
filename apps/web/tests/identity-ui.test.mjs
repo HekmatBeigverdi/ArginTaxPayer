@@ -73,7 +73,8 @@ test("administrator customer form requires role-gated UI and authenticated BFF o
   const form = read("app/account/admin-create-customer.tsx");
   const proxy = read("app/api/identity/[...path]/route.ts");
   assert.match(directory, /admin/);
-  assert.match(directory, /AdminCreateCustomer/);
+  assert.match(directory, /ParticipantRegistrationModal/);
+  assert.doesNotMatch(directory, /AdminCreateCustomer/);
   assert.match(form, /admin\/customers/);
   assert.match(form, /ایمیل \(اختیاری\)/);
   assert.match(proxy, /"admin\/customers"/);
