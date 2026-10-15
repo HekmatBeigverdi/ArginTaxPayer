@@ -13,13 +13,11 @@ test("sidebar shows persistent accessible content overlay during route navigatio
   assert.match(loader, /aria-busy="true"/);
 });
 
-test("buyers and taxpayer list uses one scoped aggregate request and never shows premature empty state", () => {
+test("fiscal table loads independently from software-user accounts with a visible busy state", () => {
   const directory = read("app/parties/buyer-taxpayer-directory.tsx");
-  assert.match(directory, /\/api\/customer-owners\/directory/);
-  assert.doesNotMatch(directory, /\/api\/party-workspace\/customers\/\$\{buyer\.customerUserId\}\/parties/);
-  assert.doesNotMatch(directory, /\/api\/customer-owners\/\$\{buyer\.customerUserId\}\/taxpayers/);
-  assert.match(directory, /setRows\(combined\)/);
-  assert.match(directory, /setProgress/);
+  assert.match(directory, /\/api\/fiscal-participants/);
+  assert.doesNotMatch(directory, /\/api\/customer-owners\/directory\/page/);
+  assert.match(directory, /setRows\(fiscal\.items\.map/);
   assert.match(directory, /loadedOnce && !error && shown\.length === 0/);
   assert.match(directory, /<ConsoleLoader full/);
 });
