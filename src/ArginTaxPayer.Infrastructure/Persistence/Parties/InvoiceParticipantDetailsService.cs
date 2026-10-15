@@ -18,16 +18,8 @@ public sealed record InvoiceParticipantResult(InvoiceParticipantOutcome Outcome,
 
 /// <summary>Scoped fiscal header metadata. NOT fiscal verification or a credential store.</summary>
 public sealed class InvoiceParticipantDetailsService(
-    ArginTaxPayerDbContext db, IdentityAuthorizationService identity)
+    ArginTaxPayerDbContext db, IdentityAuthorizationService identity, ParticipantScopeService scope)
 {
-    private Task<bool> AdminScopeAsync(Guid actor, Guid customer, bool seller, CancellationToken ct) =>
-        db.IdentityUsers.AsNoTracking().AnyAsync(u => u.Id == actor && u.IsActive &&
-            db.IdentityMfaStates.Any(m => m.UserId == u.Id && m.EnabledAtUtc != null) &&
-            db.CustomerCommercialOwners.Any(o => o.CustomerUserId == customer &&
-                (u.Roles.Any(r => r.Role == IdentityRoleNames.Level1) && o.RootLevel1UserId == actor ||
-                !seller && u.Roles.Any(r => r.Role == IdentityRoleNames.Level2) &&
-                o.PartnerLevel2UserId == actor)), ct);
-
     private Task<bool> ValidOwnerAsync(Guid customer, Guid subject, bool seller, CancellationToken ct) =>
         seller
             ? db.TaxpayerProfiles.AsNoTracking().AnyAsync(t =>
@@ -83,7 +75,7 @@ public sealed class InvoiceParticipantDetailsService(
         var actor = await identity.CurrentUserIdAsync(bearer, ct);
         if (actor is null) return new(InvoiceParticipantOutcome.Unauthenticated);
         if (customer == Guid.Empty || subject == Guid.Empty) return new(InvoiceParticipantOutcome.Invalid);
-        if (!await AdminScopeAsync(actor.Value, customer, seller, ct))
+        if (!await scope.CanManageAsync(actor.Value, customer, ct))
             return new(InvoiceParticipantOutcome.Forbidden);
         if (!await ValidOwnerAsync(customer, subject, seller, ct))
             return new(InvoiceParticipantOutcome.NotFound);
@@ -102,12 +94,12 @@ public sealed class InvoiceParticipantDetailsService(
         if (customer == Guid.Empty || subject == Guid.Empty) return new(InvoiceParticipantOutcome.Invalid);
         var clean = Clean(input);
         if (clean is null) return new(InvoiceParticipantOutcome.Invalid);
-        if (!await AdminScopeAsync(actor.Value, customer, seller, ct))
+        if (!await scope.CanManageAsync(actor.Value, customer, ct))
             return new(InvoiceParticipantOutcome.Forbidden);
         try
         {
             await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
-            if (!await AdminScopeAsync(actor.Value, customer, seller, ct))
+            if (!await scope.CanManageAsync(actor.Value, customer, ct))
                 return new(InvoiceParticipantOutcome.Forbidden);
             if (!await ValidOwnerAsync(customer, subject, seller, ct))
                 return new(InvoiceParticipantOutcome.NotFound);
