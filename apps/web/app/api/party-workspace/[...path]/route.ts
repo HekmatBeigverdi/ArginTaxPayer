@@ -4,7 +4,7 @@ import { isSameLocalOrigin } from "../../../../lib/identity-origin.mjs";
 
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 type Context = { params: Promise<{ path: string[] }> };
-type Method = "GET" | "POST" | "PUT" | "DELETE";
+type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 const reject = (status: number, code = "request_rejected") => NextResponse.json({ error: code },
   { status, headers: { "Cache-Control": "no-store" } });
 
@@ -17,7 +17,7 @@ function target(path: string[], method: Method): string | null {
     return "/api/dev/customers/" + path[1] + "/profile";
   if (rest[0] === "invoice-details") {
     if (rest.length === 3 && ["buyer", "seller"].includes(rest[1]) && uuid.test(rest[2]) &&
-      (method === "GET" || method === "PUT"))
+      (method === "GET" || method === "PUT" || method === "PATCH"))
       return "/api/dev/customers/" + path[1] + "/" + rest.join("/");
     return null;
   }
@@ -56,7 +56,7 @@ async function handle(req: NextRequest, ctx: Context, method: Method) {
       req.headers.get("origin"), req.headers.get("host"), req.nextUrl.protocol))
     return reject(403, "origin_not_allowed");
   let payload: string | undefined;
-  if (method === "POST" || method === "PUT") {
+  if (method === "POST" || method === "PUT" || method === "PATCH") {
     if (!(req.headers.get("content-type") || "").startsWith("application/json")) return reject(415);
     try {
       payload = await req.text();
@@ -92,3 +92,4 @@ export async function GET(req: NextRequest, ctx: Context) { return handle(req, c
 export async function POST(req: NextRequest, ctx: Context) { return handle(req, ctx, "POST"); }
 export async function PUT(req: NextRequest, ctx: Context) { return handle(req, ctx, "PUT"); }
 export async function DELETE(req: NextRequest, ctx: Context) { return handle(req, ctx, "DELETE"); }
+export async function PATCH(req: NextRequest, ctx: Context) { return handle(req, ctx, "PATCH"); }
