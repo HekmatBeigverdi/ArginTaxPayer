@@ -126,6 +126,25 @@ public static class PartyDevelopmentEndpoints
                 body.RegistrationNumber, body.Archive, ct));
         });
 
+        group.MapPut("/{partyId:guid}/identity", async (
+            Guid customerId, Guid partyId, [FromBody] PartyIdentityEditInput body,
+            HttpContext http, PartyIdentityEditService service, CancellationToken ct) =>
+        {
+            if (!Local(http)) return Results.NotFound();
+            var result = await service.UpdateAsync(Token(http), customerId, partyId, body, ct);
+            return result.Status switch
+            {
+                PartyIdentityEditStatus.Unauthenticated => Results.Unauthorized(),
+                PartyIdentityEditStatus.Forbidden => Results.StatusCode(403),
+                PartyIdentityEditStatus.NotFound => Results.NotFound(),
+                PartyIdentityEditStatus.Invalid => Results.BadRequest(new { error = "invalid_party_identity" }),
+                PartyIdentityEditStatus.Conflict => Results.Conflict(new { error = "revision_or_shared_party_conflict" }),
+                _ => Results.Ok(new { id = result.Party!.Id, kind = (int)result.Party.Kind,
+                    normalizedIdentifier = result.Party.NormalizedIdentifier,
+                    displayName = result.Party.DisplayName, revision = result.Party.Revision })
+            };
+        });
+
         group.MapGet("/{partyId:guid}/details", async (Guid customerId, Guid partyId,
             HttpContext http, PartyContactAddressService svc, CancellationToken ct) =>
         {
