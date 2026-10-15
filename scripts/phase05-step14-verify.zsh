@@ -33,11 +33,11 @@ fi
 for cli in psql dotnet; do
   command -v "$cli" >/dev/null || { print -u2 "Missing $cli"; exit 2; }
 done
-dbhost="$(sed -n 's/.*Host=\\([^;]*\\).*/\\1/p' <<< "$conn")"
-dbport="$(sed -n 's/.*Port=\\([^;]*\\).*/\\1/p' <<< "$conn")"
-dbname="$(sed -n 's/.*Database=\\([^;]*\\).*/\\1/p' <<< "$conn")"
-dbuser="$(sed -n 's/.*Username=\\([^;]*\\).*/\\1/p' <<< "$conn")"
-dbpass="$(sed -n 's/.*Password=\\([^;]*\\).*/\\1/p' <<< "$conn")"
+dbhost="$(sed -n 's/.*Host=\([^;]*\).*/\1/p' <<< "$conn")"
+dbport="$(sed -n 's/.*Port=\([^;]*\).*/\1/p' <<< "$conn")"
+dbname="$(sed -n 's/.*Database=\([^;]*\).*/\1/p' <<< "$conn")"
+dbuser="$(sed -n 's/.*Username=\([^;]*\).*/\1/p' <<< "$conn")"
+dbpass="$(sed -n 's/.*Password=\([^;]*\).*/\1/p' <<< "$conn")"
 if [[ -z "$dbhost" || -z "$dbport" || -z "$dbuser" || -z "$dbpass" || "$dbname" != "argintaxpayer_test" ]]; then
   print -u2 'Incomplete test database settings'; exit 2
 fi
