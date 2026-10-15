@@ -32,6 +32,7 @@ function target(path: string[], method: Method): string | null {
   const ok =
     suffix.length === 0 && method === "GET" ||
     suffix.length === 1 && ["natural", "legal"].includes(suffix[0]) && method === "POST" ||
+    suffix.length === 2 && uuid.test(suffix[0]) && suffix[1] === "identity" && method === "PUT" ||
     suffix.length === 2 && uuid.test(suffix[0]) &&
       (["natural", "legal"].includes(suffix[1]) && ["GET", "PUT"].includes(method) ||
        ["details", "duplicates"].includes(suffix[1]) && method === "GET") ||
