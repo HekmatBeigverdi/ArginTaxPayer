@@ -32,7 +32,7 @@ test("software users and parties are reachable by navigation and selectable cust
   assert.match(workspace, /console-directory-filters/);
   assert.ok(workspace.includes("ParticipantRegistrationModal"));
   assert.match(workspace, /startRegistration\("buyer"\)/);
-  assert.match(workspace, /taxpayer-connection/);
+  assert.match(workspace, /FiscalRecordModal/);
 });
 
 test("dashboard mobile layout and Persian font fallbacks exist", () => {
