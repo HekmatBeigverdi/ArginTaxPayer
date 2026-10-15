@@ -18,7 +18,7 @@ public sealed record CommercialPartnerListResponse(CustomerOwnershipDecision Dec
 public sealed record CustomerAccountSummary(Guid CustomerUserId, Guid? RootLevel1UserId,
     Guid? PartnerLevel2UserId, CustomerAcquisitionChannel AcquisitionChannel,
     long Revision, string? Mobile, string? Email, DateTime CreatedAtUtc, bool IsActive,
-    int TaxpayerCount);
+    int TaxpayerCount, string? PersonName = null, string? CompanyName = null, bool ProfileComplete = false);
 
 public sealed record CustomerAccountListResponse(CustomerOwnershipDecision Decision,
     CustomerAccountSummary[]? Customers = null);
@@ -190,7 +190,13 @@ public sealed class CustomerCommercialOwnershipService(
                 o == null ? 0 : o.AcquisitionChannel,
                 o == null ? 0 : o.Revision,
                 u.NormalizedMobile, u.NormalizedEmail, u.CreatedAtUtc, u.IsActive,
-                db.TaxpayerProfiles.Count(t => t.CustomerUserId == u.Id))
+                db.TaxpayerProfiles.Count(t => t.CustomerUserId == u.Id),
+                db.SoftwareUserProfiles.Where(p => p.UserId == u.Id)
+                    .Select(p => p.FirstName + " " + p.LastName).FirstOrDefault(),
+                db.SoftwareUserProfiles.Where(p => p.UserId == u.Id)
+                    .Select(p => p.CompanyName).FirstOrDefault(),
+                db.SoftwareUserProfiles.Any(p => p.UserId == u.Id &&
+                    p.FirstName.Length >= 2 && p.LastName.Length >= 2 && p.Address.Length >= 2))
         ).ToArrayAsync(ct);
         return new(CustomerOwnershipDecision.Success, rows);
     }
@@ -264,7 +270,13 @@ public sealed class CustomerCommercialOwnershipService(
                 o == null ? 0 : o.AcquisitionChannel,
                 o == null ? 0 : o.Revision,
                 u.NormalizedMobile, u.NormalizedEmail, u.CreatedAtUtc, u.IsActive,
-                db.TaxpayerProfiles.Count(t => t.CustomerUserId == u.Id))
+                db.TaxpayerProfiles.Count(t => t.CustomerUserId == u.Id),
+                db.SoftwareUserProfiles.Where(p => p.UserId == u.Id)
+                    .Select(p => p.FirstName + " " + p.LastName).FirstOrDefault(),
+                db.SoftwareUserProfiles.Where(p => p.UserId == u.Id)
+                    .Select(p => p.CompanyName).FirstOrDefault(),
+                db.SoftwareUserProfiles.Any(p => p.UserId == u.Id &&
+                    p.FirstName.Length >= 2 && p.LastName.Length >= 2 && p.Address.Length >= 2))
         ).ToArrayAsync(ct);
 
         var permittedCustomerIds = accounts
