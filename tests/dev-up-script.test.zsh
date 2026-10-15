@@ -21,4 +21,16 @@ assert_contains "auth failure offers a private password retry" "PostgreSQL test 
 assert_contains "startup failures trigger cleanup" "trap cleanup_on_failure EXIT"
 assert_contains "cleanup stops child processes" "stop_pid_tree"
 
+down_script="$root/scripts/dev-down.zsh"
+down_source="$(< "$down_script")"
+if [[ "$down_source" != *"lsof -nP -t -iTCP:\$port -sTCP:LISTEN"* ]]; then
+  print -u2 "FAIL: dev-down falls back to tracked service listeners"
+  exit 1
+fi
+if [[ "$down_source" != *"ArginTaxPayer.Api"* || "$down_source" != *"next-server"* ||
+      "$down_source" != *"autossh"* ]]; then
+  print -u2 "FAIL: dev-down validates service process identity"
+  exit 1
+fi
+
 print "dev-up script contract tests passed"

@@ -151,6 +151,8 @@ public sealed class InvoiceParticipantDetailsService(
             return new(InvoiceParticipantOutcome.Forbidden);
         try
         {
+            return await db.Database.CreateExecutionStrategy().ExecuteAsync<InvoiceParticipantResult>(async () =>
+            {
             await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
             if (!await scope.CanManageAsync(actor.Value, customer, ct))
                 return new(InvoiceParticipantOutcome.Forbidden);
@@ -192,6 +194,7 @@ public sealed class InvoiceParticipantDetailsService(
             await db.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);
             return new(InvoiceParticipantOutcome.Success, row);
+            });
         }
         catch (DbUpdateConcurrencyException)
         {
