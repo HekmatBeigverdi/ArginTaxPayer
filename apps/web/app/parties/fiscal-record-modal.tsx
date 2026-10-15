@@ -23,6 +23,7 @@ export default function FiscalRecordModal({ record, isLevel1, onClose, onChanged
   const [mode, setMode] = useState<Mode>("view");
   const [name, setName] = useState(""); const [family, setFamily] = useState("");
   const [identifier, setIdentifier] = useState(""); const [registration, setRegistration] = useState("");
+  const [buyerKind, setBuyerKind] = useState(record.kind ?? 1);
   const [busy, setBusy] = useState(false); const [loading, setLoading] = useState(true);
   const [error, setError] = useState(""); const [notice, setNotice] = useState("");
   const closeRef = useRef<HTMLButtonElement>(null); const dialog = useRef<HTMLDivElement>(null);
@@ -43,6 +44,7 @@ export default function FiscalRecordModal({ record, isLevel1, onClose, onChanged
       if (!details || details.id !== record.id)
         throw new Error("اطلاعات برگشتی با شناسه پرونده انتخاب‌شده مطابقت ندارد.");
       setPerson(details);
+      setBuyerKind(record.kind ?? 1);
       setName(record.type === "buyer"
         ? (record.kind === 1 ? details.firstName || "" : details.registeredName || "")
         : details.displayName);
@@ -80,13 +82,29 @@ export default function FiscalRecordModal({ record, isLevel1, onClose, onChanged
     try {
       let res: Response;
       if (record.type === "buyer") {
-        const body = record.kind === 1 ?
-          { nationalCode: identifier, firstName: name, lastName: family,
-            expectedRevision: person.revision, archive: mode === "archive" } :
-          { nationalIdentifier: identifier, registeredName: name, registrationNumber: registration || null,
-            expectedRevision: person.revision, archive: mode === "archive" };
-        res = await fetch(buyerPath, { method: "PUT", credentials: "same-origin",
-          headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+        const body = {
+          kind: buyerKind,
+          identifier,
+          name,
+          lastName: buyerKind === 1 ? family : null,
+          registrationNumber: buyerKind === 2 ? registration || null : null,
+          expectedRevision: person.revision
+        };
+        res = await fetch(mode === "archive" ? buyerPath :
+          "/api/party-workspace/customers/" + record.buyerId +
+          "/parties/" + record.id + "/identity", {
+          method: "PUT", credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(mode === "archive" ?
+            (record.kind === 1 ? {
+              nationalCode: identifier, firstName: name, lastName: family,
+              expectedRevision: person.revision, archive: true
+            } : {
+              nationalIdentifier: identifier, registeredName: name,
+              registrationNumber: registration || null,
+              expectedRevision: person.revision, archive: true
+            }) : body)
+        });
       } else {
         if (mode === "archive") {
           res = await fetch("/api/taxpayers/" + record.id + "/archive", {
@@ -128,21 +146,29 @@ export default function FiscalRecordModal({ record, isLevel1, onClose, onChanged
             {record.status === "فعال" && <button type="button" className="identity-secondary" onClick={() => setMode("archive")}>بایگانی {title}</button>}
             <button type="button" className="identity-secondary" onClick={() => void load()}>بازخوانی پرونده</button>
           </div>}
+          {mode === "edit" && record.type === "buyer" && <p className="field-hint">نام، شناسه قانونی و نوع شخصیت قابل ویرایش‌اند. پیش از هر تغییر، نسخه قبلی هویت در تاریخچه مستقل ثبت می‌شود. صورتحساب صادرشده باید Snapshot اختصاصی زمان صدور را نگهداری کند.</p>}
           {mode === "archive" && <p className="invoice-missing">
             این عملیات حذف فیزیکی نیست. شناسه و سوابق پرونده باقی می‌مانند. برای خریدار یا مؤدی دارای صورتحساب،
             تغییر اطلاعات فعلی نباید اطلاعات ثبت‌شده در صورتحساب قبلی را بازنویسی کند.
           </p>}
           {mode !== "view" && <form className="invoice-fields" onSubmit={save}>
-            <label>{record.type === "buyer" && record.kind === 1 ? "نام" : "نام / عنوان"}
+            {record.type === "buyer" && mode !== "archive" && <label>نوع شخصیت خریدار
+              <select value={buyerKind} onChange={e => { setBuyerKind(Number(e.target.value));
+                setIdentifier(""); setName(""); setFamily(""); setRegistration(""); }}>
+                <option value={1}>حقیقی</option><option value={2}>حقوقی</option>
+              </select>
+              <small>با تغییر نوع شخصیت، نام و شناسه معتبر متناسب با نوع جدید وارد کنید.</small>
+            </label>}
+            <label>{record.type === "buyer" && buyerKind === 1 ? "نام" : "نام / عنوان"}
               <input value={name} onChange={e => setName(e.target.value)} required
                 disabled={mode === "archive"} maxLength={256}/></label>
-            {record.type === "buyer" && record.kind === 1 && <label>نام خانوادگی
+            {record.type === "buyer" && buyerKind === 1 && <label>نام خانوادگی
               <input value={family} onChange={e => setFamily(e.target.value)}
                 required disabled={mode === "archive"} maxLength={100}/></label>}
-            {record.type === "buyer" && <label>{record.kind === 1 ? "کد ملی" : "شناسه ملی"}
+            {record.type === "buyer" && <label>{buyerKind === 1 ? "کد ملی" : "شناسه ملی"}
               <input dir="ltr" value={identifier} onChange={e => setIdentifier(e.target.value)}
                 required disabled={mode === "archive"}/></label>}
-            {record.type === "buyer" && record.kind === 2 && <label>شماره ثبت
+            {record.type === "buyer" && buyerKind === 2 && <label>شماره ثبت
               <input dir="ltr" value={registration} onChange={e => setRegistration(e.target.value)}
                 disabled={mode === "archive"}/></label>}
             <button className="identity-primary" type="submit" disabled={busy}>
