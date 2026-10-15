@@ -104,10 +104,10 @@ export default function ParticipantRegistrationModal({ mode, buyers, level1, act
       if (event.target === event.currentTarget && !busy) onClose();
     }}>
     <div className="argin-modal" role="dialog" aria-modal="true"
-      aria-label={mode === "buyer" ? "افزودن خریدار صورتحساب" : "افزودن فروشنده / مؤدی"}
+      aria-label={mode === "buyer" ? "افزودن خریدار صورتحساب" : "افزودن مؤدی"}
       ref={dialog}>
       <header className="argin-modal-header">
-        <div><h2>{mode === "buyer" ? "افزودن خریدار صورتحساب" : "افزودن فروشنده / مؤدی"}</h2>
+        <div><h2>{mode === "buyer" ? "افزودن خریدار صورتحساب" : "افزودن مؤدی"}</h2>
           <p>{complete ? "مرحله دوم: اطلاعات سربرگ و حافظه مالیاتی" :
             "مرحله اول: اطلاعات هویتی طرف صورتحساب (بدون ایجاد حساب ورود)"}</p></div>
         <button ref={closeRef} type="button" className="argin-modal-close"
