@@ -84,14 +84,14 @@ export default function BuyerTaxpayerDirectory({ admin, level1, actorUserId }: {
           const account = buyer.mobile || buyer.email || buyer.customerUserId;
           // Each linked legal/natural Party is its own buyer-facing record.
           // Do not misclassify an account that is linked to both types.
-          const buyerRows: Row[] = parties.length
-            ? parties.map(p => ({ id: p.id, buyerId: buyer.customerUserId,
-                type: "buyer" as const, kind: p.kind, name: p.displayName,
-                identifier: account, status: buyer.isActive ? "فعال" : "غیرفعال",
-                ownerName: account }))
-            : [{ id: buyer.customerUserId, buyerId: buyer.customerUserId,
-                type: "buyer", kind: null, name: account, identifier: account,
-                status: buyer.isActive ? "فعال" : "غیرفعال", ownerName: account }];
+          // Buyer rows come ONLY from persisted fiscal Party records.
+          // Identity accounts are ownership scope, never synthesized as buyers.
+          const buyerRows: Row[] = parties.map(p => ({
+            id: p.id, buyerId: buyer.customerUserId,
+            type: "buyer" as const, kind: p.kind, name: p.displayName,
+            identifier: "", status: p.status === 1 ? "فعال" : "غیرفعال",
+            ownerName: account
+          }));
           const taxpayerRows: Row[] = taxpayers.map(t => ({
             id: t.id, buyerId: buyer.customerUserId, type: "taxpayer", kind: t.kind,
             name: t.displayName, identifier: t.normalizedIdentifier,
@@ -165,7 +165,7 @@ export default function BuyerTaxpayerDirectory({ admin, level1, actorUserId }: {
           <option value="all">همه</option><option value="1">شخص حقیقی</option><option value="2">شخص حقوقی</option>
         </select></label>
         <label className="console-filter-search">جست‌وجو<input value={query} onChange={e => { setQuery(e.target.value); setPage(1); }}
-          placeholder="نام، موبایل یا شناسه"/></label>
+          placeholder="نام خریدار / مؤدی یا شناسه قانونی"/></label>
       </div>
       {error && <p role="alert" className="party-error">{error}</p>}
       {notice && <p role="status" className="party-success">{notice}</p>}
@@ -175,7 +175,7 @@ export default function BuyerTaxpayerDirectory({ admin, level1, actorUserId }: {
           "در حال دریافت فهرست خریداران و مؤدیان…"} />}
         <div className="console-table-scroll"><table className="console-table">
           <thead><tr><th>ردیف</th><th>نوع</th><th>شخصیت</th><th>نام / عنوان</th>
-            <th>شناسه / موبایل</th><th>خریدار مرتبط</th><th>وضعیت</th><th>عملیات</th></tr></thead>
+            <th>شناسه مالیاتی</th><th>حساب مالک در نرم‌افزار</th><th>وضعیت</th><th>عملیات</th></tr></thead>
           <tbody>{shown.map((r,i) => <tr key={r.type + r.id}>
             <td>{(activePage-1)*20+i+1}</td>
             <td>{r.type === "buyer" ? "خریدار" : "مؤدی"}</td><td>{kindLabel(r.kind)}</td>
@@ -194,7 +194,7 @@ export default function BuyerTaxpayerDirectory({ admin, level1, actorUserId }: {
           <span>صفحه {activePage} از {maxPage}</span>
           <button disabled={activePage >= maxPage} onClick={() => setPage(p => p+1)}>بعدی</button></div>
       </footer>
-      {admin && <p className="field-hint">نوع شخصیت برای هر شخص مرتبط به‌صورت مستقل ثبت می‌شود؛ حساب فاقد مشخصات شخص به‌عنوان «تعیین‌نشده» نمایش داده می‌شود.</p>}
+      {admin && <p className="field-hint">حساب‌های ورود نرم‌افزار در این جدول رکورد ایجاد نمی‌کنند. تنها خریداران ثبت‌شده و مؤدیان مالیاتی ثبت‌شده نمایش داده می‌شوند.</p>}
     </>}
   </section>;
 }
