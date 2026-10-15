@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import ParticipantRegistrationModal from "./participant-registration-modal";
 import PartyWorkspace from "./party-workspace";
 import TaxpayerWorkspace from "../taxpayers/taxpayer-workspace";
@@ -12,8 +12,9 @@ type Buyer = { customerUserId: string; mobile: string | null; email: string | nu
 type Taxpayer = { id: string; kind: number; displayName: string; status: number;
   normalizedIdentifier: string; revision: number };
 type Party = { id: string; kind: number; displayName: string; status: number };
-type DirectoryEntry = { account: Buyer; parties: Party[]; taxpayers: Taxpayer[] };
-type DirectoryPage = { items: DirectoryEntry[]; page: number; pageSize: number; total: number };
+type FiscalEntry = { id: string; customerUserId: string; type: "buyer" | "taxpayer";
+  kind: number; displayName: string; identifier: string; status: number };
+type FiscalPage = { items: FiscalEntry[]; page: number; pageSize: number; total: number };
 type Row = { id: string; buyerId: string; type: "buyer" | "taxpayer"; kind: number | null;
   name: string; identifier: string; status: string; ownerName: string };
 type View = "list" | "buyer-details" | "taxpayer-connection";
@@ -41,7 +42,6 @@ export default function BuyerTaxpayerDirectory({ admin, level1, actorUserId }: {
   const pageSize = 20;
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [loadedOnce, setLoadedOnce] = useState(false);
   const [refreshedAt, setRefreshedAt] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -49,73 +49,34 @@ export default function BuyerTaxpayerDirectory({ admin, level1, actorUserId }: {
   const [createdTaxpayerId, setCreatedTaxpayerId] = useState("");
 
   const reload = useCallback(async () => {
-    setLoading(true); setError(""); setProgress({ done: 0, total: 0 });
+    setLoading(true); setError("");
     try {
+      const parameters = new URLSearchParams({ page: String(page), pageSize: String(pageSize),
+        type: filter, ...(kind === "all" ? {} : { kind }) });
+      if (query.trim()) parameters.set("query", query.trim());
+      // This is a fiscal row query, not a query of software login accounts.
+      const fiscal = await get<FiscalPage>("/api/fiscal-participants?" + parameters);
+      setRows(fiscal.items.map(item => ({
+        id: item.id, buyerId: item.customerUserId, type: item.type,
+        kind: item.kind, name: item.displayName, identifier: item.identifier,
+        status: item.status === 1 ? "فعال" : "غیرفعال",
+        ownerName: item.customerUserId
+      })));
+      setTotal(fiscal.total);
       if (!admin) {
-        const mine = await get<{ customerUserId: string; taxpayers: Taxpayer[]; displayName: string | null }>(
+        const mine = await get<{ customerUserId: string; displayName: string | null }>(
           "/api/party-workspace/mine");
-        const ownParties = await get<{ items: Party[] }>(
-          "/api/party-workspace/customers/" + mine.customerUserId + "/parties?page=1&pageSize=100")
-          .catch(() => ({ items: [] as Party[] }));
-        const ownBuyerRows: Row[] = ownParties.items.map(p => ({
-          id: p.id, buyerId: mine.customerUserId, type: "buyer" as const, kind: p.kind,
-          name: p.displayName, identifier: "", status: p.status === 1 ? "فعال" : "غیرفعال",
-          ownerName: mine.displayName || "حساب شما"
-        }));
-        const mineRows: Row[] = mine.taxpayers.map(t => ({
-          id: t.id, buyerId: mine.customerUserId, type: "taxpayer", kind: t.kind,
-          name: t.displayName, identifier: "", status: t.status === 1 ? "فعال" : "غیرفعال",
-          ownerName: mine.displayName || "حساب شما"
-        }));
-        setRows([...ownBuyerRows, ...mineRows]); setBuyers([{ customerUserId: mine.customerUserId, mobile: null,
-          email: mine.displayName, isActive: true, taxpayerCount: mine.taxpayers.length,
+        setBuyers([{ customerUserId: mine.customerUserId, mobile: null,
+          email: mine.displayName, isActive: true, taxpayerCount: 0,
           rootLevel1UserId: null, partnerLevel2UserId: null }]);
-        return;
       }
-      const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
-      if (query.trim()) params.set("query", query.trim());
-      const result = await get<DirectoryPage>("/api/customer-owners/directory/page?" + params);
-      const directory = result.items;
-      const accounts = directory.map(entry => entry.account);
-      setBuyers(accounts);
-      setTotal(result.total);
-      setProgress({ done: 0, total: accounts.length });
-      const combined: Row[] = directory.flatMap(({ account: buyer, parties, taxpayers }) => {
-          const account = buyer.mobile || buyer.email || buyer.customerUserId;
-          // Each linked legal/natural Party is its own buyer-facing record.
-          // Do not misclassify an account that is linked to both types.
-          // Buyer rows come ONLY from persisted fiscal Party records.
-          // Identity accounts are ownership scope, never synthesized as buyers.
-          const buyerRows: Row[] = parties.map(p => ({
-            id: p.id, buyerId: buyer.customerUserId,
-            type: "buyer" as const, kind: p.kind, name: p.displayName,
-            identifier: "", status: p.status === 1 ? "فعال" : "غیرفعال",
-            ownerName: account
-          }));
-          const taxpayerRows: Row[] = taxpayers.map(t => ({
-            id: t.id, buyerId: buyer.customerUserId, type: "taxpayer", kind: t.kind,
-            name: t.displayName, identifier: t.normalizedIdentifier,
-            status: t.status === 1 ? "فعال" : "غیرفعال", ownerName: account
-          }));
-          return [...buyerRows, ...taxpayerRows];
-        });
-      setProgress({ done: accounts.length, total: accounts.length });
-      setRows(combined);
-    } catch (e) { setError((e as Error).message); setRows([]); }
-    finally { setLoading(false); setLoadedOnce(true);
-      setRefreshedAt(new Date().toLocaleTimeString("fa-IR")); }
-  }, [admin, page, query]);
+    } catch (e) { setError((e as Error).message); setRows([]); setTotal(0); }
+    finally {
+      setLoading(false); setLoadedOnce(true);
+      setRefreshedAt(new Date().toLocaleTimeString("fa-IR"));
+    }
+  }, [admin, page, pageSize, query, filter, kind]);
   useEffect(() => { void reload(); }, [reload]);
-
-  const filtered = useMemo(() => rows.filter(r => {
-    if (filter !== "all" && r.type !== filter) return false;
-    if (kind !== "all" && String(r.kind) !== kind) return false;
-    return (r.name + " " + r.identifier + " " + r.ownerName)
-      .toLocaleLowerCase("fa").includes(query.trim().toLocaleLowerCase("fa"));
-  }), [rows, filter, kind, query]);
-  const maxPage = Math.max(1, Math.ceil(total / pageSize));
-  const activePage = Math.min(page, maxPage);
-  const shown = filtered;
 
   async function startRegistration(mode: "buyer" | "seller") {
     setRegisterMode(mode);
@@ -170,9 +131,7 @@ export default function BuyerTaxpayerDirectory({ admin, level1, actorUserId }: {
       {error && <p role="alert" className="party-error">{error}</p>}
       {notice && <p role="status" className="party-success">{notice}</p>}
       <div className="console-table-stage" aria-busy={loading}>
-        {loading && <ConsoleLoader full label={progress.total ?
-          `در حال تکمیل فهرست خریداران و مؤدیان (${progress.done} از ${progress.total})` :
-          "در حال دریافت فهرست خریداران و مؤدیان…"} />}
+        {loading && <ConsoleLoader full label="در حال دریافت خریداران و مؤدیان ثبت‌شده…" />}
         <div className="console-table-scroll"><table className="console-table">
           <thead><tr><th>ردیف</th><th>نوع</th><th>شخصیت</th><th>نام / عنوان</th>
             <th>شناسه مالیاتی</th><th>حساب مالک در نرم‌افزار</th><th>وضعیت</th><th>عملیات</th></tr></thead>
@@ -189,12 +148,12 @@ export default function BuyerTaxpayerDirectory({ admin, level1, actorUserId }: {
         </table></div>
       </div>
       {!loading && loadedOnce && !error && shown.length === 0 && <p className="console-empty">رکوردی مطابق فیلتر پیدا نشد.</p>}
-      <footer className="console-table-footer"><span>{filtered.length} رکورد{refreshedAt ? " — آخرین بازخوانی: " + refreshedAt : ""}</span>
+      <footer className="console-table-footer"><span>{total} رکورد{refreshedAt ? " — آخرین بازخوانی: " + refreshedAt : ""}</span>
         <div><button disabled={activePage <= 1} onClick={() => setPage(p => p-1)}>قبلی</button>
           <span>صفحه {activePage} از {maxPage}</span>
           <button disabled={activePage >= maxPage} onClick={() => setPage(p => p+1)}>بعدی</button></div>
       </footer>
-      {admin && <p className="field-hint">حساب‌های ورود نرم‌افزار در این جدول رکورد ایجاد نمی‌کنند. تنها خریداران ثبت‌شده و مؤدیان مالیاتی ثبت‌شده نمایش داده می‌شوند.</p>}
+      <p className="field-hint">این فهرست مستقلاً از سوابق خریدار و مؤدی ساخته می‌شود، نه از حساب‌های ثبت‌نام‌شده نرم‌افزار.</p>
     </>}
   </section>;
 }
