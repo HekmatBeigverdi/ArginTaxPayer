@@ -42,6 +42,7 @@ if (identityDevelopmentEnabled)
     builder.Services.AddScoped<CustomerSelfServiceService>();
     builder.Services.AddScoped<CustomerTaxpayerMembershipService>();
     builder.Services.AddScoped<CustomerAccountProfileService>();
+    builder.Services.AddScoped<ParticipantScopeService>();
     builder.Services.AddScoped<InvoiceParticipantDetailsService>();
     builder.Services.AddScoped<PartyDirectoryService>();
     builder.Services.AddScoped<NaturalPersonService>();
