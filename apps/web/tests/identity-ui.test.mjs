@@ -29,10 +29,10 @@ test("identity proxy fails closed outside development and keeps credentials Http
   assert.doesNotMatch(proxy, /console\.log/);
 });
 
-test("protected account provides logout, MFA, and owned-session controls", () => {
+test("protected account separates MFA security from sessions and retains shell logout", () => {
   const account = read("app/account/account-controls.tsx");
-  assert.match(account, /\/api\/identity\/logout/);
-  assert.match(account, /\/api\/identity\/sessions\/revoke/);
+  assert.match(read("app/components/console-shell.tsx"), /\/api\/identity\/logout/);
+  assert.doesNotMatch(account, /\/api\/identity\/sessions/);
   assert.match(account, /\/api\/identity\/mfa\/enroll/);
   assert.match(account, /\/api\/identity\/mfa\/confirm/);
   assert.match(account, /setRecoveryCodes\(\[\]\)/);
