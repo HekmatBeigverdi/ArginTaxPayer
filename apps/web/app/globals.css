@@ -221,3 +221,49 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 @media (max-width: 760px) {
   .users-contact-truncated { max-width: 14ch; }
 }
+
+
+/* Profile / Security: compact ERP density, isolated from login & fiscal forms. */
+.console-settings-page{max-width:980px;margin-inline:auto;font-size:12px;line-height:1.6}
+.console-settings-page .console-page-heading{margin-bottom:12px}
+.console-settings-page .console-page-heading h1{font-size:20px;margin-bottom:3px}
+.console-settings-page .console-page-heading p:last-child{font-size:12px}
+.console-settings-card{background:#fff;border:1px solid #dfe8ed;border-radius:12px;padding:15px 18px;margin-bottom:12px;box-shadow:0 3px 14px #19364f05;min-width:0}
+.console-settings-card-title{margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid #e7edf1}
+.console-settings-card-title h2,.console-settings-page .intro h2{font-size:15px;font-weight:750;color:#263f52;margin:0 0 3px}
+.console-settings-card-title p{font-size:11px;color:#718596;margin:0}
+.console-profile-form{display:grid;gap:11px}
+.console-profile-two-col{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}
+.console-profile-form label{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:700;color:#395468;min-width:0}
+.console-profile-form :is(input,textarea),.console-settings-page .identity-form :is(input,textarea){
+  width:100%;min-height:37px;padding:7px 10px;border:1px solid #c9d8e2;
+  border-radius:8px;background:#fff;color:#233e50;font:inherit;font-size:12px;
+}
+.console-profile-form textarea{resize:vertical;min-height:78px;line-height:1.7}
+.console-profile-form :is(input,textarea):focus{border-color:#188d90}
+.console-optional{display:inline;font-weight:400;color:#8093a1;font-size:11px}
+.console-profile-actions{display:flex;gap:8px;align-items:center}
+.console-settings-page button{font:inherit;font-size:12px;border-radius:8px;padding:7px 12px;cursor:pointer}
+.console-settings-page button:disabled{opacity:.55;cursor:not-allowed}
+.console-profile-required{background:#fff7e8;border:1px solid #eddfbe;border-radius:7px;padding:8px 11px;margin:0 0 12px;font-size:11px}
+.console-logo-dropzone{border:2px dashed #a4c4d1;border-radius:10px;background:#f8fbfc;padding:19px 12px;
+  display:flex;align-items:center;flex-direction:column;gap:5px;text-align:center;cursor:pointer;transition:background .2s,border-color .2s}
+.console-logo-dropzone:hover,.console-logo-dropzone.is-dragging{background:#eaf7f6;border-color:#16858b}
+.console-logo-dropzone:focus-visible{outline:3px solid #188d90;outline-offset:2px}
+.console-logo-dropzone.is-disabled{opacity:.62;cursor:not-allowed}
+.console-logo-dropzone strong{font-size:12px;color:#2b5266}
+.console-logo-dropzone small{font-size:10px;color:#788c9b}
+.console-logo-upload-icon{width:31px;height:31px;border-radius:9px;display:grid;place-items:center;background:#e4f3f3;color:#167d82;font-size:19px;font-weight:700}
+.console-file-visually-hidden{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
+.console-upload-status{margin-top:10px;font-size:11px}
+.console-upload-status>div{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:5px}
+.console-upload-status span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;direction:ltr;text-align:left;max-width:70%}
+.console-upload-status progress{width:100%;height:9px;accent-color:#16858b}
+.console-logo-preview{margin-top:10px;display:flex;gap:10px;align-items:center;font-size:11px}
+.console-logo-preview img{object-fit:contain;width:62px;height:62px;border:1px solid #e1e9ed;border-radius:8px;padding:4px;background:#fff}
+.console-logo-preview div{display:grid;gap:4px}.console-logo-preview small{color:#788c9b}
+.console-settings-page .account-grid{display:block}
+.console-settings-page .account-grid .intro,.console-settings-page .intro{border:0;padding:0;margin:0;background:transparent;box-shadow:none}
+.console-settings-page .account-grid :is(p,label,small){font-size:11px}
+.console-settings-page .account-grid .identity-form{max-width:430px}
+@media(max-width:620px){.console-settings-card{padding:12px}.console-profile-two-col{grid-template-columns:1fr}.console-settings-page .console-page-heading h1{font-size:18px}}
