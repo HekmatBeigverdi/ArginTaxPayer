@@ -43,6 +43,7 @@ if (identityDevelopmentEnabled)
     builder.Services.AddScoped<CustomerTaxpayerMembershipService>();
     builder.Services.AddScoped<CustomerAccountProfileService>();
     builder.Services.AddScoped<ParticipantScopeService>();
+    builder.Services.AddScoped<PartyIdentityEditService>();
     builder.Services.AddScoped<InvoiceParticipantDetailsService>();
     builder.Services.AddScoped<FiscalParticipantDirectoryService>();
     builder.Services.AddScoped<PartyDirectoryService>();
