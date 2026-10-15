@@ -191,7 +191,6 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
                 {a.isActive ? "فعال" : "غیرفعال"}</span></td>
               <td><span className={!a.rootLevel1UserId ? "users-state users-state-warning" : ""}>
                 {ownerLabel(a)}</span></td>
-              <td>{a.taxpayerCount.toLocaleString("fa-IR")}</td>
               <td>{new Date(a.createdAtUtc).toLocaleDateString("fa-IR")}</td>
               <td><button className="users-action" type="button" onClick={() => void open(a)}>
                 مشاهده پرونده
