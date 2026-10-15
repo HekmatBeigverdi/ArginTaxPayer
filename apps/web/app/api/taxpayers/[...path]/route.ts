@@ -15,7 +15,7 @@ function validPath(parts: string[], method: "GET" | "POST" | "PATCH") {
         uuid.test(parts[2]) && parts[3] === "certificates");
   }
   if (method === "POST") return (parts.length === 1 && parts[0] === "new") ||
-    (parts.length === 2 && uuid.test(parts[0]) && parts[1] === "memories");
+    (parts.length === 2 && uuid.test(parts[0]) && ["memories", "archive"].includes(parts[1]));
   return parts.length === 2 && uuid.test(parts[0]) && parts[1] === "display-name";
 }
 
