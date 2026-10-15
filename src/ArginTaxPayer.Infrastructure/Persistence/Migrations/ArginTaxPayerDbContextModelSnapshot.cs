@@ -30,6 +30,13 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
                         .WithMany().HasForeignKey("ActorUserId").OnDelete(DeleteBehavior.Restrict).IsRequired();
                 });
 
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Identity.SoftwareUserProfile", b =>
+                {
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null)
+                        .WithOne().HasForeignKey("ArginTaxPayer.Infrastructure.Persistence.Identity.SoftwareUserProfile", "UserId")
+                        .OnDelete(DeleteBehavior.Restrict).IsRequired();
+                });
+
             modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Parties.PartyContact", b =>
                 {
                     b.Property<Guid>("Id").HasColumnType("uuid").HasColumnName("id");
@@ -223,6 +230,26 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
                     b.HasIndex("ActorUserId");
                     b.ToTable("party_identity_history", t =>
                         t.HasCheckConstraint("ck_party_identity_history_revision", "prior_revision > 0"));
+                });
+
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Identity.SoftwareUserProfile", b =>
+                {
+                    b.Property<Guid>("UserId").HasColumnType("uuid").HasColumnName("user_id");
+                    b.Property<string>("FirstName").IsRequired().HasMaxLength(100).HasColumnType("character varying(100)").HasColumnName("first_name");
+                    b.Property<string>("LastName").IsRequired().HasMaxLength(100).HasColumnType("character varying(100)").HasColumnName("last_name");
+                    b.Property<string>("CompanyName").HasMaxLength(256).HasColumnType("character varying(256)").HasColumnName("company_name");
+                    b.Property<string>("Address").IsRequired().HasMaxLength(500).HasColumnType("character varying(500)").HasColumnName("address");
+                    b.Property<byte[]>("InvoiceLogoPng").HasColumnType("bytea").HasColumnName("invoice_logo_png");
+                    b.Property<long>("Revision").IsConcurrencyToken().ValueGeneratedOnAdd().HasColumnType("bigint").HasDefaultValue(1L).HasColumnName("revision");
+                    b.Property<DateTime>("CompletedAtUtc").HasColumnType("timestamp with time zone").HasColumnName("completed_at_utc");
+                    b.Property<DateTime>("UpdatedAtUtc").HasColumnType("timestamp with time zone").HasColumnName("updated_at_utc");
+                    b.HasKey("UserId");
+                    b.ToTable("software_user_profiles", t =>
+                        {
+                            t.HasCheckConstraint("ck_software_user_profiles_revision", "revision > 0");
+                            t.HasCheckConstraint("ck_software_user_profiles_name", "length(trim(first_name)) >= 2 AND length(trim(last_name)) >= 2");
+                            t.HasCheckConstraint("ck_software_user_profiles_address", "length(trim(address)) >= 2");
+                        });
                 });
 
             modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Parties.CustomerPartyLink", b =>
