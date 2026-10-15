@@ -67,7 +67,8 @@ export default function BuyerTaxpayerDirectory({ admin, level1, actorUserId }: {
           "/api/party-workspace/mine");
         if (version !== requestVersion.current) return;
         setBuyers([{ customerUserId: mine.customerUserId, mobile: null,
-          email: mine.displayName, isActive: true, taxpayerCount: 0,
+          email: mine.displayName, isActive: true, taxpayerCount: 0, profileComplete: true,
+          personName: mine.displayName,
           rootLevel1UserId: null, partnerLevel2UserId: null }]);
       }
     } catch (e) {
@@ -95,7 +96,7 @@ export default function BuyerTaxpayerDirectory({ admin, level1, actorUserId }: {
     if (!admin) return;
     try {
       const all = await get<Buyer[]>("/api/customer-owners/accounts");
-      setRegistrationBuyers(all);
+      setRegistrationBuyers(all.filter(x => x.isActive && x.profileComplete));
     } catch (e) {
       setError((e as Error).message);
       setRegisterMode(null);
