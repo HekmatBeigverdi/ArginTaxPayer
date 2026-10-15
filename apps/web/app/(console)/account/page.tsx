@@ -1,31 +1,28 @@
 import { redirect } from "next/navigation";
 import { currentIdentity, identityUiEnabled } from "../../../lib/identity";
 import AccountControls from "../../account/account-controls";
-import SoftwareProfileForm from "../../account/software-profile-form";
 import AdminNomination from "../../account/admin-nomination";
 
 export const dynamic = "force-dynamic";
-const roleLabels: Record<string, string> = {
-  Customer: "کاربر", Level1: "ادمین سطح ۱", Level2: "ادمین سطح ۲",
-  PendingLevel1: "ادمین سطح ۱ — در انتظار تأیید دومرحله‌ای",
-  PendingLevel2: "ادمین سطح ۲ — در انتظار تأیید دومرحله‌ای",
-};
 
 export default async function AccountPage() {
   if (!identityUiEnabled()) redirect("/");
   const actor = await currentIdentity();
   if (!actor) redirect("/identity");
-  return <div className="console-page">
-    <div className="console-page-heading"><div><p className="app-kicker">حساب کاربری</p>
-      <h1>پروفایل و امنیت</h1><p>اطلاعات پروفایل و تنظیمات امنیتی</p></div></div>
-    <SoftwareProfileForm required={actor.roles.includes("Customer")}/>
-    <section className="intro">
-      <h2>حساب شما</h2>
-      <p>شناسه کاربر: <bdi dir="ltr">{actor.userId}</bdi></p>
-      <p>نقش‌های فعلی: {actor.roles.map(role => roleLabels[role] ?? role).join("، ")}</p>
+  return <div className="console-page console-settings-page">
+    <div className="console-page-heading"><div>
+      <p className="app-kicker">حریم خصوصی و دسترسی</p>
+      <h1>حساب و امنیت</h1>
+      <p>تنظیمات احراز هویت و حفاظت از دسترسی به حساب</p>
+    </div></div>
+    <section className="console-settings-card" id="security">
+      <div className="console-settings-card-title"><h2>اطلاعات امنیتی</h2>
+        <p>تنظیمات احراز هویت دومرحله‌ای حساب</p></div>
+      <AccountControls canEnrollMfa={actor.roles.some(role =>
+        ["Level1", "Level2", "PendingLevel1", "PendingLevel2"].includes(role))}/>
     </section>
-    <div id="security"><h2>اطلاعات امنیتی</h2><AccountControls canEnrollMfa={actor.roles.some(role =>
-      ["Level1", "Level2", "PendingLevel1", "PendingLevel2"].includes(role))}/></div>
-    {actor.roles.includes("Level1") && <AdminNomination/>}
+    {actor.roles.includes("Level1") && <section className="console-settings-card">
+      <AdminNomination/>
+    </section>}
   </div>;
 }
