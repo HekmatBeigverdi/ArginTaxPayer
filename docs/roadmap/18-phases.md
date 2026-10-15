@@ -170,3 +170,16 @@ psql -X -h "$DB_HOST" -p "$DB_PORT" \
 ```
 
 For repeated `psql` commands in the same terminal, reuse the extracted `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER` and `-W`. Confirm actual returned database equals `argintaxpayer_test` before applying migrations. The existing `scripts/dev-up.zsh` AutoSSH launcher remains the canonical way to prepare Mac connection. Keep this convention in every new phase master plan; do not recommend the former invalid `psql "$ConnectionStrings__ArginTaxPayerDb"` command.
+
+
+## Authoritative entity separation for all phases — 2026-10-15
+Three independently persisted bounded contexts: (1) `IdentityUser` = software login, session, roles and partner-owned customer account; (2) `Party` + `CustomerPartyLink` = fiscal invoice buyer/counterparty with person/company fields, no login; (3) `TaxpayerProfile` + fiscal memories/certificates = fiscal seller, separate from buyer and login. A customer can own many buyers and many sellers. Merely registering or creating a software account MUST NEVER create a buyer or seller list row, and no party/taxpayer registration creates login credentials. Level1 sees/manages its authorized root portfolio, Level2 its assigned customers, Customer only its own records, with server query-level isolation and checked mutations.
+- Phase03: login identity only. Administrative provisioning, activation/locking/deletion must be authorized and independently audited.
+- Phase04: seller ownership and fiscal-memory lifecycle only; does not define buyer creation as part of login registration.
+- Phase05: separate role-scoped buyer/seller CRUD and independent fiscal record server-side pagination/filtering. `/api/dev/fiscal-participants` is an internal development-only read model combining distinct Party and TaxpayerProfile projections; underlying tables remain independent, with no automatic conversions.
+- Phase06: goods/services catalog belongs to account tenant; seller selection is explicit.
+- Phase07–08: invoice snapshot references one seller TaxpayerProfile and optional/required buyer Party per official invoice type/pattern; never reference IdentityUser as an invoice party. Validation is rule-versioned and uses archived snapshots.
+- Phase09–11: keys, fiscal memories, tax authority submission, receipts and reconciliation reference fiscal seller, never a buyer or authentication session.
+- Phase12: plans/billing belong to customer accounts; entitlements constrain use of taxpayer sellers and invoice quotas but never turn buyer into login identity.
+- Phase13–16: imports, accounting synchronization, administration, reporting and migrations preserve typed IDs and foreign-key relationship provenance; no guessed buyer from phone/email, no global account pagination as substitute for fiscal person pagination.
+- Phase17–18: enforce integration regressions proving account-only registration yields zero new buyer/seller rows and no cross-customer record leakage.
