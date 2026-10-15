@@ -27,6 +27,8 @@ export default function ParticipantRegistrationModal({ mode, buyers, level1, onC
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const dialog = useRef<HTMLDivElement>(null);
+  const busyRef = useRef(false);
+  busyRef.current = busy;
   const closeRef = useRef<HTMLButtonElement>(null);
   const complete = Boolean(subjectId);
 
@@ -34,7 +36,7 @@ export default function ParticipantRegistrationModal({ mode, buyers, level1, onC
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     closeRef.current?.focus();
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !busy) onClose();
+      if (event.key === "Escape" && !busyRef.current) onClose();
       if (event.key === "Tab" && dialog.current) {
         const targets = Array.from(dialog.current.querySelectorAll<HTMLElement>(
           'button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),a[href]'));
@@ -49,7 +51,7 @@ export default function ParticipantRegistrationModal({ mode, buyers, level1, onC
     };
     document.addEventListener("keydown", onKey);
     return () => { document.removeEventListener("keydown", onKey); previous?.focus(); };
-  }, [busy, onClose]);
+  }, []);
 
   async function create(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
