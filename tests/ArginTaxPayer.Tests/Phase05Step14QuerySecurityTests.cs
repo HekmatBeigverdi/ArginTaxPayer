@@ -28,14 +28,16 @@ public sealed class Phase05Step14QuerySecurityTests
             scope.ScopedCommandQuery(actor, root).ToQueryString()
         })
         {
-            Console.WriteLine("Phase05 Step14 scoped SQL: " + sql);
             Assert.Contains("customer_commercial_owners", sql);
-            Assert.Contains("root_level1_user_id", sql);
-            Assert.Contains("partner_level2_user_id", sql);
             Assert.Contains("identity_mfa_states", sql);
             Assert.Contains("identity_users", sql);
             Assert.DoesNotContain("taxpayer_delegate_grants", sql);
         }
+        // SQL can optimize a nested OR into a different shape; verify persisted
+        // FK mapping explicitly, and test the actual A→B denial on PostgreSQL.
+        var owner = db.Model.FindEntityType(typeof(CustomerCommercialOwner))!;
+        Assert.Equal("root_level1_user_id", owner.FindProperty(nameof(CustomerCommercialOwner.RootLevel1UserId))!.GetColumnName());
+        Assert.Equal("partner_level2_user_id", owner.FindProperty(nameof(CustomerCommercialOwner.PartnerLevel2UserId))!.GetColumnName());
     }
 
     [Fact]
