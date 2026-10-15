@@ -18,24 +18,8 @@ public sealed record LegalEntityResult(LegalEntityDecision Decision, LegalEntity
 /// </summary>
 public sealed class LegalEntityService(ArginTaxPayerDbContext db, IdentityAuthorizationService identity, ParticipantScopeService scope)
 {
-    private async Task<bool> HasScopeAsync(Guid actor, Guid customer, CancellationToken ct)
-    {
-        var role = await db.IdentityUsers.AsNoTracking().Where(u => u.Id == actor && u.IsActive)
-            .Select(u => new
-            {
-                Root = u.Roles.Any(x => x.Role == IdentityRoleNames.Level1),
-                Partner = u.Roles.Any(x => x.Role == IdentityRoleNames.Level2),
-                Customer = u.Roles.Any(x => x.Role == IdentityRoleNames.Customer),
-                Mfa = db.IdentityMfaStates.Any(m => m.UserId == u.Id && m.EnabledAtUtc != null)
-            }).SingleOrDefaultAsync(ct);
-        if (role is null) return false;
-        if (role.Customer && actor == customer) return true;
-        if (!role.Mfa) return false;
-        return await db.CustomerCommercialOwners.AsNoTracking().AnyAsync(o =>
-            o.CustomerUserId == customer &&
-            (role.Root && o.RootLevel1UserId == actor ||
-             role.Partner && o.PartnerLevel2UserId == actor), ct);
-    }
+    private Task<bool> HasScopeAsync(Guid actor, Guid customer, CancellationToken ct) =>
+        scope.CanManageAsync(actor, customer, ct);
 
     private static LegalEntityView Map(Party person, Guid customer) =>
         new(person.Id, customer, person.NormalizedIdentifier,
