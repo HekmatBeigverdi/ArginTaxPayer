@@ -3,7 +3,8 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import InvoiceParticipantForm from "./invoice-participant-form";
 import TaxpayerWorkspace from "../taxpayers/taxpayer-workspace";
 
-type Buyer = { customerUserId: string; mobile: string | null; email: string | null };
+type Buyer = { customerUserId: string; mobile: string | null; email: string | null;
+  isActive: boolean; rootLevel1UserId: string | null; partnerLevel2UserId: string | null };
 type Mode = "buyer" | "seller";
 type Created = { id: string };
 const normalize = (s: string) => s.trim();
@@ -12,9 +13,9 @@ const errorMessage = (code: number) => code === 400 ? "اطلاعات هویتی
   code === 409 ? "این شناسه قبلاً ثبت شده است؛ پرونده موجود را انتخاب کنید." :
   "عملیات انجام نشد؛ وضعیت سرور را بررسی کنید.";
 
-export default function ParticipantRegistrationModal({ mode, buyers, level1, onClose, onCompleted,
+export default function ParticipantRegistrationModal({ mode, buyers, level1, actorUserId, onClose, onCompleted,
   initialCustomerId = "", initialSubjectId = "" }: {
-  mode: Mode; buyers: Buyer[]; level1: boolean; onClose: () => void;
+  mode: Mode; buyers: Buyer[]; level1: boolean; actorUserId: string; onClose: () => void;
   onCompleted: () => Promise<void>; initialCustomerId?: string; initialSubjectId?: string;
 }) {
   const [customerId, setCustomerId] = useState(initialCustomerId);
@@ -31,6 +32,10 @@ export default function ParticipantRegistrationModal({ mode, buyers, level1, onC
   busyRef.current = busy;
   const closeRef = useRef<HTMLButtonElement>(null);
   const complete = Boolean(subjectId);
+  const chosenCustomer = buyers.find(b => b.customerUserId === customerId);
+  const authorizedCustomer = Boolean(chosenCustomer?.isActive &&
+    (level1 ? chosenCustomer.rootLevel1UserId === actorUserId :
+      chosenCustomer.partnerLevel2UserId === actorUserId));
 
   useEffect(() => {
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -55,7 +60,10 @@ export default function ParticipantRegistrationModal({ mode, buyers, level1, onC
 
   async function create(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (busy || !customerId || (mode === "seller" && !level1)) return;
+    if (busy || !authorizedCustomer || (mode === "seller" && !level1)) {
+      setError("مالکیت تجاری حساب انتخاب‌شده به ادمین فعلی اختصاص ندارد. ابتدا انتساب مشتری را در بخش کاربران بررسی کنید.");
+      return;
+    }
     setBusy(true); setError("");
     try {
       const isNatural = kind === "1";
@@ -73,7 +81,9 @@ export default function ParticipantRegistrationModal({ mode, buyers, level1, onC
       };
       const response = await fetch(path, { method: "POST", credentials: "same-origin",
         headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-      if (!response.ok) throw new Error(errorMessage(response.status));
+      if (!response.ok) throw new Error(response.status === 403 ?
+        "سرور اجازه ثبت برای این مشتری را صادر نکرد. نقش و MFA ادمین و انتساب تجاری مشتری را بررسی کنید." :
+        errorMessage(response.status));
       const created = await response.json() as Created;
       if (!created.id) throw new Error("شناسه ثبت‌شده دریافت نشد؛ قبل از تلاش مجدد، فهرست را بازخوانی کنید.");
       setSubjectId(created.id);
@@ -100,10 +110,21 @@ export default function ParticipantRegistrationModal({ mode, buyers, level1, onC
           <label>حساب مشتری / مالک پرونده
             <select value={customerId} onChange={e => setCustomerId(e.target.value)} required>
               <option value="">حساب مرتبط را انتخاب کنید</option>
-              {buyers.map(b => <option value={b.customerUserId} key={b.customerUserId}>
-                {b.mobile || b.email || b.customerUserId}</option>)}
+              {buyers.map(b => {
+                const permitted = b.isActive && (level1 ?
+                  b.rootLevel1UserId === actorUserId : b.partnerLevel2UserId === actorUserId);
+                return <option value={b.customerUserId} key={b.customerUserId} disabled={!permitted}>
+                  {b.mobile || b.email || b.customerUserId}
+                  {!permitted ? " — بدون انتساب مجاز / غیرفعال" : ""}
+                </option>;
+              })}
             </select>
           </label>
+          {customerId && !authorizedCustomer && <p role="alert" className="party-error">
+            این حساب در محدوده مالکیت تجاری ادمین فعلی نیست. از بخش کاربران نرم‌افزار، انتساب تجاری مشتری را بررسی کنید.
+          </p>}
+          {buyers.every(b => !b.isActive || (level1 ? b.rootLevel1UserId !== actorUserId : b.partnerLevel2UserId !== actorUserId)) &&
+            <p role="alert" className="party-error">در فهرست فعلی مشتری مجاز برای ثبت وجود ندارد. ابتدا انتساب تجاری مشتری را بررسی کنید.</p>}
           <label>نوع شخصیت
             <select value={kind} onChange={e => setKind(e.target.value)}>
               <option value="1">شخص حقیقی</option><option value="2">شخص حقوقی (شرکت)</option>
@@ -128,7 +149,7 @@ export default function ParticipantRegistrationModal({ mode, buyers, level1, onC
             طبق مجوز فعلی، ایجاد مؤدی مالیاتی فقط برای ادمین سطح یک مجاز است.</p>}
           {error && <p role="alert" className="party-error">{error}</p>}
           <button className="identity-primary" type="submit"
-            disabled={busy || (mode === "seller" && !level1)}>
+            disabled={busy || !authorizedCustomer || (mode === "seller" && !level1)}>
             {busy ? "در حال ثبت…" : "ثبت هویت و ادامه به مشخصات مالیاتی"}</button>
         </form> : <>
           <p className="party-success" role="status">پرونده هویتی ثبت شد. اکنون اطلاعات مالیاتی را تکمیل و ذخیره کنید.</p>
