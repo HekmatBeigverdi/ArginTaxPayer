@@ -77,7 +77,7 @@ public sealed class ParticipantAdministratorScopeTests
         Assert.False(await scope.CanManageAsync(partner.Id, customer.Id));
         // Profile completion and MFA are independent mandatory gates.
         var profile = await db.SoftwareUserProfiles.SingleAsync(p => p.UserId == customer.Id);
-        profile.Address = "";
+        db.SoftwareUserProfiles.Remove(profile);
         await db.SaveChangesAsync();
         Assert.False(await scope.CanManageAsync(root.Id, customer.Id));
         Assert.False(await scope.CanManageAsync(replacement.Id, customer.Id));
