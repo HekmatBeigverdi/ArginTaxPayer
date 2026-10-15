@@ -23,8 +23,8 @@ test("inaccessible customers are disabled and cannot submit even with modified c
 });
 
 test("backend commercial ownership checks remain untouched", () => {
-  const natural = read("../src/ArginTaxPayer.Infrastructure/Persistence/Parties/NaturalPersonService.cs");
-  const legal = read("../src/ArginTaxPayer.Infrastructure/Persistence/Parties/LegalEntityService.cs");
+  const natural = read("../../src/ArginTaxPayer.Infrastructure/Persistence/Parties/NaturalPersonService.cs");
+  const legal = read("../../src/ArginTaxPayer.Infrastructure/Persistence/Parties/LegalEntityService.cs");
   for (const code of [natural, legal]) {
     assert.match(code, /IsAdminScopedAsync/);
     assert.match(code, /RootLevel1UserId == actor/);
