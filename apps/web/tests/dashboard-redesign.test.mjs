@@ -30,8 +30,8 @@ test("software users and parties are reachable by navigation and selectable cust
   const workspace = read("app/parties/buyer-taxpayer-directory.tsx");
   assert.ok(workspace.includes("/api/customer-owners/accounts"));
   assert.match(workspace, /console-directory-filters/);
-  assert.ok(workspace.includes("onSubmit={addTaxpayer}"));
-  assert.match(workspace, /buyer-new/);
+  assert.ok(workspace.includes("ParticipantRegistrationModal"));
+  assert.match(workspace, /setRegisterMode\("buyer"\)/);
   assert.match(workspace, /taxpayer-connection/);
 });
 
