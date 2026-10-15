@@ -29,7 +29,8 @@ test("native accessible dialog loads only one customer's taxpayers", () => {
   assert.match(view, /<dialog className="users-dialog"/);
   assert.match(view, /showModal\(\)/);
   assert.match(view, /aria-labelledby="user-detail-heading"/);
-  assert.match(view, /\/taxpayers/);
+  assert.doesNotMatch(view, /مؤدیان وابسته به این کاربر/);
+  assert.match(view, /انتساب تجاری این کاربر/);
   assert.match(view, /onClose=\{close\}/);
   assert.match(css, /users-dialog::backdrop/);
 });
