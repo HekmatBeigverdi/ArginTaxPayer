@@ -22,6 +22,7 @@ public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbConte
     public DbSet<PartyAddress> PartyAddresses => Set<PartyAddress>();
     public DbSet<PartyDuplicateReview> PartyDuplicateReviews => Set<PartyDuplicateReview>();
     public DbSet<Party> Parties => Set<Party>();
+    public DbSet<PartyIdentityHistory> PartyIdentityHistories => Set<PartyIdentityHistory>();
     public DbSet<CustomerPartyLink> CustomerPartyLinks => Set<CustomerPartyLink>();
     public DbSet<TaxpayerProfile> TaxpayerProfiles => Set<TaxpayerProfile>();
     public DbSet<CustomerCommercialOwner> CustomerCommercialOwners => Set<CustomerCommercialOwner>();
@@ -229,6 +230,25 @@ public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbConte
         parties.Property(x => x.UpdatedAtUtc).HasColumnName("updated_at_utc").HasColumnType("timestamp with time zone");
         parties.HasIndex(x => new { x.Kind, x.NormalizedIdentifier }).IsUnique().HasDatabaseName("ux_parties_kind_identifier");
         parties.HasIndex(x => new { x.CreatedAtUtc, x.Id }).HasDatabaseName("ix_parties_fiscal_directory");
+
+        var history = modelBuilder.Entity<PartyIdentityHistory>();
+        history.ToTable("party_identity_history", t =>
+            t.HasCheckConstraint("ck_party_identity_history_revision", "prior_revision > 0"));
+        history.HasKey(x => x.Id);
+        history.Property(x => x.Id).HasColumnName("id");
+        history.Property(x => x.PartyId).HasColumnName("party_id");
+        history.Property(x => x.ActorUserId).HasColumnName("actor_user_id");
+        history.Property(x => x.PriorRevision).HasColumnName("prior_revision");
+        history.Property(x => x.PriorKind).HasColumnName("prior_kind").HasConversion<int>();
+        history.Property(x => x.PriorNormalizedIdentifier).HasColumnName("prior_normalized_identifier").HasMaxLength(32).IsRequired();
+        history.Property(x => x.PriorDisplayName).HasColumnName("prior_display_name").HasMaxLength(256).IsRequired();
+        history.Property(x => x.PriorFirstName).HasColumnName("prior_first_name").HasMaxLength(100);
+        history.Property(x => x.PriorLastName).HasColumnName("prior_last_name").HasMaxLength(100);
+        history.Property(x => x.PriorRegistrationNumber).HasColumnName("prior_registration_number").HasMaxLength(32);
+        history.Property(x => x.CapturedAtUtc).HasColumnName("captured_at_utc").HasColumnType("timestamp with time zone");
+        history.HasOne<Party>().WithMany().HasForeignKey(x => x.PartyId).OnDelete(DeleteBehavior.Restrict);
+        history.HasOne<IdentityUser>().WithMany().HasForeignKey(x => x.ActorUserId).OnDelete(DeleteBehavior.Restrict);
+        history.HasIndex(x => new { x.PartyId, x.PriorRevision }).IsUnique().HasDatabaseName("ux_party_identity_history_revision");
 
         var links = modelBuilder.Entity<CustomerPartyLink>();
         links.ToTable("customer_party_links", t =>
