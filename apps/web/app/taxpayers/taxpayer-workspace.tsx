@@ -139,7 +139,7 @@ export default function TaxpayerWorkspace({ isLevel1, initialTaxpayerId, showCre
       {!details && <div className="taxpayer-panel"><h2>جزئیات مؤدی</h2>
         <p className="identity-muted">برای مشاهده اطلاعات، یک مؤدی را از فهرست انتخاب کنید.</p></div>}
       {details && <>
-        {customerId && <InvoiceParticipantForm key={details.id} customerId={customerId} subjectId={details.id} role="seller" />}
+        {customerId && <InvoiceParticipantForm key={details.id} customerId={customerId} subjectId={details.id} role="seller" personKind={details.kind} />}
         <article className="taxpayer-panel">
           <div className="taxpayer-section-heading"><h2>{details.displayName}</h2>
             <button type="button" className="identity-secondary" onClick={() => void show(details.id)}>بازخوانی جزئیات</button></div>
