@@ -38,6 +38,7 @@ export default function BuyerTaxpayerDirectory({ admin, level1 }: { admin: boole
   const [loading, setLoading] = useState(true);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [loadedOnce, setLoadedOnce] = useState(false);
+  const [refreshedAt, setRefreshedAt] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [createdTaxpayerId, setCreatedTaxpayerId] = useState("");
@@ -99,7 +100,8 @@ export default function BuyerTaxpayerDirectory({ admin, level1 }: { admin: boole
       }
       setRows(combined);
     } catch (e) { setError((e as Error).message); setRows([]); }
-    finally { setLoading(false); setLoadedOnce(true); }
+    finally { setLoading(false); setLoadedOnce(true);
+      setRefreshedAt(new Date().toLocaleTimeString("fa-IR")); }
   }, [admin]);
   useEffect(() => { void reload(); }, [reload]);
 
@@ -123,7 +125,7 @@ export default function BuyerTaxpayerDirectory({ admin, level1 }: { admin: boole
     {admin && <div className="console-directory-actions">
       <button className="identity-primary" type="button" onClick={() => setRegisterMode("buyer")}>+ افزودن خریدار</button>
       <button className="identity-secondary" type="button" onClick={() => setRegisterMode("seller")}>+ افزودن مؤدی</button>
-      <button type="button" className="identity-secondary" onClick={() => void reload()} disabled={loading}>بازخوانی فهرست</button>
+      <button type="button" className="identity-secondary" onClick={() => { setError(""); void reload(); }} disabled={loading}>بازخوانی فهرست</button>
     </div>}
     {view !== "list" && <div className="console-directory-panel">
       <div className="console-directory-panel-header"><h2>{{
@@ -173,7 +175,7 @@ export default function BuyerTaxpayerDirectory({ admin, level1 }: { admin: boole
         </table></div>
       </div>
       {!loading && loadedOnce && !error && shown.length === 0 && <p className="console-empty">رکوردی مطابق فیلتر پیدا نشد.</p>}
-      <footer className="console-table-footer"><span>{filtered.length} رکورد</span>
+      <footer className="console-table-footer"><span>{filtered.length} رکورد{refreshedAt ? " — آخرین بازخوانی: " + refreshedAt : ""}</span>
         <div><button disabled={activePage <= 1} onClick={() => setPage(p => p-1)}>قبلی</button>
           <span>صفحه {activePage} از {maxPage}</span>
           <button disabled={activePage >= maxPage} onClick={() => setPage(p => p+1)}>بعدی</button></div>
