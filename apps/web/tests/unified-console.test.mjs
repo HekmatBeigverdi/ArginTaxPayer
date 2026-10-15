@@ -31,12 +31,13 @@ test("buyer and taxpayer list has separate create and fiscal connection actions"
   const directory = read("app/parties/buyer-taxpayer-directory.tsx");
   assert.match(directory, /افزودن خریدار/);
   assert.match(directory, /افزودن مؤدی/);
-  assert.match(directory, /شخص حقیقی/);
-  assert.match(directory, /شخص حقوقی/);
+  assert.match(read("app/parties/participant-registration-modal.tsx"), /شخص حقیقی/);
+  assert.match(read("app/parties/participant-registration-modal.tsx"), /شخص حقوقی/);
   assert.match(directory, /console-table/);
   assert.match(directory, /TaxpayerWorkspace/);
   assert.match(directory, /memoryIdentifier|حافظه مالیاتی/);
-  assert.match(directory, /AdminCreateCustomer/);
+  assert.match(directory, /ParticipantRegistrationModal/);
+  assert.doesNotMatch(directory, /AdminCreateCustomer/);
 });
 
 test("fiscal details can be opened for a selected taxpayer without creating another", () => {
