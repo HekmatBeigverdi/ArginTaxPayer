@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { currentIdentity, identityUiEnabled } from "../../../lib/identity";
 import AccountControls from "../../account/account-controls";
+import SoftwareProfileForm from "../../account/software-profile-form";
 import AdminNomination from "../../account/admin-nomination";
 
 export const dynamic = "force-dynamic";
@@ -16,13 +17,14 @@ export default async function AccountPage() {
   if (!actor) redirect("/identity");
   return <div className="console-page">
     <div className="console-page-heading"><div><p className="app-kicker">حساب کاربری</p>
-      <h1>پروفایل و امنیت</h1><p>هویت، احراز هویت دومرحله‌ای و نشست‌های فعال</p></div></div>
+      <h1>پروفایل و امنیت</h1><p>اطلاعات پروفایل و تنظیمات امنیتی</p></div></div>
+    <SoftwareProfileForm required={actor.roles.includes("Customer")}/>
     <section className="intro">
       <h2>حساب شما</h2>
       <p>شناسه کاربر: <bdi dir="ltr">{actor.userId}</bdi></p>
       <p>نقش‌های فعلی: {actor.roles.map(role => roleLabels[role] ?? role).join("، ")}</p>
     </section>
-    <div id="security"><AccountControls canEnrollMfa={actor.roles.some(role =>
+    <div id="security"><h2>اطلاعات امنیتی</h2><AccountControls canEnrollMfa={actor.roles.some(role =>
       ["Level1", "Level2", "PendingLevel1", "PendingLevel2"].includes(role))}/></div>
     {actor.roles.includes("Level1") && <AdminNomination/>}
   </div>;
