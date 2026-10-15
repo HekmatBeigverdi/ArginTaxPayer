@@ -16,7 +16,7 @@ public sealed record NaturalPersonResult(NaturalPersonDecision Decision, Natural
 /// Scoped application service, not a public endpoint. Phase05 Step08 publishes guarded APIs.
 /// No party may be linked to a customer without checking live commercial ownership.
 /// </summary>
-public sealed class NaturalPersonService(ArginTaxPayerDbContext db, IdentityAuthorizationService identity)
+public sealed class NaturalPersonService(ArginTaxPayerDbContext db, IdentityAuthorizationService identity, ParticipantScopeService scope)
 {
     private async Task<bool> HasScopeAsync(Guid actor, Guid customer, CancellationToken ct)
     {
@@ -51,14 +51,14 @@ public sealed class NaturalPersonService(ArginTaxPayerDbContext db, IdentityAuth
             !NaturalPersonProfilePolicy.TryValidate(nationalCode, firstName, lastName, out var validated))
             return new(NaturalPersonDecision.Invalid);
         // Customer self-service activation is reserved for the Phase12 entitlement boundary.
-        if (!await IsAdminScopedAsync(actor.Value, customerId, ct))
+        if (!await scope.CanManageAsync(actor.Value, customerId, ct))
             return new(NaturalPersonDecision.Forbidden);
         try
         {
             return await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
             {
                 await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
-                if (!await IsAdminScopedAsync(actor.Value, customerId, ct))
+                if (!await scope.CanManageAsync(actor.Value, customerId, ct))
                     return new NaturalPersonResult(NaturalPersonDecision.Forbidden);
                 var now = DateTime.UtcNow;
                 var person = new Party
@@ -113,14 +113,14 @@ public sealed class NaturalPersonService(ArginTaxPayerDbContext db, IdentityAuth
         if (customerId == Guid.Empty || partyId == Guid.Empty || expectedRevision < 1 ||
             !NaturalPersonProfilePolicy.TryValidate(nationalCode, firstName, lastName, out var validated))
             return new(NaturalPersonDecision.Invalid);
-        if (!await IsAdminScopedAsync(actor.Value, customerId, ct))
+        if (!await scope.CanManageAsync(actor.Value, customerId, ct))
             return new(NaturalPersonDecision.Forbidden);
         try
         {
             return await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
             {
                 await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
-                if (!await IsAdminScopedAsync(actor.Value, customerId, ct))
+                if (!await scope.CanManageAsync(actor.Value, customerId, ct))
                     return new NaturalPersonResult(NaturalPersonDecision.Forbidden);
                 var person = await db.Parties.SingleOrDefaultAsync(p =>
                     p.Id == partyId && p.Kind == PartyKind.NaturalPerson &&
@@ -159,15 +159,4 @@ public sealed class NaturalPersonService(ArginTaxPayerDbContext db, IdentityAuth
         }
     }
 
-    private async Task<bool> IsAdminScopedAsync(Guid actor, Guid customer, CancellationToken ct)
-    {
-        if (customer == Guid.Empty) return false;
-        var admin = await db.IdentityUsers.AsNoTracking().AnyAsync(u =>
-            u.Id == actor && u.IsActive &&
-            (u.Roles.Any(r => r.Role == IdentityRoleNames.Level1) ||
-             u.Roles.Any(r => r.Role == IdentityRoleNames.Level2)) &&
-            db.IdentityMfaStates.Any(m => m.UserId == u.Id && m.EnabledAtUtc != null), ct);
-        if (!admin) return false;
-        return await HasScopeAsync(actor, customer, ct);
-    }
 }
