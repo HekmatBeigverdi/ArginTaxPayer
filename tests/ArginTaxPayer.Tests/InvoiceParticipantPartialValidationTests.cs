@@ -54,6 +54,16 @@ public sealed class InvoiceParticipantPartialValidationTests
         Assert.Null(clean);
     }
 
+    [Theory]
+    [InlineData("۰۹۱۲۳۴۵۶۷۸۹", "09123456789")]
+    [InlineData("٠٩١٢٣٤٥٦٧٨٩", "09123456789")]
+    public void Optional_contact_number_normalizes_Persian_digits(string raw, string expected)
+    {
+        var clean = Clean(new InvoiceParticipantWrite(null, null, null,
+            null, null, null, raw, null, null, null, 0));
+        Assert.Equal(expected, clean!.Phone);
+    }
+
     [Fact]
     public void Null_and_empty_optional_values_do_not_block_save()
     {
