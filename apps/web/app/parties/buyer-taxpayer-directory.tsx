@@ -27,7 +27,7 @@ async function get<T>(url: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export default function BuyerTaxpayerDirectory({ admin, level1 }: { admin: boolean; level1: boolean }) {
+export default function BuyerTaxpayerDirectory({ admin, level1, actorUserId }: { admin: boolean; level1: boolean; actorUserId: string }) {
   const [rows, setRows] = useState<Row[]>([]);
   const [buyers, setBuyers] = useState<Buyer[]>([]);
   const [view, setView] = useState<View>("list");
@@ -111,7 +111,7 @@ export default function BuyerTaxpayerDirectory({ admin, level1 }: { admin: boole
   }
 
   return <section className="console-directory">
-    {registerMode && <ParticipantRegistrationModal mode={registerMode} buyers={buyers}
+    {registerMode && <ParticipantRegistrationModal mode={registerMode} buyers={buyers} actorUserId={actorUserId}
       level1={level1} onClose={() => setRegisterMode(null)} onCompleted={reload}/> }
     {admin && <div className="console-directory-actions">
       <button className="identity-primary" type="button" onClick={() => setRegisterMode("buyer")}>+ افزودن خریدار</button>
