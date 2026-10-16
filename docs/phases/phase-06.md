@@ -130,6 +130,13 @@ Unit seeding requires a checked-in machine-readable source with document identif
 
 **Owner signoff:** Pending.
 
+
+### Step03 migration collision corrective action (2026-10-16)
+**Observed operator error:** `dotnet ef database update 20261016150000_ValidateOfficialGoodsServiceIdentifiers` built successfully and applied `20261016082706_AddOfficialGoodsCodeFormat`, then failed with PostgreSQL SQLSTATE 42710 because `20261016150000_ValidateOfficialGoodsServiceIdentifiers` also attempted to add `ck_official_goods_code_format`.
+**Verified repository:** Both migration files existed on the branch. The first creates the 13-digit check and owns its drop in Down. The later migration has been corrected to validate the existing named CHECK definition and leave it intact in both Up and Down. **Corrective commit:** `318b6ca953ee013beb57e3061be86532bc3c7870`.
+**Safety:** No DROP, no renaming, no direct manual manipulation of `__EFMigrationsHistory`, no deletion of earlier migration. The second migration is verification-only. The failure does not prove the second migration was applied. Confirm migration history and constraint via read-only SQL on verified `argintaxpayer_test`, then retry the same target after `git pull --ff-only`.
+**Acceptance evidence:** User-supplied log proves build success and duplicate-check failure; corrected migration's build/actual PostgreSQL execution have not yet been independently witnessed. Do not claim Step03 final approval before operator retest.
+
 ## Phase Closeout
 
 Not started.
