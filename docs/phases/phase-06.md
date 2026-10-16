@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 06: Goods and Services
 
-**Status:** Steps 01–05 explicitly owner-approved; Step05 tests and Migration reported successful on 2026-10-16 (raw logs not independently attached). Step06 versioned reference contract and PostgreSQL guards committed; operator testing and owner acceptance pending. Steps07–16 not started.
+**Status:** Steps 01–05 explicitly owner-approved; Step05 tests and Migration reported successful on 2026-10-16 (raw logs not independently attached). Step06 owner approved on 2026-10-16 (macOS tests and test-DB migration reported successful; raw logs not attached). Step07 bounded preview and staged import implementation committed; acceptance pending. Steps08–16 not started.
 **Branch:** `phase/06-goods-services`
 **Baseline:** `main` after Phase05 merge `6a3de74692403029b68c2061251601752eebd518`.
 **Roadmap:** `docs/roadmap/18-phases.md`, Phase 06.
@@ -21,8 +21,8 @@ Preserve Phase03 identity, Phase04 customer/partner ownership and Phase05 partie
 | 03 | Official Identifier Model | Official goods/service identifier, origin and verification | Reject invalid/duplicate identifiers and unsupported official claims | 02 | Implemented; operator tests and owner signoff pending |
 | 04 | Official Unit Codes | Official unit-code reference and internal-unit mapping | Reject unknown units and incompatible mappings | 03 | Pending |
 | 05 | VAT Classification | Date- and source-dependent VAT classification, rates and exemptions | Do not assume fixed rates; test boundary dates | 03–04 | Owner-approved 2026-10-16; tests/migration operator-reported successful |
-| 06 | Versioned Reference Catalog | Source versions, validity intervals, snapshots and immutable history | Recover prior versions and control overlap | 03–05 | Implemented; operator acceptance pending |
-| 07 | Reference Import Pipeline | Official-file staging, preview and validation | Idempotent repeated import and reported errors | 06 | Pending |
+| 06 | Versioned Reference Catalog | Source versions, validity intervals, snapshots and immutable history | Recover prior versions and control overlap | 03–05 | Owner approved 2026-10-16; tests/migration reported successful |
+| 07 | Reference Import Pipeline | Official-file staging, preview and validation | Idempotent repeated import and reported errors | 06 | Code committed; operator acceptance pending |
 | 08 | Reference Activation and Audit | Controlled release with audit and logical rollback | Move active version without deleting history | 07 | Pending |
 | 09 | Customer Product Domain | Customer products, status and internal identifiers | Tenant isolation and protection of references | 02–06 | Pending |
 | 10 | Customer Service Domain | Customer services and type rules | CRUD, ownership and type-mismatch tests | 09 | Pending |
@@ -282,7 +282,62 @@ dotnet ef database update 20261016200000_EnforceReferenceVersionHistory --projec
 ```
 Verify PostgreSQL `pg_trigger` four guards and VAT interval trigger, `pg_indexes` unique source index, migration history, stage unit release state, and sample intentional violations **within a rollback-only transaction**. Do not run destructive/manual maintenance statements against any production DB.
 
-**Evidence:** Code/doc committed. .NET/CI/PostgreSQL integration not executed by assistant (local container has no `dotnet` binary). Migration has a genuine database runtime test requirement. Step06 remains **pending owner acceptance**.
+**Evidence:** Code/doc committed. .NET/CI/PostgreSQL integration not executed by assistant (local container has no `dotnet` binary). Migration has a genuine database runtime test requirement. Step06 **owner approved 2026-10-16**. Operator reported successful tests and Migration; logs not attached independently.
+
+
+## Step 07 — Reference Import Pipeline (2026-10-16)
+
+**Status:** Implementation committed; local build, unit/integration tests and owner acceptance pending. Step06 owner-confirmed successful on macOS + `argintaxpayer_test` on 2026-10-16; independently observed test logs not attached.
+
+**Scope and risk controls:**
+- `ReferenceImportParser` is a pure preview tool consuming **UTF-8 pipe-separated canonical import data (PSV)**, not PDF/Excel. Unit schema `code|Persian title`, two columns; goods/service candidate schema `13digitcode|title|Goods/Service`, three columns. The goods-service document key `RC_GS` is a **technical candidate namespace only, NOT a claim of an existing official government document identifier**. Operator must supply actual provenance and check government specifications before validating/activating.
+- A bounded 2 MB payload / 20,000 row parser produces line-numbered issues, avoids partial publication, rejects invalid UTF-8, invalid official-code syntax, missing title, invalid kind, bad headers/columns, duplicate codes within release (goods and service namespace separated), non-HTTPS source provenance metadata, and excess rows. Source URL is **operator-supplied metadata, not proof of issuer authenticity**.
+- SHA256 covers the **exact uploaded file bytes**. The source edition/document + checksum are uniquely indexed in PostgreSQL. The Step07 internal `ReferenceImportService.StageAsync` reparses **the original bytes** server-side to defeat tampered preview/digest payloads. Only authenticated active Level1 with enabled MFA may stage. Permissions are checked again inside a serializable transaction.
+- Imported `CatalogReferenceRelease` is created **Staged (state=1)**, and official goods/service candidates remain `Unverified`. Existing matching document+SHA import returns existing release ID; conflicting reused checksum metadata is rejected. Transaction inserts release and all rows atomically; PostgreSQL reference triggers from Step06 enforce staged-only writes. No new migration, new table or EF snapshot change is intended.
+- Step07 has **no public HTTP endpoint or administrative upload UI**. Authenticated API contracts and UI are in Steps12–13; audited source verification and publication in Step08. This step must not automatically mark rows as official. A URL with `https` is not a digital signature and must never be treated as an authority assertion.
+- ArginAccounting compatibility is preserved: tenant ItemCode/SKU stay customer-owned; official goods/service code and unit catalog releases are shared references; no stock, pricing or accounting journal changes.
+
+**Committed files:**
+- `src/ArginTaxPayer.Infrastructure/Persistence/Catalog/ReferenceImportParser.cs`
+- `src/ArginTaxPayer.Infrastructure/Persistence/Catalog/ReferenceImportService.cs`
+- `tests/ArginTaxPayer.Tests/Phase06ReferenceImportTests.cs`
+- `docs/phases/phase-06.md`
+
+**Testing (operator macOS):**
+```bash
+git fetch origin
+git switch phase/06-goods-services
+git pull --ff-only
+dotnet build ArginTaxPayer.sln -c Release
+dotnet test ArginTaxPayer.sln -c Release --no-build --filter "FullyQualifiedName~Phase06ReferenceImportTests"
+dotnet test ArginTaxPayer.sln -c Release --no-build
+dotnet ef migrations has-pending-model-changes --project src/ArginTaxPayer.Infrastructure --startup-project src/ArginTaxPayer.Api
+```
+
+**PostgreSQL verification:** No Step07 EF migration is introduced. Read-only check only after `zsh scripts/dev-up.zsh`, private `.env.dev.local` Npgsql extraction and `SELECT current_database() = 'argintaxpayer_test'`:
+```sql
+SELECT "MigrationId" FROM "__EFMigrationsHistory"
+WHERE "MigrationId" = '20261016200000_EnforceReferenceVersionHistory';
+SELECT source_document,edition,state,count(*)
+FROM catalog_reference_releases GROUP BY source_document,edition,state
+ORDER BY source_document,edition;
+SELECT count(*) FROM official_measurement_units
+WHERE release_id='14051800-0000-4000-8000-000000000118';
+```
+Expected 102 preserved official units, no previously active/validated state silently changed and no catalog HTTP endpoints inadvertently exposed. True DB staging, concurrent idempotency and Level2/Customer denied tests require a test-environment integration harness and are acceptance gaps until proven; the parser's pure unit tests alone do **not** establish database idempotency.
+
+**Acceptance:**
+1. Accurate preview counts and row-specific error list; malformed, duplicate, unsupported, unsafe and oversized upload rejected.
+2. The exact same source file imported twice results in one staged release with consistent source hash and row counts; a same-checksum metadata conflict rejected.
+3. No partial import on row errors or database constraint violations.
+4. Level1+enabled MFA only for staging; anonymous, Level2, Customer denied.
+5. Existing validated, active and superseded versions stay immutable and queryable; no UI or public API deployed at this step.
+6. Correct V1.18 seeded 102 units remain untouched and not falsely activated.
+7. Build/tests/EF snapshot checks successful, and no new migration needed.
+8. Owner explicitly approves before Step08.
+
+**Evidence:** GitHub code/docs committed. No .NET test runner or live PostgreSQL connected in assistant runtime. Owner must share focused Build and test result and explicitly authorize next step.
+**Owner signoff Step07:** Pending.
 
 ## Phase Closeout
 
