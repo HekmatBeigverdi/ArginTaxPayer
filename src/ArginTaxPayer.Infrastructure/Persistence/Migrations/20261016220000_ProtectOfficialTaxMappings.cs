@@ -23,7 +23,16 @@ BEGIN
     RAISE EXCEPTION 'Historical official tax mappings cannot be deleted';
   END IF;
   IF TG_OP = 'UPDATE' THEN
-    RAISE EXCEPTION 'Historical tax mapping snapshots cannot be updated; create another dated row';
+    IF (OLD.id, OLD.item_id, OLD.official_entry_id, OLD.effective_from_utc)
+         IS DISTINCT FROM
+       (NEW.id, NEW.item_id, NEW.official_entry_id, NEW.effective_from_utc)
+       OR OLD.effective_to_utc IS NOT NULL
+       OR NEW.effective_to_utc IS NULL
+       OR NEW.effective_to_utc <= OLD.effective_from_utc
+       OR NEW.revision <> OLD.revision + 1 THEN
+      RAISE EXCEPTION 'Only closing an open historical mapping interval is permitted';
+    END IF;
+    RETURN NEW;
   END IF;
   -- Serialize all inserts for the same item, including different official entries.
   SELECT kind INTO item_kind FROM customer_catalog_items
