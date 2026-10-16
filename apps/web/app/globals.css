@@ -405,3 +405,9 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 .console-catalog-page .ui-persian-date__popover{top:auto;bottom:calc(100% + 7px);right:0;left:auto}
 @media(max-width:1100px){.console-catalog-page .catalog-split-layout{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:530px){.console-catalog-page .catalog-editor-panel .catalog-form{grid-template-columns:minmax(0,1fr)}}
+
+/* Shared Argin application branding supplied by product owner (Phase06). */
+.argin-brand-logo{display:block;object-fit:contain;flex-shrink:0;border-radius:12px;background:#fff}
+.argin-login-logo{width:54px;height:54px;border-radius:13px}
+.argin-sidebar-logo{width:46px;height:46px;border-radius:12px}
+.argin-header-logo{width:39px;height:39px;border-radius:50%;border:1px solid #d5e6df}
