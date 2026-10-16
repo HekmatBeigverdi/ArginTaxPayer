@@ -597,16 +597,17 @@ On running local Development API, use actual active sessions (Level1, Level2 ass
 - Separate Goods, Services and Official Identifier tabs. Goods/Services have paged scoped code/title search, list, create, edit, soft archive; Goods type 1 vs 2, Service exclusively type 3, Revision for 409/stale edit detection. Official tab searches only active+verified reference results returned by the Step12 API.
 - Selected item has mapping history, official identifier selection by code/title and kind, effective start date and one-time mapping interval close with Revision. No tax invoice creation or edit to authority reference rows.
 - Customer/account scope defaults to authenticated user ID. Authorized admins can enter a customer UUID they currently own; all authorization is re-evaluated server side. Frontend selection is not a permission.
-- **Base unit limitation:** Step12 has no official units read/search endpoint. This UI currently accepts an official unit UUID as a text field with client-side GUID validation; it is **not a complete searchable unit picker**. Step13 owner acceptance must explicitly record this usability caveat, or request an amendment to expose scoped read-only units via Step12/13. Do not claim official unit selector fully implemented.
+- **Base unit selector:** Step13 adds a read-only `GET /api/dev/catalog/units` endpoint (and matching same-origin Next BFF allowlist) with bounded code/title search and explicit `isActive` flag. The UI lets the user select the base unit rather than entering UUID manually. Owner-reviewed Staged `RC_UMGS.ST` units are distinctly labeled as draft, **never authority-verified**.
 - BFF route `/api/catalog/[...segments]` is Next.js server-only (Development UI gate), allowlists exact intended Step12 catalog resource shapes, enforces same-origin on writes, forwards auth with HttpOnly cookie from server only, checks payload/response bounds, uses loopback origin `identityApiOrigin()`, and never exposes tokens through localStorage/JS. Direct browser API on :15089 remains loopback-limited. It does **not** add production catalog routes.
 
 **Changed files:**
 1. `apps/web/app/catalog/page.tsx`
 2. `apps/web/app/catalog/workspace.tsx`
-3. `apps/web/app/api/catalog/[...segments]/route.ts`
-4. `apps/web/app/globals.css`
-5. `apps/web/tests/catalog-ui.test.mjs`
-6. `docs/phases/phase-06.md`
+3. `src/ArginTaxPayer.Infrastructure/Persistence/Catalog/CatalogSearchService.cs` and `src/ArginTaxPayer.Api/Catalog/CatalogDevelopmentEndpoints.cs` — read-only unit search with existing role and loopback restrictions.
+4. `apps/web/app/api/catalog/[...segments]/route.ts`
+5. `apps/web/app/globals.css`
+6. `apps/web/tests/catalog-ui.test.mjs`
+7. `docs/phases/phase-06.md`
 
 **No EF migration**; Step13 is UI-only and BFF-only. PostgreSQL writes occur only when an authorized operator uses the existing Step12 development API to create/update a disposable record.
 
@@ -625,7 +626,7 @@ dotnet test ArginTaxPayer.sln -c Release --no-build
 zsh scripts/dev-up.zsh
 zsh scripts/dev-status.zsh
 ```
-Browser: log in at `http://127.0.0.1:3000/identity`, open `http://127.0.0.1:3000/catalog`. Verify browser RTL layout (desktop/mobile), customer-scoped goods/services, empty/error/loading, search/paging, code/UUID LTR, create/edit/archive on **disposable test rows**, expected 401/no cookie and 403/wrong customer via same-origin BFF, stale Revision 409, official staged entries hidden, correct historical mapping displays, session expiration redirects after navigation. Confirm `http://127.0.0.1:15089/health/live` returns 200 before diagnosing catalog proxy. Do not publish/activate a regulatory release just to test UI.
+Browser: verify the searchable unit picker and that staged units carry a draft label; log in at `http://127.0.0.1:3000/identity`, open `http://127.0.0.1:3000/catalog`. Verify browser RTL layout (desktop/mobile), customer-scoped goods/services, empty/error/loading, search/paging, code/UUID LTR, create/edit/archive on **disposable test rows**, expected 401/no cookie and 403/wrong customer via same-origin BFF, stale Revision 409, official staged entries hidden, correct historical mapping displays, session expiration redirects after navigation. Confirm `http://127.0.0.1:15089/health/live` returns 200 before diagnosing catalog proxy. Do not publish/activate a regulatory release just to test UI.
 
 **Acceptance caveat:** Web `npm test` static tests prove wiring, not browser accessibility/real role isolation. Production UI disabled. No CI/macOS results were captured by assistant; browser and live BFF integration require operator confirmation.
 
