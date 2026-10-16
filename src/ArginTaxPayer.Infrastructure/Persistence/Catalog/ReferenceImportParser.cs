@@ -52,7 +52,7 @@ public static class ReferenceImportParser
         var sha = Convert.ToHexString(SHA256.HashData(payload!)).ToLowerInvariant();
         var seen = new HashSet<string>(StringComparer.Ordinal);
         var lines = content.Split('\n');
-        if (lines.Length > MaxRows + 2)
+        if (lines.Count(line => !string.IsNullOrWhiteSpace(line)) > MaxRows)
             issues.Add(new(0, "", "too_many_rows"));
         for (int i = 0; i < lines.Length && i < MaxRows && issues.Count < MaxIssues; i++)
         {
