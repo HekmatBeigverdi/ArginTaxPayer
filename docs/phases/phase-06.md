@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 06: Goods and Services
 
-**Status:** Steps01–08 owner-approved (Step08 tests and migration reported successful by operator on 2026-10-16; raw logs not independently attached). Step09 Customer Product Domain code and tests committed; owner acceptance pending. Steps10–16 not started.
+**Status:** Steps01–09 owner-approved; Step09 focused tests reported successful on 2026-10-16 (raw logs not independently attached). Step10 Customer Service Domain implemented and tests committed; owner acceptance pending. Steps11–16 not started.
 **Branch:** `phase/06-goods-services`
 **Baseline:** `main` after Phase05 merge `6a3de74692403029b68c2061251601752eebd518`.
 **Roadmap:** `docs/roadmap/18-phases.md`, Phase 06.
@@ -24,8 +24,8 @@ Preserve Phase03 identity, Phase04 customer/partner ownership and Phase05 partie
 | 06 | Versioned Reference Catalog | Source versions, validity intervals, snapshots and immutable history | Recover prior versions and control overlap | 03–05 | Owner approved 2026-10-16; tests/migration reported successful |
 | 07 | Reference Import Pipeline | Official-file staging, preview and validation | Idempotent repeated import and reported errors | 06 | Owner-approved 2026-10-16; focused tests operator-reported successful |
 | 08 | Reference Activation and Audit | Controlled release with audit and logical rollback | Move active version without deleting history | 07 | Owner-approved 2026-10-16; tests/migration operator-reported successful |
-| 09 | Customer Product Domain | Customer products, status and internal identifiers | Tenant isolation and protection of references | 02–06 | Implemented; operator test/integration acceptance pending |
-| 10 | Customer Service Domain | Customer services and type rules | CRUD, ownership and type-mismatch tests | 09 | Pending |
+| 09 | Customer Product Domain | Customer products, status and internal identifiers | Tenant isolation and protection of references | 02–06 | Owner-approved 2026-10-16; tests operator-reported successful |
+| 10 | Customer Service Domain | Customer services and type rules | CRUD, ownership and type-mismatch tests | 09 | Implemented; operator verification/owner acceptance pending |
 | 11 | Tax Identifier Mapping | Historical mapping from customer items/services to official identifiers | Reject invalid or wrong-kind mappings | 08–10 | Pending |
 | 12 | Catalog API and Search | Search, filtering, pagination and concurrency support | Role, paging and stale-update tests | 09–11 | Pending |
 | 13 | RTL Catalog UI | Lists, forms, selection search and localized errors | Authorized paths, validation and accessibility tests | 12 | Pending |
@@ -449,7 +449,44 @@ SELECT count(*) FROM official_measurement_units WHERE release_id='14051800-0000-
 ```
 Expected 102 unit rows preserved. Unit + model tests are insufficient alone for concurrent duplicate create, role-scope transfer, and DB rollback proof; collect those in an isolated test fixture when available.
 
-**Step09 acceptance criteria:** build/tests pass; legal kinds 1/2 only; normalized customer codes unique per customer, not globally; current Level1/Level2/customer scopes and transfer restriction validated; base unit valid; stale revisions/duplicate codes rejected; discontinued items retained; no legacy Party/Taxpayer or external tax identifier overwritten; no new migration. **Owner signoff:** Pending.
+**Step09 acceptance criteria:** build/tests pass; legal kinds 1/2 only; normalized customer codes unique per customer, not globally; current Level1/Level2/customer scopes and transfer restriction validated; base unit valid; stale revisions/duplicate codes rejected; discontinued items retained; no legacy Party/Taxpayer or external tax identifier overwritten; no new migration. **Owner signoff Step09:** Approved 2026-10-16; owner reports focused tests successful, logs not independently attached.
+
+
+## Step 10 — Customer Service Domain (2026-10-16)
+
+**Status:** Implemented on `phase/06-goods-services`; waiting on macOS tests and owner signoff. Step09 owner-approved after operator-reported successful tests; raw outputs not independently received.
+
+**Design decisions and constraints:**
+- Services share the existing `customer_catalog_items` aggregate with Products, but `Kind=3` (`CatalogItemKind.Service`) is mandatory. ArginAccounting Stock/NonStock types (1/2) remain restricted to the Step09 `CustomerProductService`. Service records have no warehouse quantity, FIFO/COGS or inventory movement. Service is not interchangeable with either goods kind.
+- `CustomerServicePolicy` normalizes internal customer code (Unicode NFC + uppercase invariant), trims display title, preserves leading zeros, validates maximum lengths and base unit. Service and product codes share the **same customer-wide unique namespace** enforced by the existing unique index `(customer_user_id,internal_code)`; cross-customer reuse is allowed. InternalCode is never a fiscal identifier.
+- `CustomerServiceCatalogService` supports authenticated Create, Get, bounded paginated List, Update and Discontinue. Every query is `CustomerUserId`-scoped **and** service-kind constrained. Changing to/from goods is not permitted by this service. Discontinue is a soft archival transition preserving UUID, FK references and revision.
+- `Revision` optimistic concurrency is checked for mutations; the existing PostgreSQL index prevents duplicate codes, and Serializable transactions + rechecked session/scope protect writes from stale commercial ownership. Root Level1 access requires a current `CustomerCommercialOwner.RootLevel1UserId`, partner Level2 access requires current partner assignment, and both require enabled MFA. Customer can edit only its own catalog account. No old grant or taxpayer-profile shortcut.
+- Base unit must exist in `official_measurement_units` and be selectable (Active or the owner-reviewed staged `RC_UMGS.ST` units in internal development mode); **Staged is not authority verification**, and future invoice readiness requires appropriate approved source in Steps11–14.
+- All service/catalog data remains separate from any financial posting, VAT classification, official code mapping and invoice records. The complete ArginAccounting SKU/barcode/category/sales policy fields are not claimed as implemented in this step.
+
+**Committed files:**
+1. `src/ArginTaxPayer.Domain/Catalog/CustomerServicePolicy.cs`
+2. `src/ArginTaxPayer.Infrastructure/Persistence/Catalog/CustomerServiceCatalogService.cs`
+3. `tests/ArginTaxPayer.Tests/Phase06CustomerServiceTests.cs`
+4. `docs/phases/phase-06.md`
+
+**Migration impact:** No new EF migration. `customer_catalog_items` in Step02 already supports goods and services (Kind 1,2,3), scoped unique internal codes, Revision and FK-restricted base units. Do not run `dotnet ef database update` just for Step10. No production DB changes or writes made by assistant.
+
+**Required local commands:**
+```bash
+git fetch origin
+git switch phase/06-goods-services
+git pull --ff-only
+dotnet build ArginTaxPayer.sln -c Release
+dotnet test ArginTaxPayer.sln -c Release --no-build --filter "FullyQualifiedName~Phase06CustomerServiceTests"
+dotnet test ArginTaxPayer.sln -c Release --no-build
+dotnet ef migrations has-pending-model-changes --project src/ArginTaxPayer.Infrastructure --startup-project src/ArginTaxPayer.Api
+```
+
+**Negative/integration acceptance:** Reject missing/invalid base units, duplicate normalized internal codes (including collisions with products), unsupported kind conversion, service access to other customers, unauthorized former partner and lost-MFA admin, stale revision updates, writes after Discontinued, and invalid page/pageSize. Confirm real PostgreSQL transaction behavior and FK history protection with disposable test records. Focused pure/EF metadata tests do **not** yet establish these role/race/DB-integration outcomes. Existing Phase03–05 data and 102 seeded units must remain unchanged. No public HTTP endpoint or UI is exposed in this step; those belong to Steps12–13.
+
+**Evidence:** GitHub code/tests committed; .NET, CI and live PostgreSQL integration not executed or inspected by assistant. Tests require operator run and explicit signoff.
+**Owner signoff Step10:** Pending.
 
 ## Phase Closeout
 
