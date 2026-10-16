@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import ParticipantRegistrationModal from "./participant-registration-modal";
 import FiscalRecordModal from "./fiscal-record-modal";
 import ConsoleLoader from "../components/console-loader";
+import { canRegisterParticipant } from "./participant-access.mjs";
 
 type Buyer = { customerUserId: string; mobile: string | null; email: string | null;
   isActive: boolean; taxpayerCount: number; rootLevel1UserId: string | null;
@@ -95,12 +96,11 @@ export default function BuyerTaxpayerDirectory({ admin, level1, actorUserId }: {
   const shown = rows;
 
   async function startRegistration(mode: "buyer" | "seller") {
-    setRegisterMode(mode);
-    if (!admin) return;
+    if (!admin) { setRegisterMode(mode); return; }
     try {
       const all = await get<Buyer[]>("/api/customer-owners/accounts");
-      setRegistrationBuyers(all.filter(x => x.isActive && x.profileComplete &&
-        (level1 ? x.rootLevel1UserId === actorUserId : x.partnerLevel2UserId === actorUserId)));
+      setRegistrationBuyers(all.filter(x => canRegisterParticipant(x)));
+      setRegisterMode(mode);
     } catch (e) {
       setError((e as Error).message);
       setRegisterMode(null);

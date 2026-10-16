@@ -19,7 +19,7 @@ test("security settings contain MFA but no sessions on profile page",()=>{
  assert.doesNotMatch(security,/\/api\/identity\/sessions/);
  assert.doesNotMatch(security,/sessionIds/);
 });
-test("administrator sees profiles by name, incomplete accounts stay only in users screen",()=>{
+test("administrator sees profile names and picker uses shared role eligibility",()=>{
  const users=read("app/users/users-workspace.tsx");
  const picker=read("app/parties/participant-registration-modal.tsx");
  const directory=read("app/parties/buyer-taxpayer-directory.tsx");
@@ -27,7 +27,7 @@ test("administrator sees profiles by name, incomplete accounts stay only in user
  assert.match(users,/users-contact-truncated/);
  assert.match(picker,/b\.companyName \|\| b\.personName/);
  assert.doesNotMatch(picker,/\{b\.mobile \|\| b\.email/);
- assert.match(directory,/\.filter\(x => x\.isActive && x\.profileComplete &&/);
+ assert.match(directory,/\.filter\(x => canRegisterParticipant\(x\)\)/);
 });
 
 test("profile and security routes are isolated and have compact separate surfaces",()=>{

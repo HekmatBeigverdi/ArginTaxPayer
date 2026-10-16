@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { canRegisterParticipant } from "../app/parties/participant-access.mjs";
 
 const read = path => readFileSync(new URL("../" + path, import.meta.url), "utf8");
 
@@ -10,15 +11,27 @@ test("actor identity reaches buyer registration modal from authenticated server 
   const modal = read("app/parties/participant-registration-modal.tsx");
   assert.match(page, /actorUserId=\{actor\.userId\}/);
   assert.match(directory, /actorUserId=\{actorUserId\}/);
-  assert.match(modal, /rootLevel1UserId === actorUserId/);
-  assert.match(modal, /partnerLevel2UserId === actorUserId/);
+  assert.match(modal, /canRegisterParticipant\(chosenCustomer\)/);
+  assert.match(directory, /canRegisterParticipant\(x\)/);
 });
 
-test("inaccessible customers are disabled and cannot submit even with modified client state", () => {
+test("only completed profiles appear, regardless of assignment or active status", () => {
+  for (const isActive of [true, false]) {
+    for (const partnerLevel2UserId of [null, "partner", "other-partner"]) {
+      const customer = { customerUserId: "customer", isActive, partnerLevel2UserId };
+      assert.equal(canRegisterParticipant({ ...customer, profileComplete: true }), true);
+      assert.equal(canRegisterParticipant({ ...customer, profileComplete: false }), false);
+      assert.equal(canRegisterParticipant(customer), false);
+    }
+  }
+  assert.equal(canRegisterParticipant(undefined), false);
+});
+
+test("modal hides incomplete profiles and uses names without email or mobile fallbacks", () => {
   const modal = read("app/parties/participant-registration-modal.tsx");
-  assert.match(modal, /disabled=\{!permitted\}/);
-  assert.match(modal, /!authorizedCustomer/);
-  assert.match(modal, /مالکیت تجاری/);
+  assert.match(modal, /buyers\.filter\(b => canRegisterParticipant\(b\)\)/);
+  assert.match(modal, /\{b\.companyName \|\| b\.personName\}/);
+  assert.doesNotMatch(modal, /\|\| b\.email|\|\| b\.mobile/);
   assert.match(modal, /disabled=\{busy \|\| !authorizedCustomer/);
 });
 
