@@ -22,6 +22,9 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            // Phase06 additive catalog mappings. Keep snapshot aligned with DbContext.
+            ArginTaxPayer.Infrastructure.Persistence.Catalog.CatalogModelConfiguration.Apply(modelBuilder);
+
             modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Parties.PartyIdentityHistory", b =>
                 {
                     b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Parties.Party", null)
