@@ -9,6 +9,7 @@ type Item = { title: string; path: string; glyph: string };
 const base: Item[] = [
   { title: "داشبورد", path: "/dashboard", glyph: "▦" },
   { title: "خریداران و مؤدیان", path: "/parties", glyph: "♧" },
+  { title: "کالاها و خدمات", path: "/catalog", glyph: "▤" },
   { title: "پروفایل و حساب من", path: "/profile", glyph: "♙" },
   { title: "حساب و امنیت", path: "/account", glyph: "⚙" }
 ];
@@ -27,7 +28,7 @@ export default function ConsoleShell({ roles, userId, children }:
   const role = roles.includes("Level1") ? "مدیر سطح یک" :
     roles.includes("Level2") ? "مدیر سطح دو" : "کاربر پنل";
   const navigation = admin ? [base[0],
-    { title: "کاربران نرم‌افزار", path: "/users", glyph: "♟" }, base[1], base[2]] : base;
+    { title: "کاربران نرم‌افزار", path: "/users", glyph: "♟" }, base[1], base[2], base[3]] : base;
   useEffect(() => { setMenuOpen(false); setNavigatingTo(null); }, [pathname]);
   const requiresProfile = roles.includes("Customer");
   // Read the verified profile once per signed-in user (or explicit retry), NOT once
