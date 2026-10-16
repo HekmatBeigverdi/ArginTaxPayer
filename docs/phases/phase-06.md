@@ -709,3 +709,15 @@ Not started.
 - No .NET, database, or EF schema changes; **no Migration required**.
 
 **Verification:** `cd apps/web && npm run typecheck && npm test && npm run build`, then `zsh scripts/dev-up.zsh`, open `http://127.0.0.1:3000/catalog`. At desktop viewport verify neither panel overlaps, controls fit within form, account dropdown only displays named customers, and Jalali calendar opens upward. Step13 remains pending owner's approval.
+
+
+### Step13 visual identity branding (2026-10-17)
+
+**Owner request:** Apply the supplied green Argin logo as app and favicon imagery across the web login and dashboard, preserving existing functional flows.
+- Saved a 128x128 optimized PNG derived from the owner's supplied image at `apps/web/public/brand/argin-logo.png`. The asset is a faithful downsample and uses a white image background as supplied; the repository does not yet include a vector master or higher-resolution brand kit.
+- Mirrored the same logo at `apps/web/app/icon.png`, `apps/web/public/favicon.png` and `apps/web/public/apple-touch-icon.png`. The central metadata `apps/web/app/layout.tsx` explicitly sets the shortcut, standard browser icon and Apple icon (versioned URL to avoid stale favicon caches). No external image CDN.
+- Updated `apps/web/app/identity/page.tsx` with a priority-loaded brand image in place of the old Persian glyph; updated `apps/web/app/components/console-shell.tsx` to use the same icon in the right sidebar and header account trigger. No changes to route guards, sessions, accounting or invoicing.
+- Scoped `argin-brand-logo` sizing and border styling in `apps/web/app/globals.css`. Added `apps/web/tests/branding.test.mjs` to verify files exist and the intended components reference them.
+- **Migration:** none. Changes are static PNG, Next.js metadata, UI and tests.
+- **macOS operator verification:** `git fetch origin && git switch phase/06-goods-services && git pull --ff-only`; `cd apps/web && npm run typecheck && npm test && npm run build`. Restart `zsh scripts/dev-up.zsh` if needed; inspect `/identity`, `/dashboard` and `/catalog`, then refresh browser favicon cache if the previous icon remains.
+- **Approval:** Step13 remains pending operator build/browser acceptance; no assistant-run macOS compile/CI claim.
