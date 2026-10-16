@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 06: Goods and Services
 
-**Status:** Steps01–11 explicitly owner-approved. Step11 tests and PostgreSQL migration reported successful by operator on 2026-10-16 (raw logs not attached). Step12 Catalog API and Search implemented on the phase branch; local verification and owner acceptance pending. Steps13–16 not started.
+**Status:** Steps01–12 explicitly owner-approved, including Step12 owner signoff on 2026-10-16 (operator reports successful checks; raw HTTP response not attached). Step13 Persian RTL catalog UI and protected Next.js BFF committed; macOS/browser and owner acceptance pending. Steps14–16 not started.
 **Branch:** `phase/06-goods-services`
 **Baseline:** `main` after Phase05 merge `6a3de74692403029b68c2061251601752eebd518`.
 **Roadmap:** `docs/roadmap/18-phases.md`, Phase 06.
@@ -27,8 +27,8 @@ Preserve Phase03 identity, Phase04 customer/partner ownership and Phase05 partie
 | 09 | Customer Product Domain | Customer products, status and internal identifiers | Tenant isolation and protection of references | 02–06 | Owner-approved 2026-10-16; tests operator-reported successful |
 | 10 | Customer Service Domain | Customer services and type rules | CRUD, ownership and type-mismatch tests | 09 | Owner-approved 2026-10-16; tests operator-reported successful |
 | 11 | Tax Identifier Mapping | Historical mapping from customer items/services to official identifiers | Reject invalid or wrong-kind mappings | 08–10 | Owner-approved 2026-10-16; tests/migration operator-reported successful |
-| 12 | Catalog API and Search | Search, filtering, pagination and concurrency support | Role, paging and stale-update tests | 09–11 | Implemented; awaiting runtime/owner acceptance |
-| 13 | RTL Catalog UI | Lists, forms, selection search and localized errors | Authorized paths, validation and accessibility tests | 12 | Pending |
+| 12 | Catalog API and Search | Search, filtering, pagination and concurrency support | Role, paging and stale-update tests | 09–11 | Owner-approved 2026-10-16; operator-reported successful |
+| 13 | RTL Catalog UI | Lists, forms, selection search and localized errors | Authorized paths, validation and accessibility tests | 12 | UI/BFF committed; operator/browser acceptance pending |
 | 14 | Invoice Handoff Contracts | Immutable snapshot contract for Phases 07/08 without invoice issuance | Version contract and historical immutability tests | 06, 11–13 | Pending |
 | 15 | Security and Regression | Isolation, race, migration and Phase03–05 regression tests | Prevent cross-customer and former-partner access | 01–14 | Pending |
 | 16 | Final Acceptance and Handoff | Mac and Ubuntu aggregate tests, documentation and risk report | Evidence report, owner approval and separate merge/tag | 15 | Pending |
@@ -585,7 +585,51 @@ On running local Development API, use actual active sessions (Level1, Level2 ass
 
 **Owner acceptance gates:** Build+focused+regression tests, EF snapshot clean, no new migration, loopback-only Development routes, role/tenant checks and 401/403/404/409 statuses verified with distinct sessions, page/search stable, official results versioned/verified, prior Phases03–05 regression unaffected, Step04 102 units intact.
 
-**Owner signoff Step12:** Pending.
+**Owner signoff Step12:** Approved 2026-10-16 by owner; focused/API checks reported successful. Actual last HTTP response not independently captured.
+
+
+## Step 13 — RTL Catalog UI (2026-10-16)
+
+**Status:** Persian RTL Next.js catalog UI and same-origin BFF committed to phase branch; TypeScript/build/test/browser acceptance pending. Step12 explicitly owner approved; operator previously identified API at 127.0.0.1:15089, Next.js at 127.0.0.1:3000, and autossh PostgreSQL at 127.0.0.1:15432.
+
+**Routes and user experience:**
+- `GET /catalog` is a server-rendered authenticated page, redirects to /identity without a valid session, and to / when development UI is disabled. Its workspace uses `dir=rtl`, `lang=fa`, localized errors/success messages, mobile responsive forms/grids, keyboard focus, bidi-isolated internal codes and Persian date display.
+- Separate Goods, Services and Official Identifier tabs. Goods/Services have paged scoped code/title search, list, create, edit, soft archive; Goods type 1 vs 2, Service exclusively type 3, Revision for 409/stale edit detection. Official tab searches only active+verified reference results returned by the Step12 API.
+- Selected item has mapping history, official identifier selection by code/title and kind, effective start date and one-time mapping interval close with Revision. No tax invoice creation or edit to authority reference rows.
+- Customer/account scope defaults to authenticated user ID. Authorized admins can enter a customer UUID they currently own; all authorization is re-evaluated server side. Frontend selection is not a permission.
+- **Base unit limitation:** Step12 has no official units read/search endpoint. This UI currently accepts an official unit UUID as a text field with client-side GUID validation; it is **not a complete searchable unit picker**. Step13 owner acceptance must explicitly record this usability caveat, or request an amendment to expose scoped read-only units via Step12/13. Do not claim official unit selector fully implemented.
+- BFF route `/api/catalog/[...segments]` is Next.js server-only (Development UI gate), allowlists exact intended Step12 catalog resource shapes, enforces same-origin on writes, forwards auth with HttpOnly cookie from server only, checks payload/response bounds, uses loopback origin `identityApiOrigin()`, and never exposes tokens through localStorage/JS. Direct browser API on :15089 remains loopback-limited. It does **not** add production catalog routes.
+
+**Changed files:**
+1. `apps/web/app/catalog/page.tsx`
+2. `apps/web/app/catalog/workspace.tsx`
+3. `apps/web/app/api/catalog/[...segments]/route.ts`
+4. `apps/web/app/globals.css`
+5. `apps/web/tests/catalog-ui.test.mjs`
+6. `docs/phases/phase-06.md`
+
+**No EF migration**; Step13 is UI-only and BFF-only. PostgreSQL writes occur only when an authorized operator uses the existing Step12 development API to create/update a disposable record.
+
+**macOS acceptance commands:**
+```bash
+git fetch origin
+git switch phase/06-goods-services
+git pull --ff-only
+cd apps/web
+npm run typecheck
+npm test
+npm run build
+cd ../..
+dotnet build ArginTaxPayer.sln -c Release
+dotnet test ArginTaxPayer.sln -c Release --no-build
+zsh scripts/dev-up.zsh
+zsh scripts/dev-status.zsh
+```
+Browser: log in at `http://127.0.0.1:3000/identity`, open `http://127.0.0.1:3000/catalog`. Verify browser RTL layout (desktop/mobile), customer-scoped goods/services, empty/error/loading, search/paging, code/UUID LTR, create/edit/archive on **disposable test rows**, expected 401/no cookie and 403/wrong customer via same-origin BFF, stale Revision 409, official staged entries hidden, correct historical mapping displays, session expiration redirects after navigation. Confirm `http://127.0.0.1:15089/health/live` returns 200 before diagnosing catalog proxy. Do not publish/activate a regulatory release just to test UI.
+
+**Acceptance caveat:** Web `npm test` static tests prove wiring, not browser accessibility/real role isolation. Production UI disabled. No CI/macOS results were captured by assistant; browser and live BFF integration require operator confirmation.
+
+**Owner signoff Step13:** Pending.
 
 ## Phase Closeout
 
