@@ -5,10 +5,10 @@ import { test } from "node:test";
 const read = (name) => readFileSync(new URL("../" + name, import.meta.url), "utf8");
 
 test("catalog page is server authenticated and Persian RTL", () => {
-  const page = read("app/catalog/page.tsx");
-  assert.match(page, /identityUiEnabled\(\)/);
+  const page = read("app/(console)/catalog/page.tsx");
+  assert.match(read("app/(console)/layout.tsx"), /identityUiEnabled\(\)/);
   assert.match(page, /currentIdentity\(\)/);
-  assert.match(page, /redirect\("\/identity"\)/);
+  assert.match(read("app/(console)/layout.tsx"), /redirect\("\/identity"\)/);
   assert.match(page, /dir="rtl"/);
   assert.match(page, /lang="fa"/);
 });
@@ -37,14 +37,17 @@ test("catalog UI guards revision and exposes mapping-history operations", () => 
   assert.match(source, /"products"/);
   assert.match(source, /"services"/);
   assert.match(source, /"official"/);
-  assert.match(source, /جست‌وجوی واحد/);
-  assert.match(source, /انتخاب واحد پایه/);
+  assert.match(source, /role="dialog"/);
+  assert.match(source, /aria-modal="true"/);
+  assert.match(read("app/components/console-shell.tsx"), /path: "\/catalog"/);
+  assert.match(read("app/catalog/unit-combobox.tsx"), /جست‌وجوی واحد/);
+  assert.match(source, /CatalogUnitCombobox/);
 });
 
 test("RTL workspace has small-screen, keyboard and bidi safeguards", () => {
   const css = read("app/globals.css");
-  assert.match(css, /\.catalog-shell\{direction:rtl;text-align:right/);
-  assert.match(css, /\.catalog-shell button:focus-visible/);
+  assert.match(css, /\.console-catalog-page\{/);
+  assert.match(css, /\.catalog-unit-options\{/);
   assert.match(css, /@media\(max-width:650px\)/);
   assert.match(css, /unicode-bidi:isolate/);
 });
