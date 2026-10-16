@@ -11,19 +11,29 @@ public sealed class ValidateOfficialGoodsServiceIdentifiers : Migration
 {
     protected override void Up(MigrationBuilder migrationBuilder)
     {
-        // Defensive: fail instead of silently changing any manually imported historical code.
+        // The preceding 20261016082706_AddOfficialGoodsCodeFormat migration
+        // owns and creates the CHECK. This migration only verifies its presence.
+        // Never drop/recreate a constraint already applied to customer data.
         migrationBuilder.Sql("""
-ALTER TABLE official_goods_service_entries
-ADD CONSTRAINT ck_official_goods_code_format
-CHECK (code ~ '^[0-9]{13}$');
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+          FROM pg_constraint c
+         WHERE c.conrelid = 'public.official_goods_service_entries'::regclass
+           AND c.conname = 'ck_official_goods_code_format'
+           AND c.contype = 'c'
+           AND pg_get_constraintdef(c.oid) LIKE '%^[0-9]{13}$%'
+    ) THEN
+        RAISE EXCEPTION 'Expected 13-digit official goods/service CHECK is missing or differs';
+    END IF;
+END
+$$;
 """);
     }
 
     protected override void Down(MigrationBuilder migrationBuilder)
     {
-        migrationBuilder.Sql("""
-ALTER TABLE official_goods_service_entries
-DROP CONSTRAINT ck_official_goods_code_format;
-""");
+        // The preceding migration owns this constraint. Do not drop it here.
     }
 }
