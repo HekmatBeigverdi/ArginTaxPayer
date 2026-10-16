@@ -346,3 +346,39 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 .catalog-unit-options>div{padding:10px;font-size:11px;color:#687e90}
 .catalog-selected-unit{font-size:10px;display:block;color:#687e90;margin-top:3px;direction:ltr}
 @media(max-width:650px){.console-catalog-page .catalog-card{padding:10px}.catalog-form-dialog .catalog-form{grid-template-columns:1fr}.catalog-form-dialog .catalog-form label:has(.catalog-unit-combo){grid-column:1}.catalog-modal-footer,.catalog-form-dialog .catalog-help{grid-column:1}}
+
+
+/* Phase 06 Step 13 owner refinements: two-column ERP layout and ArginAccounting date picker */
+.console-catalog-page .catalog-split-layout{display:grid;grid-template-columns:minmax(290px,0.95fr) minmax(0,1.55fr);gap:12px;align-items:start;min-width:0}
+.console-catalog-page .catalog-split-layout >.catalog-card{min-width:0;height:100%}
+.console-catalog-page .catalog-editor-panel{background:#fbfdff}
+.console-catalog-page .catalog-editor-header{display:flex;align-items:center;justify-content:space-between;gap:10px;border-bottom:1px solid #e0e8ef;padding-bottom:10px;margin-bottom:12px}
+.console-catalog-page .catalog-editor-header h2{margin:0}
+.console-catalog-page .catalog-editor-header p{font-size:10px;color:#6e8394;margin:5px 0 0}
+.console-catalog-page .catalog-editor-panel .catalog-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}
+.console-catalog-page .catalog-editor-panel .catalog-form label{min-width:0;font-size:11px;gap:5px}
+.console-catalog-page .catalog-editor-panel .catalog-form label:has(.catalog-unit-combo){grid-column:1/-1}
+.console-catalog-page .catalog-editor-panel .catalog-form :is(input,select){width:100%;min-height:37px;padding:7px 9px;font-size:12px}
+.console-catalog-page .catalog-editor-panel .catalog-form .catalog-help,
+.console-catalog-page .catalog-editor-panel .catalog-modal-footer{grid-column:1/-1}
+.console-catalog-page .catalog-grid-loading-host{min-height:190px;position:relative}
+.console-catalog-page .catalog-grid-loading-host .argin-loader-overlay{position:absolute;inset:0;z-index:3;border-radius:8px;background:#ffffffdd}
+.console-catalog-page .catalog-filters select{width:100%;min-height:35px;border-radius:7px;border:1px solid #b9ccdd;background:#fff;color:#19324a;padding:6px 9px;font:inherit;font-size:12px}
+.console-catalog-page .catalog-editor-panel .catalog-modal-footer{justify-content:flex-start}
+@media(max-width:1100px){.console-catalog-page .catalog-split-layout{grid-template-columns:1fr}}
+@media(max-width:530px){.console-catalog-page .catalog-editor-panel .catalog-form{grid-template-columns:1fr}.console-catalog-page .catalog-editor-panel .catalog-form label:has(.catalog-unit-combo){grid-column:auto}}
+/* Shared ArginAccounting PersianDatePicker component styling, locally scoped to catalog. */
+.console-catalog-page .ui-persian-date{position:relative;min-width:0;width:100%;direction:rtl}
+.console-catalog-page .ui-persian-date__control{display:flex;position:relative;align-items:center}
+.console-catalog-page .ui-persian-date__input{width:100%;min-height:36px;border:1px solid #c1d2df;border-radius:8px;background:#fff;padding:7px 35px 7px 10px;font:inherit;font-size:12px;text-align:left;direction:ltr}
+.console-catalog-page .ui-persian-date__trigger{position:absolute;right:4px;top:3px;bottom:3px;display:grid;place-items:center;width:31px;background:transparent;border:0;color:#38677e;cursor:pointer}
+.console-catalog-page .ui-persian-date__popover{position:absolute;top:calc(100% + 6px);right:0;z-index:1300;width:min(290px,calc(100vw - 36px));background:#fff;border:1px solid #cbdbe5;border-radius:10px;box-shadow:0 18px 40px #17374d35;padding:11px;direction:rtl}
+.console-catalog-page .ui-persian-date__header{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px;font-size:12px}
+.console-catalog-page .ui-persian-date__header button,.console-catalog-page .ui-persian-date__footer button{font:inherit;border:0;background:#e9f2f7;color:#285675;cursor:pointer;border-radius:6px;padding:5px 10px}
+.console-catalog-page .ui-persian-date__weekdays,.console-catalog-page .ui-persian-date__days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px;text-align:center}
+.console-catalog-page .ui-persian-date__weekdays{font-size:10px;color:#657c89;margin-bottom:6px}
+.console-catalog-page .ui-persian-date__day{display:grid;place-items:center;min-height:30px;padding:4px;border:0;border-radius:6px;font:inherit;font-size:11px;background:#fff;color:#244153;cursor:pointer}
+.console-catalog-page .ui-persian-date__day:hover{background:#e8f1f7}
+.console-catalog-page .ui-persian-date__day--active{background:#236386!important;color:#fff!important}
+.console-catalog-page .ui-persian-date__footer{display:flex;justify-content:center;margin-top:10px}
+.console-catalog-page .ui-field__error{font-size:10px;color:#b04141}
