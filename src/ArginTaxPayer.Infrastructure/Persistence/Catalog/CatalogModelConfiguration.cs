@@ -52,7 +52,9 @@ public static class CatalogModelConfiguration
         var vat = b.Entity<VatClassificationEntry>();
         vat.ToTable("vat_classification_entries", t => {
             t.HasCheckConstraint("ck_vat_interval", "effective_to_utc IS NULL OR effective_to_utc > effective_from_utc");
-            t.HasCheckConstraint("ck_vat_percentage", "rate_percent IS NULL OR (rate_percent >= 0 AND rate_percent <= 100)");
+            t.HasCheckConstraint("ck_vat_percentage", "rate_percent IS NULL OR (rate_percent >= 0 AND rate_percent <= 999.99 AND rate_percent = round(rate_percent, 2))");
+            t.HasCheckConstraint("ck_vat_treatment", "treatment BETWEEN 0 AND 4");
+            t.HasCheckConstraint("ck_vat_treatment_rate", "(treatment = 0 AND rate_percent IS NULL) OR (treatment IN (2,3) AND rate_percent = 0) OR (treatment IN (1,4) AND rate_percent IS NOT NULL)");
         });
         vat.HasKey(x => x.Id);
         vat.Property(x => x.Id).HasColumnName("id");
@@ -60,6 +62,8 @@ public static class CatalogModelConfiguration
         vat.Property(x => x.Code).HasColumnName("code").HasMaxLength(64).IsRequired();
         vat.Property(x => x.LegalBasis).HasColumnName("legal_basis").HasMaxLength(512).IsRequired();
         vat.Property(x => x.RatePercent).HasColumnName("rate_percent").HasPrecision(8,4);
+        vat.Property(x => x.Treatment).HasColumnName("treatment").HasDefaultValue(0);
+        vat.Property(x => x.ContextKey).HasColumnName("context_key").HasMaxLength(120);
         vat.Property(x => x.EffectiveFromUtc).HasColumnName("effective_from_utc").HasColumnType("timestamp with time zone");
         vat.Property(x => x.EffectiveToUtc).HasColumnName("effective_to_utc").HasColumnType("timestamp with time zone");
         vat.HasOne<CatalogReferenceRelease>().WithMany().HasForeignKey(x => x.ReleaseId).OnDelete(DeleteBehavior.Restrict);
