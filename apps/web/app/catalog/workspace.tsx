@@ -122,7 +122,12 @@ export default function CatalogWorkspace({ actorId }: { actorId: string }) {
   }, [customer, kind, page, query]);
 
   useEffect(() => { void load(); }, [load]);
-  useEffect(() => { setSelected(null); setHistory([]); setOfficialResult([]); setEdit(null); }, [customer]);
+  useEffect(() => {
+    tableVersion.current++;
+    setSelected(null); setHistory([]); setOfficialResult([]); setEdit(null);
+    setCode(""); setTitle(""); setUnitId(""); setInfo("");
+    setFromUtc(""); setCloseDate("");
+  }, [customer]);
   function openForm(row?: CatalogRow) {
     setEdit(row ?? null); setCode(row?.internalCode ?? "");
     setTitle(row?.title ?? ""); setUnitId(row?.baseUnitId ?? "");
