@@ -178,7 +178,60 @@ Then verify `select count(*) from official_measurement_units where release_id='1
 
 **Acceptance gates:** 102/102 unique source rows; all sample unit codes mapped correctly; invalid and duplicate unit codes blocked; no changes to old releases; only Level1+MFA can create candidates; unit base FK and item-specific exact conversions; migration idempotency/source conflict safety; historical tables unaffected; no false activated/verified status; regression tests and clean Model Snapshot; operator/test-DB proof. **Operator tests/CI/macOS/Ubuntu:** not executed by assistant; Ubuntu full test deferred to Step16 unless a platform-specific issue appears.
 
-**Owner signoff Step04:** Pending explicit confirmation.
+**Owner signoff Step04:** Approved 2026-10-16. Operator reported passing macOS tests and migration on the test DB; no machine output independently received.
+
+
+## Step 05 — VAT Classification, Exemption and Version-Effective Rules (2026-10-16)
+
+**Status:** Code committed and design reviewed; local build/tests, test DB migration, CI and explicit owner acceptance pending. Step04 approved by owner with reported passing tests and PostgreSQL migration (raw outputs not attached).
+
+**Regulatory basis:** User-provided `RC_IITP.IS V7.9` sections for `vra` and the VAT amount: invoice `vra` is decimal (up to 3 integer digits and 2 decimal digits); VAT for exempt goods/services is 0, but VAT=0 can also mean legally zero-rated invoice contexts (export, certain exchange or supply-chain patterns). Specific/special commodities may require special statutory rates. Corrections/references can preserve the reference invoice's tax rate. The publication is a rule schema, not a complete dated authority-signed VAT rate catalog. **Never assume a global 10%, 9%, or 0% default**; taxes depend on date, verified code, invoice pattern and legal basis.
+
+**Domain decisions:**
+- `VatTreatment`: Unresolved=0, Standard=1, Exempt=2, ZeroRated=3, Special=4. Exempt and ZeroRated both require explicitly documented rate 0 but remain legally distinct. Unresolved has null rate; Standard/Special require an explicit 0..999.99, at most 2-decimal rate. Zero numeric value alone does not prove exemption.
+- `VatRule` includes typed release/rule UUID, stable classification code, legal basis, rate, effective UTC window `[from,to)`, source-verified and release-active flags, optional `ContextKey` for invoice pattern/special legal context. The `VatClassificationPolicy.Resolve` pure domain function selects by legal-effective instant and exact context. Missing rule, unverified/inactive release or unresolved treatment fails closed. More than one applicable rule returns Ambiguous instead of choosing an arbitrary rate. No calculation of invoice VAT/discount/prices is done in Phase06.
+- Published VAT classifications may not be edited in place; new rates must be represented by new version/effective intervals. Future correction invoices must use the referenced invoice's immutable historical snapshot; this is an integration constraint for Phase07–08.
+- ArginAccounting Phase16 `TaxProductProfileRef` remains a versioned projection/reference; do not inject editable tax rates, invoice totals, inventory valuation or accounting postings into its product master.
+- **No government-provided rate catalog was seeded**. Legal provenance for actual rate classifications must be checked at Step06–08 before any release can be marked Verified/Active.
+
+**Committed files:**
+- `src/ArginTaxPayer.Domain/Catalog/VatClassificationPolicy.cs`: treatment taxonomy, legal rule validation, date/context resolution and fail-closed provenance.
+- `src/ArginTaxPayer.Infrastructure/Persistence/Catalog/CatalogEntities.cs`: `VatClassificationEntry.Treatment` and `ContextKey` additions (legacy rows are not falsely auto-classified).
+- `src/ArginTaxPayer.Infrastructure/Persistence/Catalog/CatalogModelConfiguration.cs`: database mappings, numeric precision and treatment/rate check constraints.
+- `src/ArginTaxPayer.Infrastructure/Persistence/Migrations/20261016190000_AddVatTreatmentAndContext.cs`: additive columns with explicit existing-data precondition, safe Down guard and updated constraints. If any VAT rows already exist, migration deliberately aborts rather than guessing their legal treatment; owner/operator must review backfill strategy. No existing Phase03–05 schema is modified.
+- `tests/ArginTaxPayer.Tests/Phase06VatClassificationTests.cs`: tax treatment, 0 vs exemption, special rates, cross-date boundaries, overlaps, provenance and EF metadata.
+
+**Design boundary and remaining obligations:** ContextKey match is intentionally exact, not general-to-specific fallback. Phase06 Step06/08 will implement release versioning/activation, source trust/audit and interval overlap prevention at storage/transaction level. Steps11/12 will validate a selected item's official ID/VAT rule against invoice-like context. Step14 hands off an immutable snapshot; Phase07 implements actual legal invoice validation and VAT arithmetic. Level1-only modification of official reference catalog remains a future API/authorization obligation; Step05 adds no public endpoints.
+
+**Operator tests:**
+```bash
+git fetch origin
+git switch phase/06-goods-services
+git pull --ff-only
+dotnet build ArginTaxPayer.sln -c Release
+dotnet test ArginTaxPayer.sln -c Release --no-build --filter "FullyQualifiedName~Phase06VatClassificationTests"
+dotnet test ArginTaxPayer.sln -c Release --no-build
+dotnet ef migrations has-pending-model-changes --project src/ArginTaxPayer.Infrastructure --startup-project src/ArginTaxPayer.Api
+```
+For data changes, use existing `zsh scripts/dev-up.zsh` AutoSSH runner and canonical `.env.dev.local` Npgsql parser documented in `docs/roadmap/18-phases.md`. Require **actual** database verification `SELECT current_database() = 'argintaxpayer_test'`. Preflight `SELECT count(*) FROM vat_classification_entries;` **must equal zero**; otherwise stop and review the migration, do not force it or assign tax rates. Review generated migration SQL and apply explicitly:
+```bash
+dotnet ef migrations script 20261016180000_SeedOfficialUnitsV118 20261016190000_AddVatTreatmentAndContext --project src/ArginTaxPayer.Infrastructure --startup-project src/ArginTaxPayer.Api --output /tmp/phase06-step05.sql
+dotnet ef database update 20261016190000_AddVatTreatmentAndContext --project src/ArginTaxPayer.Infrastructure --startup-project src/ArginTaxPayer.Api --connection "$ConnectionStrings__ArginTaxPayerDb"
+```
+Verify `__EFMigrationsHistory`, `information_schema.columns` for `treatment`/`context_key`, `pg_constraint` for `ck_vat_treatment`, `ck_vat_treatment_rate`, `ck_vat_percentage`; verify existing unit data still counts 102 and seeded unit release is unchanged.
+
+**Acceptance:**
+1. Build, focused VAT tests and full regression suite pass; EF Model Snapshot reports no unintended drift.
+2. Unknown classification or missing authoritative source cannot be auto-resolved into a tax rate; no 10%/9% hardcoding.
+3. Legal Exempt/ZeroRated distinction preserved, zero rate mandatory only when legally asserted; special-rate and context support.
+4. Temporal half-open boundaries resolved correctly, overlaps rejected as ambiguous; no retroactive history rewrite.
+5. DB constraints reject inconsistent treatment/rate; reviewed migration only on `argintaxpayer_test`, and preexisting VAT rows fail safely.
+6. Phase03–05 data and Step04 unit seed remain unchanged; no invoice issuance or posting.
+7. No automatic public tax-authority verification claimed and no source rates seeded.
+8. Owner explicitly signs off before Step06.
+
+**Test evidence:** GitHub code and docs committed, build and test DB migration not run by assistant; CI not inspected; Ubuntu deferred to final phase, except if schema-specific platform issue arises.
+**Owner signoff Step05:** Pending.
 
 ## Phase Closeout
 
