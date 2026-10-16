@@ -123,7 +123,6 @@ export default function CatalogWorkspace({ actorId }: { actorId: string }) {
 
   useEffect(() => { void load(); }, [load]);
   useEffect(() => {
-    tableVersion.current++;
     setSelected(null); setHistory([]); setOfficialResult([]); setEdit(null);
     setCode(""); setTitle(""); setUnitId(""); setInfo("");
     setFromUtc(""); setCloseDate("");
@@ -225,7 +224,7 @@ export default function CatalogWorkspace({ actorId }: { actorId: string }) {
       <div className="catalog-filters">
         {kind !== "official" && <label>حساب / مشتری هدف
           <select aria-label="انتخاب مشتری بر اساس نام" value={customer}
-            onChange={e=> {setCustomer(e.target.value); setPage(1); setRows([]); setSelected(null);}}>
+            onChange={e=> {tableVersion.current++; setCustomer(e.target.value); setPage(1); setRows([]); setSelected(null);}}>
             <option value={actorId}>{actorLabel} (حساب فعلی)</option>
             {accounts.filter(a=>a.customerUserId!==actorId && a.isActive !== false).map(a=><option
               key={a.customerUserId} value={a.customerUserId}>
