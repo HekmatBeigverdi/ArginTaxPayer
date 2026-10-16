@@ -5,6 +5,7 @@ import { ACCESS_COOKIE, identityApiOrigin, identityUiEnabled } from "../../../..
 export const dynamic = "force-dynamic";
 const allowed = [
   /^official$/,
+  /^units$/,
   /^customers\/[0-9a-f-]{36}\/(products|services)$/,
   /^customers\/[0-9a-f-]{36}\/(products|services)\/[0-9a-f-]{36}$/,
   /^customers\/[0-9a-f-]{36}\/items\/[0-9a-f-]{36}\/tax-mappings$/,
@@ -13,7 +14,7 @@ const allowed = [
 function verifyRoute(path: string, method: string): boolean {
   if (!allowed.some(rule => rule.test(path))) return false;
   if (method === "GET") return !path.endsWith("/close");
-  if (method === "POST") return !path.includes("/official") && !path.endsWith("/close");
+  if (method === "POST") return path !== "official" && path !== "units" && !path.endsWith("/close");
   if (method === "PUT") return /\/(products|services)\/[0-9a-f-]{36}$/.test(path) || path.endsWith("/close");
   return false;
 }
