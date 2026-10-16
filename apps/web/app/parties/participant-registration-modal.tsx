@@ -14,9 +14,10 @@ const errorMessage = (code: number) => code === 400 ? "اطلاعات هویتی
   code === 409 ? "این شناسه قبلاً ثبت شده است؛ پرونده موجود را انتخاب کنید." :
   "عملیات انجام نشد؛ وضعیت سرور را بررسی کنید.";
 
-export default function ParticipantRegistrationModal({ mode, buyers, level1, actorUserId, onClose, onCompleted,
+export default function ParticipantRegistrationModal({ mode, buyers, level1, actorUserId, registrationLoading, onClose, onCompleted,
   initialCustomerId = "", initialSubjectId = "" }: {
   mode: Mode; buyers: Buyer[]; level1: boolean; actorUserId: string; onClose: () => void;
+  registrationLoading?: boolean;
   onCompleted: () => Promise<void>; initialCustomerId?: string; initialSubjectId?: string;
 }) {
   const [customerId, setCustomerId] = useState(initialCustomerId ||
@@ -35,10 +36,10 @@ export default function ParticipantRegistrationModal({ mode, buyers, level1, act
   const closeRef = useRef<HTMLButtonElement>(null);
   const complete = Boolean(subjectId);
   const chosenCustomer = buyers.find(b => b.customerUserId === customerId);
-  const authorizedCustomer = Boolean(chosenCustomer?.isActive && chosenCustomer.profileComplete &&
-    (chosenCustomer.customerUserId === actorUserId ||
-      (level1 ? chosenCustomer.rootLevel1UserId === actorUserId :
-        chosenCustomer.partnerLevel2UserId === actorUserId)));
+  const isPermitted = (buyer: Buyer) => buyer.isActive && buyer.profileComplete && (level1 ||
+    (buyer.customerUserId === actorUserId || buyer.partnerLevel2UserId === actorUserId));
+  const authorizedCustomer = Boolean(chosenCustomer && isPermitted(chosenCustomer));
+  const hasPermittedCustomer = buyers.some(isPermitted);
 
   useEffect(() => {
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -115,13 +116,14 @@ export default function ParticipantRegistrationModal({ mode, buyers, level1, act
           disabled={busy} onClick={onClose} aria-label="بستن پنجره">×</button>
       </header>
       <div className="argin-modal-body">
-        {!complete ? <form className="invoice-fields" onSubmit={create}>
+        {registrationLoading ? <div className="console-empty" role="status" aria-live="polite">
+          در حال دریافت فهرست مشتریان مجاز…
+        </div> : !complete ? <form className="invoice-fields" onSubmit={create}>
           <label>حساب مشتری / مالک پرونده
             <select value={customerId} onChange={e => setCustomerId(e.target.value)} required>
               <option value="">حساب مرتبط را انتخاب کنید</option>
               {buyers.map(b => {
-                const permitted = b.isActive && b.profileComplete && (b.customerUserId === actorUserId || (level1 ?
-                  b.rootLevel1UserId === actorUserId : b.partnerLevel2UserId === actorUserId));
+                const permitted = isPermitted(b);
                 return <option value={b.customerUserId} key={b.customerUserId} disabled={!permitted}>
                   {b.companyName || b.personName || "پروفایل تکمیل‌نشده"}
                   {!permitted ? " — بدون انتساب مجاز / غیرفعال" : ""}
@@ -132,7 +134,7 @@ export default function ParticipantRegistrationModal({ mode, buyers, level1, act
           {customerId && !authorizedCustomer && <p role="alert" className="party-error">
             این حساب در محدوده مالکیت تجاری ادمین فعلی نیست. از بخش کاربران نرم‌افزار، انتساب تجاری مشتری را بررسی کنید.
           </p>}
-          {buyers.every(b => !b.isActive || (b.customerUserId !== actorUserId && (level1 ? b.rootLevel1UserId !== actorUserId : b.partnerLevel2UserId !== actorUserId))) &&
+          {!hasPermittedCustomer &&
             <p role="alert" className="party-error">در فهرست فعلی مشتری مجاز برای ثبت وجود ندارد. ابتدا انتساب تجاری مشتری را بررسی کنید.</p>}
           <label>نوع شخصیت
             <select value={kind} onChange={e => setKind(e.target.value)}>

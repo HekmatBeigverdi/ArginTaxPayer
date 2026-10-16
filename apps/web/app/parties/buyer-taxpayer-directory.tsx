@@ -33,6 +33,7 @@ export default function BuyerTaxpayerDirectory({ admin, level1, actorUserId }: {
   const requestVersion = useRef(0);
   const [buyers, setBuyers] = useState<Buyer[]>([]);
   const [registrationBuyers, setRegistrationBuyers] = useState<Buyer[]>([]);
+  const [registrationLoading, setRegistrationLoading] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<Row | null>(null);
   const [registerMode, setRegisterMode] = useState<"buyer" | "seller" | null>(null);
   const [filter, setFilter] = useState<"all" | "buyer" | "taxpayer">("all");
@@ -95,15 +96,21 @@ export default function BuyerTaxpayerDirectory({ admin, level1, actorUserId }: {
   const shown = rows;
 
   async function startRegistration(mode: "buyer" | "seller") {
+    setError("");
     setRegisterMode(mode);
-    if (!admin) return;
+    if (!admin) {
+      return;
+    }
+    setRegistrationLoading(true);
     try {
       const all = await get<Buyer[]>("/api/customer-owners/accounts");
-      setRegistrationBuyers(all.filter(x => x.isActive && x.profileComplete &&
-        (level1 ? x.rootLevel1UserId === actorUserId : x.partnerLevel2UserId === actorUserId)));
+      const registrationCandidates = all.filter(x => x.isActive && x.profileComplete && (level1 ||
+        (x.partnerLevel2UserId === actorUserId || x.customerUserId === actorUserId)));
+      setRegistrationBuyers(registrationCandidates);
     } catch (e) {
       setError((e as Error).message);
-      setRegisterMode(null);
+    } finally {
+      setRegistrationLoading(false);
     }
   }
 
@@ -111,7 +118,8 @@ export default function BuyerTaxpayerDirectory({ admin, level1, actorUserId }: {
     {selectedRecord && <FiscalRecordModal key={selectedRecord.type + selectedRecord.id}
       record={selectedRecord} isLevel1={level1}
       onClose={() => setSelectedRecord(null)} onChanged={reload} />}
-    {registerMode && <ParticipantRegistrationModal mode={registerMode} buyers={admin ? registrationBuyers : buyers} actorUserId={actorUserId}
+    {registerMode && <ParticipantRegistrationModal mode={registerMode} buyers={admin ? registrationBuyers : buyers}
+      registrationLoading={registrationLoading} actorUserId={actorUserId}
       level1={level1} onClose={() => setRegisterMode(null)} onCompleted={reload}/> }
     {<div className="console-directory-actions">
       <button className="identity-primary" type="button" onClick={() => void startRegistration("buyer")}>+ افزودن خریدار</button>

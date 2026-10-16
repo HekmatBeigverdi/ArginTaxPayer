@@ -345,6 +345,11 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(64)")
                         .HasColumnName("code");
 
+                    b.Property<string>("ContextKey")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("context_key");
+
                     b.Property<DateTime>("EffectiveFromUtc")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("effective_from_utc");
@@ -368,6 +373,12 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("release_id");
 
+                    b.Property<int>("Treatment")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("treatment");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ReleaseId", "Code", "EffectiveFromUtc")
@@ -378,7 +389,11 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("ck_vat_interval", "effective_to_utc IS NULL OR effective_to_utc > effective_from_utc");
 
-                            t.HasCheckConstraint("ck_vat_percentage", "rate_percent IS NULL OR (rate_percent >= 0 AND rate_percent <= 100)");
+                            t.HasCheckConstraint("ck_vat_percentage", "rate_percent IS NULL OR (rate_percent >= 0 AND rate_percent <= 999.99 AND rate_percent = round(rate_percent, 2))");
+
+                            t.HasCheckConstraint("ck_vat_treatment", "treatment BETWEEN 0 AND 4");
+
+                            t.HasCheckConstraint("ck_vat_treatment_rate", "(treatment = 0 AND rate_percent IS NULL) OR (treatment IN (2,3) AND rate_percent = 0) OR (treatment IN (1,4) AND rate_percent IS NOT NULL)");
                         });
                 });
 
