@@ -53,6 +53,8 @@ export default function CatalogWorkspace({ actorId }: { actorId: string }) {
   const [title, setTitle] = useState("");
   const [code, setCode] = useState("");
   const [unitId, setUnitId] = useState("");
+  const [unitQuery, setUnitQuery] = useState("");
+  const [units, setUnits] = useState<Array<{id:string; code:string; title:string; isActive:boolean}>>([]);
   const [productKind, setProductKind] = useState(1);
   const [pending, setPending] = useState(false);
   const [selected, setSelected] = useState<CatalogRow | null>(null);
@@ -82,6 +84,16 @@ export default function CatalogWorkspace({ actorId }: { actorId: string }) {
     setEdit(row ?? null); setCode(row?.internalCode ?? "");
     setTitle(row?.title ?? ""); setUnitId(row?.baseUnitId ?? "");
     setProductKind(row?.kind === 2 ? 2 : 1); setError(""); setInfo("");
+  }
+  async function findUnits() {
+    setError("");
+    try {
+      const params = new URLSearchParams({ page: "1", pageSize: "50", query: unitQuery });
+      const result = await catalogCall("units?" + params) as {
+        items: Array<{id:string; code:string; title:string; isActive:boolean}>
+      };
+      setUnits(result.items ?? []);
+    } catch (e) { setError(e instanceof Error ? e.message : "فهرست واحدها دریافت نشد"); }
   }
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (kind === "official" || !guid(customer) || !guid(unitId)) {
@@ -215,14 +227,25 @@ export default function CatalogWorkspace({ actorId }: { actorId: string }) {
       <form onSubmit={save} className="catalog-form">
         <label>کد داخلی <input required maxLength={100} dir="ltr" value={code} onChange={e=>setCode(e.target.value)} /></label>
         <label>عنوان <input required minLength={2} maxLength={256} value={title} onChange={e=>setTitle(e.target.value)} /></label>
-        <label>شناسه واحد پایه <input required dir="ltr" value={unitId}
-          placeholder="UUID واحد مرجع" onChange={e=>setUnitId(e.target.value.trim())} /></label>
+        <label>واحد پایه
+          <input value={unitQuery} placeholder="جست‌وجو بر اساس عنوان یا کد واحد"
+            onChange={e=>setUnitQuery(e.target.value)} />
+          <button type="button" onClick={()=>void findUnits()}>جست‌وجوی واحد</button>
+          <select aria-label="انتخاب واحد پایه" required value={unitId}
+            onChange={e=>setUnitId(e.target.value)}>
+            <option value="">انتخاب واحد اندازه‌گیری</option>
+            {units.map(u=><option key={u.id} value={u.id}>
+              {u.title} ({u.code}) {u.isActive?"":"— پیش‌نویس مرجع"}
+            </option>)}
+            {unitId && !units.some(u=>u.id===unitId) && <option value={unitId}>واحد انتخاب‌شده قبلی</option>}
+          </select>
+        </label>
         {kind==="products" && <label>نوع کالا <select value={productKind} disabled={Boolean(edit)}
           onChange={e=>setProductKind(Number(e.target.value))}><option value={1}>انبارپذیر</option><option value={2}>غیرانبارپذیر</option></select></label>}
         <div className="catalog-actions"><button className="identity-primary" type="submit" disabled={pending}>ثبت اطلاعات</button>
           <button type="button" onClick={()=>openForm()}>پاک‌کردن فرم</button></div>
       </form>
-      <p className="catalog-help">واحد پایه باید شناسه معتبر رکورد واحد اندازه‌گیری باشد. انتخابگر جست‌وجوی واحد، مستلزم API فهرست واحدها است و در این گام هنوز آماده نیست.</p>
+      <p className="catalog-help">واحدهای پیش‌نویس برای ثبت داخلی نمایش داده می‌شوند و به معنی اعتبارسنجی سازمان مالیاتی نیستند. صدور صورتحساب نیازمند مرجع معتبر و فعال است.</p>
     </section>}
     {selected && kind !== "official" && <section className="catalog-card">
       <div className="catalog-bar"><h2>نگاشت شناسه رسمی برای {selected.title}</h2>
