@@ -89,12 +89,28 @@ public sealed class ReferenceImportService(
             { SqlState: PostgresErrorCodes.UniqueViolation or PostgresErrorCodes.ForeignKeyViolation })
         {
             db.ChangeTracker.Clear();
-            return new(ReferenceImportDecision.Conflict);
+            var winner = await db.CatalogReferenceReleases.AsNoTracking()
+                .Where(x => x.SourceDocument == preview.SourceDocument &&
+                            x.SourceSha256 == preview.Sha256)
+                .Select(x => new { x.Id, x.Edition, x.SourceReference })
+                .SingleOrDefaultAsync(ct);
+            return winner is not null && winner.Edition == preview.Edition &&
+                   winner.SourceReference == preview.SourceReference
+                ? new(ReferenceImportDecision.AlreadyImported, winner.Id)
+                : new(ReferenceImportDecision.Conflict);
         }
         catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.SerializationFailure)
         {
             db.ChangeTracker.Clear();
-            return new(ReferenceImportDecision.Conflict);
+            var winner = await db.CatalogReferenceReleases.AsNoTracking()
+                .Where(x => x.SourceDocument == preview.SourceDocument &&
+                            x.SourceSha256 == preview.Sha256)
+                .Select(x => new { x.Id, x.Edition, x.SourceReference })
+                .SingleOrDefaultAsync(ct);
+            return winner is not null && winner.Edition == preview.Edition &&
+                   winner.SourceReference == preview.SourceReference
+                ? new(ReferenceImportDecision.AlreadyImported, winner.Id)
+                : new(ReferenceImportDecision.Conflict);
         }
     }
 
