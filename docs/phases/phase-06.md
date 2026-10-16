@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 06: Goods and Services
 
-**Status:** Steps01–07 owner-approved (Step07 reported successful tests on 2026-10-16; raw logs not attached). Step08 reference activation/audit implementation committed; acceptance and test-DB migration pending. Steps09–16 not started.
+**Status:** Steps01–08 owner-approved (Step08 tests and migration reported successful by operator on 2026-10-16; raw logs not independently attached). Step09 Customer Product Domain code and tests committed; owner acceptance pending. Steps10–16 not started.
 **Branch:** `phase/06-goods-services`
 **Baseline:** `main` after Phase05 merge `6a3de74692403029b68c2061251601752eebd518`.
 **Roadmap:** `docs/roadmap/18-phases.md`, Phase 06.
@@ -23,8 +23,8 @@ Preserve Phase03 identity, Phase04 customer/partner ownership and Phase05 partie
 | 05 | VAT Classification | Date- and source-dependent VAT classification, rates and exemptions | Do not assume fixed rates; test boundary dates | 03–04 | Owner-approved 2026-10-16; tests/migration operator-reported successful |
 | 06 | Versioned Reference Catalog | Source versions, validity intervals, snapshots and immutable history | Recover prior versions and control overlap | 03–05 | Owner approved 2026-10-16; tests/migration reported successful |
 | 07 | Reference Import Pipeline | Official-file staging, preview and validation | Idempotent repeated import and reported errors | 06 | Owner-approved 2026-10-16; focused tests operator-reported successful |
-| 08 | Reference Activation and Audit | Controlled release with audit and logical rollback | Move active version without deleting history | 07 | Implemented; tests and migration acceptance pending |
-| 09 | Customer Product Domain | Customer products, status and internal identifiers | Tenant isolation and protection of references | 02–06 | Pending |
+| 08 | Reference Activation and Audit | Controlled release with audit and logical rollback | Move active version without deleting history | 07 | Owner-approved 2026-10-16; tests/migration operator-reported successful |
+| 09 | Customer Product Domain | Customer products, status and internal identifiers | Tenant isolation and protection of references | 02–06 | Implemented; operator test/integration acceptance pending |
 | 10 | Customer Service Domain | Customer services and type rules | CRUD, ownership and type-mismatch tests | 09 | Pending |
 | 11 | Tax Identifier Mapping | Historical mapping from customer items/services to official identifiers | Reject invalid or wrong-kind mappings | 08–10 | Pending |
 | 12 | Catalog API and Search | Search, filtering, pagination and concurrency support | Role, paging and stale-update tests | 09–11 | Pending |
@@ -401,7 +401,55 @@ Audit table should have nine columns; audit immutability trigger should exist; 1
 8. Owner signoff before Step09.
 
 **Observed evidence:** GitHub commits created; assistant did not run dotnet, PostgreSQL migrations or CI. Test integration transaction/race/MFA cases are not yet independently demonstrated.
-**Owner signoff Step08:** Pending.
+**Owner signoff Step08:** Approved by owner on 2026-10-16. Tests and PostgreSQL migration reported successful; raw outputs not independently received.
+
+
+## Step 09 — Customer Product Domain (2026-10-16)
+
+**Status:** Domain and internal scoped application service committed; macOS .NET tests and integration acceptance pending. Step08 explicitly owner-approved following operator-reported successful tests and PostgreSQL migration.
+
+**ArginAccounting interoperability:**
+- `CatalogItemKind.StockItem=1`, `NonStockItem=2`, `Service=3` correspond to ArginAccounting Item kinds. This step implements *goods only* (stock and nonstock). A goods item cannot silently change its kind, including Stock to NonStock; Service CRUD follows Step10.
+- Customer's normalized `InternalCode` is separate from official fiscal `sstid`; normalization uses Unicode NFC + uppercase invariant and retains zeroes. Unique `(customer_user_id,internal_code)` existing PostgreSQL index guards case-normalized duplicates created via this service. Existing records use no intrusive backfill.
+- `BaseUnitId` must reference a known official measurement unit. This domain deliberately permits already owner-reviewed `RC_UMGS.ST` staged units for test/development while official activation awaits source confirmation. **Unverified/staged unit is not treated as authority-approved at invoice handoff**. Invoice-ready validation must require approved release in Steps11–14.
+- Product lifecycle: Active / Inactive / Blocked / Discontinued. Discontinue is a soft archive preserving stable ID, links and foreign-key history, with Revision optimistic concurrency. No hard deletes, no price/stock/COGS/VAT figures persisted to item master.
+- ArginAccounting company ID and ArginTaxPayer customer account user ID remain separate IDs requiring Phase13 mapping.
+
+**Service implementation:** `CustomerProductService` is **internal (no HTTP endpoints yet)** and exposes authenticated, customer-scoped Create, Get, paginated List and Update/Discontinue. Every query filters `CustomerUserId`. Write transactions are Serializable with server-side active account and commercial-owner checks repeated inside transaction. Root Level1 only sees customers with matching `CustomerCommercialOwner.RootLevel1UserId`; Level2 only currently assigned `PartnerLevel2UserId`; customers only their own account. Both admins require live enabled MFA. Cross-tenant writes and stale revisions fail closed. Create attempts with an unavailable base unit fail; unique conflicts are caught and returned as Conflict.
+
+**Changed files:**
+- `src/ArginTaxPayer.Domain/Catalog/CustomerProductPolicy.cs`: exact codes, title, item kind and archive invariants.
+- `src/ArginTaxPayer.Infrastructure/Persistence/Catalog/CustomerProductService.cs`: role-scoped application service with Serializable transactions and concurrency outcomes.
+- `tests/ArginTaxPayer.Tests/Phase06CustomerProductTests.cs`: normalizer/kind/archival/EF schema metadata focused checks.
+- `docs/phases/phase-06.md`: owner approval Step08 and Step09 record.
+
+**Migration:** **No new EF migration.** Step02 already added `customer_catalog_items` with tenant unique index, revision, status, kind, base unit FK and restrictive historical relationships. Step09 only introduces pure domain rules, internal service and tests.
+
+**Limitations and integration gates:**
+- Focused tests establish validation and EF metadata, **not** authenticated DB transaction/race/cross-tenant behavior; further live local integration tests are required before owner approval.
+- Internal scoped service is not a published API/UI; routes and RTL client arrive in Steps12–13. No new URL exposure or implicit fiscal party generation.
+- Changing the selected base unit on a referenced item may have historical implications: downstream unit conversion/invoice snapshot guards are planned Steps11–14. Do not apply such edits to real invoiced products until snapshot contract is finished.
+- The `CustomerProductService` uses release-verified or owner-reviewed staged unit eligibility for internal catalog work, but cannot claim regulatory unit verification. Do not send invoices based only on staged units.
+- No price-list/SKU/barcode/category/purchase-sales stock policy changes are included in Step09; these ArginAccounting detailed fields remain future interoperability scope, not falsely claimed implemented.
+
+**Operator macOS acceptance:**
+```bash
+git fetch origin
+git switch phase/06-goods-services
+git pull --ff-only
+dotnet build ArginTaxPayer.sln -c Release
+dotnet test ArginTaxPayer.sln -c Release --no-build --filter "FullyQualifiedName~Phase06CustomerProductTests"
+dotnet test ArginTaxPayer.sln -c Release --no-build
+dotnet ef migrations has-pending-model-changes --project src/ArginTaxPayer.Infrastructure --startup-project src/ArginTaxPayer.Api
+```
+No Step09 database update is required. Optional read-only smoke via `zsh scripts/dev-up.zsh`, verified `argintaxpayer_test`:
+```sql
+SELECT indexname FROM pg_indexes WHERE tablename='customer_catalog_items';
+SELECT count(*) FROM official_measurement_units WHERE release_id='14051800-0000-4000-8000-000000000118';
+```
+Expected 102 unit rows preserved. Unit + model tests are insufficient alone for concurrent duplicate create, role-scope transfer, and DB rollback proof; collect those in an isolated test fixture when available.
+
+**Step09 acceptance criteria:** build/tests pass; legal kinds 1/2 only; normalized customer codes unique per customer, not globally; current Level1/Level2/customer scopes and transfer restriction validated; base unit valid; stale revisions/duplicate codes rejected; discontinued items retained; no legacy Party/Taxpayer or external tax identifier overwritten; no new migration. **Owner signoff:** Pending.
 
 ## Phase Closeout
 
