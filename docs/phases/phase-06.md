@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 06: Goods and Services
 
-**Status:** Step 01 architecture/contracts documented and committed; owner acceptance pending. Steps 02–16 not started.
+**Status:** Step 01 approved by owner conditional on ArginAccounting interoperability; Phase16 contract review completed. Step 02 code committed; focused tests and test DB migration operator verification pending. Steps 03–16 not started.
 **Branch:** `phase/06-goods-services`
 **Baseline:** `main` after Phase05 merge `6a3de74692403029b68c2061251601752eebd518`.
 **Roadmap:** `docs/roadmap/18-phases.md` Phase 06.
@@ -12,8 +12,8 @@ Build a versioned official goods/services reference catalog (tax identifiers, of
 ## Fixed 16-Step Plan
 | Step | Title | Deliverable | Acceptance | Dependencies | Status |
 |---|---|---|---|---|---|
-| 01 | Architecture and Contracts | مدل دامنه، ADR، API، مجوزها و مرز فازها | بازبینی قرارداد و عدم تداخل با فازهای قبلی | Phase05 | Implemented (documentation); owner approval pending |
-| 02 | Persistence and Migrations | جداول مرجع و کاتالوگ اختصاصی، EF migration افزایشی | DB test-only، قیود و rollback review | 01 | Pending |
+| 01 | Architecture and Contracts | مدل دامنه، ADR، API، مجوزها و مرز فازها | بازبینی قرارداد و عدم تداخل با فازهای قبلی | Phase05 | Owner approved 2026-10-16, ArginAccounting compatibility amendment |
+| 02 | Persistence and Migrations | جداول مرجع و کاتالوگ اختصاصی، EF migration افزایشی | DB test-only، قیود و rollback review | 01 | Implementation committed; local/PostgreSQL evidence and owner acceptance pending |
 | 03 | Official Identifier Model | شناسه رسمی کالا/خدمت و منشأ/اعتبار آن | شناسه نامعتبر/تکراری و ادعای رسمی بدون منبع رد شود | 02 | Pending |
 | 04 | Official Unit Codes | مرجع کدهای رسمی واحد و نگاشت به واحد داخلی | واحد ناشناخته و نگاشت ناسازگار رد شود | 03 | Pending |
 | 05 | VAT Classification | طبقه‌بندی VAT و نرخ/معافیت وابسته به تاریخ و مرجع | عدم فرض نرخ ثابت و تست تاریخ‌های مرزی | 03–04 | Pending |
@@ -145,6 +145,65 @@ No taxpayer-grant-based Level2 authorization. Root administrative oversight must
 - Level2/customer have read/search/select only. `403` for attempted write, `401` without authentication, `409` for duplicate or stale revision; unknown/unverified unit mapping cannot be used as verified official invoice code.
 - Step15 negative tests: Level2/customer POST/PUT/PATCH/DELETE rejected even with forged or guessed IDs; direct/indirect mutation denied; concurrent Level1 updates CAS-safe; idempotent rerun equal row count; edition changes preserve historic semantics.
 - **No DB action executed in this amendment.** Actual seed and CRUD implementation are Step02–04/12–13 deliverables, each gated by owner approval and source-file verification. Do not advance to Step02 until Step01 is explicitly signed off.
+
+
+## ArginAccounting interoperability baseline and Step02 completion record (2026-10-16)
+
+### Step01 conditional signoff and architecture correction
+Owner approved Step01 provided compatibility with ArginAccounting. Reviewed owner-provided *ArginAccounting Phase16 — Products & Services* specification. Binding contract:
+- `ItemKind` uses three compatible categories: `STOCK_ITEM`, `NON_STOCK_ITEM`, `SERVICE` (persisted values 1, 2, 3). Fiscal reference `OfficialGoodsServiceEntry.Kind` is a **separate** two-state goods/service classification; stock vs non-stock must never leak as a tax classification.
+- Every customer item including SERVICE has a base measurement unit; per-item conversion is exact rational numerator/denominator with positive denominator and explicit rounding policy, not floating point. Do not imply that a carton has universal fixed size. Effective-date conversion history must remain stable.
+- ArginAccounting's `CompanyId` scopes accounting Item. Here `CustomerUserId` scopes customer master data: integration in Phase13 requires an explicit company/taxpayer-to-customer mapping, never equality of these UUIDs. Tenant item code is stable per customer. Financial balances, FIFO, COGS, purchase/sales prices, warehouse inventory and AccountRole posting do not belong to this phase.
+- Item states map conceptually to ACTIVE/INACTIVE/BLOCKED/DISCONTINUED. A tax profile is a versioned reference, not a mutable embedded tax response. Preserve invoice-line snapshot immutability for Phase07–08/13.
+- This is the **compatibility contract**, not a claim that ArginTaxPayer already supports ArginAccounting inventory, barcode or category features. Those remain integration/other-phase concerns.
+
+### Step02 — Persistence and Migrations
+**Status:** Implementation committed to `phase/06-goods-services`; awaiting locally executed tests, safe database application and owner acceptance.
+
+**Changed files:**
+- `src/ArginTaxPayer.Infrastructure/Persistence/Catalog/CatalogEntities.cs`
+- `src/ArginTaxPayer.Infrastructure/Persistence/Catalog/CatalogModelConfiguration.cs`
+- `src/ArginTaxPayer.Infrastructure/Persistence/ArginTaxPayerDbContext.cs`
+- `src/ArginTaxPayer.Infrastructure/Persistence/Migrations/20261016120000_AddPhase06CatalogFoundations.cs`
+- `src/ArginTaxPayer.Infrastructure/Persistence/Migrations/ArginTaxPayerDbContextModelSnapshot.cs`
+- `tests/ArginTaxPayer.Tests/Phase06CatalogPersistenceTests.cs`
+
+**Entities / tables:** `CatalogReferenceRelease` / `catalog_reference_releases`; `OfficialMeasurementUnit` / `official_measurement_units`; `OfficialGoodsServiceEntry` / `official_goods_service_entries`; `VatClassificationEntry` / `vat_classification_entries`; `CustomerCatalogItem` / `customer_catalog_items`; `CatalogItemUnitConversion` / `catalog_item_unit_conversions`; `CatalogOfficialMapping` / `catalog_official_mappings`.
+
+**Integrity:** unique (source document, SHA256) releases; unique official code per release; per-customer unique internal code; revision-concurrency; explicit customer identity FK; base unit FK; strict RESTRICT history FKs; positive exact ratios; UTC effective intervals; nullable VAT rate and legal-basis metadata. Domain operations (official source verification, overlapping-period guard, kind mapping, Level1 authorization, data seed) are **not** implemented here and remain the designated Steps03–13; schema checks alone do not enforce those business rules.
+
+**Migration:** `20261016120000_AddPhase06CatalogFoundations` adds seven tables, indexes and PostgreSQL constraints; does not alter Phase03–05 tables or backfill existing data. `Down` drops all seven tables and is destructive after first insert; never use on retained data without separate approval. Step04 official seed awaits a verified complete `RC_UMGS.ST` release; no fabricated default codes seeded in Step02. EF snapshot is aligned through the shared mapping configuration rather than auto-generated inline entity configuration; validate using `dotnet ef migrations has-pending-model-changes` or equivalent before signoff.
+
+**Developer macOS verification (run from updated branch):**
+```bash
+git fetch origin
+git switch phase/06-goods-services
+git pull --ff-only
+dotnet build ArginTaxPayer.sln -c Release
+dotnet test ArginTaxPayer.sln -c Release --no-build --filter FullyQualifiedName~Phase06CatalogPersistenceTests
+```
+Use canonical environment launchers only when UI/DB smoke needed:
+```bash
+zsh scripts/dev-up.zsh
+zsh scripts/dev-status.zsh
+```
+Before ANY explicit migration, verify `SELECT current_database()` against the test connection with the owner-approved Npgsql parsing/psql approach in the roadmap, and confirm precisely `argintaxpayer_test`. Review generated SQL and pending EF migrations before applying to the test database. After explicit application, verify `__EFMigrationsHistory`, seven tables, check/unique/FK restrictions and rollback-only integrity probes. No production database operation. Run `zsh scripts/dev-down.zsh` when finished.
+
+**Targeted acceptance matrix:**
+1. Release build and all five model metadata tests pass.
+2. The DB name is exactly `argintaxpayer_test` and migration runs only after explicit authorization.
+3. Seven catalog tables and FK/unique/check constraints exist; no Phase03–05 tables modified.
+4. Same tenant duplicate internal code fails; another tenant may reuse code; invalid unit strings and denominator zero fail.
+5. FK RESTRICT prevents destroying referenced unit/release/item history.
+6. Duplicate release checksum cannot create second source release.
+7. Snapshot/model comparison has no unexpected pending changes.
+8. Tests confirm no auth routes, invoicing, VAT defaults, inventory postings or official seed were prematurely activated.
+
+**Test evidence:** GitHub code changes committed; .NET build **not executed by assistant**, tests **not executed**, PostgreSQL test DB **not connected/migrated**, macOS operator acceptance **pending**, Ubuntu **deferred** pending schema-specific verification and final phase acceptance, CI **not checked**. This is not a passed test claim.
+
+**Known limitations and follow-up:** Reference issuer verification and the complete official unit import are Step03/04/07/08; Level1 write authorization Step12/13; no customer catalog API yet; per-company ArginAccounting integration and historical conversion business rules require explicit later checks. Evaluate any database/provider model snapshot differences during local tests; fix before calling Step02 owner-approved.
+
+**Owner approval Step02:** Pending local test evidence and explicit signoff.
 
 ## Phase Closeout
 Not started.
