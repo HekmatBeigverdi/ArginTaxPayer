@@ -128,7 +128,7 @@ Unit seeding requires a checked-in machine-readable source with document identif
 
 **Expected results:** Exactly 13 ASCII digits are accepted; invalid lengths and characters are rejected; Accounting goods types map to fiscal Goods and service maps to fiscal Service; database checks and release-scoped uniqueness reject invalid or duplicate codes; candidates remain `Unverified`; only active Level1 users with MFA can create candidates; published releases remain immutable; and existing parties, taxpayers, customers, units and tax rates remain unchanged.
 
-**Owner signoff:** Pending.
+**Owner signoff:** Approved by owner 2026-10-16; log evidence of corrected migration not independently supplied.
 
 
 ### Step03 migration collision corrective action (2026-10-16)
@@ -136,6 +136,49 @@ Unit seeding requires a checked-in machine-readable source with document identif
 **Verified repository:** Both migration files existed on the branch. The first creates the 13-digit check and owns its drop in Down. The later migration has been corrected to validate the existing named CHECK definition and leave it intact in both Up and Down. **Corrective commit:** `318b6ca953ee013beb57e3061be86532bc3c7870`.
 **Safety:** No DROP, no renaming, no direct manual manipulation of `__EFMigrationsHistory`, no deletion of earlier migration. The second migration is verification-only. The failure does not prove the second migration was applied. Confirm migration history and constraint via read-only SQL on verified `argintaxpayer_test`, then retry the same target after `git pull --ff-only`.
 **Acceptance evidence:** User-supplied log proves build success and duplicate-check failure; corrected migration's build/actual PostgreSQL execution have not yet been independently witnessed. Do not claim Step03 final approval before operator retest.
+
+
+## Step 04 — Official Unit Codes and Default Catalog (2026-10-16)
+
+**Step03 prerequisite:** Owner approved 2026-10-16. Original operator migration log exposed a duplicate CHECK; correction `318b6ca953ee013beb57e3061be86532bc3c7870` is already committed. Approval is user-reported; no runtime retest output was provided.
+
+**Source inventory:** The owner's Library contains the genuine-looking four-page **`RC_UMGS.ST_V1.18`, Ordibehesht 1404**, with **102** published numbered measurement unit rows across pages 3–4. Source document `RC_IITP.IS V7.9` refers specifically to `RC_UMGS.ST` for invoice `mu`, max 8 numeric characters. **V1.18 is the verified available owner-provided document, not independently verified as the *currently latest* tax authority edition.** Do not claim live tax-authority approval. The PDF's original byte SHA256 is unavailable through current Project file materialization; the seed migration explicitly stores SHA256 of the normalized UTF-8 **transcription** and distinguishes it from original PDF checksum. Operator provenance review required before activating an official release.
+
+**Delivered:**
+1. `src/ArginTaxPayer.Infrastructure/Persistence/Catalog/Seeds/RC_UMGS_ST_V1_18.units.psv` — 102 records transcribed in row order, `row|code|Persian title`; read-only source-review reference. Example rows: `8|1627|عدد`, `22|1637|لیتر`, `33|164|کیلوگرم`, `102|16134|نفر-ماه`.
+2. `src/ArginTaxPayer.Infrastructure/Persistence/Migrations/20261016180000_SeedOfficialUnitsV118.cs` — explicit **additive data-only EF migration** for staged source release `RC_UMGS.ST V1.18` and 102 units using deterministic row GUIDs and canonical transcription SHA256. Requires preexisting Phase06 foundation migration. Uses `ON CONFLICT DO NOTHING` followed by exact title/code/status checks and count=102 assertion. On mismatch throws and aborts the migration transaction without overwriting. Version state remains `Staged (1)`; no automatic `Active` or `Verified` claim. `Down` intentionally preserves reference/history rather than removing units already linked to items.
+3. `src/ArginTaxPayer.Domain/Catalog/OfficialUnitCodePolicy.cs` — normalization for 1–8 numeric ASCII/Persian/Arabic-Indic `mu`, preserve leading zeroes; exact positive per-item rational conversion validation and date bounds per ArginAccounting Phase16.
+4. `src/ArginTaxPayer.Infrastructure/Persistence/Catalog/OfficialUnitCandidateService.cs` — internal-only Level1+enabled MFA candidate create on Staged release, double authorization check in Serializable transaction, database unique check; no Level2/customer write or public route; modification of published rows never allowed in place.
+5. `tests/ArginTaxPayer.Tests/Phase06OfficialUnitTests.cs` — verifies 102 rows, uniqueness/order, key codes and titles, code normalization/rejection and exact conversion policy.
+
+**Architecture and restrictions:** Units belong to an official *release*, customer `BaseUnitId` FK references exact unit row, conversion ratios remain scoped to `CatalogItemUnitConversion.ItemId`. A global official code is not the same as an ArginAccounting company's internal UoM code. Unknown or mismatched official unit must never be silently substituted or treated as verified. The current dataset is only a staged reference; the source activation workflow is Step08. New manual candidates do not receive false official validation. Role checks are server-side in the internal create service; HTTP CRUD, operator audit, source synchronization and role-negative integration tests are Step07/08/12/15. No destructive updates to historical invoices or items.
+
+**Important safety and implementation caveats:**
+- This does **not** prove V1.18 is the latest official catalogue. If a newer `RC_UMGS.ST` exists, import it as a new version and review differences before activation.
+- Historical frozen releases must not be changed. The staging-only create command does not modify an existing unit code, but source corrections require creating a new release.
+- Cross-tenant/units selection and quantity dimension compatibility require contextual service-level checks in Steps09–12; numeric formatting alone cannot prove applicability. No arbitrary conversion (e.g. mass to time) is approved.
+- The Step02/03 existing migration ordering (notably `20261016082706_AddOfficialGoodsCodeFormat` ordered before `20261016120000_AddPhase06CatalogFoundations`) may prevent clean-from-zero DB reconstruction; do not apply from scratch without confirming baseline or repairing migration ordering in a separate reviewed change. The existing approved shared test DB is the intended target.
+- Migration code was committed but **not executed** by assistant; test DB not touched by assistant. Operator must review SQL and confirm target `argintaxpayer_test`. Never run automatic runtime migration or a production seed.
+
+**Local operator commands (after source review):**
+```bash
+git fetch origin
+git switch phase/06-goods-services
+git pull --ff-only
+dotnet build ArginTaxPayer.sln -c Release
+dotnet test ArginTaxPayer.sln -c Release --no-build --filter "FullyQualifiedName~Phase06OfficialUnitTests"
+dotnet test ArginTaxPayer.sln -c Release --no-build
+dotnet ef migrations has-pending-model-changes --project src/ArginTaxPayer.Infrastructure --startup-project src/ArginTaxPayer.Api
+```
+For database work, run `zsh scripts/dev-up.zsh` and follow the previously approved `npgsql_value` method in `docs/roadmap/18-phases.md`; confirm actual `SELECT current_database()` exactly `argintaxpayer_test`. Inspect migration SQL from `20261016150000_ValidateOfficialGoodsServiceIdentifiers` to `20261016180000_SeedOfficialUnitsV118`. After source review and approval, explicitly apply only through new target:
+```bash
+dotnet ef database update 20261016180000_SeedOfficialUnitsV118 --project src/ArginTaxPayer.Infrastructure --startup-project src/ArginTaxPayer.Api --connection "$ConnectionStrings__ArginTaxPayerDb"
+```
+Then verify `select count(*) from official_measurement_units where release_id='14051800-0000-4000-8000-000000000118';` returns exactly 102, `select code,title from official_measurement_units where release_id='14051800-0000-4000-8000-000000000118' and code in ('1627','1637','164','16134') order by code;`, `select state,edition,source_sha256 from catalog_reference_releases where id='14051800-0000-4000-8000-000000000118';` returns state 1/edition V1.18 and 64-hex transcription checksum. Re-run targeted EF migration update to validate idempotent no-duplicate behavior. Query `__EFMigrationsHistory` and prior aggregates for unintended changes.
+
+**Acceptance gates:** 102/102 unique source rows; all sample unit codes mapped correctly; invalid and duplicate unit codes blocked; no changes to old releases; only Level1+MFA can create candidates; unit base FK and item-specific exact conversions; migration idempotency/source conflict safety; historical tables unaffected; no false activated/verified status; regression tests and clean Model Snapshot; operator/test-DB proof. **Operator tests/CI/macOS/Ubuntu:** not executed by assistant; Ubuntu full test deferred to Step16 unless a platform-specific issue appears.
+
+**Owner signoff Step04:** Pending explicit confirmation.
 
 ## Phase Closeout
 
