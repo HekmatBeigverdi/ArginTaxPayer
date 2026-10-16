@@ -37,6 +37,10 @@ public sealed class VatClassificationEntry
     public string Code { get; set; } = "";
     public string LegalBasis { get; set; } = "";
     public decimal? RatePercent { get; set; }
+    // 0=Unresolved, 1=Standard, 2=Exempt, 3=ZeroRated, 4=Special.
+    public int Treatment { get; set; }
+    // Pattern/context is explicit. Null means the generally applicable rule only.
+    public string? ContextKey { get; set; }
     public DateTime EffectiveFromUtc { get; set; }
     public DateTime? EffectiveToUtc { get; set; }
 }
