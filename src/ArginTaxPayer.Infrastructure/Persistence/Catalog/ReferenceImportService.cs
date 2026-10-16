@@ -96,8 +96,8 @@ public sealed class ReferenceImportService(
                 .SingleOrDefaultAsync(ct);
             return winner is not null && winner.Edition == preview.Edition &&
                    winner.SourceReference == preview.SourceReference
-                ? new(ReferenceImportDecision.AlreadyImported, winner.Id)
-                : new(ReferenceImportDecision.Conflict);
+                ? new ReferenceImportOutcome(ReferenceImportDecision.AlreadyImported, winner.Id)
+                : new ReferenceImportOutcome(ReferenceImportDecision.Conflict);
         }
         catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.SerializationFailure)
         {
@@ -109,8 +109,8 @@ public sealed class ReferenceImportService(
                 .SingleOrDefaultAsync(ct);
             return winner is not null && winner.Edition == preview.Edition &&
                    winner.SourceReference == preview.SourceReference
-                ? new(ReferenceImportDecision.AlreadyImported, winner.Id)
-                : new(ReferenceImportDecision.Conflict);
+                ? new ReferenceImportOutcome(ReferenceImportDecision.AlreadyImported, winner.Id)
+                : new ReferenceImportOutcome(ReferenceImportDecision.Conflict);
         }
     }
 
