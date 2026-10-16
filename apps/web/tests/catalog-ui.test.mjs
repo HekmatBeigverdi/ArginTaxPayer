@@ -20,6 +20,7 @@ test("backend-for-frontend never puts session tokens into browser JS", () => {
   assert.match(proxy, /identityUiEnabled\(\)/);
   assert.match(proxy, /identityApiOrigin\(\)/);
   assert.match(proxy, /verifyRoute/);
+  assert.match(proxy, /units/);
   assert.match(proxy, /origin_not_allowed/);
   assert.match(proxy, /Cache-Control/);
   assert.match(client, /credentials: "same-origin"/);
@@ -36,6 +37,8 @@ test("catalog UI guards revision and exposes mapping-history operations", () => 
   assert.match(source, /"products"/);
   assert.match(source, /"services"/);
   assert.match(source, /"official"/);
+  assert.match(source, /جست‌وجوی واحد/);
+  assert.match(source, /انتخاب واحد پایه/);
 });
 
 test("RTL workspace has small-screen, keyboard and bidi safeguards", () => {
