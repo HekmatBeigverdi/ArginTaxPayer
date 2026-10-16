@@ -28,7 +28,7 @@ export default function ConsoleShell({ roles, userId, children }:
   const role = roles.includes("Level1") ? "مدیر سطح یک" :
     roles.includes("Level2") ? "مدیر سطح دو" : "کاربر پنل";
   const navigation = admin ? [base[0],
-    { title: "کاربران نرم‌افزار", path: "/users", glyph: "♟" }, base[1], base[2], base[3]] : base;
+    { title: "کاربران نرم‌افزار", path: "/users", glyph: "♟" }, base[1], base[2], base[3], base[4]] : base;
   useEffect(() => { setMenuOpen(false); setNavigatingTo(null); }, [pathname]);
   const requiresProfile = roles.includes("Customer");
   // Read the verified profile once per signed-in user (or explicit retry), NOT once
