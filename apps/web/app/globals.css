@@ -267,3 +267,43 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 .console-settings-page .account-grid :is(p,label,small){font-size:11px}
 .console-settings-page .account-grid .identity-form{max-width:430px}
 @media(max-width:620px){.console-settings-card{padding:12px}.console-profile-two-col{grid-template-columns:1fr}.console-settings-page .console-page-heading h1{font-size:18px}}
+
+
+/* Phase 06 Step 13 — responsive, accessible Persian catalog workspace */
+.catalog-shell{direction:rtl;text-align:right;max-width:1480px;margin:0 auto;padding:28px 24px 60px;font-family:"Vazirmatn",Tahoma,sans-serif}
+.catalog-header{display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap;margin-bottom:23px}
+.catalog-header h1{font-size:clamp(23px,3vw,32px);margin:0 0 6px}
+.catalog-header p{color:#63758b;margin:0}.catalog-kicker{font-size:12px;font-weight:700;color:#226186!important}
+.catalog-link{display:inline-block;padding:10px 16px;text-decoration:none;border-radius:10px;background:#e7eff7;color:#1b5274;font-weight:700}
+.catalog-workspace{display:grid;gap:18px;min-width:0}
+.catalog-card{background:white;border:1px solid #dbe4ee;border-radius:16px;padding:22px;min-width:0}
+.catalog-card h2{font-size:19px;margin:0 0 14px}
+.catalog-card h3{font-size:15px;margin:18px 0 10px}
+.catalog-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px}
+.catalog-tabs button{border:1px solid #cad9e7;border-radius:10px;background:#f0f5fa;padding:10px 15px;color:#255477;font:inherit;font-weight:700;cursor:pointer}
+.catalog-tabs button[aria-selected=true]{background:#174667;border-color:#174667;color:white}
+.catalog-filters,.catalog-form{display:flex;align-items:flex-end;flex-wrap:wrap;gap:12px}
+.catalog-filters label,.catalog-form label{display:flex;flex-direction:column;gap:6px;min-width:220px;flex:1;font-size:13px;font-weight:700}
+.catalog-filters input,.catalog-form input,.catalog-form select{font:inherit;font-size:14px;min-height:44px;padding:10px 12px;border:1px solid #b9ccdd;border-radius:9px;background:#fff;color:#19324a;max-width:100%;width:100%}
+.catalog-filters input[dir=ltr],.catalog-form input[dir=ltr]{direction:ltr;text-align:left;unicode-bidi:isolate}
+.catalog-filters button,.catalog-actions button,.catalog-pages button,.catalog-result button,.catalog-bar button{border:1px solid #c3d5e7;border-radius:9px;background:#edf5fb;color:#174a70;padding:10px 13px;font:inherit;font-size:13px;cursor:pointer}
+.catalog-filters button:disabled,.catalog-actions button:disabled,.catalog-pages button:disabled,.catalog-result button:disabled{opacity:.48;cursor:default}
+.catalog-help{font-size:12px;color:#65788d;line-height:1.8;margin:14px 0 0}
+.catalog-message{color:#205f47;background:#edf8f1;border:1px solid #c9e7d3;padding:13px;border-radius:10px}
+.catalog-bar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.catalog-bar h2{margin:0}
+.catalog-scroll{max-width:100%;overflow-x:auto}
+.catalog-table{border-collapse:collapse;width:100%;min-width:680px;text-align:right}
+.catalog-table th,.catalog-table td{padding:13px 12px;text-align:right;border-bottom:1px solid #e4ebf2;vertical-align:middle}
+.catalog-table th{background:#f4f7fb;color:#475e72;font-size:12px;white-space:nowrap}
+.catalog-table td{font-size:13px}
+.catalog-table td[dir=ltr]{text-align:left}
+.catalog-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.catalog-actions .identity-primary{background:#194768;color:#fff}
+.catalog-empty{padding:26px;text-align:center;color:#677d92}
+.catalog-pages{display:flex;justify-content:center;align-items:center;gap:14px;margin-top:18px}
+.catalog-result{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px;border-bottom:1px solid #e2e9f1;flex-wrap:wrap}
+.catalog-history{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.catalog-history li{background:#f5f8fb;border:1px solid #e0e8f1;padding:12px;border-radius:9px}
+.catalog-shell button:focus-visible,.catalog-shell input:focus-visible,.catalog-shell select:focus-visible,.catalog-shell a:focus-visible{outline:3px solid #4c9fcf;outline-offset:2px}
+@media(max-width:650px){.catalog-shell{padding:18px 12px}.catalog-card{padding:15px}.catalog-filters label,.catalog-form label{min-width:100%}.catalog-header{align-items:flex-start}.catalog-tabs button{flex:1}}
