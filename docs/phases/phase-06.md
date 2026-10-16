@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 06: Goods and Services
 
-**Status:** Step 01 approved subject to ArginAccounting interoperability; Phase16 contract review completed. Step 02 owner-approved on 2026-10-16 based on operator confirmation; logs were not independently received. Step 03 implementation committed and pending macOS PostgreSQL/schema verification and owner approval. Steps 04–16 have not started.
+**Status:** Steps 01–05 explicitly owner-approved; Step05 tests and Migration reported successful on 2026-10-16 (raw logs not independently attached). Step06 versioned reference contract and PostgreSQL guards committed; operator testing and owner acceptance pending. Steps07–16 not started.
 **Branch:** `phase/06-goods-services`
 **Baseline:** `main` after Phase05 merge `6a3de74692403029b68c2061251601752eebd518`.
 **Roadmap:** `docs/roadmap/18-phases.md`, Phase 06.
@@ -20,8 +20,8 @@ Preserve Phase03 identity, Phase04 customer/partner ownership and Phase05 partie
 | 02 | Persistence and Migrations | Reference tables, customer catalog and additive EF migration | Test database only; constraint and rollback review | 01 | Owner-approved 2026-10-16; test logs not independently captured |
 | 03 | Official Identifier Model | Official goods/service identifier, origin and verification | Reject invalid/duplicate identifiers and unsupported official claims | 02 | Implemented; operator tests and owner signoff pending |
 | 04 | Official Unit Codes | Official unit-code reference and internal-unit mapping | Reject unknown units and incompatible mappings | 03 | Pending |
-| 05 | VAT Classification | Date- and source-dependent VAT classification, rates and exemptions | Do not assume fixed rates; test boundary dates | 03–04 | Pending |
-| 06 | Versioned Reference Catalog | Source versions, validity intervals, snapshots and immutable history | Recover prior versions and control overlap | 03–05 | Pending |
+| 05 | VAT Classification | Date- and source-dependent VAT classification, rates and exemptions | Do not assume fixed rates; test boundary dates | 03–04 | Owner-approved 2026-10-16; tests/migration operator-reported successful |
+| 06 | Versioned Reference Catalog | Source versions, validity intervals, snapshots and immutable history | Recover prior versions and control overlap | 03–05 | Implemented; operator acceptance pending |
 | 07 | Reference Import Pipeline | Official-file staging, preview and validation | Idempotent repeated import and reported errors | 06 | Pending |
 | 08 | Reference Activation and Audit | Controlled release with audit and logical rollback | Move active version without deleting history | 07 | Pending |
 | 09 | Customer Product Domain | Customer products, status and internal identifiers | Tenant isolation and protection of references | 02–06 | Pending |
@@ -231,7 +231,58 @@ Verify `__EFMigrationsHistory`, `information_schema.columns` for `treatment`/`co
 8. Owner explicitly signs off before Step06.
 
 **Test evidence:** GitHub code and docs committed, build and test DB migration not run by assistant; CI not inspected; Ubuntu deferred to final phase, except if schema-specific platform issue arises.
-**Owner signoff Step05:** Pending.
+**Owner signoff Step05:** Approved by owner 2026-10-16. Operator reported all tests and migration successful, but raw test logs were not attached.
+
+
+## Step 06 — Versioned Reference Catalog (2026-10-16)
+
+**Status:** Implementation committed to `phase/06-goods-services`; local test, test DB migration and owner acceptance pending. Step05 explicitly owner-approved with operator-reported successful tests and migration; no raw outputs were independently received.
+
+### Architecture and ArginAccounting compatibility
+- Canonical issuer/source edition and SHA256 checksum identify a reference release. Source import timestamp and legal effective time are separate. `CatalogReleasePolicy` describes strictly forward release lifecycle `Staged (1) -> Validated (2) -> Active (3) -> Superseded (4)`. It does not itself publish a release: privileged audited activation is Step08.
+- Only Staged official reference rows are writable. PostgreSQL triggers deny `DELETE` of any official release/entry, `UPDATE` or `INSERT` of entries outside a staged release, and changing the reference row's release ID. Release identity/provenance cannot be modified after creation. Active release must have an activation timestamp; the timestamp cannot later change.
+- Partial unique index restricts one `Active` release per `source_document`. This does **not** prevent separately sourced unit, goods/service and VAT releases from being active at once. Step08 must supersede previous active release before activating successor in the same transaction. Earlier activated releases remain queryable by their original `release_id`.
+- `CatalogReferenceSnapshot` records release ID, issuer document, edition, original canonical SHA256, code, title, capture and legal-effective instants. Immutable record projection, not yet a persisted invoice snapshot or evidence of a legally validated authority source; invoice handoff integration occurs in Step14.
+- VAT intervals are half-open `[effective_from_utc, effective_to_utc)`. Database trigger rejects overlaps within the same `release_id`, `code` and null-safe `context_key`, including concurrent writes. Trigger locks the parent release row to serialize sibling writes. The same code in a different release is permitted (historical versions). No silent rate overwrites.
+- ArginAccounting master item keeps a versioned TaxProductProfileRef and historical quantity/unit snapshot; no in-place mutation of past legal mappings or tax rates. Customer item code is not a tax reference code.
+
+### Files
+1. `src/ArginTaxPayer.Domain/Catalog/CatalogReleasePolicy.cs`: release state policy, identity validation, UTC half-open validity and immutable snapshot contract.
+2. `src/ArginTaxPayer.Infrastructure/Persistence/Migrations/20261016200000_EnforceReferenceVersionHistory.cs`: **database-only** additive migration creating protected triggers/functions and one partial active-release index. No data edits or new model columns. Raw trigger SQL is owned by migration and does not require an EF snapshot change.
+3. `tests/ArginTaxPayer.Tests/Phase06ReferenceVersioningTests.cs`: lifecycle, writability, UTC boundary, overlaps, provenance, historical snapshot tests.
+4. `docs/phases/phase-06.md`: formal owner signoff for Step05 and Step06 implementation/acceptance record.
+
+### Required negative/integration verification
+- INSERT or UPDATE for a reference entry on validated/active/superseded release fails at SQL level. DELETE fails even on staged release.
+- Two conflicting effective-dated VAT rows with same release/code/context (including NULL) fail. Adjacent half-open intervals and identical code in different releases pass.
+- Repeated active release from same document fails; active release without `activated_at_utc` fails; released source metadata cannot be edited.
+- The 102 seeded `RC_UMGS.ST V1.18` units remain unchanged and staged until independently verified/activated in Step08.
+- Snapshot sourced from active release retains source/version even after later supersession.
+- Migration applies only to confirmed test DB `argintaxpayer_test`, does not change earlier Phase03–05 data, VAT treatment or unit rows. `Down` refuses while reference releases exist to protect historic data. Migration is not designed to run automatically at application startup.
+- Future authoritative import, legal effective source review, Level1+MFA activation, audit trail and release rollback belong to Steps07–08. No public API/UI, actual tax submission or invoice writes in Step06.
+
+### macOS acceptance commands
+```bash
+git fetch origin
+git switch phase/06-goods-services
+git pull --ff-only
+dotnet build ArginTaxPayer.sln -c Release
+dotnet test ArginTaxPayer.sln -c Release --no-build --filter "FullyQualifiedName~Phase06ReferenceVersioningTests"
+dotnet test ArginTaxPayer.sln -c Release --no-build
+dotnet ef migrations has-pending-model-changes --project src/ArginTaxPayer.Infrastructure --startup-project src/ArginTaxPayer.Api
+```
+
+**Test database gate:** Start `zsh scripts/dev-up.zsh`; load the private `.env.dev.local` via the roadmap-prescribed `npgsql_value` method; confirm actual `SELECT current_database()` exactly `argintaxpayer_test`. Generate/review:
+```bash
+dotnet ef migrations script 20261016190000_AddVatTreatmentAndContext 20261016200000_EnforceReferenceVersionHistory --project src/ArginTaxPayer.Infrastructure --startup-project src/ArginTaxPayer.Api --output /tmp/phase06-step06.sql
+```
+Before applying, review active reference releases for duplicate active source documents; if they exist, the partial unique index will reject the migration and the data needs explicit operator review. Review table trigger conditions and backup test DB. Then explicitly run:
+```bash
+dotnet ef database update 20261016200000_EnforceReferenceVersionHistory --project src/ArginTaxPayer.Infrastructure --startup-project src/ArginTaxPayer.Api --connection "$ConnectionStrings__ArginTaxPayerDb"
+```
+Verify PostgreSQL `pg_trigger` four guards and VAT interval trigger, `pg_indexes` unique source index, migration history, stage unit release state, and sample intentional violations **within a rollback-only transaction**. Do not run destructive/manual maintenance statements against any production DB.
+
+**Evidence:** Code/doc committed. .NET/CI/PostgreSQL integration not executed by assistant (local container has no `dotnet` binary). Migration has a genuine database runtime test requirement. Step06 remains **pending owner acceptance**.
 
 ## Phase Closeout
 
