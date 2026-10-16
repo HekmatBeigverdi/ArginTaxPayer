@@ -92,7 +92,7 @@ public sealed class CustomerProductService(ArginTaxPayerDbContext db, IdentityAu
             return new(CustomerProductDecision.Forbidden);
         var product = await db.CustomerCatalogItems.AsNoTracking()
             .SingleOrDefaultAsync(p => p.Id == productId && p.CustomerUserId == customerId &&
-                p.Kind is 1 or 2, ct);
+                (p.Kind == 1 || p.Kind == 2), ct);
         return product is null
             ? new(CustomerProductDecision.NotFound)
             : new(CustomerProductDecision.Success, Map(product));
