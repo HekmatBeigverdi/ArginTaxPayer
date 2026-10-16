@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 06: Goods and Services
 
-**Status:** Steps 01–05 explicitly owner-approved; Step05 tests and Migration reported successful on 2026-10-16 (raw logs not independently attached). Step06 owner approved on 2026-10-16 (macOS tests and test-DB migration reported successful; raw logs not attached). Step07 bounded preview and staged import implementation committed; acceptance pending. Steps08–16 not started.
+**Status:** Steps01–07 owner-approved (Step07 reported successful tests on 2026-10-16; raw logs not attached). Step08 reference activation/audit implementation committed; acceptance and test-DB migration pending. Steps09–16 not started.
 **Branch:** `phase/06-goods-services`
 **Baseline:** `main` after Phase05 merge `6a3de74692403029b68c2061251601752eebd518`.
 **Roadmap:** `docs/roadmap/18-phases.md`, Phase 06.
@@ -22,8 +22,8 @@ Preserve Phase03 identity, Phase04 customer/partner ownership and Phase05 partie
 | 04 | Official Unit Codes | Official unit-code reference and internal-unit mapping | Reject unknown units and incompatible mappings | 03 | Pending |
 | 05 | VAT Classification | Date- and source-dependent VAT classification, rates and exemptions | Do not assume fixed rates; test boundary dates | 03–04 | Owner-approved 2026-10-16; tests/migration operator-reported successful |
 | 06 | Versioned Reference Catalog | Source versions, validity intervals, snapshots and immutable history | Recover prior versions and control overlap | 03–05 | Owner approved 2026-10-16; tests/migration reported successful |
-| 07 | Reference Import Pipeline | Official-file staging, preview and validation | Idempotent repeated import and reported errors | 06 | Code committed; operator acceptance pending |
-| 08 | Reference Activation and Audit | Controlled release with audit and logical rollback | Move active version without deleting history | 07 | Pending |
+| 07 | Reference Import Pipeline | Official-file staging, preview and validation | Idempotent repeated import and reported errors | 06 | Owner-approved 2026-10-16; focused tests operator-reported successful |
+| 08 | Reference Activation and Audit | Controlled release with audit and logical rollback | Move active version without deleting history | 07 | Implemented; tests and migration acceptance pending |
 | 09 | Customer Product Domain | Customer products, status and internal identifiers | Tenant isolation and protection of references | 02–06 | Pending |
 | 10 | Customer Service Domain | Customer services and type rules | CRUD, ownership and type-mismatch tests | 09 | Pending |
 | 11 | Tax Identifier Mapping | Historical mapping from customer items/services to official identifiers | Reject invalid or wrong-kind mappings | 08–10 | Pending |
@@ -337,7 +337,71 @@ Expected 102 preserved official units, no previously active/validated state sile
 8. Owner explicitly approves before Step08.
 
 **Evidence:** GitHub code/docs committed. No .NET test runner or live PostgreSQL connected in assistant runtime. Owner must share focused Build and test result and explicitly authorize next step.
-**Owner signoff Step07:** Pending.
+**Owner signoff Step07:** Approved by owner 2026-10-16; operator reported successful Step07 tests, raw test output not independently attached.
+
+
+## Step 08 — Reference Activation and Audit (2026-10-16)
+
+**Status:** Implementation committed, pending operator build/tests, PostgreSQL migration and explicit signoff. Step07 owner-approved on 2026-10-16 based on operator-reported successful tests; raw test outputs not independently received.
+
+### Contracts and safety
+- `CatalogReleaseActivationService` is an **internal only** command service, no public HTTP endpoint, no change to application routing. Requires an authenticated, active `Level1` identity with current MFA enabled; re-check inside serializable transaction. Level2/Customer/unauthed identities cannot act through this service.
+- `ValidateAsync`: staged(1) -> validated(2) with nonempty evidence reference and reason. A release must contain at least one reference row. Any Goods/Service candidate still marked `Unverified` blocks validation; 13-digit formatting or an HTTPS reference alone does not imply official existence. Evidence is an **operator attestation**, NOT independently confirmed authority data.
+- `ActivateAsync`: validated(2) -> active(3). In the same transaction, previous active release for the *same source document* becomes superseded(4), append-only `supersede` audit is written, new release activated with immutable `activated_at_utc` and `activate` audit written. Previous active updated *before* new active to satisfy PostgreSQL's immediate partial unique index. A transaction failure reverts all changes, including audit.
+- `WithdrawAsync`: emergency logical withdrawal active(3) -> superseded(4), with explicit audit. Does NOT delete/rewrite any records or illegally mutate a superseded release back into Active. After withdrawal, the source may temporarily have no active release. Re-publishing previous bytes as a new release is not implemented due to unique document+SHA constraint; separately reviewed restore design is required for full prior-version reinstatement.
+- Role decisions and audit are server-owned. SQL trigger `trg_phase06_audit_immutable` forbids UPDATE and DELETE on `catalog_release_audit`. FK RESTRICT preserves actor and release attribution. `catalog_release_audit` records release ID, Level1 actor, action, from/to state, evidence reference, reason, UTC timestamp. Operator must supply genuine review evidence; no authority communication or cryptographic verification occurs here.
+- PostgreSQL Step06 triggers already prevent invalid transitions and historical data mutation; Step08 service does not edit official entry rows. ArginAccounting source version and historical snapshots remain stable. No changes to Phase03–05 tenant/buyer/taxpayer data.
+
+### Changed files
+- `src/ArginTaxPayer.Infrastructure/Persistence/Migrations/20261016210000_AddReferenceActivationAudit.cs`: additive SQL migration for append-only audit table and DB trigger, with empty-only rollback protection; no EF entity schema diff or Model Snapshot update.
+- `src/ArginTaxPayer.Infrastructure/Persistence/Catalog/CatalogReleaseActivationService.cs`: atomic staged->validated->active->superseded and emergency withdrawal, Level1+MFA, audit insertion, conflict outcomes and preservation of historical state.
+- `tests/ArginTaxPayer.Tests/Phase06ReferenceActivationTests.cs`: metadata/state-machine and contract tests. Real role/transaction/trigger/concurrent-activation tests **still need an authenticated test-DB integration harness**.
+- `docs/phases/phase-06.md`: this acceptance record and Step07 approval.
+
+### macOS tests
+```bash
+git fetch origin
+git switch phase/06-goods-services
+git pull --ff-only
+dotnet build ArginTaxPayer.sln -c Release
+dotnet test ArginTaxPayer.sln -c Release --no-build --filter "FullyQualifiedName~Phase06ReferenceActivationTests"
+dotnet test ArginTaxPayer.sln -c Release --no-build
+dotnet ef migrations has-pending-model-changes --project src/ArginTaxPayer.Infrastructure --startup-project src/ArginTaxPayer.Api
+```
+
+### PostgreSQL migration and verification
+Explicit only on test DB `argintaxpayer_test`: start `zsh scripts/dev-up.zsh`, parse private `.env.dev.local` with documented `npgsql_value` function, and verify `SELECT current_database()`. Review generated SQL:
+```bash
+dotnet ef migrations script 20261016200000_EnforceReferenceVersionHistory 20261016210000_AddReferenceActivationAudit --project src/ArginTaxPayer.Infrastructure --startup-project src/ArginTaxPayer.Api --output /tmp/phase06-step08.sql
+```
+Then, after independent DB name, SQL and backup checks, apply:
+```bash
+dotnet ef database update 20261016210000_AddReferenceActivationAudit --project src/ArginTaxPayer.Infrastructure --startup-project src/ArginTaxPayer.Api --connection "$ConnectionStrings__ArginTaxPayerDb"
+```
+Read-only verify:
+```sql
+SELECT "MigrationId" FROM "__EFMigrationsHistory"
+ WHERE "MigrationId"='20261016210000_AddReferenceActivationAudit';
+SELECT column_name FROM information_schema.columns
+ WHERE table_name='catalog_release_audit' ORDER BY ordinal_position;
+SELECT tgname FROM pg_trigger WHERE tgname='trg_phase06_audit_immutable' AND NOT tgisinternal;
+SELECT count(*) FROM official_measurement_units
+ WHERE release_id='14051800-0000-4000-8000-000000000118';
+```
+Audit table should have nine columns; audit immutability trigger should exist; 102 Step04 units remain intact and staged. **Do not activate V1.18 just to test**: authentic issuer/version review must occur before any state change. Role/MFA, rollback-only transition probes, failure transaction audit atomicity, and concurrent activate tests must be performed in an isolated test fixture with its own disposable candidate releases, not against the owner-seeded 102-unit reference.
+
+### Acceptance
+1. Build, focused tests, full regression and EF Model Snapshot successful.
+2. Migration applies to correct test DB with table/append-only protection; no old data changed.
+3. All state transitions authorized Level1+MFA only; anonymous, Level2 and Customer denied.
+4. Activation of a new release and superseding prior active version succeed atomically with both audit rows; racing admins cannot create two active versions.
+5. Invalid transitions, empty/unverified releases and evidence-less transitions are rejected.
+6. Withdrawal never deletes past releases or reactivates a superseded historical one; historical snapshots still resolve.
+7. No false tax-authority verified/approved claims from format or source URL alone; Step04 102 units preserved.
+8. Owner signoff before Step09.
+
+**Observed evidence:** GitHub commits created; assistant did not run dotnet, PostgreSQL migrations or CI. Test integration transaction/race/MFA cases are not yet independently demonstrated.
+**Owner signoff Step08:** Pending.
 
 ## Phase Closeout
 
