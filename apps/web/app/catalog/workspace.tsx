@@ -1,6 +1,8 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import ConsoleLoader from "../components/console-loader";
+import { PersianDatePicker } from "./persian-date-picker";
 import CatalogUnitCombobox, { type CatalogUnitOption } from "./unit-combobox";
 
 type Kind = "products" | "services" | "official";
@@ -10,6 +12,7 @@ type CatalogRow = {
   status?: number; revision?: number; releaseId?: string;
 };
 type PageResult = { items: CatalogRow[]; hasMore: boolean };
+type OwnerAccount = {customerUserId: string; personName?: string|null; companyName?: string|null; isActive?: boolean; partnerLevel2UserId?: string|null; rootLevel1UserId?: string|null};
 type ErrorBody = { error?: string };
 const errors: Record<string, string> = {
   product_conflict: "کد کالا تکراری است یا نسخه اطلاعات تغییر کرده است.",
@@ -42,12 +45,16 @@ async function catalogCall(path: string, method = "GET", body?: object) {
 const shortId = (id: string) => id.length > 12 ? id.slice(0, 8) + "…" : id;
 export default function CatalogWorkspace({ actorId }: { actorId: string }) {
   const [customer, setCustomer] = useState(actorId);
+  const [accounts, setAccounts] = useState<OwnerAccount[]>([]);
+  const [actorLabel, setActorLabel] = useState("حساب واردشده");
+  const tableVersion = useRef(0);
+  const [closeDate, setCloseDate] = useState("");
   const [kind, setKind] = useState<Kind>("products");
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const [rows, setRows] = useState<CatalogRow[]>([]);
   const [more, setMore] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [edit, setEdit] = useState<CatalogRow | null>(null);
@@ -68,20 +75,57 @@ export default function CatalogWorkspace({ actorId }: { actorId: string }) {
     effectiveToUtc: string | null; revision: number;
   }>>([]);
 
+  useEffect(() => {
+    let live = true;
+    async function loadAccounts() {
+      try {
+        const result = await fetch("/api/customer-owners/accounts", {
+          credentials: "same-origin", cache: "no-store"
+        });
+        if (result.ok) {
+          const data: unknown = await result.json();
+          if (live && Array.isArray(data)) setAccounts(data as OwnerAccount[]);
+        }
+      } catch { /* Customer users may not have access to the administrator directory. */ }
+      try {
+        const result = await fetch("/api/software-profile/me", {
+          credentials: "same-origin", cache: "no-store"
+        });
+        if (result.ok) {
+          const value = await result.json() as {
+            firstName?: string; lastName?: string; personName?: string; companyName?: string;
+          };
+          const name = value.companyName || value.personName ||
+            [value.firstName, value.lastName].filter(Boolean).join(" ");
+          if (live && name) setActorLabel(name);
+        }
+      } catch { /* Keep a human-readable account fallback instead of exposing UUID. */ }
+    }
+    void loadAccounts();
+    return () => { live = false; };
+  }, []);
+  const customerLabel = customer === actorId ? actorLabel :
+    (accounts.find(a => a.customerUserId === customer)?.companyName ||
+     accounts.find(a => a.customerUserId === customer)?.personName || "کاربر انتخاب‌شده");
   const load = useCallback(async () => {
     if (kind !== "official" && !guid(customer)) { setError("شناسه مشتری باید UUID معتبر باشد."); return; }
+    const version = ++tableVersion.current;
     setLoading(true); setError("");
     try {
       const prefix = kind === "official" ? "official" :
         "customers/" + customer + "/" + kind;
       const args = new URLSearchParams({ page: String(page), pageSize: "20", query });
       const data = await catalogCall(prefix + "?" + args) as PageResult;
+      if (version !== tableVersion.current) return;
       setRows(data.items ?? []); setMore(Boolean(data.hasMore));
-    } catch (e) { setError(e instanceof Error ? e.message : "خطای دریافت اطلاعات"); }
-    finally { setLoading(false); }
+    } catch (e) { if (version === tableVersion.current) {
+      setRows([]); setMore(false); setError(e instanceof Error ? e.message : "خطای دریافت اطلاعات");
+    } }
+    finally { if (version === tableVersion.current) setLoading(false); }
   }, [customer, kind, page, query]);
 
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => { setSelected(null); setHistory([]); setOfficialResult([]); setEdit(null); }, [customer]);
   function openForm(row?: CatalogRow) {
     setEdit(row ?? null); setCode(row?.internalCode ?? "");
     setTitle(row?.title ?? ""); setUnitId(row?.baseUnitId ?? "");
@@ -162,12 +206,9 @@ export default function CatalogWorkspace({ actorId }: { actorId: string }) {
     } catch (e) { setError(e instanceof Error ? e.message : "جست‌وجو ناموفق بود"); }
   }
   async function closeMapping(mapping: { id: string; revision: number }) {
-    const input = window.prompt("زمان پایان اعتبار (ISO UTC، مثال: 2026-10-16T12:00:00Z)");
-    if (!input || !selected) return;
-    const at = new Date(input);
-    if (Number.isNaN(at.getTime()) || !input.endsWith("Z")) {
-      setError("تاریخ پایان باید به شکل معتبر UTC وارد شود."); return;
-    }
+    if (!closeDate || !selected) { setError("تاریخ پایان اعتبار را انتخاب کنید."); return; }
+    const at = new Date(closeDate + "T00:00:00.000Z");
+    if (Number.isNaN(at.getTime())) { setError("تاریخ پایان معتبر نیست."); return; }
     setPending(true); setError("");
     try {
       const query = new URLSearchParams({
@@ -183,7 +224,7 @@ export default function CatalogWorkspace({ actorId }: { actorId: string }) {
     if (!selected || !fromUtc) { setError("تاریخ شروع اعتبار را وارد کنید."); return; }
     setPending(true); setError("");
     try {
-      const date = new Date(fromUtc);
+      const date = new Date(fromUtc + "T00:00:00.000Z");
       if (Number.isNaN(date.getTime())) throw new Error("تاریخ شروع معتبر نیست.");
       await catalogCall("customers/" + customer + "/items/" + selected.id + "/tax-mappings", "POST", {
         officialEntryId: official.id, effectiveFromUtc: date.toISOString(),
@@ -200,9 +241,15 @@ export default function CatalogWorkspace({ actorId }: { actorId: string }) {
             onClick={() => { setKind(value); setPage(1); setRows([]); setSelected(null); setEdit(null); setFormOpen(false); setError(""); }}>{label}</button>)}
       </div>
       <div className="catalog-filters">
-        {kind !== "official" && <label>شناسه مشتری
-          <input dir="ltr" aria-label="شناسه مشتری" value={customer}
-            onChange={e=> {setCustomer(e.target.value.trim()); setPage(1);}} />
+        {kind !== "official" && <label>حساب / مشتری هدف
+          <select aria-label="انتخاب مشتری بر اساس نام" value={customer}
+            onChange={e=> {setCustomer(e.target.value); setPage(1); setRows([]); setSelected(null);}}>
+            <option value={actorId}>{actorLabel} (حساب فعلی)</option>
+            {accounts.filter(a=>a.customerUserId!==actorId && a.isActive !== false).map(a=><option
+              key={a.customerUserId} value={a.customerUserId}>
+              {a.companyName || a.personName || "مشتری بدون نام"}
+            </option>)}
+          </select>
         </label>}
         <label>جست‌وجو براساس عنوان یا کد
           <input value={query} onChange={e=> {setQuery(e.target.value);setPage(1);}}
@@ -210,47 +257,20 @@ export default function CatalogWorkspace({ actorId }: { actorId: string }) {
         </label>
         <button type="button" className="identity-secondary" disabled={loading} onClick={()=>void load()}>بازخوانی</button>
       </div>
-      {kind !== "official" && <p className="catalog-help">شناسه مشتری پیش‌فرض، شناسه حساب فعلی است. ادمین‌های مجاز می‌توانند شناسه مشتری تحت مدیریت را وارد کنند.</p>}
+      {kind !== "official" && <p className="catalog-help">نمایش و ثبت فقط برای حساب انتخاب‌شده: <strong>{customerLabel}</strong>. دسترسی توسط سرور و مالکیت تجاری کنترل می‌شود.</p>}
     </section>
     {error && <p className="form-error" role="alert">{error}</p>}
     {info && <p className="catalog-message" role="status">{info}</p>}
-    <section className="catalog-card">
-      <div className="catalog-bar"><h2>{kind==="products"?"کالاها":kind==="services"?"خدمات":"مرجع شناسه رسمی"}</h2>
-        {kind!=="official" && <button className="identity-primary" type="button" onClick={()=>openForm()}>ثبت {kind==="products"?"کالا":"خدمت"} جدید</button>}
-      </div>
-      <div className="catalog-scroll">
-        <table className="catalog-table">
-          <thead><tr><th scope="col">کد</th><th scope="col">عنوان</th><th scope="col">نوع / وضعیت</th><th scope="col">عملیات</th></tr></thead>
-          <tbody>{rows.map(row=><tr key={row.id}><td dir="ltr"><bdi>{row.internalCode ?? row.code}</bdi></td>
-            <td>{row.title}</td><td>{kind==="official" ? row.kind===1?"کالا":"خدمت" :
-              (row.status===4?"بایگانی":row.status===1?"فعال":"غیرفعال")}</td>
-            <td>{kind==="official"?<span>نسخه <bdi dir="ltr">{shortId(row.releaseId??"")}</bdi></span>:
-              <div className="catalog-actions"><button type="button" onClick={()=>void chooseItem(row)}>نگاشت</button>
-                <button type="button" onClick={()=>openForm(row)} disabled={row.status===4}>ویرایش</button>
-                <button type="button" disabled={row.status===4||pending} onClick={()=>void archive(row)}>بایگانی</button></div>}
-            </td></tr>)}</tbody>
-        </table>
-        {!loading && rows.length===0 && <p className="catalog-empty">موردی برای نمایش وجود ندارد.</p>}
-        {loading && <p role="status">در حال دریافت اطلاعات...</p>}
-      </div>
-      <nav className="catalog-pages" aria-label="صفحه‌بندی">
-        <button disabled={page===1||loading} onClick={()=>setPage(p=>p-1)}>صفحه قبل</button>
-        <span>صفحه {page.toLocaleString("fa-IR")}</span>
-        <button disabled={!more||loading} onClick={()=>setPage(p=>p+1)}>صفحه بعد</button>
-      </nav>
-    </section>
-    {formOpen && kind !== "official" && <div className="argin-modal-backdrop" onMouseDown={e => {
-      if (e.target === e.currentTarget && !pending) setFormOpen(false);
-    }}>
-      <div className="argin-modal catalog-form-dialog" role="dialog" aria-modal="true"
-        aria-labelledby="catalog-dialog-title" ref={dialogRef}>
-        <header className="argin-modal-header">
+    <div className="catalog-split-layout">
+    {kind !== "official" && <section className="catalog-card catalog-editor-panel">
+      <div className="catalog-form-dialog" aria-labelledby="catalog-dialog-title">
+        <header className="catalog-editor-header">
           <div><h2 id="catalog-dialog-title">{edit?"ویرایش":"افزودن"} {kind==="products"?"کالا":"خدمت"}</h2>
             <p>اطلاعات پایه مشتری</p></div>
-          <button ref={closeRef} type="button" className="argin-modal-close"
-            aria-label="بستن فرم" disabled={pending} onClick={()=>setFormOpen(false)}>×</button>
+          <button type="button" className="identity-secondary"
+            disabled={pending} onClick={()=>openForm()}>فرم جدید</button>
         </header>
-        <div className="argin-modal-body">
+        <div className="catalog-editor-body">
           <form onSubmit={save} className="catalog-form">
             <label>کد داخلی
               <input required maxLength={100} dir="ltr" value={code} onChange={e=>setCode(e.target.value)}/></label>
@@ -266,14 +286,41 @@ export default function CatalogWorkspace({ actorId }: { actorId: string }) {
             <p className="catalog-help">واحدهای مرجع پیش‌نویس فقط برای ثبت داخلی هستند و تأیید مالیاتی محسوب نمی‌شوند.</p>
             <div className="catalog-modal-footer">
               <button type="button" className="identity-secondary" disabled={pending}
-                onClick={()=>setFormOpen(false)}>انصراف</button>
+                onClick={()=>openForm()}>پاک‌کردن فرم</button>
               <button type="submit" className="identity-primary" disabled={pending||!unitId}>
                 {pending?"در حال ذخیره…":"ذخیره اطلاعات"}</button>
             </div>
           </form>
         </div>
       </div>
-    </div>}
+    </section>}
+
+    <section className="catalog-card">
+      <div className="catalog-bar"><h2>{kind==="products"?"کالاها":kind==="services"?"خدمات":"مرجع شناسه رسمی"}</h2>
+        
+      </div>
+      <div className="catalog-scroll catalog-grid-loading-host">
+        <table className="catalog-table">
+          <thead><tr><th scope="col">کد</th><th scope="col">عنوان</th><th scope="col">نوع / وضعیت</th><th scope="col">عملیات</th></tr></thead>
+          <tbody>{rows.map(row=><tr key={row.id}><td dir="ltr"><bdi>{row.internalCode ?? row.code}</bdi></td>
+            <td>{row.title}</td><td>{kind==="official" ? row.kind===1?"کالا":"خدمت" :
+              (row.status===4?"بایگانی":row.status===1?"فعال":"غیرفعال")}</td>
+            <td>{kind==="official"?<span>نسخه <bdi dir="ltr">{shortId(row.releaseId??"")}</bdi></span>:
+              <div className="catalog-actions"><button type="button" onClick={()=>void chooseItem(row)}>نگاشت</button>
+                <button type="button" onClick={()=>openForm(row)} disabled={row.status===4}>ویرایش</button>
+                <button type="button" disabled={row.status===4||pending} onClick={()=>void archive(row)}>بایگانی</button></div>}
+            </td></tr>)}</tbody>
+        </table>
+        {!loading && rows.length===0 && <p className="catalog-empty">موردی برای نمایش وجود ندارد.</p>}
+        {loading && <ConsoleLoader label="در حال بارگذاری کالاها و خدمات…" full />}
+      </div>
+      <nav className="catalog-pages" aria-label="صفحه‌بندی">
+        <button disabled={page===1||loading} onClick={()=>setPage(p=>p-1)}>صفحه قبل</button>
+        <span>صفحه {page.toLocaleString("fa-IR")}</span>
+        <button disabled={!more||loading} onClick={()=>setPage(p=>p+1)}>صفحه بعد</button>
+      </nav>
+    </section>
+    </div>
     {selected && kind !== "official" && <section className="catalog-card">
       <div className="catalog-bar"><h2>نگاشت شناسه رسمی برای {selected.title}</h2>
         <button type="button" onClick={()=>setSelected(null)}>بستن</button></div>
@@ -281,7 +328,8 @@ export default function CatalogWorkspace({ actorId }: { actorId: string }) {
       <div className="catalog-filters">
         <label>جست‌وجوی شناسه رسمی <input value={officialCode} onChange={e=>setOfficialCode(e.target.value)} /></label>
         <button type="button" onClick={()=>void findOfficial()}>جست‌وجو</button>
-        <label>شروع اعتبار (زمان محلی) <input type="datetime-local" value={fromUtc} onChange={e=>setFromUtc(e.target.value)} /></label>
+        <label>شروع اعتبار (شمسی) <PersianDatePicker value={fromUtc} onChange={setFromUtc}/></label>
+        <label>پایان اعتبار نگاشت قبلی (شمسی) <PersianDatePicker value={closeDate} onChange={setCloseDate}/></label>
       </div>
       {officialResult.map(item=><div className="catalog-result" key={item.id}><span>{item.title} — <bdi dir="ltr">{item.code}</bdi></span>
         <button disabled={pending} onClick={()=>void assign(item)}>ثبت نگاشت</button></div>)}
