@@ -632,6 +632,38 @@ Browser: verify the searchable unit picker and that staged units carry a draft l
 
 **Owner signoff Step13:** Pending.
 
+
+### Step13 dashboard-alignment correction — owner feedback (2026-10-16)
+
+**Reason:** The initial standalone `/catalog` page and in-page entry form were inconsistent with the established compact Users and Buyer/Seller console UI. The owner explicitly requested the same right-hand sidebar/navigation, compact dense table styles, modal create/edit, and searchable unit dropdown matching the ArginAccounting usage pattern.
+
+**Implemented:**
+- Moved `/catalog` route into `apps/web/app/(console)/catalog/page.tsx` to reuse the authenticated `ConsoleLayout`, common RTL `ConsoleShell`, breadcrumbs, navigation and sidebar. Removed the duplicate standalone `apps/web/app/catalog/page.tsx` route. The URL stays `/catalog`.
+- Added `کالاها و خدمات` to `apps/web/app/components/console-shell.tsx` navigation for admin and customer roles; retained all prior sidebar items including `حساب و امنیت`.
+- Product/service creation and revision-checked editing now appear in the same `argin-modal-backdrop` / `argin-modal` pattern as buyer/seller registration, not as a persistent form under the grid. Backdrop click, Escape (while not submitting), initial focus, focus loop, and cancel/close controls are included. Existing per-customer server authorization remains unchanged.
+- Added standalone `apps/web/app/catalog/unit-combobox.tsx`: debounced (250ms) authenticated `GET /api/catalog/units` search, dropdown options labeled Persian title + official unit code, active/draft distinction, ArrowUp/ArrowDown/Enter/Escape selection, no manual UUID entry requirement. Read-only units endpoint was already introduced in the Step13 original scope. No changes to the official unit database.
+- Added compact grid/panels, small controls, modal two-column spacing and dropdown overlay styles scoped to `.console-catalog-page` in `apps/web/app/globals.css`. Updated `apps/web/tests/catalog-ui.test.mjs` for console routing, navigation, modal and searchable dropdown.
+- All existing dashboard areas, cookies and BFF fail-closed authorization remain as before. The unit selector does **not** assert authority validation for `Staged` units.
+
+**Database / EF Migration:** NONE. This correction changes Next.js routing, frontend components, CSS and static tests only. Do not run a new `dotnet ef database update` for Step13.
+
+**Required macOS verification:**
+```bash
+git fetch origin
+git switch phase/06-goods-services
+git pull --ff-only
+cd apps/web
+npm run typecheck
+npm test
+npm run build
+cd ../..
+zsh scripts/dev-up.zsh
+zsh scripts/dev-status.zsh
+```
+Open `http://127.0.0.1:3000/catalog` while signed in. Confirm navigation in right sidebar, console headings and compact grid; open new product/service form in a modal; click unit dropdown, search for `عدد` or `1627`, select via mouse/keyboard, save a *disposable* customer item and reopen for edit; verify 401/403 for missing/wrong customer session and stale revision 409. Check mobile viewport and tab/focus handling. Stop short of official publication or real invoicing.
+
+**Owner signoff Step13:** Pending; this corrective change is still awaiting the operator's `npm run typecheck`, tests, build and browser acceptance. No assistant-run macOS test/DB check is claimed.
+
 ## Phase Closeout
 
 Not started.
