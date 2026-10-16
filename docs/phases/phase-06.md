@@ -697,3 +697,15 @@ Open `http://127.0.0.1:3000/catalog`; verify right inline form + left table at l
 ## Phase Closeout
 
 Not started.
+
+
+### Step13 visual refinement — screenshot review (2026-10-16)
+
+**State:** Updated on phase branch; macOS build/browser signoff remains pending.
+- The screenshot showed the input form crossing into the table because the obsolete `.catalog-form-dialog` modal styling still forced `width:calc(100vw - 28px)` in a much narrower CSS Grid cell. Replaced it with `width/max-width:100%`, `min-width:0`, border-box sizing and grid-specific containment. Table now uses compact fixed column allocation and wraps long identifiers/actions within its own panel. Mobile stacks both panels.
+- Account selector now excludes active accounts with empty, whitespace-only or missing `companyName` and `personName`. The logged-in account remains the default regardless of its own optional profile display name; no unrelated UUID/nameless customer rows are offered.
+- ArginAccounting-derived Persian date picker popover displays above its input via `bottom:calc(100% + 7px)` and `top:auto`, preserving month navigation and ISO contract.
+- `apps/web/tests/catalog-ui.test.mjs` includes source regressions for layout containment, named customers, and upward calendar.
+- No .NET, database, or EF schema changes; **no Migration required**.
+
+**Verification:** `cd apps/web && npm run typecheck && npm test && npm run build`, then `zsh scripts/dev-up.zsh`, open `http://127.0.0.1:3000/catalog`. At desktop viewport verify neither panel overlaps, controls fit within form, account dropdown only displays named customers, and Jalali calendar opens upward. Step13 remains pending owner's approval.
