@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import CatalogUnitCombobox, { type CatalogUnitOption } from "./unit-combobox";
 
 type Kind = "products" | "services" | "official";
 type CatalogRow = {
@@ -50,11 +51,12 @@ export default function CatalogWorkspace({ actorId }: { actorId: string }) {
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [edit, setEdit] = useState<CatalogRow | null>(null);
+  const [formOpen, setFormOpen] = useState(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
   const [title, setTitle] = useState("");
   const [code, setCode] = useState("");
   const [unitId, setUnitId] = useState("");
-  const [unitQuery, setUnitQuery] = useState("");
-  const [units, setUnits] = useState<Array<{id:string; code:string; title:string; isActive:boolean}>>([]);
   const [productKind, setProductKind] = useState(1);
   const [pending, setPending] = useState(false);
   const [selected, setSelected] = useState<CatalogRow | null>(null);
@@ -83,18 +85,33 @@ export default function CatalogWorkspace({ actorId }: { actorId: string }) {
   function openForm(row?: CatalogRow) {
     setEdit(row ?? null); setCode(row?.internalCode ?? "");
     setTitle(row?.title ?? ""); setUnitId(row?.baseUnitId ?? "");
-    setProductKind(row?.kind === 2 ? 2 : 1); setError(""); setInfo("");
+    setProductKind(row?.kind === 2 ? 2 : 1); setError(""); setInfo(""); setFormOpen(true);
   }
-  async function findUnits() {
-    setError("");
-    try {
-      const params = new URLSearchParams({ page: "1", pageSize: "50", query: unitQuery });
-      const result = await catalogCall("units?" + params) as {
-        items: Array<{id:string; code:string; title:string; isActive:boolean}>
-      };
-      setUnits(result.items ?? []);
-    } catch (e) { setError(e instanceof Error ? e.message : "فهرست واحدها دریافت نشد"); }
-  }
+  const searchUnits = useCallback(async (query: string): Promise<CatalogUnitOption[]> => {
+    const params = new URLSearchParams({ page: "1", pageSize: "50", query });
+    const response = await catalogCall("units?" + params) as { items: CatalogUnitOption[] };
+    return response.items ?? [];
+  }, []);
+  useEffect(() => {
+    if (!formOpen) return;
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    closeRef.current?.focus();
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape" && !pending) { event.preventDefault(); setFormOpen(false); }
+      if (event.key !== "Tab" || !dialogRef.current) return;
+      const items = Array.from(dialogRef.current.querySelectorAll<HTMLElement>(
+        'button:not([disabled]),input:not([disabled]),select:not([disabled])'
+      )).filter(item => item.offsetParent !== null);
+      if (!items.length) return;
+      if (event.shiftKey && document.activeElement === items[0]) {
+        event.preventDefault(); items[items.length - 1].focus();
+      } else if (!event.shiftKey && document.activeElement === items[items.length - 1]) {
+        event.preventDefault(); items[0].focus();
+      }
+    }
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("keydown", onKey); previous?.focus(); };
+  }, [formOpen, pending]);
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (kind === "official" || !guid(customer) || !guid(unitId)) {
       setError("شناسه مشتری و واحد پایه باید معتبر باشند."); return;
@@ -111,7 +128,7 @@ export default function CatalogWorkspace({ actorId }: { actorId: string }) {
         expectedRevision: edit?.revision ?? 0, discontinue: false,
       };
       await catalogCall(root + (edit ? "/" + edit.id : ""), edit ? "PUT" : "POST", payload);
-      setInfo("اطلاعات با موفقیت ثبت شد."); setEdit(null);
+      setInfo("اطلاعات با موفقیت ثبت شد."); setEdit(null); setFormOpen(false);
       setCode(""); setTitle(""); setUnitId(""); await load();
     } catch (e) { setError(e instanceof Error ? e.message : "ثبت ناموفق بود"); }
     finally { setPending(false); }
@@ -175,12 +192,12 @@ export default function CatalogWorkspace({ actorId }: { actorId: string }) {
     } catch (e) { setError(e instanceof Error ? e.message : "نگاشت ثبت نشد"); }
     finally { setPending(false); }
   }
-  return <div className="catalog-workspace" dir="rtl">
+  return <div className="catalog-workspace catalog-workspace-compact" dir="rtl">
     <section className="catalog-card" aria-label="فیلترهای کاتالوگ">
       <div className="catalog-tabs" role="tablist" aria-label="نوع اطلاعات">
         {([["products","کالاها"],["services","خدمات"],["official","شناسه‌های رسمی"]] as const).map(([value,label]) =>
           <button key={value} type="button" role="tab" aria-selected={kind===value}
-            onClick={() => { setKind(value); setPage(1); setRows([]); setSelected(null); setEdit(null); setError(""); }}>{label}</button>)}
+            onClick={() => { setKind(value); setPage(1); setRows([]); setSelected(null); setEdit(null); setFormOpen(false); setError(""); }}>{label}</button>)}
       </div>
       <div className="catalog-filters">
         {kind !== "official" && <label>شناسه مشتری
@@ -222,31 +239,41 @@ export default function CatalogWorkspace({ actorId }: { actorId: string }) {
         <button disabled={!more||loading} onClick={()=>setPage(p=>p+1)}>صفحه بعد</button>
       </nav>
     </section>
-    {kind !== "official" && <section className="catalog-card">
-      <h2>{edit ? "ویرایش اطلاعات" : "فرم ثبت " + (kind==="products"?"کالا":"خدمت")}</h2>
-      <form onSubmit={save} className="catalog-form">
-        <label>کد داخلی <input required maxLength={100} dir="ltr" value={code} onChange={e=>setCode(e.target.value)} /></label>
-        <label>عنوان <input required minLength={2} maxLength={256} value={title} onChange={e=>setTitle(e.target.value)} /></label>
-        <label>واحد پایه
-          <input value={unitQuery} placeholder="جست‌وجو بر اساس عنوان یا کد واحد"
-            onChange={e=>setUnitQuery(e.target.value)} />
-          <button type="button" onClick={()=>void findUnits()}>جست‌وجوی واحد</button>
-          <select aria-label="انتخاب واحد پایه" required value={unitId}
-            onChange={e=>setUnitId(e.target.value)}>
-            <option value="">انتخاب واحد اندازه‌گیری</option>
-            {units.map(u=><option key={u.id} value={u.id}>
-              {u.title} ({u.code}) {u.isActive?"":"— پیش‌نویس مرجع"}
-            </option>)}
-            {unitId && !units.some(u=>u.id===unitId) && <option value={unitId}>واحد انتخاب‌شده قبلی</option>}
-          </select>
-        </label>
-        {kind==="products" && <label>نوع کالا <select value={productKind} disabled={Boolean(edit)}
-          onChange={e=>setProductKind(Number(e.target.value))}><option value={1}>انبارپذیر</option><option value={2}>غیرانبارپذیر</option></select></label>}
-        <div className="catalog-actions"><button className="identity-primary" type="submit" disabled={pending}>ثبت اطلاعات</button>
-          <button type="button" onClick={()=>openForm()}>پاک‌کردن فرم</button></div>
-      </form>
-      <p className="catalog-help">واحدهای پیش‌نویس برای ثبت داخلی نمایش داده می‌شوند و به معنی اعتبارسنجی سازمان مالیاتی نیستند. صدور صورتحساب نیازمند مرجع معتبر و فعال است.</p>
-    </section>}
+    {formOpen && kind !== "official" && <div className="argin-modal-backdrop" onMouseDown={e => {
+      if (e.target === e.currentTarget && !pending) setFormOpen(false);
+    }}>
+      <div className="argin-modal catalog-form-dialog" role="dialog" aria-modal="true"
+        aria-labelledby="catalog-dialog-title" ref={dialogRef}>
+        <header className="argin-modal-header">
+          <div><h2 id="catalog-dialog-title">{edit?"ویرایش":"افزودن"} {kind==="products"?"کالا":"خدمت"}</h2>
+            <p>اطلاعات پایه مشتری</p></div>
+          <button ref={closeRef} type="button" className="argin-modal-close"
+            aria-label="بستن فرم" disabled={pending} onClick={()=>setFormOpen(false)}>×</button>
+        </header>
+        <div className="argin-modal-body">
+          <form onSubmit={save} className="catalog-form">
+            <label>کد داخلی
+              <input required maxLength={100} dir="ltr" value={code} onChange={e=>setCode(e.target.value)}/></label>
+            <label>عنوان
+              <input required minLength={2} maxLength={256} value={title} onChange={e=>setTitle(e.target.value)}/></label>
+            <label>واحد اندازه‌گیری پایه
+              <CatalogUnitCombobox value={unitId} onChange={setUnitId}
+                search={searchUnits} disabled={pending}/></label>
+            {kind==="products" && <label>نوع کالا
+              <select value={productKind} disabled={Boolean(edit)}
+                onChange={e=>setProductKind(Number(e.target.value))}>
+                <option value={1}>انبارپذیر</option><option value={2}>غیرانبارپذیر</option></select></label>}
+            <p className="catalog-help">واحدهای مرجع پیش‌نویس فقط برای ثبت داخلی هستند و تأیید مالیاتی محسوب نمی‌شوند.</p>
+            <div className="catalog-modal-footer">
+              <button type="button" className="identity-secondary" disabled={pending}
+                onClick={()=>setFormOpen(false)}>انصراف</button>
+              <button type="submit" className="identity-primary" disabled={pending||!unitId}>
+                {pending?"در حال ذخیره…":"ذخیره اطلاعات"}</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>}
     {selected && kind !== "official" && <section className="catalog-card">
       <div className="catalog-bar"><h2>نگاشت شناسه رسمی برای {selected.title}</h2>
         <button type="button" onClick={()=>setSelected(null)}>بستن</button></div>
