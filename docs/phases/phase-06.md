@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 06: Goods and Services
 
-**Status:** Steps01–10 owner-approved. Step10 focused tests reported successful by operator on 2026-10-16; raw logs not independently attached. Step11 Tax Identifier Mapping code, tests and protective migration committed; awaiting test-DB verification and owner approval. Steps12–16 not started.
+**Status:** Steps01–11 explicitly owner-approved. Step11 tests and PostgreSQL migration reported successful by operator on 2026-10-16 (raw logs not attached). Step12 Catalog API and Search implemented on the phase branch; local verification and owner acceptance pending. Steps13–16 not started.
 **Branch:** `phase/06-goods-services`
 **Baseline:** `main` after Phase05 merge `6a3de74692403029b68c2061251601752eebd518`.
 **Roadmap:** `docs/roadmap/18-phases.md`, Phase 06.
@@ -26,8 +26,8 @@ Preserve Phase03 identity, Phase04 customer/partner ownership and Phase05 partie
 | 08 | Reference Activation and Audit | Controlled release with audit and logical rollback | Move active version without deleting history | 07 | Owner-approved 2026-10-16; tests/migration operator-reported successful |
 | 09 | Customer Product Domain | Customer products, status and internal identifiers | Tenant isolation and protection of references | 02–06 | Owner-approved 2026-10-16; tests operator-reported successful |
 | 10 | Customer Service Domain | Customer services and type rules | CRUD, ownership and type-mismatch tests | 09 | Owner-approved 2026-10-16; tests operator-reported successful |
-| 11 | Tax Identifier Mapping | Historical mapping from customer items/services to official identifiers | Reject invalid or wrong-kind mappings | 08–10 | Implemented; tests/migration/owner acceptance pending |
-| 12 | Catalog API and Search | Search, filtering, pagination and concurrency support | Role, paging and stale-update tests | 09–11 | Pending |
+| 11 | Tax Identifier Mapping | Historical mapping from customer items/services to official identifiers | Reject invalid or wrong-kind mappings | 08–10 | Owner-approved 2026-10-16; tests/migration operator-reported successful |
+| 12 | Catalog API and Search | Search, filtering, pagination and concurrency support | Role, paging and stale-update tests | 09–11 | Implemented; awaiting runtime/owner acceptance |
 | 13 | RTL Catalog UI | Lists, forms, selection search and localized errors | Authorized paths, validation and accessibility tests | 12 | Pending |
 | 14 | Invoice Handoff Contracts | Immutable snapshot contract for Phases 07/08 without invoice issuance | Version contract and historical immutability tests | 06, 11–13 | Pending |
 | 15 | Security and Regression | Isolation, race, migration and Phase03–05 regression tests | Prevent cross-customer and former-partner access | 01–14 | Pending |
@@ -541,7 +541,51 @@ SELECT count(*) FROM official_measurement_units
 
 **Acceptance gaps:** Current focused tests are pure/domain and EF metadata tests. Live verified-source mapping tests, Level1/Level2/Customer boundary tests, historical closure, rollback-only wrong-kind/overlap/trigger negative tests and concurrent mapping insertion on **disposable test fixtures** remain required integration evidence before calling Step11 fully verified. Do not activate or mutate actual regulatory releases solely for testing. Source documentation/authority proof must not be inferred from a URL.
 
-**Owner signoff Step11:** Pending.
+**Owner signoff Step11:** Approved 2026-10-16. Operator reported successful tests and migration; raw outputs not independently attached.
+
+
+## Step 12 — Catalog API and Search (2026-10-16)
+
+**Status:** Code, route registration, focused tests committed; operator build/runtime acceptance pending. Step11 explicitly owner-approved based on operator's test/Migration success confirmation.
+
+**Routes and security:** For the phase's current development host, these routes are registered only when `ASPNETCORE_ENVIRONMENT=Development` and `identityDevelopmentEnabled` (connection configured). Every handler additionally verifies that remote TCP peer is loopback (otherwise 404), and the internal services authenticate a Bearer session and check current customer ownership/roles. No production catalog endpoints or public admin upload/publish route are exposed. This follows Phase03–05 development API policy.
+
+**Catalog endpoints (base `/api/dev/catalog`):**
+- `GET /official?page=1&pageSize=20&query=...&kind=1`: active+verified goods/service reference directory; returns code, title, kind, release ID. Inactive/unverified records excluded.
+- `GET /customers/{customerId}/products?page=1&pageSize=20&query=...` and `GET /customers/{customerId}/services?... `: separate scoped lists, code/title matching with PostgreSQL case-insensitive ILIKE and stable `InternalCode, Id` order. `pageSize` range 1..100, `page` 1..100000; `HasMore` computed via `size+1`, no unbounded export.
+- `POST /customers/{customerId}/products`, `GET /customers/{customerId}/products/{id}`, `PUT /customers/{customerId}/products/{id}`: Step09 service; body `InternalCode,Title,Kind,BaseUnitId,ExpectedRevision,Discontinue`. Create refuses stale revision/discontinue.
+- Parallel `/services` routes for Step10 service; body `InternalCode,Title,BaseUnitId,ExpectedRevision,Discontinue` with fixed Kind 3.
+- `GET /customers/{customerId}/items/{itemId}/tax-mappings`, `POST /customers/{customerId}/items/{itemId}/tax-mappings` and `PUT /customers/{customerId}/tax-mappings/{mappingId}/close?expectedRevision=...&closedAtUtc=...` expose Step11 strict historic mapping service. No direct mapping DELETE.
+- Existing concurrency via `expectedRevision` is returned as 409 Conflict, invalid input 400, missing resource 404, no session 401, forbidden ownership 403, and successful creation 201. Do not equate code-format validity with verified authority data.
+
+**Changes:**
+1. `src/ArginTaxPayer.Infrastructure/Persistence/Catalog/CatalogSearchService.cs` — tenant-scoped product/service searchable, paginated result and active verified official directory (internal search).
+2. `src/ArginTaxPayer.Api/Catalog/CatalogDevelopmentEndpoints.cs` — loopback-only minimal API routes and DTO/status mapping.
+3. `src/ArginTaxPayer.Api/Program.cs` — DI registration and conditional development route map.
+4. `tests/ArginTaxPayer.Tests/Phase06CatalogApiSearchTests.cs` — pagination/DTO contract tests.
+5. `docs/phases/phase-06.md` — Step11 signoff and Step12 record.
+
+**Migration:** None. All persistence tables and triggers already exist from Steps02–11. No `dotnet ef database update` for Step12.
+
+**Local macOS:**
+```bash
+git fetch origin
+git switch phase/06-goods-services
+git pull --ff-only
+dotnet build ArginTaxPayer.sln -c Release
+dotnet test ArginTaxPayer.sln -c Release --no-build --filter "FullyQualifiedName~Phase06CatalogApiSearchTests"
+dotnet test ArginTaxPayer.sln -c Release --no-build
+dotnet ef migrations has-pending-model-changes --project src/ArginTaxPayer.Infrastructure --startup-project src/ArginTaxPayer.Api
+zsh scripts/dev-up.zsh
+zsh scripts/dev-status.zsh
+```
+On running local Development API, use actual active sessions (Level1, Level2 assigned to customer, customer self and different customer) to verify `GET /api/dev/catalog/customers/{id}/products?page=1&pageSize=20` returns 200 for allowed session, 403 for wrong tenant, 401 for missing authorization, and 404 for nonloopback; verify `GET /api/dev/catalog/official?page=1&pageSize=20` excludes staged or unverified entries. Test create/PUT with disposable test products/services and valid staged source-unit ID, then `PUT` stale ExpectedRevision returns 409. Run no regulatory release activation for route testing.
+
+**Security limitations:** No production exposure, no CORS policy changes, no client-side access control shortcuts. Initial official directory currently requires active session with a recognized role, not a scoped business entitlement; Phase15 must verify authorization policy for partner/customer-facing official data. Plain wildcard ILIKE uses parameterized EF query, with a 120-character query bound; search can be optimized/indexed in later phases if needed. Case-folded internal code uniqueness is ensured on writes via Step09/10 normalization. Endpoint integration tests (including loopback/IP and real Bearer role isolation) **not executed** by assistant and must be verified on operator environment. Unit tests do not prove HTTP 401/403 behavior.
+
+**Owner acceptance gates:** Build+focused+regression tests, EF snapshot clean, no new migration, loopback-only Development routes, role/tenant checks and 401/403/404/409 statuses verified with distinct sessions, page/search stable, official results versioned/verified, prior Phases03–05 regression unaffected, Step04 102 units intact.
+
+**Owner signoff Step12:** Pending.
 
 ## Phase Closeout
 
