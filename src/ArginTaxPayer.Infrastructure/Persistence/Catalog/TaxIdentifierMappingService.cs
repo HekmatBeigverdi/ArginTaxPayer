@@ -83,16 +83,22 @@ public sealed class TaxIdentifierMappingService(
                 if (!OfficialGoodsServiceReferencePolicy.IsCompatible(item.Kind,
                         (OfficialEntryKind)official.Kind))
                     return new TaxMappingResult(TaxMappingDecision.WrongKind);
-                // Source trusted evidence is not inferred from SourceReference/HTTPS or activation alone.
-                // Until trusted provenance is modeled and audited, no automatic binding to a fiscal ID.
+                // Operator-reviewed source evidence must exist in the immutable release audit.
+                // This is an internal trust gate, not a cryptographic government validation.
+                var reviewed = await db.Database.SqlQueryRaw<int>(
+                    """
+                    SELECT 1 AS "Value" FROM catalog_release_audit
+                    WHERE release_id = {0} AND action = 'validate'
+                    LIMIT 1
+                    """, official.ReleaseId).AnyAsync(ct);
                 if (!TaxIdentifierMappingPolicy.CanMap(item.Kind, official.Kind,
                         official.VerificationStatus, official.ReleaseState,
-                        hasTrustedSourceEvidence: false, itemIsActive: true))
+                        hasTrustedSourceEvidence: reviewed, itemIsActive: true))
                     return new TaxMappingResult(TaxMappingDecision.UnverifiedOfficialCode);
 
                 var conflict = await db.CatalogOfficialMappings.AsNoTracking()
                     .AnyAsync(x => x.ItemId == itemId &&
-                        x.EffectiveFromUtc < (toUtc ?? DateTime.MaxValue.ToUniversalTime()) &&
+                        x.EffectiveFromUtc < (toUtc ?? DateTime.SpecifyKind(DateTime.MaxValue, DateTimeKind.Utc)) &&
                         (x.EffectiveToUtc == null || x.EffectiveToUtc > fromUtc), ct);
                 if (conflict) return new TaxMappingResult(TaxMappingDecision.Overlap);
                 var mapping = new CatalogOfficialMapping
@@ -137,8 +143,9 @@ public sealed class TaxIdentifierMappingService(
         var records = await db.CatalogOfficialMappings.AsNoTracking()
             .Where(x => x.ItemId == itemId).OrderBy(x => x.EffectiveFromUtc)
             .ThenBy(x => x.Id).ToArrayAsync(ct);
+        var officialIds = records.Select(record => record.OfficialEntryId).Distinct().ToArray();
         var entries = await db.OfficialGoodsServiceEntries.AsNoTracking()
-            .Where(x => records.Select(r => r.OfficialEntryId).Contains(x.Id))
+            .Where(x => officialIds.Contains(x.Id))
             .ToDictionaryAsync(x => x.Id, ct);
         return (TaxMappingDecision.Success, records.Select(m =>
         {
