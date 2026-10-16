@@ -664,6 +664,36 @@ Open `http://127.0.0.1:3000/catalog` while signed in. Confirm navigation in righ
 
 **Owner signoff Step13:** Pending; this corrective change is still awaiting the operator's `npm run typecheck`, tests, build and browser acceptance. No assistant-run macOS test/DB check is claimed.
 
+
+### Step13 owner refinements — split editor, scoped account name, loading, Jalali picker (2026-10-16)
+
+**Status:** Committed in Step13; operator Next.js typecheck/build/browser acceptance pending. This is a revision of Step13, not an additional phase step.
+
+- Reworked `apps/web/app/catalog/workspace.tsx`: desktop two-column grid with inline item create/edit form at right and compact product/service table at left (RTL); stacked vertically on smaller windows. No create/edit modal. The official-identifier tab keeps its full-width list.
+- Reused the existing `ConsoleLoader` spinner as a bounded table overlay, including request-version guards so older customer/page search responses cannot overwrite current rows.
+- Removed free-text customer UUID entry. Customer selection uses human-readable `companyName`/`personName` from the existing `/api/customer-owners/accounts` directory (same endpoint as other management pages); the logged-in user is the default and its first/last/company name is loaded from `/api/software-profile/me`. If the user profile lacks a name, display a neutral account label rather than revealing UUID. No alternate customer becomes the target until explicitly chosen.
+- The chosen `customerUserId` is used in **both list and mutation route paths**, and customer switch clears stale rows, selected mapping, edited item and form values. The **server's existing scope** still determines permission: account menus are UI convenience, not Level1/Level2 grants. Admin Level2 can manage its currently assigned customer accounts only; an admin Level2 role by itself is **not** a Customer catalog owner. Do not silently redefine this domain or store goods under a partner user ID.
+- Migrated mapping effective start/end inputs from native `datetime-local` to the actual `PersianDatePicker` adapted from `ArginAccounting/apps/desktop/src/components/forms/persian-date-picker.tsx`. The picker displays Jalali but its value is ISO Gregorian `YYYY-MM-DD`; Step11 UTC window request uses midnight UTC to avoid local timezone drift. This is **date-level** precision for UI; Step11 supports UTC instants, so sub-day windows still require a future time-enabled contract if needed.
+- CSS scoped to catalog's established console panel and original UI Persian date styles. Related UI contract tests updated; no data migration, no new EF entity, no tax authority validation changes.
+
+**Verification to run locally:**
+```bash
+git fetch origin
+git switch phase/06-goods-services
+git pull --ff-only
+cd apps/web
+npm run typecheck
+npm test
+npm run build
+cd ../..
+zsh scripts/dev-up.zsh
+zsh scripts/dev-status.zsh
+```
+Open `http://127.0.0.1:3000/catalog`; verify right inline form + left table at large widths, spinner while data fetches, named account dropdown, current user default, switching to a different assigned customer alters list and destination of a disposable newly created product, and switching back restores original scope; ensure wrong tenant still 403. In mapping tab test Jalali date selection and Gregorian ISO payload of the matching day, with no accidental posting to a real fiscal authority. Check TypeScript build before accepting Step13.
+
+**Migration:** NONE. Pure Next.js/React/CSS changes to existing catalog endpoints.
+**Owner signoff Step13:** Remains pending.
+
 ## Phase Closeout
 
 Not started.
