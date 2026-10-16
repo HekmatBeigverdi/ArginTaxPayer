@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 06: Goods and Services
 
-**Status:** Steps01–09 owner-approved; Step09 focused tests reported successful on 2026-10-16 (raw logs not independently attached). Step10 Customer Service Domain implemented and tests committed; owner acceptance pending. Steps11–16 not started.
+**Status:** Steps01–10 owner-approved. Step10 focused tests reported successful by operator on 2026-10-16; raw logs not independently attached. Step11 Tax Identifier Mapping code, tests and protective migration committed; awaiting test-DB verification and owner approval. Steps12–16 not started.
 **Branch:** `phase/06-goods-services`
 **Baseline:** `main` after Phase05 merge `6a3de74692403029b68c2061251601752eebd518`.
 **Roadmap:** `docs/roadmap/18-phases.md`, Phase 06.
@@ -25,8 +25,8 @@ Preserve Phase03 identity, Phase04 customer/partner ownership and Phase05 partie
 | 07 | Reference Import Pipeline | Official-file staging, preview and validation | Idempotent repeated import and reported errors | 06 | Owner-approved 2026-10-16; focused tests operator-reported successful |
 | 08 | Reference Activation and Audit | Controlled release with audit and logical rollback | Move active version without deleting history | 07 | Owner-approved 2026-10-16; tests/migration operator-reported successful |
 | 09 | Customer Product Domain | Customer products, status and internal identifiers | Tenant isolation and protection of references | 02–06 | Owner-approved 2026-10-16; tests operator-reported successful |
-| 10 | Customer Service Domain | Customer services and type rules | CRUD, ownership and type-mismatch tests | 09 | Implemented; operator verification/owner acceptance pending |
-| 11 | Tax Identifier Mapping | Historical mapping from customer items/services to official identifiers | Reject invalid or wrong-kind mappings | 08–10 | Pending |
+| 10 | Customer Service Domain | Customer services and type rules | CRUD, ownership and type-mismatch tests | 09 | Owner-approved 2026-10-16; tests operator-reported successful |
+| 11 | Tax Identifier Mapping | Historical mapping from customer items/services to official identifiers | Reject invalid or wrong-kind mappings | 08–10 | Implemented; tests/migration/owner acceptance pending |
 | 12 | Catalog API and Search | Search, filtering, pagination and concurrency support | Role, paging and stale-update tests | 09–11 | Pending |
 | 13 | RTL Catalog UI | Lists, forms, selection search and localized errors | Authorized paths, validation and accessibility tests | 12 | Pending |
 | 14 | Invoice Handoff Contracts | Immutable snapshot contract for Phases 07/08 without invoice issuance | Version contract and historical immutability tests | 06, 11–13 | Pending |
@@ -486,7 +486,62 @@ dotnet ef migrations has-pending-model-changes --project src/ArginTaxPayer.Infra
 **Negative/integration acceptance:** Reject missing/invalid base units, duplicate normalized internal codes (including collisions with products), unsupported kind conversion, service access to other customers, unauthorized former partner and lost-MFA admin, stale revision updates, writes after Discontinued, and invalid page/pageSize. Confirm real PostgreSQL transaction behavior and FK history protection with disposable test records. Focused pure/EF metadata tests do **not** yet establish these role/race/DB-integration outcomes. Existing Phase03–05 data and 102 seeded units must remain unchanged. No public HTTP endpoint or UI is exposed in this step; those belong to Steps12–13.
 
 **Evidence:** GitHub code/tests committed; .NET, CI and live PostgreSQL integration not executed or inspected by assistant. Tests require operator run and explicit signoff.
-**Owner signoff Step10:** Pending.
+**Owner signoff Step10:** Approved 2026-10-16; operator reported successful tests, raw logs not independently attached.
+
+
+## Step 11 — Tax Identifier Mapping (2026-10-16)
+
+**Status:** Implementation committed; local build, focused/full tests, PostgreSQL migration and owner acceptance pending. Step10 owner-approved after operator-reported successful tests.
+
+**Purpose:** Map each customer-owned `CustomerCatalogItem` (goods/service) to a verified official `OfficialGoodsServiceEntry` using effective-dated historical rows, independent of `InternalCode` and company SKU. No invoice issuance or fiscal submission in this step.
+
+**Rules:**
+- Internal StockItem(1) / NonStockItem(2) may map only to official Goods(1); internal Service(3) only official Service(2). Missing, staged, superseded, unverified or wrong-kind identifiers are rejected; official format alone never guarantees authority recognition.
+- Mapping requires official entry `VerificationStatus=2`, its reference release `State=3` (active) and recorded `validate` action evidence in append-only `catalog_release_audit`. The audit represents a Level1 operator review; it is **not an external digital government signature**. Actual government trust must be verified before authoritative invoice use. Releasing an internally unverified identifier is prohibited by Step08.
+- History interval is UTC half-open `[EffectiveFromUtc, EffectiveToUtc)`; distinct non-overlapping windows are maintained per item. A previous open-ended window may be closed *once* by setting its end date and incrementing Revision without changing the existing official ID/start/item. Historical Delete and broader UPDATE prohibited at PostgreSQL trigger level. Old snapshots remain readable.
+- Scoped `TaxIdentifierMappingService` offers `AssignAsync`, `CloseAsync`, and `HistoryAsync`; every operation re-checks active session and current customer/Level1/Level2 owner scope, with Level1/Level2 MFA required. Transactions use SERIALIZABLE, EF revision concurrency, FK restrictions, source evidence and date overlap checks. No public endpoint or customer-facing UI until Steps12–13.
+- PostgreSQL trigger serializes writes to same customer item, blocks history deletes/broad rewrites, enforces verified+active official entry, matching goods/service kind, and rejects overlaps even under concurrent requests.
+- Staged seed `RC_UMGS.ST V1.18` remains unchanged (102 units); it is a measurement-unit catalog and not a goods/service identifier source.
+
+**Committed files:**
+1. `src/ArginTaxPayer.Domain/Catalog/TaxIdentifierMappingPolicy.cs` — type compatibility, rule verification and temporal checks.
+2. `src/ArginTaxPayer.Infrastructure/Persistence/Catalog/TaxIdentifierMappingService.cs` — authenticated scoped create/close/history internal application service, fail-closed provenance.
+3. `src/ArginTaxPayer.Infrastructure/Persistence/Migrations/20261016220000_ProtectOfficialTaxMappings.cs` — additive SQL trigger/function enforcing active verified source, immutability and overlap exclusion. No new EF columns or snapshot change. Rollback prohibited while any historical mapping exists.
+4. `tests/ArginTaxPayer.Tests/Phase06TaxIdentifierMappingTests.cs` — validity windows, incompatible types, trust failures and EF metadata.
+5. `docs/phases/phase-06.md` — Step10 approval and Step11 acceptance.
+
+**Local operator tests:**
+```bash
+git fetch origin
+git switch phase/06-goods-services
+git pull --ff-only
+dotnet build ArginTaxPayer.sln -c Release
+dotnet test ArginTaxPayer.sln -c Release --no-build --filter "FullyQualifiedName~Phase06TaxIdentifierMappingTests"
+dotnet test ArginTaxPayer.sln -c Release --no-build
+dotnet ef migrations has-pending-model-changes --project src/ArginTaxPayer.Infrastructure --startup-project src/ArginTaxPayer.Api
+```
+Confirm AutoSSH via `zsh scripts/dev-up.zsh`, load DB connection privately from `.env.dev.local` using roadmap's approved parser, and verify actual `SELECT current_database();` is exactly `argintaxpayer_test`. Before migration, inspect existing mapping count and foreign-key data quality; ensure test backup available. Review SQL:
+```bash
+dotnet ef migrations script 20261016210000_AddReferenceActivationAudit 20261016220000_ProtectOfficialTaxMappings --project src/ArginTaxPayer.Infrastructure --startup-project src/ArginTaxPayer.Api --output /tmp/phase06-step11.sql
+```
+Explicit test-DB application only after review:
+```bash
+dotnet ef database update 20261016220000_ProtectOfficialTaxMappings --project src/ArginTaxPayer.Infrastructure --startup-project src/ArginTaxPayer.Api --connection "$ConnectionStrings__ArginTaxPayerDb"
+```
+Read-only postchecks:
+```sql
+SELECT "MigrationId" FROM "__EFMigrationsHistory"
+ WHERE "MigrationId"='20261016220000_ProtectOfficialTaxMappings';
+SELECT tgname FROM pg_trigger
+ WHERE tgname='trg_phase06_tax_mapping_guard' AND NOT tgisinternal;
+SELECT count(*) FROM catalog_official_mappings;
+SELECT count(*) FROM official_measurement_units
+ WHERE release_id='14051800-0000-4000-8000-000000000118';
+```
+
+**Acceptance gaps:** Current focused tests are pure/domain and EF metadata tests. Live verified-source mapping tests, Level1/Level2/Customer boundary tests, historical closure, rollback-only wrong-kind/overlap/trigger negative tests and concurrent mapping insertion on **disposable test fixtures** remain required integration evidence before calling Step11 fully verified. Do not activate or mutate actual regulatory releases solely for testing. Source documentation/authority proof must not be inferred from a URL.
+
+**Owner signoff Step11:** Pending.
 
 ## Phase Closeout
 
