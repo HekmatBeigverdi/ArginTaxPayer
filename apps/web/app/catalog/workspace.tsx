@@ -14,6 +14,8 @@ type CatalogRow = {
 type PageResult = { items: CatalogRow[]; hasMore: boolean };
 type OwnerAccount = {customerUserId: string; personName?: string|null; companyName?: string|null; isActive?: boolean; partnerLevel2UserId?: string|null; rootLevel1UserId?: string|null};
 type ErrorBody = { error?: string };
+const accountName = (account: OwnerAccount): string =>
+  (account.companyName?.trim() || account.personName?.trim() || "");
 const errors: Record<string, string> = {
   product_conflict: "کد کالا تکراری است یا نسخه اطلاعات تغییر کرده است.",
   service_conflict: "کد خدمت تکراری است یا نسخه اطلاعات تغییر کرده است.",
@@ -102,8 +104,7 @@ export default function CatalogWorkspace({ actorId }: { actorId: string }) {
     return () => { live = false; };
   }, []);
   const customerLabel = customer === actorId ? actorLabel :
-    (accounts.find(a => a.customerUserId === customer)?.companyName ||
-     accounts.find(a => a.customerUserId === customer)?.personName || "کاربر انتخاب‌شده");
+    (accountName(accounts.find(a => a.customerUserId === customer) ?? { customerUserId: customer }) || "حساب انتخاب‌شده");
   const load = useCallback(async () => {
     if (kind !== "official" && !guid(customer)) { setError("شناسه مشتری باید UUID معتبر باشد."); return; }
     const version = ++tableVersion.current;
@@ -226,9 +227,9 @@ export default function CatalogWorkspace({ actorId }: { actorId: string }) {
           <select aria-label="انتخاب مشتری بر اساس نام" value={customer}
             onChange={e=> {tableVersion.current++; setCustomer(e.target.value); setPage(1); setRows([]); setSelected(null);}}>
             <option value={actorId}>{actorLabel} (حساب فعلی)</option>
-            {accounts.filter(a=>a.customerUserId!==actorId && a.isActive !== false).map(a=><option
+            {accounts.filter(a=>a.customerUserId!==actorId && a.isActive !== false && accountName(a).length>0).map(a=><option
               key={a.customerUserId} value={a.customerUserId}>
-              {a.companyName || a.personName || "مشتری بدون نام"}
+              {accountName(a)}
             </option>)}
           </select>
         </label>}
