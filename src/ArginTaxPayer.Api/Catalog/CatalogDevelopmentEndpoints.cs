@@ -71,6 +71,13 @@ public static class CatalogDevelopmentEndpoints
     public static IEndpointRouteBuilder MapCatalogDevelopmentEndpoints(this IEndpointRouteBuilder routes)
     {
         var group = routes.MapGroup("/api/dev/catalog").WithTags("Catalog (Development)");
+        group.MapGet("/units", async (HttpContext http, int? page, int? pageSize,
+            string? query, CatalogSearchService svc, CancellationToken ct) =>
+        {
+            if (!Local(http)) return Results.NotFound();
+            return Page(await svc.UnitsAsync(Token(http), page ?? 1, pageSize ?? 30, query, ct));
+        });
+
         group.MapGet("/official", async (HttpContext http, int? page, int? pageSize,
             string? query, int? kind, CatalogSearchService svc, CancellationToken ct) =>
         {
