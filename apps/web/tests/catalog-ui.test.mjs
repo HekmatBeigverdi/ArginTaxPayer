@@ -64,3 +64,17 @@ test("Persian date picker reuses ArginAccounting Jalali input contract", () => {
   assert.match(component, /gregorianIsoToPersian/);
   assert.match(component, /fa-IR-u-ca-persian-nu-latn/);
 });
+
+test("catalog split editor never inherits viewport-sized old modal width", () => {
+  const css = read("app/globals.css");
+  assert.doesNotMatch(css, /\.catalog-form-dialog\{max-width:530px;width:calc\(100vw - 28px\)/);
+  assert.match(css, /\.catalog-form-dialog\{max-width:100%;width:100%;min-width:0/);
+  assert.match(css, /\.catalog-split-layout \ .catalog-table|\.catalog-split-layout \.catalog-table/);
+});
+test("unnamed accounts excluded and Persian calendar opens upwards", () => {
+  const page = read("app/catalog/workspace.tsx");
+  const css = read("app/globals.css");
+  assert.match(page, /accountName\(a\)\.length>0/);
+  assert.doesNotMatch(page, /مشتری بدون نام/);
+  assert.match(css, /ui-persian-date__popover\{top:auto;bottom:calc\(100% \+ 7px\)/);
+});
