@@ -125,5 +125,26 @@ No taxpayer-grant-based Level2 authorization. Root administrative oversight must
 **Residual design risks:** Public official data availability/licensing and version identification, lawful VAT classification/exemptions, exact regulated unit-code source and compatibility, future customer self-service entitlement feature gating, potential existing product terminology elsewhere in repository. These must be resolved at the corresponding implementation step without inventing values.
 **Owner acceptance:** Pending.
 
+
+## Owner-approved scope clarification — Official measurement-unit seed and Level1-only reference-code administration (2026-10-16)
+
+**Applies within existing fixed sixteen steps (no renumbering):** Step02 designs additive reference tables, idempotent seed/import status and uniqueness checks; Step03 implements official goods/service identifier code validation and Level1-only reference-code changes; Step04 populates the complete official measurement-unit catalog; Step06 retains immutable source/release versions; Steps07–08 implement provenance-gated import and publishing; Step12 enforces authorization on all mutating APIs; Step13 offers scoped read-only reference selection and Level1-only administration UI; Step15 verifies security and replay safety.
+
+**Documented source:** Owner-provided `RC_IITP.IS V7.9` (1405) specifies invoice field `mu` as numeric-string max 8 and references the *separate* `RC_UMGS.ST` official units-of-measure catalog from the tax authority. `RC_IITP.IS` itself is NOT an authoritative full units table. A publicly found secondary copy `RC_UMGS.ST_V1.4` is dated Ordibehesht 1402; treat as an archival candidate, **not** as verified current official release. Do not claim that it is up-to-date. Seed **all** rows only after obtaining and verifying the latest official source file/version (or owner-supplied authenticated copy), row count and checksum. No guessed/incomplete seed and no silent legacy fallback. Example unit labels/codes appearing in secondary published tables, not independently current-verified: عدد=1627, لیتر=1637, متر مربع=1645.
+
+**Three code namespaces MUST remain separate:**
+1. `OfficialUnitCode`: regulatory measurement unit referenced by invoice `mu`. Canonical text (preserves zeros), numeric ASCII, maximum 8 digits per owner-provided specification; explicit release/version and activation state. Customer/Level2 cannot create or change.
+2. `OfficialGoodsServiceCode`: official tax goods/service identifier referenced by invoice `sstid`, independent of unit. New/custom official code candidates may be entered/edited only by Level1, and remain `Unverified` until official provenance checks; never claim official validity solely because an admin entered it.
+3. `CustomerCatalogItem.InternalCode`: customer's local SKU/item code, NOT an official code; management remains scoped to the customer workflow under the Phase06 authorization matrix. A request to restrict *all* customer-internal codes would be a separate owner-approved policy change, because it would affect customer catalog CRUD.
+
+**Unit-seed acceptance policy:**
+- Checked-in machine-readable seed source with declared document identifier, version, issuer, source URL or owner-supplied verified document fingerprint, SHA256 checksum, row count, normalization policy, acquisition date; no secrets.
+- Explicit database migration/seeding command for `argintaxpayer_test` only after checking `SELECT current_database()`; no migration or seed at startup. Idempotent upsert or versioned staging under transaction, no duplicate codes within a release; no destructive overwrite of referenced released rows.
+- After seeding, compare imported count and each `(code,name)` against verified source; forbid empty/partial seed falsely marked Active. Existing valid rows and invoice snapshots unchanged.
+- Level1-only APIs for staging/custom entries, approving, altering or deactivating reference units/official product-code candidates; enforce existing Level1 session and MFA where required server-side, not only disabled UI controls; include actor, reason, revision, timestamp, before/after audit. Official releases immutable: correction creates a new revision/release rather than rewriting historical code.
+- Level2/customer have read/search/select only. `403` for attempted write, `401` without authentication, `409` for duplicate or stale revision; unknown/unverified unit mapping cannot be used as verified official invoice code.
+- Step15 negative tests: Level2/customer POST/PUT/PATCH/DELETE rejected even with forged or guessed IDs; direct/indirect mutation denied; concurrent Level1 updates CAS-safe; idempotent rerun equal row count; edition changes preserve historic semantics.
+- **No DB action executed in this amendment.** Actual seed and CRUD implementation are Step02–04/12–13 deliverables, each gated by owner approval and source-file verification. Do not advance to Step02 until Step01 is explicitly signed off.
+
 ## Phase Closeout
 Not started.
