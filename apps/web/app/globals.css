@@ -328,7 +328,7 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 .console-catalog-page .catalog-table th{font-size:10px}
 .console-catalog-page .catalog-bar{margin-bottom:9px}
 .console-catalog-page .catalog-pages{margin-top:10px;gap:10px;font-size:11px}
-.catalog-form-dialog{max-width:530px;width:calc(100vw - 28px);position:relative;overflow:visible}
+.catalog-form-dialog{max-width:100%;width:100%;min-width:0;position:relative;overflow:visible;box-sizing:border-box}
 .catalog-form-dialog .argin-modal-body{overflow:visible;max-height:min(75vh,650px)}
 .catalog-form-dialog .catalog-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:stretch}
 .catalog-form-dialog .catalog-form label{min-width:0;font-size:11px;gap:5px}
@@ -382,3 +382,26 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 .console-catalog-page .ui-persian-date__day--active{background:#236386!important;color:#fff!important}
 .console-catalog-page .ui-persian-date__footer{display:flex;justify-content:center;margin-top:10px}
 .console-catalog-page .ui-field__error{font-size:10px;color:#b04141}
+
+/* Step13 screenshot fix — contain all editor controls within grid cell. */
+.console-catalog-page .catalog-split-layout{grid-template-columns:minmax(0,0.95fr) minmax(0,1.55fr);width:100%;max-width:100%;align-items:stretch}
+.console-catalog-page .catalog-editor-panel,.console-catalog-page .catalog-form-dialog,
+.console-catalog-page .catalog-editor-body,.console-catalog-page .catalog-form{width:100%;max-width:100%;min-width:0;box-sizing:border-box}
+.console-catalog-page .catalog-editor-panel{overflow:visible}
+.console-catalog-page .catalog-editor-panel .catalog-form{grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}
+.console-catalog-page .catalog-editor-panel .catalog-form label{min-width:0;max-width:100%;width:100%;box-sizing:border-box}
+.console-catalog-page .catalog-editor-panel .catalog-form :is(input,select){box-sizing:border-box;min-width:0;max-width:100%;width:100%}
+.console-catalog-page .catalog-editor-panel .catalog-form label:has(.catalog-unit-combo){grid-column:1/-1}
+.console-catalog-page .catalog-editor-panel .catalog-form .catalog-help,
+.console-catalog-page .catalog-editor-panel .catalog-modal-footer{grid-column:1/-1}
+.console-catalog-page .catalog-split-layout .catalog-table{min-width:0;width:100%;table-layout:fixed}
+.console-catalog-page .catalog-split-layout .catalog-table th:nth-child(1){width:15%}
+.console-catalog-page .catalog-split-layout .catalog-table th:nth-child(2){width:30%}
+.console-catalog-page .catalog-split-layout .catalog-table th:nth-child(3){width:17%}
+.console-catalog-page .catalog-split-layout .catalog-table th:nth-child(4){width:38%}
+.console-catalog-page .catalog-split-layout .catalog-table td{overflow-wrap:anywhere;word-break:normal}
+.console-catalog-page .catalog-split-layout .catalog-actions{gap:4px}
+.console-catalog-page .catalog-split-layout .catalog-actions button{padding:5px 7px}
+.console-catalog-page .ui-persian-date__popover{top:auto;bottom:calc(100% + 7px);right:0;left:auto}
+@media(max-width:1100px){.console-catalog-page .catalog-split-layout{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:530px){.console-catalog-page .catalog-editor-panel .catalog-form{grid-template-columns:minmax(0,1fr)}}
