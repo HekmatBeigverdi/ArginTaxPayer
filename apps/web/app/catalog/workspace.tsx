@@ -132,6 +132,24 @@ export default function CatalogWorkspace({ actorId }: { actorId: string }) {
       setOfficialResult(data.items ?? []);
     } catch (e) { setError(e instanceof Error ? e.message : "جست‌وجو ناموفق بود"); }
   }
+  async function closeMapping(mapping: { id: string; revision: number }) {
+    const input = window.prompt("زمان پایان اعتبار (ISO UTC، مثال: 2026-10-16T12:00:00Z)");
+    if (!input || !selected) return;
+    const at = new Date(input);
+    if (Number.isNaN(at.getTime()) || !input.endsWith("Z")) {
+      setError("تاریخ پایان باید به شکل معتبر UTC وارد شود."); return;
+    }
+    setPending(true); setError("");
+    try {
+      const query = new URLSearchParams({
+        expectedRevision: String(mapping.revision), closedAtUtc: at.toISOString(),
+      });
+      await catalogCall("customers/" + customer + "/tax-mappings/" + mapping.id +
+        "/close?" + query, "PUT", {});
+      setInfo("بازه قبلی بدون حذف تاریخچه بسته شد."); await chooseItem(selected);
+    } catch (e) { setError(e instanceof Error ? e.message : "بستن نگاشت ناموفق بود"); }
+    finally { setPending(false); }
+  }
   async function assign(official: CatalogRow) {
     if (!selected || !fromUtc) { setError("تاریخ شروع اعتبار را وارد کنید."); return; }
     setPending(true); setError("");
@@ -221,6 +239,8 @@ export default function CatalogWorkspace({ actorId }: { actorId: string }) {
       <ul className="catalog-history">{history.map(x=><li key={x.id}>
         <bdi dir="ltr">{x.officialCode}</bdi> — از <time>{new Date(x.effectiveFromUtc).toLocaleString("fa-IR")}</time>
         {" "}تا {x.effectiveToUtc ? new Date(x.effectiveToUtc).toLocaleString("fa-IR") : "باز"}
+        {!x.effectiveToUtc && <button type="button" disabled={pending}
+          onClick={()=>void closeMapping(x)}>بستن اعتبار</button>}
       </li>)}</ul>
     </section>}
   </div>;
