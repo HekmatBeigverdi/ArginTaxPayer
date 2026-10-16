@@ -58,9 +58,6 @@ export default function CatalogWorkspace({ actorId }: { actorId: string }) {
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [edit, setEdit] = useState<CatalogRow | null>(null);
-  const [formOpen, setFormOpen] = useState(false);
-  const dialogRef = useRef<HTMLDivElement>(null);
-  const closeRef = useRef<HTMLButtonElement>(null);
   const [title, setTitle] = useState("");
   const [code, setCode] = useState("");
   const [unitId, setUnitId] = useState("");
@@ -129,33 +126,13 @@ export default function CatalogWorkspace({ actorId }: { actorId: string }) {
   function openForm(row?: CatalogRow) {
     setEdit(row ?? null); setCode(row?.internalCode ?? "");
     setTitle(row?.title ?? ""); setUnitId(row?.baseUnitId ?? "");
-    setProductKind(row?.kind === 2 ? 2 : 1); setError(""); setInfo(""); setFormOpen(true);
+    setProductKind(row?.kind === 2 ? 2 : 1); setError(""); setInfo("");
   }
   const searchUnits = useCallback(async (query: string): Promise<CatalogUnitOption[]> => {
     const params = new URLSearchParams({ page: "1", pageSize: "50", query });
     const response = await catalogCall("units?" + params) as { items: CatalogUnitOption[] };
     return response.items ?? [];
   }, []);
-  useEffect(() => {
-    if (!formOpen) return;
-    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    closeRef.current?.focus();
-    function onKey(event: KeyboardEvent) {
-      if (event.key === "Escape" && !pending) { event.preventDefault(); setFormOpen(false); }
-      if (event.key !== "Tab" || !dialogRef.current) return;
-      const items = Array.from(dialogRef.current.querySelectorAll<HTMLElement>(
-        'button:not([disabled]),input:not([disabled]),select:not([disabled])'
-      )).filter(item => item.offsetParent !== null);
-      if (!items.length) return;
-      if (event.shiftKey && document.activeElement === items[0]) {
-        event.preventDefault(); items[items.length - 1].focus();
-      } else if (!event.shiftKey && document.activeElement === items[items.length - 1]) {
-        event.preventDefault(); items[0].focus();
-      }
-    }
-    document.addEventListener("keydown", onKey);
-    return () => { document.removeEventListener("keydown", onKey); previous?.focus(); };
-  }, [formOpen, pending]);
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (kind === "official" || !guid(customer) || !guid(unitId)) {
       setError("شناسه مشتری و واحد پایه باید معتبر باشند."); return;
@@ -172,7 +149,7 @@ export default function CatalogWorkspace({ actorId }: { actorId: string }) {
         expectedRevision: edit?.revision ?? 0, discontinue: false,
       };
       await catalogCall(root + (edit ? "/" + edit.id : ""), edit ? "PUT" : "POST", payload);
-      setInfo("اطلاعات با موفقیت ثبت شد."); setEdit(null); setFormOpen(false);
+      setInfo("اطلاعات با موفقیت ثبت شد."); setEdit(null);
       setCode(""); setTitle(""); setUnitId(""); await load();
     } catch (e) { setError(e instanceof Error ? e.message : "ثبت ناموفق بود"); }
     finally { setPending(false); }
@@ -238,7 +215,7 @@ export default function CatalogWorkspace({ actorId }: { actorId: string }) {
       <div className="catalog-tabs" role="tablist" aria-label="نوع اطلاعات">
         {([["products","کالاها"],["services","خدمات"],["official","شناسه‌های رسمی"]] as const).map(([value,label]) =>
           <button key={value} type="button" role="tab" aria-selected={kind===value}
-            onClick={() => { setKind(value); setPage(1); setRows([]); setSelected(null); setEdit(null); setFormOpen(false); setError(""); }}>{label}</button>)}
+            onClick={() => { setKind(value); setPage(1); setRows([]); setSelected(null); setEdit(null); setError(""); }}>{label}</button>)}
       </div>
       <div className="catalog-filters">
         {kind !== "official" && <label>حساب / مشتری هدف
