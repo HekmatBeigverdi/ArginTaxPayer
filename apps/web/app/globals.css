@@ -307,3 +307,42 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 .catalog-history li{background:#f5f8fb;border:1px solid #e0e8f1;padding:12px;border-radius:9px}
 .catalog-shell button:focus-visible,.catalog-shell input:focus-visible,.catalog-shell select:focus-visible,.catalog-shell a:focus-visible{outline:3px solid #4c9fcf;outline-offset:2px}
 @media(max-width:650px){.catalog-shell{padding:18px 12px}.catalog-card{padding:15px}.catalog-filters label,.catalog-form label{min-width:100%}.catalog-header{align-items:flex-start}.catalog-tabs button{flex:1}}
+
+
+/* Phase 06 Step 13 UX correction — same compact dashboard density as users/participants. */
+.console-catalog-page{width:100%;min-width:0;max-width:none;padding:0;margin:0}
+.console-catalog-page .catalog-workspace{gap:10px;max-width:none}
+.console-catalog-page .catalog-card{padding:12px 14px;border-radius:10px;border-color:#e0e8ee;box-shadow:none}
+.console-catalog-page .catalog-card h2{font-size:14px;margin:0 0 8px}
+.console-catalog-page .catalog-tabs{margin-bottom:9px;gap:5px}
+.console-catalog-page .catalog-tabs button{font-size:11px;padding:6px 11px;border-radius:7px}
+.console-catalog-page .catalog-filters{gap:8px}
+.console-catalog-page .catalog-filters label{min-width:180px;font-size:11px;gap:4px}
+.console-catalog-page .catalog-filters input{font-size:12px;min-height:34px;padding:6px 9px;border-radius:7px}
+.console-catalog-page .catalog-filters button,.console-catalog-page .catalog-bar button,
+.console-catalog-page .catalog-actions button,.console-catalog-page .catalog-pages button,
+.console-catalog-page .catalog-result button{font-size:11px;padding:6px 10px;border-radius:7px}
+.console-catalog-page .catalog-help{font-size:10px;margin-top:6px}
+.console-catalog-page .catalog-table{min-width:620px}
+.console-catalog-page .catalog-table th,.console-catalog-page .catalog-table td{padding:8px 10px;font-size:11px}
+.console-catalog-page .catalog-table th{font-size:10px}
+.console-catalog-page .catalog-bar{margin-bottom:9px}
+.console-catalog-page .catalog-pages{margin-top:10px;gap:10px;font-size:11px}
+.catalog-form-dialog{max-width:530px;width:calc(100vw - 28px);position:relative;overflow:visible}
+.catalog-form-dialog .argin-modal-body{overflow:visible;max-height:min(75vh,650px)}
+.catalog-form-dialog .catalog-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:stretch}
+.catalog-form-dialog .catalog-form label{min-width:0;font-size:11px;gap:5px}
+.catalog-form-dialog .catalog-form input,.catalog-form-dialog .catalog-form select{min-height:37px;font-size:12px;padding:7px 10px}
+.catalog-form-dialog .catalog-form label:has(.catalog-unit-combo){grid-column:1/-1}
+.catalog-form-dialog .catalog-help{grid-column:1/-1;margin:0;font-size:10px}
+.catalog-modal-footer{grid-column:1/-1;display:flex;justify-content:flex-end;gap:8px;padding-top:8px;border-top:1px solid #e7edf2}
+.catalog-modal-footer button{font-size:12px;padding:8px 16px}
+.catalog-unit-combo{position:relative;width:100%;min-width:0}
+.catalog-unit-combo input[role=combobox]{width:100%;padding-inline-start:12px}
+.catalog-unit-options{position:absolute;top:calc(100% + 4px);right:0;left:0;max-height:230px;overflow-y:auto;background:#fff;border:1px solid #b9ccdd;border-radius:9px;box-shadow:0 14px 34px #172c4b29;z-index:1200;padding:4px;direction:rtl;text-align:right}
+.catalog-unit-options button{width:100%;text-align:right;display:flex;justify-content:space-between;gap:8px;padding:9px;border:0;border-radius:6px;background:white;color:#213a50;font:inherit;font-size:12px;cursor:pointer}
+.catalog-unit-options button:hover,.catalog-unit-options button.is-active{background:#e9f4fb}
+.catalog-unit-options button small{color:#996b2b;font-size:10px}
+.catalog-unit-options>div{padding:10px;font-size:11px;color:#687e90}
+.catalog-selected-unit{font-size:10px;display:block;color:#687e90;margin-top:3px;direction:ltr}
+@media(max-width:650px){.console-catalog-page .catalog-card{padding:10px}.catalog-form-dialog .catalog-form{grid-template-columns:1fr}.catalog-form-dialog .catalog-form label:has(.catalog-unit-combo){grid-column:1}.catalog-modal-footer,.catalog-form-dialog .catalog-help{grid-column:1}}
