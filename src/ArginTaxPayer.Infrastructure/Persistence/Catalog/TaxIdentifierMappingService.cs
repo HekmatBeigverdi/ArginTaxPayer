@@ -154,4 +154,56 @@ public sealed class TaxIdentifierMappingService(
                 m.EffectiveFromUtc, m.EffectiveToUtc, m.Revision);
         }).ToArray());
     }
+    public async Task<TaxMappingResult> CloseAsync(string? token, Guid customerId,
+        Guid mappingId, long expectedRevision, DateTime closedAtUtc, CancellationToken ct = default)
+    {
+        var actor = await identity.CurrentUserIdAsync(token, ct);
+        if (actor is null) return new(TaxMappingDecision.Unauthenticated);
+        if (customerId == Guid.Empty || mappingId == Guid.Empty || expectedRevision < 1 ||
+            closedAtUtc.Kind != DateTimeKind.Utc)
+            return new(TaxMappingDecision.Invalid);
+        if (!await HasScopeAsync(actor.Value, customerId, ct))
+            return new(TaxMappingDecision.Forbidden);
+        try
+        {
+            return await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+            {
+                await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+                if (await identity.CurrentUserIdAsync(token, ct) != actor ||
+                    !await HasScopeAsync(actor.Value, customerId, ct))
+                    return new TaxMappingResult(TaxMappingDecision.Forbidden);
+                var mapping = await db.CatalogOfficialMappings
+                    .SingleOrDefaultAsync(x => x.Id == mappingId &&
+                        db.CustomerCatalogItems.Any(item => item.Id == x.ItemId &&
+                            item.CustomerUserId == customerId), ct);
+                if (mapping is null) return new TaxMappingResult(TaxMappingDecision.NotFound);
+                if (mapping.Revision != expectedRevision)
+                    return new TaxMappingResult(TaxMappingDecision.Conflict);
+                if (!TaxIdentifierMappingPolicy.CanClose(
+                    new(mapping.EffectiveFromUtc, mapping.EffectiveToUtc), closedAtUtc))
+                    return new TaxMappingResult(TaxMappingDecision.Invalid);
+                mapping.EffectiveToUtc = closedAtUtc;
+                mapping.Revision++;
+                await db.SaveChangesAsync(ct);
+                await tx.CommitAsync(ct);
+                return new TaxMappingResult(TaxMappingDecision.Success, await MapAsync(mapping, ct));
+            });
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            db.ChangeTracker.Clear();
+            return new(TaxMappingDecision.Conflict);
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException)
+        {
+            db.ChangeTracker.Clear();
+            return new(TaxMappingDecision.Conflict);
+        }
+        catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.SerializationFailure)
+        {
+            db.ChangeTracker.Clear();
+            return new(TaxMappingDecision.Conflict);
+        }
+    }
+
 }
