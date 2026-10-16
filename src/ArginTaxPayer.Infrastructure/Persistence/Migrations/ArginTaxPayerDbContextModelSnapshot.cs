@@ -22,251 +22,476 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            // Phase06 additive catalog mappings. Keep snapshot aligned with DbContext.
-            ArginTaxPayer.Infrastructure.Persistence.Catalog.CatalogModelConfiguration.Apply(modelBuilder);
-
-            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Parties.PartyIdentityHistory", b =>
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Catalog.CatalogItemUnitConversion", b =>
                 {
-                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Parties.Party", null)
-                        .WithMany().HasForeignKey("PartyId").OnDelete(DeleteBehavior.Restrict).IsRequired();
-                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null)
-                        .WithMany().HasForeignKey("ActorUserId").OnDelete(DeleteBehavior.Restrict).IsRequired();
-                });
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
 
-            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Identity.SoftwareUserProfile", b =>
-                {
-                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null)
-                        .WithOne().HasForeignKey("ArginTaxPayer.Infrastructure.Persistence.Identity.SoftwareUserProfile", "UserId")
-                        .OnDelete(DeleteBehavior.Restrict).IsRequired();
-                });
+                    b.Property<DateTime>("EffectiveFromUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("effective_from_utc");
 
-            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Parties.PartyContact", b =>
-                {
-                    b.Property<Guid>("Id").HasColumnType("uuid").HasColumnName("id");
-                    b.Property<Guid>("PartyId").HasColumnType("uuid").HasColumnName("party_id");
-                    b.Property<int>("Kind").HasColumnType("integer").HasColumnName("kind");
-                    b.Property<string>("Value").HasMaxLength(320).HasColumnType("character varying(320)").HasColumnName("value");
-                    b.Property<string>("ContactPerson").HasMaxLength(120).HasColumnType("character varying(120)").HasColumnName("contact_person");
-                    b.Property<bool>("IsPrimary").HasColumnType("boolean").HasColumnName("is_primary");
-                    b.Property<bool>("IsActive").HasColumnType("boolean").HasColumnName("is_active");
-                    b.Property<long>("Revision").HasColumnType("bigint").HasColumnName("revision").IsConcurrencyToken().ValueGeneratedOnAdd().HasDefaultValue(1L);
-                    b.Property<DateTime>("CreatedAtUtc").HasColumnType("timestamp with time zone").HasColumnName("created_at_utc");
-                    b.Property<DateTime>("UpdatedAtUtc").HasColumnType("timestamp with time zone").HasColumnName("updated_at_utc");
-                    b.Property<DateTime?>("DeactivatedAtUtc").HasColumnType("timestamp with time zone").HasColumnName("deactivated_at_utc");
+                    b.Property<DateTime?>("EffectiveToUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("effective_to_utc");
+
+                    b.Property<Guid>("FromUnitId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("from_unit_id");
+
+                    b.Property<Guid>("ItemId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("item_id");
+
+                    b.Property<int>("RoundingPolicy")
+                        .HasColumnType("integer")
+                        .HasColumnName("rounding_policy");
+
+                    b.Property<long>("ToBaseDenominator")
+                        .HasColumnType("bigint")
+                        .HasColumnName("to_base_denominator");
+
+                    b.Property<long>("ToBaseNumerator")
+                        .HasColumnType("bigint")
+                        .HasColumnName("to_base_numerator");
+
                     b.HasKey("Id");
-                    b.HasIndex("PartyId");
-                    b.HasIndex("PartyId", "Kind", "Value").IsUnique().HasFilter("is_active").HasDatabaseName("ux_party_contacts_active_value");
-                    b.HasIndex("PartyId", "Kind").IsUnique().HasFilter("is_active AND is_primary").HasDatabaseName("ux_party_contacts_primary");
-                    b.ToTable("party_contacts", t =>
+
+                    b.HasIndex("FromUnitId");
+
+                    b.HasIndex("ItemId", "FromUnitId", "EffectiveFromUtc")
+                        .IsUnique()
+                        .HasDatabaseName("ux_catalog_conversion_item_unit_from");
+
+                    b.ToTable("catalog_item_unit_conversions", null, t =>
                         {
-                            t.HasCheckConstraint("ck_party_contact_kind", "kind IN (1,2,3)");
-                            t.HasCheckConstraint("ck_party_contact_revision", "revision > 0");
-                            t.HasCheckConstraint("ck_party_contact_value", "length(trim(value)) > 0");
-                            t.HasCheckConstraint("ck_party_contact_deactivation", "(is_active AND deactivated_at_utc IS NULL) OR (NOT is_active AND deactivated_at_utc IS NOT NULL)");
+                            t.HasCheckConstraint("ck_catalog_conversion_interval", "effective_to_utc IS NULL OR effective_to_utc > effective_from_utc");
+
+                            t.HasCheckConstraint("ck_catalog_conversion_ratio", "to_base_numerator > 0 AND to_base_denominator > 0");
+
+                            t.HasCheckConstraint("ck_catalog_conversion_round", "rounding_policy IN (1,2,3)");
                         });
                 });
 
-            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Parties.PartyAddress", b =>
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Catalog.CatalogOfficialMapping", b =>
                 {
-                    b.Property<Guid>("Id").HasColumnType("uuid").HasColumnName("id");
-                    b.Property<Guid>("PartyId").HasColumnType("uuid").HasColumnName("party_id");
-                    b.Property<string>("Label").HasMaxLength(80).HasColumnType("character varying(80)").HasColumnName("label");
-                    b.Property<string>("CountryCode").HasMaxLength(2).HasColumnType("character varying(2)").HasColumnName("country_code");
-                    b.Property<string>("Province").HasMaxLength(120).HasColumnType("character varying(120)").HasColumnName("province");
-                    b.Property<string>("City").HasMaxLength(120).HasColumnType("character varying(120)").HasColumnName("city");
-                    b.Property<string>("StreetAddress").HasMaxLength(500).HasColumnType("character varying(500)").HasColumnName("street_address");
-                    b.Property<string>("PostalCode").HasMaxLength(20).HasColumnType("character varying(20)").HasColumnName("postal_code");
-                    b.Property<bool>("IsPrimary").HasColumnType("boolean").HasColumnName("is_primary");
-                    b.Property<bool>("IsActive").HasColumnType("boolean").HasColumnName("is_active");
-                    b.Property<long>("Revision").HasColumnType("bigint").HasColumnName("revision").IsConcurrencyToken().ValueGeneratedOnAdd().HasDefaultValue(1L);
-                    b.Property<DateTime>("CreatedAtUtc").HasColumnType("timestamp with time zone").HasColumnName("created_at_utc");
-                    b.Property<DateTime>("UpdatedAtUtc").HasColumnType("timestamp with time zone").HasColumnName("updated_at_utc");
-                    b.Property<DateTime?>("DeactivatedAtUtc").HasColumnType("timestamp with time zone").HasColumnName("deactivated_at_utc");
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("EffectiveFromUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("effective_from_utc");
+
+                    b.Property<DateTime?>("EffectiveToUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("effective_to_utc");
+
+                    b.Property<Guid>("ItemId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("item_id");
+
+                    b.Property<Guid>("OfficialEntryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("official_entry_id");
+
+                    b.Property<long>("Revision")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L)
+                        .HasColumnName("revision");
+
                     b.HasKey("Id");
-                    b.HasIndex("PartyId");
-                    b.HasIndex("PartyId").IsUnique().HasFilter("is_active AND is_primary").HasDatabaseName("ux_party_addresses_primary");
-                    b.ToTable("party_addresses", t =>
+
+                    b.HasIndex("OfficialEntryId");
+
+                    b.HasIndex("ItemId", "EffectiveFromUtc")
+                        .IsUnique()
+                        .HasDatabaseName("ux_catalog_mapping_item_from");
+
+                    b.ToTable("catalog_official_mappings", null, t =>
                         {
-                            t.HasCheckConstraint("ck_party_address_revision", "revision > 0");
-                            t.HasCheckConstraint("ck_party_address_deactivation", "(is_active AND deactivated_at_utc IS NULL) OR (NOT is_active AND deactivated_at_utc IS NOT NULL)");
+                            t.HasCheckConstraint("ck_catalog_mapping_interval", "effective_to_utc IS NULL OR effective_to_utc > effective_from_utc");
+
+                            t.HasCheckConstraint("ck_catalog_mapping_revision", "revision > 0");
                         });
                 });
 
-            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Customers.CustomerTaxpayerMembership", b =>
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Catalog.CatalogReferenceRelease", b =>
                 {
-                    b.Property<Guid>("Id").HasColumnType("uuid").HasColumnName("id");
-                    b.Property<Guid>("CustomerUserId").HasColumnType("uuid").HasColumnName("customer_user_id");
-                    b.Property<Guid>("TaxpayerId").HasColumnType("uuid").HasColumnName("taxpayer_id");
-                    b.Property<Guid>("LinkedByUserId").HasColumnType("uuid").HasColumnName("linked_by_user_id");
-                    b.Property<DateTime>("LinkedAtUtc").HasColumnType("timestamp with time zone").HasColumnName("linked_at_utc");
-                    b.Property<Guid?>("UnlinkedByUserId").HasColumnType("uuid").HasColumnName("unlinked_by_user_id");
-                    b.Property<DateTime?>("UnlinkedAtUtc").HasColumnType("timestamp with time zone").HasColumnName("unlinked_at_utc");
-                    b.Property<long>("Revision").IsConcurrencyToken().ValueGeneratedOnAdd().HasDefaultValue(1L).HasColumnType("bigint").HasColumnName("revision");
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime?>("ActivatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("activated_at_utc");
+
+                    b.Property<string>("Edition")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("edition");
+
+                    b.Property<DateTime>("ImportedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("imported_at_utc");
+
+                    b.Property<string>("SourceDocument")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("source_document");
+
+                    b.Property<string>("SourceReference")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("source_reference");
+
+                    b.Property<string>("SourceSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("source_sha256");
+
+                    b.Property<int>("State")
+                        .HasColumnType("integer")
+                        .HasColumnName("state");
+
                     b.HasKey("Id");
-                    b.HasIndex("CustomerUserId", "TaxpayerId").IsUnique().HasFilter("unlinked_at_utc IS NULL").HasDatabaseName("ux_customer_taxpayer_memberships_active");
-                    b.HasIndex("CustomerUserId", "LinkedAtUtc").HasDatabaseName("ix_customer_taxpayer_memberships_history");
-                    b.HasIndex("TaxpayerId");
-                    b.HasIndex("LinkedByUserId");
-                    b.HasIndex("UnlinkedByUserId");
-                    b.ToTable("customer_taxpayer_memberships", t =>
+
+                    b.HasIndex("SourceDocument", "SourceSha256")
+                        .IsUnique()
+                        .HasDatabaseName("ux_catalog_release_source_hash");
+
+                    b.ToTable("catalog_reference_releases", null, t =>
                         {
-                            t.HasCheckConstraint("ck_customer_taxpayer_memberships_revision", "revision > 0");
-                            t.HasCheckConstraint("ck_customer_taxpayer_memberships_unlink", "(unlinked_at_utc IS NULL AND unlinked_by_user_id IS NULL) OR (unlinked_at_utc IS NOT NULL AND unlinked_by_user_id IS NOT NULL AND unlinked_at_utc >= linked_at_utc)");
+                            t.HasCheckConstraint("ck_catalog_release_hash", "length(source_sha256) = 64");
+
+                            t.HasCheckConstraint("ck_catalog_release_state", "state BETWEEN 1 AND 4");
+                        });
+                });
+
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Catalog.CustomerCatalogItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("BaseUnitId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("base_unit_id");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<Guid>("CustomerUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("customer_user_id");
+
+                    b.Property<string>("InternalCode")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("internal_code");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("integer")
+                        .HasColumnName("kind");
+
+                    b.Property<long>("Revision")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L)
+                        .HasColumnName("revision");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer")
+                        .HasColumnName("status");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("title");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at_utc");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BaseUnitId");
+
+                    b.HasIndex("CustomerUserId", "InternalCode")
+                        .IsUnique()
+                        .HasDatabaseName("ux_customer_catalog_internal_code");
+
+                    b.ToTable("customer_catalog_items", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_catalog_item_kind", "kind IN (1,2,3)");
+
+                            t.HasCheckConstraint("ck_catalog_item_revision", "revision > 0");
+
+                            t.HasCheckConstraint("ck_catalog_item_status", "status BETWEEN 1 AND 4");
+                        });
+                });
+
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Catalog.OfficialGoodsServiceEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("code");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("integer")
+                        .HasColumnName("kind");
+
+                    b.Property<Guid>("ReleaseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("release_id");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("title");
+
+                    b.Property<int>("VerificationStatus")
+                        .HasColumnType("integer")
+                        .HasColumnName("verification_status");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReleaseId", "Kind", "Code")
+                        .IsUnique()
+                        .HasDatabaseName("ux_official_goods_release_kind_code");
+
+                    b.ToTable("official_goods_service_entries", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_official_goods_code_format", "code ~ '^[0-9]{13}$'");
+
+                            t.HasCheckConstraint("ck_official_goods_kind", "kind IN (1,2)");
+
+                            t.HasCheckConstraint("ck_official_goods_verification", "verification_status IN (1,2)");
+                        });
+                });
+
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Catalog.OfficialMeasurementUnit", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)")
+                        .HasColumnName("code");
+
+                    b.Property<Guid>("ReleaseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("release_id");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer")
+                        .HasColumnName("status");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("title");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReleaseId", "Code")
+                        .IsUnique()
+                        .HasDatabaseName("ux_official_units_release_code");
+
+                    b.ToTable("official_measurement_units", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_official_unit_code", "code ~ '^[0-9]{1,8}$'");
+                        });
+                });
+
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Catalog.VatClassificationEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("code");
+
+                    b.Property<DateTime>("EffectiveFromUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("effective_from_utc");
+
+                    b.Property<DateTime?>("EffectiveToUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("effective_to_utc");
+
+                    b.Property<string>("LegalBasis")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)")
+                        .HasColumnName("legal_basis");
+
+                    b.Property<decimal?>("RatePercent")
+                        .HasPrecision(8, 4)
+                        .HasColumnType("numeric(8,4)")
+                        .HasColumnName("rate_percent");
+
+                    b.Property<Guid>("ReleaseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("release_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReleaseId", "Code", "EffectiveFromUtc")
+                        .IsUnique()
+                        .HasDatabaseName("ux_vat_release_code_from");
+
+                    b.ToTable("vat_classification_entries", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_vat_interval", "effective_to_utc IS NULL OR effective_to_utc > effective_from_utc");
+
+                            t.HasCheckConstraint("ck_vat_percentage", "rate_percent IS NULL OR (rate_percent >= 0 AND rate_percent <= 100)");
                         });
                 });
 
             modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Customers.CustomerAccountProfile", b =>
                 {
-                    b.Property<Guid>("CustomerUserId").HasColumnType("uuid").HasColumnName("customer_user_id");
-                    b.Property<string>("DisplayName").IsRequired().HasMaxLength(256).HasColumnType("character varying(256)").HasColumnName("display_name");
-                    b.Property<int>("Status").HasColumnType("integer").HasColumnName("status");
-                    b.Property<Guid?>("PreferredPartyId").HasColumnType("uuid").HasColumnName("preferred_party_id");
-                    b.Property<long>("Revision").IsConcurrencyToken().ValueGeneratedOnAdd().HasDefaultValue(1L).HasColumnType("bigint").HasColumnName("revision");
-                    b.Property<DateTime>("CreatedAtUtc").HasColumnType("timestamp with time zone").HasColumnName("created_at_utc");
-                    b.Property<DateTime>("UpdatedAtUtc").HasColumnType("timestamp with time zone").HasColumnName("updated_at_utc");
+                    b.Property<Guid>("CustomerUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("customer_user_id");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("display_name");
+
+                    b.Property<Guid?>("PreferredPartyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("preferred_party_id");
+
+                    b.Property<long>("Revision")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L)
+                        .HasColumnName("revision");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer")
+                        .HasColumnName("status");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at_utc");
+
                     b.HasKey("CustomerUserId");
-                    b.HasIndex("PreferredPartyId").HasDatabaseName("ix_customer_account_profiles_party");
-                    b.ToTable("customer_account_profiles", t =>
+
+                    b.HasIndex("PreferredPartyId")
+                        .HasDatabaseName("ix_customer_account_profiles_party");
+
+                    b.ToTable("customer_account_profiles", null, t =>
                         {
-                            t.HasCheckConstraint("ck_customer_profile_status", "status IN (1, 2)");
-                            t.HasCheckConstraint("ck_customer_profile_revision", "revision > 0");
                             t.HasCheckConstraint("ck_customer_profile_name", "length(trim(display_name)) > 0");
+
+                            t.HasCheckConstraint("ck_customer_profile_revision", "revision > 0");
+
+                            t.HasCheckConstraint("ck_customer_profile_status", "status IN (1, 2)");
                         });
                 });
 
-            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Parties.InvoiceParticipantDetails", b =>
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Customers.CustomerTaxpayerMembership", b =>
                 {
-                    b.Property<Guid>("Id").HasColumnType("uuid").HasColumnName("id");
-                    b.Property<Guid>("CustomerUserId").HasColumnType("uuid").HasColumnName("customer_user_id");
-                    b.Property<Guid?>("PartyId").HasColumnType("uuid").HasColumnName("party_id");
-                    b.Property<Guid?>("TaxpayerId").HasColumnType("uuid").HasColumnName("taxpayer_id");
-                    b.Property<string>("EconomicCode").HasColumnType("character varying(32)").HasColumnName("economic_code").HasMaxLength(32);
-                    b.Property<string>("BranchCode").HasColumnType("character varying(16)").HasColumnName("branch_code").HasMaxLength(16);
-                    b.Property<string>("PostalCode").HasColumnType("character varying(10)").HasColumnName("postal_code").HasMaxLength(10);
-                    b.Property<string>("Province").HasColumnType("character varying(120)").HasColumnName("province").HasMaxLength(120);
-                    b.Property<string>("City").HasColumnType("character varying(120)").HasColumnName("city").HasMaxLength(120);
-                    b.Property<string>("Address").HasColumnType("character varying(500)").HasColumnName("address").HasMaxLength(500);
-                    b.Property<string>("Phone").HasColumnType("character varying(20)").HasColumnName("phone").HasMaxLength(20);
-                    b.Property<string>("ForeignNationalCode").HasColumnType("character varying(32)").HasColumnName("foreign_national_code").HasMaxLength(32);
-                    b.Property<string>("PassportNumber").HasColumnType("character varying(32)").HasColumnName("passport_number").HasMaxLength(32);
-                    b.Property<string>("ContractReference").HasColumnType("character varying(64)").HasColumnName("contract_reference").HasMaxLength(64);
-                    b.Property<long>("Revision").HasColumnType("bigint").HasColumnName("revision").IsConcurrencyToken().ValueGeneratedOnAdd().HasDefaultValue(1L);
-                    b.Property<DateTime>("CreatedAtUtc").HasColumnType("timestamp with time zone").HasColumnName("created_at_utc");
-                    b.Property<DateTime>("UpdatedAtUtc").HasColumnType("timestamp with time zone").HasColumnName("updated_at_utc");
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("CustomerUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("customer_user_id");
+
+                    b.Property<DateTime>("LinkedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("linked_at_utc");
+
+                    b.Property<Guid>("LinkedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("linked_by_user_id");
+
+                    b.Property<long>("Revision")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L)
+                        .HasColumnName("revision");
+
+                    b.Property<Guid>("TaxpayerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("taxpayer_id");
+
+                    b.Property<DateTime?>("UnlinkedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("unlinked_at_utc");
+
+                    b.Property<Guid?>("UnlinkedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("unlinked_by_user_id");
+
                     b.HasKey("Id");
-                    b.HasIndex("CustomerUserId");
-                    b.HasIndex("PartyId");
+
+                    b.HasIndex("LinkedByUserId");
+
                     b.HasIndex("TaxpayerId");
-                    b.HasIndex("CustomerUserId", "PartyId").IsUnique().HasFilter("party_id IS NOT NULL").HasDatabaseName("ux_invoice_participants_buyer");
-                    b.HasIndex("CustomerUserId", "TaxpayerId").IsUnique().HasFilter("taxpayer_id IS NOT NULL").HasDatabaseName("ux_invoice_participants_seller");
-                    b.ToTable("invoice_participant_details", t =>
+
+                    b.HasIndex("UnlinkedByUserId");
+
+                    b.HasIndex("CustomerUserId", "LinkedAtUtc")
+                        .HasDatabaseName("ix_customer_taxpayer_memberships_history");
+
+                    b.HasIndex("CustomerUserId", "TaxpayerId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_customer_taxpayer_memberships_active")
+                        .HasFilter("unlinked_at_utc IS NULL");
+
+                    b.ToTable("customer_taxpayer_memberships", null, t =>
                         {
-                            t.HasCheckConstraint("ck_invoice_participant_owner", "(party_id IS NOT NULL AND taxpayer_id IS NULL) OR (party_id IS NULL AND taxpayer_id IS NOT NULL)");
-                            t.HasCheckConstraint("ck_invoice_participant_revision", "revision > 0");
+                            t.HasCheckConstraint("ck_customer_taxpayer_memberships_revision", "revision > 0");
+
+                            t.HasCheckConstraint("ck_customer_taxpayer_memberships_unlink", "(unlinked_at_utc IS NULL AND unlinked_by_user_id IS NULL) OR (unlinked_at_utc IS NOT NULL AND unlinked_by_user_id IS NOT NULL AND unlinked_at_utc >= linked_at_utc)");
                         });
-                });
-
-            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Parties.PartyDuplicateReview", b =>
-                {
-                    b.Property<Guid>("Id").HasColumnType("uuid").HasColumnName("id");
-                    b.Property<Guid>("CustomerUserId").HasColumnType("uuid").HasColumnName("customer_user_id");
-                    b.Property<Guid>("CandidatePartyId").HasColumnType("uuid").HasColumnName("candidate_party_id");
-                    b.Property<Guid>("ExistingPartyId").HasColumnType("uuid").HasColumnName("existing_party_id");
-                    b.Property<Guid>("ReviewerUserId").HasColumnType("uuid").HasColumnName("reviewer_user_id");
-                    b.Property<int>("Decision").HasColumnType("integer").HasColumnName("decision");
-                    b.Property<string>("Reason").IsRequired().HasMaxLength(500).HasColumnType("character varying(500)").HasColumnName("reason");
-                    b.Property<DateTime>("ReviewedAtUtc").HasColumnType("timestamp with time zone").HasColumnName("reviewed_at_utc");
-                    b.HasKey("Id");
-                    b.HasIndex("CustomerUserId", "ReviewedAtUtc").HasDatabaseName("ix_duplicate_reviews_customer_time");
-                    b.HasIndex("ReviewerUserId");
-                    b.HasIndex("CandidatePartyId");
-                    b.HasIndex("ExistingPartyId");
-                    b.ToTable("party_duplicate_reviews", t =>
-                        {
-                            t.HasCheckConstraint("ck_duplicate_review_distinct", "candidate_party_id <> existing_party_id");
-                            t.HasCheckConstraint("ck_duplicate_review_decision", "decision IN (1, 2)");
-                            t.HasCheckConstraint("ck_duplicate_review_reason", "length(trim(reason)) > 0");
-                        });
-                });
-
-            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Parties.Party", b =>
-                {
-                    b.Property<Guid>("Id").HasColumnType("uuid").HasColumnName("id");
-                    b.Property<int>("Kind").HasColumnType("integer").HasColumnName("kind");
-                    b.Property<string>("NormalizedIdentifier").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)").HasColumnName("normalized_identifier");
-                    b.Property<string>("FirstName").HasMaxLength(100).HasColumnType("character varying(100)").HasColumnName("first_name");
-                    b.Property<string>("LastName").HasMaxLength(100).HasColumnType("character varying(100)").HasColumnName("last_name");
-                    b.Property<string>("RegistrationNumber").HasMaxLength(32).HasColumnType("character varying(32)").HasColumnName("registration_number");
-                    b.Property<string>("DisplayName").IsRequired().HasMaxLength(256).HasColumnType("character varying(256)").HasColumnName("display_name");
-                    b.Property<int>("Status").HasColumnType("integer").HasColumnName("status");
-                    b.Property<long>("Revision").IsConcurrencyToken().ValueGeneratedOnAdd().HasColumnType("bigint").HasDefaultValue(1L).HasColumnName("revision");
-                    b.Property<DateTime>("CreatedAtUtc").HasColumnType("timestamp with time zone").HasColumnName("created_at_utc");
-                    b.Property<DateTime>("UpdatedAtUtc").HasColumnType("timestamp with time zone").HasColumnName("updated_at_utc");
-                    b.HasKey("Id");
-                    b.HasIndex("Kind", "NormalizedIdentifier").IsUnique().HasDatabaseName("ux_parties_kind_identifier");
-                    b.HasIndex("CreatedAtUtc", "Id").HasDatabaseName("ix_parties_fiscal_directory");
-                    b.ToTable("parties", t =>
-                        {
-                            t.HasCheckConstraint("ck_parties_kind", "kind IN (1, 2)");
-                            t.HasCheckConstraint("ck_parties_status", "status IN (1, 2)");
-                            t.HasCheckConstraint("ck_parties_revision", "revision > 0");
-                            t.HasCheckConstraint("ck_parties_identifier", "length(trim(normalized_identifier)) > 0");
-                            t.HasCheckConstraint("ck_parties_name", "length(trim(display_name)) > 0");
-                        });
-                });
-
-            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Parties.PartyIdentityHistory", b =>
-                {
-                    b.Property<Guid>("Id").HasColumnType("uuid").HasColumnName("id");
-                    b.Property<Guid>("PartyId").HasColumnType("uuid").HasColumnName("party_id");
-                    b.Property<Guid>("ActorUserId").HasColumnType("uuid").HasColumnName("actor_user_id");
-                    b.Property<long>("PriorRevision").HasColumnType("bigint").HasColumnName("prior_revision");
-                    b.Property<int>("PriorKind").HasColumnType("integer").HasColumnName("prior_kind");
-                    b.Property<string>("PriorNormalizedIdentifier").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)").HasColumnName("prior_normalized_identifier");
-                    b.Property<string>("PriorDisplayName").IsRequired().HasMaxLength(256).HasColumnType("character varying(256)").HasColumnName("prior_display_name");
-                    b.Property<string>("PriorFirstName").HasMaxLength(100).HasColumnType("character varying(100)").HasColumnName("prior_first_name");
-                    b.Property<string>("PriorLastName").HasMaxLength(100).HasColumnType("character varying(100)").HasColumnName("prior_last_name");
-                    b.Property<string>("PriorRegistrationNumber").HasMaxLength(32).HasColumnType("character varying(32)").HasColumnName("prior_registration_number");
-                    b.Property<DateTime>("CapturedAtUtc").HasColumnType("timestamp with time zone").HasColumnName("captured_at_utc");
-                    b.HasKey("Id");
-                    b.HasIndex("PartyId", "PriorRevision").IsUnique().HasDatabaseName("ux_party_identity_history_revision");
-                    b.HasIndex("ActorUserId");
-                    b.ToTable("party_identity_history", t =>
-                        t.HasCheckConstraint("ck_party_identity_history_revision", "prior_revision > 0"));
-                });
-
-            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Identity.SoftwareUserProfile", b =>
-                {
-                    b.Property<Guid>("UserId").HasColumnType("uuid").HasColumnName("user_id");
-                    b.Property<string>("FirstName").IsRequired().HasMaxLength(100).HasColumnType("character varying(100)").HasColumnName("first_name");
-                    b.Property<string>("LastName").IsRequired().HasMaxLength(100).HasColumnType("character varying(100)").HasColumnName("last_name");
-                    b.Property<string>("CompanyName").HasMaxLength(256).HasColumnType("character varying(256)").HasColumnName("company_name");
-                    b.Property<string>("Address").IsRequired().HasMaxLength(500).HasColumnType("character varying(500)").HasColumnName("address");
-                    b.Property<byte[]>("InvoiceLogoPng").HasColumnType("bytea").HasColumnName("invoice_logo_png");
-                    b.Property<long>("Revision").IsConcurrencyToken().ValueGeneratedOnAdd().HasColumnType("bigint").HasDefaultValue(1L).HasColumnName("revision");
-                    b.Property<DateTime>("CompletedAtUtc").HasColumnType("timestamp with time zone").HasColumnName("completed_at_utc");
-                    b.Property<DateTime>("UpdatedAtUtc").HasColumnType("timestamp with time zone").HasColumnName("updated_at_utc");
-                    b.HasKey("UserId");
-                    b.ToTable("software_user_profiles", t =>
-                        {
-                            t.HasCheckConstraint("ck_software_user_profiles_revision", "revision > 0");
-                            t.HasCheckConstraint("ck_software_user_profiles_name", "length(trim(first_name)) >= 2 AND length(trim(last_name)) >= 2");
-                            t.HasCheckConstraint("ck_software_user_profiles_address", "length(trim(address)) >= 2");
-                        });
-                });
-
-            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Parties.CustomerPartyLink", b =>
-                {
-                    b.Property<Guid>("Id").HasColumnType("uuid").HasColumnName("id");
-                    b.Property<Guid>("CustomerUserId").HasColumnType("uuid").HasColumnName("customer_user_id");
-                    b.Property<Guid>("PartyId").HasColumnType("uuid").HasColumnName("party_id");
-                    b.Property<DateTime>("LinkedAtUtc").HasColumnType("timestamp with time zone").HasColumnName("linked_at_utc");
-                    b.Property<DateTime?>("UnlinkedAtUtc").HasColumnType("timestamp with time zone").HasColumnName("unlinked_at_utc");
-                    b.HasKey("Id");
-                    b.HasIndex("CustomerUserId").HasDatabaseName("ix_customer_party_links_customer");
-                    b.HasIndex("PartyId").HasDatabaseName("ix_customer_party_links_party");
-                    b.HasIndex("CustomerUserId", "PartyId").IsUnique().HasFilter("unlinked_at_utc IS NULL").HasDatabaseName("ux_customer_party_links_active");
-                    b.ToTable("customer_party_links", t => t.HasCheckConstraint("ck_customer_party_links_dates", "unlinked_at_utc IS NULL OR unlinked_at_utc >= linked_at_utc"));
                 });
 
             modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Idempotency.IdempotencyReservation", b =>
@@ -621,6 +846,66 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
                     b.ToTable("identity_user_roles", (string)null);
                 });
 
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Identity.SoftwareUserProfile", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<string>("Address")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("address");
+
+                    b.Property<string>("CompanyName")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("company_name");
+
+                    b.Property<DateTime>("CompletedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("completed_at_utc");
+
+                    b.Property<string>("FirstName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("first_name");
+
+                    b.Property<byte[]>("InvoiceLogoPng")
+                        .HasColumnType("bytea")
+                        .HasColumnName("invoice_logo_png");
+
+                    b.Property<string>("LastName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("last_name");
+
+                    b.Property<long>("Revision")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L)
+                        .HasColumnName("revision");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at_utc");
+
+                    b.HasKey("UserId");
+
+                    b.ToTable("software_user_profiles", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_software_user_profiles_address", "length(trim(address)) >= 2");
+
+                            t.HasCheckConstraint("ck_software_user_profiles_name", "length(trim(first_name)) >= 2 AND length(trim(last_name)) >= 2");
+
+                            t.HasCheckConstraint("ck_software_user_profiles_revision", "revision > 0");
+                        });
+                });
+
             modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Outbox.OutboxMessage", b =>
                 {
                     b.Property<Guid>("Id")
@@ -673,6 +958,640 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("ux_outbox_taxpayer_deduplication");
 
                     b.ToTable("outbox_messages", (string)null);
+                });
+
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Parties.CustomerPartyLink", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("CustomerUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("customer_user_id");
+
+                    b.Property<DateTime>("LinkedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("linked_at_utc");
+
+                    b.Property<Guid>("PartyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("party_id");
+
+                    b.Property<DateTime?>("UnlinkedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("unlinked_at_utc");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CustomerUserId")
+                        .HasDatabaseName("ix_customer_party_links_customer");
+
+                    b.HasIndex("PartyId")
+                        .HasDatabaseName("ix_customer_party_links_party");
+
+                    b.HasIndex("CustomerUserId", "PartyId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_customer_party_links_active")
+                        .HasFilter("unlinked_at_utc IS NULL");
+
+                    b.ToTable("customer_party_links", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_customer_party_links_dates", "unlinked_at_utc IS NULL OR unlinked_at_utc >= linked_at_utc");
+                        });
+                });
+
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Parties.InvoiceParticipantDetails", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Address")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("address");
+
+                    b.Property<string>("BranchCode")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("branch_code");
+
+                    b.Property<string>("City")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("city");
+
+                    b.Property<string>("ContractReference")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("contract_reference");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<Guid>("CustomerUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("customer_user_id");
+
+                    b.Property<string>("EconomicCode")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("economic_code");
+
+                    b.Property<string>("ForeignNationalCode")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("foreign_national_code");
+
+                    b.Property<Guid?>("PartyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("party_id");
+
+                    b.Property<string>("PassportNumber")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("passport_number");
+
+                    b.Property<string>("Phone")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("phone");
+
+                    b.Property<string>("PostalCode")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("postal_code");
+
+                    b.Property<string>("Province")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("province");
+
+                    b.Property<long>("Revision")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L)
+                        .HasColumnName("revision");
+
+                    b.Property<Guid?>("TaxpayerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("taxpayer_id");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at_utc");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PartyId");
+
+                    b.HasIndex("TaxpayerId");
+
+                    b.HasIndex("CustomerUserId", "PartyId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_invoice_participants_buyer")
+                        .HasFilter("party_id IS NOT NULL");
+
+                    b.HasIndex("CustomerUserId", "TaxpayerId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_invoice_participants_seller")
+                        .HasFilter("taxpayer_id IS NOT NULL");
+
+                    b.ToTable("invoice_participant_details", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_invoice_participant_owner", "(party_id IS NOT NULL AND taxpayer_id IS NULL) OR (party_id IS NULL AND taxpayer_id IS NOT NULL)");
+
+                            t.HasCheckConstraint("ck_invoice_participant_revision", "revision > 0");
+                        });
+                });
+
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Parties.Party", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("display_name");
+
+                    b.Property<string>("FirstName")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("first_name");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("integer")
+                        .HasColumnName("kind");
+
+                    b.Property<string>("LastName")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("last_name");
+
+                    b.Property<string>("NormalizedIdentifier")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("normalized_identifier");
+
+                    b.Property<string>("RegistrationNumber")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("registration_number");
+
+                    b.Property<long>("Revision")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L)
+                        .HasColumnName("revision");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer")
+                        .HasColumnName("status");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at_utc");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAtUtc", "Id")
+                        .HasDatabaseName("ix_parties_fiscal_directory");
+
+                    b.HasIndex("Kind", "NormalizedIdentifier")
+                        .IsUnique()
+                        .HasDatabaseName("ux_parties_kind_identifier");
+
+                    b.ToTable("parties", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_parties_identifier", "length(trim(normalized_identifier)) > 0");
+
+                            t.HasCheckConstraint("ck_parties_kind", "kind IN (1, 2)");
+
+                            t.HasCheckConstraint("ck_parties_name", "length(trim(display_name)) > 0");
+
+                            t.HasCheckConstraint("ck_parties_revision", "revision > 0");
+
+                            t.HasCheckConstraint("ck_parties_status", "status IN (1, 2)");
+                        });
+                });
+
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Parties.PartyAddress", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("City")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("city");
+
+                    b.Property<string>("CountryCode")
+                        .IsRequired()
+                        .HasMaxLength(2)
+                        .HasColumnType("character varying(2)")
+                        .HasColumnName("country_code");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<DateTime?>("DeactivatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deactivated_at_utc");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<bool>("IsPrimary")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_primary");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("label");
+
+                    b.Property<Guid>("PartyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("party_id");
+
+                    b.Property<string>("PostalCode")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("postal_code");
+
+                    b.Property<string>("Province")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("province");
+
+                    b.Property<long>("Revision")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L)
+                        .HasColumnName("revision");
+
+                    b.Property<string>("StreetAddress")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("street_address");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at_utc");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PartyId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_party_addresses_primary")
+                        .HasFilter("is_active AND is_primary");
+
+                    b.ToTable("party_addresses", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_party_address_deactivation", "(is_active AND deactivated_at_utc IS NULL) OR (NOT is_active AND deactivated_at_utc IS NOT NULL)");
+
+                            t.HasCheckConstraint("ck_party_address_revision", "revision > 0");
+                        });
+                });
+
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Parties.PartyContact", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ContactPerson")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("contact_person");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<DateTime?>("DeactivatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deactivated_at_utc");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<bool>("IsPrimary")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_primary");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("integer")
+                        .HasColumnName("kind");
+
+                    b.Property<Guid>("PartyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("party_id");
+
+                    b.Property<long>("Revision")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L)
+                        .HasColumnName("revision");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at_utc");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasMaxLength(320)
+                        .HasColumnType("character varying(320)")
+                        .HasColumnName("value");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PartyId", "Kind")
+                        .IsUnique()
+                        .HasDatabaseName("ux_party_contacts_primary")
+                        .HasFilter("is_active AND is_primary");
+
+                    b.HasIndex("PartyId", "Kind", "Value")
+                        .IsUnique()
+                        .HasDatabaseName("ux_party_contacts_active_value")
+                        .HasFilter("is_active");
+
+                    b.ToTable("party_contacts", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_party_contact_deactivation", "(is_active AND deactivated_at_utc IS NULL) OR (NOT is_active AND deactivated_at_utc IS NOT NULL)");
+
+                            t.HasCheckConstraint("ck_party_contact_kind", "kind IN (1,2,3)");
+
+                            t.HasCheckConstraint("ck_party_contact_revision", "revision > 0");
+
+                            t.HasCheckConstraint("ck_party_contact_value", "length(trim(value)) > 0");
+                        });
+                });
+
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Parties.PartyDuplicateReview", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("CandidatePartyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("candidate_party_id");
+
+                    b.Property<Guid>("CustomerUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("customer_user_id");
+
+                    b.Property<int>("Decision")
+                        .HasColumnType("integer")
+                        .HasColumnName("decision");
+
+                    b.Property<Guid>("ExistingPartyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("existing_party_id");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("reason");
+
+                    b.Property<DateTime>("ReviewedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("reviewed_at_utc");
+
+                    b.Property<Guid>("ReviewerUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reviewer_user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CandidatePartyId");
+
+                    b.HasIndex("ExistingPartyId");
+
+                    b.HasIndex("ReviewerUserId");
+
+                    b.HasIndex("CustomerUserId", "ReviewedAtUtc")
+                        .HasDatabaseName("ix_duplicate_reviews_customer_time");
+
+                    b.ToTable("party_duplicate_reviews", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_duplicate_review_decision", "decision IN (1, 2)");
+
+                            t.HasCheckConstraint("ck_duplicate_review_distinct", "candidate_party_id <> existing_party_id");
+
+                            t.HasCheckConstraint("ck_duplicate_review_reason", "length(trim(reason)) > 0");
+                        });
+                });
+
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Parties.PartyIdentityHistory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ActorUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_user_id");
+
+                    b.Property<DateTime>("CapturedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("captured_at_utc");
+
+                    b.Property<Guid>("PartyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("party_id");
+
+                    b.Property<string>("PriorDisplayName")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("prior_display_name");
+
+                    b.Property<string>("PriorFirstName")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("prior_first_name");
+
+                    b.Property<int>("PriorKind")
+                        .HasColumnType("integer")
+                        .HasColumnName("prior_kind");
+
+                    b.Property<string>("PriorLastName")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("prior_last_name");
+
+                    b.Property<string>("PriorNormalizedIdentifier")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("prior_normalized_identifier");
+
+                    b.Property<string>("PriorRegistrationNumber")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("prior_registration_number");
+
+                    b.Property<long>("PriorRevision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("prior_revision");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActorUserId");
+
+                    b.HasIndex("PartyId", "PriorRevision")
+                        .IsUnique()
+                        .HasDatabaseName("ux_party_identity_history_revision");
+
+                    b.ToTable("party_identity_history", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_party_identity_history_revision", "prior_revision > 0");
+                        });
+                });
+
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Taxpayers.CustomerCommercialOwner", b =>
+                {
+                    b.Property<Guid>("CustomerUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("customer_user_id");
+
+                    b.Property<int>("AcquisitionChannel")
+                        .HasColumnType("integer")
+                        .HasColumnName("acquisition_channel");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<Guid?>("PartnerLevel2UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("partner_level2_user_id");
+
+                    b.Property<long>("Revision")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L)
+                        .HasColumnName("revision");
+
+                    b.Property<Guid>("RootLevel1UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("root_level1_user_id");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at_utc");
+
+                    b.HasKey("CustomerUserId");
+
+                    b.HasIndex("PartnerLevel2UserId");
+
+                    b.HasIndex("RootLevel1UserId");
+
+                    b.ToTable("customer_commercial_owners", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_customer_owner_channel", "acquisition_channel IN (1, 2, 3, 4, 5)");
+
+                            t.HasCheckConstraint("ck_customer_owner_not_root_partner", "partner_level2_user_id IS NULL OR partner_level2_user_id <> root_level1_user_id");
+
+                            t.HasCheckConstraint("ck_customer_owner_revision", "revision > 0");
+                        });
+                });
+
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Taxpayers.CustomerCommercialOwnerChange", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ApprovedByLevel1UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("approved_by_level1_user_id");
+
+                    b.Property<DateTime>("ChangedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("changed_at_utc");
+
+                    b.Property<Guid>("CustomerUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("customer_user_id");
+
+                    b.Property<string>("Explanation")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("explanation");
+
+                    b.Property<long>("FromRevision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("from_revision");
+
+                    b.Property<Guid?>("NewPartnerLevel2UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("new_partner_level2_user_id");
+
+                    b.Property<Guid?>("PreviousPartnerLevel2UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("previous_partner_level2_user_id");
+
+                    b.Property<int>("Reason")
+                        .HasColumnType("integer")
+                        .HasColumnName("reason");
+
+                    b.Property<Guid>("RootLevel1UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("root_level1_user_id");
+
+                    b.Property<long>("ToRevision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("to_revision");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ApprovedByLevel1UserId");
+
+                    b.HasIndex("CustomerUserId", "ToRevision")
+                        .IsUnique();
+
+                    b.ToTable("customer_commercial_owner_changes", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_owner_changes_reason", "reason IN (1, 2, 3, 4)");
+
+                            t.HasCheckConstraint("ck_owner_changes_revision", "to_revision = from_revision + 1");
+                        });
                 });
 
             modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Taxpayers.FiscalCertificateMetadata", b =>
@@ -755,94 +1674,7 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Taxpayers.TaxpayerDelegateGrant", b =>
-        {
-            b.Property<Guid>("Id").HasColumnName("id").HasColumnType("uuid");
-            b.Property<Guid>("TaxpayerId").HasColumnName("taxpayer_id").HasColumnType("uuid");
-            b.Property<Guid>("DelegateUserId").HasColumnName("delegate_user_id").HasColumnType("uuid");
-            b.Property<Guid>("GrantedByLevel1UserId").HasColumnName("granted_by_level1_user_id").HasColumnType("uuid");
-            b.Property<DateTime>("GrantedAtUtc").HasColumnName("granted_at_utc").HasColumnType("timestamp with time zone");
-            b.Property<DateTime?>("RevokedAtUtc").HasColumnName("revoked_at_utc").HasColumnType("timestamp with time zone");
-            b.Property<Guid?>("RevokedByLevel1UserId").HasColumnName("revoked_by_level1_user_id").HasColumnType("uuid");
-            b.Property<string>("RevocationReason").HasMaxLength(500).HasColumnName("revocation_reason").HasColumnType("character varying(500)");
-            b.Property<long>("Revision").HasColumnName("revision").HasColumnType("bigint").HasDefaultValue(1L).IsConcurrencyToken();
-            b.HasKey("Id");
-            b.HasIndex("TaxpayerId", "DelegateUserId").IsUnique().HasFilter("revoked_at_utc IS NULL").HasDatabaseName("ux_taxpayer_delegate_active");
-            b.HasIndex("DelegateUserId", "RevokedAtUtc").HasDatabaseName("ix_delegate_current_scope");
-            b.HasIndex("GrantedByLevel1UserId");
-            b.HasIndex("RevokedByLevel1UserId");
-            b.ToTable("taxpayer_delegate_grants", t =>
-            {
-                t.HasCheckConstraint("ck_delegate_revision", "revision > 0");
-                t.HasCheckConstraint("ck_delegate_revocation", "revoked_at_utc IS NULL OR (revoked_at_utc >= granted_at_utc AND revoked_by_level1_user_id IS NOT NULL AND length(trim(revocation_reason)) > 0)");
-            });
-        });
-        modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Taxpayers.TaxpayerDelegateGrant", b =>
-        {
-            b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Taxpayers.TaxpayerProfile", null).WithMany()
-                .HasForeignKey("TaxpayerId").OnDelete(DeleteBehavior.Restrict).IsRequired();
-            b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null).WithMany()
-                .HasForeignKey("DelegateUserId").OnDelete(DeleteBehavior.Restrict).IsRequired();
-            b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null).WithMany()
-                .HasForeignKey("GrantedByLevel1UserId").OnDelete(DeleteBehavior.Restrict).IsRequired();
-            b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null).WithMany()
-                .HasForeignKey("RevokedByLevel1UserId").OnDelete(DeleteBehavior.Restrict);
-        });
-
-        modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Taxpayers.CustomerCommercialOwner", b =>
-        {
-            b.Property<Guid>("CustomerUserId").HasColumnType("uuid").HasColumnName("customer_user_id");
-            b.Property<Guid>("RootLevel1UserId").HasColumnType("uuid").HasColumnName("root_level1_user_id");
-            b.Property<Guid?>("PartnerLevel2UserId").HasColumnType("uuid").HasColumnName("partner_level2_user_id");
-            b.Property<int>("AcquisitionChannel").HasColumnType("integer").HasColumnName("acquisition_channel");
-            b.Property<long>("Revision").HasColumnType("bigint").HasColumnName("revision").HasDefaultValue(1L).IsConcurrencyToken();
-            b.Property<DateTime>("CreatedAtUtc").HasColumnType("timestamp with time zone").HasColumnName("created_at_utc");
-            b.Property<DateTime>("UpdatedAtUtc").HasColumnType("timestamp with time zone").HasColumnName("updated_at_utc");
-            b.HasKey("CustomerUserId");
-            b.HasIndex("RootLevel1UserId");
-            b.HasIndex("PartnerLevel2UserId");
-            b.ToTable("customer_commercial_owners", t =>
-            {
-                t.HasCheckConstraint("ck_customer_owner_revision", "revision > 0");
-                t.HasCheckConstraint("ck_customer_owner_channel", "acquisition_channel IN (1, 2, 3, 4, 5)");
-                t.HasCheckConstraint("ck_customer_owner_not_root_partner", "partner_level2_user_id IS NULL OR partner_level2_user_id <> root_level1_user_id");
-            });
-        });
-        modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Taxpayers.CustomerCommercialOwner", b =>
-        {
-            b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null).WithMany().HasForeignKey("CustomerUserId").OnDelete(DeleteBehavior.Restrict).IsRequired().HasConstraintName("FK_customer_owner_customer");
-            b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null).WithMany().HasForeignKey("RootLevel1UserId").OnDelete(DeleteBehavior.Restrict).IsRequired().HasConstraintName("FK_customer_owner_root");
-            b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null).WithMany().HasForeignKey("PartnerLevel2UserId").OnDelete(DeleteBehavior.Restrict).HasConstraintName("FK_customer_owner_partner");
-        });
-        modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Taxpayers.CustomerCommercialOwnerChange", b =>
-        {
-            b.Property<Guid>("Id").HasColumnType("uuid").HasColumnName("id");
-            b.Property<Guid>("CustomerUserId").HasColumnType("uuid").HasColumnName("customer_user_id");
-            b.Property<Guid>("RootLevel1UserId").HasColumnType("uuid").HasColumnName("root_level1_user_id");
-            b.Property<Guid?>("PreviousPartnerLevel2UserId").HasColumnType("uuid").HasColumnName("previous_partner_level2_user_id");
-            b.Property<Guid?>("NewPartnerLevel2UserId").HasColumnType("uuid").HasColumnName("new_partner_level2_user_id");
-            b.Property<Guid>("ApprovedByLevel1UserId").HasColumnType("uuid").HasColumnName("approved_by_level1_user_id");
-            b.Property<int>("Reason").HasColumnType("integer").HasColumnName("reason");
-            b.Property<string>("Explanation").IsRequired().HasMaxLength(1000).HasColumnType("character varying(1000)").HasColumnName("explanation");
-            b.Property<long>("FromRevision").HasColumnType("bigint").HasColumnName("from_revision");
-            b.Property<long>("ToRevision").HasColumnType("bigint").HasColumnName("to_revision");
-            b.Property<DateTime>("ChangedAtUtc").HasColumnType("timestamp with time zone").HasColumnName("changed_at_utc");
-            b.HasKey("Id");
-            b.HasIndex("CustomerUserId", "ToRevision").IsUnique();
-            b.HasIndex("ApprovedByLevel1UserId");
-            b.ToTable("customer_commercial_owner_changes", t =>
-            {
-                t.HasCheckConstraint("ck_owner_changes_revision", "to_revision = from_revision + 1");
-                t.HasCheckConstraint("ck_owner_changes_reason", "reason IN (1, 2, 3, 4)");
-            });
-        });
-        modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Taxpayers.CustomerCommercialOwnerChange", b =>
-        {
-            b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Taxpayers.CustomerCommercialOwner", null).WithMany().HasForeignKey("CustomerUserId").OnDelete(DeleteBehavior.Restrict).IsRequired().HasConstraintName("FK_customer_owner_change_owner");
-            b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null).WithMany().HasForeignKey("ApprovedByLevel1UserId").OnDelete(DeleteBehavior.Restrict).IsRequired().HasConstraintName("FK_customer_owner_change_actor");
-        });
-
-        modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Taxpayers.FiscalMemory", b =>
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Taxpayers.FiscalMemory", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -899,6 +1731,71 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Taxpayers.TaxpayerDelegateGrant", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("DelegateUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("delegate_user_id");
+
+                    b.Property<DateTime>("GrantedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("granted_at_utc");
+
+                    b.Property<Guid>("GrantedByLevel1UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("granted_by_level1_user_id");
+
+                    b.Property<long>("Revision")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L)
+                        .HasColumnName("revision");
+
+                    b.Property<string>("RevocationReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("revocation_reason");
+
+                    b.Property<DateTime?>("RevokedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("revoked_at_utc");
+
+                    b.Property<Guid?>("RevokedByLevel1UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("revoked_by_level1_user_id");
+
+                    b.Property<Guid>("TaxpayerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("taxpayer_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GrantedByLevel1UserId");
+
+                    b.HasIndex("RevokedByLevel1UserId");
+
+                    b.HasIndex("DelegateUserId", "RevokedAtUtc")
+                        .HasDatabaseName("ix_delegate_current_scope");
+
+                    b.HasIndex("TaxpayerId", "DelegateUserId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_taxpayer_delegate_active")
+                        .HasFilter("revoked_at_utc IS NULL");
+
+                    b.ToTable("taxpayer_delegate_grants", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_delegate_revision", "revision > 0");
+
+                            t.HasCheckConstraint("ck_delegate_revocation", "revoked_at_utc IS NULL OR (revoked_at_utc >= granted_at_utc AND revoked_by_level1_user_id IS NOT NULL AND length(trim(revocation_reason)) > 0)");
+                        });
+                });
+
             modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Taxpayers.TaxpayerProfile", b =>
                 {
                     b.Property<Guid>("Id")
@@ -910,13 +1807,15 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at_utc");
 
+                    b.Property<Guid?>("CustomerUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("customer_user_id");
+
                     b.Property<string>("DisplayName")
                         .IsRequired()
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)")
                         .HasColumnName("display_name");
-
-                    b.Property<Guid?>("CustomerUserId").HasColumnType("uuid").HasColumnName("customer_user_id");
 
                     b.Property<int>("Kind")
                         .HasColumnType("integer")
@@ -945,8 +1844,11 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CustomerUserId").HasDatabaseName("ix_taxpayer_profiles_customer_user_id");
-                    b.HasIndex("CreatedAtUtc", "Id").HasDatabaseName("ix_taxpayer_profiles_fiscal_directory");
+                    b.HasIndex("CustomerUserId")
+                        .HasDatabaseName("ix_taxpayer_profiles_customer_user_id");
+
+                    b.HasIndex("CreatedAtUtc", "Id")
+                        .HasDatabaseName("ix_taxpayer_profiles_fiscal_directory");
 
                     b.HasIndex("Kind", "NormalizedIdentifier")
                         .IsUnique()
@@ -1024,6 +1926,124 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
                     b.ToTable("taxpayer_profile_changes", (string)null);
                 });
 
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Catalog.CatalogItemUnitConversion", b =>
+                {
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Catalog.OfficialMeasurementUnit", null)
+                        .WithMany()
+                        .HasForeignKey("FromUnitId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Catalog.CustomerCatalogItem", null)
+                        .WithMany()
+                        .HasForeignKey("ItemId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Catalog.CatalogOfficialMapping", b =>
+                {
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Catalog.CustomerCatalogItem", null)
+                        .WithMany()
+                        .HasForeignKey("ItemId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Catalog.OfficialGoodsServiceEntry", null)
+                        .WithMany()
+                        .HasForeignKey("OfficialEntryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Catalog.CustomerCatalogItem", b =>
+                {
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Catalog.OfficialMeasurementUnit", null)
+                        .WithMany()
+                        .HasForeignKey("BaseUnitId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null)
+                        .WithMany()
+                        .HasForeignKey("CustomerUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Catalog.OfficialGoodsServiceEntry", b =>
+                {
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Catalog.CatalogReferenceRelease", null)
+                        .WithMany()
+                        .HasForeignKey("ReleaseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Catalog.OfficialMeasurementUnit", b =>
+                {
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Catalog.CatalogReferenceRelease", null)
+                        .WithMany()
+                        .HasForeignKey("ReleaseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Catalog.VatClassificationEntry", b =>
+                {
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Catalog.CatalogReferenceRelease", null)
+                        .WithMany()
+                        .HasForeignKey("ReleaseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Customers.CustomerAccountProfile", b =>
+                {
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null)
+                        .WithOne()
+                        .HasForeignKey("ArginTaxPayer.Infrastructure.Persistence.Customers.CustomerAccountProfile", "CustomerUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_customer_account_profiles_identity");
+
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Parties.Party", null)
+                        .WithMany()
+                        .HasForeignKey("PreferredPartyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("FK_customer_account_profiles_party");
+                });
+
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Customers.CustomerTaxpayerMembership", b =>
+                {
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null)
+                        .WithMany()
+                        .HasForeignKey("CustomerUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_customer_taxpayer_memberships_customer");
+
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null)
+                        .WithMany()
+                        .HasForeignKey("LinkedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_customer_taxpayer_memberships_linked_by");
+
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Taxpayers.TaxpayerProfile", null)
+                        .WithMany()
+                        .HasForeignKey("TaxpayerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_customer_taxpayer_memberships_taxpayer");
+
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null)
+                        .WithMany()
+                        .HasForeignKey("UnlinkedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("FK_customer_taxpayer_memberships_unlinked_by");
+                });
+
             modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityMfaChallenge", b =>
                 {
                     b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", "User")
@@ -1087,6 +2107,160 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Identity.SoftwareUserProfile", b =>
+                {
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null)
+                        .WithOne()
+                        .HasForeignKey("ArginTaxPayer.Infrastructure.Persistence.Identity.SoftwareUserProfile", "UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Parties.CustomerPartyLink", b =>
+                {
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null)
+                        .WithMany()
+                        .HasForeignKey("CustomerUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_customer_party_links_customer");
+
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Parties.Party", null)
+                        .WithMany()
+                        .HasForeignKey("PartyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_customer_party_links_party");
+                });
+
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Parties.InvoiceParticipantDetails", b =>
+                {
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null)
+                        .WithMany()
+                        .HasForeignKey("CustomerUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_invoice_participants_customer");
+
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Parties.Party", null)
+                        .WithMany()
+                        .HasForeignKey("PartyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("FK_invoice_participants_party");
+
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Taxpayers.TaxpayerProfile", null)
+                        .WithMany()
+                        .HasForeignKey("TaxpayerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("FK_invoice_participants_taxpayer");
+                });
+
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Parties.PartyAddress", b =>
+                {
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Parties.Party", null)
+                        .WithMany()
+                        .HasForeignKey("PartyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_party_addresses_party");
+                });
+
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Parties.PartyContact", b =>
+                {
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Parties.Party", null)
+                        .WithMany()
+                        .HasForeignKey("PartyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_party_contacts_party");
+                });
+
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Parties.PartyDuplicateReview", b =>
+                {
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Parties.Party", null)
+                        .WithMany()
+                        .HasForeignKey("CandidatePartyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_party_duplicate_reviews_candidate");
+
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null)
+                        .WithMany()
+                        .HasForeignKey("CustomerUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_party_duplicate_reviews_customer");
+
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Parties.Party", null)
+                        .WithMany()
+                        .HasForeignKey("ExistingPartyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_party_duplicate_reviews_existing");
+
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null)
+                        .WithMany()
+                        .HasForeignKey("ReviewerUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_party_duplicate_reviews_reviewer");
+                });
+
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Parties.PartyIdentityHistory", b =>
+                {
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null)
+                        .WithMany()
+                        .HasForeignKey("ActorUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Parties.Party", null)
+                        .WithMany()
+                        .HasForeignKey("PartyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Taxpayers.CustomerCommercialOwner", b =>
+                {
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null)
+                        .WithMany()
+                        .HasForeignKey("CustomerUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_customer_owner_customer");
+
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null)
+                        .WithMany()
+                        .HasForeignKey("PartnerLevel2UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("FK_customer_owner_partner");
+
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null)
+                        .WithMany()
+                        .HasForeignKey("RootLevel1UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_customer_owner_root");
+                });
+
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Taxpayers.CustomerCommercialOwnerChange", b =>
+                {
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null)
+                        .WithMany()
+                        .HasForeignKey("ApprovedByLevel1UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_customer_owner_change_actor");
+
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Taxpayers.CustomerCommercialOwner", null)
+                        .WithMany()
+                        .HasForeignKey("CustomerUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_customer_owner_change_owner");
+                });
+
             modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Taxpayers.FiscalCertificateMetadata", b =>
                 {
                     b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Taxpayers.FiscalMemory", "FiscalMemory")
@@ -1107,6 +2281,32 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Taxpayer");
+                });
+
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Taxpayers.TaxpayerDelegateGrant", b =>
+                {
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null)
+                        .WithMany()
+                        .HasForeignKey("DelegateUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null)
+                        .WithMany()
+                        .HasForeignKey("GrantedByLevel1UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null)
+                        .WithMany()
+                        .HasForeignKey("RevokedByLevel1UserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Taxpayers.TaxpayerProfile", null)
+                        .WithMany()
+                        .HasForeignKey("TaxpayerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Taxpayers.TaxpayerProfile", b =>
@@ -1131,81 +2331,6 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
                         .HasForeignKey("TaxpayerId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
-                });
-
-            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Parties.CustomerPartyLink", b =>
-                {
-                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null)
-                        .WithMany().HasForeignKey("CustomerUserId").OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired().HasConstraintName("FK_customer_party_links_customer");
-                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Parties.Party", null)
-                        .WithMany().HasForeignKey("PartyId").OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired().HasConstraintName("FK_customer_party_links_party");
-                });
-
-            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Customers.CustomerTaxpayerMembership", b =>
-                {
-                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null).WithMany()
-                        .HasForeignKey("CustomerUserId").OnDelete(DeleteBehavior.Restrict).IsRequired()
-                        .HasConstraintName("FK_customer_taxpayer_memberships_customer");
-                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Taxpayers.TaxpayerProfile", null).WithMany()
-                        .HasForeignKey("TaxpayerId").OnDelete(DeleteBehavior.Restrict).IsRequired()
-                        .HasConstraintName("FK_customer_taxpayer_memberships_taxpayer");
-                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null).WithMany()
-                        .HasForeignKey("LinkedByUserId").OnDelete(DeleteBehavior.Restrict).IsRequired()
-                        .HasConstraintName("FK_customer_taxpayer_memberships_linked_by");
-                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null).WithMany()
-                        .HasForeignKey("UnlinkedByUserId").OnDelete(DeleteBehavior.Restrict)
-                        .HasConstraintName("FK_customer_taxpayer_memberships_unlinked_by");
-                });
-
-            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Customers.CustomerAccountProfile", b =>
-                {
-                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null)
-                        .WithOne().HasForeignKey("ArginTaxPayer.Infrastructure.Persistence.Customers.CustomerAccountProfile", "CustomerUserId")
-                        .OnDelete(DeleteBehavior.Restrict).IsRequired()
-                        .HasConstraintName("FK_customer_account_profiles_identity");
-                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Parties.Party", null)
-                        .WithMany().HasForeignKey("PreferredPartyId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .HasConstraintName("FK_customer_account_profiles_party");
-                });
-
-            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Parties.InvoiceParticipantDetails", b =>
-                {
-                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null).WithMany().HasForeignKey("CustomerUserId").OnDelete(DeleteBehavior.Restrict).IsRequired().HasConstraintName("FK_invoice_participants_customer");
-                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Parties.Party", null).WithMany().HasForeignKey("PartyId").OnDelete(DeleteBehavior.Restrict).HasConstraintName("FK_invoice_participants_party");
-                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Taxpayers.TaxpayerProfile", null).WithMany().HasForeignKey("TaxpayerId").OnDelete(DeleteBehavior.Restrict).HasConstraintName("FK_invoice_participants_taxpayer");
-                });
-
-            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Parties.PartyDuplicateReview", b =>
-                {
-                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null)
-                        .WithMany().HasForeignKey("CustomerUserId").OnDelete(DeleteBehavior.Restrict).IsRequired()
-                        .HasConstraintName("FK_party_duplicate_reviews_customer");
-                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null)
-                        .WithMany().HasForeignKey("ReviewerUserId").OnDelete(DeleteBehavior.Restrict).IsRequired()
-                        .HasConstraintName("FK_party_duplicate_reviews_reviewer");
-                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Parties.Party", null)
-                        .WithMany().HasForeignKey("CandidatePartyId").OnDelete(DeleteBehavior.Restrict).IsRequired()
-                        .HasConstraintName("FK_party_duplicate_reviews_candidate");
-                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Parties.Party", null)
-                        .WithMany().HasForeignKey("ExistingPartyId").OnDelete(DeleteBehavior.Restrict).IsRequired()
-                        .HasConstraintName("FK_party_duplicate_reviews_existing");
-                });
-
-            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Parties.PartyContact", b =>
-                {
-                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Parties.Party", null)
-                        .WithMany().HasForeignKey("PartyId").OnDelete(DeleteBehavior.Restrict).IsRequired()
-                        .HasConstraintName("FK_party_contacts_party");
-                });
-
-            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Parties.PartyAddress", b =>
-                {
-                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Parties.Party", null)
-                        .WithMany().HasForeignKey("PartyId").OnDelete(DeleteBehavior.Restrict).IsRequired()
-                        .HasConstraintName("FK_party_addresses_party");
                 });
 
             modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", b =>
