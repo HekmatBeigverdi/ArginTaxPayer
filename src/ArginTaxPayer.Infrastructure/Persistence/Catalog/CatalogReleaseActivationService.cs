@@ -92,7 +92,13 @@ public sealed class CatalogReleaseActivationService(
                         .ToArrayAsync(ct);
                     foreach (var previous in old)
                     {
-                        previous.State = 4;
+                        // Database update must precede promotion to Active because
+                        // ux_catalog_single_active_source is immediate (not deferrable).
+                        var changed = await db.CatalogReferenceReleases
+                            .Where(r => r.Id == previous.Id && r.State == 3)
+                            .ExecuteUpdateAsync(s => s.SetProperty(r => r.State, 4), ct);
+                        if (changed != 1)
+                            return new ReleaseChangeResult(ReleaseChangeDecision.Conflict);
                         await InsertAuditAsync(previous.Id, actor.Value, "supersede", 3, 4,
                             evidence, "Superseded by release " + releaseId, now, ct);
                     }
