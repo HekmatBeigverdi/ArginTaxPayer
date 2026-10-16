@@ -19,8 +19,11 @@ public sealed class ReferenceImportService(
     ArginTaxPayerDbContext db, IdentityAuthorizationService identity)
 {
     public async Task<ReferenceImportOutcome> StageAsync(string? bearer,
-        ReferenceImportPreview preview, CancellationToken ct = default)
+        ReferenceImportKind kind, string? document, string? edition,
+        string? sourceReference, byte[]? uploadBytes, CancellationToken ct = default)
     {
+        // Rebuild the preview from immutable upload bytes, never trust caller-provided rows/digest.
+        var preview = ReferenceImportParser.Preview(kind, document, edition, sourceReference, uploadBytes);
         var actor = await identity.CurrentUserIdAsync(bearer, ct);
         if (actor is null) return new(ReferenceImportDecision.Unauthenticated);
         if (!await CanStageAsync(actor.Value, ct)) return new(ReferenceImportDecision.Forbidden);
@@ -30,8 +33,6 @@ public sealed class ReferenceImportService(
             preview.Rows.Count == 0)
             return new(ReferenceImportDecision.InvalidPreview);
 
-        // Preview objects are not trusted as commands. The server must reparse
-        // original upload bytes at the future HTTP boundary and match digest/rows.
         try
         {
             return await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
