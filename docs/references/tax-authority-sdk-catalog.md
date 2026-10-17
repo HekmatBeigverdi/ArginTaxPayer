@@ -38,3 +38,25 @@
 2. For a future adapter, pin a single 2.0.x implementation only after verifying published API contract and end-to-end sandbox tests; don't mix legacy 0.0.x code paths.
 3. Isolate secrets and certificates behind protected signer abstractions; store no private keys in source, plaintext databases or logs.
 4. Current action is **analysis/documentation only**. No SDK adoption, live endpoint call, signing, build, security audit, migration or production integration was performed.
+
+
+## Mandatory source-governance policy (owner directive, 2026-10-17)
+
+**MUST retain and consult BOTH generations.** Keep the two historical 0.0.x source/package artifacts and corresponding guide as a versioned *legacy reference*, and both 2.0.32 source/package artifacts and the 1405 certificate guide as the *newer reference*. An architecture decision to use 2.0.x for a future new adapter does not authorize deleting or rewriting legacy evidence or breaking an older deployment. Versions must never be silently cross-wired.
+
+**MANDATORY for every future phase, design, PR and code change related to taxpayer rules, data or connection:**
+1. Read the most relevant supplied **Tax Authority primary** instruction first (identifier + edition + exact chapter/table/page). For invoicing this includes `RC_IITP.IS V7.9`; for the certificate-based protocol `RC_TICS.IS_v1.6`. Do not use blog/third-party sites as the rule source.
+2. For SDK or wire-facing work, consult **both SDK generations** and their corresponding manuals to identify migration or compatibility differences. Choose one explicitly pinned implementation and document the reason; maintain a separate legacy-compatibility assessment.
+3. Record per implementation step: source ID, exact page/table, relevant SDK generation and package version, any contradiction, security effect, and tests. If original evidence is unavailable, BLOCK normative implementation and request original bytes instead of guessing or inventing support.
+4. For conflicting rules, the newer applicable *official* document prevails only after confirming legal scope and effective date. Do not equate publication date with effective date. Log unresolved conflict; fail closed for submission-readiness.
+5. A supplied NuGet package or sample does not supersede the official instruction; no automatic live endpoint assumptions. Verify sandbox handshake, contract compatibility, signatures and asynchronous status before production release.
+6. Files with PEM keys, credentials or production customer details may only live in approved private artifact storage. Preserve SHA-256 and restricted access. Never push raw uploads to public Git. This catalogue is persistent, but **not** binary archival; original copies must be preserved privately for future source builds.
+
+### Direct taxpayer enrollment and signing: official-document interpretation
+
+- `RC_TICS.IS_v1.6`, **p5**, says the taxpayer obtains fiscal-memory ID in the tax portal and selects among `by taxpayer`, `by TSP/government with taxpayer key`, or `by TSP/government with TSP key`. In the certificate-based path, a **2048-bit public key or signing certificate** can be uploaded to the tax workspace. It explicitly distinguishes TSP-managed credentials.
+- `RC_TICS.IS_v1.6`, **pp9–12**, defines v2 nonce/JWS authentication, signature certificate `x5c`, `RS256`, `sigT` and `clientId`. The server performs certificate/trust/expiry validation.
+- `TAX-SDK-GUIDE-NEW`, **pp4,6–8 and 16**, requires a valid signer certificate `CRT/CER` and matching private `PKCS#8 PEM` for the file-based option. It also discusses hardware PKCS#11 with currently documented ePass3003; hardware token is **optional**, not universally required. No trusted TSP is intrinsically required when registering self-issuance.
+- `TAX-SDK-GUIDE-OLD`, **pp4–9**, describes the older file/private-key `TaxApiService` path; it cannot be construed as a replacement for the certificate in new v2 authentication. The 1404 technical instruction says legacy API remained available *until further notice at its publication*, NOT guaranteed today.
+
+**Decision:** ArginTaxPayer should expose an explicit signing mode abstraction (legacy direct key mode vs new certificate-based direct mode; potential delegated TSP modes separately). Do not require a USB token for certificate-based file signing; do require credential validity, matching key pair and suitable trust chain. Registration, signing key handling, API integration and live authorization are deferred to the correct later phase; this paragraph does not mean they are implemented.
