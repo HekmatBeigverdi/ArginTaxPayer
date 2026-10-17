@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 06: Goods and Services
 
-**Status:** Steps01–14 explicitly owner-approved (Step14 operator-reported successful tests on 2026-10-17; raw output not independently received). Step15 Security and Regression implementation/tests committed; local/integration acceptance pending. Step16 not started.
+**Status:** Steps01–15 explicitly owner-approved (Step15 includes operator-reported successful security, regression, HTTP Smoke and integration tests on 2026-10-17; raw logs not independently attached). Step16 Final Acceptance and Handoff is IN PROGRESS; no merge, tag or GitHub Release authorized yet.
 **Branch:** `phase/06-goods-services`
 **Baseline:** `main` after Phase05 merge `6a3de74692403029b68c2061251601752eebd518`.
 **Roadmap:** `docs/roadmap/18-phases.md`, Phase 06.
@@ -30,8 +30,8 @@ Preserve Phase03 identity, Phase04 customer/partner ownership and Phase05 partie
 | 12 | Catalog API and Search | Search, filtering, pagination and concurrency support | Role, paging and stale-update tests | 09–11 | Owner-approved 2026-10-16; operator-reported successful |
 | 13 | RTL Catalog UI | Lists, forms, selection search and localized errors | Authorized paths, validation and accessibility tests | 12 | Owner-approved 2026-10-17; dashboard/branding refinements accepted |
 | 14 | Invoice Handoff Contracts | Immutable snapshot contract for Phases 07/08 without invoice issuance | Version contract and historical immutability tests | 06, 11–13 | Owner-approved 2026-10-17; tests operator-reported successful |
-| 15 | Security and Regression | Isolation, race, migration and Phase03–05 regression tests | Prevent cross-customer and former-partner access | 01–14 | Focused tests and read-only live smoke scripts committed; owner acceptance pending |
-| 16 | Final Acceptance and Handoff | Mac and Ubuntu aggregate tests, documentation and risk report | Evidence report, owner approval and separate merge/tag | 15 | Pending |
+| 15 | Security and Regression | Isolation, race, migration and Phase03–05 regression tests | Prevent cross-customer and former-partner access | 01–14 | Owner-approved 2026-10-17; security, regression, HTTP Smoke and integration operator-reported successful |
+| 16 | Final Acceptance and Handoff | Mac and Ubuntu aggregate tests, documentation and risk report | Evidence report, owner approval and separate merge/tag | 15 | In progress; final audits/documentation committed; owner signoff pending |
 
 ## Engineering and Safety Invariants
 
@@ -789,7 +789,87 @@ The script refuses to run without the required environment inputs. No default cr
 **Migration:** None. There were no added columns, entities, indexes or triggers. Do **not** run `dotnet ef database update` for Step15. No live authority activation, invoice issuance or production data changes. Successful read-only inspection does not by itself prove race-condition safety.
 
 **Acceptance:** Operator submits focused/full .NET, Next.js and smoke results, verifies negative role cases/ownership transfer/concurrency/trigger behavior in disposable fixtures and explicitly approves Step15 before starting Step16.
-**Owner signoff Step15:** Pending.
+**Owner signoff Step15:** Approved by owner 2026-10-17. Owner explicitly reports security/regression/HTTP Smoke/integration checks successful; raw logs have not been independently captured.
+
+
+## Step 16 — Final Acceptance and Handoff (2026-10-17)
+
+**State:** In progress. Step15 expressly owner-approved after operator-reported complete test coverage; separate macOS and Ubuntu **final aggregate run** and written owner signoff pending. No Git merge, tag or published Release has been performed or authorized during this step.
+
+### Scope lock and handoff inventory
+- Freeze the Phase06 sixteen-step roadmap; do not append new implementation steps under the guise of closeout.
+- Deliver versioned goods/service reference catalog and official measurement units, dated VAT policy, staged/reference version import, Level1/MFA controlled release activation and append-only audit, tenant-owned products/services, historical fiscal-ID mapping, scoped Development catalog API, responsive Persian RTL dashboard, searchable unit picker and Jalali dates, transparent Argin branding, immutable Invoice Catalog Handoff DTO, and Step15 security/regression artifacts.
+- Preserve bounded scope. **NO real tax-invoice issuance**, PDF/export, digital signing, tax-authority connectivity, billing/settlement or production catalog endpoints. Invoices in phases 07–08 must resolve tax context (VAT currently `Unresolved`) and persist a copy of the immutable catalog snapshot; never use a mutable live mapping to render an already issued invoice.
+- The 102-unit `RC_UMGS.ST V1.18` reference seed remains staged until reviewed and activated by proper authority workflow; Step16 checks **must not activate it solely to satisfy an expected result**. Validity of official source is not inferred from HTTPS or a 13-digit format.
+
+### Deliverables committed
+- `scripts/phase06-step16-audit.py`: read-only cross-platform preflight verifies branch, clean checkout, exactly 16 plan rows, Step15 approval, Step16 not closed, presence of critical source/tests/identity/UI assets, and known Phase06 migration files; `--json` prints a secret-free machine-readable report. **It does not** run database tests or approve a Release.
+- `docs/phases/phase-06.md`: authoritative single-file status and final acceptance matrix; no new migration, product schema or fiscal data mutation.
+
+### Acceptance matrix
+| Gate | Test / evidence | Current status |
+| --- | --- | --- |
+| Previous steps signed off | Steps01–15 recorded, Step15 owner explicitly confirms all categories passed | Owner-reported PASS |
+| macOS .NET | `dotnet build -c Release`, full `dotnet test`, EF no-pending-model-changes | PENDING final run |
+| macOS Next.js | `npm ci`, typecheck, full node tests and `npm run build` | PENDING final run |
+| macOS live smoke | `dev-up.zsh` and `dev-status.zsh`; local health 200, authorized catalog navigation and RTL date/unit/owner UX | PENDING final check |
+| PostgreSQL integrity | Confirm exact `argintaxpayer_test`, 102 official units, correct Phase06 migrations, required trigger presence, no destructive row change | PENDING read-only final check |
+| Ubuntu 24 verify | `bash scripts/ubuntu-dev.sh verify` using **private test DB config**; API/UI live readiness separately checked | PENDING |
+| Security handoff | Step15 operator report includes scoped customer/partner, MFA, sessions, race/trigger checks | Owner-reported PASS; raw evidence not stored |
+| Repository audit | `python3 scripts/phase06-step16-audit.py --json` | PENDING operator execution |
+| Documentation/risk register | Explicit boundary, versioned source, staged unit warning, recovery notes, deferred invoice VAT and actual authentication checks | Delivered, owner review pending |
+| Git publication | Branch review, merge into `main`, annotated phase tag and GitHub Release | **NOT EXECUTED — requires final owner signoff** |
+
+### Final macOS operator commands
+```bash
+git fetch origin
+git switch phase/06-goods-services
+git pull --ff-only
+git status --short
+python3 scripts/phase06-step16-audit.py
+dotnet restore ArginTaxPayer.sln
+dotnet build ArginTaxPayer.sln -c Release
+dotnet test ArginTaxPayer.sln -c Release --no-build
+dotnet ef migrations has-pending-model-changes --project src/ArginTaxPayer.Infrastructure --startup-project src/ArginTaxPayer.Api
+(
+  cd apps/web
+  npm ci --no-audit --no-fund
+  npm run typecheck
+  npm test
+  npm run build
+)
+zsh scripts/dev-up.zsh
+zsh scripts/dev-status.zsh
+curl --noproxy '*' -i http://127.0.0.1:15089/health/live
+```
+Do not publish real API credentials. Browser operator check: `http://127.0.0.1:3000/identity`, `/dashboard`, `/catalog`; verify account names/ownership, two-column form+table, search unit picker, upward-opening Jalali calendar, transparent logo/favicon, and unauthenticated 401/authorized 200/foreign tenant 403 on the appropriate test routes. **Do not re-run mutating fixtures against owner/production catalogs.** Step15's role smoke uses disposable sessions and is read-only.
+
+### Ubuntu VPS test (separate environment)
+```bash
+git fetch origin
+git switch phase/06-goods-services
+git pull --ff-only
+python3 scripts/phase06-step16-audit.py
+bash scripts/ubuntu-dev.sh verify
+bash scripts/ubuntu-dev.sh status
+```
+`ubuntu-dev.sh verify` runs build and tests but does not start the services; status may correctly say both services are stopped. If final live HTTP is required and no test API/web processes are active, with the approved private `~/.argintaxpayer-test/ubuntu.env`, run `bash scripts/ubuntu-dev.sh up` followed by `bash scripts/ubuntu-dev.sh status`; verify remote environment remains VPS loopback-only and do not confuse `verify` with live browser login. After operator checks, `bash scripts/ubuntu-dev.sh down` stops test launchers. No production deployment is implied.
+
+### Risks / deferred commitments
+1. Activation audit reflects documented operator review, **not cryptographic confirmation by tax authority**. Avoid activating unverified goods identifiers or staged units.
+2. The current Step08 emergency withdrawal does not automatically restore a previously superseded release; follow a reviewed reimport/restore design before production use.
+3. Step12 catalog HTTP and Step13 UI are deliberately Development-only. Production exposure requires separate API security, auth/session and deployment gate in a future phase.
+4. Step14 InvoiceCatalogHandoff is an **in-memory read-only contract** and invoice snapshot persistence is deferred to Phases07–08. No VAT or tax-invoice correctness claim until rules and authority integration are implemented.
+5. Migration Down operations for append-only audit/mapping references intentionally refuse destructive rollback when historical records exist. Recovery means forward repair, reviewed change and validated backup, not deleting history.
+6. UI relies on selected customer identity plus server ownership checks; account list choices grant no privileges.
+7. No isolated proof of full production performance/penetration or signed regulatory receipt is supplied by Phase06.
+
+### Closeout conditions
+- Operator sends final macOS and Ubuntu results, including any failures and observed DB/HTTP/browser findings.
+- Resolve all release-blocking defects; no unfinished `Step16` checklist or unknown migration drift.
+- Owner explicitly authorizes Phase06 completion. **Only then** prepare and perform separately requested main branch merge, annotated tag, GitHub Release and immutable closeout record; do not assume these actions occurred from a successful test run alone.
+
+**Owner signoff Step16:** PENDING. **Final phase state:** OPEN; awaiting final operator evidence and release authorization.
 
 ## Phase Closeout
 
