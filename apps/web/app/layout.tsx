@@ -6,9 +6,9 @@ export const metadata: Metadata = {
   description: "زیرساخت سامانه یکپارچه مؤدیان آرگین",
   robots: { index: false, follow: false },
   icons: {
-    icon: [{ url: "/brand/argin-logo.png?v=20261017", type: "image/png", sizes: "128x128" }],
-    shortcut: "/brand/argin-logo.png?v=20261017",
-    apple: [{ url: "/brand/argin-logo.png?v=20261017", sizes: "128x128", type: "image/png" }],
+    icon: [{ url: "/brand/argin-logo.png?v=20261017transparent", type: "image/png", sizes: "128x128" }],
+    shortcut: "/brand/argin-logo.png?v=20261017transparent",
+    apple: [{ url: "/brand/argin-logo.png?v=20261017transparent", sizes: "128x128", type: "image/png" }],
   },
 };
 
