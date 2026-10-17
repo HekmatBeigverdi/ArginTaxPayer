@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 07: Invoice Domain and Rule Engine
 
-**Status:** Step 01 owner-approved 2026-10-17; Step 02 owner-approved 2026-10-17 (macOS test logs not attached); Step 03 owner-approved 2026-10-17 (test output not attached); Step 04 owner-approved 2026-10-17 (macOS evidence not attached); Step 05 implemented, awaiting macOS test and owner acceptance. Steps 06–24 not started.
+**Status:** Step 01 owner-approved 2026-10-17; Step 02 owner-approved 2026-10-17 (macOS test logs not attached); Step 03 owner-approved 2026-10-17 (test output not attached); Step 04 owner-approved 2026-10-17 (macOS evidence not attached); Step 05 owner-approved 2026-10-17 (operator test log not attached); Step 06 implementation committed pending macOS tests and owner acceptance. Steps 07–24 not started.
 **Branch:** `phase/07-invoice-domain-rule-engine`
 **Baseline:** `main` at `041bea0287c3b907a7b8910ef8602f51a8c1654c` (inspected 2026-10-17).
 **Roadmap:** `docs/roadmap/18-phases.md`, Phase 07 of 18.
@@ -42,8 +42,8 @@ Build a versioned electronic invoice domain and deterministic rules engine: lega
 | 02 | Invoice aggregate | Identity, ownership, header, parties, invoice invariants | Domain and isolation tests | Owner-approved 2026-10-17; test outputs not attached |
 | 03 | Types and patterns | Versioned invoice types/pattern matrix | Allowed and forbidden combinations verified against cited official source | Owner-approved 2026-10-17; current-spec verification remains an explicit release gate |
 | 04 | Invoice subjects | Original, correction, cancellation and sales return subject model | Invalid subject transitions rejected | Owner-approved 2026-10-17; local test logs not attached |
-| 05 | Invoice lines and catalog handoff | Copy Phase06 V1 immutable snapshots; quantities and units | No mutable-catalog dereference after snapshot | Implemented; tests and owner acceptance pending |
-| 06 | Financial model | Decimal totals, VAT inputs, discount and rounding policies | Boundary and deterministic calculation cases | Not started |
+| 05 | Invoice lines and catalog handoff | Copy Phase06 V1 immutable snapshots; quantities and units | No mutable-catalog dereference after snapshot | Owner-approved 2026-10-17; test output not independently provided |
+| 06 | Financial model | Decimal totals, VAT inputs, discount and rounding policies | Boundary and deterministic calculation cases | Implemented; macOS tests and owner acceptance pending |
 | 07 | Rule-engine contracts | RuleContext, stable rule keys, severities and deterministic evaluation | Unit-testable pure contracts | Not started |
 | 08 | Header validation | Required identifiers, issue time and participant rules | Field-level positive and negative tests | Not started |
 | 09 | Type/pattern rules | Field requirements by officially effective matrix | Reject unsupported combinations | Not started |
@@ -247,3 +247,51 @@ dotnet test ArginTaxPayer.sln --no-restore
 git status --short
 ```
 **Migration:** None. **Ubuntu:** Not required for domain-only change; final platform checks still Step23. **Owner acceptance:** Pending.
+
+## Step 06 — Financial Model — Completion Record (2026-10-17)
+
+**Implementation committed. Owner acceptance:** pending operator macOS tests. **Step05:** owner-approved 2026-10-17; operator test evidence not independently attached.
+
+### Official source traceability
+
+Primary: owner-provided Iranian Tax Authority `RC_IITP.IS V7.9`, Tir 1405:
+- Tables 15–20, **pp39–42**: `tprdis` sum before discount; `tdis` sum discount; `tadis` sum after discount; `tvam` sum VAT; `todam` sum other taxes/legal dues; `tbill` sum line totals.
+- Table40, **p58**: ordinary `prdis = am * fee`; currency exchange and airline have different formulae.
+- Table41, **p59**: `0 <= dis <= prdis`.
+- Table42, **p60**: ordinary `adis = prdis - dis`; gold pattern and commodity-exchange pattern differ.
+- Tables43–44, **pp61–63**: the VAT rate `vra` is controlled by official goods/service classification and law (not universal). Ordinary `vam = adis * vra / 100`; gold, foreign exchange and petroleum variants are different. Exemptions and zero-rated cases require relevant legal classifications.
+- Monetary output fields in these tables have **zero allowed decimal places**. These passages do not establish a universal midpoint/tie-breaking algorithm. The model uses a **caller-selected edition-named rounding policy** for *draft preview only*, not a claim of official rounding compliance.
+- Relevant technical SDK evidence: official 1405 certificate SDK manual pp9–13 lists `InvoiceDto` monetary DTO fields. Primary validation rules still come from `RC_IITP.IS V7.9`. Consult mandatory [official source/SDK catalogue](../references/tax-authority-sdk-catalog.md).
+
+### Domain behavior and scope
+
+- Added `InvoiceFinancialInput`, `InvoiceFinancialLine`, `InvoiceFinancialPreview`, explicit `InvoiceRoundingPolicy` and pure `InvoiceFinancialCalculator` in `InvoiceFinancialModel.cs`. All arithmetic is `decimal` with checked overflow, in **IRR (Rial)** rather than toman.
+- Supported preview is deliberately restricted to **Type 1, Pattern 1 (ordinary sale of goods/services)**. Every other type or pattern throws `NotSupportedException` rather than silently applying general formulae to gold, foreign exchange, exports, airlines, bills, petroleum etc.
+- For each line: `prdis = Round(am*fee)`; nonnegative whole-rial `dis <= prdis`; `adis = prdis - dis`; with an *explicitly supplied* VAT percentage, `vam = Round(adis*vra/100)`; other taxes/legal fees are nonnegative separate whole-rial inputs, total = after-discount + VAT + those extras. Header totals are checked sums of line outputs.
+- `VatRatePercent = null` means **unresolved** and causes `VatRial` and `GrandTotalRial` to remain `null`, never zero. Explicit 0% is a different input and is **not** legal evidence of exemption. `InvoiceVatResolution.Unresolved` in Phase06 remains untouched; therefore a preview is **never** authorization to sign/send.
+- The aggregate offers `PreviewDraftFinancials(inputs, typePattern, rounding)`: read-only and Draft-only. It requires financial inputs to match **all** current invoice line IDs and quantities, rejects duplicates/foreign/removed/stale line IDs, and does not persist amounts or mutate revisions, source snapshot or VAT classification.
+- Intentionally **not included**: per-taxpayer legal rate verification, regulatory effective-period selection, special-pattern formulae, definitive currency decimal/rounding standard, actual issuance and finalization. These belong to fixed Steps07–13. Price and VAT inputs are supplied by caller for preview only and must not be trusted for tax submission.
+
+### Changes and tests
+
+Files:
+- `src/ArginTaxPayer.Domain/Invoices/InvoiceFinancialModel.cs` (new)
+- `src/ArginTaxPayer.Domain/Invoices/InvoiceAggregate.cs`
+- `tests/ArginTaxPayer.Tests/Phase07InvoiceFinancialTests.cs` (new)
+- `docs/phases/phase-07-invoice-domain-rule-engine.md`.
+
+Coverage includes multiple decimal-quantity lines and header reconciliation, missing VAT vs explicit zero, rounding at midpoint under two explicit policies, negative/excessive discount, negative VAT rate, special-pattern fail-closed, stale/foreign invoice-line inputs and checked decimal overflow.
+
+**macOS:**
+```bash
+cd ~/projects/ArginTaxPayer
+git fetch origin
+git switch phase/07-invoice-domain-rule-engine
+git pull --ff-only
+dotnet restore ArginTaxPayer.sln
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --filter "FullyQualifiedName~Phase07InvoiceFinancialTests|FullyQualifiedName~Phase07InvoiceLinesTests|FullyQualifiedName~Phase06InvoiceHandoffTests" --no-restore
+dotnet test ArginTaxPayer.sln --no-restore
+git status --short
+```
+
+**Database migrations:** none. **Ubuntu:** deferred for domain-only code. **No live Tax Authority calls.** Acceptance and official financial-rule readiness are separate gates.

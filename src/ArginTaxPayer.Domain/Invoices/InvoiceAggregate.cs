@@ -154,6 +154,25 @@ public sealed class InvoiceAggregate
         Revision = checked(Revision + 1);
     }
 
+    /// <summary>
+    /// Pure, draft-only financial preview. Every input must match an owned invoice
+    /// line and its current quantity. No price, VAT or total is persisted or
+    /// treated as fiscal submission readiness in Step 06.
+    /// </summary>
+    public InvoiceFinancialPreview PreviewDraftFinancials(
+        IReadOnlyList<InvoiceFinancialInput> inputs, InvoiceTypePattern typePattern,
+        InvoiceRoundingPolicy rounding)
+    {
+        EnsureDraft();
+        ArgumentNullException.ThrowIfNull(inputs);
+        if (inputs.Count != _lines.Count ||
+            inputs.Select(x => x.LineId).Distinct().Count() != _lines.Count ||
+            _lines.Any(line => !inputs.Any(input =>
+                input.LineId == line.Id && input.Quantity == line.Quantity)))
+            throw new ArgumentException("Financial inputs must match all current invoice lines.");
+        return InvoiceFinancialCalculator.Preview(inputs, typePattern, rounding);
+    }
+
     public void RemoveDraftLine(Guid lineId)
     {
         EnsureDraft();
