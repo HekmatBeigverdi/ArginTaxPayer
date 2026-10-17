@@ -25,8 +25,8 @@ test("development-only BFF is restricted to catalog route allowlist", () => {
 });
 
 test("catalog backend does not register routes in production", () => {
-  const program = load("../src/ArginTaxPayer.Api/Program.cs");
-  const endpoints = load("../src/ArginTaxPayer.Api/Catalog/CatalogDevelopmentEndpoints.cs");
+  const program = load("../../src/ArginTaxPayer.Api/Program.cs");
+  const endpoints = load("../../src/ArginTaxPayer.Api/Catalog/CatalogDevelopmentEndpoints.cs");
   assert.match(program, /app\.MapCatalogDevelopmentEndpoints\(\)/);
   assert.match(program, /app\.Environment\.IsDevelopment\(\)/);
   assert.match(endpoints, /IPAddress\.IsLoopback/);
@@ -38,7 +38,7 @@ test("catalog customer selection cannot submit arbitrary client-specified owners
   assert.match(workspace, /accounts\.filter\(/);
   assert.match(workspace, /setCustomer\(e\.target\.value\)/);
   assert.doesNotMatch(workspace, /type="hidden" name="role"/);
-  const search = load("../src/ArginTaxPayer.Infrastructure/Persistence/Catalog/CatalogSearchService.cs");
+  const search = load("../../src/ArginTaxPayer.Infrastructure/Persistence/Catalog/CatalogSearchService.cs");
   assert.match(search, /x\.CustomerUserId == customer/);
   assert.match(search, /CanSeeCustomerAsync/);
 });
