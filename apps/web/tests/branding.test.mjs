@@ -28,3 +28,22 @@ test("same logo is used for login, sidebar, header and metadata", () => {
   assert.equal((shell.match(/unoptimized/g) ?? []).length, 2);
   assert.match(read("app/globals.css"), /\.argin-brand-logo\{/);
 });
+
+test("all branding images have a transparent PNG color and alpha definition", () => {
+  for (const path of ["public/brand/argin-logo.png", "app/icon.png",
+    "public/favicon.png", "public/apple-touch-icon.png"]) {
+    const png = readFileSync(new URL("../"+path,import.meta.url));
+    const transparencyChunk = png.includes(Buffer.from("tRNS","ascii"));
+    const rgbaColorType = png[25] === 6;
+    assert.ok(transparencyChunk || rgbaColorType, path+" must have transparent background");
+  }
+});
+test("dashboard hero uses transparent image instead of letter tile", () => {
+  const home = read("app/(console)/dashboard/page.tsx");
+  const css = read("app/globals.css");
+  assert.match(home, /argin-welcome-logo/);
+  assert.match(home, /src=\{arginLogo\}/);
+  assert.doesNotMatch(home, /app-welcome-graphic" aria-hidden="true">آ/);
+  assert.match(css, /\.argin-brand-logo\{[^}]*background:transparent/);
+  assert.match(css, /\.app-welcome \.app-welcome-graphic\.argin-welcome-logo\{/);
+});
