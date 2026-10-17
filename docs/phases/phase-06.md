@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 06: Goods and Services
 
-**Status:** Steps01–15 explicitly owner-approved (Step15 includes operator-reported successful security, regression, HTTP Smoke and integration tests on 2026-10-17; raw logs not independently attached). Step16 Final Acceptance and Handoff is IN PROGRESS; no merge, tag or GitHub Release authorized yet.
+**Status:** Phase06 Steps01–16 owner-approved, including final macOS and Ubuntu acceptance reported successful on 2026-10-17. Publication authorized: merge into main, annotated tag and GitHub Release. Evidence is owner-reported, raw test logs not independently attached.
 **Branch:** `phase/06-goods-services`
 **Baseline:** `main` after Phase05 merge `6a3de74692403029b68c2061251601752eebd518`.
 **Roadmap:** `docs/roadmap/18-phases.md`, Phase 06.
@@ -31,7 +31,7 @@ Preserve Phase03 identity, Phase04 customer/partner ownership and Phase05 partie
 | 13 | RTL Catalog UI | Lists, forms, selection search and localized errors | Authorized paths, validation and accessibility tests | 12 | Owner-approved 2026-10-17; dashboard/branding refinements accepted |
 | 14 | Invoice Handoff Contracts | Immutable snapshot contract for Phases 07/08 without invoice issuance | Version contract and historical immutability tests | 06, 11–13 | Owner-approved 2026-10-17; tests operator-reported successful |
 | 15 | Security and Regression | Isolation, race, migration and Phase03–05 regression tests | Prevent cross-customer and former-partner access | 01–14 | Owner-approved 2026-10-17; security, regression, HTTP Smoke and integration operator-reported successful |
-| 16 | Final Acceptance and Handoff | Mac and Ubuntu aggregate tests, documentation and risk report | Evidence report, owner approval and separate merge/tag | 15 | In progress; final audits/documentation committed; owner signoff pending |
+| 16 | Final Acceptance and Handoff | Mac and Ubuntu aggregate tests, documentation and risk report | Evidence report, owner approval and separate merge/tag | 15 | Owner-approved 2026-10-17; macOS/Ubuntu final aggregate tests reported successful |
 
 ## Engineering and Safety Invariants
 
@@ -869,11 +869,18 @@ bash scripts/ubuntu-dev.sh status
 - Resolve all release-blocking defects; no unfinished `Step16` checklist or unknown migration drift.
 - Owner explicitly authorizes Phase06 completion. **Only then** prepare and perform separately requested main branch merge, annotated tag, GitHub Release and immutable closeout record; do not assume these actions occurred from a successful test run alone.
 
-**Owner signoff Step16:** PENDING. **Final phase state:** OPEN; awaiting final operator evidence and release authorization.
+**Owner signoff Step16:** APPROVED by owner, 2026-10-17. Owner explicitly confirms all macOS and Ubuntu acceptance checks passed and authorizes Merge to main, Tag and GitHub Release. **Release operations:** Track independently below; owner approval does not itself prove GitHub publication.
 
 ## Phase Closeout
 
-Not started.
+**Functional closeout:** Approved by owner on 2026-10-17, all 16 fixed steps complete. Final macOS and Ubuntu verification, security and integration testing are reported successful by the operator (raw logs not independently attached). The phase is a goods/services catalog and invoice handoff, **not** an authorized tax-invoice issuing or live taxpayer API release.
+
+**Publication approval:** Owner explicitly requested merge into `main`, annotated Phase06 version tag, and GitHub Release. The GitHub publication outcome, merged PR and final tag/release identifiers must be recorded after the respective operations; do not infer success from this document update.
+
+**Release identity:** Proposed `phase-06-v1.0.0` (following existing `phase-05-v1.0.0` naming). **Production activation:** Not part of Phase06.
+
+**Known boundaries:** staged units not regulatory approval; versioned official references require proven source, no automatic reinstatement after withdrawal, only dev-gated catalog endpoints, snapshot persistence and VAT resolution deferred to Phases07–08.
+
 
 
 ### Step13 visual refinement — screenshot review (2026-10-16)
