@@ -94,28 +94,6 @@ public sealed class InvoicePatternRegistry
 }
 
 /// <summary>
-/// Dated notice No. 6 describes historical type/pattern combinations.
-/// It is deliberately NOT flagged as a current validated submission rule-set.
-/// </summary>
-public static class HistoricalInvoicePatternMatrix
-{
-    public const string Edition = "notice-06-1401-11-18";
-    public static InvoicePatternMatrix Create() => new(
-        new InvoicePatternSource(
-            "Tax Authority Notice 6 (1401/11/18)", Edition,
-            "https://taksatsp.ir/اطلاعیه-شماره-6/",
-            new DateTime(2023, 3, 21, 0, 0, 0, DateTimeKind.Utc),
-            null,
-            VerifiedForSubmission: false),
-        Enumerable.Range(1, 7)
-            .Select(x => new InvoiceTypePattern(ElectronicInvoiceType.First, x))
-            .Concat(Enumerable.Range(1, 2)
-                .Select(x => new InvoiceTypePattern(ElectronicInvoiceType.Second, x)))
-            .Append(new InvoiceTypePattern(ElectronicInvoiceType.Third, null)));
-}
-
-
-/// <summary>
 /// Primary documented pattern matrix from the owner's tax authority
 /// "RC_IITP.IS V7.9", Tir 1405, Table 1 p.14 and Table 9 p.31.
 /// The specification gives its edition month, not a proven per-pattern

@@ -185,12 +185,12 @@ git status --short
 - Type2 patterns 1,3,9,13 (4 patterns).
 - Type3 is the POS/payment-gateway receipt described in section 3-3 p12, without an ordinary Type1/2 pattern.
 - Never silently renumber patterns: Type2 gold is 3 (not 2), and Type1 10/12 are not listed.
-- New `OfficialV79InvoicePatternMatrix` is authoritative **for document-content matching**. The old `HistoricalInvoicePatternMatrix` remains for backward reference only. `VerifiedForSubmission=false` still blocks claiming current applicability until issuance effective dates and other regulatory gating are independently confirmed.
+- New `OfficialV79InvoicePatternMatrix` is authoritative **for document-content matching**. The obsolete `HistoricalInvoicePatternMatrix` was removed in a subsequent corrective commit; only the official V7.9 catalogue remains in the active domain code. `VerifiedForSubmission=false` still blocks claiming current applicability until issuance effective dates and other regulatory gating are independently confirmed.
 - The PDF states edition month Tir 1405 but does not establish exact effective-from dates for all listed patterns. In code `DateTime.MinValue` is explicitly an unrestricted document-catalogue sentinel, NOT an assertion of historical legal effectiveness.
 
 **Step04 cross-check:** V7.9 section 5 pp15–18 and Table10 p32 establish subjects 1=original, 2=correction, 3=cancellation, 4=sales return; correction/cancellation/return require `irtaxid` (Table8 p30). Table10 disallows sales returns on Type1 export (7), waybill (8), and commodity-linked securities (11); added `OfficialV79InvoiceSubjectPolicy`. Other reference-chain, immutable fields, transaction chronology and status rules remain scheduled for Steps14–17.
 
-**New tests:** `Phase07OfficialV79Tests` verifies all 17 documented type/pattern combinations, negative gaps and special subject restrictions. Existing older-notice tests remain as historical regression coverage, not as current submission policy.
+**New tests:** `Phase07OfficialV79Tests` verifies all 17 documented type/pattern combinations, negative gaps and special subject restrictions. The earlier tests were corrected in a subsequent commit to use V7.9; obsolete notice-based expectations were removed.
 
 **Repository change:** Official PDF is a user-supplied source in the conversation; the 5 MB binary has NOT been checked into the public repo. To make this reproducible later, store an authorized immutable source copy or source fingerprint in the regulated specification registry (future Step12), following source licensing and project document policy.
 
@@ -205,3 +205,14 @@ dotnet test ArginTaxPayer.sln --no-restore
 ```
 
 **Migration:** None. **External submission:** None. **Tests:** Added but awaiting owner macOS results. **Process change:** Source-of-truth priority confirmed for all remaining Phase07 steps.
+
+## Follow-up correction — Remove obsolete third-party pattern source (2026-10-17)
+
+Owner observed that `HistoricalInvoicePatternMatrix` and a non-authority website still existed in live production-domain source after the official V7.9 matrix was added. The earlier correction was incomplete.
+
+- Removed `HistoricalInvoicePatternMatrix` and its third-party URL from `InvoicePatternMatrix.cs`; there is now exactly one built-in pattern catalogue, `OfficialV79InvoicePatternMatrix`, sourced from owner-provided `RC_IITP.IS V7.9`, Table 9 p31.
+- Migrated `Phase07InvoicePatternsTests` to V7.9 and removed misleading Notice 6 test expectations, including incorrect Type2 pattern 2 and incomplete Type1 range.
+- Kept dynamic version registry support for future *official* documents. `VerifiedForSubmission=false` remains a separate applicability safety gate; document evidence does not imply live authority acceptance.
+- Old commit history cannot and should not be rewritten; prior source URL will remain visible in historical commits and in documentation about why correction was needed, but not in current domain source.
+- This is a domain/test/docs-only change; no schema migration, API modification, or authority submission.
+- Owner macOS validation: `dotnet test ArginTaxPayer.sln --no-restore`. Verification not yet run by assistant in macOS.
