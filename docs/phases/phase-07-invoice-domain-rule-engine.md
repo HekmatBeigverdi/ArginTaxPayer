@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 07: Invoice Domain and Rule Engine
 
-**Status:** Step 01 owner-approved 2026-10-17; Step 02 owner-approved 2026-10-17 (macOS test logs not attached); Step 03 owner-approved 2026-10-17 (test output not attached); Step 04 owner-approved 2026-10-17 (macOS evidence not attached); Step 05 owner-approved 2026-10-17 (operator test log not attached); Step 06 owner-approved 2026-10-17 (operator test logs not attached); Step 07 owner-approved 2026-10-17 (operator test logs not attached); Step 08 owner-approved 2026-10-17 (test logs not independently attached); Step 09 owner-approved 2026-10-17 (operator test logs not supplied); Step 10 owner-approved 2026-10-17 (operator test logs not attached); Step 11 owner-approved 2026-10-17 (operator test results not independently attached); Step 12 owner-approved 2026-10-17 (independent macOS logs not attached); Step 13 owner-approved 2026-10-17 (macOS logs not supplied); Step 14 owner-approved 2026-10-17 (operator macOS logs not attached); Step 15 owner-approved 2026-10-17 (operator macOS logs not attached); Step 16 owner-approved 2026-10-17 (independent macOS test logs unavailable); Step 17 owner-approved 2026-10-17 (independent macOS logs not attached); Step 18 persistence and migrations implemented, pending macOS and isolated PostgreSQL acceptance and owner approval. Steps 19–24 not started.
+**Status:** Step 01 owner-approved 2026-10-17; Step 02 owner-approved 2026-10-17 (macOS test logs not attached); Step 03 owner-approved 2026-10-17 (test output not attached); Step 04 owner-approved 2026-10-17 (macOS evidence not attached); Step 05 owner-approved 2026-10-17 (operator test log not attached); Step 06 owner-approved 2026-10-17 (operator test logs not attached); Step 07 owner-approved 2026-10-17 (operator test logs not attached); Step 08 owner-approved 2026-10-17 (test logs not independently attached); Step 09 owner-approved 2026-10-17 (operator test logs not supplied); Step 10 owner-approved 2026-10-17 (operator test logs not attached); Step 11 owner-approved 2026-10-17 (operator test results not independently attached); Step 12 owner-approved 2026-10-17 (independent macOS logs not attached); Step 13 owner-approved 2026-10-17 (macOS logs not supplied); Step 14 owner-approved 2026-10-17 (operator macOS logs not attached); Step 15 owner-approved 2026-10-17 (operator macOS logs not attached); Step 16 owner-approved 2026-10-17 (independent macOS test logs unavailable); Step 17 owner-approved 2026-10-17 (independent macOS logs not attached); Step 18 owner-approved 2026-10-17 (actual PostgreSQL logs not attached); Step 19 safe draft API implemented, operator verification pending. Steps 20–24 not started.
 **Branch:** `phase/07-invoice-domain-rule-engine`
 **Baseline:** `main` at `041bea0287c3b907a7b8910ef8602f51a8c1654c` (inspected 2026-10-17).
 **Roadmap:** `docs/roadmap/18-phases.md`, Phase 07 of 18.
@@ -56,7 +56,7 @@ Build a versioned electronic invoice domain and deterministic rules engine: lega
 | 16 | Sales-return reference | Line-level partial/cumulative return constraints | Cannot return more than eligible quantity | Owner-approved 2026-10-17; independent test log not attached |
 | 17 | Concurrency and idempotency | Revision/CAS, scoped reference integrity, replay key policy | Concurrent conflict and replay tests | Owner-approved 2026-10-17; operator logs not supplied |
 | 18 | Persistence and migrations | EF Core PostgreSQL additive schema and constraints | Test DB-only migration review; no production modifications | Not started |
-| 19 | Application services and API | Scoped commands/queries and stable error contracts | Authorization and API contract tests | Not started |
+| 19 | Application services and API | Scoped commands/queries and stable error contracts | Authorization and API contract tests | Safe scoped draft create/read/list API implemented; macOS and HTTP acceptance pending |
 | 20 | Invoice-entry UI | RTL dynamic type/pattern, party and item selection | Usable keyboard and responsive flows | Not started |
 | 21 | Validation/reference UI | Field errors and related-document history | Accessibility and scoped operation tests | Not started |
 | 22 | Comprehensive regression | Domain/integration/contract/security suite | Negative cases, Phase03–06 compatibility | Not started |
@@ -846,3 +846,40 @@ git status --short
 **Database acceptance requires an explicit dedicated test database and advance authorization**: first inspect connection target with `SELECT current_database(), current_user;` and confirm **exactly `argintaxpayer_test`**. Do not run `dotnet ef database update` against a shared VPS or production database. Before any test migration, create and review SQL idempotent migration script, verify backup, ensure no concurrent production workers/users, and obtain the operator's explicit approval. Race/CAS and unique-index integration tests with at least two independent PostgreSQL connections remain pending; only actual execution can establish concurrency guarantee. Tests in this commit are **offline metadata tests, not a simulated proof of PostgreSQL atomic behavior**. Full Ubuntu/macOS acceptance remains fixed Step23.
 
 **Owner acceptance:** pending. **No database changes applied.** **Next fixed Step19:** application services and API, with authoritative customer/taxpayer permission and valid fiscal rule-set gating.
+
+## Step 19 — Application Services and API — Completion Record (2026-10-17)
+
+**State:** Domain-safe Development API implementation committed; operator compile, HTTP authorization and PostgreSQL checks remain pending. Step18 was expressly owner-approved; no independent database migration logs attached.
+
+### Implemented scope
+
+- New **InvoiceDraftApplicationService** under Infrastructure/Persistence/Invoices, using existing TaxpayerScopeService.ResolveAsync and ScopedQuery for live session authentication, role/MFA/current customer ownership and taxpayer access on every action. Owning customer is derived from authorized database query, never trusted from request body.
+- **CreateAsync** accepts only UTC issue date, seller display name and optional buyer name, constructs a genuine InvoiceAggregate.CreateDraft, fixes server-selected ID, Draft/Original and revision 1, creates server-owned JSON, delegates to Step18 EfInvoiceAtomicWriter.CreateDraftAsync (current/history inserts).
+- **GetAsync** and **ListAsync** use bounded read-only scoped SQL; the latter returns up to 100 documents. Response includes internal status/revision without leaking opaque snapshot or fiscal secrets.
+- New **InvoiceDraftDevelopmentEndpoints** maps loopback-only, Development-only GET collection, GET by ID, and POST create under /api/dev/taxpayers/{taxpayerId}/invoices. Bearer authentication and service-owned authorization; stable 401/403/404/400/409 responses.
+- Program.cs registers the scoped service and mapper only within the existing Development+DB conditional, preserving previous routes. No new schema migration for Step19.
+- Absolutely **no Send/Sign/Finalize/Correction/Cancellation/SalesReturn public command**. Existing rule coverage and authority-reference verification are incomplete; unsafe invoice fiscal transitions remain gated. No client-selected taxpayer authority status, legal VAT, sender credentials, or fiscal Tax ID.
+- Source-grounded background: owner-provided RC_IITP.IS V7.9 governs fiscal documents; this Step19 is an internal interface and does not itself authorize actual submission. Step20 is UI, Step21 validation/reference UI.
+
+### Changed files
+
+- src/ArginTaxPayer.Infrastructure/Persistence/Invoices/InvoiceDraftApplicationService.cs
+- src/ArginTaxPayer.Api/Invoices/InvoiceDraftDevelopmentEndpoints.cs
+- src/ArginTaxPayer.Api/Program.cs
+- tests/ArginTaxPayer.Tests/Phase07InvoiceApiContractTests.cs (5 offline contract tests)
+- This sole Phase07 master plan (24 fixed steps).
+
+### macOS operator checks
+
+    cd ~/projects/ArginTaxPayer
+    git fetch origin
+    git switch phase/07-invoice-domain-rule-engine
+    git pull --ff-only
+    dotnet restore ArginTaxPayer.sln
+    dotnet build ArginTaxPayer.sln -c Release --no-restore
+    dotnet test ArginTaxPayer.sln -c Release --no-build
+    zsh scripts/dev-down.zsh
+    zsh scripts/dev-up.zsh
+    zsh scripts/dev-status.zsh
+
+Use a current legitimate session for scoped endpoint checks; verify unauthenticated 401, foreign taxpayer 404, and authorized create/get/list. Do not share tokens or secrets. Step18 migration must exist in the dedicated test database before POST (check __EFMigrationsHistory after verifying current_database()). Neither launcher nor this step applies DB changes. Offline tests do not prove live HTTP authorization or multi-instance database behavior. **Owner acceptance:** pending.
