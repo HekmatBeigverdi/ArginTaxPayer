@@ -8,8 +8,8 @@ public sealed class Phase07InvoiceFinancialTests
 {
     private static readonly DateTime At = new(2026, 10, 17, 8, 0, 0, DateTimeKind.Utc);
     private static readonly InvoiceTypePattern Ordinary = new(ElectronicInvoiceType.First, 1);
-    private static InvoiceRoundingPolicy Round(MidpointRounding mid = MidpointRounding.ToEven) =>
-        new("manual-draft-preview-v1", mid);
+    private static InvoiceRoundingPolicy Round() =>
+        new(OfficialV79InvoicePatternMatrix.Edition);
 
     private static InvoiceAggregate Draft(Guid owner) =>
         InvoiceAggregate.CreateDraft(Guid.NewGuid(), owner, Guid.NewGuid(),
@@ -47,7 +47,7 @@ public sealed class Phase07InvoiceFinancialTests
         Assert.Equal(350m, result.BeforeDiscountRial);
         Assert.Equal(25m, result.DiscountRial);
         Assert.Equal(325m, result.AfterDiscountRial);
-        Assert.Equal(22m, result.VatRial); // 22.5 -> ToEven = 22
+        Assert.Equal(22m, result.VatRial); // V7.9 p23: truncate 22.5 to 22
         Assert.Equal(10m, result.OtherTaxAndLegalFeesRial);
         Assert.Equal(357m, result.GrandTotalRial);
         Assert.False(result.IsSubmissionReady);
@@ -81,13 +81,17 @@ public sealed class Phase07InvoiceFinancialTests
     }
 
     [Fact]
-    public void Tie_breaking_policy_is_explicit_and_tested()
+    public void V79_fractional_midpoint_is_truncated_never_rounded_up()
     {
         var (doc, id) = Invoice(1m);
         var inputs = new[] { new InvoiceFinancialInput(id, 1m, 5m, 0m, 10m) };
         Assert.Equal(0m, doc.PreviewDraftFinancials(inputs, Ordinary, Round()).VatRial);
-        Assert.Equal(1m, doc.PreviewDraftFinancials(
-            inputs, Ordinary, Round(MidpointRounding.AwayFromZero)).VatRial);
+        Assert.Throws<NotSupportedException>(() =>
+            new InvoiceRoundingPolicy(OfficialV79InvoicePatternMatrix.Edition,
+                MidpointRounding.AwayFromZero));
+        Assert.Throws<InvalidOperationException>(() =>
+            doc.PreviewDraftFinancials(inputs, Ordinary,
+                new InvoiceRoundingPolicy("unverified-edition")));
     }
 
     [Fact]
@@ -120,10 +124,10 @@ public sealed class Phase07InvoiceFinancialTests
     }
 
     [Fact]
-    public void Decimal_overflow_is_never_silently_wrapped()
+    public void Oversized_unit_price_is_rejected_before_multiplication()
     {
         var (doc, id) = Invoice(2m);
-        Assert.Throws<OverflowException>(() => doc.PreviewDraftFinancials(
+        Assert.Throws<ArgumentException>(() => doc.PreviewDraftFinancials(
             new[] { new InvoiceFinancialInput(id, 2m, decimal.MaxValue, 0m, 10m) },
             Ordinary, Round()));
     }

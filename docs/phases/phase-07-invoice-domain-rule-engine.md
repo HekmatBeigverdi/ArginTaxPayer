@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 07: Invoice Domain and Rule Engine
 
-**Status:** Step 01 owner-approved 2026-10-17; Step 02 owner-approved 2026-10-17 (macOS test logs not attached); Step 03 owner-approved 2026-10-17 (test output not attached); Step 04 owner-approved 2026-10-17 (macOS evidence not attached); Step 05 owner-approved 2026-10-17 (operator test log not attached); Step 06 owner-approved 2026-10-17 (operator test logs not attached); Step 07 owner-approved 2026-10-17 (operator test logs not attached); Step 08 owner-approved 2026-10-17 (test logs not independently attached); Step 09 owner-approved 2026-10-17 (operator test logs not supplied); Step 10 committed pending operator macOS tests and owner approval. Steps 11–24 not started.
+**Status:** Step 01 owner-approved 2026-10-17; Step 02 owner-approved 2026-10-17 (macOS test logs not attached); Step 03 owner-approved 2026-10-17 (test output not attached); Step 04 owner-approved 2026-10-17 (macOS evidence not attached); Step 05 owner-approved 2026-10-17 (operator test log not attached); Step 06 owner-approved 2026-10-17 (operator test logs not attached); Step 07 owner-approved 2026-10-17 (operator test logs not attached); Step 08 owner-approved 2026-10-17 (test logs not independently attached); Step 09 owner-approved 2026-10-17 (operator test logs not supplied); Step 10 owner-approved 2026-10-17 (operator test logs not attached); Step 11 code committed pending macOS tests and owner approval. Steps 12–24 not started.
 **Branch:** `phase/07-invoice-domain-rule-engine`
 **Baseline:** `main` at `041bea0287c3b907a7b8910ef8602f51a8c1654c` (inspected 2026-10-17).
 **Roadmap:** `docs/roadmap/18-phases.md`, Phase 07 of 18.
@@ -47,8 +47,8 @@ Build a versioned electronic invoice domain and deterministic rules engine: lega
 | 07 | Rule-engine contracts | RuleContext, stable rule keys, severities and deterministic evaluation | Unit-testable pure contracts | Owner-approved 2026-10-17; operator test logs not attached |
 | 08 | Header validation | Required identifiers, issue time and participant rules | Field-level positive and negative tests | Owner-approved 2026-10-17; operator test logs not attached |
 | 09 | Type/pattern rules | Field requirements by officially effective matrix | Reject unsupported combinations | Owner-approved 2026-10-17; test logs not independently attached |
-| 10 | Line and catalog rules | Official identifiers, mapping, unit, kind and source effective date | Fail closed on unresolved or expired sources | Domain implementation committed; operator macOS verification and approval pending |
-| 11 | Monetary and tax rules | Totals, VAT resolution and precision validation | No universal rate assumption; exact totals | Not started |
+| 10 | Line and catalog rules | Official identifiers, mapping, unit, kind and source effective date | Fail closed on unresolved or expired sources | Owner-approved 2026-10-17; operator test logs not attached |
+| 11 | Monetary and tax rules | Totals, VAT resolution and precision validation | No universal rate assumption; exact totals | Implemented with truncation repair; operator tests and acceptance pending |
 | 12 | Rule-set versioning | Effective-dated immutable rule bundles and localized errors | Historical deterministic replay | Not started |
 | 13 | Invoice lifecycle | Draft/validated/finalized and separation of authority outcomes | Illegal transitions rejected | Not started |
 | 14 | Correction reference | Immutable predecessor linkage and permitted modifications | Cycle/invalid predecessor blocked | Not started |
@@ -463,3 +463,46 @@ git status --short
 ```
 
 **Database:** no schema changes or migrations. **Ubuntu:** not required for domain-only change; full dual-platform acceptance at fixed Step23. **Owner acceptance:** pending.
+
+## Step 11 — Monetary and Tax Rules — Completion Record (2026-10-17)
+
+**Status:** Implemented in source-controlled branch, macOS execution and owner approval pending. **Step10:** owner-approved 2026-10-17; independent macOS result unavailable.
+
+### Normative sources and correction of Step06
+
+Authoritative owner-uploaded `RC_IITP.IS V7.9` (Tir 1405):
+- **p23, General Rule 1:** Currency/IRR numbers MUST be calculated at the specified decimal precision using **truncation/cutting**, not midpoint rounding. This corrects the Step06 draft-only assumption that `MidpointRounding.ToEven` and `AwayFromZero` were selectable fiscal strategies. Implement `decimal.Truncate` at whole-rial boundaries and reject legacy midpoint modes. For negative values the official permissible domains still apply: discount/tax/ordinary monetary amounts cannot be negative; no general signed-amount relaxation is inferred.
+- **Table34 p53–54:** positive unit price `fee` and its field-specific precision (18 integral digits, up to 8 decimal places); **Table31 p51:** quantity precision max 18/8.
+- **Tables40–42 pp58–60:** ordinary `prdis = am × fee` (truncate to whole rial), `0 ≤ dis ≤ prdis`, `adis = prdis − dis`. Formula differs for gold, foreign exchange and airline ticket patterns; this step does **not** implement the special cases.
+- **Tables43–44 pp61–63:** VAT percentage `vra` allows up to 3 integral digits and 2 decimal places; ordinary `vam = trunc(adis × vra / 100)`. The *correct* rate depends on active law, official goods/service code, taxpayer status and pattern; a caller-provided 0% does **not** establish legal exemption. Special gold, currency and fuel VAT formulae are not implemented. VAT rate for correction/return/cancellation must be retained from referenced invoice, to be enforced with predecessor data in fixed Steps14–16.
+- **Tables15–20 pp39–42:** header totals `tprdis`, `tdis`, `tadis`, `tvam`, `todam`, `tbill` are exact sums of line monetary values for supported ordinary pattern; IRR resulting amounts are whole numbers, maximum 18 integral digits. Special export/grand-total rules are not approximated.
+- SDKs `0.0.x` and `2.0.32` remain independently catalogued in [official Tax Authority/SDK source register](../references/tax-authority-sdk-catalog.md), not treated as normative tax policy.
+
+### Changes
+
+1. **Correct Step06 financial preview without breaking basic caller API:** `InvoiceRoundingPolicy(edition)` supports the exact `RC_IITP.IS_V7.9` edition and truncates whole-rial results. Legacy midpoint constructor throws `NotSupportedException` for `ToEven`, `AwayFromZero`, etc.; `ToZero` remains accepted for backwards source compatibility. Unsupported precision edition throws on evaluation. This replaces the prior discretionary rounding. `InvoiceFinancialCalculator` enforces quantity/price precision, money width, rate precision, zero-or-positive monetary domains, exact line arithmetic and checked sum overflow.
+2. **Monetary payload projections:** new immutable `InvoiceClaimedLineAmounts` and `InvoiceClaimedTotals`; `InvoiceRuleContext` gains optional snapshots `MonetaryInputs`, `ClaimedAmounts`, `ClaimedTotals` without changing earlier positional constructor inputs or previous rule modules.
+3. **New `OfficialV79MonetaryRuleFactory`**, four `IInvoiceRule` keys: `invoice.money.inputs` checks precise numeric inputs, scoped line identifiers/quantities; `invoice.money.lines` compares all claimed line monetary fields with recomputed amounts; `invoice.money.header` checks each of six claimed header totals with precise field-path findings; `invoice.money.tax_resolution` emits an error for missing VAT classification rather than inventing 0%.
+4. **Fail closed:** Nonordinary patterns (gold, currency sale, export etc.) and cancellation are rejected as unimplemented; a clean result for Type1/Pattern1 stays `IsSubmissionAuthorized=false`. User-supplied VAT numeric values are provisional and **do not constitute signed verified legal rule resolution**. Official, versioned VAT classification is Step12 rule-set/source verification and subsequently issuance gates.
+5. The engine continues to return stable localization message keys without leaking customer/taxpayer identifiers, and is pure: no database migration, HTTP requests, SDK calls, signing, payment, workflow state transitions or production changes.
+
+### Tests and acceptance
+
+- Adjusted older `Phase07InvoiceFinancialTests` to the official truncation rule, including rejection of nontruncating midpoint policies and unsupported editions, and width enforcement.
+- New `Phase07MonetaryTaxRulesTests`: truncation at both prediscount and VAT calculation, exact header and line reconciliation, unresolved vs explicit-zero VAT, precision invalid, stale quantity relative to immutable catalog, unsupported special patterns, deterministic repeat results and nonmutating context.
+- **Observed testing status:** tests written and committed, not executed by assistant against a macOS/.NET runtime; do not mark compile/test acceptance green until operator provides results.
+- **Out of scope / release blockers:** legally effective official VAT rate lookup, reference VAT locks, exceptions for gold/exchange/export/fuel, and final source-version applicability; these do not silently default. Step12 must select certified versioned rules before fiscal readiness.
+
+**macOS operator commands:**
+```bash
+cd ~/projects/ArginTaxPayer
+git fetch origin
+git switch phase/07-invoice-domain-rule-engine
+git pull --ff-only
+dotnet restore ArginTaxPayer.sln
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --filter "FullyQualifiedName~Phase07MonetaryTaxRulesTests|FullyQualifiedName~Phase07InvoiceFinancialTests|FullyQualifiedName~Phase07LineCatalogRulesTests" --no-restore
+dotnet test ArginTaxPayer.sln --no-restore
+git status --short
+```
+
+**Database:** no migrations; **Ubuntu:** no new runtime service; fixed Step23 final dual-platform tests still required. **Owner acceptance:** pending.

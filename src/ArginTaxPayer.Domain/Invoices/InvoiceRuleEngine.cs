@@ -68,6 +68,9 @@ public sealed class InvoiceRuleContext
     public IReadOnlyList<Guid> LineIds { get; }
     public string RuleSetEdition { get; }
     public IReadOnlyList<InvoiceLineSnapshot>? CatalogLines { get; }
+    public IReadOnlyList<InvoiceFinancialInput>? MonetaryInputs { get; }
+    public IReadOnlyList<InvoiceClaimedLineAmounts>? ClaimedAmounts { get; }
+    public InvoiceClaimedTotals? ClaimedTotals { get; }
     public InvoiceHeaderFields? Header { get; }
     public InvoicePatternHeaderFields? PatternHeader { get; }
     public DateTime AsOfUtc { get; }
@@ -77,7 +80,10 @@ public sealed class InvoiceRuleContext
         InvoiceSubject subject, IEnumerable<Guid> lineIds, string ruleSetEdition,
         InvoiceHeaderFields? header = null, DateTime? asOfUtc = null,
         InvoicePatternHeaderFields? patternHeader = null,
-        IEnumerable<InvoiceLineSnapshot>? catalogLines = null)
+        IEnumerable<InvoiceLineSnapshot>? catalogLines = null,
+        IEnumerable<InvoiceFinancialInput>? monetaryInputs = null,
+        IEnumerable<InvoiceClaimedLineAmounts>? claimedAmounts = null,
+        InvoiceClaimedTotals? claimedTotals = null)
     {
         if (invoiceId == Guid.Empty || customerUserId == Guid.Empty || taxpayerId == Guid.Empty ||
             revision < 1 || issueDateUtc.Kind != DateTimeKind.Utc ||
@@ -104,6 +110,11 @@ public sealed class InvoiceRuleContext
         PatternHeader = patternHeader;
         CatalogLines = catalogLines is null ? null :
             Array.AsReadOnly(catalogLines.ToArray());
+        MonetaryInputs = monetaryInputs is null ? null :
+            Array.AsReadOnly(monetaryInputs.ToArray());
+        ClaimedAmounts = claimedAmounts is null ? null :
+            Array.AsReadOnly(claimedAmounts.ToArray());
+        ClaimedTotals = claimedTotals;
         // Caller injects evaluation clock: never read DateTime.UtcNow in a rule.
         // Missing clock does not imply current legal validity.
         AsOfUtc = asOfUtc ?? issueDateUtc;
