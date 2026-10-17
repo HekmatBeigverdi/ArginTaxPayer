@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import ConsoleLoader from "./console-loader";
+import arginLogo from "../../public/brand/argin-logo.png";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
@@ -9,6 +11,7 @@ type Item = { title: string; path: string; glyph: string };
 const base: Item[] = [
   { title: "داشبورد", path: "/dashboard", glyph: "▦" },
   { title: "خریداران و مؤدیان", path: "/parties", glyph: "♧" },
+  { title: "کالاها و خدمات", path: "/catalog", glyph: "▤" },
   { title: "پروفایل و حساب من", path: "/profile", glyph: "♙" },
   { title: "حساب و امنیت", path: "/account", glyph: "⚙" }
 ];
@@ -27,7 +30,7 @@ export default function ConsoleShell({ roles, userId, children }:
   const role = roles.includes("Level1") ? "مدیر سطح یک" :
     roles.includes("Level2") ? "مدیر سطح دو" : "کاربر پنل";
   const navigation = admin ? [base[0],
-    { title: "کاربران نرم‌افزار", path: "/users", glyph: "♟" }, base[1], base[2]] : base;
+    { title: "کاربران نرم‌افزار", path: "/users", glyph: "♟" }, base[1], base[2], base[3], base[4]] : base;
   useEffect(() => { setMenuOpen(false); setNavigatingTo(null); }, [pathname]);
   const requiresProfile = roles.includes("Customer");
   // Read the verified profile once per signed-in user (or explicit retry), NOT once
@@ -90,7 +93,7 @@ export default function ConsoleShell({ roles, userId, children }:
   const activeName = navigation.find(n => pathname === n.path || pathname.startsWith(n.path + "/"))?.title ?? "پنل";
   return <div className="app-shell argin-console" dir="rtl" lang="fa">
     <aside className="app-sidebar">
-      <Link href="/dashboard" onClick={() => { if (pathname !== "/dashboard") setNavigatingTo("/dashboard"); }} className="app-brand"><span className="app-brand-mark">آ</span>
+      <Link href="/dashboard" onClick={() => { if (pathname !== "/dashboard") setNavigatingTo("/dashboard"); }} className="app-brand"><Image className="argin-brand-logo argin-sidebar-logo" src={arginLogo} width={46} height={46} alt="نشان آرگین" priority unoptimized />
         <span><strong>آرگین</strong><small>سامانه یکپارچه مؤدیان</small></span></Link>
       <p className="app-nav-heading">فضای کاری</p>
       <nav className="app-nav" aria-label="ناوبری اصلی">
@@ -108,7 +111,7 @@ export default function ConsoleShell({ roles, userId, children }:
         <div ref={menuRef} className="console-account">
           <button type="button" className="console-account-trigger" aria-haspopup="menu"
             aria-expanded={menuOpen} onClick={() => setMenuOpen(v => !v)}>
-            <span className="console-avatar" aria-hidden="true">آ</span>
+            <Image className="argin-brand-logo argin-header-logo" src={arginLogo} width={39} height={39} alt="" aria-hidden="true" unoptimized />
             <span className="console-account-name"><strong>حساب من</strong><small>{role}</small></span>
             <span aria-hidden="true">⌄</span>
           </button>

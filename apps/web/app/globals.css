@@ -267,3 +267,151 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 .console-settings-page .account-grid :is(p,label,small){font-size:11px}
 .console-settings-page .account-grid .identity-form{max-width:430px}
 @media(max-width:620px){.console-settings-card{padding:12px}.console-profile-two-col{grid-template-columns:1fr}.console-settings-page .console-page-heading h1{font-size:18px}}
+
+
+/* Phase 06 Step 13 — responsive, accessible Persian catalog workspace */
+.catalog-shell{direction:rtl;text-align:right;max-width:1480px;margin:0 auto;padding:28px 24px 60px;font-family:"Vazirmatn",Tahoma,sans-serif}
+.catalog-header{display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap;margin-bottom:23px}
+.catalog-header h1{font-size:clamp(23px,3vw,32px);margin:0 0 6px}
+.catalog-header p{color:#63758b;margin:0}.catalog-kicker{font-size:12px;font-weight:700;color:#226186!important}
+.catalog-link{display:inline-block;padding:10px 16px;text-decoration:none;border-radius:10px;background:#e7eff7;color:#1b5274;font-weight:700}
+.catalog-workspace{display:grid;gap:18px;min-width:0}
+.catalog-card{background:white;border:1px solid #dbe4ee;border-radius:16px;padding:22px;min-width:0}
+.catalog-card h2{font-size:19px;margin:0 0 14px}
+.catalog-card h3{font-size:15px;margin:18px 0 10px}
+.catalog-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px}
+.catalog-tabs button{border:1px solid #cad9e7;border-radius:10px;background:#f0f5fa;padding:10px 15px;color:#255477;font:inherit;font-weight:700;cursor:pointer}
+.catalog-tabs button[aria-selected=true]{background:#174667;border-color:#174667;color:white}
+.catalog-filters,.catalog-form{display:flex;align-items:flex-end;flex-wrap:wrap;gap:12px}
+.catalog-filters label,.catalog-form label{display:flex;flex-direction:column;gap:6px;min-width:220px;flex:1;font-size:13px;font-weight:700}
+.catalog-filters input,.catalog-form input,.catalog-form select{font:inherit;font-size:14px;min-height:44px;padding:10px 12px;border:1px solid #b9ccdd;border-radius:9px;background:#fff;color:#19324a;max-width:100%;width:100%}
+.catalog-filters input[dir=ltr],.catalog-form input[dir=ltr]{direction:ltr;text-align:left;unicode-bidi:isolate}
+.catalog-filters button,.catalog-actions button,.catalog-pages button,.catalog-result button,.catalog-bar button{border:1px solid #c3d5e7;border-radius:9px;background:#edf5fb;color:#174a70;padding:10px 13px;font:inherit;font-size:13px;cursor:pointer}
+.catalog-filters button:disabled,.catalog-actions button:disabled,.catalog-pages button:disabled,.catalog-result button:disabled{opacity:.48;cursor:default}
+.catalog-help{font-size:12px;color:#65788d;line-height:1.8;margin:14px 0 0}
+.catalog-message{color:#205f47;background:#edf8f1;border:1px solid #c9e7d3;padding:13px;border-radius:10px}
+.catalog-bar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.catalog-bar h2{margin:0}
+.catalog-scroll{max-width:100%;overflow-x:auto}
+.catalog-table{border-collapse:collapse;width:100%;min-width:680px;text-align:right}
+.catalog-table th,.catalog-table td{padding:13px 12px;text-align:right;border-bottom:1px solid #e4ebf2;vertical-align:middle}
+.catalog-table th{background:#f4f7fb;color:#475e72;font-size:12px;white-space:nowrap}
+.catalog-table td{font-size:13px}
+.catalog-table td[dir=ltr]{text-align:left}
+.catalog-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.catalog-actions .identity-primary{background:#194768;color:#fff}
+.catalog-empty{padding:26px;text-align:center;color:#677d92}
+.catalog-pages{display:flex;justify-content:center;align-items:center;gap:14px;margin-top:18px}
+.catalog-result{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px;border-bottom:1px solid #e2e9f1;flex-wrap:wrap}
+.catalog-history{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.catalog-history li{background:#f5f8fb;border:1px solid #e0e8f1;padding:12px;border-radius:9px}
+.catalog-shell button:focus-visible,.catalog-shell input:focus-visible,.catalog-shell select:focus-visible,.catalog-shell a:focus-visible{outline:3px solid #4c9fcf;outline-offset:2px}
+@media(max-width:650px){.catalog-shell{padding:18px 12px}.catalog-card{padding:15px}.catalog-filters label,.catalog-form label{min-width:100%}.catalog-header{align-items:flex-start}.catalog-tabs button{flex:1}}
+
+
+/* Phase 06 Step 13 UX correction — same compact dashboard density as users/participants. */
+.console-catalog-page{width:100%;min-width:0;max-width:none;padding:0;margin:0}
+.console-catalog-page .catalog-workspace{gap:10px;max-width:none}
+.console-catalog-page .catalog-card{padding:12px 14px;border-radius:10px;border-color:#e0e8ee;box-shadow:none}
+.console-catalog-page .catalog-card h2{font-size:14px;margin:0 0 8px}
+.console-catalog-page .catalog-tabs{margin-bottom:9px;gap:5px}
+.console-catalog-page .catalog-tabs button{font-size:11px;padding:6px 11px;border-radius:7px}
+.console-catalog-page .catalog-filters{gap:8px}
+.console-catalog-page .catalog-filters label{min-width:180px;font-size:11px;gap:4px}
+.console-catalog-page .catalog-filters input{font-size:12px;min-height:34px;padding:6px 9px;border-radius:7px}
+.console-catalog-page .catalog-filters button,.console-catalog-page .catalog-bar button,
+.console-catalog-page .catalog-actions button,.console-catalog-page .catalog-pages button,
+.console-catalog-page .catalog-result button{font-size:11px;padding:6px 10px;border-radius:7px}
+.console-catalog-page .catalog-help{font-size:10px;margin-top:6px}
+.console-catalog-page .catalog-table{min-width:620px}
+.console-catalog-page .catalog-table th,.console-catalog-page .catalog-table td{padding:8px 10px;font-size:11px}
+.console-catalog-page .catalog-table th{font-size:10px}
+.console-catalog-page .catalog-bar{margin-bottom:9px}
+.console-catalog-page .catalog-pages{margin-top:10px;gap:10px;font-size:11px}
+.catalog-form-dialog{max-width:100%;width:100%;min-width:0;position:relative;overflow:visible;box-sizing:border-box}
+.catalog-form-dialog .argin-modal-body{overflow:visible;max-height:min(75vh,650px)}
+.catalog-form-dialog .catalog-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:stretch}
+.catalog-form-dialog .catalog-form label{min-width:0;font-size:11px;gap:5px}
+.catalog-form-dialog .catalog-form input,.catalog-form-dialog .catalog-form select{min-height:37px;font-size:12px;padding:7px 10px}
+.catalog-form-dialog .catalog-form label:has(.catalog-unit-combo){grid-column:1/-1}
+.catalog-form-dialog .catalog-help{grid-column:1/-1;margin:0;font-size:10px}
+.catalog-modal-footer{grid-column:1/-1;display:flex;justify-content:flex-end;gap:8px;padding-top:8px;border-top:1px solid #e7edf2}
+.catalog-modal-footer button{font-size:12px;padding:8px 16px}
+.catalog-unit-combo{position:relative;width:100%;min-width:0}
+.catalog-unit-combo input[role=combobox]{width:100%;padding-inline-start:12px}
+.catalog-unit-options{position:absolute;top:calc(100% + 4px);right:0;left:0;max-height:230px;overflow-y:auto;background:#fff;border:1px solid #b9ccdd;border-radius:9px;box-shadow:0 14px 34px #172c4b29;z-index:1200;padding:4px;direction:rtl;text-align:right}
+.catalog-unit-options button{width:100%;text-align:right;display:flex;justify-content:space-between;gap:8px;padding:9px;border:0;border-radius:6px;background:white;color:#213a50;font:inherit;font-size:12px;cursor:pointer}
+.catalog-unit-options button:hover,.catalog-unit-options button.is-active{background:#e9f4fb}
+.catalog-unit-options button small{color:#996b2b;font-size:10px}
+.catalog-unit-options>div{padding:10px;font-size:11px;color:#687e90}
+.catalog-selected-unit{font-size:10px;display:block;color:#687e90;margin-top:3px;direction:ltr}
+@media(max-width:650px){.console-catalog-page .catalog-card{padding:10px}.catalog-form-dialog .catalog-form{grid-template-columns:1fr}.catalog-form-dialog .catalog-form label:has(.catalog-unit-combo){grid-column:1}.catalog-modal-footer,.catalog-form-dialog .catalog-help{grid-column:1}}
+
+
+/* Phase 06 Step 13 owner refinements: two-column ERP layout and ArginAccounting date picker */
+.console-catalog-page .catalog-split-layout{display:grid;grid-template-columns:minmax(290px,0.95fr) minmax(0,1.55fr);gap:12px;align-items:start;min-width:0}
+.console-catalog-page .catalog-split-layout >.catalog-card{min-width:0;height:100%}
+.console-catalog-page .catalog-editor-panel{background:#fbfdff}
+.console-catalog-page .catalog-editor-header{display:flex;align-items:center;justify-content:space-between;gap:10px;border-bottom:1px solid #e0e8ef;padding-bottom:10px;margin-bottom:12px}
+.console-catalog-page .catalog-editor-header h2{margin:0}
+.console-catalog-page .catalog-editor-header p{font-size:10px;color:#6e8394;margin:5px 0 0}
+.console-catalog-page .catalog-editor-panel .catalog-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}
+.console-catalog-page .catalog-editor-panel .catalog-form label{min-width:0;font-size:11px;gap:5px}
+.console-catalog-page .catalog-editor-panel .catalog-form label:has(.catalog-unit-combo){grid-column:1/-1}
+.console-catalog-page .catalog-editor-panel .catalog-form :is(input,select){width:100%;min-height:37px;padding:7px 9px;font-size:12px}
+.console-catalog-page .catalog-editor-panel .catalog-form .catalog-help,
+.console-catalog-page .catalog-editor-panel .catalog-modal-footer{grid-column:1/-1}
+.console-catalog-page .catalog-grid-loading-host{min-height:190px;position:relative}
+.console-catalog-page .catalog-grid-loading-host .argin-loader-overlay{position:absolute;inset:0;z-index:3;border-radius:8px;background:#ffffffdd}
+.console-catalog-page .catalog-filters select{width:100%;min-height:35px;border-radius:7px;border:1px solid #b9ccdd;background:#fff;color:#19324a;padding:6px 9px;font:inherit;font-size:12px}
+.console-catalog-page .catalog-editor-panel .catalog-modal-footer{justify-content:flex-start}
+@media(max-width:1100px){.console-catalog-page .catalog-split-layout{grid-template-columns:1fr}}
+@media(max-width:530px){.console-catalog-page .catalog-editor-panel .catalog-form{grid-template-columns:1fr}.console-catalog-page .catalog-editor-panel .catalog-form label:has(.catalog-unit-combo){grid-column:auto}}
+/* Shared ArginAccounting PersianDatePicker component styling, locally scoped to catalog. */
+.console-catalog-page .ui-persian-date{position:relative;min-width:0;width:100%;direction:rtl}
+.console-catalog-page .ui-persian-date__control{display:flex;position:relative;align-items:center}
+.console-catalog-page .ui-persian-date__input{width:100%;min-height:36px;border:1px solid #c1d2df;border-radius:8px;background:#fff;padding:7px 35px 7px 10px;font:inherit;font-size:12px;text-align:left;direction:ltr}
+.console-catalog-page .ui-persian-date__trigger{position:absolute;right:4px;top:3px;bottom:3px;display:grid;place-items:center;width:31px;background:transparent;border:0;color:#38677e;cursor:pointer}
+.console-catalog-page .ui-persian-date__popover{position:absolute;top:calc(100% + 6px);right:0;z-index:1300;width:min(290px,calc(100vw - 36px));background:#fff;border:1px solid #cbdbe5;border-radius:10px;box-shadow:0 18px 40px #17374d35;padding:11px;direction:rtl}
+.console-catalog-page .ui-persian-date__header{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px;font-size:12px}
+.console-catalog-page .ui-persian-date__header button,.console-catalog-page .ui-persian-date__footer button{font:inherit;border:0;background:#e9f2f7;color:#285675;cursor:pointer;border-radius:6px;padding:5px 10px}
+.console-catalog-page .ui-persian-date__weekdays,.console-catalog-page .ui-persian-date__days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px;text-align:center}
+.console-catalog-page .ui-persian-date__weekdays{font-size:10px;color:#657c89;margin-bottom:6px}
+.console-catalog-page .ui-persian-date__day{display:grid;place-items:center;min-height:30px;padding:4px;border:0;border-radius:6px;font:inherit;font-size:11px;background:#fff;color:#244153;cursor:pointer}
+.console-catalog-page .ui-persian-date__day:hover{background:#e8f1f7}
+.console-catalog-page .ui-persian-date__day--active{background:#236386!important;color:#fff!important}
+.console-catalog-page .ui-persian-date__footer{display:flex;justify-content:center;margin-top:10px}
+.console-catalog-page .ui-field__error{font-size:10px;color:#b04141}
+
+/* Step13 screenshot fix — contain all editor controls within grid cell. */
+.console-catalog-page .catalog-split-layout{grid-template-columns:minmax(0,0.95fr) minmax(0,1.55fr);width:100%;max-width:100%;align-items:stretch}
+.console-catalog-page .catalog-editor-panel,.console-catalog-page .catalog-form-dialog,
+.console-catalog-page .catalog-editor-body,.console-catalog-page .catalog-form{width:100%;max-width:100%;min-width:0;box-sizing:border-box}
+.console-catalog-page .catalog-editor-panel{overflow:visible}
+.console-catalog-page .catalog-editor-panel .catalog-form{grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}
+.console-catalog-page .catalog-editor-panel .catalog-form label{min-width:0;max-width:100%;width:100%;box-sizing:border-box}
+.console-catalog-page .catalog-editor-panel .catalog-form :is(input,select){box-sizing:border-box;min-width:0;max-width:100%;width:100%}
+.console-catalog-page .catalog-editor-panel .catalog-form label:has(.catalog-unit-combo){grid-column:1/-1}
+.console-catalog-page .catalog-editor-panel .catalog-form .catalog-help,
+.console-catalog-page .catalog-editor-panel .catalog-modal-footer{grid-column:1/-1}
+.console-catalog-page .catalog-split-layout .catalog-table{min-width:0;width:100%;table-layout:fixed}
+.console-catalog-page .catalog-split-layout .catalog-table th:nth-child(1){width:15%}
+.console-catalog-page .catalog-split-layout .catalog-table th:nth-child(2){width:30%}
+.console-catalog-page .catalog-split-layout .catalog-table th:nth-child(3){width:17%}
+.console-catalog-page .catalog-split-layout .catalog-table th:nth-child(4){width:38%}
+.console-catalog-page .catalog-split-layout .catalog-table td{overflow-wrap:anywhere;word-break:normal}
+.console-catalog-page .catalog-split-layout .catalog-actions{gap:4px}
+.console-catalog-page .catalog-split-layout .catalog-actions button{padding:5px 7px}
+.console-catalog-page .ui-persian-date__popover{top:auto;bottom:calc(100% + 7px);right:0;left:auto}
+@media(max-width:1100px){.console-catalog-page .catalog-split-layout{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:530px){.console-catalog-page .catalog-editor-panel .catalog-form{grid-template-columns:minmax(0,1fr)}}
+
+/* Shared Argin application branding supplied by product owner (Phase06). */
+.argin-brand-logo{display:block;object-fit:contain;flex-shrink:0;border-radius:0;background:transparent}
+.argin-login-logo{width:54px;height:54px;border-radius:13px}
+.argin-sidebar-logo{width:46px;height:46px;border-radius:12px}
+.argin-header-logo{width:39px;height:39px;border-radius:0;border:0;background:transparent}
+
+/* Transparent Argin logo in dashboard hero: no turquoise glyph tile or white canvas. */
+.app-welcome .app-welcome-graphic.argin-welcome-logo{display:block;flex:none;width:128px;height:128px;max-width:28%;object-fit:contain;border:0;border-radius:0;background:transparent;box-shadow:none;color:inherit;font-size:initial}
+@media(max-width:600px){.app-welcome .app-welcome-graphic.argin-welcome-logo{width:82px;height:82px}}

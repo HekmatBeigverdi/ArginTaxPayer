@@ -3,6 +3,8 @@ using ArginTaxPayer.Api.Identity;
 using ArginTaxPayer.Api.Taxpayers;
 using ArginTaxPayer.Api.Parties;
 using ArginTaxPayer.Api.Customers;
+using ArginTaxPayer.Api.Catalog;
+using ArginTaxPayer.Infrastructure.Persistence.Catalog;
 using ArginTaxPayer.Infrastructure.Persistence.Customers;
 using ArginTaxPayer.Infrastructure.Persistence.Parties;
 using ArginTaxPayer.Infrastructure.Persistence.Taxpayers;
@@ -44,6 +46,10 @@ if (identityDevelopmentEnabled)
     builder.Services.AddScoped<CustomerTaxpayerMembershipService>();
     builder.Services.AddScoped<CustomerAccountProfileService>();
     builder.Services.AddScoped<ParticipantScopeService>();
+    builder.Services.AddScoped<CustomerProductService>();
+    builder.Services.AddScoped<CustomerServiceCatalogService>();
+    builder.Services.AddScoped<TaxIdentifierMappingService>();
+    builder.Services.AddScoped<CatalogSearchService>();
     builder.Services.AddScoped<PartyIdentityEditService>();
     builder.Services.AddScoped<InvoiceParticipantDetailsService>();
     builder.Services.AddScoped<FiscalParticipantDirectoryService>();
@@ -118,6 +124,7 @@ if (app.Environment.IsDevelopment())
         app.MapCustomerProfileDevelopmentEndpoints();
         app.MapCustomerTaxpayerMembershipEndpoints();
         app.MapCustomerSelfServiceEndpoints();
+        app.MapCatalogDevelopmentEndpoints();
     }
 }
 

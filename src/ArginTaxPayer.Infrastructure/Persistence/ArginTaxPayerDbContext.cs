@@ -5,6 +5,7 @@ using ArginTaxPayer.Infrastructure.Persistence.Identity;
 using ArginTaxPayer.Infrastructure.Persistence.Taxpayers;
 using ArginTaxPayer.Infrastructure.Persistence.Parties;
 using ArginTaxPayer.Infrastructure.Persistence.Customers;
+using ArginTaxPayer.Infrastructure.Persistence.Catalog;
 
 namespace ArginTaxPayer.Infrastructure.Persistence;
 
@@ -15,6 +16,13 @@ namespace ArginTaxPayer.Infrastructure.Persistence;
 public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbContext> options)
     : DbContext(options)
 {
+    public DbSet<CatalogReferenceRelease> CatalogReferenceReleases => Set<CatalogReferenceRelease>();
+    public DbSet<OfficialMeasurementUnit> OfficialMeasurementUnits => Set<OfficialMeasurementUnit>();
+    public DbSet<OfficialGoodsServiceEntry> OfficialGoodsServiceEntries => Set<OfficialGoodsServiceEntry>();
+    public DbSet<VatClassificationEntry> VatClassificationEntries => Set<VatClassificationEntry>();
+    public DbSet<CustomerCatalogItem> CustomerCatalogItems => Set<CustomerCatalogItem>();
+    public DbSet<CatalogItemUnitConversion> CatalogItemUnitConversions => Set<CatalogItemUnitConversion>();
+    public DbSet<CatalogOfficialMapping> CatalogOfficialMappings => Set<CatalogOfficialMapping>();
     public DbSet<CustomerTaxpayerMembership> CustomerTaxpayerMemberships => Set<CustomerTaxpayerMembership>();
     public DbSet<CustomerAccountProfile> CustomerAccountProfiles => Set<CustomerAccountProfile>();
     public DbSet<InvoiceParticipantDetails> InvoiceParticipantDetails => Set<InvoiceParticipantDetails>();
@@ -45,6 +53,7 @@ public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbConte
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+        CatalogModelConfiguration.Apply(modelBuilder);
 
 
         var memberships = modelBuilder.Entity<CustomerTaxpayerMembership>();

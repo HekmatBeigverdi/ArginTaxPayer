@@ -16,6 +16,11 @@ test("foundation page links to implemented identity flows and marks planned modu
   assert.match(source, /در دست طراحی/);
 });
 
+test("enabled identity UI routes root visitors to login or dashboard", () => {
+  const source = read("app/page.tsx");
+  assert.match(source, /if \(identityUiEnabled\(\)\) \{[\s\S]*if \(actor\) redirect\("\/dashboard"\);[\s\S]*redirect\("\/identity"\);[\s\S]*\}/);
+});
+
 test("frontend shell is independent of live tenant, database and payment credentials", () => {
   const manifest = JSON.parse(read("package.json"));
   assert.equal(manifest.private, true);

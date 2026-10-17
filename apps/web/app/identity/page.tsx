@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
+import Image from "next/image";
 import { currentIdentity, identityUiEnabled } from "../../lib/identity";
 import IdentityFlow from "./identity-flow";
+import arginLogo from "../../public/brand/argin-logo.png";
 
 export const dynamic = "force-dynamic";
 
@@ -9,7 +11,7 @@ export default async function IdentityPage() {
   const actor = await currentIdentity();
   if (actor) redirect("/dashboard");
   return <main className="identity-layout" dir="rtl" lang="fa">
-    <div className="identity-brand"><span className="brand-symbol">آ</span><div><strong>آرگین</strong><span>سامانه مدیریت امور مالیاتی</span></div></div>
+    <div className="identity-brand"><Image className="argin-brand-logo argin-login-logo" src={arginLogo} width={54} height={54} alt="نشان آرگین" priority unoptimized /><div><strong>آرگین</strong><span>سامانه مدیریت امور مالیاتی</span></div></div>
     <section className="identity-card auth-simplified-card" aria-label="ورود و ثبت‌نام">
       <p className="identity-kicker">حساب کاربری</p>
       <h1>به آرگین خوش آمدید</h1>

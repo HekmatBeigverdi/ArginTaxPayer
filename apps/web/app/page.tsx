@@ -17,7 +17,11 @@ const sections = [
 ] as const;
 
 export default async function HomePage() {
-  if (identityUiEnabled() && await currentIdentity()) redirect("/dashboard");
+  if (identityUiEnabled()) {
+    const actor = await currentIdentity();
+    if (actor) redirect("/dashboard");
+    redirect("/identity");
+  }
   const api = await getApiHealth();
   return (
     <main className="shell">
