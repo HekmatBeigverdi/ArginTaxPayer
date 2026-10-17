@@ -66,10 +66,13 @@ public sealed class InvoiceRuleContext
     public InvoiceSubject Subject { get; }
     public IReadOnlyList<Guid> LineIds { get; }
     public string RuleSetEdition { get; }
+    public InvoiceHeaderFields? Header { get; }
+    public DateTime AsOfUtc { get; }
 
     public InvoiceRuleContext(Guid invoiceId, Guid customerUserId, Guid taxpayerId,
         long revision, DateTime issueDateUtc, InvoiceTypePattern classification,
-        InvoiceSubject subject, IEnumerable<Guid> lineIds, string ruleSetEdition)
+        InvoiceSubject subject, IEnumerable<Guid> lineIds, string ruleSetEdition,
+        InvoiceHeaderFields? header = null, DateTime? asOfUtc = null)
     {
         if (invoiceId == Guid.Empty || customerUserId == Guid.Empty || taxpayerId == Guid.Empty ||
             revision < 1 || issueDateUtc.Kind != DateTimeKind.Utc ||
@@ -77,7 +80,8 @@ public sealed class InvoiceRuleContext
             classification.Type == ElectronicInvoiceType.Third && classification.Pattern is not null ||
             classification.Type != ElectronicInvoiceType.Third && classification.Pattern is null or <= 0 ||
             !Enum.IsDefined(subject) || lineIds is null ||
-            string.IsNullOrWhiteSpace(ruleSetEdition))
+            string.IsNullOrWhiteSpace(ruleSetEdition) ||
+            (asOfUtc is not null && asOfUtc.Value.Kind != DateTimeKind.Utc))
             throw new ArgumentException("Invalid invoice rule context.");
         var frozen = lineIds.ToArray();
         if (frozen.Any(id => id == Guid.Empty) || frozen.Distinct().Count() != frozen.Length)
@@ -91,6 +95,10 @@ public sealed class InvoiceRuleContext
         Subject = subject;
         LineIds = Array.AsReadOnly(frozen);
         RuleSetEdition = ruleSetEdition;
+        Header = header;
+        // Caller injects evaluation clock: never read DateTime.UtcNow in a rule.
+        // Missing clock does not imply current legal validity.
+        AsOfUtc = asOfUtc ?? issueDateUtc;
     }
 }
 

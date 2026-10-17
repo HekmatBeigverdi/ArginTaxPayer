@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 07: Invoice Domain and Rule Engine
 
-**Status:** Step 01 owner-approved 2026-10-17; Step 02 owner-approved 2026-10-17 (macOS test logs not attached); Step 03 owner-approved 2026-10-17 (test output not attached); Step 04 owner-approved 2026-10-17 (macOS evidence not attached); Step 05 owner-approved 2026-10-17 (operator test log not attached); Step 06 owner-approved 2026-10-17 (operator test logs not attached); Step 07 implementation committed pending macOS acceptance. Steps 08–24 not started.
+**Status:** Step 01 owner-approved 2026-10-17; Step 02 owner-approved 2026-10-17 (macOS test logs not attached); Step 03 owner-approved 2026-10-17 (test output not attached); Step 04 owner-approved 2026-10-17 (macOS evidence not attached); Step 05 owner-approved 2026-10-17 (operator test log not attached); Step 06 owner-approved 2026-10-17 (operator test logs not attached); Step 07 owner-approved 2026-10-17 (operator test logs not attached); Step 08 implemented pending macOS acceptance. Steps 09–24 not started.
 **Branch:** `phase/07-invoice-domain-rule-engine`
 **Baseline:** `main` at `041bea0287c3b907a7b8910ef8602f51a8c1654c` (inspected 2026-10-17).
 **Roadmap:** `docs/roadmap/18-phases.md`, Phase 07 of 18.
@@ -44,8 +44,8 @@ Build a versioned electronic invoice domain and deterministic rules engine: lega
 | 04 | Invoice subjects | Original, correction, cancellation and sales return subject model | Invalid subject transitions rejected | Owner-approved 2026-10-17; local test logs not attached |
 | 05 | Invoice lines and catalog handoff | Copy Phase06 V1 immutable snapshots; quantities and units | No mutable-catalog dereference after snapshot | Owner-approved 2026-10-17; test output not independently provided |
 | 06 | Financial model | Decimal totals, VAT inputs, discount and rounding policies | Boundary and deterministic calculation cases | Implemented; macOS tests and owner acceptance pending |
-| 07 | Rule-engine contracts | RuleContext, stable rule keys, severities and deterministic evaluation | Unit-testable pure contracts | Implemented; macOS tests and owner acceptance pending |
-| 08 | Header validation | Required identifiers, issue time and participant rules | Field-level positive and negative tests | Not started |
+| 07 | Rule-engine contracts | RuleContext, stable rule keys, severities and deterministic evaluation | Unit-testable pure contracts | Owner-approved 2026-10-17; operator test logs not attached |
+| 08 | Header validation | Required identifiers, issue time and participant rules | Field-level positive and negative tests | Implemented; operator macOS tests and owner acceptance pending |
 | 09 | Type/pattern rules | Field requirements by officially effective matrix | Reject unsupported combinations | Not started |
 | 10 | Line and catalog rules | Official identifiers, mapping, unit, kind and source effective date | Fail closed on unresolved or expired sources | Not started |
 | 11 | Monetary and tax rules | Totals, VAT resolution and precision validation | No universal rate assumption; exact totals | Not started |
@@ -336,3 +336,34 @@ git status --short
 ```
 
 **Ubuntu:** no separate test needed for Domain-only Step07; final environment acceptance stays Step23. **Production database:** untouched. **Owner gate:** pending.
+
+## Step 08 — Header validation — Completion Record (2026-10-17)
+
+**State:** Implemented in branch and committed; macOS execution and owner approval pending. Step07 was explicitly owner-approved 2026-10-17; no macOS logs independently attached.
+
+**Mandatory primary-source basis:** owner-supplied Tax Authority `RC_IITP.IS V7.9` (Tir 1405), **Table 3 p24** (`taxid` required, length 22; full check algorithm described separately in `RC_DCPS.SN`), **Table 4 pp25–26** (`indatim` Unix epoch milliseconds, not future, issue-date/reference/tax-ID chronological consistency), **Table 10 p32** (buyer fields **outside pattern** on referring subjects), and **Table 11 pp33–35** (`tins` 11/14 digits, `tinb`, `tob`, `bid`, `bpc`, branch fields and buyer requirements). SDK guidance is supplemental for serialization only; see [mandatory reference catalogue](../references/tax-authority-sdk-catalog.md).
+
+**Implementation:**
+- New `InvoiceHeaderFields`: immutable projected tax-authority field values, kept separate from internal `InvoicePartySnapshot` so that a person's display name or arbitrary free-form identifier is **never assumed** to be verified `tins`/`tinb`. All values are caller-supplied until checked against authoritative registration/credentials.
+- `InvoiceRuleContext` now accepts optional projected header and caller-injected `AsOfUtc` clock; existing Step07 constructor calls remain valid. No implicit `DateTime.UtcNow` inside rules (determinism).
+- Four distinct `IInvoiceRule` instances, registered with the existing deterministic engine: `invoice.header.taxid` required and 22 ASCII-alphanumeric structural shape; `invoice.header.issue_date` required 13-digit max Unix-ms matching snapshot UTC time and not future relative to injected clock; `invoice.header.seller` numeric economic ID 11/14 digits and 4-digit optional seller branch; `invoice.header.buyer` optional by invoice type/pattern and entirely outside-pattern for correction/cancellation/return, otherwise enforces buyer type (1..4), numeric economic/identity/postal/branch field shapes, and conditional minimal required buyer identifiers for Type1 ordinary sale.
+- Stable finding message keys and official JSON field paths; findings carry no raw PII. Source metadata is `RC_IITP.IS` edition `V7.9` with page/table. `IsSubmissionAuthorized` always false. The engine is pure and does not do database lookups.
+- **Guardrails/deferred:** `taxid` uniqueness, Verhoeff/check-digit and fiscal-memory/date encoding need official `RC_DCPS.SN` and issuance state; seller-to-taxpayer matching and buyer registration checks need scoped authority access; dynamic statutory time limits and `indati2m`/special Article9 flow require external versioned rules; type/pattern/subject applicability and custom pattern header fields are Steps09/12/14–17. All are **not implemented** and must be blocked before fiscal issuance. Note p32 Type1 cancellation has type/pattern fields outside pattern, so Step09 must project fields conditionally instead of treating a draft classification as a required payload field.
+- **Important:** These checks are only the subset grounded by the cited tables; passing Step08 is **not** legal validity and no API will accept the outputs directly without the remaining validators.
+
+**Changes:** `src/ArginTaxPayer.Domain/Invoices/InvoiceHeaderRules.cs` (new), `src/ArginTaxPayer.Domain/Invoices/InvoiceRuleEngine.cs` (add immutable optional header and injected clock), `tests/ArginTaxPayer.Tests/Phase07HeaderValidationTests.cs` (new), this single phase document.
+
+**Tests:** Valid Type1 ordinary legal buyer, missing/invalid taxid, Unix-ms required/mismatch/out-of-time, economic ID length and ASCII digits, natural-person identity+postal alternatives, legal buyer economic requirement, Type2 buyer optional, reference subjects buyer forbidden, special export/commodity-exchange optional, missing header fail closed.
+
+**macOS commands:**
+```bash
+cd ~/projects/ArginTaxPayer
+git fetch origin
+git switch phase/07-invoice-domain-rule-engine
+git pull --ff-only
+dotnet restore ArginTaxPayer.sln
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --filter "FullyQualifiedName~Phase07HeaderValidationTests|FullyQualifiedName~Phase07RuleEngineContractsTests|FullyQualifiedName~Phase07InvoiceSubjectsTests" --no-restore
+dotnet test ArginTaxPayer.sln --no-restore
+git status --short
+```
+**Migration:** None; **Ubuntu:** not required for Domain-only; **Owner acceptance:** Pending.
