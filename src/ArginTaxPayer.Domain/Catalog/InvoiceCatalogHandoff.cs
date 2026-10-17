@@ -64,7 +64,7 @@ public static class InvoiceCatalogHandoffPolicy
         itemStatus == (int)CatalogItemStatus.Active &&
         (itemKind is 1 or 2 or 3) &&
         OfficialGoodsServiceReferencePolicy.IsCompatible(itemKind, (OfficialEntryKind)officialKind) &&
-        verificationStatus == (int)OfficialVerificationStatus.Verified &&
+        verificationStatus == 2 &&
         officialReleaseState == (int)CatalogReleaseState.Active &&
         unitStatus == 1 && unitReleaseState == (int)CatalogReleaseState.Active &&
         reviewedSource && unitReviewed &&
