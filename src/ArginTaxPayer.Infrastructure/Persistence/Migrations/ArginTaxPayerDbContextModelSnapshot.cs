@@ -6,6 +6,8 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using ArginTaxPayer.Infrastructure.Persistence.Invoices;
+using ArginTaxPayer.Infrastructure.Persistence.Identity;
+using ArginTaxPayer.Infrastructure.Persistence.Taxpayers;
 
 #nullable disable
 
@@ -2353,7 +2355,7 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
                 {
                     b.Navigation("Roles");
                 });
-            // Phase07 Step18 snapshot (pinned mapping at migration introduction).
+            // Phase07 Step18 model snapshot (pinned at migration creation).
             {
                 var b = modelBuilder;
         var invoice = b.Entity<StoredInvoice>();
@@ -2379,6 +2381,10 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
         invoice.Property(x => x.SnapshotJson).HasColumnName("snapshot_json").HasColumnType("jsonb").IsRequired();
         invoice.Property(x => x.SnapshotSha256).HasColumnName("snapshot_sha256").HasMaxLength(64).IsRequired();
         invoice.Property(x => x.UpdatedAtUtc).HasColumnName("updated_at_utc").HasColumnType("timestamp with time zone");
+        invoice.HasOne<IdentityUser>().WithMany()
+            .HasForeignKey(x => x.CustomerUserId).OnDelete(DeleteBehavior.Restrict);
+        invoice.HasOne<TaxpayerProfile>().WithMany()
+            .HasForeignKey(x => x.TaxpayerId).OnDelete(DeleteBehavior.Restrict);
         invoice.HasIndex(x => new { x.CustomerUserId, x.TaxpayerId, x.Id }).IsUnique().HasDatabaseName("ux_invoice_documents_scope");
         invoice.HasIndex(x => new { x.CustomerUserId, x.TaxpayerId, x.IssueDateUtc }).HasDatabaseName("ix_invoice_documents_scope_date");
 
@@ -2420,6 +2426,10 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
             .HasForeignKey(x => new { x.CustomerUserId, x.TaxpayerId, x.InvoiceId })
             .HasPrincipalKey(x => new { x.CustomerUserId, x.TaxpayerId, x.Id })
             .OnDelete(DeleteBehavior.Restrict);
+        operation.HasOne<IdentityUser>().WithMany()
+            .HasForeignKey(x => x.CustomerUserId).OnDelete(DeleteBehavior.Restrict);
+        operation.HasOne<TaxpayerProfile>().WithMany()
+            .HasForeignKey(x => x.TaxpayerId).OnDelete(DeleteBehavior.Restrict);
         operation.HasIndex(x => new { x.CustomerUserId, x.TaxpayerId, x.IdempotencyKey })
             .IsUnique().HasDatabaseName("ux_invoice_operations_idempotency");
         operation.HasIndex(x => new { x.CustomerUserId, x.TaxpayerId, x.ReferenceTaxId, x.ReferenceSlot })
@@ -2437,6 +2447,10 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
         cursor.Property(x => x.CustomerUserId).HasColumnName("customer_user_id");
         cursor.Property(x => x.TaxpayerId).HasColumnName("taxpayer_id");
         cursor.Property(x => x.Revision).HasColumnName("revision").IsConcurrencyToken();
+        cursor.HasOne<IdentityUser>().WithMany()
+            .HasForeignKey(x => x.CustomerUserId).OnDelete(DeleteBehavior.Restrict);
+        cursor.HasOne<TaxpayerProfile>().WithMany()
+            .HasForeignKey(x => x.TaxpayerId).OnDelete(DeleteBehavior.Restrict);
 
         // Constraints prevent accidental deletion of historical invoice data.
         // Application permissions still MUST be checked by authorized caller.
