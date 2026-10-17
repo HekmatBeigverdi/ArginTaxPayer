@@ -175,3 +175,33 @@ git status --short
 ```
 
 **Migration:** None. **API/UI:** None. **Ubuntu:** Not necessary for domain-only change. **Build/tests:** Source committed; macOS execution evidence not attached. **Owner approval:** Pending.
+
+## Official source priority correction — owner-provided RC_IITP.IS V7.9 (2026-10-17)
+
+**Authoritative input:** The owner uploaded `RC_IITP_IS_V7_9_2(1).pdf` (116 pages), document ID `RC_IITP.IS_V7.9`, Tir 1405. Treat the actual supplied Tax Authority specification as the primary source. Third-party websites are supplemental only; never substitute an older intermediary notice for a newer supplied primary instruction.
+
+**Step03 substantive correction:** Prior embedded Notice 6 historical combinations (Type1 1–7, Type2 1–2) are INCOMPLETE and MUST NOT be selected as the primary V7.9 rules. V7.9 Table 1 p14 and Table 9 p31 provide:
+- Type1 patterns 1,2,3,4,5,6,7,8,9,11,13,14 (12 patterns).
+- Type2 patterns 1,3,9,13 (4 patterns).
+- Type3 is the POS/payment-gateway receipt described in section 3-3 p12, without an ordinary Type1/2 pattern.
+- Never silently renumber patterns: Type2 gold is 3 (not 2), and Type1 10/12 are not listed.
+- New `OfficialV79InvoicePatternMatrix` is authoritative **for document-content matching**. The old `HistoricalInvoicePatternMatrix` remains for backward reference only. `VerifiedForSubmission=false` still blocks claiming current applicability until issuance effective dates and other regulatory gating are independently confirmed.
+- The PDF states edition month Tir 1405 but does not establish exact effective-from dates for all listed patterns. In code `DateTime.MinValue` is explicitly an unrestricted document-catalogue sentinel, NOT an assertion of historical legal effectiveness.
+
+**Step04 cross-check:** V7.9 section 5 pp15–18 and Table10 p32 establish subjects 1=original, 2=correction, 3=cancellation, 4=sales return; correction/cancellation/return require `irtaxid` (Table8 p30). Table10 disallows sales returns on Type1 export (7), waybill (8), and commodity-linked securities (11); added `OfficialV79InvoiceSubjectPolicy`. Other reference-chain, immutable fields, transaction chronology and status rules remain scheduled for Steps14–17.
+
+**New tests:** `Phase07OfficialV79Tests` verifies all 17 documented type/pattern combinations, negative gaps and special subject restrictions. Existing older-notice tests remain as historical regression coverage, not as current submission policy.
+
+**Repository change:** Official PDF is a user-supplied source in the conversation; the 5 MB binary has NOT been checked into the public repo. To make this reproducible later, store an authorized immutable source copy or source fingerprint in the regulated specification registry (future Step12), following source licensing and project document policy.
+
+**macOS validation:**
+```bash
+git fetch origin
+git switch phase/07-invoice-domain-rule-engine
+git pull --ff-only
+dotnet restore ArginTaxPayer.sln
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --filter "FullyQualifiedName~Phase07OfficialV79Tests|FullyQualifiedName~Phase07InvoicePatternsTests|FullyQualifiedName~Phase07InvoiceSubjectsTests" --no-restore
+dotnet test ArginTaxPayer.sln --no-restore
+```
+
+**Migration:** None. **External submission:** None. **Tests:** Added but awaiting owner macOS results. **Process change:** Source-of-truth priority confirmed for all remaining Phase07 steps.

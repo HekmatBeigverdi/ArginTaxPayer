@@ -64,3 +64,22 @@ public sealed record InvoiceSubjectSelection
 
     public static InvoiceSubjectSelection Original() => Create(InvoiceSubject.Original);
 }
+
+
+/// <summary>
+/// V7.9 p.32 Table 10: export (7), waybill (8), and commodity-linked
+/// securities (11) support only original, correction and cancellation.
+/// This checks the type/pattern/subject pairing, not predecessor validity.
+/// </summary>
+public static class OfficialV79InvoiceSubjectPolicy
+{
+    public static bool Allows(InvoiceTypePattern selection, InvoiceSubject subject)
+    {
+        if (!Enum.IsDefined(subject)) return false;
+        var matrix = OfficialV79InvoicePatternMatrix.Create();
+        if (!matrix.Entries.Contains(selection)) return false;
+        return !(selection.Type == ElectronicInvoiceType.First &&
+                 selection.Pattern is 7 or 8 or 11 &&
+                 subject == InvoiceSubject.SalesReturn);
+    }
+}
