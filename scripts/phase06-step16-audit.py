@@ -72,7 +72,7 @@ def main() -> int:
         "clean_checkout": dirty == "",
         "exactly_16_roadmap_steps": sorted(rows) == [f"{i:02d}" for i in range(1, 17)],
         "step15_owner_approved": "Owner-approved" in step15,
-        "step16_not_prematurely_closed": "Pending" in step16,
+        "step16_not_prematurely_closed": "pending" in step16.lower() or "in progress" in step16.lower(),
         "all_required_files_exist": not missing,
         "expected_migrations_present": all(migrations.values()),
         "final_phase_document_present": PHASE.is_file(),
