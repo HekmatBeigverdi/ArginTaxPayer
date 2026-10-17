@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 07: Invoice Domain and Rule Engine
 
-**Status:** Step 01 owner-approved 2026-10-17; Step 02 owner-approved 2026-10-17 (macOS test logs not attached); Step 03 owner-approved 2026-10-17 (test output not attached); Step 04 owner-approved 2026-10-17 (macOS evidence not attached); Step 05 owner-approved 2026-10-17 (operator test log not attached); Step 06 owner-approved 2026-10-17 (operator test logs not attached); Step 07 owner-approved 2026-10-17 (operator test logs not attached); Step 08 owner-approved 2026-10-17 (test logs not independently attached); Step 09 owner-approved 2026-10-17 (operator test logs not supplied); Step 10 owner-approved 2026-10-17 (operator test logs not attached); Step 11 owner-approved 2026-10-17 (operator test results not independently attached); Step 12 owner-approved 2026-10-17 (independent macOS logs not attached); Step 13 owner-approved 2026-10-17 (macOS logs not supplied); Step 14 owner-approved 2026-10-17 (operator macOS logs not attached); Step 15 owner-approved 2026-10-17 (operator macOS logs not attached); Step 16 owner-approved 2026-10-17 (independent macOS test logs unavailable); Step 17 Domain concurrency/idempotency contracts implemented, pending macOS acceptance. Steps 18–24 not started.
+**Status:** Step 01 owner-approved 2026-10-17; Step 02 owner-approved 2026-10-17 (macOS test logs not attached); Step 03 owner-approved 2026-10-17 (test output not attached); Step 04 owner-approved 2026-10-17 (macOS evidence not attached); Step 05 owner-approved 2026-10-17 (operator test log not attached); Step 06 owner-approved 2026-10-17 (operator test logs not attached); Step 07 owner-approved 2026-10-17 (operator test logs not attached); Step 08 owner-approved 2026-10-17 (test logs not independently attached); Step 09 owner-approved 2026-10-17 (operator test logs not supplied); Step 10 owner-approved 2026-10-17 (operator test logs not attached); Step 11 owner-approved 2026-10-17 (operator test results not independently attached); Step 12 owner-approved 2026-10-17 (independent macOS logs not attached); Step 13 owner-approved 2026-10-17 (macOS logs not supplied); Step 14 owner-approved 2026-10-17 (operator macOS logs not attached); Step 15 owner-approved 2026-10-17 (operator macOS logs not attached); Step 16 owner-approved 2026-10-17 (independent macOS test logs unavailable); Step 17 owner-approved 2026-10-17 (independent macOS logs not attached); Step 18 persistence and migrations implemented, pending macOS and isolated PostgreSQL acceptance and owner approval. Steps 19–24 not started.
 **Branch:** `phase/07-invoice-domain-rule-engine`
 **Baseline:** `main` at `041bea0287c3b907a7b8910ef8602f51a8c1654c` (inspected 2026-10-17).
 **Roadmap:** `docs/roadmap/18-phases.md`, Phase 07 of 18.
@@ -54,7 +54,7 @@ Build a versioned electronic invoice domain and deterministic rules engine: lega
 | 14 | Correction reference | Immutable predecessor linkage and permitted modifications | Cycle/invalid predecessor blocked | Owner-approved 2026-10-17; operator logs not attached |
 | 15 | Cancellation reference | Reference integrity and duplicate-operation guards | No inconsistent second cancellation | Owner-approved 2026-10-17; operator macOS logs not attached |
 | 16 | Sales-return reference | Line-level partial/cumulative return constraints | Cannot return more than eligible quantity | Owner-approved 2026-10-17; independent test log not attached |
-| 17 | Concurrency and idempotency | Revision/CAS, scoped reference integrity, replay key policy | Concurrent conflict and replay tests | Domain proposal policy and tests committed; macOS execution/owner approval pending |
+| 17 | Concurrency and idempotency | Revision/CAS, scoped reference integrity, replay key policy | Concurrent conflict and replay tests | Owner-approved 2026-10-17; operator logs not supplied |
 | 18 | Persistence and migrations | EF Core PostgreSQL additive schema and constraints | Test DB-only migration review; no production modifications | Not started |
 | 19 | Application services and API | Scoped commands/queries and stable error contracts | Authorization and API contract tests | Not started |
 | 20 | Invoice-entry UI | RTL dynamic type/pattern, party and item selection | Usable keyboard and responsive flows | Not started |
@@ -790,3 +790,59 @@ dotnet test ArginTaxPayer.sln --no-restore
 git status --short
 ```
 **macOS:** tests pending. **Ubuntu:** no separate Domain-only execution now; fixed Step23 full dual-platform acceptance. **Migration:** none until Step18. **Owner acceptance:** pending.
+
+## Step 18 — Persistence and Migrations — Completion Record (2026-10-17)
+
+**Status:** Source implementation, EF model configuration, explicit migration, snapshot and metadata tests committed in phase branch. Operator macOS compile/regression, isolated PostgreSQL migration/atomic-race acceptance and owner sign-off **pending**. Step17 expressly owner-approved; independent operator test logs unavailable. **No migrations were applied to either VPS or local PostgreSQL.**
+
+### Boundary / authority
+
+This is persistence engineering for the source-grounded Domain of Phase07 Steps02–17. Original normative legal requirements for reference handling are from owner-provided Tax Authority `RC_IITP.IS V7.9` §§5.2–5.4, pp15–18, and Table8 p30. CAS, SQL indexes and idempotency are ArginTaxPayer technical reliability designs, **not** the authority's definition of successful submission. Fiscal rate, edition applicability and all unresolved specialized rules remain fail-closed; no successful SQL result authorizes tax submission.
+
+### Persisted entities and migration
+
+- `invoice_documents`: tenant/customer, taxpayer, invoice ID, strictly positive `revision`, internal state (Draft/Validated/Finalized), subject, issue UTC, canonical current JSONB snapshot, lowercase SHA-256 and updated UTC. Composite scoped unique index.
+- `invoice_document_revisions`: append-only historical JSONB per `(invoice_id,revision)`, SHA-256, issuer/customer scope and timestamp; scoped composite FK to invoice, **database BEFORE UPDATE/DELETE guard** rejecting modifications or deletions of committed history.
+- `invoice_operations`: one durable operation per scoped `(customer_user_id,taxpayer_id,idempotency_key)` with invoice ID, expected revision, canonical request SHA-256, subject, fiscal predecessor, exclusive reservation class, active status, persisted original outcome JSON and timestamp. Unique partial index on active scoped fiscal predecessor and slot: **slot 1** combines corrections and returns, **slot 2** limits duplicate cancellations. Original invoices have no reference slot. Composite scoped FK prevents operations from linking to another customer's invoice.
+- `invoice_reservation_cursors`: composite scope key and version for cross-invoice optimistic CAS, independent of each invoice Revision. Stale expected registry revisions fail before changes can commit.
+- Explicit additive migration `20261017010000_AddInvoicePersistenceAndOperationClaims` produces tables, checks, keys, filtered unique indexes, history immutability guard. No implicit imports/backfill. **Down blocks destructive rollback while any document/history/reservation/operation data exist.** Existing customer/taxpayer tables and migrations are not altered.
+- `ArginTaxPayerDbContextModelSnapshot` pinned to the new mapping so later EF scaffolding can detect changes; registration is in `ArginTaxPayerDbContext`. `EfInvoiceAtomicWriter` is scoped in existing persistence DI only when PostgreSQL is configured.
+- Current payload persistence is an **opaque canonical JSONB snapshot**, not EF navigation collections for separately writable individual lines. Snapshot creation, canonical serialization, domain validation, and scope permissions remain caller/application responsibilities. Persisted state must be verified against the Domain aggregate before invoking the writer; this service does not turn a client-selected state into a legally valid lifecycle transition.
+
+### Transactional writer guarantees and limits
+
+- `CreateDraftAsync` stores first Draft revision and history together in one EF SaveChanges transaction and rejects duplicate document identity; the owner/customer/taxpayer relationship must be independently authorized.
+- `ApplyAsync(command, expectedRegistryRevision, nextSnapshotJson, nextState, issueDateUtc, atUtc)` begins an explicit PostgreSQL transaction. It checks for a scoped previous idempotency request, recognizes an identical replay, rejects changed fingerprint/subject/target/expected revision, inserts initial reservation cursor when absent and performs a scoped cursor CAS, performs a scoped document CAS against expected invoice Revision, inserts the next immutable history row and durable operation outcome/reference slot, commits **only if all succeed**.
+- Partial unique constraints, composite foreign keys, transaction rollback, cursor CAS and invoice CAS collectively provide a basis for multiple ASP.NET instances. A concurrent request from an old cursor revision receives `StaleRegistryRevision`; an old invoice revision returns `StaleRevision`. Unique index exceptions are converted to idempotency/referenced-operation conflict with rollback.
+- **Important caveat:** caller must provide an independently computed canonical request fingerprint and ensure snapshot matches the allowed Domain transition, registered trusted predecessor facts, valid VAT/rule edition and tenant permission. This writer itself does not attest those conditions. Unlike a domain proposal, PostgreSQL test acceptance must prove the indexes and rollback under actual simultaneous sessions. No API operations wired in Step18.
+- No automatic release of active claims: official status reconciliation, audit, and safe transitions of failed/canceled operations must be explicitly implemented before production use. Current model intentionally retains reservations rather than risking duplicate issuance.
+- No outbound signing, queuing, fiscal ID assignment, tax-authority acceptance or live API calls. `InvoiceWriteResult.IsFiscalSubmissionAuthorized=false`.
+
+### Files committed
+
+1. `src/ArginTaxPayer.Infrastructure/Persistence/Invoices/InvoiceStorageEntities.cs`: 4 entities.
+2. `src/ArginTaxPayer.Infrastructure/Persistence/Invoices/InvoicePersistenceModelConfiguration.cs`: constraints, FK, concurrency tokens, unique filtered indexes.
+3. `src/ArginTaxPayer.Infrastructure/Persistence/Invoices/EfInvoiceAtomicWriter.cs`: scoped transaction, idempotent result and revision CAS.
+4. `src/ArginTaxPayer.Infrastructure/Persistence/ArginTaxPayerDbContext.cs`, `PersistenceRegistration.cs`: entity sets, EF model registration, scoped writer DI.
+5. `src/ArginTaxPayer.Infrastructure/Persistence/Migrations/20261017010000_AddInvoicePersistenceAndOperationClaims.cs`: additive migration and history guard.
+6. `src/ArginTaxPayer.Infrastructure/Persistence/Migrations/ArginTaxPayerDbContextModelSnapshot.cs`: model snapshot mapping.
+7. `tests/ArginTaxPayer.Tests/Phase07InvoicePersistenceMetadataTests.cs`: six offline metadata and migration discovery tests.
+8. This single master Phase07 document.
+
+### Operator acceptance, safe database rules
+
+On macOS first:
+```bash
+cd ~/projects/ArginTaxPayer
+git fetch origin
+git switch phase/07-invoice-domain-rule-engine
+git pull --ff-only
+dotnet restore ArginTaxPayer.sln
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --filter "FullyQualifiedName~Phase07InvoicePersistenceMetadataTests|FullyQualifiedName~Phase07InvoiceConcurrencyIdempotencyTests|FullyQualifiedName~MigrationBaselineTests" --no-restore
+dotnet test ArginTaxPayer.sln --no-restore
+git status --short
+```
+
+**Database acceptance requires an explicit dedicated test database and advance authorization**: first inspect connection target with `SELECT current_database(), current_user;` and confirm **exactly `argintaxpayer_test`**. Do not run `dotnet ef database update` against a shared VPS or production database. Before any test migration, create and review SQL idempotent migration script, verify backup, ensure no concurrent production workers/users, and obtain the operator's explicit approval. Race/CAS and unique-index integration tests with at least two independent PostgreSQL connections remain pending; only actual execution can establish concurrency guarantee. Tests in this commit are **offline metadata tests, not a simulated proof of PostgreSQL atomic behavior**. Full Ubuntu/macOS acceptance remains fixed Step23.
+
+**Owner acceptance:** pending. **No database changes applied.** **Next fixed Step19:** application services and API, with authoritative customer/taxpayer permission and valid fiscal rule-set gating.

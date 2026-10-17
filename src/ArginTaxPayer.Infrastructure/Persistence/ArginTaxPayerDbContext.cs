@@ -1,3 +1,4 @@
+using ArginTaxPayer.Infrastructure.Persistence.Invoices;
 using ArginTaxPayer.Infrastructure.Persistence.Outbox;
 using ArginTaxPayer.Infrastructure.Persistence.Idempotency;
 using Microsoft.EntityFrameworkCore;
@@ -16,6 +17,10 @@ namespace ArginTaxPayer.Infrastructure.Persistence;
 public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbContext> options)
     : DbContext(options)
 {
+    public DbSet<StoredInvoice> InvoiceDocuments => Set<StoredInvoice>();
+    public DbSet<StoredInvoiceRevision> InvoiceDocumentRevisions => Set<StoredInvoiceRevision>();
+    public DbSet<StoredInvoiceOperation> InvoiceOperations => Set<StoredInvoiceOperation>();
+    public DbSet<StoredInvoiceReservationCursor> InvoiceReservationCursors => Set<StoredInvoiceReservationCursor>();
     public DbSet<CatalogReferenceRelease> CatalogReferenceReleases => Set<CatalogReferenceRelease>();
     public DbSet<OfficialMeasurementUnit> OfficialMeasurementUnits => Set<OfficialMeasurementUnit>();
     public DbSet<OfficialGoodsServiceEntry> OfficialGoodsServiceEntries => Set<OfficialGoodsServiceEntry>();
@@ -54,6 +59,7 @@ public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbConte
     {
         base.OnModelCreating(modelBuilder);
         CatalogModelConfiguration.Apply(modelBuilder);
+        InvoicePersistenceModelConfiguration.Apply(modelBuilder);
 
 
         var memberships = modelBuilder.Entity<CustomerTaxpayerMembership>();
