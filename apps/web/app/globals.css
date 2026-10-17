@@ -407,7 +407,11 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 @media(max-width:530px){.console-catalog-page .catalog-editor-panel .catalog-form{grid-template-columns:minmax(0,1fr)}}
 
 /* Shared Argin application branding supplied by product owner (Phase06). */
-.argin-brand-logo{display:block;object-fit:contain;flex-shrink:0;border-radius:12px;background:#fff}
+.argin-brand-logo{display:block;object-fit:contain;flex-shrink:0;border-radius:0;background:transparent}
 .argin-login-logo{width:54px;height:54px;border-radius:13px}
 .argin-sidebar-logo{width:46px;height:46px;border-radius:12px}
-.argin-header-logo{width:39px;height:39px;border-radius:50%;border:1px solid #d5e6df}
+.argin-header-logo{width:39px;height:39px;border-radius:0;border:0;background:transparent}
+
+/* Transparent Argin logo in dashboard hero: no turquoise glyph tile or white canvas. */
+.app-welcome .app-welcome-graphic.argin-welcome-logo{display:block;flex:none;width:128px;height:128px;max-width:28%;object-fit:contain;border:0;border-radius:0;background:transparent;box-shadow:none;color:inherit;font-size:initial}
+@media(max-width:600px){.app-welcome .app-welcome-graphic.argin-welcome-logo{width:82px;height:82px}}
