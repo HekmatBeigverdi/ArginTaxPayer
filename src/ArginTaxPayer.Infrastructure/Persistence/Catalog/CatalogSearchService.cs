@@ -31,6 +31,16 @@ public sealed class CatalogSearchService(ArginTaxPayerDbContext db, IdentityAuth
                   owner.PartnerLevel2UserId == actor &&
                     user.Roles.Any(role => role.Role == IdentityRoleNames.Level2)))), ct);
 
+    // A tenant can read public reference definitions only with a current active role.
+    // Administrative identities additionally require MFA, consistent with tenant-owned reads.
+    private Task<bool> CanReadReferencesAsync(Guid actor, CancellationToken ct) =>
+        db.IdentityUsers.AsNoTracking().AnyAsync(user =>
+            user.Id == actor && user.IsActive &&
+            (user.Roles.Any(role => role.Role == IdentityRoleNames.Customer) ||
+             (user.Roles.Any(role => role.Role == IdentityRoleNames.Level1 ||
+                                     role.Role == IdentityRoleNames.Level2) &&
+              db.IdentityMfaStates.Any(m => m.UserId == actor && m.EnabledAtUtc != null))), ct);
+
     public async Task<CatalogPage<CustomerProductView>> ProductsAsync(
         string? token, Guid customer, int page, int size, string? query, CancellationToken ct = default)
     {
@@ -88,17 +98,13 @@ public sealed class CatalogSearchService(ArginTaxPayerDbContext db, IdentityAuth
         if (actor is null) return new(CatalogQueryDecision.Unauthenticated, [], page, size, false);
         if (!ValidPage(page, size, query) || (kind is not null && kind is not (1 or 2)))
             return new(CatalogQueryDecision.Invalid, [], page, size, false);
-        if (!await db.IdentityUsers.AnyAsync(u => u.Id == actor && u.IsActive, ct))
+        if (!await CanReadReferencesAsync(actor.Value, ct))
             return new(CatalogQueryDecision.Forbidden, [], page, size, false);
 
         // Only reviewed, active, verified official goods/service identifiers.
         var hits = db.OfficialGoodsServiceEntries.AsNoTracking()
             .Where(x => x.VerificationStatus == 2 &&
-                db.CatalogReferenceReleases.Any(r => r.Id == x.ReleaseId && r.State == 3) &&
-                db.IdentityUserRoles.Any(role => role.UserId == actor &&
-                    (role.Role == IdentityRoleNames.Level1 ||
-                     role.Role == IdentityRoleNames.Level2 ||
-                     role.Role == IdentityRoleNames.Customer)));
+                db.CatalogReferenceReleases.Any(r => r.Id == x.ReleaseId && r.State == 3));
         if (kind is not null) hits = hits.Where(x => x.Kind == kind);
         if (!string.IsNullOrWhiteSpace(query))
         {
@@ -119,10 +125,7 @@ public sealed class CatalogSearchService(ArginTaxPayerDbContext db, IdentityAuth
         if (actor is null) return new(CatalogQueryDecision.Unauthenticated, [], page, size, false);
         if (!ValidPage(page, size, query))
             return new(CatalogQueryDecision.Invalid, [], page, size, false);
-        if (!await db.IdentityUsers.AsNoTracking().AnyAsync(user =>
-            user.Id == actor && user.IsActive && user.Roles.Any(role =>
-                role.Role == IdentityRoleNames.Level1 || role.Role == IdentityRoleNames.Level2 ||
-                role.Role == IdentityRoleNames.Customer), ct))
+        if (!await CanReadReferencesAsync(actor.Value, ct))
             return new(CatalogQueryDecision.Forbidden, [], page, size, false);
         var units = db.OfficialMeasurementUnits.AsNoTracking().Where(unit =>
             unit.Status == 1 && db.CatalogReferenceReleases.Any(release =>
