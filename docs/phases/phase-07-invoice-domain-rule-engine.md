@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 07: Invoice Domain and Rule Engine
 
-**Status:** Step 01 owner-approved 2026-10-17; Step 02 owner-approved 2026-10-17 (macOS test logs not attached); Step 03 owner-approved 2026-10-17 (test output not attached); Step 04 owner-approved 2026-10-17 (macOS evidence not attached); Step 05 owner-approved 2026-10-17 (operator test log not attached); Step 06 owner-approved 2026-10-17 (operator test logs not attached); Step 07 owner-approved 2026-10-17 (operator test logs not attached); Step 08 owner-approved 2026-10-17 (test logs not independently attached); Step 09 owner-approved 2026-10-17 (operator test logs not supplied); Step 10 owner-approved 2026-10-17 (operator test logs not attached); Step 11 code committed pending macOS tests and owner approval. Steps 12–24 not started.
+**Status:** Step 01 owner-approved 2026-10-17; Step 02 owner-approved 2026-10-17 (macOS test logs not attached); Step 03 owner-approved 2026-10-17 (test output not attached); Step 04 owner-approved 2026-10-17 (macOS evidence not attached); Step 05 owner-approved 2026-10-17 (operator test log not attached); Step 06 owner-approved 2026-10-17 (operator test logs not attached); Step 07 owner-approved 2026-10-17 (operator test logs not attached); Step 08 owner-approved 2026-10-17 (test logs not independently attached); Step 09 owner-approved 2026-10-17 (operator test logs not supplied); Step 10 owner-approved 2026-10-17 (operator test logs not attached); Step 11 owner-approved 2026-10-17 (operator test results not independently attached); Step 12 implemented awaiting macOS tests and owner acceptance. Steps 13–24 not started.
 **Branch:** `phase/07-invoice-domain-rule-engine`
 **Baseline:** `main` at `041bea0287c3b907a7b8910ef8602f51a8c1654c` (inspected 2026-10-17).
 **Roadmap:** `docs/roadmap/18-phases.md`, Phase 07 of 18.
@@ -48,8 +48,8 @@ Build a versioned electronic invoice domain and deterministic rules engine: lega
 | 08 | Header validation | Required identifiers, issue time and participant rules | Field-level positive and negative tests | Owner-approved 2026-10-17; operator test logs not attached |
 | 09 | Type/pattern rules | Field requirements by officially effective matrix | Reject unsupported combinations | Owner-approved 2026-10-17; test logs not independently attached |
 | 10 | Line and catalog rules | Official identifiers, mapping, unit, kind and source effective date | Fail closed on unresolved or expired sources | Owner-approved 2026-10-17; operator test logs not attached |
-| 11 | Monetary and tax rules | Totals, VAT resolution and precision validation | No universal rate assumption; exact totals | Implemented with truncation repair; operator tests and acceptance pending |
-| 12 | Rule-set versioning | Effective-dated immutable rule bundles and localized errors | Historical deterministic replay | Not started |
+| 11 | Monetary and tax rules | Totals, VAT resolution and precision validation | No universal rate assumption; exact totals | Owner-approved 2026-10-17; operator test logs not attached |
+| 12 | Rule-set versioning | Effective-dated immutable rule bundles and localized errors | Historical deterministic replay | Implemented, operator macOS tests and owner acceptance pending |
 | 13 | Invoice lifecycle | Draft/validated/finalized and separation of authority outcomes | Illegal transitions rejected | Not started |
 | 14 | Correction reference | Immutable predecessor linkage and permitted modifications | Cycle/invalid predecessor blocked | Not started |
 | 15 | Cancellation reference | Reference integrity and duplicate-operation guards | No inconsistent second cancellation | Not started |
@@ -506,3 +506,51 @@ git status --short
 ```
 
 **Database:** no migrations; **Ubuntu:** no new runtime service; fixed Step23 final dual-platform tests still required. **Owner acceptance:** pending.
+
+## Step 12 — Rule-set Versioning — Completion Record (2026-10-17)
+
+**Status:** Code, tests, and source governance committed. Owner acceptance and local macOS build/regression evidence pending. Step11 expressly owner-approved 2026-10-17; no independent test logs attached.
+
+### Primary source and governance
+
+The owner-supplied authority document **RC_IITP.IS V7.9**, Tir 1405, is the normative *content* reference for rules: Table1 p14 (field applicability), Table9 p31 (type/pattern), Table10 p32 (subject), Tables29–32 pp50–52 (lines), p23 (truncation), Tables40–44 pp58–63 (monetary/VAT). The authority PDF's *publication month does not prove the effective date of any rule or whether V7.9 is presently the operative edition*. Thus the official V7.9 built-in factory deliberately creates a **provisional, draft-only** bundle using the operator's explicitly provided comparison window. It neither makes up an official start date nor presents the owner-supplied document as currently verified for submission.
+
+Mandatory reference catalogue: [tax-authority-sdk-catalog.md](../references/tax-authority-sdk-catalog.md). Keep source and binary SDK generations 0.0.x and 2.0.x separately traceable; they do not override normative tax rules.
+
+### Architecture and contracts
+
+- New `InvoiceRuleSetSource.cs`: `RuleSetPrimarySource` stores official document ID, edition, precise citation and SHA-256. `RuleSetValidity` stores half-open UTC `[start, end)` applicability with explicit `DateVerified` and separate `DateEvidence`. Missing official effective-date evidence is not silently completed from publication month.
+- New `InvoiceRuleSetRegistry.cs`: `InvoiceRuleBundle` freezes scope, exact engine edition, source, validity window, explicit coverage keys and `CoverageReviewed` assertion. `InvoiceRuleSetRegistry` snapshots the bundle list and rejects duplicate edition/scope and overlapping time windows for the same scope even across different editions. Adjacent windows are permitted.
+- `Resolve(scope, edition, issueUtc)` selects **only** the requested edition on the requested UTC issue date. No "latest" fallback; unknown edition, outside-window, or unverified-date requests return distinct status outcomes. `ReplayDraft` evaluates the exact selected rule engine deterministically, with historical context pinned to that edition.
+- `CheckEvidenceReadiness` enforces explicit date-evidence and declared rule-coverage review before returning a selected bundle. Such claims are governance input, not independently validated governmental recognition. **All lookup and engine result types continue to expose `IsSubmissionAuthorized=false`**. Present Step12 bundles do not establish full legal coverage or complete the missing specialized validators in Steps08–11. Actual issuer/rate/certificate/authority acceptance is out of scope. No false-ready output.
+- `OfficialV79RuleSet.Draft(engine, fromUtc, toUtc, keys)` pins SHA256 to the owner-supplied V7.9 PDF `fb333770cddafd92d4ed3a5db0a21c1b0c47305431598f297f70fe5dd4c416be` and labels the window **provisional**; engine and source edition must agree. Provisional windows are for controlled test replay only.
+- New `InvoiceRuleMessageCatalog` registers explicit `fa-IR` and `en-US` localized strings by stable `MessageKey`, fails on duplicate keys and unsupported locales, and never substitutes user data into rule messages. Missing translations return `false`, with no silent translation fallback.
+
+### Boundaries and follow-up gates
+
+- Source scope is a Domain-only rule/version registry: not a database-persisted version store, not a complete production rule activation pipeline and not official date attestation. Later workflow/API must bind approved rule-set IDs and fingerprints to each invoice revision; cross-tenant authorization and immutable audits remain mandatory.
+- **The first official applicability notice per tax rule is still required** before any date-window may be treated as legally verified. Registration with `DateVerified=true` is merely an assertion supported by a separately supplied source; implement multi-person review/approval in application/workflow phases. Never infer fiscal validity from a clean validation result.
+- Partial monetary and pattern-specific gates (gold/exchange/export/fuel/chain and authoritative VAT classifications) remain unresolved and must prevent actual issuance. No SDK signing, tax authority calls, transport, business workflow, EF migration or PostgreSQL changes.
+
+### Files and tests
+
+- `src/ArginTaxPayer.Domain/Invoices/InvoiceRuleSetSource.cs` (new).
+- `src/ArginTaxPayer.Domain/Invoices/InvoiceRuleSetRegistry.cs` (new).
+- `src/ArginTaxPayer.Domain/Invoices/InvoiceRuleMessageCatalog.cs` (new).
+- `tests/ArginTaxPayer.Tests/Phase07RuleSetVersioningTests.cs` (new): provisional V7.9 registration, explicit edition selection, half-open boundaries, overlapping and duplicate rejection, missing edition, date provenance, frozen collections, incomplete coverage and inability to authorize submission.
+- `tests/ArginTaxPayer.Tests/Phase07LocalizedRuleMessagesTests.cs` (new): Persian/English lookup, unavailable messages and unsupported/duplicate locales.
+- This master phase file only; no step renumbering.
+
+**macOS operator verification:**
+```bash
+cd ~/projects/ArginTaxPayer
+git fetch origin
+git switch phase/07-invoice-domain-rule-engine
+git pull --ff-only
+dotnet restore ArginTaxPayer.sln
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --filter "FullyQualifiedName~Phase07RuleSetVersioningTests|FullyQualifiedName~Phase07LocalizedRuleMessagesTests|FullyQualifiedName~Phase07RuleEngineContractsTests|FullyQualifiedName~Phase07MonetaryTaxRulesTests" --no-restore
+dotnet test ArginTaxPayer.sln --no-restore
+git status --short
+```
+
+**Migration/database:** none. **Ubuntu-specific execution:** deferred for Domain-only change; final macOS/Ubuntu smoke acceptance remains fixed Step23. **Owner approval:** pending.
