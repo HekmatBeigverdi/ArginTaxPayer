@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 07: Invoice Domain and Rule Engine
 
-**Status:** Step 01 owner-approved 2026-10-17; Step 02 owner-approved 2026-10-17 (macOS test logs not attached); Step 03 owner-approved 2026-10-17 (test output not attached); Step 04 owner-approved 2026-10-17 (macOS evidence not attached); Step 05 owner-approved 2026-10-17 (operator test log not attached); Step 06 implementation committed pending macOS tests and owner acceptance. Steps 07–24 not started.
+**Status:** Step 01 owner-approved 2026-10-17; Step 02 owner-approved 2026-10-17 (macOS test logs not attached); Step 03 owner-approved 2026-10-17 (test output not attached); Step 04 owner-approved 2026-10-17 (macOS evidence not attached); Step 05 owner-approved 2026-10-17 (operator test log not attached); Step 06 owner-approved 2026-10-17 (operator test logs not attached); Step 07 implementation committed pending macOS acceptance. Steps 08–24 not started.
 **Branch:** `phase/07-invoice-domain-rule-engine`
 **Baseline:** `main` at `041bea0287c3b907a7b8910ef8602f51a8c1654c` (inspected 2026-10-17).
 **Roadmap:** `docs/roadmap/18-phases.md`, Phase 07 of 18.
@@ -44,7 +44,7 @@ Build a versioned electronic invoice domain and deterministic rules engine: lega
 | 04 | Invoice subjects | Original, correction, cancellation and sales return subject model | Invalid subject transitions rejected | Owner-approved 2026-10-17; local test logs not attached |
 | 05 | Invoice lines and catalog handoff | Copy Phase06 V1 immutable snapshots; quantities and units | No mutable-catalog dereference after snapshot | Owner-approved 2026-10-17; test output not independently provided |
 | 06 | Financial model | Decimal totals, VAT inputs, discount and rounding policies | Boundary and deterministic calculation cases | Implemented; macOS tests and owner acceptance pending |
-| 07 | Rule-engine contracts | RuleContext, stable rule keys, severities and deterministic evaluation | Unit-testable pure contracts | Not started |
+| 07 | Rule-engine contracts | RuleContext, stable rule keys, severities and deterministic evaluation | Unit-testable pure contracts | Implemented; macOS tests and owner acceptance pending |
 | 08 | Header validation | Required identifiers, issue time and participant rules | Field-level positive and negative tests | Not started |
 | 09 | Type/pattern rules | Field requirements by officially effective matrix | Reject unsupported combinations | Not started |
 | 10 | Line and catalog rules | Official identifiers, mapping, unit, kind and source effective date | Fail closed on unresolved or expired sources | Not started |
@@ -295,3 +295,44 @@ git status --short
 ```
 
 **Database migrations:** none. **Ubuntu:** deferred for domain-only code. **No live Tax Authority calls.** Acceptance and official financial-rule readiness are separate gates.
+
+## Step 07 — Rule-engine contracts — Completion Record (2026-10-17)
+
+**Status:** Code and tests committed; local macOS operator tests and owner approval pending. **Step06:** owner-approved on 2026-10-17, but raw test logs not attached.
+
+### Contract and standards provenance
+
+- Authority source: owner-provided Tax Authority `RC_IITP.IS V7.9` (Tir 1405). Step07 does **not** purport to implement substantive authority validity: its contract must let upcoming rules cite an explicit official document ID, edition, section/table/page and optional SHA-256 checksum. For example, Table9 p31 addresses patterns, Table10 p32 subjects, Tables15–20 pp39–42 header monetary totals and Tables40–44 pp58–63 line monetary/VAT rules. Complete effective dates and cross-pattern requirements are **not** inferred by this step.
+- Mandatory reference governance: [Tax Authority & SDK source catalogue](../references/tax-authority-sdk-catalog.md). Both SDK families 0.0.x and 2.0.x remain separately retained as evidence. SDK DTOs and third-party blogs **do not** set legal validation policy.
+- This is a deliberately *internal* Domain contract. The official fiscal document does **not** prescribe these C# type names, internal rule keys, result envelopes, sort order or message-key taxonomy. Those are project architecture choices for deterministic, testable implementation.
+
+### Implementation
+
+- New `src/ArginTaxPayer.Domain/Invoices/InvoiceRuleEngine.cs`: `InvoiceRuleKey` ensures stable lowercase dot/underscore identifiers; `InvoiceRuleSeverity` has Information, Warning and Error.
+- `InvoiceRuleSource` captures official document ID, edition, exact section/page and optional 64-character hex source checksum.
+- `InvoiceRuleContext` freezes invoice ID, customer ID, taxpayer ID, revision, UTC issue date, invoice type/pattern, subject, invoice line IDs and explicit rule-set edition. It snapshots the line-ID enumerable into a read-only array to prevent external mutation. *Identities are scope metadata, not proof of authorization*; API and persistence must verify the actor's access.
+- `IInvoiceRule` exposes key, provenance and an evaluation method. Findings carry a rule key, severity, stable localized message key, and optional field path, not dynamic sensitive content.
+- `InvoiceRuleEngine` rejects duplicate rule keys and rule-set edition mismatch. It snapshots registrations, evaluates in rule-key order, and sorts findings by rule key, path, severity and message key (ordinal comparison). It rejects null or foreign-key findings. Exceptions propagate, so internal failures cannot be interpreted as successful validation.
+- `InvoiceRuleEvaluation` reports `HasErrors` but **always returns `IsSubmissionAuthorized=false` in Step07**. An empty rule set or lack of findings does not assert fiscal correctness.
+- Rules are required by design to be pure and free of I/O, wall-clock time and mutable global state; this contract does not enforce purity on arbitrary third-party implementations. Rule bundling with effective dates and formal submission authority remains reserved for fixed Step12.
+
+### Scope and regression
+
+- Source-only Domain and xUnit changes. **No database/EF migration**, no API or UI routes, no signer, network, settlement, document status transition or authority submission.
+- Added `tests/ArginTaxPayer.Tests/Phase07RuleEngineContractsTests.cs`: stable key/value semantics, provenance, deep-enough snapshot isolation for line IDs, deterministic order independent of registration order, immutable output collections, empty-set fail-closed, duplicate-key/edition rejection, foreign finding rejection, exception propagation, and invalid severities.
+- Existing steps 02–06 are unchanged. The main `InvoiceAggregate` remains separate from rules; Step08 and later will connect specific official field validators, and Step12 will manage effective-dated certified rule sets.
+
+### Operator macOS commands
+
+```bash
+cd ~/projects/ArginTaxPayer
+git fetch origin
+git switch phase/07-invoice-domain-rule-engine
+git pull --ff-only
+dotnet restore ArginTaxPayer.sln
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --filter "FullyQualifiedName~Phase07RuleEngineContractsTests|FullyQualifiedName~Phase07InvoiceFinancialTests|FullyQualifiedName~Phase07InvoicePatternsTests" --no-restore
+dotnet test ArginTaxPayer.sln --no-restore
+git status --short
+```
+
+**Ubuntu:** no separate test needed for Domain-only Step07; final environment acceptance stays Step23. **Production database:** untouched. **Owner gate:** pending.
