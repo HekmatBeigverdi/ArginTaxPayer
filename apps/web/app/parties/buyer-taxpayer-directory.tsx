@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import ParticipantRegistrationModal from "./participant-registration-modal";
 import FiscalRecordModal from "./fiscal-record-modal";
 import ConsoleLoader from "../components/console-loader";
+import { canRegisterParticipant } from "./participant-access.mjs";
 
 type Buyer = { customerUserId: string; mobile: string | null; email: string | null;
   isActive: boolean; taxpayerCount: number; rootLevel1UserId: string | null;
@@ -33,7 +34,6 @@ export default function BuyerTaxpayerDirectory({ admin, level1, actorUserId }: {
   const requestVersion = useRef(0);
   const [buyers, setBuyers] = useState<Buyer[]>([]);
   const [registrationBuyers, setRegistrationBuyers] = useState<Buyer[]>([]);
-  const [registrationLoading, setRegistrationLoading] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<Row | null>(null);
   const [registerMode, setRegisterMode] = useState<"buyer" | "seller" | null>(null);
   const [filter, setFilter] = useState<"all" | "buyer" | "taxpayer">("all");
@@ -96,21 +96,14 @@ export default function BuyerTaxpayerDirectory({ admin, level1, actorUserId }: {
   const shown = rows;
 
   async function startRegistration(mode: "buyer" | "seller") {
-    setError("");
-    setRegisterMode(mode);
-    if (!admin) {
-      return;
-    }
-    setRegistrationLoading(true);
+    if (!admin) { setRegisterMode(mode); return; }
     try {
       const all = await get<Buyer[]>("/api/customer-owners/accounts");
-      const registrationCandidates = all.filter(x => x.isActive && x.profileComplete && (level1 ||
-        (x.partnerLevel2UserId === actorUserId || x.customerUserId === actorUserId)));
-      setRegistrationBuyers(registrationCandidates);
+      setRegistrationBuyers(all.filter(x => canRegisterParticipant(x)));
+      setRegisterMode(mode);
     } catch (e) {
       setError((e as Error).message);
-    } finally {
-      setRegistrationLoading(false);
+      setRegisterMode(null);
     }
   }
 
@@ -118,8 +111,7 @@ export default function BuyerTaxpayerDirectory({ admin, level1, actorUserId }: {
     {selectedRecord && <FiscalRecordModal key={selectedRecord.type + selectedRecord.id}
       record={selectedRecord} isLevel1={level1}
       onClose={() => setSelectedRecord(null)} onChanged={reload} />}
-    {registerMode && <ParticipantRegistrationModal mode={registerMode} buyers={admin ? registrationBuyers : buyers}
-      registrationLoading={registrationLoading} actorUserId={actorUserId}
+    {registerMode && <ParticipantRegistrationModal mode={registerMode} buyers={admin ? registrationBuyers : buyers} actorUserId={actorUserId}
       level1={level1} onClose={() => setRegisterMode(null)} onCompleted={reload}/> }
     {<div className="console-directory-actions">
       <button className="identity-primary" type="button" onClick={() => void startRegistration("buyer")}>+ افزودن خریدار</button>

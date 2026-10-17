@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { canRegisterParticipant } from "../app/parties/participant-access.mjs";
 
 const read = path => readFileSync(new URL("../" + path, import.meta.url), "utf8");
 
@@ -10,32 +11,28 @@ test("actor identity reaches buyer registration modal from authenticated server 
   const modal = read("app/parties/participant-registration-modal.tsx");
   assert.match(page, /actorUserId=\{actor\.userId\}/);
   assert.match(directory, /actorUserId=\{actorUserId\}/);
-  assert.match(modal, /buyer\.isActive && buyer\.profileComplete && \(level1 \|\|/);
-  assert.match(modal, /partnerLevel2UserId === actorUserId/);
+  assert.match(modal, /canRegisterParticipant\(chosenCustomer\)/);
+  assert.match(directory, /canRegisterParticipant\(x\)/);
 });
 
-test("inaccessible customers are disabled and cannot submit even with modified client state", () => {
+test("only completed profiles appear, regardless of assignment or active status", () => {
+  for (const isActive of [true, false]) {
+    for (const partnerLevel2UserId of [null, "partner", "other-partner"]) {
+      const customer = { customerUserId: "customer", isActive, partnerLevel2UserId };
+      assert.equal(canRegisterParticipant({ ...customer, profileComplete: true }), true);
+      assert.equal(canRegisterParticipant({ ...customer, profileComplete: false }), false);
+      assert.equal(canRegisterParticipant(customer), false);
+    }
+  }
+  assert.equal(canRegisterParticipant(undefined), false);
+});
+
+test("modal hides incomplete profiles and uses names without email or mobile fallbacks", () => {
   const modal = read("app/parties/participant-registration-modal.tsx");
-  assert.match(modal, /disabled=\{!permitted\}/);
-  assert.match(modal, /!authorizedCustomer/);
-  assert.match(modal, /مالکیت تجاری/);
+  assert.match(modal, /buyers\.filter\(b => canRegisterParticipant\(b\)\)/);
+  assert.match(modal, /\{b\.companyName \|\| b\.personName\}/);
+  assert.doesNotMatch(modal, /\|\| b\.email|\|\| b\.mobile/);
   assert.match(modal, /disabled=\{busy \|\| !authorizedCustomer/);
-});
-
-test("Level1 registration keeps completed profiles visible without root ownership filters", () => {
-  const directory = read("app/parties/buyer-taxpayer-directory.tsx");
-  const modal = read("app/parties/participant-registration-modal.tsx");
-  assert.match(directory, /x\.isActive && x\.profileComplete && \(level1 \|\|/);
-  assert.match(modal, /buyer\.isActive && buyer\.profileComplete && \(level1 \|\|/);
-  assert.match(modal, /const hasPermittedCustomer = buyers\.some\(isPermitted\)/);
-});
-
-test("registration modal opens immediately and waits inside while the customer list loads", () => {
-  const directory = read("app/parties/buyer-taxpayer-directory.tsx");
-  const modal = read("app/parties/participant-registration-modal.tsx");
-  assert.match(directory, /setRegisterMode\(mode\);[\s\S]*setRegistrationLoading\(true\);/);
-  assert.match(directory, /registrationLoading={registrationLoading}/);
-  assert.match(modal, /registrationLoading \? <div className="console-empty" role="status"/);
 });
 
 test("backend participant authorization uses scope service rather than global role alone", () => {

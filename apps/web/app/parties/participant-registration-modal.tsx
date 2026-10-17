@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import InvoiceParticipantForm from "./invoice-participant-form";
 import TaxpayerWorkspace from "../taxpayers/taxpayer-workspace";
+import { canRegisterParticipant } from "./participant-access.mjs";
 
 type Buyer = { customerUserId: string; mobile: string | null; email: string | null;
   isActive: boolean; rootLevel1UserId: string | null; partnerLevel2UserId: string | null;
@@ -14,10 +15,9 @@ const errorMessage = (code: number) => code === 400 ? "اطلاعات هویتی
   code === 409 ? "این شناسه قبلاً ثبت شده است؛ پرونده موجود را انتخاب کنید." :
   "عملیات انجام نشد؛ وضعیت سرور را بررسی کنید.";
 
-export default function ParticipantRegistrationModal({ mode, buyers, level1, actorUserId, registrationLoading, onClose, onCompleted,
+export default function ParticipantRegistrationModal({ mode, buyers, level1, actorUserId, onClose, onCompleted,
   initialCustomerId = "", initialSubjectId = "" }: {
   mode: Mode; buyers: Buyer[]; level1: boolean; actorUserId: string; onClose: () => void;
-  registrationLoading?: boolean;
   onCompleted: () => Promise<void>; initialCustomerId?: string; initialSubjectId?: string;
 }) {
   const [customerId, setCustomerId] = useState(initialCustomerId ||
@@ -36,10 +36,7 @@ export default function ParticipantRegistrationModal({ mode, buyers, level1, act
   const closeRef = useRef<HTMLButtonElement>(null);
   const complete = Boolean(subjectId);
   const chosenCustomer = buyers.find(b => b.customerUserId === customerId);
-  const isPermitted = (buyer: Buyer) => buyer.isActive && buyer.profileComplete && (level1 ||
-    (buyer.customerUserId === actorUserId || buyer.partnerLevel2UserId === actorUserId));
-  const authorizedCustomer = Boolean(chosenCustomer && isPermitted(chosenCustomer));
-  const hasPermittedCustomer = buyers.some(isPermitted);
+  const authorizedCustomer = canRegisterParticipant(chosenCustomer);
 
   useEffect(() => {
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -64,8 +61,9 @@ export default function ParticipantRegistrationModal({ mode, buyers, level1, act
 
   async function create(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (busy || !authorizedCustomer) {
-      setError("مالکیت تجاری حساب انتخاب‌شده به ادمین فعلی اختصاص ندارد. ابتدا انتساب مشتری را در بخش کاربران بررسی کنید.");
+    if (busy) return;
+    if (!authorizedCustomer) {
+      setError("ابتدا یک مشتری با پروفایل تکمیل‌شده انتخاب کنید.");
       return;
     }
     setBusy(true); setError("");
@@ -116,26 +114,22 @@ export default function ParticipantRegistrationModal({ mode, buyers, level1, act
           disabled={busy} onClick={onClose} aria-label="بستن پنجره">×</button>
       </header>
       <div className="argin-modal-body">
-        {registrationLoading ? <div className="console-empty" role="status" aria-live="polite">
-          در حال دریافت فهرست مشتریان مجاز…
-        </div> : !complete ? <form className="invoice-fields" onSubmit={create}>
+        {!complete ? <form className="invoice-fields" onSubmit={create}>
           <label>حساب مشتری / مالک پرونده
             <select value={customerId} onChange={e => setCustomerId(e.target.value)} required>
               <option value="">حساب مرتبط را انتخاب کنید</option>
-              {buyers.map(b => {
-                const permitted = isPermitted(b);
-                return <option value={b.customerUserId} key={b.customerUserId} disabled={!permitted}>
-                  {b.companyName || b.personName || "پروفایل تکمیل‌نشده"}
-                  {!permitted ? " — بدون انتساب مجاز / غیرفعال" : ""}
+              {buyers.filter(b => canRegisterParticipant(b)).map(b => {
+                return <option value={b.customerUserId} key={b.customerUserId}>
+                  {b.companyName || b.personName}
                 </option>;
               })}
             </select>
           </label>
           {customerId && !authorizedCustomer && <p role="alert" className="party-error">
-            این حساب در محدوده مالکیت تجاری ادمین فعلی نیست. از بخش کاربران نرم‌افزار، انتساب تجاری مشتری را بررسی کنید.
+            ابتدا پروفایل مشتری را تکمیل کنید تا نام شخص یا شرکت در فهرست نمایش داده شود.
           </p>}
-          {!hasPermittedCustomer &&
-            <p role="alert" className="party-error">در فهرست فعلی مشتری مجاز برای ثبت وجود ندارد. ابتدا انتساب تجاری مشتری را بررسی کنید.</p>}
+          {!buyers.some(b => canRegisterParticipant(b)) &&
+            <p role="alert" className="party-error">مشتری با پروفایل تکمیل‌شده در فهرست وجود ندارد. ابتدا مشخصات مشتری را تکمیل کنید.</p>}
           <label>نوع شخصیت
             <select value={kind} onChange={e => setKind(e.target.value)}>
               <option value="1">شخص حقیقی</option><option value="2">شخص حقوقی (شرکت)</option>
