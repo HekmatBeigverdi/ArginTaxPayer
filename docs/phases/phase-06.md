@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 06: Goods and Services
 
-**Status:** Steps01–13 owner-approved (Step13 explicitly confirmed 2026-10-17; macOS/build/browser outputs not independently attached). Step14 Invoice Handoff Contracts implemented; focused/integration tests and owner acceptance pending. Steps15–16 not started.
+**Status:** Steps01–14 explicitly owner-approved (Step14 operator-reported successful tests on 2026-10-17; raw output not independently received). Step15 Security and Regression implementation/tests committed; local/integration acceptance pending. Step16 not started.
 **Branch:** `phase/06-goods-services`
 **Baseline:** `main` after Phase05 merge `6a3de74692403029b68c2061251601752eebd518`.
 **Roadmap:** `docs/roadmap/18-phases.md`, Phase 06.
@@ -18,8 +18,8 @@ Preserve Phase03 identity, Phase04 customer/partner ownership and Phase05 partie
 |---|---|---|---|---|---|
 | 01 | Architecture and Contracts | Domain model, ADR, API, permissions and phase boundaries | Contract review and no overlap with prior phases | Phase05 | Owner-approved 2026-10-16; ArginAccounting compatibility amendment |
 | 02 | Persistence and Migrations | Reference tables, customer catalog and additive EF migration | Test database only; constraint and rollback review | 01 | Owner-approved 2026-10-16; test logs not independently captured |
-| 03 | Official Identifier Model | Official goods/service identifier, origin and verification | Reject invalid/duplicate identifiers and unsupported official claims | 02 | Implemented; operator tests and owner signoff pending |
-| 04 | Official Unit Codes | Official unit-code reference and internal-unit mapping | Reject unknown units and incompatible mappings | 03 | Pending |
+| 03 | Official Identifier Model | Official goods/service identifier, origin and verification | Reject invalid/duplicate identifiers and unsupported official claims | 02 | Owner-approved earlier Phase06 progression; raw results not attached |
+| 04 | Official Unit Codes | Official unit-code reference and internal-unit mapping | Reject unknown units and incompatible mappings | 03 | Owner-approved earlier Phase06 progression; 102-unit seed confirmed by operator |
 | 05 | VAT Classification | Date- and source-dependent VAT classification, rates and exemptions | Do not assume fixed rates; test boundary dates | 03–04 | Owner-approved 2026-10-16; tests/migration operator-reported successful |
 | 06 | Versioned Reference Catalog | Source versions, validity intervals, snapshots and immutable history | Recover prior versions and control overlap | 03–05 | Owner approved 2026-10-16; tests/migration reported successful |
 | 07 | Reference Import Pipeline | Official-file staging, preview and validation | Idempotent repeated import and reported errors | 06 | Owner-approved 2026-10-16; focused tests operator-reported successful |
@@ -29,8 +29,8 @@ Preserve Phase03 identity, Phase04 customer/partner ownership and Phase05 partie
 | 11 | Tax Identifier Mapping | Historical mapping from customer items/services to official identifiers | Reject invalid or wrong-kind mappings | 08–10 | Owner-approved 2026-10-16; tests/migration operator-reported successful |
 | 12 | Catalog API and Search | Search, filtering, pagination and concurrency support | Role, paging and stale-update tests | 09–11 | Owner-approved 2026-10-16; operator-reported successful |
 | 13 | RTL Catalog UI | Lists, forms, selection search and localized errors | Authorized paths, validation and accessibility tests | 12 | Owner-approved 2026-10-17; dashboard/branding refinements accepted |
-| 14 | Invoice Handoff Contracts | Immutable snapshot contract for Phases 07/08 without invoice issuance | Version contract and historical immutability tests | 06, 11–13 | Code/tests committed, awaiting operator verification and owner approval |
-| 15 | Security and Regression | Isolation, race, migration and Phase03–05 regression tests | Prevent cross-customer and former-partner access | 01–14 | Pending |
+| 14 | Invoice Handoff Contracts | Immutable snapshot contract for Phases 07/08 without invoice issuance | Version contract and historical immutability tests | 06, 11–13 | Owner-approved 2026-10-17; tests operator-reported successful |
+| 15 | Security and Regression | Isolation, race, migration and Phase03–05 regression tests | Prevent cross-customer and former-partner access | 01–14 | Focused tests and read-only live smoke scripts committed; owner acceptance pending |
 | 16 | Final Acceptance and Handoff | Mac and Ubuntu aggregate tests, documentation and risk report | Evidence report, owner approval and separate merge/tag | 15 | Pending |
 
 ## Engineering and Safety Invariants
@@ -734,7 +734,62 @@ No EF migration in Step14. Use `zsh scripts/dev-up.zsh`/`zsh scripts/dev-status.
 - Frozen contract contains all intended item/official/unit provenance, UTC effective time and explicit unresolved VAT; consumers cannot treat it as a complete invoice.
 - Previously recorded invoice snapshots are not mutated by later changes (future invoice persistence responsibility); Phase03–05 scope regression unaffected.
 - No new migration, no invoice API/numbering/financial transactions, and Step04 102 units retained.
-**Owner signoff Step14:** Pending.
+**Owner signoff Step14:** Approved 2026-10-17; operator reported focused/full tests successful. No raw outputs attached.
+
+
+## Step 15 — Security and Regression (2026-10-17)
+
+**Status:** Tests and focused hardening committed to `phase/06-goods-services`; awaiting local build, operator session-based test evidence and owner signoff. Step14 approved by owner; no assistant-run test/CI evidence is claimed.
+
+### Security hardening
+1. `CustomerProductService.ListAsync` now rejects page offsets exceeding `int.MaxValue`, aligning with bounded `CustomerServiceCatalogService` and `CatalogSearchService`. Prevents multiplication overflow and invalid SQL OFFSET during large requests. This does not change valid pagination.
+2. `CatalogSearchService.OfficialAsync` and `UnitsAsync` now share `CanReadReferencesAsync`: a live active user + current recognized Customer role, or live Level1/Level2 role **and enabled MFA**. Neither browser-controlled role strings nor stale partner memberships establish access. Tenant product/service reads remain restricted by current commercial owner or self Customer status.
+3. No customer-level data is returned by `OfficialCatalogHit`; products/services continue filtering `CustomerUserId` in DB. The public reference directory remains a shared authenticated resource rather than a customer document. The source/identity gate does not imply external tax-authority verification.
+4. Existing PostgreSQL trigger protections for audit immutability, reference state history, and non-overlapping mapping windows remain unchanged. No security-related schema migration was introduced.
+5. Existing Next.js catalog proxy remains development-only, exact route allowlisted, cookie-to-Bearer forwarded server side with Origin check on writes, and read-only data search limits. A separate source-contract regression test records this boundary.
+
+### Added tests and review scripts
+- `tests/ArginTaxPayer.Tests/Phase06SecurityRegressionTests.cs`: pure/domain and EF metadata constraints for pagination bounds, non-reversible state machine, provenance fail-closed, historical UTC windows, tenant unique code index and restrictive FKs, baseline identity permission grants.
+- `apps/web/tests/catalog-security.test.mjs`: asserts Next BFF same-origin, server-only session, protected route registration, customer-scoped query contracts. Static source checks only, **not an HTTP security proof**.
+- `scripts/phase06-step15-auth-smoke.py`: **read-only real HTTP negative/positive smoke** with four *distinct actual* test sessions and two customer UUIDs. Requires explicit `PHASE06_ROOT_TOKEN`, `PHASE06_PARTNER_TOKEN`, `PHASE06_CUSTOMER_TOKEN`, `PHASE06_OTHER_TOKEN`, `PHASE06_CUSTOMER_ID`, `PHASE06_OTHER_CUSTOMER_ID`. No tokens printed, no state mutation. Requires operator fixture where Level1 and Level2 currently own first customer and unrelated user is not assigned; checks 401/403/200, scoped response rows, invalid paging/kind.
+- `scripts/phase06-step15-db-guards.sh`: read-only `psql` catalog guard inspection, strictly requiring `PGDATABASE=argintaxpayer_test`, localhost tunnel `PGHOST=127.0.0.1`/`PGPORT=15432`, and other private `PG*` credentials. Read-only transaction queries existing trigger names/indexes, reference unit seed and history counts. Never applies DB migrations.
+- `docs/phases/phase-06.md`: Step14 signoff and this Step15 checklist.
+
+### Execute on macOS
+```bash
+git fetch origin
+git switch phase/06-goods-services
+git pull --ff-only
+dotnet build ArginTaxPayer.sln -c Release
+dotnet test ArginTaxPayer.sln -c Release --no-build --filter "FullyQualifiedName~Phase06SecurityRegressionTests"
+dotnet test ArginTaxPayer.sln -c Release --no-build
+cd apps/web
+npm run typecheck
+npm test
+npm run build
+cd ../..
+zsh scripts/dev-up.zsh
+zsh scripts/dev-status.zsh
+```
+
+**Read-only role smoke** (ONLY after four distinct disposable test sessions + two real test customer IDs are available; avoid storing tokens in shell history, Git or chat):
+```bash
+python3 scripts/phase06-step15-auth-smoke.py
+```
+The script refuses to run without the required environment inputs. No default credentials, no guessed fixture user IDs and no mutations. Use `python3 -m py_compile scripts/phase06-step15-auth-smoke.py` for independent syntax check. For the DB inspection, supply private PostgreSQL connection environment and run `bash scripts/phase06-step15-db-guards.sh` only after confirming it references the intended isolated test database.
+
+### Remaining integration gates — NOT demonstrated by static/unit tests
+1. Customer A, Customer B and Level2 assigned to A: test A self vs B denial; assigned Level2 vs unrelated A/B; Level1 owner vs unowned target; verify item results and mapping history cannot leak. The read-only smoke covers a subset with real session tokens.
+2. **Ownership reassignment:** using disposable test customers and documented admin workflow, reassign A from Level2 partner P to partner Q, then confirm P immediately receives 403 for new reads, writes, mapping history and invoice handoff; Q granted only its current lawful scope. Repeat with a currently open browser/session (no stale privilege).
+3. **MFA/session revocation:** disable MFA on isolated admin fixture, revoke active sessions, verify Level1/Level2 privileged access denied; restore fixture per owner policy. This must not be performed on the owner's real accounts.
+4. **Concurrency:** disposable item/mapping records only; two simultaneous creates with identical normalized internal code should produce exactly one success and one conflict; stale Revision update denied; concurrent official mapping effective intervals must not both persist overlapping ranges.
+5. **DB guard behavior:** in isolated, rollback-only PostgreSQL fixtures, verify `trg_phase06_tax_mapping_guard` denies UPDATE of identifier/source and DELETE of history, allows one permitted window close; `trg_phase06_audit_immutable` rejects audit UPDATE/DELETE. Confirm migration history/102 staged seed untouched.
+6. Full Phase03–05 identity/party/owner regression and absence of public production catalog routes; confirm build and Next.js UI tests as above.
+
+**Migration:** None. There were no added columns, entities, indexes or triggers. Do **not** run `dotnet ef database update` for Step15. No live authority activation, invoice issuance or production data changes. Successful read-only inspection does not by itself prove race-condition safety.
+
+**Acceptance:** Operator submits focused/full .NET, Next.js and smoke results, verifies negative role cases/ownership transfer/concurrency/trigger behavior in disposable fixtures and explicitly approves Step15 before starting Step16.
+**Owner signoff Step15:** Pending.
 
 ## Phase Closeout
 
