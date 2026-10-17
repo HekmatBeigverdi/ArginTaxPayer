@@ -9,7 +9,7 @@ type Tile = { title: string; description: string; href?: string; meta?: string; 
 const customerModules: Tile[] = [
   { title: "خریداران و مؤدیان", description: "حساب‌ها و اشخاص حقیقی یا حقوقی وابسته به شما", href: "/parties", symbol: "اش", meta: "فعال" },
   { title: "کالاها و خدمات", description: "تعریف و مدیریت اقلام صورتحساب", symbol: "کا", meta: "در فاز بعد" },
-  { title: "صدور و ارسال صورتحساب", description: "انتخاب قالب، ارسال و فهرست صورتحساب‌های ثبت‌شده", symbol: "فا", meta: "در فاز بعد" },
+  { title: "پیش‌نویس صورتحساب", description: "ساخت و مشاهده پیش‌نویس داخلی، بدون ارسال مالیاتی", href: "/invoices", symbol: "فا", meta: "پیش‌نویس" },
   { title: "تنظیمات", description: "تنظیمات مالیاتی و ترجیحات حساب", symbol: "تن", meta: "در انتظار تعریف" },
   { title: "پروفایل و اشتراک", description: "اطلاعات خریدار پنل؛ انتخاب و خرید پلن پس از فعال‌شدن فروش", href: "/account", symbol: "پر", meta: "پروفایل فعال" },
   { title: "تراکنش‌های مالی", description: "سوابق خرید، پرداخت و تمدید", symbol: "ما", meta: "در فاز مالی" }
@@ -18,7 +18,7 @@ const adminModules: Tile[] = [
   { title: "کاربران نرم‌افزار", description: "ایجاد و مدیریت حساب‌های ورود و نقش‌های سامانه", href: "/users", symbol: "کا", meta: "مدیریت" },
   { title: "خریداران و مؤدیان", description: "ثبت مشتری، اشخاص حقیقی و حقوقی و مؤدیان متعلق به هر حساب", href: "/parties", symbol: "اش", meta: "مدیریت" },
   { title: "مالکیت تجاری مشتریان", description: "انتساب مشتری به ادمین و پیگیری محدوده دسترسی", href: "/users", symbol: "مل", meta: "مدیریت" },
-  { title: "کالاها و صورتحساب‌ها", description: "نظارت بر عملیات مالیاتی مشتریان مجاز", symbol: "فا", meta: "در فاز بعد" },
+  { title: "پیش‌نویس صورتحساب‌ها", description: "مشاهده و ایجاد پیش‌نویس برای مؤدیان مجاز", href: "/invoices", symbol: "فا", meta: "پیش‌نویس" },
   { title: "اشتراک‌ها و تراکنش‌ها", description: "مدیریت پلن‌ها، پرداخت‌ها و تمدیدها", symbol: "اش", meta: "در فاز مالی" },
   { title: "تنظیمات و امنیت", description: "نشست‌ها، امنیت و تأیید دومرحله‌ای", href: "/account", symbol: "ام", meta: "فعال" }
 ];

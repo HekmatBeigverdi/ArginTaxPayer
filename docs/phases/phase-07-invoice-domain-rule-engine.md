@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 07: Invoice Domain and Rule Engine
 
-**Status:** Step 01 owner-approved 2026-10-17; Step 02 owner-approved 2026-10-17 (macOS test logs not attached); Step 03 owner-approved 2026-10-17 (test output not attached); Step 04 owner-approved 2026-10-17 (macOS evidence not attached); Step 05 owner-approved 2026-10-17 (operator test log not attached); Step 06 owner-approved 2026-10-17 (operator test logs not attached); Step 07 owner-approved 2026-10-17 (operator test logs not attached); Step 08 owner-approved 2026-10-17 (test logs not independently attached); Step 09 owner-approved 2026-10-17 (operator test logs not supplied); Step 10 owner-approved 2026-10-17 (operator test logs not attached); Step 11 owner-approved 2026-10-17 (operator test results not independently attached); Step 12 owner-approved 2026-10-17 (independent macOS logs not attached); Step 13 owner-approved 2026-10-17 (macOS logs not supplied); Step 14 owner-approved 2026-10-17 (operator macOS logs not attached); Step 15 owner-approved 2026-10-17 (operator macOS logs not attached); Step 16 owner-approved 2026-10-17 (independent macOS test logs unavailable); Step 17 owner-approved 2026-10-17 (independent macOS logs not attached); Step 18 owner-approved 2026-10-17 (actual PostgreSQL logs not attached); Step 19 safe draft API implemented, operator verification pending. Steps 20–24 not started.
+**Status:** Step 01 owner-approved 2026-10-17; Step 02 owner-approved 2026-10-17 (macOS test logs not attached); Step 03 owner-approved 2026-10-17 (test output not attached); Step 04 owner-approved 2026-10-17 (macOS evidence not attached); Step 05 owner-approved 2026-10-17 (operator test log not attached); Step 06 owner-approved 2026-10-17 (operator test logs not attached); Step 07 owner-approved 2026-10-17 (operator test logs not attached); Step 08 owner-approved 2026-10-17 (test logs not independently attached); Step 09 owner-approved 2026-10-17 (operator test logs not supplied); Step 10 owner-approved 2026-10-17 (operator test logs not attached); Step 11 owner-approved 2026-10-17 (operator test results not independently attached); Step 12 owner-approved 2026-10-17 (independent macOS logs not attached); Step 13 owner-approved 2026-10-17 (macOS logs not supplied); Step 14 owner-approved 2026-10-17 (operator macOS logs not attached); Step 15 owner-approved 2026-10-17 (operator macOS logs not attached); Step 16 owner-approved 2026-10-17 (independent macOS test logs unavailable); Step 17 owner-approved 2026-10-17 (independent macOS logs not attached); Step 18 owner-approved 2026-10-17 (actual PostgreSQL logs not attached); Step 19 owner-approved 2026-10-17 (independent test logs not attached); Step 20 invoice-entry UI implemented, awaiting operator UI/API acceptance. Steps 21–24 not started.
 **Branch:** `phase/07-invoice-domain-rule-engine`
 **Baseline:** `main` at `041bea0287c3b907a7b8910ef8602f51a8c1654c` (inspected 2026-10-17).
 **Roadmap:** `docs/roadmap/18-phases.md`, Phase 07 of 18.
@@ -56,8 +56,8 @@ Build a versioned electronic invoice domain and deterministic rules engine: lega
 | 16 | Sales-return reference | Line-level partial/cumulative return constraints | Cannot return more than eligible quantity | Owner-approved 2026-10-17; independent test log not attached |
 | 17 | Concurrency and idempotency | Revision/CAS, scoped reference integrity, replay key policy | Concurrent conflict and replay tests | Owner-approved 2026-10-17; operator logs not supplied |
 | 18 | Persistence and migrations | EF Core PostgreSQL additive schema and constraints | Test DB-only migration review; no production modifications | Not started |
-| 19 | Application services and API | Scoped commands/queries and stable error contracts | Authorization and API contract tests | Safe scoped draft create/read/list API implemented; macOS and HTTP acceptance pending |
-| 20 | Invoice-entry UI | RTL dynamic type/pattern, party and item selection | Usable keyboard and responsive flows | Not started |
+| 19 | Application services and API | Scoped commands/queries and stable error contracts | Authorization and API contract tests | Owner-approved 2026-10-17; operator HTTP logs not attached |
+| 20 | Invoice-entry UI | RTL dynamic type/pattern, party and item selection | Usable keyboard and responsive flows | RTL preview, initial draft create/list/read, catalog staging; operator acceptance pending |
 | 21 | Validation/reference UI | Field errors and related-document history | Accessibility and scoped operation tests | Not started |
 | 22 | Comprehensive regression | Domain/integration/contract/security suite | Negative cases, Phase03–06 compatibility | Not started |
 | 23 | macOS and Ubuntu acceptance | Local suite, VPS verify, DB/HTTP operator evidence | Both environments owner-approved | Not started |
@@ -883,3 +883,48 @@ git status --short
     zsh scripts/dev-status.zsh
 
 Use a current legitimate session for scoped endpoint checks; verify unauthenticated 401, foreign taxpayer 404, and authorized create/get/list. Do not share tokens or secrets. Step18 migration must exist in the dedicated test database before POST (check __EFMigrationsHistory after verifying current_database()). Neither launcher nor this step applies DB changes. Offline tests do not prove live HTTP authorization or multi-instance database behavior. **Owner acceptance:** pending.
+
+## Step 20 — Invoice-entry UI — Completion Record (2026-10-17)
+
+**Status:** Implemented and source-controlled; real browser, HTTP, UI keyboard/responsiveness and macOS/Ubuntu tests pending. Owner expressly approved Step19; no independently verified test output was supplied.
+
+### Design and integrity
+
+- The Step19 backend only persists an initial Original Draft with UTC issue date, seller display name and optional buyer name. Type/pattern, lines, legal party selection, pricing, VAT, references and finalization **do not have persistence APIs**. The Step20 UI separates persisted header from **preview-only** type/pattern and catalog staging. Users cannot submit with a nondefault type/pattern or any staged lines; UI clearly warns that they are not stored or sent.
+- Persian RTL console page /invoices with native accessible fields, focus feedback, responsive columns, taxpayer selection via existing live-authorized /api/taxpayers/list, reusable PersianDatePicker and explicit UTC time. Read-only list is scoped by backend, limited to latest 100, with revision and internal state, no invented fiscal acceptance.
+- UI-only matrix shows V7.9 patterns for Type1 and Type2. Catalog staging uses existing scoped catalog endpoints; administrators may choose from their existing authorized customer directory. No financial math, fiscal sending or promise that staged lines are saved.
+- Guarded Next proxy /api/invoices/[...segments] supports only GET list, GET item and POST initial draft. It uses HttpOnly session cookie server-side, same-origin checks for writes, payload field allowlist, strict UUID paths, size cap, no-store and redirects disabled. Source API separately checks live session, role/MFA and customer-taxpayer ownership. No PUT/PATCH/DELETE or Send/Finalize API is exposed.
+- Sidebar/dashboard link to clearly labeled Draft module, not tax submission. Step20 does not modify DB schema, API, worker, or SDK.
+
+### Files
+
+- apps/web/app/(console)/invoices/page.tsx
+- apps/web/app/invoices/workspace.tsx
+- apps/web/app/api/invoices/[...segments]/route.ts
+- apps/web/app/components/console-shell.tsx
+- apps/web/app/(console)/dashboard/page.tsx
+- apps/web/app/globals.css
+- apps/web/tests/phase07-invoice-entry-ui.test.mjs (five offline checks)
+- This sole Phase07 master plan, fixed 24-step order unchanged.
+
+### macOS verification
+
+    cd ~/projects/ArginTaxPayer
+    git fetch origin
+    git switch phase/07-invoice-domain-rule-engine
+    git pull --ff-only
+    dotnet restore ArginTaxPayer.sln
+    dotnet build ArginTaxPayer.sln -c Release --no-restore
+    dotnet test ArginTaxPayer.sln -c Release --no-build
+    cd apps/web
+    npm ci --no-audit --no-fund
+    node --test tests/phase07-invoice-entry-ui.test.mjs
+    npm test
+    npm run typecheck
+    npm run build
+    cd ../..
+    zsh scripts/dev-down.zsh
+    zsh scripts/dev-up.zsh
+    zsh scripts/dev-status.zsh
+
+Open http://127.0.0.1:3000/invoices with legitimate session; confirm create/read/list within authorized taxpayer, no-session 401 and foreign taxpayer 404, disabled creation with preview pattern/items, keyboard operation and responsive layout. Step18 migration must already have been applied to dedicated argintaxpayer_test; launcher does not migrate. Do not share credentials, tokens or database password. **Validation/reference UI remains Step21.** Owner acceptance pending.
