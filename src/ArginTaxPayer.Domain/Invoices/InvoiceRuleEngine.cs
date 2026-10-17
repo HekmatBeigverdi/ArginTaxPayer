@@ -67,12 +67,14 @@ public sealed class InvoiceRuleContext
     public IReadOnlyList<Guid> LineIds { get; }
     public string RuleSetEdition { get; }
     public InvoiceHeaderFields? Header { get; }
+    public InvoicePatternHeaderFields? PatternHeader { get; }
     public DateTime AsOfUtc { get; }
 
     public InvoiceRuleContext(Guid invoiceId, Guid customerUserId, Guid taxpayerId,
         long revision, DateTime issueDateUtc, InvoiceTypePattern classification,
         InvoiceSubject subject, IEnumerable<Guid> lineIds, string ruleSetEdition,
-        InvoiceHeaderFields? header = null, DateTime? asOfUtc = null)
+        InvoiceHeaderFields? header = null, DateTime? asOfUtc = null,
+        InvoicePatternHeaderFields? patternHeader = null)
     {
         if (invoiceId == Guid.Empty || customerUserId == Guid.Empty || taxpayerId == Guid.Empty ||
             revision < 1 || issueDateUtc.Kind != DateTimeKind.Utc ||
@@ -96,6 +98,7 @@ public sealed class InvoiceRuleContext
         LineIds = Array.AsReadOnly(frozen);
         RuleSetEdition = ruleSetEdition;
         Header = header;
+        PatternHeader = patternHeader;
         // Caller injects evaluation clock: never read DateTime.UtcNow in a rule.
         // Missing clock does not imply current legal validity.
         AsOfUtc = asOfUtc ?? issueDateUtc;

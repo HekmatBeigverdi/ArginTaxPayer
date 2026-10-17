@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 07: Invoice Domain and Rule Engine
 
-**Status:** Step 01 owner-approved 2026-10-17; Step 02 owner-approved 2026-10-17 (macOS test logs not attached); Step 03 owner-approved 2026-10-17 (test output not attached); Step 04 owner-approved 2026-10-17 (macOS evidence not attached); Step 05 owner-approved 2026-10-17 (operator test log not attached); Step 06 owner-approved 2026-10-17 (operator test logs not attached); Step 07 owner-approved 2026-10-17 (operator test logs not attached); Step 08 implemented pending macOS acceptance. Steps 09–24 not started.
+**Status:** Step 01 owner-approved 2026-10-17; Step 02 owner-approved 2026-10-17 (macOS test logs not attached); Step 03 owner-approved 2026-10-17 (test output not attached); Step 04 owner-approved 2026-10-17 (macOS evidence not attached); Step 05 owner-approved 2026-10-17 (operator test log not attached); Step 06 owner-approved 2026-10-17 (operator test logs not attached); Step 07 owner-approved 2026-10-17 (operator test logs not attached); Step 08 owner-approved 2026-10-17 (test logs not independently attached); Step 09 implemented pending operator macOS tests and owner approval. Steps 10–24 not started.
 **Branch:** `phase/07-invoice-domain-rule-engine`
 **Baseline:** `main` at `041bea0287c3b907a7b8910ef8602f51a8c1654c` (inspected 2026-10-17).
 **Roadmap:** `docs/roadmap/18-phases.md`, Phase 07 of 18.
@@ -45,8 +45,8 @@ Build a versioned electronic invoice domain and deterministic rules engine: lega
 | 05 | Invoice lines and catalog handoff | Copy Phase06 V1 immutable snapshots; quantities and units | No mutable-catalog dereference after snapshot | Owner-approved 2026-10-17; test output not independently provided |
 | 06 | Financial model | Decimal totals, VAT inputs, discount and rounding policies | Boundary and deterministic calculation cases | Implemented; macOS tests and owner acceptance pending |
 | 07 | Rule-engine contracts | RuleContext, stable rule keys, severities and deterministic evaluation | Unit-testable pure contracts | Owner-approved 2026-10-17; operator test logs not attached |
-| 08 | Header validation | Required identifiers, issue time and participant rules | Field-level positive and negative tests | Implemented; operator macOS tests and owner acceptance pending |
-| 09 | Type/pattern rules | Field requirements by officially effective matrix | Reject unsupported combinations | Not started |
+| 08 | Header validation | Required identifiers, issue time and participant rules | Field-level positive and negative tests | Owner-approved 2026-10-17; operator test logs not attached |
+| 09 | Type/pattern rules | Field requirements by officially effective matrix | Reject unsupported combinations | Implemented V7.9 classification/selected conditional fields; legal applicability verification and macOS test pending |
 | 10 | Line and catalog rules | Official identifiers, mapping, unit, kind and source effective date | Fail closed on unresolved or expired sources | Not started |
 | 11 | Monetary and tax rules | Totals, VAT resolution and precision validation | No universal rate assumption; exact totals | Not started |
 | 12 | Rule-set versioning | Effective-dated immutable rule bundles and localized errors | Historical deterministic replay | Not started |
@@ -367,3 +367,42 @@ dotnet test ArginTaxPayer.sln --no-restore
 git status --short
 ```
 **Migration:** None; **Ubuntu:** not required for Domain-only; **Owner acceptance:** Pending.
+
+## Step 09 — Type/pattern rules — Completion Record (2026-10-17)
+
+**Status:** Implemented and committed to Phase07 branch; owner acceptance and macOS tests pending. **Step08:** owner-approved 2026-10-17; operator test logs not independently attached.
+
+**Mandatory primary sources:** Owner-supplied Iranian Tax Authority `RC_IITP.IS V7.9` (Tir 1405). **Table1 p14**: field presence matrix for sixteen Type1/Type2 patterns; **Table8 p30**: `irtaxid` reference is required for corrective, cancellation and sales-return subjects; **Table9 p31**: supported Type1 patterns 1,2,3,4,5,6,7,8,9,11,13,14; Type2 patterns 1,3,9,13; gold construction/profit/commission/total required; **Table10 p32**: export/waybill/commodity exchange cannot use sales return; cancellation `inty` and `inp` are outside pattern; referring subjects buyer fields are outside pattern; **Table11 pp33–35**: conditional person/branch, `crn` contract number for contracting, flight type `ft` for airline; **Table14 p38**: bill identifier for utility pattern. Rule schema is primary-source derived, not based on nonofficial articles. See [mandatory Tax Authority and SDK catalogue](../references/tax-authority-sdk-catalog.md). SDK 0.0.x/2.0.x kept as separate historic/current integration evidence, not as normative field requirements.
+
+**Scope delivered:**
+- New `InvoicePatternHeaderFields` is an immutable projected payload presence structure separate from `InvoiceRuleContext.Classification`. The internal classification stays available to reconstruct and validate cancellation invoices, but external `inty`/`inp` must be absent on cancellation according to Table10. Fields include outbound type/pattern, optional reference `irtaxid`, contracting `crn`, utility bill `billid`, flight `ft`, and four gold-specific components.
+- New `OfficialV79TypePatternRuleFactory` creates four source-cited `IInvoiceRule` instances keyed `invoice.pattern.combination`, `invoice.pattern.subject`, `invoice.pattern.payload` and `invoice.pattern.conditional`, using existing deterministic Rule Engine.
+- **Combination:** rejects every type/pattern pair absent from official V7.9 (including false legacy Type2 pattern2 and gaps 10/12). The existing historical matrix remains removed.
+- **Subject:** rejects sales-return on Type1 export(7), waybill(8), commodity-linked securities(11), reusing V7.9 subject policy.
+- **Payload:** requires matching type/pattern values when transmitted on noncancellation; requires their absence on cancellation; forbids reference on original and requires 22-character ASCII-alphanumeric reference shape on referring subjects. It does **not** certify referenced invoice existence or same workspace; see Steps14–17.
+- **Conditional fields:** for first-type *original* contracting(4), utility bills(5), airline(6), validates presence and basic numeric shape of `crn`, `billid`, `ft` respectively. For Type1/Type2 gold(3), non-cancellation requires four monetary components (only presence, not values/formulae; those belong to Step11 and special-pattern calculators). Rejects unrelated `crn`, `billid`, `ft` on ordinary original patterns.
+- Rule evaluation is read-only, all findings are stable localization keys and field paths, edition pinning is `RC_IITP.IS_V7.9`, and **`IsSubmissionAuthorized` remains false**.
+
+**Limits, tracked as release gates:** Table1 is extensive; this step implements a verified *subset* of its field-level requirements and exceptions and does not claim complete serialization/pattern readiness. It does not implement gold amounts, exchange-rate payload, fuel calculations, insurance, trade chain, export customs information, stock-exchange evidence, pattern-specific body fields, and industry registration checks. Additional specialized validators and complete effective-dated rules will be added in fixed Steps10–12; until then, issuance must be blocked. Pattern/subject authority **effective dates** are not proven solely by the edition month of V7.9; the built-in matrix has `VerifiedForSubmission=false`. In particular, cancellation has omitted transmitted `inty`/`inp` although the internal classification has them.
+ 
+**Changes:**
+- `src/ArginTaxPayer.Domain/Invoices/InvoiceTypePatternRules.cs` (new)
+- `src/ArginTaxPayer.Domain/Invoices/InvoiceRuleEngine.cs` (optional immutable pattern payload projection in context)
+- `tests/ArginTaxPayer.Tests/Phase07TypePatternRulesTests.cs` (new)
+- This single master document.
+
+**Tests:** All 17 officially documented type/pattern combinations; unsupported gaps; disallowed sales returns on export/waybill/securities; cancellation type/pattern absent; correction/reference-required, original/reference-forbidden; mandatory contracting/utility/flight fields; gold four fields; unrelated payload rejected; null payload fail closed; repeated evaluations deterministic. These tests have not been executed in operator macOS.
+
+**macOS operator commands:**
+```bash
+cd ~/projects/ArginTaxPayer
+git fetch origin
+git switch phase/07-invoice-domain-rule-engine
+git pull --ff-only
+dotnet restore ArginTaxPayer.sln
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --filter "FullyQualifiedName~Phase07TypePatternRulesTests|FullyQualifiedName~Phase07HeaderValidationTests|FullyQualifiedName~Phase07OfficialV79Tests" --no-restore
+dotnet test ArginTaxPayer.sln --no-restore
+git status --short
+```
+
+**Database/migrations:** None. **Ubuntu-specific test:** Not necessary for domain-only change; Phase07 Step23 remains the full environment acceptance gate. **Owner approval:** Pending.
