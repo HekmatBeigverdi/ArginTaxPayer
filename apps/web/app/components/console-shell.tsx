@@ -3,6 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import ConsoleLoader from "./console-loader";
+import arginLogo from "../../public/brand/argin-logo.png";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
@@ -92,7 +93,7 @@ export default function ConsoleShell({ roles, userId, children }:
   const activeName = navigation.find(n => pathname === n.path || pathname.startsWith(n.path + "/"))?.title ?? "پنل";
   return <div className="app-shell argin-console" dir="rtl" lang="fa">
     <aside className="app-sidebar">
-      <Link href="/dashboard" onClick={() => { if (pathname !== "/dashboard") setNavigatingTo("/dashboard"); }} className="app-brand"><Image className="argin-brand-logo argin-sidebar-logo" src="/brand/argin-logo.png" width={46} height={46} alt="نشان آرگین" priority />
+      <Link href="/dashboard" onClick={() => { if (pathname !== "/dashboard") setNavigatingTo("/dashboard"); }} className="app-brand"><Image className="argin-brand-logo argin-sidebar-logo" src={arginLogo} width={46} height={46} alt="نشان آرگین" priority unoptimized />
         <span><strong>آرگین</strong><small>سامانه یکپارچه مؤدیان</small></span></Link>
       <p className="app-nav-heading">فضای کاری</p>
       <nav className="app-nav" aria-label="ناوبری اصلی">
@@ -110,7 +111,7 @@ export default function ConsoleShell({ roles, userId, children }:
         <div ref={menuRef} className="console-account">
           <button type="button" className="console-account-trigger" aria-haspopup="menu"
             aria-expanded={menuOpen} onClick={() => setMenuOpen(v => !v)}>
-            <Image className="argin-brand-logo argin-header-logo" src="/brand/argin-logo.png" width={39} height={39} alt="" aria-hidden="true" />
+            <Image className="argin-brand-logo argin-header-logo" src={arginLogo} width={39} height={39} alt="" aria-hidden="true" unoptimized />
             <span className="console-account-name"><strong>حساب من</strong><small>{role}</small></span>
             <span aria-hidden="true">⌄</span>
           </button>
