@@ -55,10 +55,12 @@ public sealed class InvoiceAggregate
     public InvoiceLifecycleState State { get; private set; }
     public InvoicePartySnapshot Seller { get; private set; }
     public InvoicePartySnapshot? Buyer { get; private set; }
+    public InvoiceSubjectSelection SubjectSelection { get; private set; }
 
     private InvoiceAggregate(Guid id, Guid customerUserId, Guid taxpayerId,
         Guid? fiscalMemoryId, DateTime createdAtUtc, DateTime issueDateUtc,
-        InvoicePartySnapshot seller, InvoicePartySnapshot? buyer)
+        InvoicePartySnapshot seller, InvoicePartySnapshot? buyer,
+        InvoiceSubjectSelection subjectSelection)
     {
         Id = id;
         CustomerUserId = customerUserId;
@@ -68,6 +70,7 @@ public sealed class InvoiceAggregate
         IssueDateUtc = issueDateUtc;
         Seller = seller;
         Buyer = buyer;
+        SubjectSelection = subjectSelection;
         State = InvoiceLifecycleState.Draft;
         Revision = 1;
     }
@@ -75,7 +78,8 @@ public sealed class InvoiceAggregate
     public static InvoiceAggregate CreateDraft(Guid id, Guid customerUserId,
         Guid taxpayerId, Guid? fiscalMemoryId, DateTime createdAtUtc,
         DateTime issueDateUtc, InvoicePartySnapshot seller,
-        InvoicePartySnapshot? buyer = null)
+        InvoicePartySnapshot? buyer = null,
+        InvoiceSubjectSelection? subjectSelection = null)
     {
         if (id == Guid.Empty || customerUserId == Guid.Empty || taxpayerId == Guid.Empty ||
             fiscalMemoryId == Guid.Empty || seller is null ||
@@ -83,8 +87,10 @@ public sealed class InvoiceAggregate
             issueDateUtc.Kind != DateTimeKind.Utc)
             throw new ArgumentException("Invalid invoice identity or UTC dates.");
 
+        var selected = subjectSelection ?? InvoiceSubjectSelection.Original();
+        EnsureNotSelfReference(id, selected);
         return new InvoiceAggregate(id, customerUserId, taxpayerId, fiscalMemoryId,
-            createdAtUtc, issueDateUtc, seller, buyer);
+            createdAtUtc, issueDateUtc, seller, buyer, selected);
     }
 
     public void UpdateDraftDetails(DateTime issueDateUtc, InvoicePartySnapshot seller,
@@ -101,6 +107,23 @@ public sealed class InvoiceAggregate
         Seller = seller;
         Buyer = buyer;
         Revision = checked(Revision + 1);
+    }
+
+    public void UpdateDraftSubject(InvoiceSubjectSelection subjectSelection)
+    {
+        EnsureDraft();
+        ArgumentNullException.ThrowIfNull(subjectSelection);
+        EnsureNotSelfReference(Id, subjectSelection);
+        if (SubjectSelection == subjectSelection)
+            return;
+        SubjectSelection = subjectSelection;
+        Revision = checked(Revision + 1);
+    }
+
+    private static void EnsureNotSelfReference(Guid id, InvoiceSubjectSelection selection)
+    {
+        if (selection.Reference?.LocalInvoiceId == id)
+            throw new ArgumentException("An invoice cannot refer to itself.");
     }
 
     private void EnsureDraft()

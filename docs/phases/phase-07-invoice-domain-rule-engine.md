@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 07: Invoice Domain and Rule Engine
 
-**Status:** Step 01 owner-approved 2026-10-17; Step 02 owner-approved 2026-10-17 (macOS test logs not attached); Step 03 implementation committed, pending macOS test evidence and owner acceptance. Steps 04–24 not started.
+**Status:** Step 01 owner-approved 2026-10-17; Step 02 owner-approved 2026-10-17 (macOS test logs not attached); Step 03 owner-approved 2026-10-17 (test output not attached); Step 04 implemented and awaiting macOS test and owner acceptance. Steps 05–24 not started.
 **Branch:** `phase/07-invoice-domain-rule-engine`
 **Baseline:** `main` at `041bea0287c3b907a7b8910ef8602f51a8c1654c` (inspected 2026-10-17).
 **Roadmap:** `docs/roadmap/18-phases.md`, Phase 07 of 18.
@@ -40,8 +40,8 @@ Build a versioned electronic invoice domain and deterministic rules engine: lega
 |---|---|---|---|---|
 | 01 | Architecture and contracts | Inspect live repository, Phase06 handoff, security and roadmap; freeze boundaries, ADR and acceptance | Owner architecture approval; no runtime or schema changes | Owner-approved 2026-10-17 |
 | 02 | Invoice aggregate | Identity, ownership, header, parties, invoice invariants | Domain and isolation tests | Owner-approved 2026-10-17; test outputs not attached |
-| 03 | Types and patterns | Versioned invoice types/pattern matrix | Allowed and forbidden combinations verified against cited official source | Implemented; operator tests and current-spec verification pending |
-| 04 | Invoice subjects | Original, correction, cancellation and sales return subject model | Invalid subject transitions rejected | Not started |
+| 03 | Types and patterns | Versioned invoice types/pattern matrix | Allowed and forbidden combinations verified against cited official source | Owner-approved 2026-10-17; current-spec verification remains an explicit release gate |
+| 04 | Invoice subjects | Original, correction, cancellation and sales return subject model | Invalid subject transitions rejected | Implemented; macOS tests and owner acceptance pending |
 | 05 | Invoice lines and catalog handoff | Copy Phase06 V1 immutable snapshots; quantities and units | No mutable-catalog dereference after snapshot | Not started |
 | 06 | Financial model | Decimal totals, VAT inputs, discount and rounding policies | Boundary and deterministic calculation cases | Not started |
 | 07 | Rule-engine contracts | RuleContext, stable rule keys, severities and deterministic evaluation | Unit-testable pure contracts | Not started |
@@ -143,4 +143,35 @@ dotnet test ArginTaxPayer.sln --no-restore
 git status --short
 ```
 
-**Migration:** None. **Ubuntu test:** Deferred; pure Domain code. **Owner approval:** Pending local test evidence.
+**Migration:** None. **Ubuntu test:** Deferred; pure Domain code. **Owner approval:** Approved 2026-10-17 by owner; test logs not independently provided. Current authoritative matrix verification remains open.
+
+## Step 04 — Invoice Subjects — Completion Record (2026-10-17)
+
+**Status:** Committed; operator macOS tests and owner acceptance pending.
+
+**Scope:** Map historical `ins` numeric subject values: original=1, correction=2, cancellation=3, sales return=4; this is separate from invoice type `inty` and local lifecycle. Original carries no predecessor. Each other subject requires one well-formed external reference tax ID (`irtaxid`, 22 ASCII alphanumeric characters, with no trimming or lossy conversion), optionally linked to a distinct internal local invoice ID. Reject unknown subject values, empty/invalid reference, and immediate self-reference. This checks syntax and shape only, not existence or authority validity.
+
+**Domain contract:** `InvoiceSubjectSelection.Create` validates subject/reference pairs; `InvoiceAggregate.CreateDraft` defaults to original without breaking Step02 callers and accepts a subject selection as final optional argument. `UpdateDraftSubject` is draft-only and increments revision only on actual change. It does not issue, validate a reference chain, or alter customer/taxpayer identity. Details of predecessor eligible state, chronological order, cross-tenant access, multiple returns and official restrictions are deferred explicitly to Steps14–17 and 19; they must not be mistaken for a currently valid tax operation.
+
+**Sources / caution:** Historical tax-authority technical instruction `RC_TICS.IS_V01` lists header `ins` as 1/2/3/4 and `irtaxid` as 22-character field. See `https://hpmgroup.co/wp-content/uploads/2022/09/سند_دستورالعمل_فنی_نحوه_اتصال_به_سامانه_مودیان14010422.pdf`. A later reference-rule discussion: `https://chekad.com/other/سامانه-مودیان-مالیاتی/`. This is not proof of the latest official version; Step12 and later authority verification remain required before marking any invoice ready to submit.
+
+**Changed paths:**
+- `src/ArginTaxPayer.Domain/Invoices/InvoiceSubjects.cs` (new).
+- `src/ArginTaxPayer.Domain/Invoices/InvoiceAggregate.cs` (add subject selection, edit guard).
+- `tests/ArginTaxPayer.Tests/Phase07InvoiceSubjectsTests.cs` (new).
+- `docs/phases/phase-07-invoice-domain-rule-engine.md`.
+
+**Validation cases:** Four numeric subjects; required reference for three referring subjects; no reference on original; 22-character format, no whitespace; no direct self-reference; no-op update revision stability; authorization-relevant identity unchanged; unknown enum rejected. Existing Step02 tests must continue passing.
+
+**macOS commands:**
+```bash
+git fetch origin
+git switch phase/07-invoice-domain-rule-engine
+git pull --ff-only
+dotnet restore ArginTaxPayer.sln
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --filter "FullyQualifiedName~Phase07InvoiceSubjectsTests|FullyQualifiedName~Phase07InvoiceAggregateTests|FullyQualifiedName~Phase07InvoicePatternsTests" --no-restore
+dotnet test ArginTaxPayer.sln --no-restore
+git status --short
+```
+
+**Migration:** None. **API/UI:** None. **Ubuntu:** Not necessary for domain-only change. **Build/tests:** Source committed; macOS execution evidence not attached. **Owner approval:** Pending.
