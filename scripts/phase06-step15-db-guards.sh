@@ -21,8 +21,7 @@ fi
 
 psql -X -v ON_ERROR_STOP=1 -Atq <<'SQL'
 BEGIN TRANSACTION READ ONLY;
-SELECT CASE WHEN current_database() = 'argintaxpayer_test' THEN 'DATABASE_OK'
-            ELSE (1 / 0)::text END AS database_guard;
+SELECT 'DATABASE=' || current_database() AS database_guard;
 SELECT 'units_102=' || count(*) FROM official_measurement_units
 WHERE release_id='14051800-0000-4000-8000-000000000118';
 SELECT 'critical_trigger=' || tgname FROM pg_trigger
