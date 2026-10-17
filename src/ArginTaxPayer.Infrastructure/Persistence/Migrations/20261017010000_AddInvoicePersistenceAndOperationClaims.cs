@@ -11,7 +11,6 @@ public sealed class AddInvoicePersistenceAndOperationClaims : Migration
 {
     protected override void Up(MigrationBuilder m)
     {
-        // Additive, no backfill and no customer/production data access.
         m.Sql("""
 CREATE TABLE invoice_documents (
  id uuid PRIMARY KEY,
@@ -72,44 +71,13 @@ CREATE TABLE invoice_document_revisions (
  CONSTRAINT fk_invoice_history_scope FOREIGN KEY(customer_user_id,taxpayer_id,invoice_id)
  REFERENCES invoice_documents(customer_user_id,taxpayer_id,id) ON DELETE RESTRICT,
  CONSTRAINT ck_invoice_history_revision CHECK(revision > 0),
- CONSTRAINT ck_invoice_history_hash CHECK(snapshot_sha256 ~ '^[0-9a-f]{64}
- customer_user_id uuid NOT NULL REFERENCES identity_users(id) ON DELETE RESTRICT,
- taxpayer_id uuid NOT NULL REFERENCES taxpayer_profiles(id) ON DELETE RESTRICT,
- revision bigint NOT NULL,
- PRIMARY KEY(customer_user_id,taxpayer_id),
- CONSTRAINT ck_invoice_cursor_revision CHECK(revision >= 0));
-""");
-    }
-
-    protected override void Down(MigrationBuilder m)
-    {
-        // Refuse destruction of any historical invoice, claim or reservation.
-        m.Sql("""
-DO $$
-BEGIN
- IF EXISTS(SELECT 1 FROM invoice_documents) OR
-    EXISTS(SELECT 1 FROM invoice_operations) OR
-    EXISTS(SELECT 1 FROM invoice_document_revisions) OR
-    EXISTS(SELECT 1 FROM invoice_reservation_cursors) THEN
-    RAISE EXCEPTION 'Invoice records exist: destructive rollback prohibited';
- END IF;
-END $$;
-DROP TABLE invoice_reservation_cursors;
-DROP TRIGGER trg_phase07_invoice_history_guard ON invoice_document_revisions;
-DROP FUNCTION phase07_invoice_history_guard();
-DROP TABLE invoice_document_revisions;
-DROP TABLE invoice_operations;
-DROP TABLE invoice_documents;
-""");
-    }
-}
-));
+ CONSTRAINT ck_invoice_history_hash CHECK(snapshot_sha256 ~ '^[0-9a-f]{64}$'));
 CREATE INDEX ix_invoice_history_scope
  ON invoice_document_revisions(customer_user_id,taxpayer_id,invoice_id,revision);
-CREATE FUNCTION phase07_invoice_history_guard() RETURNS trigger LANGUAGE plpgsql AS $
+CREATE FUNCTION phase07_invoice_history_guard() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
  RAISE EXCEPTION 'Committed invoice revision history is immutable';
-END $;
+END $$;
 CREATE TRIGGER trg_phase07_invoice_history_guard
  BEFORE UPDATE OR DELETE ON invoice_document_revisions
  FOR EACH ROW EXECUTE FUNCTION phase07_invoice_history_guard();
@@ -125,17 +93,20 @@ CREATE TABLE invoice_reservation_cursors (
 
     protected override void Down(MigrationBuilder m)
     {
-        // Refuse destruction of any historical invoice, claim or reservation.
         m.Sql("""
 DO $$
 BEGIN
  IF EXISTS(SELECT 1 FROM invoice_documents) OR
     EXISTS(SELECT 1 FROM invoice_operations) OR
+    EXISTS(SELECT 1 FROM invoice_document_revisions) OR
     EXISTS(SELECT 1 FROM invoice_reservation_cursors) THEN
     RAISE EXCEPTION 'Invoice records exist: destructive rollback prohibited';
  END IF;
 END $$;
 DROP TABLE invoice_reservation_cursors;
+DROP TRIGGER trg_phase07_invoice_history_guard ON invoice_document_revisions;
+DROP FUNCTION phase07_invoice_history_guard();
+DROP TABLE invoice_document_revisions;
 DROP TABLE invoice_operations;
 DROP TABLE invoice_documents;
 """);

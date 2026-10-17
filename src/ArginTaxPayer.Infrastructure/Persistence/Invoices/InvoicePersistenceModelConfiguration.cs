@@ -27,10 +27,8 @@ public static class InvoicePersistenceModelConfiguration
         invoice.Property(x => x.SnapshotJson).HasColumnName("snapshot_json").HasColumnType("jsonb").IsRequired();
         invoice.Property(x => x.SnapshotSha256).HasColumnName("snapshot_sha256").HasMaxLength(64).IsRequired();
         invoice.Property(x => x.UpdatedAtUtc).HasColumnName("updated_at_utc").HasColumnType("timestamp with time zone");
-        invoice.HasOne<IdentityUser>().WithMany()
-            .HasForeignKey(x => x.CustomerUserId).OnDelete(DeleteBehavior.Restrict);
-        invoice.HasOne<TaxpayerProfile>().WithMany()
-            .HasForeignKey(x => x.TaxpayerId).OnDelete(DeleteBehavior.Restrict);
+        invoice.HasOne<IdentityUser>().WithMany().HasForeignKey(x => x.CustomerUserId).OnDelete(DeleteBehavior.Restrict);
+        invoice.HasOne<TaxpayerProfile>().WithMany().HasForeignKey(x => x.TaxpayerId).OnDelete(DeleteBehavior.Restrict);
         invoice.HasIndex(x => new { x.CustomerUserId, x.TaxpayerId, x.Id }).IsUnique().HasDatabaseName("ux_invoice_documents_scope");
         invoice.HasIndex(x => new { x.CustomerUserId, x.TaxpayerId, x.IssueDateUtc }).HasDatabaseName("ix_invoice_documents_scope_date");
 
@@ -60,12 +58,9 @@ public static class InvoicePersistenceModelConfiguration
             .HasForeignKey(x => new { x.CustomerUserId, x.TaxpayerId, x.InvoiceId })
             .HasPrincipalKey(x => new { x.CustomerUserId, x.TaxpayerId, x.Id })
             .OnDelete(DeleteBehavior.Restrict);
-        operation.HasOne<IdentityUser>().WithMany()
-            .HasForeignKey(x => x.CustomerUserId).OnDelete(DeleteBehavior.Restrict);
-        operation.HasOne<TaxpayerProfile>().WithMany()
-            .HasForeignKey(x => x.TaxpayerId).OnDelete(DeleteBehavior.Restrict);
-        operation.HasIndex(x => new { x.CustomerUserId, x.TaxpayerId, x.IdempotencyKey })
-            .IsUnique().HasDatabaseName("ux_invoice_operations_idempotency");
+        operation.HasOne<IdentityUser>().WithMany().HasForeignKey(x => x.CustomerUserId).OnDelete(DeleteBehavior.Restrict);
+        operation.HasOne<TaxpayerProfile>().WithMany().HasForeignKey(x => x.TaxpayerId).OnDelete(DeleteBehavior.Restrict);
+        operation.HasIndex(x => new { x.CustomerUserId, x.TaxpayerId, x.IdempotencyKey }).IsUnique().HasDatabaseName("ux_invoice_operations_idempotency");
         operation.HasIndex(x => new { x.CustomerUserId, x.TaxpayerId, x.ReferenceTaxId, x.ReferenceSlot })
             .IsUnique().HasFilter("is_claim_active AND reference_tax_id IS NOT NULL")
             .HasDatabaseName("ux_invoice_operations_active_reference");
@@ -74,23 +69,7 @@ public static class InvoicePersistenceModelConfiguration
         history.ToTable("invoice_document_revisions", t =>
         {
             t.HasCheckConstraint("ck_invoice_history_revision", "revision > 0");
-            t.HasCheckConstraint("ck_invoice_history_hash", "snapshot_sha256 ~ '^[0-9a-f]{64}
-        cursor.ToTable("invoice_reservation_cursors", t =>
-            t.HasCheckConstraint("ck_invoice_cursor_revision", "revision >= 0"));
-        cursor.HasKey(x => new { x.CustomerUserId, x.TaxpayerId });
-        cursor.Property(x => x.CustomerUserId).HasColumnName("customer_user_id");
-        cursor.Property(x => x.TaxpayerId).HasColumnName("taxpayer_id");
-        cursor.Property(x => x.Revision).HasColumnName("revision").IsConcurrencyToken();
-        cursor.HasOne<IdentityUser>().WithMany()
-            .HasForeignKey(x => x.CustomerUserId).OnDelete(DeleteBehavior.Restrict);
-        cursor.HasOne<TaxpayerProfile>().WithMany()
-            .HasForeignKey(x => x.TaxpayerId).OnDelete(DeleteBehavior.Restrict);
-
-        // Constraints prevent accidental deletion of historical invoice data.
-        // Application permissions still MUST be checked by authorized caller.
-    }
-}
-");
+            t.HasCheckConstraint("ck_invoice_history_hash", "snapshot_sha256 ~ '^[0-9a-f]{64}$'");
         });
         history.HasKey(x => new { x.InvoiceId, x.Revision });
         history.Property(x => x.InvoiceId).HasColumnName("invoice_id");
@@ -114,8 +93,7 @@ public static class InvoicePersistenceModelConfiguration
         cursor.Property(x => x.CustomerUserId).HasColumnName("customer_user_id");
         cursor.Property(x => x.TaxpayerId).HasColumnName("taxpayer_id");
         cursor.Property(x => x.Revision).HasColumnName("revision").IsConcurrencyToken();
-
-        // Constraints prevent accidental deletion of historical invoice data.
-        // Application permissions still MUST be checked by authorized caller.
+        cursor.HasOne<IdentityUser>().WithMany().HasForeignKey(x => x.CustomerUserId).OnDelete(DeleteBehavior.Restrict);
+        cursor.HasOne<TaxpayerProfile>().WithMany().HasForeignKey(x => x.TaxpayerId).OnDelete(DeleteBehavior.Restrict);
     }
 }
