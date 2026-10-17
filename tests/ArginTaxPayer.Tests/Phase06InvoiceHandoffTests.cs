@@ -81,6 +81,10 @@ public sealed class Phase06InvoiceHandoffTests
         Assert.Equal(64, snapshot.OfficialReleaseSha256.Length);
         Assert.False(InvoiceCatalogHandoffPolicy.IsComplete(snapshot with { OfficialReleaseSha256 = "" }));
         Assert.False(InvoiceCatalogHandoffPolicy.IsComplete(snapshot with { ContractVersion = 2 }));
+        var copied = snapshot with { ItemTitle = "عنوان جدید پس از ثبت صورتحساب" };
+        Assert.Equal("کاغذ A4", snapshot.ItemTitle);
+        Assert.Equal("عنوان جدید پس از ثبت صورتحساب", copied.ItemTitle);
+        Assert.NotSame(snapshot, copied);
     }
 
     [Fact]
