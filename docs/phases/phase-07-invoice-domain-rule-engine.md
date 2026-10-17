@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 07: Invoice Domain and Rule Engine
 
-**Status:** Step 01 owner-approved 2026-10-17; Step 02 owner-approved 2026-10-17 (macOS test logs not attached); Step 03 owner-approved 2026-10-17 (test output not attached); Step 04 implemented and awaiting macOS test and owner acceptance. Steps 05–24 not started.
+**Status:** Step 01 owner-approved 2026-10-17; Step 02 owner-approved 2026-10-17 (macOS test logs not attached); Step 03 owner-approved 2026-10-17 (test output not attached); Step 04 owner-approved 2026-10-17 (macOS evidence not attached); Step 05 implemented, awaiting macOS test and owner acceptance. Steps 06–24 not started.
 **Branch:** `phase/07-invoice-domain-rule-engine`
 **Baseline:** `main` at `041bea0287c3b907a7b8910ef8602f51a8c1654c` (inspected 2026-10-17).
 **Roadmap:** `docs/roadmap/18-phases.md`, Phase 07 of 18.
@@ -41,8 +41,8 @@ Build a versioned electronic invoice domain and deterministic rules engine: lega
 | 01 | Architecture and contracts | Inspect live repository, Phase06 handoff, security and roadmap; freeze boundaries, ADR and acceptance | Owner architecture approval; no runtime or schema changes | Owner-approved 2026-10-17 |
 | 02 | Invoice aggregate | Identity, ownership, header, parties, invoice invariants | Domain and isolation tests | Owner-approved 2026-10-17; test outputs not attached |
 | 03 | Types and patterns | Versioned invoice types/pattern matrix | Allowed and forbidden combinations verified against cited official source | Owner-approved 2026-10-17; current-spec verification remains an explicit release gate |
-| 04 | Invoice subjects | Original, correction, cancellation and sales return subject model | Invalid subject transitions rejected | Implemented; macOS tests and owner acceptance pending |
-| 05 | Invoice lines and catalog handoff | Copy Phase06 V1 immutable snapshots; quantities and units | No mutable-catalog dereference after snapshot | Not started |
+| 04 | Invoice subjects | Original, correction, cancellation and sales return subject model | Invalid subject transitions rejected | Owner-approved 2026-10-17; local test logs not attached |
+| 05 | Invoice lines and catalog handoff | Copy Phase06 V1 immutable snapshots; quantities and units | No mutable-catalog dereference after snapshot | Implemented; tests and owner acceptance pending |
 | 06 | Financial model | Decimal totals, VAT inputs, discount and rounding policies | Boundary and deterministic calculation cases | Not started |
 | 07 | Rule-engine contracts | RuleContext, stable rule keys, severities and deterministic evaluation | Unit-testable pure contracts | Not started |
 | 08 | Header validation | Required identifiers, issue time and participant rules | Field-level positive and negative tests | Not started |
@@ -216,3 +216,34 @@ Owner observed that `HistoricalInvoicePatternMatrix` and a non-authority website
 - Old commit history cannot and should not be rewritten; prior source URL will remain visible in historical commits and in documentation about why correction was needed, but not in current domain source.
 - This is a domain/test/docs-only change; no schema migration, API modification, or authority submission.
 - Owner macOS validation: `dotnet test ArginTaxPayer.sln --no-restore`. Verification not yet run by assistant in macOS.
+
+## Step 05 — Invoice Lines and Catalog Handoff — Completion Record (2026-10-17)
+
+**Status:** Implemented and committed; macOS verification and owner acceptance pending. Step04 marked owner-approved; no separate operator macOS logs were provided.
+
+**Official primary source:** Owner-supplied `RC_IITP.IS V7.9` (Tir 1405), field validation tables 29–32, pp50–52 (goods/service ID `sstid`, title `sstt`, quantity `am`, measurement unit `mu`); SDK 1405 pp9–10 is DTO-shape evidence, not normative rules. Unit/mapping provenance comes from Phase06 V1, not a tax authority rule. See [reference policy](../references/tax-authority-sdk-catalog.md).
+
+**Implementation:** 
+- Immutable `InvoiceLineSnapshot` captures a value copy of the *complete* authenticated Phase06 `InvoiceCatalogHandoff` V1: customer and catalog IDs, catalog and mapping revisions, item kind, internal and official descriptions, unit references, release documents/editions/SHA256, official mapping validity interval, effective and capture UTC times and unresolved VAT state. No mutable catalog row lookup occurs after capture.
+- `InvoiceAggregate.AddDraftLine` accepts the externally authorized handoff, ensures same `CustomerUserId`, complete V1, effective mapping at handoff's date, unique nonempty invoice line GUID, positive decimal quantity, and one-based line ordering.
+- `UpdateDraftLineQuantity` changes only quantity; `RemoveDraftLine` reindexes subsequent positions. Both operate only on local Draft and bump revision on actual mutation. Public Lines exposed via a non-modifiable read-only collection.
+- `sstid`, `sstt`, `mu` are projections of the captured official values. Quantity `am` is decimal internally; wire format/precision and pattern-specific validation are deferred to Steps06/10/11 and the official edition.
+- Neither a VAT rate nor zero VAT is inferred from `InvoiceVatResolution.Unresolved`. No finalization, issuer authorization, persistence, tax readiness, issuance, submission or transport behavior added.
+- The `CustomerUserId` check protects against simple cross-customer handoff injection; live access to customer, taxpayer, catalog item and issuance rights *must* be checked by the Application handoff capture and future APIs. Domain IDs alone are not a security credential.
+
+**Changed:** `src/ArginTaxPayer.Domain/Invoices/InvoiceLineSnapshot.cs`; `src/ArginTaxPayer.Domain/Invoices/InvoiceAggregate.cs`; `tests/ArginTaxPayer.Tests/Phase07InvoiceLinesTests.cs`; this single phase document.
+
+**Tests:** Verify independent captured values after catalog changes, provenance/versions, cross-customer failure atomicity, invalid mappings and version rejection, no-op revisions, invalid quantities/duplicates, remove/reindex, immutable exposed line collection, services vs stock goods. Existing Phase06 and prior Phase07 tests must remain green.
+
+**macOS:**
+```bash
+cd ~/projects/ArginTaxPayer
+git fetch origin
+git switch phase/07-invoice-domain-rule-engine
+git pull --ff-only
+dotnet restore ArginTaxPayer.sln
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --filter "FullyQualifiedName~Phase07InvoiceLinesTests|FullyQualifiedName~Phase06InvoiceHandoffTests|FullyQualifiedName~Phase07InvoiceAggregateTests" --no-restore
+dotnet test ArginTaxPayer.sln --no-restore
+git status --short
+```
+**Migration:** None. **Ubuntu:** Not required for domain-only change; final platform checks still Step23. **Owner acceptance:** Pending.

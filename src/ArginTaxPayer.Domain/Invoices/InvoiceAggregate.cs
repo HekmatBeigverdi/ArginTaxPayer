@@ -1,3 +1,5 @@
+using ArginTaxPayer.Domain.Catalog;
+
 namespace ArginTaxPayer.Domain.Invoices;
 
 /// <summary>
@@ -56,6 +58,8 @@ public sealed class InvoiceAggregate
     public InvoicePartySnapshot Seller { get; private set; }
     public InvoicePartySnapshot? Buyer { get; private set; }
     public InvoiceSubjectSelection SubjectSelection { get; private set; }
+    private readonly List<InvoiceLineSnapshot> _lines = new();
+    public IReadOnlyList<InvoiceLineSnapshot> Lines => _lines.AsReadOnly();
 
     private InvoiceAggregate(Guid id, Guid customerUserId, Guid taxpayerId,
         Guid? fiscalMemoryId, DateTime createdAtUtc, DateTime issueDateUtc,
@@ -117,6 +121,48 @@ public sealed class InvoiceAggregate
         if (SubjectSelection == subjectSelection)
             return;
         SubjectSelection = subjectSelection;
+        Revision = checked(Revision + 1);
+    }
+
+    /// <summary>
+    /// Caller must capture the Phase06 handoff using authenticated tenant-scoped
+    /// application services. This method validates its customer boundary but
+    /// does not replace live authorization checks.
+    /// </summary>
+    public void AddDraftLine(Guid lineId, decimal quantity, InvoiceCatalogHandoff handoff)
+    {
+        EnsureDraft();
+        if (_lines.Any(x => x.Id == lineId))
+            throw new InvalidOperationException("Duplicate invoice line identity.");
+        var line = InvoiceLineSnapshot.Create(lineId, _lines.Count + 1,
+            quantity, handoff, CustomerUserId);
+        _lines.Add(line);
+        Revision = checked(Revision + 1);
+    }
+
+    public void UpdateDraftLineQuantity(Guid lineId, decimal quantity)
+    {
+        EnsureDraft();
+        var index = _lines.FindIndex(x => x.Id == lineId);
+        if (index < 0)
+            throw new KeyNotFoundException("Invoice line not found.");
+        if (quantity <= 0m)
+            throw new ArgumentOutOfRangeException(nameof(quantity));
+        if (_lines[index].Quantity == quantity)
+            return;
+        _lines[index] = _lines[index].WithQuantity(quantity);
+        Revision = checked(Revision + 1);
+    }
+
+    public void RemoveDraftLine(Guid lineId)
+    {
+        EnsureDraft();
+        var index = _lines.FindIndex(x => x.Id == lineId);
+        if (index < 0)
+            throw new KeyNotFoundException("Invoice line not found.");
+        _lines.RemoveAt(index);
+        for (var i = index; i < _lines.Count; i++)
+            _lines[i] = _lines[i].WithPosition(i + 1);
         Revision = checked(Revision + 1);
     }
 
