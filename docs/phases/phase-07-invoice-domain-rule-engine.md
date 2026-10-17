@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 07: Invoice Domain and Rule Engine
 
-**Status:** Step 01 owner-approved 2026-10-17; Step 02 implementation committed and pending local test evidence/owner acceptance. Steps 03–24 not started.
+**Status:** Step 01 owner-approved 2026-10-17; Step 02 owner-approved 2026-10-17 (macOS test logs not attached); Step 03 implementation committed, pending macOS test evidence and owner acceptance. Steps 04–24 not started.
 **Branch:** `phase/07-invoice-domain-rule-engine`
 **Baseline:** `main` at `041bea0287c3b907a7b8910ef8602f51a8c1654c` (inspected 2026-10-17).
 **Roadmap:** `docs/roadmap/18-phases.md`, Phase 07 of 18.
@@ -39,8 +39,8 @@ Build a versioned electronic invoice domain and deterministic rules engine: lega
 | Step | Title | Deliverable | Acceptance | Status |
 |---|---|---|---|---|
 | 01 | Architecture and contracts | Inspect live repository, Phase06 handoff, security and roadmap; freeze boundaries, ADR and acceptance | Owner architecture approval; no runtime or schema changes | Owner-approved 2026-10-17 |
-| 02 | Invoice aggregate | Identity, ownership, header, parties, invoice invariants | Domain and isolation tests | Code committed; macOS acceptance pending |
-| 03 | Types and patterns | Versioned invoice types/pattern matrix | Allowed and forbidden combinations verified against cited official source | Not started |
+| 02 | Invoice aggregate | Identity, ownership, header, parties, invoice invariants | Domain and isolation tests | Owner-approved 2026-10-17; test outputs not attached |
+| 03 | Types and patterns | Versioned invoice types/pattern matrix | Allowed and forbidden combinations verified against cited official source | Implemented; operator tests and current-spec verification pending |
 | 04 | Invoice subjects | Original, correction, cancellation and sales return subject model | Invalid subject transitions rejected | Not started |
 | 05 | Invoice lines and catalog handoff | Copy Phase06 V1 immutable snapshots; quantities and units | No mutable-catalog dereference after snapshot | Not started |
 | 06 | Financial model | Decimal totals, VAT inputs, discount and rounding policies | Boundary and deterministic calculation cases | Not started |
@@ -113,4 +113,34 @@ git status --short
 
 **Acceptance:** Valid/invalid identity and dates, immutable ownership properties, party snapshot validation, draft revision progression, and no premature issuance. Cross-customer isolation at API/DB remains a Step19 requirement, not a completed Step02 test.
 
-**Owner approval:** Pending macOS output and explicit review. Do not begin Step03 before approval.
+**Owner approval:** Approved 2026-10-17 by owner; local test logs not independently attached.
+
+## Step 03 — Types and Patterns — Completion Record (2026-10-17)
+
+**Implementation:** Introduced `ElectronicInvoiceType`, nullable pattern `InvoiceTypePattern`, immutable `InvoicePatternSource`, `InvoicePatternMatrix` and explicit-edition `InvoicePatternRegistry`. Historical notice No. 6 records Type1 patterns 1–7; Type2 patterns 1–2; Type3 patternless POS/payment-gateway receipt. The historical rule matrix contains exactly 10 combinations; no implicit fallback for unknown editions or unsupported pairs. Effective times use UTC half-open windows. There is no tax authority claim for this old notice.
+
+**Regulatory sources examined:** Notice No. 6, dated 1401/11/18, reproduced at `https://taksatsp.ir/اطلاعیه-شماره-6/` and `https://maliatman.com/انواع-الگوهای-صورتحساب-الکترونیکی-قو/` (tax-authority announcement reproduced by third parties). Prior Phase06 records an owner-provided `RC_IITP.IS V7.9`, but a currently authoritative complete matrix, including later additions/withdrawals and pattern field-level requirements, was not independently authenticated in this step. Treat this built-in matrix as **historical reference only**. `VerifiedForSubmission=false`, so `requireSubmissionVerified=true` fails closed until a current edition is independently verified and registered.
+
+**Date limitation:** Historical effective-from uses 1402/01/01 as an illustrative modern effective period boundary taken from notice applicability; it must not be used to claim that all patterns had exactly that regulatory effective date. Update the effective intervals when official edition dates are verified. This is not automatic date based approval.
+
+**Changed files:**
+- `src/ArginTaxPayer.Domain/Invoices/InvoicePatternMatrix.cs`
+- `tests/ArginTaxPayer.Tests/Phase07InvoicePatternsTests.cs`
+- `docs/phases/phase-07-invoice-domain-rule-engine.md`
+
+**Scope guard:** No changing Phase06 catalog, Step02 aggregate, VAT, subjects, API, DB schema, migration, or public route. Step09 will handle pattern-specific field validation, and Step12 will manage rule bundle persistence/effective edition. Step03 is classification only.
+
+**Tests added:** supported/unsupported pairs; Type3 no pattern; explicit missing edition; current submission trust fail-closed; UTC half-open date checks; invalid matrix rejection; collection immutability. Tests are not independently executed by GitHub connector.
+
+**macOS:**
+```bash
+git fetch origin
+git switch phase/07-invoice-domain-rule-engine
+git pull --ff-only
+dotnet restore ArginTaxPayer.sln
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --filter "FullyQualifiedName~Phase07InvoicePatternsTests" --no-restore
+dotnet test ArginTaxPayer.sln --no-restore
+git status --short
+```
+
+**Migration:** None. **Ubuntu test:** Deferred; pure Domain code. **Owner approval:** Pending local test evidence.
