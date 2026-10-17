@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 07: Invoice Domain and Rule Engine
 
-**Status:** Step 01 architecture baseline prepared on 2026-10-17; awaiting explicit owner acceptance. Steps 02–24 not started.
+**Status:** Step 01 owner-approved 2026-10-17; Step 02 implementation committed and pending local test evidence/owner acceptance. Steps 03–24 not started.
 **Branch:** `phase/07-invoice-domain-rule-engine`
 **Baseline:** `main` at `041bea0287c3b907a7b8910ef8602f51a8c1654c` (inspected 2026-10-17).
 **Roadmap:** `docs/roadmap/18-phases.md`, Phase 07 of 18.
@@ -38,8 +38,8 @@ Build a versioned electronic invoice domain and deterministic rules engine: lega
 
 | Step | Title | Deliverable | Acceptance | Status |
 |---|---|---|---|---|
-| 01 | Architecture and contracts | Inspect live repository, Phase06 handoff, security and roadmap; freeze boundaries, ADR and acceptance | Owner architecture approval; no runtime or schema changes | Documentation committed; owner review pending |
-| 02 | Invoice aggregate | Identity, ownership, header, parties, invoice invariants | Domain and isolation tests | Not started |
+| 01 | Architecture and contracts | Inspect live repository, Phase06 handoff, security and roadmap; freeze boundaries, ADR and acceptance | Owner architecture approval; no runtime or schema changes | Owner-approved 2026-10-17 |
+| 02 | Invoice aggregate | Identity, ownership, header, parties, invoice invariants | Domain and isolation tests | Code committed; macOS acceptance pending |
 | 03 | Types and patterns | Versioned invoice types/pattern matrix | Allowed and forbidden combinations verified against cited official source | Not started |
 | 04 | Invoice subjects | Original, correction, cancellation and sales return subject model | Invalid subject transitions rejected | Not started |
 | 05 | Invoice lines and catalog handoff | Copy Phase06 V1 immutable snapshots; quantities and units | No mutable-catalog dereference after snapshot | Not started |
@@ -82,4 +82,35 @@ Mac local development: `zsh scripts/dev-up.zsh`, `zsh scripts/dev-status.zsh`, `
 - [x] Create dedicated Phase07 Git branch and commit documentation.
 - [ ] Obtain owner approval of Step01 before implementing Step02.
 
-**Owner signoff:** Pending.
+**Owner signoff:** Approved 2026-10-17.
+
+## Step 02 — Invoice Aggregate — Completion Record (2026-10-17)
+
+**Implementation:** Added the independent `ArginTaxPayer.Domain.Invoices.InvoiceAggregate` root and immutable participant snapshots. The invoice has immutable `Id`, `CustomerUserId`, `TaxpayerId`, optional `FiscalMemoryId`, `CreatedAtUtc`; it begins as a local Draft with revision 1 and supports validated changes to seller/buyer and UTC issue date, incrementing revision only on change. These are internal application identities, not a regulatory invoice number or issued fiscal record.
+
+**Security boundary:** Customer→taxpayer/memory membership and live Level1/Level2 scope must be checked by Application/Infrastructure before calling `CreateDraft`. Domain construction is NOT an authorization gate; no API or persistence was added in this step. Do not infer membership from matching arbitrary GUIDs or legacy taxpayer-level partner grants. Future persistence must use customer-scoped reads and optimistic concurrency.
+
+**Scope intentionally deferred:** Type/pattern Step03; issue subject Step04; catalog line snapshots Step05; financial rules Step06; rule engine Steps07–12; lifecycle transitions Step13; references Steps14–17; EF model/migration Step18; authorization and API Step19.
+
+**Changed paths:**
+- `src/ArginTaxPayer.Domain/Invoices/InvoiceAggregate.cs`
+- `tests/ArginTaxPayer.Tests/Phase07InvoiceAggregateTests.cs`
+- `docs/phases/phase-07-invoice-domain-rule-engine.md`
+
+**Migration:** None. **Production changes:** None. **Runtime routes:** None.
+**Validation:** Tests added, not executed through GitHub connector; macOS operator execution required. No Ubuntu test necessary for a pure-domain addition.
+
+**macOS commands:**
+```bash
+git fetch origin
+git switch phase/07-invoice-domain-rule-engine
+git pull --ff-only
+dotnet restore ArginTaxPayer.sln
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --filter FullyQualifiedName~Phase07InvoiceAggregateTests --no-restore
+dotnet test ArginTaxPayer.sln --no-restore
+git status --short
+```
+
+**Acceptance:** Valid/invalid identity and dates, immutable ownership properties, party snapshot validation, draft revision progression, and no premature issuance. Cross-customer isolation at API/DB remains a Step19 requirement, not a completed Step02 test.
+
+**Owner approval:** Pending macOS output and explicit review. Do not begin Step03 before approval.
