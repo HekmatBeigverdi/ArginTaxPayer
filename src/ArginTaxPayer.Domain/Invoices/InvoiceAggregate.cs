@@ -3,11 +3,6 @@ using ArginTaxPayer.Domain.Catalog;
 namespace ArginTaxPayer.Domain.Invoices;
 
 /// <summary>
-/// Internal document lifecycle; no value signifies tax-authority acceptance.
-/// Phase 07 Step 13 will extend transitions after official rules are verified.
-/// </summary>
-public enum InvoiceLifecycleState { Draft = 1 }
-
 /// <summary>
 /// Frozen invoice participant data. The taxpayer/customer ownership relationship
 /// must be authorized at the application boundary; user-provided IDs alone do not grant access.
@@ -55,6 +50,9 @@ public sealed class InvoiceAggregate
     public DateTime IssueDateUtc { get; private set; }
     public long Revision { get; private set; }
     public InvoiceLifecycleState State { get; private set; }
+    public TaxAuthorityProcessingState AuthorityState { get; private set; }
+    public InvoiceValidationReceipt? LastValidation { get; private set; }
+    public InvoiceInternalFinalizationApproval? FinalizationApproval { get; private set; }
     public InvoicePartySnapshot Seller { get; private set; }
     public InvoicePartySnapshot? Buyer { get; private set; }
     public InvoiceSubjectSelection SubjectSelection { get; private set; }
@@ -76,6 +74,7 @@ public sealed class InvoiceAggregate
         Buyer = buyer;
         SubjectSelection = subjectSelection;
         State = InvoiceLifecycleState.Draft;
+        AuthorityState = TaxAuthorityProcessingState.NotSubmitted;
         Revision = 1;
     }
 
@@ -182,6 +181,52 @@ public sealed class InvoiceAggregate
         _lines.RemoveAt(index);
         for (var i = index; i < _lines.Count; i++)
             _lines[i] = _lines[i].WithPosition(i + 1);
+        Revision = checked(Revision + 1);
+    }
+
+    /// <summary>
+    /// Local-only validation: a receipt must be pinned to this exact revision,
+    /// with a source-edition fingerprint. This is NOT fiscal readiness.
+    /// </summary>
+    public void MarkLocallyValidated(InvoiceValidationReceipt receipt)
+    {
+        EnsureDraft();
+        ArgumentNullException.ThrowIfNull(receipt);
+        if (receipt.InvoiceId != Id || receipt.Revision != Revision || receipt.HasErrors ||
+            receipt.EvaluatedAtUtc < CreatedAtUtc)
+            throw new InvalidOperationException("Validation must be clean and bound to current invoice revision.");
+        LastValidation = receipt;
+        State = InvoiceLifecycleState.Validated;
+        Revision = checked(Revision + 1);
+    }
+
+    /// <summary>Reopen for changes. Receipt is invalidated; finalized invoices never reopen.</summary>
+    public void ReopenValidatedDraft()
+    {
+        if (State != InvoiceLifecycleState.Validated)
+            throw new InvalidOperationException("Only a locally validated invoice may reopen.");
+        State = InvoiceLifecycleState.Draft;
+        LastValidation = null;
+        Revision = checked(Revision + 1);
+    }
+
+    /// <summary>
+    /// Internal-only finalization requiring distinct application approval.
+    /// Caller MUST authenticate, authorize and verify ApprovalReference and
+    /// the complete trusted rule context before invoking. No tax submission.
+    /// </summary>
+    public void FinalizeInternally(InvoiceInternalFinalizationApproval approval)
+    {
+        if (State != InvoiceLifecycleState.Validated)
+            throw new InvalidOperationException("Only locally validated invoices may be internally finalized.");
+        ArgumentNullException.ThrowIfNull(approval);
+        if (LastValidation is null || LastValidation.HasErrors ||
+            approval.InvoiceId != Id || approval.ValidatedRevision != Revision ||
+            LastValidation.Revision != Revision - 1 ||
+            approval.ApprovedAtUtc < LastValidation.EvaluatedAtUtc)
+            throw new InvalidOperationException("Invalid or stale internal finalization approval.");
+        FinalizationApproval = approval;
+        State = InvoiceLifecycleState.Finalized;
         Revision = checked(Revision + 1);
     }
 

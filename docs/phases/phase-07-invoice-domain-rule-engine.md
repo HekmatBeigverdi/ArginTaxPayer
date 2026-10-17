@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 07: Invoice Domain and Rule Engine
 
-**Status:** Step 01 owner-approved 2026-10-17; Step 02 owner-approved 2026-10-17 (macOS test logs not attached); Step 03 owner-approved 2026-10-17 (test output not attached); Step 04 owner-approved 2026-10-17 (macOS evidence not attached); Step 05 owner-approved 2026-10-17 (operator test log not attached); Step 06 owner-approved 2026-10-17 (operator test logs not attached); Step 07 owner-approved 2026-10-17 (operator test logs not attached); Step 08 owner-approved 2026-10-17 (test logs not independently attached); Step 09 owner-approved 2026-10-17 (operator test logs not supplied); Step 10 owner-approved 2026-10-17 (operator test logs not attached); Step 11 owner-approved 2026-10-17 (operator test results not independently attached); Step 12 implemented awaiting macOS tests and owner acceptance. Steps 13–24 not started.
+**Status:** Step 01 owner-approved 2026-10-17; Step 02 owner-approved 2026-10-17 (macOS test logs not attached); Step 03 owner-approved 2026-10-17 (test output not attached); Step 04 owner-approved 2026-10-17 (macOS evidence not attached); Step 05 owner-approved 2026-10-17 (operator test log not attached); Step 06 owner-approved 2026-10-17 (operator test logs not attached); Step 07 owner-approved 2026-10-17 (operator test logs not attached); Step 08 owner-approved 2026-10-17 (test logs not independently attached); Step 09 owner-approved 2026-10-17 (operator test logs not supplied); Step 10 owner-approved 2026-10-17 (operator test logs not attached); Step 11 owner-approved 2026-10-17 (operator test results not independently attached); Step 12 owner-approved 2026-10-17 (independent macOS logs not attached); Step 13 implemented pending macOS tests and owner approval. Steps 14–24 not started.
 **Branch:** `phase/07-invoice-domain-rule-engine`
 **Baseline:** `main` at `041bea0287c3b907a7b8910ef8602f51a8c1654c` (inspected 2026-10-17).
 **Roadmap:** `docs/roadmap/18-phases.md`, Phase 07 of 18.
@@ -49,8 +49,8 @@ Build a versioned electronic invoice domain and deterministic rules engine: lega
 | 09 | Type/pattern rules | Field requirements by officially effective matrix | Reject unsupported combinations | Owner-approved 2026-10-17; test logs not independently attached |
 | 10 | Line and catalog rules | Official identifiers, mapping, unit, kind and source effective date | Fail closed on unresolved or expired sources | Owner-approved 2026-10-17; operator test logs not attached |
 | 11 | Monetary and tax rules | Totals, VAT resolution and precision validation | No universal rate assumption; exact totals | Owner-approved 2026-10-17; operator test logs not attached |
-| 12 | Rule-set versioning | Effective-dated immutable rule bundles and localized errors | Historical deterministic replay | Implemented, operator macOS tests and owner acceptance pending |
-| 13 | Invoice lifecycle | Draft/validated/finalized and separation of authority outcomes | Illegal transitions rejected | Not started |
+| 12 | Rule-set versioning | Effective-dated immutable rule bundles and localized errors | Historical deterministic replay | Owner-approved 2026-10-17; operator test logs not attached |
+| 13 | Invoice lifecycle | Draft/validated/finalized and separation of authority outcomes | Illegal transitions rejected | Implemented, awaiting operator macOS test and owner approval |
 | 14 | Correction reference | Immutable predecessor linkage and permitted modifications | Cycle/invalid predecessor blocked | Not started |
 | 15 | Cancellation reference | Reference integrity and duplicate-operation guards | No inconsistent second cancellation | Not started |
 | 16 | Sales-return reference | Line-level partial/cumulative return constraints | Cannot return more than eligible quantity | Not started |
@@ -554,3 +554,47 @@ git status --short
 ```
 
 **Migration/database:** none. **Ubuntu-specific execution:** deferred for Domain-only change; final macOS/Ubuntu smoke acceptance remains fixed Step23. **Owner approval:** pending.
+
+## Step 13 — Invoice Lifecycle — Completion Record (2026-10-17)
+
+**Status:** Domain implementation and xUnit tests committed; owner approval and operator macOS build/test pending. **Step12:** approved by owner 2026-10-17, independent operator test logs not attached.
+
+### Regulatory and architecture provenance
+
+Primary source: owner-provided Tax Authority **RC_IITP.IS V7.9** (Tir 1405), **pp14–18** (types/patterns/subjects), **Table10 p32** (original, correction, cancellation, return), **Table8 p30** (reference invoice ID rules). These official fields describe **fiscal subject and conditions**, not an internal software editing workflow. The internal states `Draft`, `Validated`, `Finalized` are **ArginTaxPayer architecture**, *not tax-authority outcomes*. No claim of Tax Authority acceptance, transmission or issuance follows from these transitions.
+
+### Domain implementation
+
+- Added `InvoiceLifecycle.cs` with `InvoiceLifecycleState`: `Draft=1`, `Validated=2`, `Finalized=3`; independent `TaxAuthorityProcessingState` with `NotSubmitted`, `Pending`, `Accepted`, `Rejected`, `Unknown` for future Phase10/11 integration. **Only NotSubmitted is initialized here**; no API allows pretending an authority response occurred.
+- `InvoiceValidationReceipt` pins invoice ID, pre-validation revision, named rule-set edition and 64-hex rule-set fingerprint, UTC evaluation time and explicit error flag. `MarkLocallyValidated` requires a clean matching receipt and Draft state; increments revision and moves to Validated, without claiming fiscal submission readiness or full official legal validity. A receipt is an *input assertion*, not a cryptographic capability and must be created by a trusted application service.
+- `InvoiceInternalFinalizationApproval` records invoice ID, validated revision, approving user identity, workflow reference and UTC approval timestamp. `FinalizeInternally` requires the current Validated revision, current receipt bound to the immediately preceding revision, and approval not older than validation. Internal finalization increments revision and **locks all draft mutation methods** including buyer/seller/issue-date, subject, add/update/delete line, and financial preview; this is an internal immutable record, **not an already transmitted fiscal invoice**.
+- `ReopenValidatedDraft` permits `Validated → Draft`, discards the previously captured validation, increments revision and allows further draft edits. `Finalized` is terminal in this domain aggregate; future corrections, cancellations and returns must generate new referencing invoices rather than mutate this record.
+- The separate `InvoiceSubject` enum `Original/Correction/Cancellation/SalesReturn` remains unchanged. Do not identify a canceled source invoice with local Finalized state or assume a sent invoice is accepted.
+- `InvoiceLifecyclePolicy.CanTransition` documents legal topology of *internal* state machine: `Draft→Validated`, `Validated→Draft`, `Validated→Finalized`, all others rejected.
+
+### Security and completeness gates
+
+- The receipt and approval types validate format and revision but **cannot verify their creators' permissions or prove rule-set/legal completeness**. Before production, a trusted application service must authenticate the actor, verify full authorization to customer/taxpayer and an independently approved rule fingerprint/edition, ensure sufficient official rule coverage and trusted VAT rate resolution, and issue the receipt and approval through a protected workflow. Untrusted caller-supplied receipts/approvals MUST NOT be accepted by production API.
+- **Current partial V7.9 validators do not establish full fiscal readiness**, especially special patterns and legal effective dates. Therefore `FinalizeInternally` is categorically *local-only*; it must never cause signing, tax-ID assignment, queueing or sending in future until regulatory and security gates succeed.
+- Transition persistence and atomic revision-based optimistic concurrency / idempotency are fixed Step17/Step18 obligations; these Domain transitions do not perform database writes.
+- No database migration, no SDK transport, no real Tax Authority contact, no HTTP endpoint, no UI changes.
+
+### Changed files / tests
+
+- New `src/ArginTaxPayer.Domain/Invoices/InvoiceLifecycle.cs`.
+- Modified `src/ArginTaxPayer.Domain/Invoices/InvoiceAggregate.cs`: lifecycle state, receipt/approval data, internal transitions.
+- New `tests/ArginTaxPayer.Tests/Phase07InvoiceLifecycleTests.cs`: nine tests for Draft defaults, revision pinning, failed/forged/stale receipts, reopen invalidation, frozen finalized aggregate, incorrect approval, reapplication rejection, authority state isolation, invalid security-format evidence.
+- This single Phase07 master document only.
+
+**macOS operator check:**
+```bash
+cd ~/projects/ArginTaxPayer
+git fetch origin
+git switch phase/07-invoice-domain-rule-engine
+git pull --ff-only
+dotnet restore ArginTaxPayer.sln
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --filter "FullyQualifiedName~Phase07InvoiceLifecycleTests|FullyQualifiedName~Phase07InvoiceAggregateTests|FullyQualifiedName~Phase07InvoiceSubjectsTests|FullyQualifiedName~Phase07RuleSetVersioningTests" --no-restore
+dotnet test ArginTaxPayer.sln --no-restore
+git status --short
+```
+**Ubuntu:** no separate platform run required for Domain-only Step13; full macOS/Ubuntu acceptance Step23. **Owner acceptance:** pending.
