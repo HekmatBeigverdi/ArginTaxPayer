@@ -125,6 +125,21 @@ public sealed class Phase07MonetaryTaxRulesTests
     }
 
     [Fact]
+    public void Excessive_discount_does_not_disappear_as_a_silent_success()
+    {
+        var (baseline, _) = Build();
+        var invalid = new InvoiceFinancialInput(baseline.LineIds[0], 1m, 5m, 6m, 10m);
+        var context = new InvoiceRuleContext(baseline.InvoiceId, baseline.CustomerUserId,
+            baseline.TaxpayerId, baseline.Revision, Time, Ordinary, InvoiceSubject.Original,
+            baseline.LineIds, baseline.RuleSetEdition, catalogLines: baseline.CatalogLines,
+            monetaryInputs: new[] { invalid });
+        var result = OfficialV79MonetaryRuleFactory.Create().Evaluate(context);
+        Assert.Contains(result.Findings,
+            f => f.MessageKey == "invoice.money.calculation_invalid");
+        Assert.True(result.HasErrors);
+    }
+
+    [Fact]
     public void Wrong_catalog_quantity_fails_even_when_claims_are_valid()
     {
         var (baseline, _) = Build(quantity: 2m);

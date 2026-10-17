@@ -64,6 +64,18 @@ public static class OfficialV79MonetaryRuleFactory
                 result.Add(Finding("invoice.money.inputs", "invoice.money.input_precision_invalid",
                     $"body[{item.index}]"));
         }
+        // An invalid discount after truncation, excessive resulting amount,
+        // or checked decimal overflow must become an explicit error, not an
+        // empty set of findings when downstream comparisons are skipped.
+        try
+        {
+            InvoiceFinancialCalculator.Preview(c.MonetaryInputs, c.Classification,
+                new InvoiceRoundingPolicy(Edition));
+        }
+        catch (Exception ex) when (ex is ArgumentException or OverflowException)
+        {
+            result.Add(Finding("invoice.money.inputs", "invoice.money.calculation_invalid", "body"));
+        }
         return result;
     }
 
