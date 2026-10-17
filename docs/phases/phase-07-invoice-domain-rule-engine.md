@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 07: Invoice Domain and Rule Engine
 
-**Status:** Step 01 owner-approved 2026-10-17; Step 02 owner-approved 2026-10-17 (macOS test logs not attached); Step 03 owner-approved 2026-10-17 (test output not attached); Step 04 owner-approved 2026-10-17 (macOS evidence not attached); Step 05 owner-approved 2026-10-17 (operator test log not attached); Step 06 owner-approved 2026-10-17 (operator test logs not attached); Step 07 owner-approved 2026-10-17 (operator test logs not attached); Step 08 owner-approved 2026-10-17 (test logs not independently attached); Step 09 owner-approved 2026-10-17 (operator test logs not supplied); Step 10 owner-approved 2026-10-17 (operator test logs not attached); Step 11 owner-approved 2026-10-17 (operator test results not independently attached); Step 12 owner-approved 2026-10-17 (independent macOS logs not attached); Step 13 owner-approved 2026-10-17 (macOS logs not supplied); Step 14 owner-approved 2026-10-17 (operator macOS logs not attached); Step 15 cancellation domain rules committed, pending macOS tests and owner approval. Steps 16–24 not started.
+**Status:** Step 01 owner-approved 2026-10-17; Step 02 owner-approved 2026-10-17 (macOS test logs not attached); Step 03 owner-approved 2026-10-17 (test output not attached); Step 04 owner-approved 2026-10-17 (macOS evidence not attached); Step 05 owner-approved 2026-10-17 (operator test log not attached); Step 06 owner-approved 2026-10-17 (operator test logs not attached); Step 07 owner-approved 2026-10-17 (operator test logs not attached); Step 08 owner-approved 2026-10-17 (test logs not independently attached); Step 09 owner-approved 2026-10-17 (operator test logs not supplied); Step 10 owner-approved 2026-10-17 (operator test logs not attached); Step 11 owner-approved 2026-10-17 (operator test results not independently attached); Step 12 owner-approved 2026-10-17 (independent macOS logs not attached); Step 13 owner-approved 2026-10-17 (macOS logs not supplied); Step 14 owner-approved 2026-10-17 (operator macOS logs not attached); Step 15 owner-approved 2026-10-17 (operator macOS logs not attached); Step 16 sales-return domain rules implemented, awaiting macOS verification and owner approval. Steps 17–24 not started.
 **Branch:** `phase/07-invoice-domain-rule-engine`
 **Baseline:** `main` at `041bea0287c3b907a7b8910ef8602f51a8c1654c` (inspected 2026-10-17).
 **Roadmap:** `docs/roadmap/18-phases.md`, Phase 07 of 18.
@@ -52,8 +52,8 @@ Build a versioned electronic invoice domain and deterministic rules engine: lega
 | 12 | Rule-set versioning | Effective-dated immutable rule bundles and localized errors | Historical deterministic replay | Owner-approved 2026-10-17; operator test logs not attached |
 | 13 | Invoice lifecycle | Draft/validated/finalized and separation of authority outcomes | Illegal transitions rejected | Owner-approved 2026-10-17; operator test logs not supplied |
 | 14 | Correction reference | Immutable predecessor linkage and permitted modifications | Cycle/invalid predecessor blocked | Owner-approved 2026-10-17; operator logs not attached |
-| 15 | Cancellation reference | Reference integrity and duplicate-operation guards | No inconsistent second cancellation | Implemented Domain guards; awaiting macOS tests and owner acceptance |
-| 16 | Sales-return reference | Line-level partial/cumulative return constraints | Cannot return more than eligible quantity | Not started |
+| 15 | Cancellation reference | Reference integrity and duplicate-operation guards | No inconsistent second cancellation | Owner-approved 2026-10-17; operator macOS logs not attached |
+| 16 | Sales-return reference | Line-level partial/cumulative return constraints | Cannot return more than eligible quantity | Domain implementation committed, macOS tests and owner acceptance pending |
 | 17 | Concurrency and idempotency | Revision/CAS, scoped reference integrity, replay key policy | Concurrent conflict and replay tests | Not started |
 | 18 | Persistence and migrations | EF Core PostgreSQL additive schema and constraints | Test DB-only migration review; no production modifications | Not started |
 | 19 | Application services and API | Scoped commands/queries and stable error contracts | Authorization and API contract tests | Not started |
@@ -700,3 +700,53 @@ git status --short
 ```
 
 **Database migration:** none. **Ubuntu-only environment validation:** not necessary for Domain-only change. Final dual-platform test remains fixed Step23. **Owner approval:** pending.
+
+## Step 16 — Sales-return reference — Completion Record (2026-10-17)
+
+**State:** Code, tests, master-plan update committed; owner approval and operator macOS test logs pending. Step15 explicitly owner-approved 2026-10-17; independent macOS logs not available.
+
+### Normative source traceability and representation
+
+Owner-provided Iranian Tax Authority **RC_IITP.IS V7.9** (Tir 1405):
+- **§5.4 pp17–18:** sales return is a *separate referring electronic invoice*, using the same original type/pattern and a reference tax identifier, containing **goods/services sold minus returned quantities**. Do **not** create a positive "returned quantity" body and claim it is the official return document. Buyer identity, VAT rate and monetary commercial terms of the goods/service relative to original **may not change**; quantity/line count decreases. Returning **all goods/services** requires a cancellation invoice, not a sales-return invoice.
+- **§5.2 p16:** for referring against a previously issued correction/return, predecessor must be approved/system-approved/no-reaction-needed and must not have another noncanceled correction/return.
+- **§5 introductory notes p15, Table8 p30:** reference must be registered and valid, issuer workspace the same, reference tax ID verified, no referencing a cancellation, issue time not earlier than predecessor, official time-window checks are external and may not be invented. Simultaneous correction and sales return against same reference is forbidden by Table8.
+- **Table10 p32:** Type1 export pattern7, waybill pattern8, commodity-securities pattern11 disallow SalesReturn subject. All buyer fields are outside the transmitted pattern in referring documents. Step16 uses an *internal* buyer fingerprint comparison and does not insert the identity in outward payload.
+
+### Delivered contracts
+
+- New `src/ArginTaxPayer.Domain/Invoices/InvoiceSalesReturnReference.cs`: immutable `SalesReturnPredecessor` (registered reference, issuer/customer scope, original type/pattern, subject and fiscal response, issue time, buyer identity fingerprint, ancestor references, externally verified active-sibling conflict and immutable effective **remaining quantity** lines). For chained returns, authoritative predecessor lines must represent the last officially accepted remaining quantity—not guessed original quantities or a mutable catalog row.
+- `SalesReturnLineTerms` stores `sstid`, **remaining** `am`, VAT `vra`, unit price and unit-discount monetary invariants in IRR; no negative quantity, rate outside 0–999.99, or unverified duplicate sstid grouping. Monetary figures are compared as invariant commercial unit terms, **not mistakenly compared as identical line totals across changed quantities**.
+- `SalesReturnDraftEvidence` projects a separate referencing draft with its own ID, UTC issue date, original classification, subject+reference, internal buyer fingerprint and immutable proposed *remaining quantities*.
+- New `src/ArginTaxPayer.Domain/Invoices/InvoiceSalesReturnRules.cs`: deterministic `OfficialV79SalesReturnRules.Evaluate` emits stable error message keys for wrong subject/reference, missing/unregistered/cancelled predecessor, foreign customer/taxpayer, cycles, chronology, changed type/pattern or buyer identity, unsupported Type1 export/waybill/securities patterns, active related correction/return, and ineligible chained reference response; validates original goods-service membership, unchanged VAT/price/unit discount, non-increasing per-line remaining quantity, **at least one decreased quantity**, and **not all quantities reduced to zero** (cancellation mandatory).
+- An omitted reference line may represent a fully returned line only if some other eligible positive quantity remains. The result never authorizes fiscal submission. No mutation of original invoice, fiscal response, inventory, payment or legal VAT evidence.
+- Step16 is a Domain-only source rule; **no EF migration, database query, API, runtime side effects, authority calls or transaction locks**.
+
+### Known limitations and mandatory pre-submission gates
+
+- `SalesReturnPredecessor` and its quantity/response/conflict evidence are supplied by the caller and **must come from authenticated, tenant-scoped, fresh authority/workspace sources**, never raw HTTP user input. The Domain cannot certify current authority response status or whether a fiscal ID actually exists.
+- For cumulative returns, read the authoritative **latest accepted predecessor** and enforce one active correction/return per reference with atomic transaction locks (fixed Step17) and durable unique constraints (Step18), not only the local arithmetic preflight. Reference chain and eligibility need authoritative reconciliation; no double-return guarantee without persistence.
+- Commercial invariants are a minimal projection (`UnitPriceRial`, `UnitDiscountRial` and `VatRatePercent`). Complete pattern-specific financial fields, amount and source-fiscal-unit proof, official time windows, and any formally allowed specialized exceptions are mandatory before actual issuance. The Rule Engine still returns no fiscal send authorization; production signing and submission belong to later global phases.
+- Some real invoices may repeat `sstid` across multiple independent rows; this Step16 model rejects ambiguous duplicates instead of silently merging monetary bases. A verified stable line identity and duplicate policy must be introduced before supporting those cases.
+- The draft and predecessor snapshot models support a zero remaining quantity only to represent a fully removed individual line; outward DTO serialization must omit such rows according to the official schema. This has not been implemented here.
+
+### Changed files
+
+- `src/ArginTaxPayer.Domain/Invoices/InvoiceSalesReturnReference.cs` — new immutable predecessor and draft line evidence.
+- `src/ArginTaxPayer.Domain/Invoices/InvoiceSalesReturnRules.cs` — new source-grounded sales-return reference validation.
+- `tests/ArginTaxPayer.Tests/Phase07SalesReturnInvoiceTests.cs` — 13 new positive/negative test cases including partial return, unchanged/increased/full return, immutable commercial terms, same scope, reference response, subject/pattern gates, chained remaining quantity, cycle handling, and deterministic snapshots.
+- This single Phase07 master plan; no step renumbering.
+
+**Operator macOS acceptance commands:**
+```bash
+cd ~/projects/ArginTaxPayer
+git fetch origin
+git switch phase/07-invoice-domain-rule-engine
+git pull --ff-only
+dotnet restore ArginTaxPayer.sln
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --filter "FullyQualifiedName~Phase07SalesReturnInvoiceTests|FullyQualifiedName~Phase07CorrectionInvoiceTests|FullyQualifiedName~Phase07CancellationInvoiceTests|FullyQualifiedName~Phase07InvoiceSubjectsTests" --no-restore
+dotnet test ArginTaxPayer.sln --no-restore
+git status --short
+```
+
+**Owner approval:** pending. **macOS tests:** written but not run on operator machine. **Ubuntu:** no separate requirement for domain-only step. **Phase07 Step17 next:** concurrency, optimistic revisions, idempotency and cross-request reference uniqueness.
