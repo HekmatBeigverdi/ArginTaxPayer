@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 06: Goods and Services
 
-**Status:** Steps01–12 explicitly owner-approved, including Step12 owner signoff on 2026-10-16 (operator reports successful checks; raw HTTP response not attached). Step13 Persian RTL catalog UI and protected Next.js BFF committed; macOS/browser and owner acceptance pending. Steps14–16 not started.
+**Status:** Steps01–13 owner-approved (Step13 explicitly confirmed 2026-10-17; macOS/build/browser outputs not independently attached). Step14 Invoice Handoff Contracts implemented; focused/integration tests and owner acceptance pending. Steps15–16 not started.
 **Branch:** `phase/06-goods-services`
 **Baseline:** `main` after Phase05 merge `6a3de74692403029b68c2061251601752eebd518`.
 **Roadmap:** `docs/roadmap/18-phases.md`, Phase 06.
@@ -28,8 +28,8 @@ Preserve Phase03 identity, Phase04 customer/partner ownership and Phase05 partie
 | 10 | Customer Service Domain | Customer services and type rules | CRUD, ownership and type-mismatch tests | 09 | Owner-approved 2026-10-16; tests operator-reported successful |
 | 11 | Tax Identifier Mapping | Historical mapping from customer items/services to official identifiers | Reject invalid or wrong-kind mappings | 08–10 | Owner-approved 2026-10-16; tests/migration operator-reported successful |
 | 12 | Catalog API and Search | Search, filtering, pagination and concurrency support | Role, paging and stale-update tests | 09–11 | Owner-approved 2026-10-16; operator-reported successful |
-| 13 | RTL Catalog UI | Lists, forms, selection search and localized errors | Authorized paths, validation and accessibility tests | 12 | UI/BFF committed; operator/browser acceptance pending |
-| 14 | Invoice Handoff Contracts | Immutable snapshot contract for Phases 07/08 without invoice issuance | Version contract and historical immutability tests | 06, 11–13 | Pending |
+| 13 | RTL Catalog UI | Lists, forms, selection search and localized errors | Authorized paths, validation and accessibility tests | 12 | Owner-approved 2026-10-17; dashboard/branding refinements accepted |
+| 14 | Invoice Handoff Contracts | Immutable snapshot contract for Phases 07/08 without invoice issuance | Version contract and historical immutability tests | 06, 11–13 | Code/tests committed, awaiting operator verification and owner approval |
 | 15 | Security and Regression | Isolation, race, migration and Phase03–05 regression tests | Prevent cross-customer and former-partner access | 01–14 | Pending |
 | 16 | Final Acceptance and Handoff | Mac and Ubuntu aggregate tests, documentation and risk report | Evidence report, owner approval and separate merge/tag | 15 | Pending |
 
@@ -630,7 +630,7 @@ Browser: verify the searchable unit picker and that staged units carry a draft l
 
 **Acceptance caveat:** Web `npm test` static tests prove wiring, not browser accessibility/real role isolation. Production UI disabled. No CI/macOS results were captured by assistant; browser and live BFF integration require operator confirmation.
 
-**Owner signoff Step13:** Pending.
+**Owner signoff Step13:** Approved by owner 2026-10-17.
 
 
 ### Step13 dashboard-alignment correction — owner feedback (2026-10-16)
@@ -662,7 +662,7 @@ zsh scripts/dev-status.zsh
 ```
 Open `http://127.0.0.1:3000/catalog` while signed in. Confirm navigation in right sidebar, console headings and compact grid; open new product/service form in a modal; click unit dropdown, search for `عدد` or `1627`, select via mouse/keyboard, save a *disposable* customer item and reopen for edit; verify 401/403 for missing/wrong customer session and stale revision 409. Check mobile viewport and tab/focus handling. Stop short of official publication or real invoicing.
 
-**Owner signoff Step13:** Pending; this corrective change is still awaiting the operator's `npm run typecheck`, tests, build and browser acceptance. No assistant-run macOS test/DB check is claimed.
+**Owner signoff Step13:** Approved by owner 2026-10-17; this corrective change is still awaiting the operator's `npm run typecheck`, tests, build and browser acceptance. No assistant-run macOS test/DB check is claimed.
 
 
 ### Step13 owner refinements — split editor, scoped account name, loading, Jalali picker (2026-10-16)
@@ -693,6 +693,48 @@ Open `http://127.0.0.1:3000/catalog`; verify right inline form + left table at l
 
 **Migration:** NONE. Pure Next.js/React/CSS changes to existing catalog endpoints.
 **Owner signoff Step13:** Remains pending.
+
+
+## Step 14 — Invoice Handoff Contracts (2026-10-17)
+
+**Status:** Implemented and committed; operator local tests / owner signoff pending. Step13 accepted by owner without separately supplied raw build/browser logs. **No invoice issuance, live tax authority submission, signing, accounting posting, VAT rate inference or new data mutation in this step.**
+
+### Scope and contract
+- `src/ArginTaxPayer.Domain/Catalog/InvoiceCatalogHandoff.cs` defines versioned `InvoiceCatalogHandoff` (ContractVersion=1). The immutable C# positional record captures customer/item ID and item revision, customer internal code/name/kind, base unit ID, official unit code/title + release ID/document/edition/SHA256, effective-dated mapping ID/revision/from/to, official goods/service entry code/title/kind + source release ID/document/edition/SHA256, effective date and UTC capture date. `InvoiceVatResolution.Unresolved` explicitly indicates that VAT was **not** computed/cleared; phase07/08 consumers must resolve VAT policy and other invoice fields independently.
+- `InvoiceCatalogHandoffPolicy` validates half-open UTC intervals `[from,to)`, type compatibility (StockItem/NonStockItem -> official Goods; Service -> official Service), item active, official ID Verified and its release Active, official unit approved+its release Active, and positive source-review evidence recorded for **both** releases. A 13-digit number or a source HTTPS URL alone is not proof of official correctness. Unknowns fail closed.
+- `src/ArginTaxPayer.Infrastructure/Persistence/Catalog/InvoiceCatalogHandoffService.cs` offers a **read-only, internal-only** `CaptureAsync(accessToken,customerUserId,itemId,effectiveAtUtc)`. It authenticates current session, verifies current ownership/role (Level1/Level2 MFA and current commercial ownership; customer self), rechecks access under PostgreSQL RepeatableRead for a consistent source read, fetches exactly one effective mapping, verifies active reviewed official and unit releases, and returns a **detached immutable value**, not mutable EF entity references.
+- A snapshot from this service must be *persisted/copied* into the future invoice line when an invoice is created; do not requery live item name, official mapping or VAT reference when rendering an existing invoice. The service intentionally does not store invoice snapshots in phase06 and does not return a ready-to-issue invoice.
+- Historic mappings remain readable via Step11 history and source release references. **A fresh handoff is intentionally blocked if its current source release has since been superseded**. Previously captured invoice snapshots MUST remain unchanged and readable in future invoice storage. Replay/historic invoice rendering is a separate read of stored snapshot, NOT fresh `CaptureAsync` against current catalog.
+- Current unit seed of 102 official measurement units stays staged: **fresh invoice handoff is expected to return UnitNotApproved** until genuine review and activation. Do not activate the staged seed solely to make this test green.
+- This is an internal application contract; no browser/customer HTTP route, invoice table, migration or EDI/sale operation is added. Phase07/08 work will explicitly design invoice snapshot persistence, issuer, buyer, amounts, VAT resolution, immutable invoice numbering, signed submissions and legal date/time invariants.
+
+### Changed files
+1. `src/ArginTaxPayer.Domain/Catalog/InvoiceCatalogHandoff.cs` — versioned immutable DTO, error decisions and preconditions.
+2. `src/ArginTaxPayer.Infrastructure/Persistence/Catalog/InvoiceCatalogHandoffService.cs` — authenticated consistent read-only snapshot boundary, fail-closed provenance checks.
+3. `tests/ArginTaxPayer.Tests/Phase06InvoiceHandoffTests.cs` — types, temporal boundaries, inactive/unverified/staged releases, VAT unresolved, DTO consistency.
+4. `docs/phases/phase-06.md` — owner approval Step13 and Step14 work.
+
+### Operator macOS tests
+```bash
+git fetch origin
+git switch phase/06-goods-services
+git pull --ff-only
+dotnet build ArginTaxPayer.sln -c Release
+dotnet test ArginTaxPayer.sln -c Release --no-build --filter "FullyQualifiedName~Phase06InvoiceHandoffTests"
+dotnet test ArginTaxPayer.sln -c Release --no-build
+dotnet ef migrations has-pending-model-changes --project src/ArginTaxPayer.Infrastructure --startup-project src/ArginTaxPayer.Api
+```
+No EF migration in Step14. Use `zsh scripts/dev-up.zsh`/`zsh scripts/dev-status.zsh` only if test DB integration is required. Never write to production or activate official units merely to fabricate sample data.
+
+### Acceptance gates
+- Local build, focused tests and full regression pass; no EF snapshot change.
+- Goods/Service mismatches and missing/ambiguous/stale mapping blocked. Half-open UTC boundary verified.
+- Customer wrong tenant and former Level2 partner cannot capture; MFA required for admins. Read-only RepeatableRead returns consistent mapping/version when an update races. These are **required integration acceptance tests**, not proven by current pure unit tests.
+- Staged, withdrawn or unreviewed official/unit releases fail closed; no authority verification inferred from shape or source URL.
+- Frozen contract contains all intended item/official/unit provenance, UTC effective time and explicit unresolved VAT; consumers cannot treat it as a complete invoice.
+- Previously recorded invoice snapshots are not mutated by later changes (future invoice persistence responsibility); Phase03–05 scope regression unaffected.
+- No new migration, no invoice API/numbering/financial transactions, and Step04 102 units retained.
+**Owner signoff Step14:** Pending.
 
 ## Phase Closeout
 
