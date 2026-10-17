@@ -104,7 +104,8 @@ public sealed class CustomerProductService(ArginTaxPayerDbContext db, IdentityAu
     {
         var actor = await identity.CurrentUserIdAsync(token, ct);
         if (actor is null) return (CustomerProductDecision.Unauthenticated, []);
-        if (page < 1 || pageSize is < 1 or > 100)
+        if (page < 1 || pageSize is < 1 or > 100 ||
+            (long)(page - 1) * pageSize > int.MaxValue)
             return (CustomerProductDecision.Invalid, []);
         if (!await HasScopeAsync(actor.Value, customerId, ct))
             return (CustomerProductDecision.Forbidden, []);
