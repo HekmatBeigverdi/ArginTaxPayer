@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 07: Invoice Domain and Rule Engine
 
-**Status:** Step 01 owner-approved 2026-10-17; Step 02 owner-approved 2026-10-17 (macOS test logs not attached); Step 03 owner-approved 2026-10-17 (test output not attached); Step 04 owner-approved 2026-10-17 (macOS evidence not attached); Step 05 owner-approved 2026-10-17 (operator test log not attached); Step 06 owner-approved 2026-10-17 (operator test logs not attached); Step 07 owner-approved 2026-10-17 (operator test logs not attached); Step 08 owner-approved 2026-10-17 (test logs not independently attached); Step 09 owner-approved 2026-10-17 (operator test logs not supplied); Step 10 owner-approved 2026-10-17 (operator test logs not attached); Step 11 owner-approved 2026-10-17 (operator test results not independently attached); Step 12 owner-approved 2026-10-17 (independent macOS logs not attached); Step 13 owner-approved 2026-10-17 (macOS logs not supplied); Step 14 owner-approved 2026-10-17 (operator macOS logs not attached); Step 15 owner-approved 2026-10-17 (operator macOS logs not attached); Step 16 sales-return domain rules implemented, awaiting macOS verification and owner approval. Steps 17–24 not started.
+**Status:** Step 01 owner-approved 2026-10-17; Step 02 owner-approved 2026-10-17 (macOS test logs not attached); Step 03 owner-approved 2026-10-17 (test output not attached); Step 04 owner-approved 2026-10-17 (macOS evidence not attached); Step 05 owner-approved 2026-10-17 (operator test log not attached); Step 06 owner-approved 2026-10-17 (operator test logs not attached); Step 07 owner-approved 2026-10-17 (operator test logs not attached); Step 08 owner-approved 2026-10-17 (test logs not independently attached); Step 09 owner-approved 2026-10-17 (operator test logs not supplied); Step 10 owner-approved 2026-10-17 (operator test logs not attached); Step 11 owner-approved 2026-10-17 (operator test results not independently attached); Step 12 owner-approved 2026-10-17 (independent macOS logs not attached); Step 13 owner-approved 2026-10-17 (macOS logs not supplied); Step 14 owner-approved 2026-10-17 (operator macOS logs not attached); Step 15 owner-approved 2026-10-17 (operator macOS logs not attached); Step 16 owner-approved 2026-10-17 (independent macOS test logs unavailable); Step 17 Domain concurrency/idempotency contracts implemented, pending macOS acceptance. Steps 18–24 not started.
 **Branch:** `phase/07-invoice-domain-rule-engine`
 **Baseline:** `main` at `041bea0287c3b907a7b8910ef8602f51a8c1654c` (inspected 2026-10-17).
 **Roadmap:** `docs/roadmap/18-phases.md`, Phase 07 of 18.
@@ -53,8 +53,8 @@ Build a versioned electronic invoice domain and deterministic rules engine: lega
 | 13 | Invoice lifecycle | Draft/validated/finalized and separation of authority outcomes | Illegal transitions rejected | Owner-approved 2026-10-17; operator test logs not supplied |
 | 14 | Correction reference | Immutable predecessor linkage and permitted modifications | Cycle/invalid predecessor blocked | Owner-approved 2026-10-17; operator logs not attached |
 | 15 | Cancellation reference | Reference integrity and duplicate-operation guards | No inconsistent second cancellation | Owner-approved 2026-10-17; operator macOS logs not attached |
-| 16 | Sales-return reference | Line-level partial/cumulative return constraints | Cannot return more than eligible quantity | Domain implementation committed, macOS tests and owner acceptance pending |
-| 17 | Concurrency and idempotency | Revision/CAS, scoped reference integrity, replay key policy | Concurrent conflict and replay tests | Not started |
+| 16 | Sales-return reference | Line-level partial/cumulative return constraints | Cannot return more than eligible quantity | Owner-approved 2026-10-17; independent test log not attached |
+| 17 | Concurrency and idempotency | Revision/CAS, scoped reference integrity, replay key policy | Concurrent conflict and replay tests | Domain proposal policy and tests committed; macOS execution/owner approval pending |
 | 18 | Persistence and migrations | EF Core PostgreSQL additive schema and constraints | Test DB-only migration review; no production modifications | Not started |
 | 19 | Application services and API | Scoped commands/queries and stable error contracts | Authorization and API contract tests | Not started |
 | 20 | Invoice-entry UI | RTL dynamic type/pattern, party and item selection | Usable keyboard and responsive flows | Not started |
@@ -750,3 +750,43 @@ git status --short
 ```
 
 **Owner approval:** pending. **macOS tests:** written but not run on operator machine. **Ubuntu:** no separate requirement for domain-only step. **Phase07 Step17 next:** concurrency, optimistic revisions, idempotency and cross-request reference uniqueness.
+
+## Step 17 — Concurrency and Idempotency — Completion Record (2026-10-17)
+
+**Status:** Domain-only proposal/reservation contract and ten xUnit scenarios committed; pending actual macOS build/test and owner approval. **Step16** approved by owner 2026-10-17; no verified operator test log available.
+
+### Why the domain is not an atomic reservation system
+
+Normative fiscal references: owner-provided **RC_IITP.IS V7.9**, §§5.2–5.4 pp15–18 and **Table8 p30**: only one cancellation may reference an invoice; correction/return references must not compete in an ineligible active state; referenced invoices must be valid, issuer-scoped, and chronologically correct. The Tax Authority **does not** prescribe the C# CAS, request fingerprint, or database reservation design. Those are internal ArginTaxPayer reliability requirements. Concurrent writes can escape stateless domain preflight checks (Steps14–16).
+
+### Implementation
+
+- New `src/ArginTaxPayer.Domain/Invoices/InvoiceOperationRegistry.cs` defines `InvoiceOperationCommand` with authenticated tenant/customer and taxpayer scope, target invoice ID, **expected invoice Revision**, caller-provided opaque **idempotency key** (max128), SHA-256 fingerprint of the canonical request including semantically material input, subject and optional 22-character fiscal reference. Request fingerprint must be computed by a trusted application service, not trusted as raw client input.
+- Immutable `InvoiceOperationRegistry` holds snapshots of `InvoiceOperationReservation` and a registry revision. `Propose(command, currentInvoiceRevision, expectedRegistryRevision)` returns an **uncommitted proposal** with status `Reserved`, `IdenticalReplay`, `IdempotencyKeyConflict`, `ReferenceConflict`, `StaleInvoiceRevision` or `StaleRegistryRevision`. The original registry object is not mutated.
+- A **true identical replay** of a previously registered scoped key returns the same registry and no second reservation even after invoice revision changes. Reusing the same key with a different invoice/revision/request fingerprint/subject/reference is rejected as a conflict.
+- Different idempotency keys cannot simultaneously claim the same effective reference slot in one tenant+taxpayer scope: **correction and return share an exclusive claim class**; cancellation uses a separate exclusive claim class and never accepts a second cancellation claim. Cancellation eligibility under V7.9 remains independently enforced by Step15; an approved correction may already render the original ineligible for cancellation.
+- The policy checks stale **invoice Revision** and stale **registry Revision** separately, returns structured result codes (never fiscal authority approval), and stores no raw customer payload. The registry snapshots the reservations into a read-only array.
+- The current policy is intentionally **conservative** about released/canceled claims: it does not free claim slots upon arbitrary unverified user status updates. Later application/persistence must reconcile genuine official statuses, prevent stale releases and preserve an audit trail.
+
+### Critical correctness limitation and Step18 persistence contract
+
+- Domain snapshots are **not shared atomic memory** across ASP.NET instances, processes or workers. Two callers reading the same empty registry can **both** receive a proposed `Reserved` result. Only one may commit. Step18 MUST implement one transaction encompassing tenant-scoped invoice Revision CAS, registry revision CAS, unique scoped `(CustomerUserId,TaxpayerId,IdempotencyKey)`, and unique active reference reservation slots, with correct rollback and retry. Never update the invoice without its reservation or vice versa.
+- The persistence implementation should store the canonical request hash and original response/outcome for identical retries; only recognized identical requests are replayed. A prior **unknown/pending submission** must be reconciled with authoritative status before any outbound retry (future transport phase). A per-process lock or static Dictionary is insufficient. No retry may duplicate invoice issuance.
+- Last step's reference checks still require an authenticated, tenant-scoped, fresh source of fiscal and active-sibling facts; this proposal does not verify their truth.
+- **No database changes yet**, no EF migration, no public route, no service startup or official network submission. `InvoiceOperationOutcome.IsSubmissionAuthorized` remains false. Actual multi-instance integration/load tests deferred to Step18/Step22/Step23.
+
+### Tests / acceptance
+
+- New `tests/ArginTaxPayer.Tests/Phase07InvoiceConcurrencyIdempotencyTests.cs` with ten test scenarios: reservation without source mutation, identical replay at advanced revision, key re-use mismatch, correction/return exclusive reference, single cancellation slot, separate stale invoice/registry CAS, isolation across scopes, invalid key/hash, frozen input collections, **two competing proposals from identical snapshots both appear valid** (documents need for true atomic persistence).
+- No test has actually run on operator macOS during this edit. Owner should run:
+```bash
+cd ~/projects/ArginTaxPayer
+git fetch origin
+git switch phase/07-invoice-domain-rule-engine
+git pull --ff-only
+dotnet restore ArginTaxPayer.sln
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --filter "FullyQualifiedName~Phase07InvoiceConcurrencyIdempotencyTests|FullyQualifiedName~Phase07InvoiceLifecycleTests|FullyQualifiedName~Phase07CorrectionInvoiceTests|FullyQualifiedName~Phase07CancellationInvoiceTests|FullyQualifiedName~Phase07SalesReturnInvoiceTests" --no-restore
+dotnet test ArginTaxPayer.sln --no-restore
+git status --short
+```
+**macOS:** tests pending. **Ubuntu:** no separate Domain-only execution now; fixed Step23 full dual-platform acceptance. **Migration:** none until Step18. **Owner acceptance:** pending.
