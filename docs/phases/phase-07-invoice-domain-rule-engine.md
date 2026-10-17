@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 07: Invoice Domain and Rule Engine
 
-**Status:** Step 01 owner-approved 2026-10-17; Step 02 owner-approved 2026-10-17 (macOS test logs not attached); Step 03 owner-approved 2026-10-17 (test output not attached); Step 04 owner-approved 2026-10-17 (macOS evidence not attached); Step 05 owner-approved 2026-10-17 (operator test log not attached); Step 06 owner-approved 2026-10-17 (operator test logs not attached); Step 07 owner-approved 2026-10-17 (operator test logs not attached); Step 08 owner-approved 2026-10-17 (test logs not independently attached); Step 09 owner-approved 2026-10-17 (operator test logs not supplied); Step 10 owner-approved 2026-10-17 (operator test logs not attached); Step 11 owner-approved 2026-10-17 (operator test results not independently attached); Step 12 owner-approved 2026-10-17 (independent macOS logs not attached); Step 13 implemented pending macOS tests and owner approval. Steps 14–24 not started.
+**Status:** Step 01 owner-approved 2026-10-17; Step 02 owner-approved 2026-10-17 (macOS test logs not attached); Step 03 owner-approved 2026-10-17 (test output not attached); Step 04 owner-approved 2026-10-17 (macOS evidence not attached); Step 05 owner-approved 2026-10-17 (operator test log not attached); Step 06 owner-approved 2026-10-17 (operator test logs not attached); Step 07 owner-approved 2026-10-17 (operator test logs not attached); Step 08 owner-approved 2026-10-17 (test logs not independently attached); Step 09 owner-approved 2026-10-17 (operator test logs not supplied); Step 10 owner-approved 2026-10-17 (operator test logs not attached); Step 11 owner-approved 2026-10-17 (operator test results not independently attached); Step 12 owner-approved 2026-10-17 (independent macOS logs not attached); Step 13 owner-approved 2026-10-17 (macOS logs not supplied); Step 14 correction domain rules implemented, pending macOS verification and owner approval. Steps 15–24 not started.
 **Branch:** `phase/07-invoice-domain-rule-engine`
 **Baseline:** `main` at `041bea0287c3b907a7b8910ef8602f51a8c1654c` (inspected 2026-10-17).
 **Roadmap:** `docs/roadmap/18-phases.md`, Phase 07 of 18.
@@ -50,8 +50,8 @@ Build a versioned electronic invoice domain and deterministic rules engine: lega
 | 10 | Line and catalog rules | Official identifiers, mapping, unit, kind and source effective date | Fail closed on unresolved or expired sources | Owner-approved 2026-10-17; operator test logs not attached |
 | 11 | Monetary and tax rules | Totals, VAT resolution and precision validation | No universal rate assumption; exact totals | Owner-approved 2026-10-17; operator test logs not attached |
 | 12 | Rule-set versioning | Effective-dated immutable rule bundles and localized errors | Historical deterministic replay | Owner-approved 2026-10-17; operator test logs not attached |
-| 13 | Invoice lifecycle | Draft/validated/finalized and separation of authority outcomes | Illegal transitions rejected | Implemented, awaiting operator macOS test and owner approval |
-| 14 | Correction reference | Immutable predecessor linkage and permitted modifications | Cycle/invalid predecessor blocked | Not started |
+| 13 | Invoice lifecycle | Draft/validated/finalized and separation of authority outcomes | Illegal transitions rejected | Owner-approved 2026-10-17; operator test logs not supplied |
+| 14 | Correction reference | Immutable predecessor linkage and permitted modifications | Cycle/invalid predecessor blocked | Implemented domain rules; operator tests and acceptance pending |
 | 15 | Cancellation reference | Reference integrity and duplicate-operation guards | No inconsistent second cancellation | Not started |
 | 16 | Sales-return reference | Line-level partial/cumulative return constraints | Cannot return more than eligible quantity | Not started |
 | 17 | Concurrency and idempotency | Revision/CAS, scoped reference integrity, replay key policy | Concurrent conflict and replay tests | Not started |
@@ -598,3 +598,55 @@ dotnet test ArginTaxPayer.sln --no-restore
 git status --short
 ```
 **Ubuntu:** no separate platform run required for Domain-only Step13; full macOS/Ubuntu acceptance Step23. **Owner acceptance:** pending.
+
+## Step 14 — Correction Reference — Completion Record (2026-10-17)
+
+**Status:** Implemented, source controlled; operator macOS compilation/regression tests and owner acceptance pending. Owner confirmed completion of Step13 on 2026-10-17; no independent test evidence provided.
+
+### Primary authority evidence and essential restrictions
+
+Owner-supplied **RC_IITP.IS V7.9**, Tir 1405:
+- **p15 §5 and §5.2**: a correction is a *new* invoice with the same original invoice type and pattern, referencing the previous invoice's tax ID; buyer identity information, goods/services identifier (`sstid`), and VAT rate are noneditable. If any must change, cancel the previous invoice and issue a new original. The existing, finalized source aggregate must not be modified.
+- **p16 §5.2 item2**: quantity increases may be corrected or separately invoiced; quantity decreases via correction only when correcting incorrectly recorded original quantity, otherwise sales-return is the normal alternate. A correction cannot add a new official goods/service identifier.
+- **p16 §5.2 item3**: when previous document itself is correction/return, the reference must have an approved/system-approved/no-response-needed result and must not already have another noncanceled correction or return.
+- **p30 Table8 items1–8**: `irtaxid` required for correction/return/cancellation; reference must exist, same issuer workspace, correction/return conflicting simultaneous reference prohibited, reference cannot be cancelled, correction issue time must not precede reference. Official allowed date windows remain externally published and are **not inferred**.
+- **p32 Table10 item7**: for commodity-linked securities pattern 11, an original invoice with matching/approved sale notice cannot be corrected; only an unapproved notice allows correction. Missing notice status is not silently accepted.
+- **p32 Table10 item4**: buyer fields are outside transmitted pattern on referring invoices; the internal buyer fingerprint comparison protects identity lineage but does **not** claim buyer fields must be sent in a correction.
+- **p61 Table43 item8**: VAT rate is unchanged in referenced corrections/returns/cancellations; no universal rate is invented.
+
+### Delivered domain contracts
+
+- New `InvoiceCorrectionReference.cs`: immutable `CorrectionPredecessor` with fiscal Tax ID, local invoice ID, issuer scope, registered/canceled state, issue timestamp, subject and response status, immutable list of official goods/service identifiers with quantity and VAT rate, lineage ancestor IDs, and externally obtained active sibling/conflict flags. `CorrectionDraftEvidence` carries a distinct new invoice ID, matching tenant scope, issue UTC, type/pattern, subject/link, buyer identity fingerprint, proposed line identifiers/quantities/VAT, and an asserted original quantity-entry mistake reason for a decrease.
+- New `InvoiceCorrectionRules.cs`: deterministic source-grounded validation of exact reference matching, existence, no cancelled source, same authorized customer/taxpayer, no self/cyclic reference, chronological order, type/pattern and buyer identity unchanged, valid predecessor response and active sibling conflicts, no new/removed/duplicate goods/service identifiers, unchanged VAT, reduction intent, and verified stock-exchange sale-notice status for pattern 11.
+- No reference is resolved by untrusted user input alone. A 22-character `irtaxid` is only **structural** identity; it does not establish existence or acceptance in the fiscal portal. The application must obtain facts from an authenticated and scoped reference resolver. User text or personal IDs are not interpolated into output error keys.
+- This step models one correction against an authoritative immutable predecessor without changing the previous `InvoiceAggregate` or its `Finalized` state. Source is unchanged; correction is a separate Draft with `InvoiceSubject.Correction`.
+
+### Open gates / deliberately not implemented
+
+- **Not yet a legal issuance decision:** checks are provisional constraints over externally supplied verified facts, not a production reference verification service or legally authorized submission. In particular, `ReductionIsCorrectionOfOriginalMistake=true` is a declared reason, not proof of the historic mistake; documentary/evidence workflow remains necessary.
+- Certain pattern-specific fields, exact legal correction time windows, buyer identity based on authoritative tax registry, competing document statuses and legally active VAT revision require authoritative lookup. Unsupported or missing external evidence must block submission at the application boundary.
+- Duplicate `sstid` lines in predecessor are currently conservatively rejected rather than silently merged; production implementation must use a verified identity/multiset strategy before accepting such references.
+- Neither a no-error result nor an internally Finalized correction should be interpreted as the tax-authority accepting the fiscal correction. Lifecycle, correction, cancellation and return remain separate concepts. Concurrent reference uniqueness/idempotency will be enforced in Step17 and persisted in Step18.
+- No API, persistence/migration, tax submission, SDK calls, workstation identity access, or financial-side effects added. Dedicated cancellation and sales-return state machines remain fixed Step15/16.
+
+### Changed files
+
+- `src/ArginTaxPayer.Domain/Invoices/InvoiceCorrectionReference.cs` — new immutable registered-predecessor and correction draft evidence.
+- `src/ArginTaxPayer.Domain/Invoices/InvoiceCorrectionRules.cs` — new correction-specific validation.
+- `tests/ArginTaxPayer.Tests/Phase07CorrectionInvoiceTests.cs` — new positive/negative correction domain tests (12 scenarios).
+- `docs/phases/phase-07-invoice-domain-rule-engine.md` — this completion record, without renumbering prior steps.
+
+### macOS operator test
+
+```bash
+cd ~/projects/ArginTaxPayer
+git fetch origin
+git switch phase/07-invoice-domain-rule-engine
+git pull --ff-only
+dotnet restore ArginTaxPayer.sln
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --filter "FullyQualifiedName~Phase07CorrectionInvoiceTests|FullyQualifiedName~Phase07InvoiceSubjectsTests|FullyQualifiedName~Phase07InvoiceLifecycleTests|FullyQualifiedName~Phase07TypePatternRulesTests" --no-restore
+dotnet test ArginTaxPayer.sln --no-restore
+git status --short
+```
+
+**Database/EF migrations:** none. **Ubuntu:** deferred for this Domain-only step; final platform acceptance Step23 remains fixed. **Owner acceptance:** pending.
