@@ -60,3 +60,7 @@
 - `TAX-SDK-GUIDE-OLD`, **pp4–9**, describes the older file/private-key `TaxApiService` path; it cannot be construed as a replacement for the certificate in new v2 authentication. The 1404 technical instruction says legacy API remained available *until further notice at its publication*, NOT guaranteed today.
 
 **Decision:** ArginTaxPayer should expose an explicit signing mode abstraction (legacy direct key mode vs new certificate-based direct mode; potential delegated TSP modes separately). Do not require a USB token for certificate-based file signing; do require credential validity, matching key pair and suitable trust chain. Registration, signing key handling, API integration and live authorization are deferred to the correct later phase; this paragraph does not mean they are implemented.
+
+## Binding product decision: maximal in-app enrollment (2026-10-17)
+
+Per owner instruction, certificate/fiscal-memory onboarding should happen inside ArginTaxPayer as far as legitimately possible. The architecture and boundaries are fixed in [ADR 0007](../adr/0007-certificate-enrollment-onboarding.md): key/CSR generation, importing and validating certificates, secure custody choice, guided handoff to authorized CA and taxpayer portal, and SDK-authenticated connection checking. **A certificate must be issued by an authorized CA; do not presume an official CA enrollment API exists.** Maintain both SDK generations and official-document citation obligations unchanged.
