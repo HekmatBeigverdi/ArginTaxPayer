@@ -721,3 +721,14 @@ Not started.
 - **Migration:** none. Changes are static PNG, Next.js metadata, UI and tests.
 - **macOS operator verification:** `git fetch origin && git switch phase/06-goods-services && git pull --ff-only`; `cd apps/web && npm run typecheck && npm test && npm run build`. Restart `zsh scripts/dev-up.zsh` if needed; inspect `/identity`, `/dashboard` and `/catalog`, then refresh browser favicon cache if the previous icon remains.
 - **Approval:** Step13 remains pending operator build/browser acceptance; no assistant-run macOS compile/CI claim.
+
+
+### Step13 transparent logo and dashboard hero replacement (2026-10-17)
+
+**Owner request:** Keep the uploaded dashboard screenshot untouched; change program assets so the owner-supplied Argin logo has a transparent *exterior* across all application branding and replaces the obsolete large "آ" icon in the dashboard welcome card.
+
+**Implementation:** Converted the owner-supplied image into a transparent PNG (exterior alpha, white internal glyph preserved), with an optimized 128×128 icon asset. Replaced the binary files at `apps/web/public/brand/argin-logo.png`, `apps/web/app/icon.png`, `apps/web/public/favicon.png`, `apps/web/public/apple-touch-icon.png`. The existing Next Image usages in login, sidebar and account header now share the new transparent source file. Replaced `app-welcome-graphic` glyph in `apps/web/app/(console)/dashboard/page.tsx` with `Image` and updated CSS to suppress the old teal glyph tile, card-icon background, logo borders and opaque backing. Updated favicon URL cache-busting metadata and `apps/web/tests/branding.test.mjs` for alpha, all paths and hero asset contract.
+
+**Scope:** Only web PNG assets, layout metadata, React and CSS; no API, identity logic or EF schema changed. **No migration required.**
+
+**Operator validation:** `git fetch origin && git switch phase/06-goods-services && git pull --ff-only`, then `cd apps/web && npm run typecheck && npm test && npm run build`. Restart the dev services if needed, inspect `/identity` and `/dashboard` and browser tab favicon; hard-refresh/favicon cache may delay propagation. Step13 remains pending final browser acceptance.
