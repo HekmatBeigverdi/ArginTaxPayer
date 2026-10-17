@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 07: Invoice Domain and Rule Engine
 
-**Status:** Step 01 owner-approved 2026-10-17; Step 02 owner-approved 2026-10-17 (macOS test logs not attached); Step 03 owner-approved 2026-10-17 (test output not attached); Step 04 owner-approved 2026-10-17 (macOS evidence not attached); Step 05 owner-approved 2026-10-17 (operator test log not attached); Step 06 owner-approved 2026-10-17 (operator test logs not attached); Step 07 owner-approved 2026-10-17 (operator test logs not attached); Step 08 owner-approved 2026-10-17 (test logs not independently attached); Step 09 owner-approved 2026-10-17 (operator test logs not supplied); Step 10 owner-approved 2026-10-17 (operator test logs not attached); Step 11 owner-approved 2026-10-17 (operator test results not independently attached); Step 12 owner-approved 2026-10-17 (independent macOS logs not attached); Step 13 owner-approved 2026-10-17 (macOS logs not supplied); Step 14 correction domain rules implemented, pending macOS verification and owner approval. Steps 15–24 not started.
+**Status:** Step 01 owner-approved 2026-10-17; Step 02 owner-approved 2026-10-17 (macOS test logs not attached); Step 03 owner-approved 2026-10-17 (test output not attached); Step 04 owner-approved 2026-10-17 (macOS evidence not attached); Step 05 owner-approved 2026-10-17 (operator test log not attached); Step 06 owner-approved 2026-10-17 (operator test logs not attached); Step 07 owner-approved 2026-10-17 (operator test logs not attached); Step 08 owner-approved 2026-10-17 (test logs not independently attached); Step 09 owner-approved 2026-10-17 (operator test logs not supplied); Step 10 owner-approved 2026-10-17 (operator test logs not attached); Step 11 owner-approved 2026-10-17 (operator test results not independently attached); Step 12 owner-approved 2026-10-17 (independent macOS logs not attached); Step 13 owner-approved 2026-10-17 (macOS logs not supplied); Step 14 owner-approved 2026-10-17 (operator macOS logs not attached); Step 15 cancellation domain rules committed, pending macOS tests and owner approval. Steps 16–24 not started.
 **Branch:** `phase/07-invoice-domain-rule-engine`
 **Baseline:** `main` at `041bea0287c3b907a7b8910ef8602f51a8c1654c` (inspected 2026-10-17).
 **Roadmap:** `docs/roadmap/18-phases.md`, Phase 07 of 18.
@@ -51,8 +51,8 @@ Build a versioned electronic invoice domain and deterministic rules engine: lega
 | 11 | Monetary and tax rules | Totals, VAT resolution and precision validation | No universal rate assumption; exact totals | Owner-approved 2026-10-17; operator test logs not attached |
 | 12 | Rule-set versioning | Effective-dated immutable rule bundles and localized errors | Historical deterministic replay | Owner-approved 2026-10-17; operator test logs not attached |
 | 13 | Invoice lifecycle | Draft/validated/finalized and separation of authority outcomes | Illegal transitions rejected | Owner-approved 2026-10-17; operator test logs not supplied |
-| 14 | Correction reference | Immutable predecessor linkage and permitted modifications | Cycle/invalid predecessor blocked | Implemented domain rules; operator tests and acceptance pending |
-| 15 | Cancellation reference | Reference integrity and duplicate-operation guards | No inconsistent second cancellation | Not started |
+| 14 | Correction reference | Immutable predecessor linkage and permitted modifications | Cycle/invalid predecessor blocked | Owner-approved 2026-10-17; operator logs not attached |
+| 15 | Cancellation reference | Reference integrity and duplicate-operation guards | No inconsistent second cancellation | Implemented Domain guards; awaiting macOS tests and owner acceptance |
 | 16 | Sales-return reference | Line-level partial/cumulative return constraints | Cannot return more than eligible quantity | Not started |
 | 17 | Concurrency and idempotency | Revision/CAS, scoped reference integrity, replay key policy | Concurrent conflict and replay tests | Not started |
 | 18 | Persistence and migrations | EF Core PostgreSQL additive schema and constraints | Test DB-only migration review; no production modifications | Not started |
@@ -650,3 +650,53 @@ git status --short
 ```
 
 **Database/EF migrations:** none. **Ubuntu:** deferred for this Domain-only step; final platform acceptance Step23 remains fixed. **Owner acceptance:** pending.
+
+## Step 15 — Cancellation Reference — Completion Record (2026-10-17)
+
+**Implementation:** Source and xUnit tests committed; owner acceptance and actual macOS testing pending. **Step14:** expressly approved 2026-10-17; no independent local test logs attached.
+
+### Authoritative legal basis (owner-uploaded V7.9 PDF)
+
+Primary normative reference **RC_IITP.IS V7.9**, Tir 1405:
+- **§5 introductory notes, p15:** each tax invoice may serve as the reference for at most one cancellation invoice.
+- **§5.3, pp16–17:** cancellation creates a **new** document for changing buyer information, complete return, documented nonoccurrence of the sale or an incorrect transaction date; a previously canceled source cannot be used again. The cancellation references a prior **original, correction, or return** (not a cancellation). Type/pattern, buyer fields and all item lines are obtained by the authority from the reference and are **not repeated in cancellation JSON**.
+- **§5.3, p17:** an original with an already approved referring correction/return is effectively canceled; dependent pending/unapproved correction/return may be canceled as a consequence of accepted cancellation. Referring documents pending reaction or rejected do **not by themselves** automatically block a cancellation of the original. These are read-only preflight rules; they do not pretend to change live statuses before tax authority acceptance.
+- **Table8, p30:** mandatory `irtaxid`, registered reference, matching issuer workspace, cancellation cannot itself be referenced, no earlier than source issue date; further officially notified issuance deadline windows must be checked later and are **not invented** here.
+- **Table10, p32:** for cancellation, `inty` and `inp` and all buyer fields are **outside pattern**; for referencing utility bills, subscriber/bill ID is outside pattern. For export cancellation, issue date must be on/after the recorded customs declaration issue/registration date (source evidence necessary).
+
+### Delivered Domain contracts
+
+- New `InvoiceCancellationReference.cs` contains immutable, externally-provided `CancellationPredecessor` with local and fiscal IDs, issuer/customer scope, existing-registration/cancellation status, source issue time, original classification/subject, already-issued cancellation-request flag, ancestor chain, related correction/return statuses and optional export customs declaration date. Inputs must come from an authenticated, tenant-scoped and fresh authority/workspace resolver (not user HTTP payload).
+- `CancellationDraftEvidence` carries new invoice identity, subject+reference, date, classification, enum for the four documented cancellation reasons, an independent evidence reference, and a `CancellationPayloadProjection` describing outbound field presence.
+- New `OfficialV79CancellationRules.Evaluate` checks correct cancellation subject, exact fiscal reference and optional local ID match, registered/not cancelled/noncancellation source, no existing cancellation, no cycles, same issuer/customer scope, date not before reference, unchanged internal type/pattern, approved related documents blocking reuse of an effectively canceled original, omission of payload-only fields, stated documentary reason, and export customs chronology or missing export-date evidence. Findings use stable localized keys and field paths with no personal data in message strings.
+- A correction/return that is pending reaction or rejected is distinguished from approved/system-approved/no-response-required. This preflight validates reference eligibility and **does not update** the source or child invoice state. The live Tax Authority response determines any subsequent cancellation effects.
+- Enforced no-false-success rule: no call sends to portal; no successful `Evaluate` can grant issuance/acceptance. Further status checks, actual duplicate-operation transaction locks and response reconciliation are required before production.
+
+### Limitations and acceptance gates
+
+- `HasExistingCancellationRequest` is a caller-provided fact, **not an atomic uniqueness constraint**. Step17 will implement concurrency and idempotency protection, Step18 persistence/unique indexes.
+- External signed proof / authoritative resolution, official date windows, partial-reaction concurrency, status effects on dependent invoices, customs registry identity and tax scope cannot be established merely from 22-character fiscal ID or a true/false flag. Until resolved, Domain rules are **provisional**, not a legal issuance decision.
+- `CancellationReason` identifies an asserted policy reason, not verified legal documentary sufficiency. `ReasonEvidenceReference` records workflow evidence ID; authorized verification of documents is a future Application obligation.
+- The source `InvoiceAggregate` is **not edited**, reopened or marked accepted/canceled locally in this step. A cancellation request is a separate referencing draft; `TaxAuthorityProcessingState` from Step13 remains separate.
+- No schema migrations, no PostgreSQL changes, no API routes, no crypto, SDK submission or payment effects.
+
+### Changed files
+
+- `src/ArginTaxPayer.Domain/Invoices/InvoiceCancellationReference.cs` — immutable predecessor, related documents, cancellation reasons and JSON presence projection.
+- `src/ArginTaxPayer.Domain/Invoices/InvoiceCancellationRules.cs` — cancellation preflight validation.
+- `tests/ArginTaxPayer.Tests/Phase07CancellationInvoiceTests.cs` — thirteen positive/negative scenario tests including duplicate attempts, mis-scoped/circular references, related-document reactions, outside-pattern fields, utility bill, export customs date and historical replay.
+- `docs/phases/phase-07-invoice-domain-rule-engine.md` — this entry (no step renumbering).
+
+**macOS operator verification:**
+```bash
+cd ~/projects/ArginTaxPayer
+git fetch origin
+git switch phase/07-invoice-domain-rule-engine
+git pull --ff-only
+dotnet restore ArginTaxPayer.sln
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --filter "FullyQualifiedName~Phase07CancellationInvoiceTests|FullyQualifiedName~Phase07CorrectionInvoiceTests|FullyQualifiedName~Phase07InvoiceLifecycleTests|FullyQualifiedName~Phase07InvoiceSubjectsTests" --no-restore
+dotnet test ArginTaxPayer.sln --no-restore
+git status --short
+```
+
+**Database migration:** none. **Ubuntu-only environment validation:** not necessary for Domain-only change. Final dual-platform test remains fixed Step23. **Owner approval:** pending.
