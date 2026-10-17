@@ -1,3 +1,4 @@
+using ArginTaxPayer.Domain.Catalog;
 using System.Collections.ObjectModel;
 
 namespace ArginTaxPayer.Domain.Invoices;
@@ -66,6 +67,7 @@ public sealed class InvoiceRuleContext
     public InvoiceSubject Subject { get; }
     public IReadOnlyList<Guid> LineIds { get; }
     public string RuleSetEdition { get; }
+    public IReadOnlyList<InvoiceLineSnapshot>? CatalogLines { get; }
     public InvoiceHeaderFields? Header { get; }
     public InvoicePatternHeaderFields? PatternHeader { get; }
     public DateTime AsOfUtc { get; }
@@ -74,7 +76,8 @@ public sealed class InvoiceRuleContext
         long revision, DateTime issueDateUtc, InvoiceTypePattern classification,
         InvoiceSubject subject, IEnumerable<Guid> lineIds, string ruleSetEdition,
         InvoiceHeaderFields? header = null, DateTime? asOfUtc = null,
-        InvoicePatternHeaderFields? patternHeader = null)
+        InvoicePatternHeaderFields? patternHeader = null,
+        IEnumerable<InvoiceLineSnapshot>? catalogLines = null)
     {
         if (invoiceId == Guid.Empty || customerUserId == Guid.Empty || taxpayerId == Guid.Empty ||
             revision < 1 || issueDateUtc.Kind != DateTimeKind.Utc ||
@@ -99,6 +102,8 @@ public sealed class InvoiceRuleContext
         RuleSetEdition = ruleSetEdition;
         Header = header;
         PatternHeader = patternHeader;
+        CatalogLines = catalogLines is null ? null :
+            Array.AsReadOnly(catalogLines.ToArray());
         // Caller injects evaluation clock: never read DateTime.UtcNow in a rule.
         // Missing clock does not imply current legal validity.
         AsOfUtc = asOfUtc ?? issueDateUtc;

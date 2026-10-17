@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 07: Invoice Domain and Rule Engine
 
-**Status:** Step 01 owner-approved 2026-10-17; Step 02 owner-approved 2026-10-17 (macOS test logs not attached); Step 03 owner-approved 2026-10-17 (test output not attached); Step 04 owner-approved 2026-10-17 (macOS evidence not attached); Step 05 owner-approved 2026-10-17 (operator test log not attached); Step 06 owner-approved 2026-10-17 (operator test logs not attached); Step 07 owner-approved 2026-10-17 (operator test logs not attached); Step 08 owner-approved 2026-10-17 (test logs not independently attached); Step 09 implemented pending operator macOS tests and owner approval. Steps 10–24 not started.
+**Status:** Step 01 owner-approved 2026-10-17; Step 02 owner-approved 2026-10-17 (macOS test logs not attached); Step 03 owner-approved 2026-10-17 (test output not attached); Step 04 owner-approved 2026-10-17 (macOS evidence not attached); Step 05 owner-approved 2026-10-17 (operator test log not attached); Step 06 owner-approved 2026-10-17 (operator test logs not attached); Step 07 owner-approved 2026-10-17 (operator test logs not attached); Step 08 owner-approved 2026-10-17 (test logs not independently attached); Step 09 owner-approved 2026-10-17 (operator test logs not supplied); Step 10 committed pending operator macOS tests and owner approval. Steps 11–24 not started.
 **Branch:** `phase/07-invoice-domain-rule-engine`
 **Baseline:** `main` at `041bea0287c3b907a7b8910ef8602f51a8c1654c` (inspected 2026-10-17).
 **Roadmap:** `docs/roadmap/18-phases.md`, Phase 07 of 18.
@@ -46,8 +46,8 @@ Build a versioned electronic invoice domain and deterministic rules engine: lega
 | 06 | Financial model | Decimal totals, VAT inputs, discount and rounding policies | Boundary and deterministic calculation cases | Implemented; macOS tests and owner acceptance pending |
 | 07 | Rule-engine contracts | RuleContext, stable rule keys, severities and deterministic evaluation | Unit-testable pure contracts | Owner-approved 2026-10-17; operator test logs not attached |
 | 08 | Header validation | Required identifiers, issue time and participant rules | Field-level positive and negative tests | Owner-approved 2026-10-17; operator test logs not attached |
-| 09 | Type/pattern rules | Field requirements by officially effective matrix | Reject unsupported combinations | Implemented V7.9 classification/selected conditional fields; legal applicability verification and macOS test pending |
-| 10 | Line and catalog rules | Official identifiers, mapping, unit, kind and source effective date | Fail closed on unresolved or expired sources | Not started |
+| 09 | Type/pattern rules | Field requirements by officially effective matrix | Reject unsupported combinations | Owner-approved 2026-10-17; test logs not independently attached |
+| 10 | Line and catalog rules | Official identifiers, mapping, unit, kind and source effective date | Fail closed on unresolved or expired sources | Domain implementation committed; operator macOS verification and approval pending |
 | 11 | Monetary and tax rules | Totals, VAT resolution and precision validation | No universal rate assumption; exact totals | Not started |
 | 12 | Rule-set versioning | Effective-dated immutable rule bundles and localized errors | Historical deterministic replay | Not started |
 | 13 | Invoice lifecycle | Draft/validated/finalized and separation of authority outcomes | Illegal transitions rejected | Not started |
@@ -406,3 +406,60 @@ git status --short
 ```
 
 **Database/migrations:** None. **Ubuntu-specific test:** Not necessary for domain-only change; Phase07 Step23 remains the full environment acceptance gate. **Owner approval:** Pending.
+
+## Step 10 — Line and Catalog Rules — Completion Record (2026-10-17)
+
+**Status:** Domain implementation and xUnit tests committed; macOS test run and owner approval pending. **Step09:** owner-approved 2026-10-17; no independent macOS logs supplied.
+
+### Mandatory regulatory and SDK source traceability
+
+Primary owner-uploaded tax-authority document `RC_IITP.IS V7.9` (Tir 1405):
+- **Table 29 p50**: `sstid` is mandatory, exactly **13 ASCII digits**, and must match the tax-authority goods/services identifier database (`stuffid.tax.gov.ir`). The excerpt additionally specifies transport services, exchange services, stock-exchange seller evidence and chain goods/services whitelist; these require verified contextual evidence not carried by Phase06 V1.
+- **Table 30 p51**: `sstt` is **optional**, at most 400 characters; do not incorrectly mark it mandatory in fiscal payload. The Phase06 internal handoff may require a local title.
+- **Table 31 pp51–52**: `am` is mandatory, positive, at most **18 integer digits / 8 decimal digits**. Type1 patterns 6 (airline ticket) and 8 (waybill) require quantity 1 per line; comparison to export declaration / stock-exchange sales notice needs external evidence.
+- **Table 32 p52**: `mu` is **optional**, ASCII-numeric, at most 8 characters, must come from a current reviewed `RC_UMGS.ST` release; the Phase06 contract requires an official unit resolution internally. Stock-exchange unit equality needs authoritative sales-notice evidence.
+- **Table 29 p50**: Type1 patterns 11 (commodity-linked securities) and 14 (chain sale) permit only one goods/services line. No source is silently assumed to be "active today" just because a historical release is captured.
+- **p23 General Rule**: monetary/foreign-currency field decimal precision is calculated by **truncation (cutting)**, not a universally selectable midpoint rounding algorithm. **Compatibility finding:** Phase07 Step06 introduced `InvoiceRoundingPolicy` with `MidpointRounding`. That is a *draft-only preview*, and **MUST be replaced/overridden with source-grounded truncation before any fiscally authoritative totals or external submission**. Step11 Monetary and Tax Rules is the required correction gate, with explicit regression tests for midpoint 0.5, negative values if permitted, and cross-line totals. Do not use Step06 preview for submission.
+- Both SDK generations `0.0.x` and `2.0.x` retained as distinct source code/NuGet evidence, per [mandatory reference catalogue](../references/tax-authority-sdk-catalog.md). Regulatory requirements are sourced to V7.9; SDK DTO conventions are not a substitute.
+
+### Delivered implementation
+
+- New `OfficialV79LineCatalogRuleFactory` implements five source-labeled `IInvoiceRule` contracts: `invoice.lines.presence`, `invoice.lines.catalog`, `invoice.lines.quantity`, `invoice.lines.unit` and `invoice.lines.pattern`.
+- `InvoiceRuleContext` gains optional immutable, read-only copy of `IEnumerable<InvoiceLineSnapshot>` as `CatalogLines`. Existing constructor signatures remain compatible (new trailing optional argument); source snapshots are not resolved via live Catalog database queries.
+- **Presence/integrity:** requires nonempty line snapshots on non-cancellation; exact line ID/order/one-based positions match `LineIds`; rejects missing/mismatched snapshots and duplicate IDs; cancellation body is **not** assumed valid until separate lifecycle/reference-field contract is established.
+- **Catalog:** Phase06 V1 `InvoiceCatalogHandoffPolicy.IsComplete` plus customer ownership, item kind enum, release documents/editions, valid SHA256 syntax; 13 ASCII-digit `sstid`; mapping validity is checked at **invoice's issue UTC date**, not merely at original capture timestamp; capture time cannot be after injected evaluation time; official description optional with max 400 and no control chars.
+- **Unit:** Phase06 internal official-unit code required, 1..8 ASCII digits, source document `RC_UMGS.ST` required; no claim of current directory membership from a label or SHA-256 alone.
+- **Quantity:** positive, max 18 integer digits, at most 8 decimal places; quantity exactly 1 for Type1 airline(6) and waybill(8). Type1 commodity securities(11) and chain sale(14) have exactly one line.
+- Findings use localized stable keys and JSON field paths `body[index].sstid/.sstt/.am/.mu`; deterministic engine; zero live lookups, no state mutations, `IsSubmissionAuthorized=false`.
+
+### Known limitations / fail-closed gates
+
+- Captured SHA-256/edition is evidence of **which release was used**, not evidence that the external authority's live identifier database still recognizes the entry or that the unit release is current. These checks require a verified published reference snapshot or official lookup with edition/effective scope before fiscal-ready submission.
+- Phase06 `Vat=Unresolved` remains unresolved, **not zero VAT**. Classification of official goods/service type, allowed exchange/transport/chain whitelist, stock exchange notice and declaration alignment, unit-to-item membership and latest VAT resolution need more external verified facts or rule-set evidence. No false final acceptance is emitted.
+- Source-effective validity is checked from Phase06 mapping interval and the **invoice issue timestamp**. Trusted snapshot currency and external directory applicability are enforced by future Step12 release/version and Step10 application-layer source-eligibility checks; domain identifiers alone do not grant authorization.
+- Special correction/cancellation/return subject bodies and reference line constraints belong to Steps14–16. Step10 does not implement live issuance/signing or alter tenant authorization.
+- **Step06 source discrepancy** noted above is a release blocker to be resolved at Step11, not silently treated as compliance.
+
+### Changes, tests and environment
+
+Changed:
+- `src/ArginTaxPayer.Domain/Invoices/InvoiceLineCatalogRules.cs` (new)
+- `src/ArginTaxPayer.Domain/Invoices/InvoiceRuleEngine.cs` (optional immutable CatalogLines)
+- `tests/ArginTaxPayer.Tests/Phase07LineCatalogRulesTests.cs` (new)
+- This single master phase document.
+
+New tests: eligible V1 handoff, missing/empty/foreign/stale lines, customer isolation, invalid 13-digit goods/service code, expired mapping at issue date, source fingerprint validation, unresolved unit code, positive quantity with 8-place precision, quantity 1 constraints on Type1 patterns 6/8, one-line constraints on Type1 patterns 11/14, snapshot isolation and deterministic replay.
+
+**Operator macOS:**
+```bash
+cd ~/projects/ArginTaxPayer
+git fetch origin
+git switch phase/07-invoice-domain-rule-engine
+git pull --ff-only
+dotnet restore ArginTaxPayer.sln
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --filter "FullyQualifiedName~Phase07LineCatalogRulesTests|FullyQualifiedName~Phase07InvoiceLinesTests|FullyQualifiedName~Phase06InvoiceHandoffTests|FullyQualifiedName~Phase07TypePatternRulesTests" --no-restore
+dotnet test ArginTaxPayer.sln --no-restore
+git status --short
+```
+
+**Database:** no schema changes or migrations. **Ubuntu:** not required for domain-only change; full dual-platform acceptance at fixed Step23. **Owner acceptance:** pending.
