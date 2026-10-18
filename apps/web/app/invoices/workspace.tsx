@@ -119,31 +119,46 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   const [taxpayerOwners, setTaxpayerOwners] = useState<Record<string,string>>({});
   const visibleTaxpayers = isAdmin ? customerTaxpayers : taxpayers;
 
+  async function scopedTaxpayersForCustomer(customer: string): Promise<Taxpayer[]> {
+    const result: Taxpayer[] = [];
+    for (let page = 1; page <= 100; page++) {
+      const params = new URLSearchParams({
+        type:"taxpayer",customerId:customer,page:String(page),pageSize:"100"
+      });
+      const response = await getJson<FiscalPage>("/api/fiscal-participants?" + params);
+      result.push(...response.items.map(t => ({
+        id:t.id,displayName:t.displayName,status:t.status
+      })));
+      if (page * 100 >= response.total) return result;
+    }
+    throw new Error("تعداد مؤدیان بیش از حد مجاز صفحه‌بندی است.");
+  }
+
   useEffect(() => {
     if (!isAdmin || !headerCustomer) {
       setCustomerTaxpayers([]);
       return;
     }
     let active = true;
-    getJson<Taxpayer[]>("/api/customer-owners/" + headerCustomer + "/taxpayers")
-      .then(list => {
-        if (!active) return;
-        const eligible = list.filter(t => t.status === 1);
-        setCustomerTaxpayers(eligible);
-        setTaxpayerOwners(old => ({
-          ...old, ...Object.fromEntries(eligible.map(t => [t.id,headerCustomer]))
-        }));
-      }).catch(() => {if(active)setCustomerTaxpayers([]);});
+    scopedTaxpayersForCustomer(headerCustomer).then(list => {
+      if (!active) return;
+      const eligible = list.filter(t => t.status === 1);
+      setCustomerTaxpayers(eligible);
+      setTaxpayerOwners(old => ({
+        ...old, ...Object.fromEntries(eligible.map(t => [t.id,headerCustomer]))
+      }));
+    }).catch(() => {if(active)setCustomerTaxpayers([]);});
     return () => {active=false;};
   }, [isAdmin,headerCustomer]);
 
   useEffect(() => {
     if (!isAdmin || !filterCustomer) return;
     let active = true;
-    getJson<Taxpayer[]>("/api/customer-owners/" + filterCustomer + "/taxpayers")
-      .then(list => { if (active) setTaxpayerOwners(old => ({
+    scopedTaxpayersForCustomer(filterCustomer).then(list => {
+      if (active) setTaxpayerOwners(old => ({
         ...old,...Object.fromEntries(list.map(t => [t.id,filterCustomer]))
-      })); }).catch(()=>{});
+      }));
+    }).catch(()=>{});
     return ()=>{active=false;};
   }, [isAdmin,filterCustomer]);
 

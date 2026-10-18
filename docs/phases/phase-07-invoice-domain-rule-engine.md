@@ -959,3 +959,5 @@ The four adjustments below are a **Step20 amendment**, not a new roadmap step. T
 - The buyer input is a single accessible searchable combobox (ARIA listbox, keyboard ArrowUp/ArrowDown/Enter/Escape) whose choices are currently active Party rows, scoped to the customer owning the chosen taxpayer.
 - Server-side invoice overview supports page/pageSize (default 50, max 100), so no-filter admin mode pages through all accessible clients rather than silently stopping at 100 results. UI shows previous/next and page number, and includes customer and taxpayer columns.
 - Added static regression checks for the combobox and paging. Backend and browser integration tests are still pending.
+
+- **Additional access consistency:** administrator taxpayer selection now uses the same live-scoped fiscal participant directory as the customer/taxpayer module rather than the narrower customer ownership endpoint, which may exclude Level1 global scope. It fetches all directory pages for the chosen customer to prevent invisible taxpayers beyond the first page. No unauthorized taxpayer records are pulled into a client-side global cache.
