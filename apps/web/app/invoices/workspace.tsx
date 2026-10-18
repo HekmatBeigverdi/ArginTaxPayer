@@ -22,7 +22,8 @@ type SavedEntryLine = { catalogItemId: string | null; description: string; quant
   unitPriceRial: number; discountPerUnitRial: number; vatRatePercent: number | null };
 type SavedEntry = { id: string; customerUserId: string; taxpayerId: string;
   revision: number; lastCompletedStep: number; issueDateUtc: string; updatedAtUtc: string;
-  buyerPartyId: string | null; type: number; pattern: number; lines: SavedEntryLine[] };
+  buyerPartyId: string | null; buyerDisplayName?: string | null;
+  type: number; pattern: number; lines: SavedEntryLine[] };
 const headings = ["سربرگ صورتحساب", "اقلام صورتحساب", "جمع‌بندی صورتحساب"] as const;
 const errorCodes: Record<number, string> = {
   400: "ورودی پیش‌نویس معتبر نیست.", 401: "نشست منقضی شده است؛ دوباره وارد شوید.",
@@ -116,17 +117,8 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
       if (filterTaxpayer) query.set("taxpayerId", filterTaxpayer);
       query.set("page", String(listPage));
       query.set("pageSize", String(listPageSize));
-      const [list, working] = await Promise.all([
-        getJson<Invoice[]>("/api/invoices/overview?" + query),
-        getJson<SavedEntry[]>("/api/invoices/workspaces?" + query)
-      ]);
-      const items: Invoice[] = working.map(draft=>({
-        id:draft.id, customerUserId:draft.customerUserId, taxpayerId:draft.taxpayerId,
-        revision:draft.revision, state:"WorkingDraft",subject:"Original",
-        issueDateUtc:draft.issueDateUtc,updatedAtUtc:draft.updatedAtUtc,
-        lastCompletedStep:draft.lastCompletedStep,kind:"workspace"
-      }));
-      setInvoices([...items,...list].sort((a,b)=>b.updatedAtUtc.localeCompare(a.updatedAtUtc)));
+      const list = await getJson<Invoice[]>("/api/invoices/overview?" + query);
+      setInvoices(list);
       setError("");
     } catch (e) { setInvoices([]); setError((e as Error).message); }
     finally { setLoading(false); }
@@ -252,7 +244,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
       setDate(saved.issueDateUtc.slice(0,10));
       setHour(saved.issueDateUtc.slice(11,16));
       setBuyerId(saved.buyerPartyId ?? "");
-      setBuyerQuery("");
+      setBuyerQuery(saved.buyerDisplayName ?? "");
       setBuyerOpen(false);
       setInvoiceType(saved.type); setPattern(saved.pattern);
       setRows(saved.lines.map((line,index)=>({

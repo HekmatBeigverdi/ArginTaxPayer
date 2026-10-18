@@ -19,7 +19,7 @@ public sealed record CreateInvoiceDraftRequest(
 public sealed record InvoiceDraftView(
     Guid Id, Guid CustomerUserId, Guid TaxpayerId,
     long Revision, string State, string Subject, DateTime IssueDateUtc,
-    DateTime UpdatedAtUtc);
+    DateTime UpdatedAtUtc, string? Kind = null, int? LastCompletedStep = null);
 
 public sealed record InvoiceDraftResult(InvoiceApiDecision Decision,
     InvoiceDraftView? Invoice = null);
@@ -180,8 +180,23 @@ public sealed class InvoiceDraftApplicationService(
         // supplied customer ID can extend its reach.
         var allowed = scope.ScopedQuery(principal.ActorId, principal.Level1)
             .Select(x => x.Id);
-        var query = db.InvoiceDocuments.AsNoTracking()
-            .Where(x => allowed.Contains(x.TaxpayerId));
+        var documents = db.InvoiceDocuments.AsNoTracking()
+            .Where(x => allowed.Contains(x.TaxpayerId))
+            .Select(x => new {
+                x.Id, x.CustomerUserId, x.TaxpayerId, x.Revision,
+                x.IssueDateUtc, x.UpdatedAtUtc,
+                Lifecycle = (int?)x.State, SubjectValue = (int?)x.Subject,
+                Source = 0, Step = (int?)null
+            });
+        var working = db.InvoiceEntryWorkspaces.AsNoTracking()
+            .Where(x => allowed.Contains(x.TaxpayerId))
+            .Select(x => new {
+                x.Id, x.CustomerUserId, x.TaxpayerId, x.Revision,
+                x.IssueDateUtc, x.UpdatedAtUtc,
+                Lifecycle = (int?)null, SubjectValue = (int?)null,
+                Source = 1, Step = (int?)x.LastCompletedStep
+            });
+        var query = documents.Concat(working);
         if (customerId.HasValue)
             query = query.Where(x => x.CustomerUserId == customerId.Value);
         if (taxpayerId.HasValue)
@@ -189,7 +204,14 @@ public sealed class InvoiceDraftApplicationService(
         var rows = await query.OrderByDescending(x => x.UpdatedAtUtc)
             .ThenBy(x => x.Id).Skip((page - 1) * pageSize)
             .Take(pageSize).ToArrayAsync(ct);
-        return (InvoiceApiDecision.Success, rows.Select(View).ToArray());
+        return (InvoiceApiDecision.Success, rows.Select(x =>
+            new InvoiceDraftView(x.Id,x.CustomerUserId,x.TaxpayerId,x.Revision,
+                x.Source == 1 ? "WorkingDraft" :
+                    ((InvoiceLifecycleState)x.Lifecycle!.Value).ToString(),
+                x.Source == 1 ? "Original" :
+                    ((InvoiceSubject)x.SubjectValue!.Value).ToString(),
+                x.IssueDateUtc,x.UpdatedAtUtc,
+                x.Source == 1 ? "workspace" : null, x.Step)).ToArray());
     }
 
     private static InvoiceDraftView View(StoredInvoice invoice) =>

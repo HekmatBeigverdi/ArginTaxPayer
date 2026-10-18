@@ -67,7 +67,7 @@ test("calendar has Persian conversion and modal-safe floating positioning", () =
   assert.match(css, /\.invoice-register \.ui-persian-date__popover/);
 });
 
-test("Next session proxy only supports scoped reads and header writes", () => {
+test("Next session proxy only supports scoped reads and development draft writes", () => {
   assert.match(proxy, /identityUiEnabled\(\)/);
   assert.match(proxy, /ACCESS_COOKIE/);
   assert.match(proxy, /isSameLocalOrigin/);
@@ -76,7 +76,7 @@ test("Next session proxy only supports scoped reads and header writes", () => {
 });
 
 test("selected taxpayer is the seller and buyer is a scoped searchable directory record", () => {
-  assert.match(workspace, /chosenTaxpayer\.displayName/);
+  assert.match(workspace, /مؤدی صادرکننده \/ فروشنده/);
   assert.match(workspace, /buyerQuery/);
   assert.match(workspace, /buyerId/);
   assert.match(workspace, /fiscal-participants\?/);

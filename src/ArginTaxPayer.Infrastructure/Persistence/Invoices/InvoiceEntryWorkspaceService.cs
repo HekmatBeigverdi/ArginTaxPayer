@@ -22,10 +22,12 @@ public sealed record InvoiceEntryLine(Guid? CatalogItemId, string Description,
     decimal Quantity, decimal UnitPriceRial, decimal DiscountPerUnitRial, decimal? VatRatePercent);
 public sealed record SaveInvoiceEntryRequest(Guid? Id, Guid TaxpayerId, long ExpectedRevision,
     int LastCompletedStep, DateTime IssueDateUtc, Guid? BuyerPartyId,
-    int Type, int Pattern, InvoiceEntryLine[]? Lines);
+    int Type, int Pattern, InvoiceEntryLine[]? Lines,
+    string? BuyerDisplayName = null);
 public sealed record InvoiceEntryView(Guid Id, Guid CustomerUserId, Guid TaxpayerId, long Revision,
     int LastCompletedStep, DateTime IssueDateUtc, DateTime UpdatedAtUtc,
-    Guid? BuyerPartyId, int Type, int Pattern, InvoiceEntryLine[] Lines);
+    Guid? BuyerPartyId, int Type, int Pattern, InvoiceEntryLine[] Lines,
+    string? BuyerDisplayName);
 public sealed record InvoiceEntryResult(InvoiceApiDecision Decision, InvoiceEntryView? Draft = null);
 
 /// <summary>
@@ -75,7 +77,8 @@ public sealed class InvoiceEntryWorkspaceService(
             ?? throw new InvalidOperationException("Stored draft has no canonical content.");
         return new(row.Id,row.CustomerUserId,row.TaxpayerId,row.Revision,
             row.LastCompletedStep,row.IssueDateUtc,row.UpdatedAtUtc,
-            value.BuyerPartyId,value.Type,value.Pattern,value.Lines ?? []);
+            value.BuyerPartyId,value.Type,value.Pattern,value.Lines ?? [],
+            value.BuyerDisplayName);
     }
 
     public async Task<InvoiceEntryResult> SaveAsync(string? token,
@@ -85,13 +88,15 @@ public sealed class InvoiceEntryWorkspaceService(
             return new(InvoiceApiDecision.Invalid);
         var access = await Authorize(token,input.TaxpayerId,ct);
         if (access.Item1 != InvoiceApiDecision.Success) return new(access.Item1);
+        string? selectedBuyerName = null;
         if (input.BuyerPartyId is { } buyer && buyer != Guid.Empty)
         {
-            var linked = await db.CustomerPartyLinks.AsNoTracking().AnyAsync(l =>
-                l.CustomerUserId == access.Item2 && l.PartyId == buyer &&
-                l.UnlinkedAtUtc == null &&
-                db.Parties.Any(p => p.Id == buyer && p.Status == PartyStatus.Active),ct);
-            if (!linked) return new(InvoiceApiDecision.Invalid);
+            selectedBuyerName = await (from l in db.CustomerPartyLinks.AsNoTracking()
+                join party in db.Parties.AsNoTracking() on l.PartyId equals party.Id
+                where l.CustomerUserId == access.Item2 && l.PartyId == buyer &&
+                    l.UnlinkedAtUtc == null && party.Status == PartyStatus.Active
+                select party.DisplayName).SingleOrDefaultAsync(ct);
+            if (selectedBuyerName is null) return new(InvoiceApiDecision.Invalid);
         }
         if (input.BuyerPartyId == Guid.Empty || input.Lines!.Any(l =>
                 l.CatalogItemId == Guid.Empty))
@@ -108,7 +113,9 @@ public sealed class InvoiceEntryWorkspaceService(
         }
 
         var now = DateTime.UtcNow;
-        var json = JsonSerializer.Serialize(input with { Id = null, ExpectedRevision = 0 });
+        var json = JsonSerializer.Serialize(input with {
+            Id = null, ExpectedRevision = 0, BuyerDisplayName = selectedBuyerName
+        });
         if (input.Id is null)
         {
             if (input.ExpectedRevision != 0) return new(InvoiceApiDecision.Conflict);

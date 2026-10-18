@@ -1015,3 +1015,5 @@ zsh scripts/dev-status.zsh
 4. Verify catalog keyboard search and long-list scrolling, modal and repeatable row control height on desktop/mobile, and no actual fiscal signing/issuance/transmission.
 
 **Status:** source implementation awaiting macOS compilation, isolated PostgreSQL migration/integration tests, browser acceptance, and owner approval. This is another Step20 amendment, not a new numbered phase step.
+
+**Final review correction:** The existing scoped GET /api/dev/invoices endpoint now performs one EF Core UNION ALL/Concat of internal documents and resumable working drafts, applies common authorization, customer/taxpayer filters, ordering, offset and page size **at the database**, and tags working rows with `kind=workspace` for the UI Edit action. The Next list calls this one endpoint; the individual workspace GET/POST still controls editing. The selected buyer display name in stored draft JSON is resolved by the server from its customer-scoped Party record (never taken from client input), so a resumed draft can display its previous buyer. Final cross-source pagination and live PostgreSQL UNION translation remain operator-test requirements.
