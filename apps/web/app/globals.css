@@ -641,3 +641,25 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 .console-page .invoice-register__description small{justify-self:end;font-size:11px;color:#627989}
 @media(max-width:800px){.console-page .invoice-register__final-grid{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:550px){.console-page .invoice-register__settlement{grid-template-columns:minmax(0,1fr)}}
+
+/* Phase07 Step21 - dense, accessible, read-only validation and reference panel. */
+.invoice-validation{border-top:1px solid #e2eaf0;padding-top:12px;margin-top:12px;display:grid;gap:10px;font-size:12px}
+.invoice-validation__heading{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.invoice-validation__heading h3{font-size:13px;margin:0 0 4px}
+.invoice-validation__heading p{font-size:11px;color:#637a8c;margin:0}
+.invoice-validation__heading button{font-size:12px;min-height:30px;padding:4px 9px}
+.invoice-validation__summary{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+.invoice-validation__findings ul,.invoice-validation__history ul{padding:0;list-style:none;display:grid;gap:5px;margin:0}
+.invoice-validation__findings li{display:grid;grid-template-columns:58px minmax(0,1fr) auto;gap:8px;align-items:center;padding:7px 9px;border:1px solid #d6e1e9;border-radius:6px}
+.invoice-validation__error{border-right:3px solid #b33c3c!important}
+.invoice-validation__warning{background:#fff8eb;border:1px solid #f0d8a8;border-radius:6px;padding:8px 10px;font-size:11px;line-height:1.8}
+.invoice-validation__findings li.invoice-validation__warning{background:#fff8eb}
+.invoice-validation code{font-size:11px;overflow-wrap:anywhere}
+.invoice-validation__reference{display:grid;grid-template-columns:180px minmax(0,1fr);align-items:center;gap:8px 12px}
+.invoice-validation__reference label{font-weight:600;font-size:12px}
+.invoice-validation__reference select{min-height:31px;height:31px;border:1px solid #c7d5df;border-radius:6px;padding:5px 8px;font:inherit;font-size:12px;min-width:0}
+.invoice-validation__reference>p,.invoice-validation__reference>.invoice-validation__history{grid-column:1/-1}
+.invoice-validation__history{border:1px solid #e1e8ef;border-radius:7px;padding:10px}
+.invoice-validation__history>strong{display:block;margin-bottom:8px}
+.invoice-validation__history li{display:flex;flex-wrap:wrap;justify-content:space-between;gap:7px;padding:6px 8px;border-bottom:1px solid #e6edf1;font-size:11px}
+@media(max-width:700px){.invoice-validation__reference{grid-template-columns:minmax(0,1fr)}.invoice-validation__findings li{grid-template-columns:50px minmax(0,1fr)}.invoice-validation__findings li code{grid-column:2}}

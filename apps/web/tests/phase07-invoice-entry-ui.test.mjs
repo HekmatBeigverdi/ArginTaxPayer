@@ -167,3 +167,22 @@ test("final stage settlement permits unknown, cash, credit and mixed with constr
   assert.match(css, /invoice-register__settlement/);
   assert.match(css, /invoice-register__final-grid/);
 });
+
+test("Step21 scoped validation panel is explicitly not a fiscal approval", () => {
+  const panel=read("../app/invoices/invoice-validation-panel.tsx");
+  assert.match(workspace, /<InvoiceValidationPanel/);
+  assert.match(panel, /\/api\/invoices\/workspaces\/.*\/validation/);
+  assert.match(panel, /\/api\/invoices\/references\//);
+  assert.match(panel, /isSubmissionAuthorized/);
+  assert.match(panel, /مجوز ارسال مالیاتی صادر نمی‌کند/);
+  assert.match(panel, /disabled>/);
+  assert.match(panel, /fieldPath/);
+  assert.match(panel, /revision!==revision/);
+  assert.match(panel, /dirty/);
+});
+test("Next proxy safely allowlists GET validation and scoped references", () => {
+  assert.match(proxy, /segments\[2\] === "validation"/);
+  assert.match(proxy, /segments\[0\] === "references"/);
+  assert.match(proxy, /"invoiceDescription","settlementMethod","cashAmountRial","creditAmountRial"/);
+  assert.doesNotMatch(proxy, /export async function (PATCH|PUT|DELETE)/);
+});

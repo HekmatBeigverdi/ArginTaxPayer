@@ -13,6 +13,26 @@ public static class InvoiceDraftDevelopmentEndpoints
     public static IEndpointRouteBuilder MapInvoiceDraftDevelopmentEndpoints(
         this IEndpointRouteBuilder app)
     {
+        app.MapGet("/api/dev/invoice-workspaces/{id:guid}/validation", async (
+            Guid id, HttpContext http, InvoiceValidationReferenceService service,
+            CancellationToken ct) =>
+        {
+            if (!Local(http)) return Results.NotFound();
+            var result = await service.ValidateAsync(Token(http),id,ct);
+            return result.Decision == InvoiceApiDecision.Success
+                ? Results.Ok(result.Validation) : Error(result.Decision);
+        }).WithTags("Invoice Validation (Development)");
+
+        app.MapGet("/api/dev/invoice-references/{taxpayerId:guid}", async (
+            Guid taxpayerId, HttpContext http,
+            InvoiceValidationReferenceService service, CancellationToken ct) =>
+        {
+            if (!Local(http)) return Results.NotFound();
+            var result = await service.ListReferencesAsync(Token(http),taxpayerId,ct);
+            return result.Decision == InvoiceApiDecision.Success
+                ? Results.Ok(result.References) : Error(result.Decision);
+        }).WithTags("Invoice References (Development)");
+
         app.MapGet("/api/dev/invoice-workspaces", async (
             Guid? customerId, Guid? taxpayerId, int? page, int? pageSize,
             HttpContext http, InvoiceEntryWorkspaceService service, CancellationToken ct) =>

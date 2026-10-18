@@ -57,8 +57,8 @@ Build a versioned electronic invoice domain and deterministic rules engine: lega
 | 17 | Concurrency and idempotency | Revision/CAS, scoped reference integrity, replay key policy | Concurrent conflict and replay tests | Owner-approved 2026-10-17; operator logs not supplied |
 | 18 | Persistence and migrations | EF Core PostgreSQL additive schema and constraints | Test DB-only migration review; no production modifications | Not started |
 | 19 | Application services and API | Scoped commands/queries and stable error contracts | Authorization and API contract tests | Owner-approved 2026-10-17; operator HTTP logs not attached |
-| 20 | Invoice-entry UI | RTL dynamic type/pattern, party and item selection | Usable keyboard and responsive flows | RTL preview, initial draft create/list/read, catalog staging; operator acceptance pending |
-| 21 | Validation/reference UI | Field errors and related-document history | Accessibility and scoped operation tests | Not started |
+| 20 | Invoice-entry UI | RTL dynamic type/pattern, party and item selection | Usable keyboard and responsive flows | Owner-approved 2026-10-18, including subsequent resumable draft, settlement and invoice description amendments |
+| 21 | Validation/reference UI | Field errors and related-document history | Accessibility and scoped operation tests | Scoped read-only validation and internal reference-history UI committed; macOS and owner acceptance pending |
 | 22 | Comprehensive regression | Domain/integration/contract/security suite | Negative cases, Phase03–06 compatibility | Not started |
 | 23 | macOS and Ubuntu acceptance | Local suite, VPS verify, DB/HTTP operator evidence | Both environments owner-approved | Not started |
 | 24 | Documentation and release | Close phase record, merge, annotated tag, GitHub release | Separate approval and release evidence | Not started |
@@ -1034,3 +1034,53 @@ zsh scripts/dev-status.zsh
 **Touched files:** InvoiceEntryWorkspaceService.cs, apps/web/app/invoices/workspace.tsx, apps/web/app/globals.css, Phase07ResumableInvoiceDraftTests.cs, phase07-invoice-entry-ui.test.mjs and this phase document. No SQL migration.
 
 **Acceptance:** Run dotnet build ArginTaxPayer.sln -c Release; dotnet test ArginTaxPayer.sln -c Release; under apps/web run npm test, npm run typecheck, npm run build. Restart with existing scripts/dev-down.zsh and scripts/dev-up.zsh. In authorized test account input two items quantity 2, unit 100, discount 10, VAT 10%; check gross 200, discount 20, subtotal 180, VAT 18, grand 198; cash 198/credit 0, credit 198/cash 0, mixed 100/98 accepted and invalid splits rejected. Add multiline notes, save, reload and verify restored settlement/notes. No independent operator tests or fiscal authority submission performed.
+
+## Step 21 — Validation and Reference UI — Completion Record (2026-10-18)
+
+**Step20 status:** The owner expressly approved Step20 and its extensions. Step21 is implemented as a guarded **Development-only UI preflight and internal reference-history surface**, pending macOS compilation, authenticated HTTP/PostgreSQL tests, browser acceptance and owner sign-off. No test output was independently provided.
+
+### Scope and verified limitations
+
+- `InvoiceValidationReferenceService` reads a **persisted** resumable draft through `InvoiceEntryWorkspaceService.GetAsync` and repeats live session + scoped taxpayer ownership checks. No validation is computed from uncommitted browser-only changes. Preview results include workspace revision and original documented rule edition `RC_IITP.IS_V7.9`; stale previews are rejected in UI. Checks include referenced edition's type/pattern lookup, the buyer requirement for type1 ordinary sales, presence of items, nonempty descriptions, positive line quantities, positive draft total and disclosure of unset VAT and unknown settlement. Findings include stable machine keys, severity, field path and Persian explanation. These are **UI completeness checks, not a complete statutory validator**.
+- The `InvoiceValidationReferenceService.ListReferencesAsync` authorizes on every request and returns at most 100 internal `invoice_documents` records belonging to **the same authorized taxpayer and customer**. It includes local id, internal subject/state, date and revision. Since current persistence does NOT carry a verified, registered 22-character fiscal Tax ID or immutable government predecessor reaction evidence, `FiscalIdentifierVerified=false` and `FiscalIdentifier=null` on every record. Consequently correction/cancellation/sales-return **reference candidates remain disabled** in UI. Neither a locally finalized document nor any draft is incorrectly presented as a registered authoritative predecessor.
+- UI adds a compact `InvoiceValidationPanel` to Stage3 of existing invoice wizard for saved working drafts. Users may request fresh validation findings and see scoped internal reference history and subject selector (Original/Correction/Cancellation/SalesReturn). If local fields changed from the saved revision, the panel disables validation until saving. Subject selection is a **nonpersisted exploration aid only**: the saved working draft remains Original; no unsupported correction, cancellation or sales-return command is sent or silently committed.
+- Checks never return `IsSubmissionAuthorized=true`; fiscal ruleset applicability, trusted buyer and seller identifiers, tax ID, official predecessor eligibility and legal fiscal arithmetic require further source-backed work before an actual issue/send API can be exposed.
+- New GET `/api/dev/invoice-workspaces/{id}/validation` and `GET /api/dev/invoice-references/{taxpayerId}` are available only inside existing Development+loopback registration. The authenticated Next proxy only allows exact GET route shapes and forwards HTTP-only browser session server-side. It exposes no send/approve/finalize endpoints and no client-controlled taxpayer scope override.
+- **Regression fix included:** the Next proxy's POST whitelist now permits Step20 `invoiceDescription`, `settlementMethod`, `cashAmountRial` and `creditAmountRial`, restoring successful persistence of those authorized fields. No SQL schema or Migration change is necessary for Step21.
+
+### Source changes
+
+1. `src/ArginTaxPayer.Infrastructure/Persistence/Invoices/InvoiceValidationReferenceService.cs` — scoped read-only UI preflight and internal history.
+2. `src/ArginTaxPayer.Api/Invoices/InvoiceDraftDevelopmentEndpoints.cs` — GET endpoints.
+3. `src/ArginTaxPayer.Api/Program.cs` — scoped dependency injection.
+4. `apps/web/app/api/invoices/[...segments]/route.ts` — strict GET validation/reference allowlist and Step20 settlement whitelist repair.
+5. `apps/web/app/invoices/invoice-validation-panel.tsx` — RTL keyboard-usable issue summary, edit-revision guard and disabled unverified references.
+6. `apps/web/app/invoices/workspace.tsx` and `apps/web/app/globals.css` — compact final-stage integration and styling.
+7. `tests/ArginTaxPayer.Tests/Phase07InvoiceValidationReferenceUiTests.cs` and `apps/web/tests/phase07-invoice-entry-ui.test.mjs` — API surface and frontend regression tests.
+8. This single Phase07 plan (no new numbered steps).
+
+### Acceptance and next fixed step
+
+Use the standard scripts, not a second manual SSH tunnel:
+
+```bash
+cd ~/projects/ArginTaxPayer
+git fetch origin
+git switch phase/07-invoice-domain-rule-engine
+git pull --ff-only
+dotnet restore ArginTaxPayer.sln
+dotnet build ArginTaxPayer.sln -c Release --no-restore
+dotnet test ArginTaxPayer.sln -c Release --no-build
+cd apps/web
+npm test
+npm run typecheck
+npm run build
+cd ../..
+zsh scripts/dev-down.zsh
+zsh scripts/dev-up.zsh
+zsh scripts/dev-status.zsh
+```
+
+With legitimate development sessions and the previously accepted migrations applied to `argintaxpayer_test`, create a saved draft without lines/buyer and expect field-linked errors. Add buyer and lines, save, request validation again and confirm draft revision matches. Change an unsaved field and confirm stale preview is blocked. Select Correction/Cancellation/Return preview and confirm internal references are disclosed only in the same authorized taxpayer, all **disabled and not fiscal-ID verified**, with no new fiscal operation produced. Validate unauthenticated 401, unauthorized scope 404, no cross-tenant references. Verify description + settlement can be saved through the now-corrected Next proxy. No live tax issuance, no migration for Step21.
+
+**Step21 owner approval:** pending. **Next fixed Step22:** comprehensive regression tests.

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { PersianDatePicker } from "../catalog/persian-date-picker";
 import { PersianTimePicker } from "../components/persian-time-picker";
 import SearchableCatalogPicker from "./searchable-catalog-picker";
+import InvoiceValidationPanel from "./invoice-validation-panel";
 
 type Taxpayer = { id: string; displayName: string; status: number };
 type Invoice = { id: string; customerUserId: string; taxpayerId: string; revision: number;
@@ -359,6 +360,19 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   const settlementError = settlement === 3 &&
     (cashInput.trim() === "" || !Number.isFinite(Number(cashInput)) ||
       cashPreview <= 0 || cashPreview >= calculated.total);
+  const validationDirty = editing !== null && (
+    editing.taxpayerId!==taxpayerId || editing.issueDateUtc.slice(0,16)!==date+"T"+hour ||
+    (editing.buyerPartyId??"")!==buyerId || editing.type!==invoiceType ||
+    editing.pattern!==pattern || (editing.invoiceDescription??"")!==invoiceDescription.trim() ||
+    (editing.settlementMethod??0)!==settlement ||
+    rows.length!==editing.lines.length ||
+    rows.some((r,i)=>r.name.trim()!==editing.lines[i]?.description ||
+      Number(r.quantity)!==editing.lines[i]?.quantity ||
+      Number(r.unitPrice)!==editing.lines[i]?.unitPriceRial ||
+      Number(r.discount)!==editing.lines[i]?.discountPerUnitRial ||
+      (r.vatRate===""?null:Number(r.vatRate))!==editing.lines[i]?.vatRatePercent) ||
+    settlement===3 && Number(cashInput)!==(editing.cashAmountRial??0)
+  );
   const filtered = invoices.filter(row =>
     (row.id + " " + row.state + " " + row.subject).toLowerCase().includes(search.toLowerCase()));
 
@@ -642,6 +656,9 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
                   placeholder="توضیحات، توافقات یا شرح تکمیلی فاکتور (اختیاری)"/>
                 <small>{invoiceDescription.length} / ۱۵۰۰ نویسه</small>
               </div>
+              {editing && <InvoiceValidationPanel
+                draftId={editing.id} taxpayerId={editing.taxpayerId}
+                revision={editing.revision} dirty={validationDirty}/>}
               <p className="invoice-register__hint">
                 توضیحات و تسویه در پیش‌نویس قابل‌ویرایش ذخیره می‌شوند.
                 مبالغ مالیاتی و روش تسویه قبل از صدور رسمی باید در سرویس اعتبارسنجی
