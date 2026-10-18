@@ -31,7 +31,7 @@ test("only compact invoice list and toolbar render when add dialog is closed", (
 test("wizard has header, repeatable item rows and totals sections", () => {
   assert.match(workspace, /سربرگ صورتحساب/);
   assert.match(workspace, /اقلام صورتحساب/);
-  assert.match(workspace, /جمع‌بندی صورتحساب/);
+  assert.match(workspace, /مرور نهایی و تسویه/);
   assert.match(workspace, /step === 0/);
   assert.match(workspace, /step === 1/);
   assert.match(workspace, /step === 2/);
@@ -72,6 +72,8 @@ test("Next session proxy only supports scoped reads and development draft writes
   assert.match(proxy, /ACCESS_COOKIE/);
   assert.match(proxy, /isSameLocalOrigin/);
   assert.match(proxy, /unsupported_invoice_fields/);
+  for (const field of ["invoiceDescription", "settlementMethod", "cashAmountRial", "creditAmountRial"])
+    assert.match(proxy, new RegExp('"' + field + '"'));
   assert.doesNotMatch(proxy, /export async function (PUT|PATCH|DELETE)/);
 });
 
