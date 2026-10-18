@@ -142,3 +142,28 @@ test("shared console density applies within modal and rows", () => {
   assert.match(css, /\.console-page \.invoice-register__fields/);
   assert.match(css, /\.invoice-register__catalog-options/);
 });
+
+test("final stage has compact financial summary and saved invoice description", () => {
+  assert.match(workspace, /مرور کلی صورتحساب/);
+  assert.match(workspace, /مجموع مبلغ قبل از تخفیف/);
+  assert.match(workspace, /مجموع تخفیفات/);
+  assert.match(workspace, /مجموع مبلغ پس از تخفیف/);
+  assert.match(workspace, /جمع صورتحساب/);
+  assert.match(workspace, /توضیحات صورتحساب/);
+  assert.match(workspace, /maxLength=\{1500\}/);
+  assert.match(workspace, /invoiceDescription:invoiceDescription.trim\(\) \|\| null/);
+  assert.match(workspace, /setInvoiceDescription\(saved.invoiceDescription \?\? ""\)/);
+});
+test("final stage settlement permits unknown, cash, credit and mixed with constrained sums", () => {
+  assert.match(workspace, /<option value=\{0\}>نامعلوم<\/option>/);
+  assert.match(workspace, /<option value=\{1\}>نقدی<\/option>/);
+  assert.match(workspace, /<option value=\{2\}>نسیه<\/option>/);
+  assert.match(workspace, /<option value=\{3\}>نقدی و نسیه<\/option>/);
+  assert.match(workspace, /settlementMethod:settlement/);
+  assert.match(workspace, /cashAmountRial:cash/);
+  assert.match(workspace, /creditAmountRial:credit/);
+  assert.match(workspace, /setSettlement\(\(saved.settlementMethod \?\? 0\) as Settlement\)/);
+  assert.match(workspace, /settlementError/);
+  assert.match(css, /invoice-register__settlement/);
+  assert.match(css, /invoice-register__final-grid/);
+});

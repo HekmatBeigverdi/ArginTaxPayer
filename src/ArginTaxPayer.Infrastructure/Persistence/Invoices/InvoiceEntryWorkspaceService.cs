@@ -20,14 +20,64 @@ public sealed class InvoiceEntryWorkspace
 
 public sealed record InvoiceEntryLine(Guid? CatalogItemId, string Description,
     decimal Quantity, decimal UnitPriceRial, decimal DiscountPerUnitRial, decimal? VatRatePercent);
+public enum InvoiceDraftSettlementMethod { Unknown = 0, Cash = 1, Credit = 2, CashAndCredit = 3 }
+
+public sealed record InvoiceDraftFinancialSummary(decimal GrossRial, decimal DiscountRial,
+    decimal AfterDiscountRial, decimal PreviewVatRial, decimal PreviewGrandTotalRial);
+
+public static class InvoiceDraftSettlementPolicy
+{
+    public static InvoiceDraftFinancialSummary Calculate(IReadOnlyList<InvoiceEntryLine> lines)
+    {
+        decimal gross = 0, discount = 0, vat = 0;
+        foreach (var line in lines)
+        {
+            gross = checked(gross + line.Quantity * line.UnitPriceRial);
+            discount = checked(discount + line.Quantity * line.DiscountPerUnitRial);
+            vat = checked(vat + line.Quantity *
+                (line.UnitPriceRial - line.DiscountPerUnitRial) *
+                (line.VatRatePercent ?? 0m) / 100m);
+        }
+        gross = decimal.Round(gross, 2, MidpointRounding.AwayFromZero);
+        discount = decimal.Round(discount, 2, MidpointRounding.AwayFromZero);
+        vat = decimal.Round(vat, 2, MidpointRounding.AwayFromZero);
+        var subtotal = checked(gross - discount);
+        return new(gross, discount, subtotal, vat, checked(subtotal + vat));
+    }
+
+    public static bool IsConsistent(InvoiceDraftSettlementMethod method,
+        decimal? cashRial, decimal? creditRial, decimal grandTotalRial)
+    {
+        if (!Enum.IsDefined(method) || grandTotalRial < 0 ||
+            cashRial is < 0 || creditRial is < 0) return false;
+        if (method == InvoiceDraftSettlementMethod.Unknown)
+            return (cashRial is null or 0m) && (creditRial is null or 0m);
+        // Both amounts may be absent while a working draft is incomplete.
+        if (cashRial is null && creditRial is null) return true;
+        if (cashRial is null || creditRial is null) return false;
+        if (cashRial.Value + creditRial.Value != grandTotalRial) return false;
+        return method switch
+        {
+            InvoiceDraftSettlementMethod.Cash => creditRial.Value == 0 && cashRial.Value == grandTotalRial,
+            InvoiceDraftSettlementMethod.Credit => cashRial.Value == 0 && creditRial.Value == grandTotalRial,
+            InvoiceDraftSettlementMethod.CashAndCredit => cashRial.Value > 0 && creditRial.Value > 0,
+            _ => false
+        };
+    }
+}
+
 public sealed record SaveInvoiceEntryRequest(Guid? Id, Guid TaxpayerId, long ExpectedRevision,
     int LastCompletedStep, DateTime IssueDateUtc, Guid? BuyerPartyId,
     int Type, int Pattern, InvoiceEntryLine[]? Lines,
-    string? BuyerDisplayName = null);
+    string? BuyerDisplayName = null, string? InvoiceDescription = null,
+    InvoiceDraftSettlementMethod SettlementMethod = InvoiceDraftSettlementMethod.Unknown,
+    decimal? CashAmountRial = null, decimal? CreditAmountRial = null);
 public sealed record InvoiceEntryView(Guid Id, Guid CustomerUserId, Guid TaxpayerId, long Revision,
     int LastCompletedStep, DateTime IssueDateUtc, DateTime UpdatedAtUtc,
     Guid? BuyerPartyId, int Type, int Pattern, InvoiceEntryLine[] Lines,
-    string? BuyerDisplayName);
+    string? BuyerDisplayName, string? InvoiceDescription,
+    InvoiceDraftSettlementMethod SettlementMethod, decimal? CashAmountRial,
+    decimal? CreditAmountRial, InvoiceDraftFinancialSummary FinancialSummary);
 public sealed record InvoiceEntryResult(InvoiceApiDecision Decision, InvoiceEntryView? Draft = null);
 
 /// <summary>
@@ -62,13 +112,22 @@ public sealed class InvoiceEntryWorkspaceService(
             input.IssueDateUtc.Kind != DateTimeKind.Utc ||
             input.Type is < 1 or > 2 || input.Pattern is < 1 or > 14 ||
             input.Lines is null || input.Lines.Length > 150 ||
+            input.InvoiceDescription is { Length: > 1500 } ||
+            (input.InvoiceDescription?.Any(c => char.IsControl(c) &&
+                c != '\r' && c != '\n' && c != '\t') ?? false) ||
             input.Lines.Any(l => l.Description is null || l.Description.Length > 256 ||
                 l.Description.Any(char.IsControl) || l.Quantity is < 0 or > 999999999m ||
                 l.UnitPriceRial is < 0 or > 999999999999999m ||
                 l.DiscountPerUnitRial < 0 || l.DiscountPerUnitRial > l.UnitPriceRial ||
                 l.VatRatePercent is < 0 or >= 1000))
             return false;
-        return true;
+        try
+        {
+            var summary = InvoiceDraftSettlementPolicy.Calculate(input.Lines);
+            return InvoiceDraftSettlementPolicy.IsConsistent(input.SettlementMethod,
+                input.CashAmountRial, input.CreditAmountRial, summary.PreviewGrandTotalRial);
+        }
+        catch (OverflowException) { return false; }
     }
 
     private static InvoiceEntryView View(InvoiceEntryWorkspace row)
@@ -78,7 +137,9 @@ public sealed class InvoiceEntryWorkspaceService(
         return new(row.Id,row.CustomerUserId,row.TaxpayerId,row.Revision,
             row.LastCompletedStep,row.IssueDateUtc,row.UpdatedAtUtc,
             value.BuyerPartyId,value.Type,value.Pattern,value.Lines ?? [],
-            value.BuyerDisplayName);
+            value.BuyerDisplayName, value.InvoiceDescription, value.SettlementMethod,
+            value.CashAmountRial, value.CreditAmountRial,
+            InvoiceDraftSettlementPolicy.Calculate(value.Lines ?? []));
     }
 
     public async Task<InvoiceEntryResult> SaveAsync(string? token,

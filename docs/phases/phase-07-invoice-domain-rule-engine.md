@@ -1017,3 +1017,20 @@ zsh scripts/dev-status.zsh
 **Status:** source implementation awaiting macOS compilation, isolated PostgreSQL migration/integration tests, browser acceptance, and owner approval. This is another Step20 amendment, not a new numbered phase step.
 
 **Final review correction:** The existing scoped GET /api/dev/invoices endpoint now performs one EF Core UNION ALL/Concat of internal documents and resumable working drafts, applies common authorization, customer/taxpayer filters, ordering, offset and page size **at the database**, and tags working rows with `kind=workspace` for the UI Edit action. The Next list calls this one endpoint; the individual workspace GET/POST still controls editing. The selected buyer display name in stored draft JSON is resolved by the server from its customer-scoped Party record (never taken from client input), so a resumed draft can display its previous buyer. Final cross-source pagination and live PostgreSQL UNION translation remain operator-test requirements.
+
+
+### Step20 amendment — Final review, settlement and invoice description (2026-10-18)
+
+**Request:** Match the submitted three-stage sales invoice review example and add invoice description as a field in the final step. Maintain compact, Persian RTL formatting and existing 24-step roadmap.
+
+**Persistence contract:** No new migration. Add optional InvoiceDescription (up to 1500 chars), SettlementMethod (Unknown=0, Cash=1, Credit=2, CashAndCredit=3), CashAmountRial and CreditAmountRial to the existing private invoice_entry_workspaces JSONB payload and typed request/response. Existing drafts deserialize with default Unknown and null amounts/description. Fields are stored via existing customer/taxpayer-scoped revision CAS and restored on Edit and Continue.
+
+**Preview financials:** Server calculates gross, total discounts, after-discount amount, preview VAT and preview grand total from saved lines using decimal arithmetic and two fractional-place rounding. The frontend presents a matching summary but sends no client-authored total as fiscal truth. Other taxes/levies remain unsupported and are not invented as zero. This is not Tax Authority VAT validation.
+
+**Settlement policy:** Unknown accepts absent/zero cash+credit, Cash requires full cash and zero credit, Credit requires zero cash and full credit, CashAndCredit requires positive cash+credit summing exactly to calculated draft grand total. Both amounts may remain null on incomplete drafts. Reject negative, excessive, conflicting and overflowed inputs. All checks run on the server before an update or revision increment.
+
+**Frontend:** Final step renamed مرور نهایی و تسویه with compact split layout: issuer/buyer/date/type/item summary plus gross/discount/after-discount/preview VAT/grand total. Four-option settlement selector, cash entry only for mixed, automatic balance and constrained values, optional توضیحات صورتحساب textarea with 1500-character counter; all values restore after page exit. Responsive one-column on narrow screens. Save remains Save stages and exit; no formal finalization, issuing or sending.
+
+**Touched files:** InvoiceEntryWorkspaceService.cs, apps/web/app/invoices/workspace.tsx, apps/web/app/globals.css, Phase07ResumableInvoiceDraftTests.cs, phase07-invoice-entry-ui.test.mjs and this phase document. No SQL migration.
+
+**Acceptance:** Run dotnet build ArginTaxPayer.sln -c Release; dotnet test ArginTaxPayer.sln -c Release; under apps/web run npm test, npm run typecheck, npm run build. Restart with existing scripts/dev-down.zsh and scripts/dev-up.zsh. In authorized test account input two items quantity 2, unit 100, discount 10, VAT 10%; check gross 200, discount 20, subtotal 180, VAT 18, grand 198; cash 198/credit 0, credit 198/cash 0, mixed 100/98 accepted and invalid splits rejected. Add multiline notes, save, reload and verify restored settlement/notes. No independent operator tests or fiscal authority submission performed.

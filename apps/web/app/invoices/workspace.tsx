@@ -23,8 +23,11 @@ type SavedEntryLine = { catalogItemId: string | null; description: string; quant
 type SavedEntry = { id: string; customerUserId: string; taxpayerId: string;
   revision: number; lastCompletedStep: number; issueDateUtc: string; updatedAtUtc: string;
   buyerPartyId: string | null; buyerDisplayName?: string | null;
-  type: number; pattern: number; lines: SavedEntryLine[] };
-const headings = ["سربرگ صورتحساب", "اقلام صورتحساب", "جمع‌بندی صورتحساب"] as const;
+  type: number; pattern: number; lines: SavedEntryLine[];
+  invoiceDescription?: string | null; settlementMethod?: number;
+  cashAmountRial?: number | null; creditAmountRial?: number | null; };
+const headings = ["سربرگ صورتحساب", "اقلام صورتحساب", "مرور نهایی و تسویه"] as const;
+type Settlement = 0 | 1 | 2 | 3;
 const errorCodes: Record<number, string> = {
   400: "ورودی پیش‌نویس معتبر نیست.", 401: "نشست منقضی شده است؛ دوباره وارد شوید.",
   403: "برای این پرونده دسترسی ندارید.", 404: "مؤدی یا صورتحساب یافت نشد.",
@@ -88,6 +91,9 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
   const [catalogBusy, setCatalogBusy] = useState(false);
   const [rows, setRows] = useState<Row[]>([]);
+  const [invoiceDescription,setInvoiceDescription] = useState("");
+  const [settlement,setSettlement] = useState<Settlement>(0);
+  const [cashInput,setCashInput] = useState("");
   const nextKey = useRef(0);
   const [detail, setDetail] = useState<Invoice | null>(null);
 
@@ -233,7 +239,8 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
     setBuyerId(""); setBuyerQuery(""); setBuyerOpen(false); setInvoiceType(1); setPattern(1);
     setHeaderCustomer(isAdmin ? (filterCustomer || "") : actorId);
     setTaxpayerId(isAdmin ? "" : taxpayerId);
-    setRows([]); setError(""); setNotice(""); setModal(true);
+    setRows([]); setInvoiceDescription(""); setSettlement(0); setCashInput("");
+    setError(""); setNotice(""); setModal(true);
   }
   async function editDraft(draft: Invoice) {
     setBusy(true); setError("");
@@ -248,6 +255,9 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
       setBuyerQuery(saved.buyerDisplayName ?? "");
       setBuyerOpen(false);
       setInvoiceType(saved.type); setPattern(saved.pattern);
+      setInvoiceDescription(saved.invoiceDescription ?? "");
+      setSettlement((saved.settlementMethod ?? 0) as Settlement);
+      setCashInput(saved.settlementMethod === 3 ? String(saved.cashAmountRial ?? "") : "");
       setRows(saved.lines.map((line,index)=>({
         key:index+1,productId:line.catalogItemId ?? "",
         name:line.description,quantity:String(line.quantity),
@@ -274,11 +284,22 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
         Number(r.vatRate)<0 || Number(r.vatRate)>=1000)) {
       setError("شرح یا مقادیر یکی از ردیف‌ها معتبر نیست.");return;
     }
+    const cash = settlement === 1 ? calculated.total : settlement === 2 ? 0 :
+      settlement === 3 ? roundRial(Number(cashInput)) : null;
+    const credit = settlement === 1 ? 0 : settlement === 2 ? calculated.total :
+      settlement === 3 ? roundRial(calculated.total - Number(cashInput)) : null;
+    if (settlement === 3 && (cashInput.trim() === "" || !Number.isFinite(cash) ||
+        Number(cash) <= 0 || Number(credit) <= 0 || Number(cash) >= calculated.total)) {
+      setError("برای روش نقدی و نسیه، مبلغ نقدی باید بیشتر از صفر و کمتر از جمع صورتحساب باشد.");
+      return;
+    }
     const payload = {
       id:editing?.id ?? null,
       taxpayerId, expectedRevision:editing?.revision ?? 0,
       lastCompletedStep:completeStep, issueDateUtc:issued.toISOString(),
       buyerPartyId:buyerId || null, type:invoiceType,pattern,
+      invoiceDescription:invoiceDescription.trim() || null,
+      settlementMethod:settlement, cashAmountRial:cash, creditAmountRial:credit,
       lines:rows.map(r=>({
         catalogItemId:r.productId || null,description:r.name.trim(),
         quantity:Number(r.quantity),unitPriceRial:Number(r.unitPrice),
@@ -316,6 +337,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   function updateRow(key: number, changes: Partial<Row>) {
     setRows(current => current.map(row => row.key === key ? {...row,...changes} : row));
   }
+  const roundRial = (value:number) => Math.round((value + Number.EPSILON) * 100) / 100;
   const calculated = useMemo(() => {
     const base = rows.reduce((total, row) =>
       total + amount(row.quantity) * amount(row.unitPrice), 0);
@@ -324,8 +346,19 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
     const vat = rows.reduce((total, row) =>
       total + Math.max(0, amount(row.unitPrice) - amount(row.discount)) *
       amount(row.quantity) * amount(row.vatRate) / 100, 0);
-    return {base, discount, vat, total: base - discount + vat};
+    const gross = roundRial(base);
+    const totalDiscount = roundRial(discount);
+    const vatPreview = roundRial(vat);
+    return {base:gross, discount:totalDiscount, vat:vatPreview,
+      total: roundRial(gross-totalDiscount+vatPreview)};
   }, [rows]);
+  const cashPreview = settlement === 1 ? calculated.total : settlement === 2 ? 0 :
+    settlement === 3 ? roundRial(amount(cashInput)) : 0;
+  const creditPreview = settlement === 2 ? calculated.total : settlement === 1 ? 0 :
+    settlement === 3 ? roundRial(Math.max(0,calculated.total-cashPreview)) : 0;
+  const settlementError = settlement === 3 &&
+    (cashInput.trim() === "" || !Number.isFinite(Number(cashInput)) ||
+      cashPreview <= 0 || cashPreview >= calculated.total);
   const filtered = invoices.filter(row =>
     (row.id + " " + row.state + " " + row.subject).toLowerCase().includes(search.toLowerCase()));
 
@@ -543,19 +576,77 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
                 </div>)}
               <p className="field-hint">برای مدیریت کاتالوگ به <Link href="/catalog">کالاها و خدمات</Link> مراجعه کنید.</p>
             </section>}
-            {step === 2 && <section aria-label="جمع‌بندی صورتحساب">
-              <p className="invoice-register__hint">جمع‌بندی موقت برای ویرایش بعدی ذخیره می‌شود. ارزش افزوده و مبلغ قانونی نهایی باید توسط Domain تأیید شوند.</p>
-              <dl className="invoice-register__totals">
-                <dt>مبلغ ناخالص</dt><dd>{fmt(calculated.base)} ریال</dd>
-                <dt>تخفیف</dt><dd>{fmt(calculated.discount)} ریال</dd>
-                <dt>ارزش افزوده نمایشی</dt><dd>{fmt(calculated.vat)} ریال</dd>
-                <dt>جمع نمایشی</dt><dd><strong>{fmt(calculated.total)} ریال</strong></dd>
-              </dl>
-              <div className="invoice-register__restriction">
-                <strong>ذخیره پیش‌نویس داخلی</strong>
-                <p>سربرگ، اقلام و فوتر نمایشی به‌عنوان پیش‌نویس قابل بازیابی ذخیره می‌شوند.
-                این اطلاعات هنوز صورتحساب نهایی نیستند و بدون اعتبارسنجی مالیاتی ارسال نمی‌شوند.</p>
+            {step === 2 && <section aria-label="مرور نهایی و تسویه صورتحساب"
+              className="invoice-register__final">
+              <div className="invoice-register__final-heading">
+                <strong>مرور کلی صورتحساب</strong>
+                <span>خلاصه مالی، روش تسویه و توضیحات</span>
               </div>
+              <div className="invoice-register__final-grid">
+                <section className="invoice-register__final-details" aria-label="مشخصات صورتحساب">
+                  <h3>مشخصات کلی</h3>
+                  <dl className="invoice-register__summary-info">
+                    <dt>مؤدی / فروشنده</dt>
+                    <dd>{visibleTaxpayers.find(t=>t.id===taxpayerId)?.displayName || "مؤدی انتخاب‌شده"}</dd>
+                    <dt>خریدار</dt><dd>{buyerQuery || "هنوز انتخاب نشده"}</dd>
+                    <dt>تاریخ و زمان</dt><dd dir="ltr">{date} {hour} UTC</dd>
+                    <dt>نوع و الگو</dt><dd>نوع {invoiceType} · الگوی {pattern}</dd>
+                    <dt>تعداد ردیف‌ها</dt><dd>{rows.length}</dd>
+                  </dl>
+                </section>
+                <section aria-label="خلاصه مالی">
+                  <h3>خلاصه مبالغ (ریال)</h3>
+                  <dl className="invoice-register__totals">
+                    <dt>مجموع مبلغ قبل از تخفیف</dt><dd>{fmt(calculated.base)}</dd>
+                    <dt>مجموع تخفیفات</dt><dd>{fmt(calculated.discount)}</dd>
+                    <dt>مجموع مبلغ پس از تخفیف</dt><dd>{fmt(calculated.base-calculated.discount)}</dd>
+                    <dt>مجموع مالیات بر ارزش افزوده (محاسبه موقت)</dt><dd>{fmt(calculated.vat)}</dd>
+                    <dt>سایر مالیات و عوارض (در این پیش‌نویس پشتیبانی نمی‌شود)</dt><dd>—</dd>
+                    <dt className="invoice-register__grand">جمع صورتحساب</dt>
+                    <dd className="invoice-register__grand">{fmt(calculated.total)} ریال</dd>
+                  </dl>
+                </section>
+              </div>
+              <div className="invoice-register__settlement">
+                <div className="invoice-register__field">
+                  <label htmlFor="invoice-settlement-method">روش تسویه</label>
+                  <select id="invoice-settlement-method" value={settlement}
+                    onChange={event=>{setSettlement(Number(event.target.value) as Settlement);setCashInput("");}}>
+                    <option value={0}>نامعلوم</option>
+                    <option value={1}>نقدی</option>
+                    <option value={2}>نسیه</option>
+                    <option value={3}>نقدی و نسیه</option>
+                  </select>
+                </div>
+                <div className="invoice-register__field">
+                  <label htmlFor="invoice-cash-amount">مبلغ نقدی (ریال)</label>
+                  <input id="invoice-cash-amount" type="number" min="0" step="any"
+                    dir="ltr" value={settlement===3 ? cashInput : String(cashPreview)}
+                    disabled={settlement!==3}
+                    onChange={e=>setCashInput(e.target.value)} />
+                </div>
+                <div className="invoice-register__field">
+                  <label htmlFor="invoice-credit-amount">مبلغ نسیه (ریال)</label>
+                  <input id="invoice-credit-amount" type="text" dir="ltr"
+                    value={fmt(creditPreview)} readOnly aria-readonly="true" />
+                </div>
+              </div>
+              {settlementError && <p role="alert" className="form-error">
+                برای تسویه نقدی و نسیه، مبلغ نقدی باید مثبت و کمتر از مبلغ صورتحساب باشد.
+              </p>}
+              <div className="invoice-register__description">
+                <label htmlFor="invoice-description">توضیحات صورتحساب</label>
+                <textarea id="invoice-description" rows={3} maxLength={1500}
+                  value={invoiceDescription}
+                  onChange={e=>setInvoiceDescription(e.target.value)}
+                  placeholder="توضیحات، توافقات یا شرح تکمیلی فاکتور (اختیاری)"/>
+                <small>{invoiceDescription.length} / ۱۵۰۰ نویسه</small>
+              </div>
+              <p className="invoice-register__hint">
+                توضیحات و تسویه در پیش‌نویس قابل‌ویرایش ذخیره می‌شوند.
+                مبالغ مالیاتی و روش تسویه قبل از صدور رسمی باید در سرویس اعتبارسنجی
+                بررسی شوند؛ ذخیره پیش‌نویس به معنای ارسال به سامانه مؤدیان نیست.
+              </p>
             </section>}
           </div>
           <footer className="invoice-register__dialog-footer">
@@ -572,7 +663,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
               disabled={busy || step === 0 && (!taxpayerId || !headerCustomer || !date)}
               onClick={nextStep}>مرحله بعد</button> :
               <button type="button" className="identity-primary"
-                disabled={busy || !taxpayerId}
+                disabled={busy || !taxpayerId || settlementError}
                 onClick={() => void saveWorkspace(2,true)}>
                 {busy ? "در حال ذخیره…" : "ذخیره مراحل و خروج"}</button>}
           </footer>

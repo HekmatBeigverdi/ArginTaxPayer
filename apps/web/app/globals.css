@@ -615,3 +615,29 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
   .invoice-register__catalog-picker{grid-template-columns:minmax(0,1fr)}
   .console-page .invoice-register__dialog-footer{justify-content:flex-start}
 }
+
+/* Phase07 Step20 — compact final review, settlement and description. */
+.console-page .invoice-register__final{display:grid;gap:12px;min-width:0}
+.console-page .invoice-register__final-heading{display:flex;align-items:baseline;justify-content:space-between;gap:10px;border-bottom:1px solid #e1e9ee;padding-bottom:8px}
+.console-page .invoice-register__final-heading strong{font-size:14px}
+.console-page .invoice-register__final-heading span{font-size:11px;color:#667d8e}
+.console-page .invoice-register__final-grid{display:grid;grid-template-columns:minmax(230px,0.85fr) minmax(350px,1.2fr);gap:16px;align-items:start}
+.console-page .invoice-register__final-grid>section{min-width:0}
+.console-page .invoice-register__final-grid h3{font-size:12px;margin:0 0 8px;font-weight:700}
+.console-page .invoice-register__summary-info{display:grid;grid-template-columns:minmax(100px,auto) minmax(0,1fr);gap:7px 14px;font-size:12px;margin:0}
+.console-page .invoice-register__summary-info :is(dt,dd){margin:0;overflow-wrap:anywhere;padding:3px 0}
+.console-page .invoice-register__summary-info dt{color:#63798a}
+.console-page .invoice-register__summary-info dd{font-weight:600}
+.console-page .invoice-register__final .invoice-register__totals{max-width:none;grid-template-columns:minmax(0,1.7fr) minmax(140px,1fr);font-size:12px;gap:3px 12px}
+.console-page .invoice-register__final .invoice-register__totals :is(dt,dd){padding:6px 2px}
+.console-page .invoice-register__final .invoice-register__totals .invoice-register__grand{font-weight:800;border-top:1px solid #c5d5df;color:#173e54}
+.console-page .invoice-register__settlement{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:12px 0;border-top:1px solid #e1e9ee;border-bottom:1px solid #e1e9ee}
+.console-page .invoice-register__field{display:grid;gap:5px;min-width:0}
+.console-page .invoice-register__field label,.console-page .invoice-register__description label{font-size:12px;font-weight:650}
+.console-page .invoice-register__settlement :is(select,input){width:100%;height:32px;min-height:32px;font:inherit;font-size:12px;border:1px solid #c5d4e0;border-radius:6px;padding:5px 8px;min-width:0;background:var(--surface,#fff);color:inherit}
+.console-page .invoice-register__settlement input:disabled,.console-page .invoice-register__settlement input:read-only{background:#f2f5f7;color:#506577}
+.console-page .invoice-register__description{display:grid;gap:6px}
+.console-page .invoice-register__description textarea{width:100%;min-width:0;min-height:76px;max-height:180px;resize:vertical;padding:8px 10px;font:inherit;font-size:12px;line-height:1.8;border:1px solid #c5d4e0;border-radius:7px;background:var(--surface,#fff);color:inherit}
+.console-page .invoice-register__description small{justify-self:end;font-size:11px;color:#627989}
+@media(max-width:800px){.console-page .invoice-register__final-grid{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:550px){.console-page .invoice-register__settlement{grid-template-columns:minmax(0,1fr)}}
