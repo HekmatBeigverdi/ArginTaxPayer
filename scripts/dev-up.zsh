@@ -207,6 +207,7 @@ if lsof -nP -iTCP:3000 -sTCP:LISTEN >/dev/null 2>&1; then
   exit 1
 fi
 print 'Starting Next.js...'
+export ARGIN_NEXT_DIST_DIR=.next-dev
 export ARGIN_IDENTITY_UI_ENABLED=true
 export ARGIN_IDENTITY_API_INTERNAL_BASE_URL=http://127.0.0.1:15089
 export ARGIN_NEXT_DIST_DIR=.next-dev

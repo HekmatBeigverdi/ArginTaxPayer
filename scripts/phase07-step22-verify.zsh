@@ -20,8 +20,8 @@ node --test apps/web/tests/phase07-invoice-entry-ui.test.mjs
 (
   cd apps/web
   npm test
-  npm run typecheck
-  npm run build
+  ARGIN_NEXT_DIST_DIR=.next npm run typecheck
+  ARGIN_NEXT_DIST_DIR=.next npm run build
 )
 print -- "Offline regression gates completed."
 print -- "Optional read-only HTTP smoke uses dedicated synthetic sessions."
