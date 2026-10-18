@@ -2,7 +2,9 @@ import { readFileSync, existsSync } from "node:fs";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-const root = new URL("../", import.meta.url);
+// The regression suite runs from apps/web/tests but validates repository-wide
+// contracts, so resolve paths from the repository root.
+const root = new URL("../../../", import.meta.url);
 const read = path => readFileSync(new URL(path, root), "utf8");
 const pathExists = path => existsSync(new URL(path, root));
 
