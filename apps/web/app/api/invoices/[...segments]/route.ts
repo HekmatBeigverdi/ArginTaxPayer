@@ -54,9 +54,9 @@ async function proxy(request: NextRequest, context: Context, method: "GET" | "PO
   try {
     const filtered = new URLSearchParams();
     if (segments.length === 1 && segments[0] === "overview") {
-      for (const key of ["customerId", "taxpayerId"]) {
+      for (const key of ["customerId", "taxpayerId", "page", "pageSize"]) {
         const value = request.nextUrl.searchParams.get(key);
-        if (value && uuid.test(value)) filtered.set(key, value);
+        if (value && (key === "page" || key === "pageSize" ? /^[1-9]\d{0,5}$/.test(value) : uuid.test(value))) filtered.set(key, value);
         else if (value) return error(400, "invalid_filter");
       }
     }

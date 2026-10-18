@@ -95,3 +95,20 @@ test("shared Persian twenty-four-hour time control is available", () => {
   assert.match(timePicker, /۰۱۲۳۴۵۶۷۸۹/);
   assert.doesNotMatch(workspace, /type="time"/);
 });
+
+test("accessible buyer combobox supports keyboard selection and resolves selected Party GUID", () => {
+  assert.match(workspace, /role="combobox"/);
+  assert.match(workspace, /role="listbox"/);
+  assert.match(workspace, /aria-activedescendant/);
+  assert.match(workspace, /ArrowDown/);
+  assert.match(workspace, /ArrowUp/);
+  assert.match(workspace, /setBuyerId\(b\.id\)/);
+  assert.doesNotMatch(workspace, /<input id="invoice-seller"/);
+});
+test("all authorized customers are paged server-side", () => {
+  assert.match(workspace, /listPageSize = 50/);
+  assert.match(workspace, /query\.set\("page",String\(listPage\)\)/);
+  assert.match(workspace, /صفحه قبل/);
+  assert.match(workspace, /صفحه بعد/);
+  assert.match(workspace, /همه مشتریان زیرمجموعه/);
+});

@@ -952,3 +952,10 @@ The four adjustments below are a **Step20 amendment**, not a new roadmap step. T
 **Source changes**: `InvoiceDraftApplicationService.cs`, `InvoiceDraftDevelopmentEndpoints.cs`, `FiscalParticipantDirectoryService.cs`, `FiscalParticipantDirectoryEndpoints.cs`, `apps/web/app/api/invoices/[...segments]/route.ts`, `apps/web/app/(console)/invoices/page.tsx`, `apps/web/app/invoices/workspace.tsx`, new `apps/web/app/components/persian-time-picker.tsx`, `apps/web/app/globals.css`, UI and .NET contract tests, and this document. No schema migration or fiscal authority sending. Step18 migration must already exist on `argintaxpayer_test`.
 
 **Acceptance**: run `dotnet build ArginTaxPayer.sln`, `dotnet test ArginTaxPayer.sln`, then from `apps/web`, `npm test && npm run typecheck && npm run build`; start with `zsh scripts/dev-up.zsh`. Test authorized Level2 with 2+ customers and multiple taxpayers, no filter shows all, customer filter narrows, cross-customer buyer fails, official seller is derived from taxpayer profile, user mode offers all owned taxpayers, Persian time 00:00/23:59, and numeric/text typography in Safari/Chrome. Operator results pending; no claim of passed tests.
+
+#### Additional quality improvements before owner review (2026-10-18)
+
+- The header no longer repeats a second seller field: the selected taxpayer dropdown is expressly labeled issuer/seller. The server independently loads its actual legal display name; it is never client-editable.
+- The buyer input is a single accessible searchable combobox (ARIA listbox, keyboard ArrowUp/ArrowDown/Enter/Escape) whose choices are currently active Party rows, scoped to the customer owning the chosen taxpayer.
+- Server-side invoice overview supports page/pageSize (default 50, max 100), so no-filter admin mode pages through all accessible clients rather than silently stopping at 100 results. UI shows previous/next and page number, and includes customer and taxpayer columns.
+- Added static regression checks for the combobox and paging. Backend and browser integration tests are still pending.

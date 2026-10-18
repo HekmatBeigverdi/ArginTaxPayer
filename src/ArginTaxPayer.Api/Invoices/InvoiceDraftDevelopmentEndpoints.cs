@@ -14,10 +14,12 @@ public static class InvoiceDraftDevelopmentEndpoints
         this IEndpointRouteBuilder app)
     {
         app.MapGet("/api/dev/invoices", async (Guid? customerId, Guid? taxpayerId,
+            int? page, int? pageSize,
             HttpContext http, InvoiceDraftApplicationService service, CancellationToken ct) =>
         {
             if (!Local(http)) return Results.NotFound();
-            var result = await service.ListVisibleAsync(Token(http), customerId, taxpayerId, ct);
+            var result = await service.ListVisibleAsync(Token(http), customerId, taxpayerId,
+                page ?? 1, pageSize ?? 50, ct);
             return result.Decision == InvoiceApiDecision.Success
                 ? Results.Ok(result.Data) : Error(result.Decision);
         }).WithTags("Invoice Drafts (Development)");

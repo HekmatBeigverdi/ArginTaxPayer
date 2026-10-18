@@ -54,6 +54,8 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   const [buyerQuery, setBuyerQuery] = useState("");
   const [buyers, setBuyers] = useState<FiscalEntry[]>([]);
   const [buyerLoading, setBuyerLoading] = useState(false);
+  const [buyerOpen, setBuyerOpen] = useState(false);
+  const [buyerActive, setBuyerActive] = useState(0);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -201,7 +203,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   function open() {
     setDetail(null);
     setStep(0); setDate(todayUtc()); setHour("12:00");
-    setBuyerId(""); setBuyerQuery(""); setInvoiceType(1); setPattern(1);
+    setBuyerId(""); setBuyerQuery(""); setBuyerOpen(false); setInvoiceType(1); setPattern(1);
     setHeaderCustomer(isAdmin ? (filterCustomer || "") : actorId);
     setTaxpayerId(isAdmin ? "" : taxpayerId);
     setRows([]); setError(""); setNotice(""); setModal(true);
@@ -352,7 +354,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
               {isAdmin && <>
                 <label htmlFor="invoice-header-customer">مشتری نرم‌افزار</label>
                 <select id="invoice-header-customer" value={headerCustomer} required
-                  onChange={e=>{setHeaderCustomer(e.target.value);setTaxpayerId("");setBuyerId("");}}>
+                  onChange={e=>{setHeaderCustomer(e.target.value);setTaxpayerId("");setBuyerId("");setBuyerQuery("");setBuyerOpen(false);}}>
                   <option value="">انتخاب مشتری</option>
                   {accounts.map(a=><option key={a.customerUserId} value={a.customerUserId}>
                     {a.companyName || a.personName || "مشتری مجاز"}
@@ -361,7 +363,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
               </>}
               <label htmlFor="invoice-taxpayer">مؤدی صادرکننده / فروشنده</label>
               <select id="invoice-taxpayer" value={taxpayerId} required
-                onChange={e=>{setTaxpayerId(e.target.value);setBuyerId("");}}>
+                onChange={e=>{setTaxpayerId(e.target.value);setBuyerId("");setBuyerQuery("");setBuyerOpen(false);}}>
                 <option value="">انتخاب مؤدی فروشنده</option>
                 {visibleTaxpayers.map(t => <option key={t.id} value={t.id}>{t.displayName}</option>)}
               </select>
@@ -372,17 +374,41 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
               <label htmlFor="invoice-buyer-search">خریدار ثبت‌شده</label>
               <div className="invoice-register__buyer">
                 <input id="invoice-buyer-search" type="search" value={buyerQuery}
+                  role="combobox" aria-autocomplete="list" aria-controls="invoice-buyer-options"
+                  aria-expanded={buyerOpen} aria-activedescendant={
+                    buyerOpen && buyers[buyerActive] ? "invoice-buyer-option-"+buyers[buyerActive].id : undefined
+                  }
                   placeholder="جست‌وجوی نام یا شناسه خریدار" autoComplete="off"
-                  onChange={e=>{setBuyerQuery(e.target.value);setBuyerId("");}}/>
-                <select id="invoice-buyer" value={buyerId} required
-                  aria-label="انتخاب خریدار از نتایج جست‌وجو"
-                  onChange={e=>setBuyerId(e.target.value)}>
-                  <option value="">انتخاب خریدار</option>
-                  {buyers.map(b=><option key={b.id} value={b.id}>
-                    {b.displayName} — {b.identifier}
-                  </option>)}
-                </select>
-                {buyerLoading && <small role="status">در حال دریافت خریداران…</small>}
+                  onFocus={()=>{setBuyerOpen(true);setBuyerActive(0);}}
+                  onChange={e=>{setBuyerQuery(e.target.value);setBuyerId("");
+                    setBuyerOpen(true);setBuyerActive(0);}}
+                  onKeyDown={e=>{
+                    if(e.key==="Escape"){setBuyerOpen(false);return;}
+                    if(e.key==="ArrowDown"){e.preventDefault();setBuyerOpen(true);
+                      setBuyerActive(i=>Math.min(Math.max(0,buyers.length-1),i+1));}
+                    if(e.key==="ArrowUp"){e.preventDefault();
+                      setBuyerActive(i=>Math.max(0,i-1));}
+                    if(e.key==="Enter" && buyerOpen && buyers[buyerActive]){
+                      e.preventDefault();const b=buyers[buyerActive];
+                      setBuyerId(b.id);setBuyerQuery(b.displayName);setBuyerOpen(false);
+                    }
+                  }}/>
+                {buyerOpen && <div role="listbox" id="invoice-buyer-options"
+                    className="invoice-register__buyer-options"
+                    aria-label="نتایج جست‌وجوی خریداران">
+                  {buyerLoading && <p role="status">در حال جست‌وجو…</p>}
+                  {!buyerLoading && buyers.length===0 && <p>خریدار فعال یافت نشد.</p>}
+                  {buyers.map((b,i)=><button type="button" role="option"
+                      key={b.id} id={"invoice-buyer-option-"+b.id}
+                      aria-selected={buyerId===b.id || buyerOpen && buyerActive===i}
+                      className={buyerActive===i?"active":""}
+                      onMouseDown={e=>e.preventDefault()}
+                      onClick={()=>{setBuyerId(b.id);setBuyerQuery(b.displayName);setBuyerOpen(false);}}>
+                    <strong>{b.displayName}</strong><small dir="ltr">{b.identifier}</small>
+                  </button>)}
+                </div>}
+                {buyerId && <small className="invoice-register__selected-buyer">
+                  خریدار انتخاب‌شده: {chosenBuyer?.displayName || buyerQuery}</small>}
               </div>
               <label htmlFor="invoice-date">تاریخ صدور شمسی</label>
               <PersianDatePicker id="invoice-date" value={date} onChange={setDate} floating/>

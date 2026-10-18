@@ -542,3 +542,10 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 .argin-console :is(input,textarea)::placeholder {
   font-family:inherit;
 }
+
+.invoice-register__buyer{position:relative}
+.invoice-register__buyer-options{position:absolute;top:calc(100% + 4px);right:0;left:0;max-height:250px;overflow:auto;z-index:5010;background:var(--surface,#fff);color:inherit;border:1px solid #bdcfdd;border-radius:9px;box-shadow:0 12px 24px #18374b33;padding:5px}
+.invoice-register__buyer-options button{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;padding:9px;text-align:right;background:transparent;color:inherit;border:0;border-radius:6px;cursor:pointer;font-size:12px}
+.invoice-register__buyer-options button.active,.invoice-register__buyer-options button:hover{background:#e9f2fa}
+.invoice-register__buyer-options p{padding:8px 10px;font-size:12px;margin:0}
+.invoice-register__selected-buyer{color:#20614c!important}

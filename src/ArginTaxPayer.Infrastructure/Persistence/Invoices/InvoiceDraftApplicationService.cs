@@ -165,8 +165,10 @@ public sealed class InvoiceDraftApplicationService(
     /// <summary>Read all visible invoices, optionally scoped to one customer or taxpayer.</summary>
     public async Task<(InvoiceApiDecision Decision, InvoiceDraftView[] Data)> ListVisibleAsync(
         string? token, Guid? customerId, Guid? taxpayerId,
-        CancellationToken ct = default)
+        int page = 1, int pageSize = 50, CancellationToken ct = default)
     {
+        if (page < 1 || pageSize is < 1 or > 100 || page > 100000)
+            return (InvoiceApiDecision.Invalid, []);
         var principal = await scope.ResolveAsync(token, ct);
         if (principal.Decision == TaxpayerScopeDecision.Unauthenticated)
             return (InvoiceApiDecision.Unauthenticated, []);
@@ -185,7 +187,8 @@ public sealed class InvoiceDraftApplicationService(
         if (taxpayerId.HasValue)
             query = query.Where(x => x.TaxpayerId == taxpayerId.Value);
         var rows = await query.OrderByDescending(x => x.UpdatedAtUtc)
-            .ThenBy(x => x.Id).Take(100).ToArrayAsync(ct);
+            .ThenBy(x => x.Id).Skip((page - 1) * pageSize)
+            .Take(pageSize).ToArrayAsync(ct);
         return (InvoiceApiDecision.Success, rows.Select(View).ToArray());
     }
 
