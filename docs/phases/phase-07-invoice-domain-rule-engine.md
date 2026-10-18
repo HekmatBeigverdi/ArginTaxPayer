@@ -58,8 +58,8 @@ Build a versioned electronic invoice domain and deterministic rules engine: lega
 | 18 | Persistence and migrations | EF Core PostgreSQL additive schema and constraints | Test DB-only migration review; no production modifications | Not started |
 | 19 | Application services and API | Scoped commands/queries and stable error contracts | Authorization and API contract tests | Owner-approved 2026-10-17; operator HTTP logs not attached |
 | 20 | Invoice-entry UI | RTL dynamic type/pattern, party and item selection | Usable keyboard and responsive flows | Owner-approved 2026-10-18, including subsequent resumable draft, settlement and invoice description amendments |
-| 21 | Validation/reference UI | Field errors and related-document history | Accessibility and scoped operation tests | Scoped read-only validation and internal reference-history UI committed; macOS and owner acceptance pending |
-| 22 | Comprehensive regression | Domain/integration/contract/security suite | Negative cases, Phase03–06 compatibility | Not started |
+| 21 | Validation/reference UI | Field errors and related-document history | Accessibility and scoped operation tests | Owner-approved 2026-10-18; independently executed operator logs not supplied |
+| 22 | Comprehensive regression | Domain/integration/contract/security suite | Negative cases, Phase03–06 compatibility | Extended cross-feature .NET/Next.js suites and opt-in read-only HTTP isolation smoke committed; macOS/Ubuntu operator verification pending |
 | 23 | macOS and Ubuntu acceptance | Local suite, VPS verify, DB/HTTP operator evidence | Both environments owner-approved | Not started |
 | 24 | Documentation and release | Close phase record, merge, annotated tag, GitHub release | Separate approval and release evidence | Not started |
 
@@ -1084,3 +1084,46 @@ zsh scripts/dev-status.zsh
 With legitimate development sessions and the previously accepted migrations applied to `argintaxpayer_test`, create a saved draft without lines/buyer and expect field-linked errors. Add buyer and lines, save, request validation again and confirm draft revision matches. Change an unsaved field and confirm stale preview is blocked. Select Correction/Cancellation/Return preview and confirm internal references are disclosed only in the same authorized taxpayer, all **disabled and not fiscal-ID verified**, with no new fiscal operation produced. Validate unauthenticated 401, unauthorized scope 404, no cross-tenant references. Verify description + settlement can be saved through the now-corrected Next proxy. No live tax issuance, no migration for Step21.
 
 **Step21 owner approval:** pending. **Next fixed Step22:** comprehensive regression tests.
+
+## Step 22 — Comprehensive Regression — Completion Record (2026-10-18)
+
+**Owner acceptance:** Step21 explicitly approved; Step22 implemented on `phase/07-invoice-domain-rule-engine`, pending independent macOS/Ubuntu execution, read-only HTTP smoke and owner acceptance. Fixed plan of 24 steps unchanged; Step23 remains platform acceptance.
+
+### Tests implemented
+
+1. `tests/ArginTaxPayer.Tests/Phase07ComprehensiveRegressionTests.cs` extends domain tests with source-pinned V7.9 subject/pattern matrix (including prohibited sales returns), negative settlement sign and sum checks, cash/credit/mixed consistency, multi-line gross/discount/VAT preview, legacy JSONB draft defaults and multi-stage round-trip, reference evidence never treated as verified, internal draft-vs-official precision boundary, no authority send/finalize command, and original/reference contract separation. Deterministic; no database/network access.
+2. `apps/web/tests/phase07-regression-suite.test.mjs`: Node test-runner contracts for every Phase07 major suite's presence, legacy Phase03–06 verification scripts, authenticated Next proxy allowlists/same-origin/strict GET, source ownership and CAS guards, no fiscal submission, reference disclosure fail-closed, compact RTL wizard, catalog dropdown, settlement/description, and expected additive migrations. Static assertions complement, never replace, compiled .NET/HTTP tests.
+3. `scripts/phase07-step22-readonly-smoke.mjs`: opt-in HTTP checks for missing bearer, genuinely distinct synthetic owner/other sessions, unauthorized taxpayer reference-history 404, scoped overview restricted to owned taxpayer, and no fabricated 22-character fiscal identifiers. Targets only literal loopback `http://127.0.0.1:8080` or other explicit loopback origin; no writes or migrations. Invoked only with explicit PHASE07_* session/test values and PHASE07_RUN_HTTP_SMOKE=1.
+4. `scripts/phase07-step22-verify.zsh`: reproducible CI/operator entry point: solution restore/build, filtered Phase07 xUnit suite, full .NET solution xUnit suite (Phase03–06 compatibility), Phase07 + existing web contract suites, npm test/typecheck/build, optionally read-only live HTTP smoke. **Does not run dev-up, migration, DB seeding, or production traffic.** Operator must establish AutoSSH through `zsh scripts/dev-up.zsh` when live smoke desired.
+
+### Acceptance matrix
+
+| Area | Expected verification |
+| --- | --- |
+| Phase07 domain (01–17) | original/correction/cancellation/return patterns, VAT, invoice monetary rounding, contracts, lifecycle, versioned rules and negative states; full xUnit run |
+| Persistence (18–19) | EF migration metadata and scope, draft JSONB round-trip, immutable revision contracts; DB integration only with authorized `argintaxpayer_test` |
+| UI (20–21) | compact RTL wizard, searchable buyer/catalog, resume/draft save, settlement/notes, findings/references panel, stale unsaved revisions, no authorized fiscal send |
+| Security | Level1/Level2/customer boundaries, unrelated taxpayer read 404, missing auth 401, customer/taxpayer scoping, no speculative fiscal IDs |
+| Concurrency | idempotency and CAS unit contracts, plus operator-only simultaneous two-tab writes: one must conflict and not silently overwrite |
+| Compatibility | Phase03–06 test suites remain present and full solution and web regression tests run without side effects |
+| Platform | macOS Build, unit tests, npm build and browser; Ubuntu integration and live process status deferred to Step23 |
+
+### macOS operator commands
+
+```bash
+cd ~/projects/ArginTaxPayer
+git fetch origin
+git switch phase/07-invoice-domain-rule-engine
+git pull --ff-only
+zsh scripts/phase07-step22-verify.zsh
+```
+
+For live smoke (only *synthetic, known, separate, authorized* test identities; do not paste secrets into chats):
+- In one terminal `zsh scripts/dev-up.zsh`, confirm API loopback readiness. Its AutoSSH connection is the project standard and does not apply migrations.
+- In another terminal export `PHASE07_API_ORIGIN=http://127.0.0.1:8080`, `PHASE07_OWNER_TOKEN`, `PHASE07_OTHER_TOKEN`, `PHASE07_OWNER_TAXPAYER_ID`, `PHASE07_FOREIGN_TAXPAYER_ID`, and `PHASE07_RUN_HTTP_SMOKE=1`, then run `node scripts/phase07-step22-readonly-smoke.mjs`. Must not target production.
+- For write/atomicity operator tests, use dedicated test DB and synthetic fixtures with explicit backup and own authorization. They are NOT executed by smoke automatically.
+- No new SQL migration in Step22. Earlier owner-approved migrations must be applied already.
+
+### Limitations
+
+No .NET SDK was available in the assistant's execution environment; xUnit/Next.js build and real PostgreSQL/HTTP/browser assertions are **authored but not yet observed passed**. The Node static contracts cannot prove live role ownership, HTTP response behavior, EF LINQ translation or DB concurrency. All such remaining checks are explicit acceptance gates, not implicit green status. Next fixed Step23: macOS/Ubuntu and UI/operator acceptance; Step24: documentation and release.
