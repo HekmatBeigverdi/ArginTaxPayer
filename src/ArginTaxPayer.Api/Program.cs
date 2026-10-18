@@ -1,3 +1,5 @@
+using ArginTaxPayer.Api.Invoices;
+using ArginTaxPayer.Infrastructure.Persistence.Invoices;
 using ArginTaxPayer.Api.Health;
 using ArginTaxPayer.Api.Identity;
 using ArginTaxPayer.Api.Taxpayers;
@@ -63,6 +65,9 @@ if (identityDevelopmentEnabled)
     builder.Services.AddScoped<FiscalMemoryManagementService>();
     builder.Services.AddScoped<CustomerCommercialOwnershipService>();
     builder.Services.AddScoped<TaxpayerScopeService>();
+    builder.Services.AddScoped<InvoiceDraftApplicationService>();
+    builder.Services.AddScoped<InvoiceEntryWorkspaceService>();
+    builder.Services.AddScoped<InvoiceValidationReferenceService>();
     builder.Services.AddScoped<FiscalCertificateMetadataService>();
     builder.Services.AddScoped<IIdentityResourceOwnershipResolver, IdentityResourceOwnershipResolver>();
     builder.Services.AddScoped<IdentityResourceAuthorizationService>();
@@ -121,6 +126,7 @@ if (app.Environment.IsDevelopment())
         app.MapPartyDevelopmentEndpoints();
         app.MapFiscalParticipantDirectoryEndpoints();
         app.MapInvoiceParticipantEndpoints();
+        app.MapInvoiceDraftDevelopmentEndpoints();
         app.MapCustomerProfileDevelopmentEndpoints();
         app.MapCustomerTaxpayerMembershipEndpoints();
         app.MapCustomerSelfServiceEndpoints();

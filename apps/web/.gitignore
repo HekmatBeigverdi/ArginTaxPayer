@@ -6,3 +6,7 @@ coverage/
 .env
 .env.*
 !.env.example
+
+# Next.js 15 generated artifacts (platform-local, never commit)
+.next-dev/
+next-env.d.ts

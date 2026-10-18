@@ -40,7 +40,7 @@ function toPersianDigits(value: string): string {
 export function gregorianIsoToPersian(value: string): PersianDateParts | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
   const date = new Date(`${value}T00:00:00.000Z`);
-  if (Number.isNaN(date.getTime())) return null;
+  if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value) return null;
   const parts = persianParts.formatToParts(date);
   const read = (type: "year" | "month" | "day") =>
     Number(parts.find((part) => part.type === type)?.value ?? "0");
@@ -90,6 +90,7 @@ interface PersianDatePickerProps {
   id?: string;
   ariaLabel?: string;
   placeholder?: string;
+  floating?: boolean;
 }
 
 export function PersianDatePicker({
@@ -98,14 +99,16 @@ export function PersianDatePicker({
   disabled = false,
   id,
   ariaLabel,
-  placeholder = "مثال: ۱۴۰۵/۰۱/۰۱"
+  placeholder = "مثال: ۱۴۰۵/۰۱/۰۱",
+  floating = false
 }: PersianDatePickerProps) {
   const selected = useMemo(() => gregorianIsoToPersian(value), [value]);
   const [text, setText] = useState(formatPersian(selected));
   const [open, setOpen] = useState(false);
-  const [viewYear, setViewYear] = useState(selected?.year ?? 1405);
-  const [viewMonth, setViewMonth] = useState(selected?.month ?? 1);
+  const [viewYear, setViewYear] = useState(selected?.year ?? gregorianIsoToPersian(new Date().toISOString().slice(0, 10))?.year ?? 1405);
+  const [viewMonth, setViewMonth] = useState(selected?.month ?? gregorianIsoToPersian(new Date().toISOString().slice(0, 10))?.month ?? 1);
   const [invalid, setInvalid] = useState(false);
+  const [floatingPosition, setFloatingPosition] = useState<{top:number;left:number}|null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -124,6 +127,33 @@ export function PersianDatePicker({
     return () => document.removeEventListener("mousedown", handlePointer);
   }, []);
 
+  function toggleCalendar() {
+    if (!open && floating && rootRef.current) {
+      const rect = rootRef.current.getBoundingClientRect();
+      const width = Math.min(300, window.innerWidth - 24);
+      const top = window.innerHeight - rect.bottom >= 345 || rect.top < 345
+        ? Math.min(rect.bottom + 6, window.innerHeight - 340)
+        : Math.max(8, rect.top - 340);
+      const left = Math.max(8, Math.min(rect.right - width, window.innerWidth - width - 8));
+      setFloatingPosition({ top: Math.max(8, top), left });
+    }
+    if (!open && selected) { setViewYear(selected.year); setViewMonth(selected.month); }
+    setOpen(value => !value);
+  }
+
+  useEffect(() => {
+    if (!open || !floating) return;
+    const closeOnScroll = (event: Event) => {
+      if (event.target !== rootRef.current) setOpen(false);
+    };
+    window.addEventListener("resize", closeOnScroll);
+    window.addEventListener("scroll", closeOnScroll, true);
+    return () => {
+      window.removeEventListener("resize", closeOnScroll);
+      window.removeEventListener("scroll", closeOnScroll, true);
+    };
+  }, [open, floating]);
+
   const firstIso = persianToGregorianIso({ year: viewYear, month: viewMonth, day: 1 });
   const firstWeekDay = firstIso ? (new Date(`${firstIso}T00:00:00.000Z`).getUTCDay() + 1) % 7 : 0;
   const dayCount = daysInPersianMonth(viewYear, viewMonth);
@@ -137,6 +167,8 @@ export function PersianDatePicker({
     }
     setInvalid(false);
     onChange(iso);
+    setViewYear(parsed!.year);
+    setViewMonth(parsed!.month);
     setText(formatPersian(parsed));
   }
 
@@ -144,6 +176,7 @@ export function PersianDatePicker({
     const iso = persianToGregorianIso({ year: viewYear, month: viewMonth, day });
     if (!iso) return;
     onChange(iso);
+    setText(formatPersian({ year: viewYear, month: viewMonth, day }));
     setInvalid(false);
     setOpen(false);
   }
@@ -177,7 +210,7 @@ export function PersianDatePicker({
           onChange={(event) => setText(event.target.value)}
           onBlur={commitText}
           onKeyDown={(event) => {
-            if (event.key === "Enter") commitText();
+            if (event.key === "Enter") { event.preventDefault(); commitText(); }
             if (event.key === "ArrowDown") setOpen(true);
           }}
         />
@@ -188,7 +221,7 @@ export function PersianDatePicker({
           aria-label="باز کردن تقویم شمسی"
           aria-expanded={open}
           onMouseDown={(event) => event.preventDefault()}
-          onClick={() => setOpen((current) => !current)}
+          onClick={toggleCalendar}
         >
           <svg
             viewBox="0 0 24 24"
@@ -208,7 +241,11 @@ export function PersianDatePicker({
       {invalid ? <span className="ui-field__error">تاریخ شمسی معتبر وارد کنید.</span> : null}
 
       {open ? (
-        <div className="ui-persian-date__popover" role="dialog" aria-label="انتخاب تاریخ شمسی">
+        <div className="ui-persian-date__popover" role="dialog" aria-label="انتخاب تاریخ شمسی"
+          style={floating && floatingPosition ? {
+            position: "fixed", top: floatingPosition.top, left: floatingPosition.left,
+            right: "auto", bottom: "auto", zIndex: 5000
+          } : undefined}>
           <div className="ui-persian-date__header">
             <button type="button" onClick={() => moveMonth(1)} aria-label="ماه بعد">‹</button>
             <strong>{monthNames[viewMonth - 1]} {toPersianDigits(String(viewYear))}</strong>
@@ -226,6 +263,7 @@ export function PersianDatePicker({
                   key={day}
                   type="button"
                   className={active ? "ui-persian-date__day ui-persian-date__day--active" : "ui-persian-date__day"}
+                  onMouseDown={(event) => event.preventDefault()}
                   onClick={() => selectDay(day)}
                 >
                   {toPersianDigits(String(day))}

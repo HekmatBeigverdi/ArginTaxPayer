@@ -1,3 +1,4 @@
+using ArginTaxPayer.Infrastructure.Persistence.Invoices;
 using ArginTaxPayer.Application.Abstractions.Persistence;
 using ArginTaxPayer.Application.Abstractions.Messaging;
 using ArginTaxPayer.Application.Abstractions.Idempotency;
@@ -63,6 +64,7 @@ public static class PersistenceRegistration
                 postgres.EnableRetryOnFailure(maxRetryCount: 3);
             }));
 
+        services.AddScoped<EfInvoiceAtomicWriter>();
         services.AddScoped<IUnitOfWork, EfUnitOfWork>();
         services.AddScoped<IOutboxWriter, EfOutboxWriter>();
         services.AddScoped<IIdempotencyReservationWriter, EfIdempotencyReservationWriter>();

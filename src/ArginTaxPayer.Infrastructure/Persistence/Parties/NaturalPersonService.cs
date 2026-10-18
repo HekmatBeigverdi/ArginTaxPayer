@@ -44,10 +44,19 @@ public sealed class NaturalPersonService(ArginTaxPayerDbContext db, IdentityAuth
                 await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
                 if (!await scope.CanManageAsync(actor.Value, customerId, ct))
                     return new NaturalPersonResult(NaturalPersonDecision.Forbidden);
+                // A duplicate inside this customer is not a new identity. Do not
+                // discover or expose records belonging to another customer.
+                var inThisAccount = await db.Parties.AsNoTracking().AnyAsync(p =>
+                    p.Kind == PartyKind.NaturalPerson &&
+                    p.NormalizedIdentifier == validated!.NormalizedNationalCode &&
+                    db.CustomerPartyLinks.Any(l => l.PartyId == p.Id &&
+                        l.CustomerUserId == customerId && l.UnlinkedAtUtc == null), ct);
+                if (inThisAccount)
+                    return new NaturalPersonResult(NaturalPersonDecision.Conflict);
                 var now = DateTime.UtcNow;
                 var person = new Party
                 {
-                    Id = Guid.NewGuid(), Kind = PartyKind.NaturalPerson,
+                    Id = Guid.NewGuid(), OwnerCustomerUserId = customerId, Kind = PartyKind.NaturalPerson,
                     NormalizedIdentifier = validated!.NormalizedNationalCode,
                     FirstName = validated.FirstName, LastName = validated.LastName,
                     DisplayName = validated.DisplayName, Status = PartyStatus.Active,

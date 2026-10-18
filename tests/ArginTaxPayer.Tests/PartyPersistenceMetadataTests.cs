@@ -8,7 +8,7 @@ namespace ArginTaxPayer.Tests;
 public sealed class PartyPersistenceMetadataTests
 {
     [Fact]
-    public void Party_has_unique_identity_per_kind_and_revision_token()
+    public void Party_has_customer_scoped_unique_identity_per_kind_and_revision_token()
     {
         using var db = CreateContext();
         var entity = db.Model.FindEntityType(typeof(Party))!;
@@ -16,7 +16,11 @@ public sealed class PartyPersistenceMetadataTests
         Assert.True(entity.FindProperty(nameof(Party.Revision))!.IsConcurrencyToken);
         Assert.Contains(entity.GetIndexes(), x => x.IsUnique &&
             x.Properties.Select(p => p.Name).SequenceEqual(
-                new[] { nameof(Party.Kind), nameof(Party.NormalizedIdentifier) }));
+                new[]
+                {
+                    nameof(Party.OwnerCustomerUserId), nameof(Party.Kind),
+                    nameof(Party.NormalizedIdentifier)
+                }));
     }
 
     [Fact]

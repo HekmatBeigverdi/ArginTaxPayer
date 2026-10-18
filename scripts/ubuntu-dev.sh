@@ -112,6 +112,7 @@ up() {
     echo "API failed readiness; see $STATE/api.ubuntu.log" >&2
     exit 1
   fi
+  export ARGIN_NEXT_DIST_DIR=.next-dev
   export ARGIN_IDENTITY_UI_ENABLED=true
   export ARGIN_IDENTITY_API_INTERNAL_BASE_URL=http://127.0.0.1:15089
   nohup npm --prefix apps/web run dev -- --hostname 127.0.0.1 --port 3000 \
@@ -141,7 +142,7 @@ verify() {
   dotnet restore ArginTaxPayer.sln
   dotnet build ArginTaxPayer.sln -c Release
   dotnet test ArginTaxPayer.sln -c Release --no-build
-  (cd apps/web && npm ci --no-audit --no-fund && npm test && npm run typecheck && npm run build)
+  (cd apps/web && npm ci --no-audit --no-fund && npm test && ARGIN_NEXT_DIST_DIR=.next npm run typecheck && ARGIN_NEXT_DIST_DIR=.next npm run build)
   echo "Ubuntu build and tests finished successfully. Manual UI/provider checks remain separate."
 }
 

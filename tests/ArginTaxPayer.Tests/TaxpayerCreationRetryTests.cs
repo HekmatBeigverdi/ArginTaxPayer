@@ -20,7 +20,9 @@ public sealed class TaxpayerCreationRetryTests
         var options = new DbContextOptionsBuilder<ArginTaxPayerDbContext>()
             .UseNpgsql(cs, p => p.EnableRetryOnFailure(3)).Options;
         var customer = Guid.NewGuid();
-        var email = customer.ToString("N") + "@EXAMPLE.INVALID";
+        var email = InitialAdministratorBootstrap.NormalizeEmail(
+            customer.ToString("N") + "@example.invalid");
+        Assert.Equal(email, InitialAdministratorBootstrap.NormalizeEmail(email));
         const string password = "Disposable-taxpayer-retry-2026!";
         try
         {

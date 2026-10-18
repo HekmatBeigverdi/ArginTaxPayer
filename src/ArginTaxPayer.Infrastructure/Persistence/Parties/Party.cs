@@ -4,6 +4,8 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Parties;
 public sealed class Party
 {
     public Guid Id { get; set; }
+    // New records are isolated per software customer; null only for legacy shared/unlinked records.
+    public Guid? OwnerCustomerUserId { get; set; }
     public PartyKind Kind { get; set; }
     public string NormalizedIdentifier { get; set; } = string.Empty;
     // Type-specific fields are optional for legacy/legal parties; required by Step03 natural-person commands.

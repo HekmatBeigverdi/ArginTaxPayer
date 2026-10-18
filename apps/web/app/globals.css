@@ -415,3 +415,251 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 /* Transparent Argin logo in dashboard hero: no turquoise glyph tile or white canvas. */
 .app-welcome .app-welcome-graphic.argin-welcome-logo{display:block;flex:none;width:128px;height:128px;max-width:28%;object-fit:contain;border:0;border-radius:0;background:transparent;box-shadow:none;color:inherit;font-size:initial}
 @media(max-width:600px){.app-welcome .app-welcome-graphic.argin-welcome-logo{width:82px;height:82px}}
+
+/* Phase07 Step20 — responsive, keyboard-accessible invoice-entry workspace. */
+.console-invoices-page{width:100%;max-width:none;min-width:0}
+.invoice-entry{display:grid;gap:1rem;width:100%;min-width:0}
+.invoice-entry__layout{display:grid;grid-template-columns:minmax(280px,1fr) minmax(320px,1.2fr);gap:1rem;align-items:start;min-width:0}
+.invoice-entry .taxpayer-panel{min-width:0}
+.invoice-entry__note{padding:1rem 1.25rem;border:1px solid var(--border,#cbd5e1);border-radius:12px;background:var(--surface-muted,#f1f5f9)}
+.invoice-entry__note p{margin:.4rem 0 0;line-height:1.75}
+.invoice-entry__list{display:grid;gap:.5rem;max-height:380px;overflow-y:auto}
+.invoice-entry__list button,.invoice-entry__catalog button{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.75rem;min-width:0;padding:.75rem;border:1px solid var(--border,#cbd5e1);border-radius:10px;text-align:right;background:var(--surface,#fff);color:inherit;cursor:pointer}
+.invoice-entry__list button[aria-pressed="true"]{outline:2px solid var(--primary,#335db4)}
+.invoice-entry button:focus-visible,.invoice-entry select:focus-visible,.invoice-entry input:focus-visible{outline:2px solid var(--primary,#335db4);outline-offset:2px}
+.invoice-entry__detail{border-top:1px solid var(--border,#cbd5e1);margin-top:1rem;padding-top:1rem;overflow-wrap:anywhere}
+.invoice-entry__detail dl{display:grid;grid-template-columns:auto minmax(0,1fr);gap:.4rem .9rem}
+.invoice-entry__detail dt{font-weight:600}
+.invoice-entry__detail dd{margin:0;overflow-wrap:anywhere}
+.invoice-entry__toolbar{display:grid;grid-template-columns:minmax(120px,auto) minmax(160px,1fr);gap:.65rem;align-items:center}
+.invoice-entry__catalog{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:.65rem;margin-top:1rem}
+.invoice-entry__catalog button:disabled{opacity:.55;cursor:not-allowed}
+.invoice-entry__prepared{margin-top:1rem}
+.invoice-entry__line{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(100px,140px) auto;gap:.5rem;align-items:center;padding:.5rem 0;border-bottom:1px solid var(--border,#cbd5e1)}
+.invoice-entry__line input{width:100%;min-width:0}
+@media(max-width:980px){.invoice-entry__layout{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:600px){.invoice-entry__toolbar{grid-template-columns:minmax(0,1fr)}.invoice-entry__line{grid-template-columns:minmax(0,1fr) minmax(100px,120px)}}
+
+/* Phase07 Step20 revised: compact invoice register and three-stage modal. */
+.invoice-register{min-width:0;display:block}
+.invoice-register__toolbar{display:flex;align-items:end;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.invoice-register__filters,.invoice-register__actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.invoice-register__filters label{font-weight:600;font-size:12px}
+.invoice-register__filters :is(input,select){min-height:34px;border:1px solid #c5d4e0;border-radius:7px;padding:5px 9px;min-width:175px;background:var(--surface,#fff);color:inherit}
+.invoice-register__actions button{min-height:34px}
+.invoice-register__table-wrap{overflow:auto;max-width:100%;background:var(--surface,#fff);border:1px solid #dbe3ea;border-radius:10px}
+.invoice-register__table{width:100%;border-collapse:collapse;font-size:12px;white-space:nowrap;text-align:right}
+.invoice-register__table :is(th,td){padding:8px 10px;border-bottom:1px solid #e6edf1;vertical-align:middle}
+.invoice-register__table th{font-weight:700;background:#f3f7fa;color:#31516b}
+.invoice-register__table tbody tr:hover{background:#f7fafc}
+.invoice-register__table td button{font-size:12px;padding:4px 9px}
+.invoice-register__overlay{position:fixed;inset:0;z-index:2100;display:flex;align-items:center;justify-content:center;background:rgba(14,27,42,.56);padding:14px}
+.invoice-register__dialog,.invoice-register__detail-modal{direction:rtl;width:min(1020px,100%);max-width:100%;max-height:calc(100dvh - 28px);min-width:0;background:var(--surface,#fff);color:inherit;border-radius:13px;box-shadow:0 18px 48px #11263a55;display:flex;flex-direction:column}
+.invoice-register__detail-modal{width:min(620px,100%);padding:16px;overflow-y:auto}
+.invoice-register__dialog-header{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:13px 19px;border-bottom:1px solid #e2e8ee}
+.invoice-register__dialog-header :is(h2,p){margin:0}
+.invoice-register__dialog-header h2{font-size:17px}
+.invoice-register__dialog-header p{margin-top:3px;font-size:12px;color:#607788}
+.invoice-register__dialog-header button{font-size:20px;line-height:1;min-width:34px}
+.invoice-register__steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;padding:10px 18px;border-bottom:1px solid #e2e8ee}
+.invoice-register__steps span{font-size:12px;color:#607788;background:#f2f6f9;padding:7px 5px;text-align:center;border-radius:7px}
+.invoice-register__steps span.active{background:#e1effb;color:#174d78;font-weight:700}
+.invoice-register__form{display:flex;min-height:0;flex:1;flex-direction:column}
+.invoice-register__dialog-body{overflow-y:auto;min-height:0;padding:18px 20px;overscroll-behavior:contain}
+.invoice-register__dialog-body .invoice-register__fields{display:grid;grid-template-columns:170px minmax(0,1fr);align-items:center;gap:10px 16px;max-width:780px}
+.invoice-register__fields>label{font-size:12px;font-weight:600}
+.invoice-register__fields :is(input,select){width:100%;min-width:0;min-height:36px;border:1px solid #c5d4e0;border-radius:7px;padding:6px 9px;background:var(--surface,#fff);color:inherit}
+.invoice-register__hint{grid-column:1/-1;background:#edf4fa;color:#31516b;border-radius:8px;padding:10px 12px;font-size:12px;line-height:1.8}
+.invoice-register__row-tools{display:grid;grid-template-columns:120px minmax(0,1fr);gap:8px 12px;max-width:780px;align-items:center}
+.invoice-register__row-tools :is(input,select){min-width:0;width:100%;padding:6px;border:1px solid #c5d4e0;border-radius:7px}
+.invoice-register__catalog{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0}
+.invoice-register__catalog button{font-size:12px}
+.invoice-register__row-heading{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.invoice-register__row-heading h3{font-size:14px;margin:10px 0}
+.invoice-register__item{display:grid;grid-template-columns:minmax(140px,2fr) repeat(4,minmax(90px,1fr)) auto;gap:8px;align-items:end;padding:10px 0;border-bottom:1px solid #e2e8ee}
+.invoice-register__item strong{grid-column:1/-1;font-size:12px}
+.invoice-register__item label{font-size:11px;display:grid;gap:4px;min-width:0}
+.invoice-register__item input{min-width:0;width:100%;padding:6px;border:1px solid #c5d4e0;border-radius:6px}
+.invoice-register__totals{display:grid;grid-template-columns:minmax(150px,1fr) minmax(150px,1fr);gap:12px;max-width:620px}
+.invoice-register__totals :is(dt,dd){padding:7px 0;border-bottom:1px solid #e5ebef;margin:0}
+.invoice-register__totals dd{text-align:left;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.invoice-register__restriction{margin-top:16px;padding:14px;border:1px solid #e3bc7d;background:#fff8e8;border-radius:9px;line-height:1.8;font-size:12px;color:#69471b}
+.invoice-register__dialog-footer{padding:12px 18px;border-top:1px solid #e2e8ee;display:flex;justify-content:flex-end;gap:8px}
+.invoice-register__dialog-footer button{min-height:34px}
+.invoice-register button:focus-visible,.invoice-register input:focus-visible,.invoice-register select:focus-visible{outline:2px solid #3269ac;outline-offset:2px}
+
+/* Shared Persian calendar in invoices too: previously its layout rules only
+   matched .console-catalog-page, making the new invoice picker unstyled. */
+.invoice-register .ui-persian-date{position:relative;width:100%;min-width:0;direction:rtl}
+.invoice-register .ui-persian-date__control{position:relative;display:flex;align-items:center}
+.invoice-register .ui-persian-date__input{width:100%;height:36px;min-width:0;border:1px solid #c5d4e0;border-radius:7px;background:#fff;padding:7px 39px 7px 10px;font-size:13px;direction:ltr;text-align:left}
+.invoice-register .ui-persian-date__trigger{position:absolute;right:4px;top:2px;bottom:2px;display:grid;place-items:center;width:33px;border:0;background:transparent;color:#38677e;cursor:pointer}
+.invoice-register .ui-persian-date__popover{position:absolute;bottom:calc(100% + 7px);right:0;left:auto;z-index:2500;width:min(300px,calc(100vw - 36px));background:#fff;color:#284354;border:1px solid #c5d4e0;border-radius:10px;box-shadow:0 15px 32px #17374d40;padding:12px;direction:rtl}
+.invoice-register .ui-persian-date__header{display:flex;align-items:center;justify-content:space-between;gap:7px;margin-bottom:10px;font-size:12px}
+.invoice-register .ui-persian-date__header button,.invoice-register .ui-persian-date__footer button{font:inherit;padding:5px 9px;border:0;border-radius:5px;background:#e7f1f8;color:#285675;cursor:pointer}
+.invoice-register .ui-persian-date__weekdays,.invoice-register .ui-persian-date__days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;text-align:center}
+.invoice-register .ui-persian-date__weekdays{font-size:11px;color:#647b8c;margin-bottom:7px}
+.invoice-register .ui-persian-date__day{min-height:31px;display:grid;place-items:center;border:0;border-radius:6px;background:#fff;color:#254052;font:inherit;font-size:12px;cursor:pointer}
+.invoice-register .ui-persian-date__day:hover{background:#e9f2fa}
+.invoice-register .ui-persian-date__day--active{background:#236386!important;color:#fff!important}
+.invoice-register .ui-persian-date__footer{margin-top:10px;display:flex;justify-content:center}
+.invoice-register .ui-field__error{font-size:11px;color:#a73b36}
+@media(max-width:900px){.invoice-register__item{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:610px){
+  .invoice-register__fields,.invoice-register__row-tools{grid-template-columns:minmax(0,1fr)!important}
+  .invoice-register__steps{padding:8px}
+  .invoice-register__steps span{font-size:10px}
+  .invoice-register__item{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .invoice-register__overlay{padding:5px}
+  .invoice-register__dialog{max-height:calc(100dvh - 10px)}
+  .invoice-register__dialog-body{padding:12px}
+}
+
+/* Phase07 Step20 follow-up: consistent Persian typography in all invoice fields. */
+.invoice-register :is(input,select,textarea,button,option,output),
+.invoice-register__dialog :is(input,select,textarea,button,option,output),
+.persian-time-picker :is(select,option){
+  font-family:inherit!important;
+  font-size:inherit;
+  font-weight:inherit;
+}
+.invoice-register :is(input,select,textarea)::placeholder{font-family:inherit;opacity:.8}
+.invoice-register__seller{display:block;width:100%;min-height:36px;padding:8px 12px;background:#f1f5f9;border:1px solid #c5d4e0;border-radius:7px;line-height:1.5}
+.invoice-register__buyer{display:grid;grid-template-columns:1fr;gap:6px;min-width:0}
+.invoice-register__buyer select{width:100%;min-width:0}
+.invoice-register__buyer small{color:#5c7184;font-size:11px}
+.persian-time-picker{display:flex;align-items:center;direction:ltr;justify-content:flex-end;gap:8px;min-width:0}
+.persian-time-picker select{width:75px;min-height:36px;border:1px solid #c5d4e0;background:var(--surface,#fff);color:inherit;border-radius:7px;padding:5px 8px;text-align:center;direction:rtl;font-variant-numeric:tabular-nums}
+.persian-time-picker span{font-weight:700}
+.persian-time-picker small{color:#5a7181;font-size:11px;min-width:34px;text-align:center}
+.invoice-register__fields .persian-time-picker select{width:75px;min-width:75px}
+
+/* Shared Argin control typography: browser native inputs/selects must use the
+   same app font as labels (including Persian text within dropdown options). */
+.argin-console :is(input,select,textarea,option,button) {
+  font-family:inherit;
+}
+.argin-console :is(input,textarea)::placeholder {
+  font-family:inherit;
+}
+
+.invoice-register__buyer{position:relative}
+.invoice-register__buyer-options{position:absolute;top:calc(100% + 4px);right:0;left:0;max-height:250px;overflow:auto;z-index:5010;background:var(--surface,#fff);color:inherit;border:1px solid #bdcfdd;border-radius:9px;box-shadow:0 12px 24px #18374b33;padding:5px}
+.invoice-register__buyer-options button{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;padding:9px;text-align:right;background:transparent;color:inherit;border:0;border-radius:6px;cursor:pointer;font-size:12px}
+.invoice-register__buyer-options button.active,.invoice-register__buyer-options button:hover{background:#e9f2fa}
+.invoice-register__buyer-options p{padding:8px 10px;font-size:12px;margin:0}
+.invoice-register__selected-buyer{color:#20614c!important}
+
+/* Phase07: align invoice register density/navigation with other console lists. */
+.console-page .invoice-register{background:var(--surface,#fff);border:1px solid var(--argin-line,#dbe3ea);border-radius:12px;padding:12px 15px;min-width:0}
+.console-page .invoice-register__toolbar{align-items:center;padding-bottom:10px;border-bottom:1px solid var(--argin-line,#dbe3ea);margin-bottom:12px;gap:8px}
+.console-page .invoice-register__filters{gap:6px 9px}
+.console-page .invoice-register__filters label{font:inherit;font-size:12px;font-weight:650;color:var(--argin-muted,#617487)}
+.console-page .invoice-register__filters :is(select,input){height:34px;min-height:34px;min-width:145px;max-width:245px;padding:5px 9px;font:inherit;font-size:12px}
+.console-page .invoice-register__actions{gap:7px}
+.console-page .invoice-register__actions button{min-height:33px;padding:5px 11px;font:inherit;font-size:12px;border-radius:7px}
+.console-page .invoice-register__table-wrap{max-height:60vh;border:1px solid #e1e9ef;border-radius:9px;overflow:auto}
+.console-page .invoice-register .console-table{font-size:12px;line-height:1.45;border-collapse:collapse;width:100%;white-space:nowrap}
+.console-page .invoice-register .console-table :is(th,td){padding:7px 10px;border-bottom:1px solid #e8edf1}
+.console-page .invoice-register .console-table th{background:#eef4f6;color:#476176;font-size:12px;font-weight:750}
+.console-page .invoice-register .console-row-action{padding:4px 9px;font:inherit;font-size:12px}
+.console-page .invoice-register .console-table-footer{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:0;padding:12px 3px 0;color:var(--argin-muted,#617487);font-size:12px;border:0;background:transparent}
+.console-page .invoice-register .console-table-footer>div{display:flex;align-items:center;gap:10px}
+.console-page .invoice-register .console-table-footer button{border:1px solid var(--argin-line,#dbe3ea);background:white;padding:5px 10px;font:inherit;font-size:12px;border-radius:7px}
+.console-page .invoice-register .console-table-footer button:disabled{opacity:.45;cursor:not-allowed}
+@media(max-width:700px){.console-page .invoice-register{padding:10px}.console-page .invoice-register__filters{width:100%}.console-page .invoice-register__filters :is(select,input){max-width:none;min-width:135px;flex:1}.console-page .invoice-register .console-table-footer{flex-wrap:wrap}}
+
+/* Phase07 refined entry modal: same control density as other Argin forms. */
+.console-page .invoice-register__dialog{width:min(1000px,calc(100vw - 24px));font-size:12px;line-height:1.5}
+.console-page .invoice-register__dialog-header{padding:9px 15px;min-height:52px}
+.console-page .invoice-register__dialog-header h2{font-size:15px;line-height:1.6}
+.console-page .invoice-register__dialog-header p{font-size:11px;line-height:1.4}
+.console-page .invoice-register__dialog-header button{min-height:29px;min-width:30px;padding:2px 7px}
+.console-page .invoice-register__steps{padding:7px 12px;gap:6px}
+.console-page .invoice-register__steps span{padding:5px 7px;font-size:11px;line-height:1.5}
+.console-page .invoice-register__dialog-body{padding:12px 16px}
+.console-page .invoice-register__dialog-body .invoice-register__fields{display:grid;grid-template-columns:140px minmax(0,1fr);gap:7px 12px;max-width:780px;align-items:center}
+.console-page .invoice-register__fields>label{font:inherit;font-size:12px;font-weight:600;line-height:1.5}
+.console-page .invoice-register__fields :is(input,select){min-height:31px;height:31px;padding:4px 8px;border-radius:6px;font:inherit;font-size:12px}
+.console-page .invoice-register__fields :is(input,select)::placeholder{font:inherit;font-size:12px}
+.console-page .invoice-register__fields .ui-persian-date__input{height:31px;min-height:31px;font-size:12px;padding-top:4px;padding-bottom:4px}
+.console-page .invoice-register__fields .persian-time-picker select{min-height:31px;height:31px;font-size:12px}
+.console-page .invoice-register__fields .persian-time-picker{justify-content:flex-start}
+.console-page .invoice-register__hint{padding:7px 10px;font-size:11px;line-height:1.7;margin:5px 0}
+.console-page .invoice-register__row-tools{display:grid;grid-template-columns:110px minmax(0,1fr);gap:6px 10px;max-width:720px;align-items:center}
+.console-page .invoice-register__row-tools :is(select,input){min-height:31px;height:31px;padding:4px 8px;font-size:12px}
+.console-page .invoice-register__row-tools label{font-size:12px}
+.console-page .invoice-register__row-heading{margin-top:8px}
+.console-page .invoice-register__row-heading h3{font-size:12px;margin:6px 0}
+.console-page .invoice-register__item{display:grid;grid-template-columns:minmax(135px,2.2fr) repeat(4,minmax(80px,1fr)) auto;gap:6px;padding:7px 0}
+.console-page .invoice-register__item strong{font-size:11px}
+.console-page .invoice-register__item label{font-size:11px;gap:3px}
+.console-page .invoice-register__item input{min-height:30px;height:30px;font-size:12px;padding:4px 6px}
+.console-page .invoice-register__dialog :is(button.identity-secondary,button.identity-primary){font:inherit;font-size:12px;min-height:30px;padding:5px 10px;border-radius:7px}
+.console-page .invoice-register__dialog-footer{padding:8px 14px;gap:6px;flex-wrap:wrap;align-items:center}
+.console-page .invoice-register__totals{gap:5px 15px;font-size:12px;max-width:560px}
+.console-page .invoice-register__totals :is(dt,dd){padding:5px 0}
+.console-page .invoice-register__restriction{margin-top:9px;padding:9px 11px;font-size:11px}
+.invoice-register__catalog-picker{display:grid;grid-template-columns:110px minmax(0,1fr);align-items:center;gap:10px;max-width:780px;margin:9px 0}
+.invoice-register__catalog-picker>label{font-size:12px;font-weight:600}
+.invoice-register__catalog-combo{position:relative;min-width:0}
+.invoice-register__catalog-combo input{display:block;width:100%;height:32px;min-height:32px;padding:5px 9px;border:1px solid #c5d4e0;border-radius:6px;font:inherit;font-size:12px;background:var(--surface,#fff);color:inherit}
+.invoice-register__catalog-options{position:absolute;inset-inline:0;top:calc(100% + 3px);z-index:5100;max-height:215px;overflow:auto;padding:4px;border:1px solid #c9d8e2;border-radius:8px;background:var(--surface,#fff);box-shadow:0 9px 22px #18374b28}
+.invoice-register__catalog-options button{display:flex;justify-content:space-between;align-items:center;gap:8px;width:100%;min-height:29px;padding:5px 8px;border:none;border-radius:5px;background:transparent;color:inherit;cursor:pointer;font:inherit;font-size:12px;text-align:right}
+.invoice-register__catalog-options button:is(:hover,.active){background:#e8f1f7}
+.invoice-register__catalog-options small{font-size:10px;opacity:.8}
+.invoice-register__catalog-options p{font-size:11px;margin:0;padding:7px}
+@media(max-width:740px){
+  .console-page .invoice-register__dialog-body .invoice-register__fields{grid-template-columns:minmax(0,1fr)}
+  .console-page .invoice-register__item{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .invoice-register__catalog-picker{grid-template-columns:minmax(0,1fr)}
+  .console-page .invoice-register__dialog-footer{justify-content:flex-start}
+}
+
+/* Phase07 Step20 — compact final review, settlement and description. */
+.console-page .invoice-register__final{display:grid;gap:12px;min-width:0}
+.console-page .invoice-register__final-heading{display:flex;align-items:baseline;justify-content:space-between;gap:10px;border-bottom:1px solid #e1e9ee;padding-bottom:8px}
+.console-page .invoice-register__final-heading strong{font-size:14px}
+.console-page .invoice-register__final-heading span{font-size:11px;color:#667d8e}
+.console-page .invoice-register__final-grid{display:grid;grid-template-columns:minmax(230px,0.85fr) minmax(350px,1.2fr);gap:16px;align-items:start}
+.console-page .invoice-register__final-grid>section{min-width:0}
+.console-page .invoice-register__final-grid h3{font-size:12px;margin:0 0 8px;font-weight:700}
+.console-page .invoice-register__summary-info{display:grid;grid-template-columns:minmax(100px,auto) minmax(0,1fr);gap:7px 14px;font-size:12px;margin:0}
+.console-page .invoice-register__summary-info :is(dt,dd){margin:0;overflow-wrap:anywhere;padding:3px 0}
+.console-page .invoice-register__summary-info dt{color:#63798a}
+.console-page .invoice-register__summary-info dd{font-weight:600}
+.console-page .invoice-register__final .invoice-register__totals{max-width:none;grid-template-columns:minmax(0,1.7fr) minmax(140px,1fr);font-size:12px;gap:3px 12px}
+.console-page .invoice-register__final .invoice-register__totals :is(dt,dd){padding:6px 2px}
+.console-page .invoice-register__final .invoice-register__totals .invoice-register__grand{font-weight:800;border-top:1px solid #c5d5df;color:#173e54}
+.console-page .invoice-register__settlement{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:12px 0;border-top:1px solid #e1e9ee;border-bottom:1px solid #e1e9ee}
+.console-page .invoice-register__field{display:grid;gap:5px;min-width:0}
+.console-page .invoice-register__field label,.console-page .invoice-register__description label{font-size:12px;font-weight:650}
+.console-page .invoice-register__settlement :is(select,input){width:100%;height:32px;min-height:32px;font:inherit;font-size:12px;border:1px solid #c5d4e0;border-radius:6px;padding:5px 8px;min-width:0;background:var(--surface,#fff);color:inherit}
+.console-page .invoice-register__settlement input:disabled,.console-page .invoice-register__settlement input:read-only{background:#f2f5f7;color:#506577}
+.console-page .invoice-register__description{display:grid;gap:6px}
+.console-page .invoice-register__description textarea{width:100%;min-width:0;min-height:76px;max-height:180px;resize:vertical;padding:8px 10px;font:inherit;font-size:12px;line-height:1.8;border:1px solid #c5d4e0;border-radius:7px;background:var(--surface,#fff);color:inherit}
+.console-page .invoice-register__description small{justify-self:end;font-size:11px;color:#627989}
+@media(max-width:800px){.console-page .invoice-register__final-grid{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:550px){.console-page .invoice-register__settlement{grid-template-columns:minmax(0,1fr)}}
+
+/* Phase07 Step21 - dense, accessible, read-only validation and reference panel. */
+.invoice-validation{border-top:1px solid #e2eaf0;padding-top:12px;margin-top:12px;display:grid;gap:10px;font-size:12px}
+.invoice-validation__heading{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.invoice-validation__heading h3{font-size:13px;margin:0 0 4px}
+.invoice-validation__heading p{font-size:11px;color:#637a8c;margin:0}
+.invoice-validation__heading button{font-size:12px;min-height:30px;padding:4px 9px}
+.invoice-validation__summary{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+.invoice-validation__findings ul,.invoice-validation__history ul{padding:0;list-style:none;display:grid;gap:5px;margin:0}
+.invoice-validation__findings li{display:grid;grid-template-columns:58px minmax(0,1fr) auto;gap:8px;align-items:center;padding:7px 9px;border:1px solid #d6e1e9;border-radius:6px}
+.invoice-validation__error{border-right:3px solid #b33c3c!important}
+.invoice-validation__warning{background:#fff8eb;border:1px solid #f0d8a8;border-radius:6px;padding:8px 10px;font-size:11px;line-height:1.8}
+.invoice-validation__findings li.invoice-validation__warning{background:#fff8eb}
+.invoice-validation code{font-size:11px;overflow-wrap:anywhere}
+.invoice-validation__reference{display:grid;grid-template-columns:180px minmax(0,1fr);align-items:center;gap:8px 12px}
+.invoice-validation__reference label{font-weight:600;font-size:12px}
+.invoice-validation__reference select{min-height:31px;height:31px;border:1px solid #c7d5df;border-radius:6px;padding:5px 8px;font:inherit;font-size:12px;min-width:0}
+.invoice-validation__reference>p,.invoice-validation__reference>.invoice-validation__history{grid-column:1/-1}
+.invoice-validation__history{border:1px solid #e1e8ef;border-radius:7px;padding:10px}
+.invoice-validation__history>strong{display:block;margin-bottom:8px}
+.invoice-validation__history li{display:flex;flex-wrap:wrap;justify-content:space-between;gap:7px;padding:6px 8px;border-bottom:1px solid #e6edf1;font-size:11px}
+@media(max-width:700px){.invoice-validation__reference{grid-template-columns:minmax(0,1fr)}.invoice-validation__findings li{grid-template-columns:50px minmax(0,1fr)}.invoice-validation__findings li code{grid-column:2}}

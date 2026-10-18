@@ -68,6 +68,12 @@ test("successful login remains busy until protected page navigation", () => {
   assert.match(flow, /در حال ورود به پنل/);
 });
 
+test("MFA service configuration failures are not shown as invalid passwords", () => {
+  const flow = read("app/identity/identity-flow.tsx");
+  assert.match(flow, /challengeResponse\.response\.status === 404/);
+  assert.match(flow, /پیکربندی سرویس MFA کامل نیست/);
+});
+
 test("administrator customer form requires role-gated UI and authenticated BFF operation", () => {
   const directory = read("app/parties/buyer-taxpayer-directory.tsx");
   const form = read("app/account/admin-create-customer.tsx");

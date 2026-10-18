@@ -41,6 +41,26 @@ It assigns `PendingLevel1` until the user confirms MFA, or `Level1` when MFA is
 already confirmed, and revokes prior sessions. Repeated nomination is a no-op.
 No database migration is required; invitations use existing role-assignment rows.
 
+## Controlled reset and re-enrollment (test database)
+
+When the original encryption key is lost, do not delete `identity_mfa_states`
+manually and do not create a new key in place. Use the trusted operator command
+below for the exact mobile-owned Level1 account:
+
+```zsh
+set -a
+source ./.env.dev.local
+set +a
+dotnet run --project tools/ArginTaxPayer.IdentityOperator -- reset-enroll-level1-test <mobile>
+```
+
+The command refuses any database other than `argintaxpayer_test`, verifies the
+active Level1 password, requires the literal confirmation `RESET-MFA`, revokes
+active sessions, and performs old-MFA removal plus new enrollment in one
+transaction. A rejected new Authenticator code rolls the reset back. The
+provisioning URI and one-time recovery codes are printed only to the trusted
+local operator; never paste them into chat or logs.
+
 ## Verification
 
 `IdentityMfaOnboardingTests` exercises actual loopback API enrollment, customer and
