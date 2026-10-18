@@ -59,8 +59,8 @@ Build a versioned electronic invoice domain and deterministic rules engine: lega
 | 19 | Application services and API | Scoped commands/queries and stable error contracts | Authorization and API contract tests | Owner-approved 2026-10-17; operator HTTP logs not attached |
 | 20 | Invoice-entry UI | RTL dynamic type/pattern, party and item selection | Usable keyboard and responsive flows | Owner-approved 2026-10-18, including subsequent resumable draft, settlement and invoice description amendments |
 | 21 | Validation/reference UI | Field errors and related-document history | Accessibility and scoped operation tests | Owner-approved 2026-10-18; independently executed operator logs not supplied |
-| 22 | Comprehensive regression | Domain/integration/contract/security suite | Negative cases, Phase03–06 compatibility | Extended cross-feature .NET/Next.js suites and opt-in read-only HTTP isolation smoke committed; macOS/Ubuntu operator verification pending |
-| 23 | macOS and Ubuntu acceptance | Local suite, VPS verify, DB/HTTP operator evidence | Both environments owner-approved | Not started |
+| 22 | Comprehensive regression | Domain/integration/contract/security suite | Negative cases, Phase03–06 compatibility | Owner-approved 2026-10-18; operator execution logs not independently attached |
+| 23 | macOS and Ubuntu acceptance | Local suite, VPS verify, DB/HTTP operator evidence | macOS and Ubuntu acceptance scripts, database gate and operator checklist committed; owner-run environment evidence pending |
 | 24 | Documentation and release | Close phase record, merge, annotated tag, GitHub release | Separate approval and release evidence | Not started |
 
 ## Working protocol
@@ -1127,3 +1127,68 @@ For live smoke (only *synthetic, known, separate, authorized* test identities; d
 ### Limitations
 
 No .NET SDK was available in the assistant's execution environment; xUnit/Next.js build and real PostgreSQL/HTTP/browser assertions are **authored but not yet observed passed**. The Node static contracts cannot prove live role ownership, HTTP response behavior, EF LINQ translation or DB concurrency. All such remaining checks are explicit acceptance gates, not implicit green status. Next fixed Step23: macOS/Ubuntu and UI/operator acceptance; Step24: documentation and release.
+
+## Step 23 — macOS and Ubuntu Acceptance — Execution Record (2026-10-18)
+
+**Step22 owner-approved. Step23 implementation:** reproducible macOS and Ubuntu acceptance runners and evidence checklist completed; **actual operator acceptance remains pending**. The assistant cannot access or run the user's macOS or Ubuntu VPS, private logins, services or PostgreSQL. Consequently neither platform is claimed PASS. This distinction is mandatory before Step23 can be owner-approved. This remains Step23 of the original fixed 24-step plan, not a new phase.
+
+### Scripts added/updated
+
+- `scripts/phase07-step23-db-gate.sh`: **read-only**, PostgreSQL loopback-only `argintaxpayer_test` gate, checks `__EFMigrationsHistory` for `20261018090000_ScopeFiscalParticipantsPerCustomer` and `20261018150000_AddResumableInvoiceEntryWorkspaces`, validates owned Party/Taxpayer indexes and the `invoice_entry_workspaces` table/index. Prints no password or connection string. Exits nonzero when missing/unreachable; **never applies migrations**.
+- `scripts/phase07-step23-macos.zsh`: requires correct branch and clean working tree; runs Step22 full .NET/Web suite, DB gate via the existing `.env.dev.local` and running standard AutoSSH forward, API `/health/ready` on 127.0.0.1:15089 and Next `/identity` on 127.0.0.1:3000, optionally runs the authenticated read-only two-session security smoke. No secrets printed and no server processes started automatically.
+- `scripts/phase07-step23-ubuntu.sh`: requires correct branch, clean tree, trusted private `~/.argintaxpayer-test/ubuntu.env`, database gate, `bash scripts/ubuntu-dev.sh verify`, extra Phase07 Node contracts, loopback API/Next readiness and optional same authenticated smoke. The existing `ubuntu-dev.sh verify` sets `RUN_ARGINTAXPAYER_PG_INTEGRATION=1` and runs existing full solution tests. Does not alter schema, publish Development ports or start services automatically.
+- Corrected the Step22 smoke documentation from 8080 to **15089**, matching both development launchers; smoke still refuses a non-loopback API origin. This is a documentation/comment correction, not a production routing change.
+
+### Exact macOS operator workflow
+
+```bash
+cd ~/projects/ArginTaxPayer
+git fetch origin
+git switch phase/07-invoice-domain-rule-engine
+git pull --ff-only
+
+# In Terminal A, only for the dedicated test DB:
+zsh scripts/dev-up.zsh
+zsh scripts/dev-status.zsh
+
+# In Terminal B:
+zsh scripts/phase07-step23-macos.zsh
+```
+
+The script requires the Step18/Step20 migrations to have already been applied. **Never run `dotnet ef database update` blindly.** If the DB gate reports a missing migration, stop, confirm the test DB, inspect a backup and separately approve the migration plan; the acceptance script must not create it.
+
+### Exact Ubuntu VPS operator workflow
+
+```bash
+cd ~/projects/ArginTaxPayer
+git fetch origin
+git switch phase/07-invoice-domain-rule-engine
+git pull --ff-only
+
+# Tests and development services on the VPS loopback only:
+bash scripts/ubuntu-dev.sh up
+bash scripts/ubuntu-dev.sh status
+bash scripts/phase07-step23-ubuntu.sh
+```
+
+`ubuntu-dev.sh up` needs the private per-VPS `~/.argintaxpayer-test/ubuntu.env`, explicitly verifies local Postgres 127.0.0.1:5432, disables live SMS, and restricts API/UI listeners to 127.0.0.1. Do not expose these ports publicly. The VPS operator should run these in a testing maintenance window if other services are present. Clean exit: `bash scripts/ubuntu-dev.sh down`, followed by status; do not stop unrelated services.
+
+### Manual browser and API acceptance (mandatory, NOT automated by the scripts)
+
+1. **Customer scope:** login with synthetic Customer A; verify only owned taxpayer records, buyers, products and invoice drafts are visible. The same real-world buyer identifier can be independently held by Customer B with no cross-customer PII exposure. A foreign invoice/workspace reference must result in NotFound (or empty paged list), not return another tenant's metadata.
+2. **Level2 partner ownership:** login as synthetic Level2 with at least two assigned customers; without a filter show both; filter Customer A then Customer B; verify taxpayer dropdown and buyer autocomplete are scoped to the selected customer, and unrelated partner customers remain inaccessible. Repeat a broader scoped check as Level1.
+3. **Wizard:** verify desktop/mobile compact RTL style, date-picker month/day and Persian 24h time; no duplicate editable seller field; buyer and catalog autocomplete works with keyboard; create working draft without buyer, save & exit, add buyer via separate page, resume the SAME draft from the list with same revision and data.
+4. **Item/amount settlement:** add/edit/remove lines, check preview totals and discounts; test cash-only, credit-only and mixed values; invalid mixed split is rejected; multiline Persian description is persisted on refresh and resume.
+5. **Stale CAS:** open the same synthetic draft in two tabs at revision N; save tab A, then try to save stale tab B and verify 409 rather than silent overwrite; reload correct revision and preserve the successful save.
+6. **Validation:** save incomplete draft and inspect Persian field paths/errors; update draft and verify stale validation is not presented as approved; open Correction/Cancellation/SalesReturn preview and see scoped internal references **disabled until trusted official fiscal tax IDs are verified**. No real Tax Authority send/issue/finalize operation.
+7. **Readiness/error states:** API 15089/health/ready and Next 3000/identity reachable only on loopback; with legitimate controlled test tokens exercise read-only security smoke. Unauthenticated 401, unrelated references 404, foreign overview empty; no bearer tokens in screenshots/logs.
+
+### Optional read-only session smoke
+
+With two genuinely distinct, synthetic, authorized testing sessions, set `PHASE07_API_ORIGIN=http://127.0.0.1:15089`, `PHASE07_OWNER_TOKEN`, `PHASE07_OTHER_TOKEN`, `PHASE07_OWNER_TAXPAYER_ID` and `PHASE07_FOREIGN_TAXPAYER_ID` in the local operator shell; set `PHASE07_RUN_HTTP_SMOKE=1` and rerun the respective Step23 acceptance script. **Never paste secrets into a chat, document or GitHub repository**. This smoke is nonmutating, but assumes that `OTHER_TOKEN` has no delegated authority for OWNER and vice versa. A test that returns an unexpected 403 instead of 404 must be investigated, not silently treated as passed.
+
+### Evidence and acceptance protocol
+
+For each environment, record the *commit SHA*, `dotnet build` result, filtered Phase07 and full solution xUnit results, `npm test`, `npm run typecheck`, `npm run build`, PostgreSQL gate output (without connection secrets), 15089/3000 readiness, any HTTP smoke results, then operator browser cases above with PASS/FAIL/SKIPPED and explanations. If any required case is FAIL or SKIPPED, mark Step23 **Blocked/Incomplete**, remediate and rerun; never infer successful app/session verification from a healthy process alone. Never claim macOS/Ubuntu acceptance from a Git commit.
+
+**Database migration:** none added in Step23. **Git merge/tag/release:** prohibited until owner approves Step23 and final Step24. Next fixed step: Step24 documentation and release, not started.

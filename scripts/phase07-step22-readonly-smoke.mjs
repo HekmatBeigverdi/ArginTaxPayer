@@ -4,7 +4,7 @@
  * All sessions must be dedicated synthetic test identities.
  * Does not create, modify, delete or issue invoices.
  * Required env:
- * PHASE07_API_ORIGIN=http://127.0.0.1:8080
+ * PHASE07_API_ORIGIN=http://127.0.0.1:15089
  * PHASE07_OWNER_TOKEN, PHASE07_OTHER_TOKEN
  * PHASE07_OWNER_TAXPAYER_ID, PHASE07_FOREIGN_TAXPAYER_ID
  */
