@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 08: Invoice Workflows and UI
 
-**Status:** Step 01 owner-approved; Step 02 implemented and awaiting owner approval and local test evidence.
+**Status:** Steps 01–02 owner-approved; Step 03 contracts committed, awaiting operator test and owner approval.
 **Branch:** `phase/08-invoice-workflows-ui`
 **Baseline:** `main` at `364462848914f289916962a0578c9fac9cd85ce1` (GitHub inspected 2026-10-18).
 **Roadmap source:** `docs/roadmap/18-phases.md`, phase 08 of 18.
@@ -37,8 +37,8 @@
 | Step | Title | Primary result | Acceptance | Status |
 |---|---|---|---|---|
 | 01 | Architecture baseline and branch hygiene | Freeze Phase07 interfaces, database migration inventory, role matrix, branch and build hygiene | Baseline reviewed; ignore generated files; no code or migration | Owner-approved 2026-10-18 |
-| 02 | Workflow state contracts | Define internal Draft/InReview/ChangesRequested/Approved state transitions | Allowed and forbidden transitions deterministic | Implemented; tests/owner approval pending |
-| 03 | Actor authorization and ownership | Implement role/scope matrix for customer, Level1 and owning Level2 | All reads/writes scoped before data return | Not started |
+| 02 | Workflow state contracts | Define internal Draft/InReview/ChangesRequested/Approved state transitions | Allowed and forbidden transitions deterministic | Owner-approved 2026-10-18 |
+| 03 | Actor authorization and ownership | Implement role/scope matrix for customer, Level1 and owning Level2 | All reads/writes scoped before data return | Pure authorization policy committed; persistence integration pending Step05 |
 | 04 | Workflow persistence and migration plan | Add minimal additive workflow and audit entities when existing Phase07 storage insufficient | No silent loss of historical invoices; migration separately authorized | Not started |
 | 05 | Workflow command services | Create draft submission, change request, internal approval | State and history consistent after commit | Not started |
 | 06 | Concurrency and idempotency | Prevent lost updates, duplicate review submissions and simultaneous approvals | One accepted write, deterministic conflict/replay | Not started |
@@ -327,3 +327,14 @@ After Steps01–21 have owner-approved evidence, Step22 requires separate final 
   dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --filter FullyQualifiedName~Phase07InvoiceLifecycleTests
   ```
 - **Owner approval:** Pending; Step03 is blocked.
+
+## Step 03 — Delivery record (2026-10-18)
+
+- **Files:** `src/ArginTaxPayer.Application/Tenancy/InvoiceWorkflowAccessPolicy.cs`; `tests/ArginTaxPayer.Tests/Phase08InvoiceWorkflowAccessTests.cs`; this master plan.
+- **Permission matrix:** Customer reads/edits/submits own taxpayer only; Level1 can read/review/approve customers under own controlling root; Level2 can read/review/approve customers owned by that **current** partner. Customer cannot approve; administrators cannot impersonate customer-edit in this contract. Root-direct customer does not create partner access.
+- **Inputs:** Immutable `InvoiceWorkflowScope` must be built exclusively from authenticated server-side user, current `CustomerCommercialOwners`, active customer→taxpayer membership, and current role/MFA verification. A forged object is not proof of authorization. Null/invalid roles, missing membership, other customers, former partners and unaffiliated administrators fail closed.
+- **Critical scope boundary:** Phase03 designs the *pure policy* and unit-test matrix; no runtime endpoint or persistence wiring was changed. Actual scoped DB query enforcement and pre-write recheck before mutations are separate mandatory acceptance gates in Steps05/07, not claimed complete here.
+- **Security regression fixtures:** role matrix; former Level2 after transfer; wrong customer/Level1; inactive membership; root direct; missing context; invalid role/permission.
+- **Database migrations:** none; **API/UI changes:** none; **customer data used:** none.
+- **Tests added, not executed in GitHub connector:** `dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --filter FullyQualifiedName~Phase08InvoiceWorkflowAccessTests`. Full suite and local operator checks remain pending.
+- **Step02 approval:** owner explicitly confirmed all acceptance criteria before Step03. **Step03 approval:** pending operator test and explicit signoff.
