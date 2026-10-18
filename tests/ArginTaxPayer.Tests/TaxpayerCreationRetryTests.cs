@@ -21,6 +21,7 @@ public sealed class TaxpayerCreationRetryTests
             .UseNpgsql(cs, p => p.EnableRetryOnFailure(3)).Options;
         var customer = Guid.NewGuid();
         var email = customer.ToString("N") + "@EXAMPLE.INVALID";
+        Assert.Equal(email, InitialAdministratorBootstrap.NormalizeEmail(email));
         const string password = "Disposable-taxpayer-retry-2026!";
         try
         {
