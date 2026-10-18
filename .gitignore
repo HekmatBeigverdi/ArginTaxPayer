@@ -19,6 +19,8 @@
 # Build tooling
 node_modules/
 .next/
+.next-dev/
+next-env.d.ts
 dist/
 bin/
 obj/
