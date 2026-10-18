@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 07: Invoice Domain and Rule Engine
 
-**Status:** Step 01 owner-approved 2026-10-17; Step 02 owner-approved 2026-10-17 (macOS test logs not attached); Step 03 owner-approved 2026-10-17 (test output not attached); Step 04 owner-approved 2026-10-17 (macOS evidence not attached); Step 05 owner-approved 2026-10-17 (operator test log not attached); Step 06 owner-approved 2026-10-17 (operator test logs not attached); Step 07 owner-approved 2026-10-17 (operator test logs not attached); Step 08 owner-approved 2026-10-17 (test logs not independently attached); Step 09 owner-approved 2026-10-17 (operator test logs not supplied); Step 10 owner-approved 2026-10-17 (operator test logs not attached); Step 11 owner-approved 2026-10-17 (operator test results not independently attached); Step 12 owner-approved 2026-10-17 (independent macOS logs not attached); Step 13 owner-approved 2026-10-17 (macOS logs not supplied); Step 14 owner-approved 2026-10-17 (operator macOS logs not attached); Step 15 owner-approved 2026-10-17 (operator macOS logs not attached); Step 16 owner-approved 2026-10-17 (independent macOS test logs unavailable); Step 17 owner-approved 2026-10-17 (independent macOS logs not attached); Step 18 owner-approved 2026-10-17 (actual PostgreSQL logs not attached); Step 19 owner-approved 2026-10-17 (independent test logs not attached); Step 20 invoice-entry UI implemented, awaiting operator UI/API acceptance. Steps 21–24 not started.
+**Status:** Steps 01–23 owner-approved, most recently Step23 on 2026-10-18. Step24 release packaging and phase closeout in progress; repository merge/release evidence recorded separately below. Prior dated step-level test caveats remain in the detailed history.
 **Branch:** `phase/07-invoice-domain-rule-engine`
 **Baseline:** `main` at `041bea0287c3b907a7b8910ef8602f51a8c1654c` (inspected 2026-10-17).
 **Roadmap:** `docs/roadmap/18-phases.md`, Phase 07 of 18.
@@ -60,8 +60,8 @@ Build a versioned electronic invoice domain and deterministic rules engine: lega
 | 20 | Invoice-entry UI | RTL dynamic type/pattern, party and item selection | Usable keyboard and responsive flows | Owner-approved 2026-10-18, including subsequent resumable draft, settlement and invoice description amendments |
 | 21 | Validation/reference UI | Field errors and related-document history | Accessibility and scoped operation tests | Owner-approved 2026-10-18; independently executed operator logs not supplied |
 | 22 | Comprehensive regression | Domain/integration/contract/security suite | Negative cases, Phase03–06 compatibility | Owner-approved 2026-10-18; operator execution logs not independently attached |
-| 23 | macOS and Ubuntu acceptance | Local suite, VPS verify, DB/HTTP operator evidence | macOS and Ubuntu acceptance scripts, database gate and operator checklist committed; owner-run environment evidence pending |
-| 24 | Documentation and release | Close phase record, merge, annotated tag, GitHub release | Separate approval and release evidence | Not started |
+| 23 | macOS and Ubuntu acceptance | Local suite, VPS verify, DB/HTTP operator evidence | Owner-approved 2026-10-18; operator confirmed issues resolved on both environments, raw test logs not attached |
+| 24 | Documentation and release | Close phase record, merge, annotated tag, GitHub release | Separate approval and release evidence | Closeout documented; merge to main and signed-off tag/release to be individually verified |
 
 ## Working protocol
 
@@ -1199,9 +1199,32 @@ For each environment, record the *commit SHA*, `dotnet build` result, filtered P
 Owner requested Git-source reproducibility on macOS and Ubuntu before Phase07 Step24 release. This is an amendment to Step23, not a new numbered step and not yet a final release.
 
 - Removed formerly tracked `apps/web/.next-dev/` generated build/cache output from the Git tree; both `apps/web/.next-dev/` and `apps/web/next-env.d.ts` are now ignored. Removing from tracking does not require developers to upload or commit generated artifacts. **Never commit `.next-dev`, `.next`, `next-env.d.ts`, tokens, developer environment variables or test data.**
-- This repo uses Next.js **15.5.27**, which supports `next typegen`. The tracked `apps/web/package.json` typecheck command now invokes `next typegen && tsc --noEmit`, ensuring the ignored type declaration is generated before checking TypeScript in a clean clone. Next.js may regenerate `next-env.d.ts` for either environment without dirtying Git.
+- This repo uses Next.js **15.5.27**, which supports `next typegen`. The tracked `apps/web/package.json` typecheck command remains `tsc --noEmit` following the follow-up compatibility fix `73142b87`; Next.js generates the ignored `next-env.d.ts` during the usual framework launch/build process. Do not presume `next typegen` was left enabled. Next.js may regenerate `next-env.d.ts` for either environment without dirtying Git.
 - The `next.config.ts` distDir property remains sourced from `ARGIN_NEXT_DIST_DIR`. Both development launchers explicitly export `ARGIN_NEXT_DIST_DIR=.next-dev` for a separate local dev cache. The macOS Step22 verification and Ubuntu `verify` use `ARGIN_NEXT_DIST_DIR=.next` for type generation and production Build, preventing the development cache and acceptance build from overwriting each other.
 - No database migration or business-logic change; no release tag or merge. Retest **both environments on exactly one Git commit** after all tracked modifications are committed and clean. A clone that used to track `.next-dev` may report a pull conflict if its generated files are locally edited: stop the Next.js server, save any genuinely user-authored changes elsewhere, then reset/discard **only** generated `apps/web/.next-dev` and `apps/web/next-env.d.ts` as appropriate before pulling. Never run repository-wide `git clean -fd` or `git reset --hard`.
 - macOS workflow: stop active development services `zsh scripts/dev-down.zsh`, pull, run `zsh scripts/dev-up.zsh`, then in another shell `zsh scripts/phase07-step23-macos.zsh`. Check no tracked changes: `git status --short`.
 - Ubuntu workflow: stop active test services `bash scripts/ubuntu-dev.sh down`, pull, `bash scripts/ubuntu-dev.sh up`, then `bash scripts/phase07-step23-ubuntu.sh`. Check no tracked changes. Do not expose development ports or change the database.
 - Any remaining platform-specific runtime or TypeScript errors must be resolved in tracked source/config on the phase branch and retested on both platforms **without committing generated files**. Only after macOS + Ubuntu passes and owner approval may Step24 merge/tag/release begin.
+
+
+## Step 24 — Final Documentation and Release Closeout (2026-10-18)
+
+**Authorization:** owner expressly confirmed Step23 and requested Step24 completion. **Source candidate:** phase branch commit `73142b87a150c4c3a687945153d9288beb037959` before this documentation commit. Its final merged SHA and the release tag target must be recorded from GitHub; do not assume the phase branch and main SHAs are identical after a merge commit.
+
+### Delivered scope and boundaries
+
+- Versioned V7.9 invoice types, subjects/pattern compatibility, legal reference restrictions for original/correction/cancellation/sales return, deterministic monetary calculations, discounts, VAT, settlement consistency, rounding and time rules.
+- Tenant/customer scoped taxpayer, buyer and goods/services snapshots; controlled draft persistence, revisions and optimistic concurrency, Phase06 catalog integration, Persian RTL wizard, readable validation and reference previews.
+- Automated Phase07 unit and contract regression tests, Step22 negative scenarios, macOS/Ubuntu Step23 acceptance scripts, read-only test database/HTTP gates and TypeScript/Next.js cross-platform Git artifact isolation.
+- **Explicit exclusions:** no production-ready issuance/signing, Tax Authority network transmission, official accepted fiscal predecessor verification, key management, billing or settlement entitlements; those belong to later phases. Development-only endpoints are loopback-bound.
+
+### Release controls
+
+1. Owner approval covers Step23, but independent raw macOS/VPS acceptance logs were not uploaded in this conversation. The approved source must not be changed functionally after acceptance without a new validation cycle.
+2. Preserve the fixed 24-step phase roadmap. There is no new Step24 schema migration. Earlier migrations are required only in the dedicated `argintaxpayer_test` testing database; do not run production migrations as part of release tagging.
+3. Merge the final phase branch into `main` using a normal, auditable GitHub PR merge, preserving commit history; record the PR and merge SHA.
+4. Create an **annotated** `phase-07-v1.0.0` tag on the VERIFIED merged `main` SHA and publish the matching GitHub Release using `docs/phases/phase-07-release-notes.md`. The version matches Phase05/06 naming convention. Never tag the older Step23 candidate without the final closeout.
+5. `scripts/phase07-step24-release.sh` is an explicit operator action requiring a clean up-to-date `main`, matching origin branch, `git` and an authenticated `gh`. It checks for prior tags/releases, pushes the annotated tag and creates the GitHub Release. No destructive Git commands or DB changes.
+6. Post-release inspect GitHub Release, its `tag_name`, `target_commitish`/tag object, source SHA and `main`. The tag is immutable by policy; correct mistakes with a new patch version, not a forced tag move.
+
+**Final evidence:** release existence, tag and SHA require verification after execution of the operator publication script; release file/PR alone is not proof of publication. No manual production deployment is implied by the GitHub Release.
