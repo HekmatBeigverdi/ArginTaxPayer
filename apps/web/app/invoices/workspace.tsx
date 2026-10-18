@@ -128,6 +128,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   const [customerTaxpayers, setCustomerTaxpayers] = useState<Taxpayer[]>([]);
   const [taxpayerOwners, setTaxpayerOwners] = useState<Record<string,string>>({});
   const visibleTaxpayers = isAdmin ? customerTaxpayers : taxpayers;
+  const chosenBuyer = buyers.find(b => b.id === buyerId);
 
   async function scopedTaxpayersForCustomer(customer: string): Promise<Taxpayer[]> {
     const result: Taxpayer[] = [];
@@ -553,7 +554,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
               <div className="invoice-register__restriction">
                 <strong>ذخیره پیش‌نویس داخلی</strong>
                 <p>سربرگ، اقلام و فوتر نمایشی به‌عنوان پیش‌نویس قابل بازیابی ذخیره می‌شوند.
-                این اطلاعات هنوز صورتحساب نهایی نیستند و بدون اعتبارسنجی مالیاتی ارسال نمی‌شوند.</p>}
+                این اطلاعات هنوز صورتحساب نهایی نیستند و بدون اعتبارسنجی مالیاتی ارسال نمی‌شوند.</p>
               </div>
             </section>}
           </div>
