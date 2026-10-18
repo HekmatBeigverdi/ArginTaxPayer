@@ -14,10 +14,10 @@ const api = proxy;
 test("invoice register is an authenticated, RTL console view", () => {
   assert.match(page, /currentIdentity\(\)/);
   assert.match(page, /dir="rtl"/);
-  assert.match(workspace, /invoice-register__table/);
+  assert.match(workspace, /className="console-table"/);
   assert.match(workspace, /invoice-register__toolbar/);
   assert.match(workspace, /<table/);
-  assert.match(css, /\.invoice-register__table :is\(th,td\)/);
+  assert.match(css, /\.console-table th/);
 });
 
 test("only compact invoice list and toolbar render when add dialog is closed", () => {
@@ -108,7 +108,15 @@ test("accessible buyer combobox supports keyboard selection and resolves selecte
 test("all authorized customers are paged server-side", () => {
   assert.match(workspace, /listPageSize = 50/);
   assert.match(workspace, /query\.set\("page",String\(listPage\)\)/);
-  assert.match(workspace, /صفحه قبل/);
-  assert.match(workspace, /صفحه بعد/);
+  assert.match(workspace, /صفحه قبل|قبلی/);
+  assert.match(workspace, /صفحه بعد|بعدی/);
   assert.match(workspace, /همه مشتریان زیرمجموعه/);
+});
+
+test("invoice list reuses the shared dense console table and pagination layout", () => {
+  assert.match(workspace, /className="console-table"/);
+  assert.match(workspace, /console-table-scroll/);
+  assert.match(workspace, /console-table-footer/);
+  assert.match(workspace, /console-row-action/);
+  assert.match(css, /\.console-page \.invoice-register \.console-table/);
 });

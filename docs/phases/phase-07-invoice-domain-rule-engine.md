@@ -961,3 +961,34 @@ The four adjustments below are a **Step20 amendment**, not a new roadmap step. T
 - Added static regression checks for the combobox and paging. Backend and browser integration tests are still pending.
 
 - **Additional access consistency:** administrator taxpayer selection now uses the same live-scoped fiscal participant directory as the customer/taxpayer module rather than the narrower customer ownership endpoint, which may exclude Level1 global scope. It fetches all directory pages for the chosen customer to prevent invisible taxpayers beyond the first page. No unauthorized taxpayer records are pulled into a client-side global cache.
+
+### Step20 correction — fiscal counterparty isolation and compact invoice listing (2026-10-18)
+
+**Cause:** Legacy global PostgreSQL unique indexes `ux_parties_kind_identifier` and `ux_taxpayer_profiles_kind_identifier` incorrectly reject the same national identifier for **different software customers**. These records represent each customer's independently owned fiscal counterparty / taxpayer profile and must not be conflated with login identities. The registration failure was independent of the user's email and was not caused by the invoice UI.
+
+**Implemented database change** — explicit additive migration `20261018090000_ScopeFiscalParticipantsPerCustomer`:
+- Adds nullable `parties.owner_customer_user_id` with RESTRICT customer FK. For **legacy records with exactly one currently active customer-party link**, safely infers owner; existing shared/multi-linked and unlinked legacy records are intentionally left NULL (no rewriting IDs, reference remapping, invoice history or silent PII transfers).
+- Replaces global Party unique index with `ux_parties_owner_kind_identifier` on `(owner_customer_user_id,kind,normalized_identifier)` filtered on non-null customer owner. Adds trigger preventing future link of an explicitly owned Party to a different account. All **new** natural/legal buyer records are explicitly scoped to their authenticated selected customer. Service checks for duplicates through active links of **that same customer** only; no global lookup or leak.
+- Replaces global taxpayer unique index with filtered `ux_taxpayer_profiles_customer_kind_identifier` for owned taxpayers and a legacy-only unique index when customer_user_id is NULL. Authorized customer may create an independent taxpayer with the same valid identifier as another customer, but duplicate in one customer remains prohibited.
+- No legacy owner impersonation, cross-customer automatic linking, sharing or automatic PII completion. Any reuse/copy of another customer's legal data needs explicit authorization and a separate audited opt-in workflow. The user-visible 409 message is corrected to refer only to the selected customer's conflict. Already-shared legacy parties remain readable only through existing links, and modifications across accounts remain blocked; legacy multi-linked cleanup is a separate supervised data-remediation task.
+- Down migration **fails closed** when multiple customers have registered identical identifiers, rather than destroying records or forcing unsafe data consolidation.
+
+**Model/code**: `Party.OwnerCustomerUserId`; EF model + snapshot, NaturalPersonService, LegalEntityService, TaxpayerCreationService, scoped registration feedback, metadata regression tests.
+
+**Invoice UI alignment**: `/invoices` uses the same `console-table`, `console-table-scroll`, `console-row-action`, `console-table-footer` structure as other Argin directory pages. Compact filters/buttons, stable responsive widths, footer with Previous / current page / Next, no separate oversized pager or unnecessarily tall rows. Source UI test updated.
+
+**Operator verification / safety gate:**
+```bash
+cd ~/projects/ArginTaxPayer
+git fetch origin
+git switch phase/07-invoice-domain-rule-engine
+git pull --ff-only
+dotnet restore ArginTaxPayer.sln
+dotnet build ArginTaxPayer.sln -c Release --no-restore
+dotnet test ArginTaxPayer.sln -c Release --no-build
+cd apps/web && npm test && npm run typecheck && npm run build && cd ../..
+zsh scripts/dev-status.zsh
+```
+`dev-up.zsh` only starts an AutoSSH tunnel and development servers: it **does not apply the migration**. In a second macOS shell, source `.env.dev.local`, verify `ConnectionStrings__ArginTaxPayerDb` points to **argintaxpayer_test** using a read-only PostgreSQL query and take a backup. Generate and review an idempotent SQL migration script before executing `dotnet ef database update 20261018090000_ScopeFiscalParticipantsPerCustomer --project src/ArginTaxPayer.Infrastructure --startup-project src/ArginTaxPayer.Api --context ArginTaxPayerDbContext`. Do not target production or another user's live data. Execute only after explicit operator inspection/approval.
+
+**Required acceptance:** Customer A and Customer B can independently create natural buyer (same valid national code) and independently create taxpayer (same legal identifier). A second duplicate in **the same** customer is rejected. Level2 cannot read or edit an unassigned customer's record. Existing historical links, identities, invoice snapshots and contact data are not changed. Verify old shared Party links remain intact and ownership changes do not expose PII. No .NET SDK was available in assistant runtime, so compile, PostgreSQL integration and browser checks **are not claimed passed**. Owner sign-off pending; this is an amendment to Step20, not a new phase step.

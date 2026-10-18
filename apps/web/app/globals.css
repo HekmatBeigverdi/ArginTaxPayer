@@ -549,3 +549,22 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 .invoice-register__buyer-options button.active,.invoice-register__buyer-options button:hover{background:#e9f2fa}
 .invoice-register__buyer-options p{padding:8px 10px;font-size:12px;margin:0}
 .invoice-register__selected-buyer{color:#20614c!important}
+
+/* Phase07: align invoice register density/navigation with other console lists. */
+.console-page .invoice-register{background:var(--surface,#fff);border:1px solid var(--argin-line,#dbe3ea);border-radius:12px;padding:12px 15px;min-width:0}
+.console-page .invoice-register__toolbar{align-items:center;padding-bottom:10px;border-bottom:1px solid var(--argin-line,#dbe3ea);margin-bottom:12px;gap:8px}
+.console-page .invoice-register__filters{gap:6px 9px}
+.console-page .invoice-register__filters label{font:inherit;font-size:12px;font-weight:650;color:var(--argin-muted,#617487)}
+.console-page .invoice-register__filters :is(select,input){height:34px;min-height:34px;min-width:145px;max-width:245px;padding:5px 9px;font:inherit;font-size:12px}
+.console-page .invoice-register__actions{gap:7px}
+.console-page .invoice-register__actions button{min-height:33px;padding:5px 11px;font:inherit;font-size:12px;border-radius:7px}
+.console-page .invoice-register__table-wrap{max-height:60vh;border:1px solid #e1e9ef;border-radius:9px;overflow:auto}
+.console-page .invoice-register .console-table{font-size:12px;line-height:1.45;border-collapse:collapse;width:100%;white-space:nowrap}
+.console-page .invoice-register .console-table :is(th,td){padding:7px 10px;border-bottom:1px solid #e8edf1}
+.console-page .invoice-register .console-table th{background:#eef4f6;color:#476176;font-size:12px;font-weight:750}
+.console-page .invoice-register .console-row-action{padding:4px 9px;font:inherit;font-size:12px}
+.console-page .invoice-register .console-table-footer{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:0;padding:12px 3px 0;color:var(--argin-muted,#617487);font-size:12px;border:0;background:transparent}
+.console-page .invoice-register .console-table-footer>div{display:flex;align-items:center;gap:10px}
+.console-page .invoice-register .console-table-footer button{border:1px solid var(--argin-line,#dbe3ea);background:white;padding:5px 10px;font:inherit;font-size:12px;border-radius:7px}
+.console-page .invoice-register .console-table-footer button:disabled{opacity:.45;cursor:not-allowed}
+@media(max-width:700px){.console-page .invoice-register{padding:10px}.console-page .invoice-register__filters{width:100%}.console-page .invoice-register__filters :is(select,input){max-width:none;min-width:135px;flex:1}.console-page .invoice-register .console-table-footer{flex-wrap:wrap}}

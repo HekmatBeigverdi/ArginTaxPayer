@@ -310,8 +310,8 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
     </div>
     {error && !modal && <p role="alert" className="form-error">{error}</p>}
     {notice && <p role="status" className="auth-info">{notice}</p>}
-    <div className="invoice-register__table-wrap">
-      <table className="invoice-register__table">
+    <div className="console-table-scroll invoice-register__table-wrap">
+      <table className="console-table">
         <thead><tr><th>شناسه</th>{isAdmin && <th>مشتری</th>}<th>مؤدی فروشنده</th><th>تاریخ صدور</th><th>موضوع</th>
           <th>وضعیت داخلی</th><th>نسخه</th><th>عملیات</th></tr></thead>
         <tbody>{loading ? <tr><td colSpan={isAdmin ? 8 : 7}>در حال دریافت…</td></tr> :
@@ -324,19 +324,21 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
             <td>{toFaDate(item.issueDateUtc)}</td><td>{item.subject}</td>
             <td>{item.state === "Draft" ? "پیش‌نویس" : item.state}</td>
             <td>{item.revision}</td>
-            <td><button type="button" className="identity-secondary"
+            <td><button type="button" className="console-row-action"
               onClick={() => setDetail(item)}>مشاهده</button></td>
           </tr>)}</tbody>
       </table>
     </div>
-    <div className="invoice-register__pager" aria-label="صفحه‌بندی صورتحساب‌ها">
-      <span>صفحه {listPage} — حداکثر {listPageSize} صورتحساب در هر صفحه</span>
-      <button type="button" className="identity-secondary" disabled={loading || listPage === 1}
-        onClick={()=>setListPage(p=>Math.max(1,p-1))}>صفحه قبل</button>
-      <button type="button" className="identity-secondary"
-        disabled={loading || invoices.length < listPageSize}
-        onClick={()=>setListPage(p=>p+1)}>صفحه بعد</button>
-    </div>
+    <footer className="console-table-footer invoice-register__pager" aria-label="صفحه‌بندی صورتحساب‌ها">
+      <span>{invoices.length} رکورد در صفحه جاری</span>
+      <div>
+        <button type="button" disabled={loading || listPage === 1}
+          onClick={()=>setListPage(p=>Math.max(1,p-1))}>قبلی</button>
+        <span>صفحه {listPage}</span>
+        <button type="button" disabled={loading || invoices.length < listPageSize}
+          onClick={()=>setListPage(p=>p+1)}>بعدی</button>
+      </div>
+    </footer>
     {detail && <div className="invoice-register__overlay" onMouseDown={e => {
       if (e.currentTarget === e.target) setDetail(null);
     }}>

@@ -12,7 +12,7 @@ type Created = { id: string };
 const normalize = (s: string) => s.trim();
 const errorMessage = (code: number) => code === 400 ? "اطلاعات هویتی نامعتبر است؛ شناسه و نام را بررسی کنید." :
   code === 401 ? "نشست منقضی شده است." : code === 403 ? "مجوز دسترسی ندارید." :
-  code === 409 ? "این شناسه قبلاً ثبت شده است؛ پرونده موجود را انتخاب کنید." :
+  code === 409 ? "در همین حساب مشتری، شناسه تکراری یا اطلاعات در تعارض است. پرونده‌های حساب‌های دیگر مستقل‌اند." :
   "عملیات انجام نشد؛ وضعیت سرور را بررسی کنید.";
 
 export default function ParticipantRegistrationModal({ mode, buyers, level1, actorUserId, onClose, onCompleted,
@@ -149,6 +149,7 @@ export default function ParticipantRegistrationModal({ mode, buyers, level1, act
             <label>شماره ثبت شرکت (در صورت وجود)
               <input value={registrationNumber} maxLength={32} dir="ltr"
                 onChange={e => setRegistrationNumber(e.target.value)}/></label>}
+          <p className="field-hint">هر حساب مشتری خریداران و مؤدیان مستقل دارد؛ یک شناسه قانونی ممکن است در حساب‌های مجاز دیگر هم ثبت شود، بدون اشتراک اطلاعات خصوصی بین حساب‌ها.</p>
           <p className="field-hint">اطلاعات تکمیلی مانند شماره اقتصادی، کد شعبه، کد پستی، نشانی و تلفن در مرحله بعد ذخیره می‌شوند. الزامات نهایی به نوع و الگوی صورتحساب وابسته است.</p>
           {error && <p role="alert" className="party-error">{error}</p>}
           <button className="identity-primary" type="submit"

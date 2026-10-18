@@ -34,6 +34,13 @@ public sealed class TaxpayerCreationService(
         if (!await scope.CanManageAsync(actor.Value, request.CustomerUserId.Value, ct))
             return new(CreateTaxpayerStatus.Forbidden);
 
+        // Duplicate checks are limited to this authorized customer account.
+        // Identical legal identifiers in OTHER customer accounts are permitted.
+        if (await db.TaxpayerProfiles.AsNoTracking().AnyAsync(p =>
+            p.CustomerUserId == request.CustomerUserId && p.Kind == request.Kind &&
+            p.NormalizedIdentifier == identifier, ct))
+            return new(CreateTaxpayerStatus.Conflict);
+
         var now = DateTime.UtcNow;
         var profile = new TaxpayerProfile
         {

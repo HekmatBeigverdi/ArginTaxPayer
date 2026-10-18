@@ -44,10 +44,19 @@ public sealed class LegalEntityService(ArginTaxPayerDbContext db, IdentityAuthor
                 await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
                 if (!await scope.CanManageAsync(actor.Value, customerId, ct))
                     return new LegalEntityResult(LegalEntityDecision.Forbidden);
+                // A duplicate inside this customer is not a new identity. Do not
+                // discover or expose records belonging to another customer.
+                var inThisAccount = await db.Parties.AsNoTracking().AnyAsync(p =>
+                    p.Kind == PartyKind.LegalEntity &&
+                    p.NormalizedIdentifier == validated!.NormalizedNationalIdentifier &&
+                    db.CustomerPartyLinks.Any(l => l.PartyId == p.Id &&
+                        l.CustomerUserId == customerId && l.UnlinkedAtUtc == null), ct);
+                if (inThisAccount)
+                    return new LegalEntityResult(LegalEntityDecision.Conflict);
                 var now = DateTime.UtcNow;
                 var person = new Party
                 {
-                    Id = Guid.NewGuid(), Kind = PartyKind.LegalEntity,
+                    Id = Guid.NewGuid(), OwnerCustomerUserId = customerId, Kind = PartyKind.LegalEntity,
                     NormalizedIdentifier = validated!.NormalizedNationalIdentifier,
                     RegistrationNumber = validated.RegistrationNumber,
                     DisplayName = validated.RegisteredName, Status = PartyStatus.Active,

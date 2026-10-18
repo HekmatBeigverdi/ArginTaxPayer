@@ -255,6 +255,9 @@ public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbConte
         });
         parties.HasKey(x => x.Id);
         parties.Property(x => x.Id).HasColumnName("id");
+        parties.Property(x => x.OwnerCustomerUserId).HasColumnName("owner_customer_user_id");
+        parties.HasOne<IdentityUser>().WithMany().HasForeignKey(x => x.OwnerCustomerUserId)
+            .OnDelete(DeleteBehavior.Restrict).HasConstraintName("fk_parties_owner_customer");
         parties.Property(x => x.Kind).HasColumnName("kind").HasConversion<int>();
         parties.Property(x => x.NormalizedIdentifier).HasColumnName("normalized_identifier").HasMaxLength(32).IsRequired();
         parties.Property(x => x.FirstName).HasColumnName("first_name").HasMaxLength(100);
@@ -265,7 +268,9 @@ public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbConte
         parties.Property(x => x.Revision).HasColumnName("revision").HasDefaultValue(1L).IsConcurrencyToken();
         parties.Property(x => x.CreatedAtUtc).HasColumnName("created_at_utc").HasColumnType("timestamp with time zone");
         parties.Property(x => x.UpdatedAtUtc).HasColumnName("updated_at_utc").HasColumnType("timestamp with time zone");
-        parties.HasIndex(x => new { x.Kind, x.NormalizedIdentifier }).IsUnique().HasDatabaseName("ux_parties_kind_identifier");
+        parties.HasIndex(x => new { x.OwnerCustomerUserId, x.Kind, x.NormalizedIdentifier })
+            .IsUnique().HasFilter("owner_customer_user_id IS NOT NULL")
+            .HasDatabaseName("ux_parties_owner_kind_identifier");
         parties.HasIndex(x => new { x.CreatedAtUtc, x.Id }).HasDatabaseName("ix_parties_fiscal_directory");
 
         var history = modelBuilder.Entity<PartyIdentityHistory>();
@@ -465,8 +470,12 @@ public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbConte
         taxpayers.Property(x => x.Revision).HasColumnName("revision").HasDefaultValue(1L).IsConcurrencyToken();
         taxpayers.Property(x => x.CreatedAtUtc).HasColumnName("created_at_utc").HasColumnType("timestamp with time zone");
         taxpayers.Property(x => x.UpdatedAtUtc).HasColumnName("updated_at_utc").HasColumnType("timestamp with time zone");
+        taxpayers.HasIndex(x => new { x.CustomerUserId, x.Kind, x.NormalizedIdentifier })
+            .IsUnique().HasFilter("customer_user_id IS NOT NULL")
+            .HasDatabaseName("ux_taxpayer_profiles_customer_kind_identifier");
         taxpayers.HasIndex(x => new { x.Kind, x.NormalizedIdentifier })
-            .IsUnique().HasDatabaseName("ux_taxpayer_profiles_kind_identifier");
+            .IsUnique().HasFilter("customer_user_id IS NULL")
+            .HasDatabaseName("ux_taxpayer_profiles_legacy_identifier");
 
         var users = modelBuilder.Entity<IdentityUser>();
         users.ToTable("identity_users");

@@ -1385,6 +1385,10 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(100)")
                         .HasColumnName("last_name");
 
+                    b.Property<Guid?>("OwnerCustomerUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("owner_customer_user_id");
+
                     b.Property<string>("NormalizedIdentifier")
                         .IsRequired()
                         .HasMaxLength(32)
@@ -1416,9 +1420,10 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
                     b.HasIndex("CreatedAtUtc", "Id")
                         .HasDatabaseName("ix_parties_fiscal_directory");
 
-                    b.HasIndex("Kind", "NormalizedIdentifier")
+                    b.HasIndex("OwnerCustomerUserId", "Kind", "NormalizedIdentifier")
                         .IsUnique()
-                        .HasDatabaseName("ux_parties_kind_identifier");
+                        .HasFilter("owner_customer_user_id IS NOT NULL")
+                        .HasDatabaseName("ux_parties_owner_kind_identifier");
 
                     b.ToTable("parties", null, t =>
                         {
@@ -2094,9 +2099,15 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
                     b.HasIndex("CreatedAtUtc", "Id")
                         .HasDatabaseName("ix_taxpayer_profiles_fiscal_directory");
 
+                    b.HasIndex("CustomerUserId", "Kind", "NormalizedIdentifier")
+                        .IsUnique()
+                        .HasFilter("customer_user_id IS NOT NULL")
+                        .HasDatabaseName("ux_taxpayer_profiles_customer_kind_identifier");
+
                     b.HasIndex("Kind", "NormalizedIdentifier")
                         .IsUnique()
-                        .HasDatabaseName("ux_taxpayer_profiles_kind_identifier");
+                        .HasFilter("customer_user_id IS NULL")
+                        .HasDatabaseName("ux_taxpayer_profiles_legacy_identifier");
 
                     b.ToTable("taxpayer_profiles", null, t =>
                         {
@@ -2643,6 +2654,16 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
                 {
                     b.Navigation("Roles");
                 });
+            // Phase07: owner-scoped buyer Party records.
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Parties.Party", b =>
+                {
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null)
+                        .WithMany()
+                        .HasForeignKey("OwnerCustomerUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_parties_owner_customer");
+                });
+
 #pragma warning restore 612, 618
         }
     }
