@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 08: Invoice Workflows and UI
 
-**Status:** Step 01 implemented on dedicated branch; awaiting explicit owner approval and operator verification.
+**Status:** Step 01 owner-approved; Step 02 implemented and awaiting owner approval and local test evidence.
 **Branch:** `phase/08-invoice-workflows-ui`
 **Baseline:** `main` at `364462848914f289916962a0578c9fac9cd85ce1` (GitHub inspected 2026-10-18).
 **Roadmap source:** `docs/roadmap/18-phases.md`, phase 08 of 18.
@@ -36,8 +36,8 @@
 
 | Step | Title | Primary result | Acceptance | Status |
 |---|---|---|---|---|
-| 01 | Architecture baseline and branch hygiene | Freeze Phase07 interfaces, database migration inventory, role matrix, branch and build hygiene | Baseline reviewed; ignore generated files; no code or migration | Implemented; owner approval pending |
-| 02 | Workflow state contracts | Define internal Draft/InReview/ChangesRequested/Approved state transitions | Allowed and forbidden transitions deterministic | Not started |
+| 01 | Architecture baseline and branch hygiene | Freeze Phase07 interfaces, database migration inventory, role matrix, branch and build hygiene | Baseline reviewed; ignore generated files; no code or migration | Owner-approved 2026-10-18 |
+| 02 | Workflow state contracts | Define internal Draft/InReview/ChangesRequested/Approved state transitions | Allowed and forbidden transitions deterministic | Implemented; tests/owner approval pending |
 | 03 | Actor authorization and ownership | Implement role/scope matrix for customer, Level1 and owning Level2 | All reads/writes scoped before data return | Not started |
 | 04 | Workflow persistence and migration plan | Add minimal additive workflow and audit entities when existing Phase07 storage insufficient | No silent loss of historical invoices; migration separately authorized | Not started |
 | 05 | Workflow command services | Create draft submission, change request, internal approval | State and history consistent after commit | Not started |
@@ -69,7 +69,7 @@
 - **Security/validation:** Do not touch runtime, database or secrets.
 - **Acceptance:** Baseline reviewed; ignore generated files; no code or migration.
 - **Tests/evidence:** Read-only repository inspection; git diff/compare only. Record commands and actual outcomes; do not claim tests that were not run.
-- **Implementation status:** Documentation and branch preparation completed; owner approval pending.
+- **Implementation status:** Documentation and branch preparation completed; owner-approved 2026-10-18.
 
 ### Step 02 — Workflow state contracts
 
@@ -79,7 +79,7 @@
 - **Security/validation:** Actor permissions and transition preconditions server-side.
 - **Acceptance:** Allowed and forbidden transitions deterministic.
 - **Tests/evidence:** Domain transition unit tests. Record commands and actual outcomes; do not claim tests that were not run.
-- **Implementation status:** Not started.
+- **Implementation status:** Pure contracts and focused unit tests committed, owner approval and macOS execution pending. No API, database or UI change.
 
 ### Step 03 — Actor authorization and ownership
 
@@ -309,3 +309,21 @@ For database introspection, first start `zsh scripts/dev-up.zsh` (which owns Aut
 ## Phase release gate
 
 After Steps01–21 have owner-approved evidence, Step22 requires separate final owner permission to merge into `main`, produce an **annotated** tag and publish a GitHub Release. Record exact commit, tag object, release URL, macOS/Ubuntu outcomes and any outstanding test caveats in this same file. No automatic completion or Phase09 start.
+
+## Step 02 — Completion record (2026-10-18)
+
+- **Implementation:** Added `InvoiceReviewState` (Draft, InReview, ChangesRequested, Approved), `InvoiceReviewAction`, pure `InvoiceReviewPolicy.CanApply`, and immutable `InvoiceReviewSnapshot` with revision/CAS proposal, actor, UTC monotonic timestamp and mandatory sanitized change-request reason. Approved is terminal for this internal review workflow; it does not mean tax authority acceptance or Phase07 finalization.
+- **Source:** `src/ArginTaxPayer.Domain/Invoices/InvoiceReviewWorkflow.cs`.
+- **Tests added:** `tests/ArginTaxPayer.Tests/Phase08InvoiceReviewContractsTests.cs` includes transitions and resubmission, replay/stale revision, invalid actor/clock/reason, and non-interference with Phase07 lifecycle and authority state.
+- **Scope guard:** Application-level actor authorization, trusted validation, CAS persistence, audit trail and API integration are intentionally postponed to approved Steps03–07. The pure review snapshot does not grant rights or independently authorize approval. Do not wire it directly to user-provided requests.
+- **Migration / database / API / UI:** None.
+- **Executed test status:** GitHub connector commits files but does not execute .NET tests. Local macOS test and review remain pending; no test result is claimed.
+- **macOS (operator):**
+  ```bash
+  git fetch origin
+  git switch phase/08-invoice-workflows-ui
+  git pull --ff-only
+  dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --filter FullyQualifiedName~Phase08InvoiceReviewContractsTests
+  dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --filter FullyQualifiedName~Phase07InvoiceLifecycleTests
+  ```
+- **Owner approval:** Pending; Step03 is blocked.
