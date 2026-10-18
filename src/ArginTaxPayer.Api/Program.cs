@@ -66,6 +66,7 @@ if (identityDevelopmentEnabled)
     builder.Services.AddScoped<CustomerCommercialOwnershipService>();
     builder.Services.AddScoped<TaxpayerScopeService>();
     builder.Services.AddScoped<InvoiceDraftApplicationService>();
+    builder.Services.AddScoped<InvoiceEntryWorkspaceService>();
     builder.Services.AddScoped<FiscalCertificateMetadataService>();
     builder.Services.AddScoped<IIdentityResourceOwnershipResolver, IdentityResourceOwnershipResolver>();
     builder.Services.AddScoped<IdentityResourceAuthorizationService>();

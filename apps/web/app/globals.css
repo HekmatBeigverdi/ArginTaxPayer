@@ -568,3 +568,50 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 .console-page .invoice-register .console-table-footer button{border:1px solid var(--argin-line,#dbe3ea);background:white;padding:5px 10px;font:inherit;font-size:12px;border-radius:7px}
 .console-page .invoice-register .console-table-footer button:disabled{opacity:.45;cursor:not-allowed}
 @media(max-width:700px){.console-page .invoice-register{padding:10px}.console-page .invoice-register__filters{width:100%}.console-page .invoice-register__filters :is(select,input){max-width:none;min-width:135px;flex:1}.console-page .invoice-register .console-table-footer{flex-wrap:wrap}}
+
+/* Phase07 refined entry modal: same control density as other Argin forms. */
+.console-page .invoice-register__dialog{width:min(1000px,calc(100vw - 24px));font-size:12px;line-height:1.5}
+.console-page .invoice-register__dialog-header{padding:9px 15px;min-height:52px}
+.console-page .invoice-register__dialog-header h2{font-size:15px;line-height:1.6}
+.console-page .invoice-register__dialog-header p{font-size:11px;line-height:1.4}
+.console-page .invoice-register__dialog-header button{min-height:29px;min-width:30px;padding:2px 7px}
+.console-page .invoice-register__steps{padding:7px 12px;gap:6px}
+.console-page .invoice-register__steps span{padding:5px 7px;font-size:11px;line-height:1.5}
+.console-page .invoice-register__dialog-body{padding:12px 16px}
+.console-page .invoice-register__dialog-body .invoice-register__fields{display:grid;grid-template-columns:140px minmax(0,1fr);gap:7px 12px;max-width:780px;align-items:center}
+.console-page .invoice-register__fields>label{font:inherit;font-size:12px;font-weight:600;line-height:1.5}
+.console-page .invoice-register__fields :is(input,select){min-height:31px;height:31px;padding:4px 8px;border-radius:6px;font:inherit;font-size:12px}
+.console-page .invoice-register__fields :is(input,select)::placeholder{font:inherit;font-size:12px}
+.console-page .invoice-register__fields .ui-persian-date__input{height:31px;min-height:31px;font-size:12px;padding-top:4px;padding-bottom:4px}
+.console-page .invoice-register__fields .persian-time-picker select{min-height:31px;height:31px;font-size:12px}
+.console-page .invoice-register__fields .persian-time-picker{justify-content:flex-start}
+.console-page .invoice-register__hint{padding:7px 10px;font-size:11px;line-height:1.7;margin:5px 0}
+.console-page .invoice-register__row-tools{display:grid;grid-template-columns:110px minmax(0,1fr);gap:6px 10px;max-width:720px;align-items:center}
+.console-page .invoice-register__row-tools :is(select,input){min-height:31px;height:31px;padding:4px 8px;font-size:12px}
+.console-page .invoice-register__row-tools label{font-size:12px}
+.console-page .invoice-register__row-heading{margin-top:8px}
+.console-page .invoice-register__row-heading h3{font-size:12px;margin:6px 0}
+.console-page .invoice-register__item{display:grid;grid-template-columns:minmax(135px,2.2fr) repeat(4,minmax(80px,1fr)) auto;gap:6px;padding:7px 0}
+.console-page .invoice-register__item strong{font-size:11px}
+.console-page .invoice-register__item label{font-size:11px;gap:3px}
+.console-page .invoice-register__item input{min-height:30px;height:30px;font-size:12px;padding:4px 6px}
+.console-page .invoice-register__dialog :is(button.identity-secondary,button.identity-primary){font:inherit;font-size:12px;min-height:30px;padding:5px 10px;border-radius:7px}
+.console-page .invoice-register__dialog-footer{padding:8px 14px;gap:6px;flex-wrap:wrap;align-items:center}
+.console-page .invoice-register__totals{gap:5px 15px;font-size:12px;max-width:560px}
+.console-page .invoice-register__totals :is(dt,dd){padding:5px 0}
+.console-page .invoice-register__restriction{margin-top:9px;padding:9px 11px;font-size:11px}
+.invoice-register__catalog-picker{display:grid;grid-template-columns:110px minmax(0,1fr);align-items:center;gap:10px;max-width:780px;margin:9px 0}
+.invoice-register__catalog-picker>label{font-size:12px;font-weight:600}
+.invoice-register__catalog-combo{position:relative;min-width:0}
+.invoice-register__catalog-combo input{display:block;width:100%;height:32px;min-height:32px;padding:5px 9px;border:1px solid #c5d4e0;border-radius:6px;font:inherit;font-size:12px;background:var(--surface,#fff);color:inherit}
+.invoice-register__catalog-options{position:absolute;inset-inline:0;top:calc(100% + 3px);z-index:5100;max-height:215px;overflow:auto;padding:4px;border:1px solid #c9d8e2;border-radius:8px;background:var(--surface,#fff);box-shadow:0 9px 22px #18374b28}
+.invoice-register__catalog-options button{display:flex;justify-content:space-between;align-items:center;gap:8px;width:100%;min-height:29px;padding:5px 8px;border:none;border-radius:5px;background:transparent;color:inherit;cursor:pointer;font:inherit;font-size:12px;text-align:right}
+.invoice-register__catalog-options button:is(:hover,.active){background:#e8f1f7}
+.invoice-register__catalog-options small{font-size:10px;opacity:.8}
+.invoice-register__catalog-options p{font-size:11px;margin:0;padding:7px}
+@media(max-width:740px){
+  .console-page .invoice-register__dialog-body .invoice-register__fields{grid-template-columns:minmax(0,1fr)}
+  .console-page .invoice-register__item{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .invoice-register__catalog-picker{grid-template-columns:minmax(0,1fr)}
+  .console-page .invoice-register__dialog-footer{justify-content:flex-start}
+}

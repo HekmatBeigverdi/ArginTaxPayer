@@ -1,12 +1,14 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { PersianDatePicker } from "../catalog/persian-date-picker";
 import { PersianTimePicker } from "../components/persian-time-picker";
+import SearchableCatalogPicker from "./searchable-catalog-picker";
 
 type Taxpayer = { id: string; displayName: string; status: number };
 type Invoice = { id: string; customerUserId: string; taxpayerId: string; revision: number;
+  kind?: "workspace"; lastCompletedStep?: number;
   state: string; subject: string; issueDateUtc: string; updatedAtUtc: string };
 type CatalogItem = { id: string; title: string; internalCode?: string };
 type CatalogPage = { items: CatalogItem[] };
@@ -16,6 +18,11 @@ type FiscalPage = { items: FiscalEntry[]; total: number };
 type Row = { key: number; productId: string; name: string; quantity: string;
   unitPrice: string; discount: string; vatRate: string };
 type Step = 0 | 1 | 2;
+type SavedEntryLine = { catalogItemId: string | null; description: string; quantity: number;
+  unitPriceRial: number; discountPerUnitRial: number; vatRatePercent: number | null };
+type SavedEntry = { id: string; customerUserId: string; taxpayerId: string;
+  revision: number; lastCompletedStep: number; issueDateUtc: string; updatedAtUtc: string;
+  buyerPartyId: string | null; type: number; pattern: number; lines: SavedEntryLine[] };
 const headings = ["سربرگ صورتحساب", "اقلام صورتحساب", "جمع‌بندی صورتحساب"] as const;
 const errorCodes: Record<number, string> = {
   400: "ورودی پیش‌نویس معتبر نیست.", 401: "نشست منقضی شده است؛ دوباره وارد شوید.",
@@ -65,6 +72,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   const [listPage, setListPage] = useState(1);
   const listPageSize = 50;
   const [modal, setModal] = useState(false);
+  const [editing, setEditing] = useState<SavedEntry | null>(null);
   const [step, setStep] = useState<Step>(0);
   const dialog = useRef<HTMLDivElement>(null);
   const openButton = useRef<HTMLButtonElement>(null);
@@ -75,7 +83,6 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   const [pattern, setPattern] = useState(1);
   const [kind, setKind] = useState<"products" | "services">("products");
   const [catalogQuery, setCatalogQuery] = useState("");
-  const [catalogCustomer, setCatalogCustomer] = useState(actorId);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
   const [catalogBusy, setCatalogBusy] = useState(false);
@@ -109,17 +116,24 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
       if (filterTaxpayer) query.set("taxpayerId", filterTaxpayer);
       query.set("page", String(listPage));
       query.set("pageSize", String(listPageSize));
-      const list = await getJson<Invoice[]>("/api/invoices/overview" + (query.size ? "?" + query : ""));
-      setInvoices(list); setError("");
+      const [list, working] = await Promise.all([
+        getJson<Invoice[]>("/api/invoices/overview?" + query),
+        getJson<SavedEntry[]>("/api/invoices/workspaces?" + query)
+      ]);
+      const items: Invoice[] = working.map(draft=>({
+        id:draft.id, customerUserId:draft.customerUserId, taxpayerId:draft.taxpayerId,
+        revision:draft.revision, state:"WorkingDraft",subject:"Original",
+        issueDateUtc:draft.issueDateUtc,updatedAtUtc:draft.updatedAtUtc,
+        lastCompletedStep:draft.lastCompletedStep,kind:"workspace"
+      }));
+      setInvoices([...items,...list].sort((a,b)=>b.updatedAtUtc.localeCompare(a.updatedAtUtc)));
+      setError("");
     } catch (e) { setInvoices([]); setError((e as Error).message); }
     finally { setLoading(false); }
   }, [filterCustomer, filterTaxpayer, listPage]);
   useEffect(() => { setDetail(null); void reload(); }, [reload]);
 
   const [customerTaxpayers, setCustomerTaxpayers] = useState<Taxpayer[]>([]);
-  const chosenTaxpayer = (isAdmin ? customerTaxpayers : taxpayers)
-    .find(t => t.id === taxpayerId);
-  const chosenBuyer = buyers.find(b => b.id === buyerId);
   const [taxpayerOwners, setTaxpayerOwners] = useState<Record<string,string>>({});
   const visibleTaxpayers = isAdmin ? customerTaxpayers : taxpayers;
 
@@ -182,16 +196,16 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   }, [modal,headerCustomer,buyerQuery]);
 
   useEffect(() => {
-    if (!modal || step !== 1) return;
+    if (!modal || step !== 1 || !headerCustomer) return;
     let live = true;
     setCatalogBusy(true);
     const query = new URLSearchParams({page:"1",pageSize:"20",query:catalogQuery});
-    getJson<CatalogPage>("/api/catalog/customers/" + catalogCustomer + "/" + kind + "?" + query)
+    getJson<CatalogPage>("/api/catalog/customers/" + headerCustomer + "/" + kind + "?" + query)
       .then(data => { if (live) setCatalog(data.items ?? []); })
       .catch(() => { if (live) setCatalog([]); })
       .finally(() => { if (live) setCatalogBusy(false); });
     return () => { live = false; };
-  }, [modal, step, kind, catalogCustomer, catalogQuery]);
+  }, [modal, step, kind, headerCustomer, catalogQuery]);
 
   useEffect(() => {
     if (!modal) return;
@@ -220,12 +234,83 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   }, [modal, busy]);
 
   function open() {
+    setEditing(null);
     setDetail(null);
     setStep(0); setDate(todayUtc()); setHour("12:00");
     setBuyerId(""); setBuyerQuery(""); setBuyerOpen(false); setInvoiceType(1); setPattern(1);
     setHeaderCustomer(isAdmin ? (filterCustomer || "") : actorId);
     setTaxpayerId(isAdmin ? "" : taxpayerId);
     setRows([]); setError(""); setNotice(""); setModal(true);
+  }
+  async function editDraft(draft: Invoice) {
+    setBusy(true); setError("");
+    try {
+      const saved = await getJson<SavedEntry>("/api/invoices/workspaces/"+draft.id);
+      setEditing(saved);
+      setHeaderCustomer(saved.customerUserId);
+      setTaxpayerId(saved.taxpayerId);
+      setDate(saved.issueDateUtc.slice(0,10));
+      setHour(saved.issueDateUtc.slice(11,16));
+      setBuyerId(saved.buyerPartyId ?? "");
+      setBuyerQuery("");
+      setBuyerOpen(false);
+      setInvoiceType(saved.type); setPattern(saved.pattern);
+      setRows(saved.lines.map((line,index)=>({
+        key:index+1,productId:line.catalogItemId ?? "",
+        name:line.description,quantity:String(line.quantity),
+        unitPrice:String(line.unitPriceRial),discount:String(line.discountPerUnitRial),
+        vatRate:String(line.vatRatePercent ?? "")
+      })));
+      nextKey.current = saved.lines.length;
+      setStep(Math.min(2,Math.max(0,saved.lastCompletedStep)) as Step);
+      setDetail(null); setModal(true);
+    } catch(e) {setError((e as Error).message);}
+    finally {setBusy(false);}
+  }
+  async function saveWorkspace(completeStep: Step, exit: boolean, navigateToBuyers = false) {
+    if (busy || !taxpayerId || !headerCustomer) {
+      setError("ابتدا مشتری و مؤدی صادرکننده را انتخاب کنید."); return;
+    }
+    const issued = new Date(date+"T"+hour+":00.000Z");
+    if(Number.isNaN(issued.valueOf()) || issued.toISOString().slice(0,10)!==date) {
+      setError("تاریخ یا ساعت صدور معتبر نیست.");return;
+    }
+    if(rows.some(r=>!r.name.trim() || !Number.isFinite(Number(r.quantity)) ||
+        Number(r.quantity)<0 || Number(r.unitPrice)<0 ||
+        Number(r.discount)<0 || Number(r.discount)>Number(r.unitPrice) ||
+        Number(r.vatRate)<0 || Number(r.vatRate)>=1000)) {
+      setError("شرح یا مقادیر یکی از ردیف‌ها معتبر نیست.");return;
+    }
+    const payload = {
+      id:editing?.id ?? null,
+      taxpayerId, expectedRevision:editing?.revision ?? 0,
+      lastCompletedStep:completeStep, issueDateUtc:issued.toISOString(),
+      buyerPartyId:buyerId || null, type:invoiceType,pattern,
+      lines:rows.map(r=>({
+        catalogItemId:r.productId || null,description:r.name.trim(),
+        quantity:Number(r.quantity),unitPriceRial:Number(r.unitPrice),
+        discountPerUnitRial:Number(r.discount),
+        vatRatePercent:r.vatRate==="" ? null : Number(r.vatRate)
+      }))
+    };
+    setBusy(true);setError("");
+    try {
+      const saved = await getJson<SavedEntry>("/api/invoices/workspaces",{
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body:JSON.stringify(payload)
+      });
+      setEditing(saved);
+      setNotice("پیش‌نویس با نسخه "+saved.revision+" ذخیره شد. برای ادامه از «ویرایش» استفاده کنید.");
+      if(exit || navigateToBuyers) setModal(false);
+      else setStep(completeStep);
+      await reload();
+      if(navigateToBuyers) window.location.assign("/parties");
+    } catch(e) {setError((e as Error).message);}
+    finally {setBusy(false);}
+  }
+  function nextStep() {
+    if(step===0 && !taxpayerId){setError("مؤدی صادرکننده را انتخاب کنید.");return;}
+    if(step<2) void saveWorkspace((step+1) as Step,false);
   }
   function close() { if (!busy) setModal(false); }
   function addRow(item?: CatalogItem) {
@@ -250,32 +335,6 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   }, [rows]);
   const filtered = invoices.filter(row =>
     (row.id + " " + row.state + " " + row.subject).toLowerCase().includes(search.toLowerCase()));
-  const persistableHeader = invoiceType === 1 && pattern === 1;
-
-  async function saveHeader(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (step !== 2 || busy || !taxpayerId || !persistableHeader || !chosenTaxpayer || !buyerId || !chosenBuyer) return;
-    const issued = new Date(date + "T" + hour + ":00.000Z");
-    if (!date || !/^([01]\d|2[0-3]):[0-5]\d$/.test(hour) ||
-        Number.isNaN(issued.getTime()) || issued.toISOString().slice(0,10) !== date) {
-      setError("تاریخ یا ساعت معتبر انتخاب کنید."); return;
-    }
-    setBusy(true); setError("");
-    try {
-      const created = await getJson<Invoice>("/api/invoices/" + taxpayerId, {
-        method:"POST", headers:{"Content-Type":"application/json"},
-        body: JSON.stringify({
-          issueDateUtc: issued.toISOString(),
-          sellerDisplayName:chosenTaxpayer.displayName,
-          buyerDisplayName:chosenBuyer.displayName, buyerPartyId:buyerId
-        })
-      });
-      setModal(false); setDetail(created);
-      setNotice("فقط سربرگ اولیه ذخیره شد؛ ردیف‌ها و محاسبات صرفاً پیش‌نمایش بوده و ذخیره نشده‌اند.");
-      await reload();
-    } catch(e) { setError((e as Error).message); }
-    finally { setBusy(false); }
-  }
 
   return <div className="invoice-entry invoice-register" dir="rtl" lang="fa">
     <div className="invoice-register__toolbar">
@@ -322,10 +381,12 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
               accounts.find(a=>a.customerUserId===item.customerUserId)?.personName || "حساب مشتری"}</td>}
             <td>{taxpayers.find(t=>t.id===item.taxpayerId)?.displayName || "مؤدی ثبت‌شده"}</td>
             <td>{toFaDate(item.issueDateUtc)}</td><td>{item.subject}</td>
-            <td>{item.state === "Draft" ? "پیش‌نویس" : item.state}</td>
+            <td>{item.state === "WorkingDraft" ? "در حال تکمیل" : item.state === "Draft" ? "پیش‌نویس" : item.state}</td>
             <td>{item.revision}</td>
-            <td><button type="button" className="console-row-action"
-              onClick={() => setDetail(item)}>مشاهده</button></td>
+            <td>{item.kind === "workspace" ? <button type="button" className="console-row-action"
+              onClick={() => void editDraft(item)}>ویرایش و ادامه</button> :
+              <button type="button" className="console-row-action"
+                onClick={() => setDetail(item)}>مشاهده</button>}</td>
           </tr>)}</tbody>
       </table>
     </div>
@@ -366,7 +427,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
       <div ref={dialog} tabIndex={-1} className="invoice-register__dialog"
         role="dialog" aria-modal="true" aria-labelledby="invoice-dialog-title">
         <header className="invoice-register__dialog-header">
-          <div><h2 id="invoice-dialog-title">افزودن صورتحساب</h2>
+          <div><h2 id="invoice-dialog-title">{editing ? "ویرایش و ادامه پیش‌نویس" : "افزودن صورتحساب"}</h2>
             <p>پیش‌نویس داخلی — بدون ارسال مالیاتی</p></div>
           <button className="identity-secondary" type="button" aria-label="بستن پنجره"
             disabled={busy} onClick={close}>×</button>
@@ -376,7 +437,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
             aria-current={step === index ? "step" : undefined}
             className={step === index ? "active" : ""}>{index+1}. {title}</span>)}
         </nav>
-        <form className="invoice-register__form" onSubmit={saveHeader}>
+        <div className="invoice-register__form">
           <div className="invoice-register__dialog-body">
             {error && <p role="alert" className="form-error">{error}</p>}
             {step === 0 && <section aria-label="سربرگ صورتحساب" className="invoice-register__fields">
@@ -396,10 +457,6 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
                 <option value="">انتخاب مؤدی فروشنده</option>
                 {visibleTaxpayers.map(t => <option key={t.id} value={t.id}>{t.displayName}</option>)}
               </select>
-              <label>فروشنده</label>
-              <output className="invoice-register__seller">
-                {chosenTaxpayer?.displayName || "با انتخاب مؤدی تعیین می‌شود"}
-              </output>
               <label htmlFor="invoice-buyer-search">خریدار ثبت‌شده</label>
               <div className="invoice-register__buyer">
                 <input id="invoice-buyer-search" type="search" value={buyerQuery}
@@ -453,36 +510,22 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
                 onChange={e => setPattern(Number(e.target.value))}>
                 {patterns[invoiceType].map(p => <option key={p.code} value={p.code}>{p.title}</option>)}
               </select>
-              <p className="invoice-register__hint">نوع/الگو صرفاً پیش‌نمایش هستند؛ API فعلی فقط سربرگ اولیه نوع اول، الگوی فروش را می‌پذیرد.</p>
+              <p className="invoice-register__hint">اطلاعات مرحله‌ای در پیش‌نویس خصوصی ذخیره می‌شوند؛ ثبت خریدار را می‌توانید بعداً تکمیل کنید. این پیش‌نویس مجوز ارسال مالیاتی ندارد.</p>
             </section>}
             {step === 1 && <section aria-label="اقلام صورتحساب">
-              <p className="invoice-register__hint">ردیف‌ها صرفاً در حافظه این پنجره آماده می‌شوند؛ هنوز API ثبت ردیف وجود ندارد.</p>
+              <p className="invoice-register__hint">ردیف‌های این مرحله در پیش‌نویس قابل‌ویرایش ذخیره می‌شوند؛ پیش از صدور مالیاتی به اعتبارسنجی رسمی نیاز دارند.</p>
               <div className="invoice-register__row-tools">
-                {accounts.length > 0 && <>
-                  <label htmlFor="invoice-catalog-owner">کاتالوگ مشتری</label>
-                  <select id="invoice-catalog-owner" value={catalogCustomer}
-                    onChange={e => {setCatalogCustomer(e.target.value);setCatalog([]);}}>
-                    <option value={actorId}>حساب فعلی</option>
-                    {accounts.filter(a => a.customerUserId !== actorId).map(a =>
-                      <option key={a.customerUserId} value={a.customerUserId}>
-                        {a.companyName || a.personName || "مشتری مجاز"}
-                      </option>)}
-                  </select>
-                </>}
                 <label htmlFor="invoice-kind">نوع قلم</label>
                 <select id="invoice-kind" value={kind}
                   onChange={e => setKind(e.target.value as "products"|"services")}>
                   <option value="products">کالا</option><option value="services">خدمت</option>
                 </select>
-                <label htmlFor="invoice-catalog-search">جست‌وجوی اقلام</label>
-                <input id="invoice-catalog-search" type="search" value={catalogQuery}
-                  onChange={e => setCatalogQuery(e.target.value)}/>
               </div>
-              <div className="invoice-register__catalog">
-                {catalogBusy ? "در حال بارگذاری…" : catalog.length === 0 ?
-                  "قلمی در کاتالوگ مجاز یافت نشد." : catalog.map(item =>
-                    <button key={item.id} type="button" className="identity-secondary"
-                      onClick={() => addRow(item)}>+ {item.title}</button>)}
+              <div className="invoice-register__catalog-picker">
+                <label htmlFor="invoice-catalog-search">انتخاب کالا / خدمت</label>
+                <SearchableCatalogPicker items={catalog} value={catalogQuery}
+                  onQueryChange={setCatalogQuery} loading={catalogBusy}
+                  onChoose={addRow}/>
               </div>
               <div className="invoice-register__row-heading">
                 <h3>ردیف‌های صورتحساب ({rows.length})</h3>
@@ -508,7 +551,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
               <p className="field-hint">برای مدیریت کاتالوگ به <Link href="/catalog">کالاها و خدمات</Link> مراجعه کنید.</p>
             </section>}
             {step === 2 && <section aria-label="جمع‌بندی صورتحساب">
-              <p className="invoice-register__hint">مبالغ زیر فقط جمع‌بندی نمایشی ردیف‌های واردشده است؛ مالیات واقعی باید با قوانین و نرخ معتبر سرور محاسبه شود.</p>
+              <p className="invoice-register__hint">جمع‌بندی موقت برای ویرایش بعدی ذخیره می‌شود. ارزش افزوده و مبلغ قانونی نهایی باید توسط Domain تأیید شوند.</p>
               <dl className="invoice-register__totals">
                 <dt>مبلغ ناخالص</dt><dd>{fmt(calculated.base)} ریال</dd>
                 <dt>تخفیف</dt><dd>{fmt(calculated.discount)} ریال</dd>
@@ -516,27 +559,31 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
                 <dt>جمع نمایشی</dt><dd><strong>{fmt(calculated.total)} ریال</strong></dd>
               </dl>
               <div className="invoice-register__restriction">
-                <strong>محدوده ثبت در نسخه فعلی</strong>
-                <p>با تأیید نهایی فقط سربرگ اولیه (تاریخ، نام فروشنده و خریدار) ذخیره می‌شود.
-                  {rows.length > 0 ? " ردیف‌های آماده‌شده و فوتر ذخیره نخواهند شد." : " برای این پیش‌نویس هنوز ردیفی ثبت نشده است."}
-                  نوع/الگو و نرخ مالیات نیز ذخیره یا تأیید نمی‌شوند.</p>
-                {!persistableHeader && <p role="alert">برای ذخیره سربرگ اولیه، نوع اول و الگوی فروش را انتخاب کنید.</p>}
+                <strong>ذخیره پیش‌نویس داخلی</strong>
+                <p>سربرگ، اقلام و فوتر نمایشی به‌عنوان پیش‌نویس قابل بازیابی ذخیره می‌شوند.
+                این اطلاعات هنوز صورتحساب نهایی نیستند و بدون اعتبارسنجی مالیاتی ارسال نمی‌شوند.</p>}
               </div>
             </section>}
           </div>
           <footer className="invoice-register__dialog-footer">
+            <button type="button" className="identity-secondary" disabled={busy || !taxpayerId}
+              onClick={() => void saveWorkspace(step,true)}>ذخیره و ادامه بعداً</button>
+            {step===0 && !buyerId && <button type="button" className="identity-secondary"
+              disabled={busy || !taxpayerId} onClick={() => void saveWorkspace(0,true,true)}>
+                ذخیره و ثبت خریدار</button>}
             <button type="button" className="identity-secondary" onClick={close}
               disabled={busy}>انصراف</button>
             {step > 0 && <button type="button" className="identity-secondary"
               onClick={() => {setError("");setStep((step-1) as Step);}} disabled={busy}>مرحله قبل</button>}
             {step < 2 ? <button type="button" className="identity-primary"
-              disabled={step === 0 && (!taxpayerId || !buyerId || !headerCustomer || !date)}
-              onClick={() => {setError("");setStep((step+1) as Step);}}>مرحله بعد</button> :
-              <button type="submit" className="identity-primary"
-                disabled={busy || !persistableHeader || !taxpayerId || !buyerId}>
-                {busy ? "در حال ثبت…" : "ذخیره فقط سربرگ پیش‌نویس"}</button>}
+              disabled={busy || step === 0 && (!taxpayerId || !headerCustomer || !date)}
+              onClick={nextStep}>مرحله بعد</button> :
+              <button type="button" className="identity-primary"
+                disabled={busy || !taxpayerId}
+                onClick={() => void saveWorkspace(2,true)}>
+                {busy ? "در حال ذخیره…" : "ذخیره مراحل و خروج"}</button>}
           </footer>
-        </form>
+        </div>
       </div>
     </div>}
   </div>;

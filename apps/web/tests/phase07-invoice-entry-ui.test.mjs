@@ -41,15 +41,18 @@ test("wizard has header, repeatable item rows and totals sections", () => {
   assert.match(workspace, /calculated\.total/);
 });
 
-test("draft remains honest about persisted fields and fiscal submission", () => {
-  assert.match(workspace, /issueDateUtc: issued\.toISOString\(\)/);
-  assert.match(workspace, /sellerDisplayName:chosenTaxpayer\.displayName/);
-  assert.match(workspace, /buyerDisplayName:chosenBuyer\.displayName/);
-  assert.match(workspace, /buyerPartyId:buyerId/);
-  assert.match(workspace, /ذخیره فقط سربرگ پیش‌نویس/);
-  assert.match(workspace, /ردیف‌های آماده‌شده و فوتر ذخیره نخواهند شد/);
+test("wizard persists editable private drafts and supports later resumption", () => {
+  assert.match(workspace, /saveWorkspace\(/);
+  assert.match(workspace, /getJson<SavedEntry>/);
+  assert.match(workspace, /\/api\/invoices\/workspaces/);
+  assert.match(workspace, /expectedRevision:editing\?\.revision/);
+  assert.match(workspace, /ویرایش و ادامه/);
+  assert.match(workspace, /ذخیره و ادامه بعداً/);
+  assert.match(workspace, /ذخیره و ثبت خریدار/);
+  assert.match(workspace, /lastCompletedStep:completeStep/);
+  assert.match(workspace, /buyerPartyId:buyerId \|\| null/);
+  assert.match(workspace, /lines:rows\.map/);
   assert.match(workspace, /بدون ارسال مالیاتی/);
-  assert.doesNotMatch(workspace, /fetch\(["']http/);
   assert.doesNotMatch(workspace, /localStorage|document\.cookie/);
 });
 
@@ -86,6 +89,7 @@ test("partner dashboard defaults to all authorized customers, then customer and 
   assert.match(workspace, /filterCustomer/);
   assert.match(workspace, /filterTaxpayer/);
   assert.match(workspace, /\/api\/invoices\/overview/);
+  assert.match(workspace, /\/api\/invoices\/workspaces/);
   assert.match(api, /"overview"/);
 });
 test("shared Persian twenty-four-hour time control is available", () => {
@@ -119,4 +123,22 @@ test("invoice list reuses the shared dense console table and pagination layout",
   assert.match(workspace, /console-table-footer/);
   assert.match(workspace, /console-row-action/);
   assert.match(css, /\.console-page \.invoice-register \.console-table/);
+});
+
+test("catalog uses searchable combobox, not a list of product cards", () => {
+  const picker = read("../app/invoices/searchable-catalog-picker.tsx");
+  assert.match(workspace, /<SearchableCatalogPicker/);
+  assert.match(picker, /role="combobox"/);
+  assert.match(picker, /role="listbox"/);
+  assert.match(picker, /onQueryChange/);
+  assert.match(picker, /ArrowDown/);
+  assert.match(picker, /ArrowUp/);
+  assert.doesNotMatch(workspace, /invoice-register__catalog">/);
+});
+
+test("shared console density applies within modal and rows", () => {
+  assert.match(css, /\.console-page \.invoice-register__dialog-body/);
+  assert.match(css, /\.console-page \.invoice-register__item/);
+  assert.match(css, /\.console-page \.invoice-register__fields/);
+  assert.match(css, /\.invoice-register__catalog-options/);
 });

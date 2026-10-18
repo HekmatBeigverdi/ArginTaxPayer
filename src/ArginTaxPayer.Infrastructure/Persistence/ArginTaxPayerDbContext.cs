@@ -17,6 +17,7 @@ namespace ArginTaxPayer.Infrastructure.Persistence;
 public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbContext> options)
     : DbContext(options)
 {
+    public DbSet<InvoiceEntryWorkspace> InvoiceEntryWorkspaces => Set<InvoiceEntryWorkspace>();
     public DbSet<StoredInvoice> InvoiceDocuments => Set<StoredInvoice>();
     public DbSet<StoredInvoiceRevision> InvoiceDocumentRevisions => Set<StoredInvoiceRevision>();
     public DbSet<StoredInvoiceOperation> InvoiceOperations => Set<StoredInvoiceOperation>();
@@ -60,6 +61,7 @@ public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbConte
         base.OnModelCreating(modelBuilder);
         CatalogModelConfiguration.Apply(modelBuilder);
         InvoicePersistenceModelConfiguration.Apply(modelBuilder);
+        InvoiceEntryWorkspaceConfiguration.Apply(modelBuilder);
 
 
         var memberships = modelBuilder.Entity<CustomerTaxpayerMembership>();

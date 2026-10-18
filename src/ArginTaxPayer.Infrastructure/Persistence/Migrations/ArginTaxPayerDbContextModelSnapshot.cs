@@ -2664,6 +2664,32 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
                         .HasConstraintName("fk_parties_owner_customer");
                 });
 
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Invoices.InvoiceEntryWorkspace", b =>
+                {
+                    b.Property<Guid>("Id").HasColumnType("uuid").HasColumnName("id");
+                    b.Property<Guid>("CustomerUserId").HasColumnType("uuid").HasColumnName("customer_user_id");
+                    b.Property<Guid>("TaxpayerId").HasColumnType("uuid").HasColumnName("taxpayer_id");
+                    b.Property<long>("Revision").IsConcurrencyToken().HasColumnType("bigint").HasColumnName("revision");
+                    b.Property<int>("LastCompletedStep").HasColumnType("integer").HasColumnName("last_completed_step");
+                    b.Property<DateTime>("IssueDateUtc").HasColumnType("timestamp with time zone").HasColumnName("issue_date_utc");
+                    b.Property<DateTime>("UpdatedAtUtc").HasColumnType("timestamp with time zone").HasColumnName("updated_at_utc");
+                    b.Property<string>("DraftJson").IsRequired().HasColumnType("jsonb").HasColumnName("draft_json");
+                    b.HasKey("Id");
+                    b.HasIndex("CustomerUserId","TaxpayerId","UpdatedAtUtc").HasDatabaseName("ix_invoice_entry_workspaces_scope");
+                    b.ToTable("invoice_entry_workspaces", t =>
+                    {
+                        t.HasCheckConstraint("ck_invoice_entry_workspace_revision", "revision > 0");
+                        t.HasCheckConstraint("ck_invoice_entry_workspace_step", "last_completed_step IN (0,1,2)");
+                    });
+                });
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Invoices.InvoiceEntryWorkspace", b =>
+                {
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser", null)
+                        .WithMany().HasForeignKey("CustomerUserId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Taxpayers.TaxpayerProfile", null)
+                        .WithMany().HasForeignKey("TaxpayerId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                });
+
 #pragma warning restore 612, 618
         }
     }

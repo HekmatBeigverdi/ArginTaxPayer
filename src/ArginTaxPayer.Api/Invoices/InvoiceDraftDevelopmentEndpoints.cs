@@ -13,6 +13,36 @@ public static class InvoiceDraftDevelopmentEndpoints
     public static IEndpointRouteBuilder MapInvoiceDraftDevelopmentEndpoints(
         this IEndpointRouteBuilder app)
     {
+        app.MapGet("/api/dev/invoice-workspaces", async (
+            Guid? customerId, Guid? taxpayerId, int? page, int? pageSize,
+            HttpContext http, InvoiceEntryWorkspaceService service, CancellationToken ct) =>
+        {
+            if (!Local(http)) return Results.NotFound();
+            var result = await service.ListAsync(Token(http),customerId,taxpayerId,
+                page ?? 1,pageSize ?? 50,ct);
+            return result.Decision == InvoiceApiDecision.Success
+                ? Results.Ok(result.Drafts) : Error(result.Decision);
+        }).WithTags("Resumable Invoice Drafts (Development)");
+
+        app.MapGet("/api/dev/invoice-workspaces/{id:guid}", async (
+            Guid id,HttpContext http,InvoiceEntryWorkspaceService service,CancellationToken ct) =>
+        {
+            if (!Local(http)) return Results.NotFound();
+            var result = await service.GetAsync(Token(http),id,ct);
+            return result.Decision == InvoiceApiDecision.Success
+                ? Results.Ok(result.Draft) : Error(result.Decision);
+        }).WithTags("Resumable Invoice Drafts (Development)");
+
+        app.MapPost("/api/dev/invoice-workspaces", async (
+            [FromBody] SaveInvoiceEntryRequest request,
+            HttpContext http,InvoiceEntryWorkspaceService service,CancellationToken ct) =>
+        {
+            if (!Local(http)) return Results.NotFound();
+            var result = await service.SaveAsync(Token(http),request,ct);
+            return result.Decision == InvoiceApiDecision.Success
+                ? Results.Ok(result.Draft) : Error(result.Decision);
+        }).WithTags("Resumable Invoice Drafts (Development)");
+
         app.MapGet("/api/dev/invoices", async (Guid? customerId, Guid? taxpayerId,
             int? page, int? pageSize,
             HttpContext http, InvoiceDraftApplicationService service, CancellationToken ct) =>

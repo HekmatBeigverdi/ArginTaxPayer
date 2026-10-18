@@ -6,6 +6,13 @@ export const dynamic = "force-dynamic";
 type Context = { params: Promise<{ segments: string[] }> };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function target(segments: string[], method: "GET" | "POST"): string | null {
+  if (segments[0] === "workspaces") {
+    if (segments.length === 1 && (method === "GET" || method === "POST"))
+      return "/api/dev/invoice-workspaces";
+    if (segments.length === 2 && method === "GET" && uuid.test(segments[1]))
+      return "/api/dev/invoice-workspaces/" + segments[1];
+    return null;
+  }
   if (segments.length === 1 && segments[0] === "overview" && method === "GET")
     return "/api/dev/invoices";
   if (segments.length < 1 || !uuid.test(segments[0])) return null;
@@ -36,12 +43,22 @@ async function proxy(request: NextRequest, context: Context, method: "GET" | "PO
       return error(415, "json_required");
     try {
       body = await request.text();
-      if (!body || body.length > 2048) return error(400, "invalid_payload");
+      if (!body || body.length > (segments[0] === "workspaces" ? 120000 : 2048)) return error(400, "invalid_payload");
       const parsed: unknown = JSON.parse(body);
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
         return error(400, "invalid_payload");
       const data = parsed as Record<string, unknown>;
-      if (Object.keys(data).some(k => !["issueDateUtc", "sellerDisplayName", "buyerDisplayName", "buyerPartyId"].includes(k)) ||
+      if (segments[0] === "workspaces") {
+        const permitted = ["id","taxpayerId","expectedRevision","lastCompletedStep",
+          "issueDateUtc","buyerPartyId","type","pattern","lines"];
+        if (Object.keys(data).some(k=>!permitted.includes(k)) ||
+            typeof data.taxpayerId !== "string" || !uuid.test(data.taxpayerId) ||
+            typeof data.issueDateUtc !== "string" || !Array.isArray(data.lines) ||
+            data.lines.length > 150 || typeof data.expectedRevision !== "number" ||
+            typeof data.lastCompletedStep !== "number" ||
+            (data.id != null && (typeof data.id !== "string" || !uuid.test(data.id))))
+          return error(400,"unsupported_invoice_fields");
+      } else if (Object.keys(data).some(k => !["issueDateUtc", "sellerDisplayName", "buyerDisplayName", "buyerPartyId"].includes(k)) ||
           typeof data.issueDateUtc !== "string" ||
           typeof data.sellerDisplayName !== "string" ||
           (data.buyerDisplayName !== undefined && data.buyerDisplayName !== null &&
@@ -53,7 +70,7 @@ async function proxy(request: NextRequest, context: Context, method: "GET" | "PO
   }
   try {
     const filtered = new URLSearchParams();
-    if (segments.length === 1 && segments[0] === "overview") {
+    if (segments.length === 1 && ["overview","workspaces"].includes(segments[0])) {
       for (const key of ["customerId", "taxpayerId", "page", "pageSize"]) {
         const value = request.nextUrl.searchParams.get(key);
         if (value && (key === "page" || key === "pageSize" ? /^[1-9]\d{0,5}$/.test(value) : uuid.test(value))) filtered.set(key, value);
