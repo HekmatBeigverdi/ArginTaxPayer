@@ -514,3 +514,31 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
   .invoice-register__dialog{max-height:calc(100dvh - 10px)}
   .invoice-register__dialog-body{padding:12px}
 }
+
+/* Phase07 Step20 follow-up: consistent Persian typography in all invoice fields. */
+.invoice-register :is(input,select,textarea,button,option,output),
+.invoice-register__dialog :is(input,select,textarea,button,option,output),
+.persian-time-picker :is(select,option){
+  font-family:inherit!important;
+  font-size:inherit;
+  font-weight:inherit;
+}
+.invoice-register :is(input,select,textarea)::placeholder{font-family:inherit;opacity:.8}
+.invoice-register__seller{display:block;width:100%;min-height:36px;padding:8px 12px;background:#f1f5f9;border:1px solid #c5d4e0;border-radius:7px;line-height:1.5}
+.invoice-register__buyer{display:grid;grid-template-columns:1fr;gap:6px;min-width:0}
+.invoice-register__buyer select{width:100%;min-width:0}
+.invoice-register__buyer small{color:#5c7184;font-size:11px}
+.persian-time-picker{display:flex;align-items:center;direction:ltr;justify-content:flex-end;gap:8px;min-width:0}
+.persian-time-picker select{width:75px;min-height:36px;border:1px solid #c5d4e0;background:var(--surface,#fff);color:inherit;border-radius:7px;padding:5px 8px;text-align:center;direction:rtl;font-variant-numeric:tabular-nums}
+.persian-time-picker span{font-weight:700}
+.persian-time-picker small{color:#5a7181;font-size:11px;min-width:34px;text-align:center}
+.invoice-register__fields .persian-time-picker select{width:75px;min-width:75px}
+
+/* Shared Argin control typography: browser native inputs/selects must use the
+   same app font as labels (including Persian text within dropdown options). */
+.argin-console :is(input,select,textarea,option,button) {
+  font-family:inherit;
+}
+.argin-console :is(input,textarea)::placeholder {
+  font-family:inherit;
+}

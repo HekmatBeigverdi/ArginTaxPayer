@@ -16,7 +16,8 @@ public sealed class FiscalParticipantDirectoryService(
     ArginTaxPayerDbContext db, IdentityAuthorizationService identity)
 {
     public async Task<FiscalParticipantPage> ListAsync(string? bearer, int page, int pageSize,
-        string? type, int? kind, string? query, CancellationToken ct = default)
+        string? type, int? kind, string? query, CancellationToken ct = default,
+        Guid? customerId = null)
     {
         var actor = await identity.CurrentUserIdAsync(bearer, ct);
         if (actor is null)
@@ -50,7 +51,8 @@ public sealed class FiscalParticipantDirectoryService(
         var buyers =
             from link in db.CustomerPartyLinks.AsNoTracking()
             join party in db.Parties.AsNoTracking() on link.PartyId equals party.Id
-            where link.UnlinkedAtUtc == null && allowedCustomers.Contains(link.CustomerUserId)
+            where link.UnlinkedAtUtc == null && allowedCustomers.Contains(link.CustomerUserId) &&
+                (!customerId.HasValue || link.CustomerUserId == customerId.Value)
             select new
             {
                 party.Id, link.CustomerUserId, Type = "buyer", Kind = (int)party.Kind,
@@ -60,7 +62,8 @@ public sealed class FiscalParticipantDirectoryService(
 
         var sellers = db.TaxpayerProfiles.AsNoTracking()
             .Where(p => p.CustomerUserId.HasValue &&
-                allowedCustomers.Contains(p.CustomerUserId.Value))
+                allowedCustomers.Contains(p.CustomerUserId.Value) &&
+                (!customerId.HasValue || p.CustomerUserId == customerId.Value))
             .Select(p => new
             {
                 p.Id, CustomerUserId = p.CustomerUserId!.Value, Type = "taxpayer",

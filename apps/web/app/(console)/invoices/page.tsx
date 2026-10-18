@@ -15,6 +15,6 @@ export default async function InvoicesPage() {
         <p>ایجاد و مشاهده پیش‌نویس، آماده‌سازی اقلام و الگوی صورتحساب</p>
       </div>
     </div>
-    <InvoiceEntryWorkspace actorId={actor.userId} />
+    <InvoiceEntryWorkspace actorId={actor.userId} isAdmin={actor.roles.includes("Level1") || actor.roles.includes("Level2")} />
   </div>;
 }

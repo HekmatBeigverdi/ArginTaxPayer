@@ -13,6 +13,15 @@ public static class InvoiceDraftDevelopmentEndpoints
     public static IEndpointRouteBuilder MapInvoiceDraftDevelopmentEndpoints(
         this IEndpointRouteBuilder app)
     {
+        app.MapGet("/api/dev/invoices", async (Guid? customerId, Guid? taxpayerId,
+            HttpContext http, InvoiceDraftApplicationService service, CancellationToken ct) =>
+        {
+            if (!Local(http)) return Results.NotFound();
+            var result = await service.ListVisibleAsync(Token(http), customerId, taxpayerId, ct);
+            return result.Decision == InvoiceApiDecision.Success
+                ? Results.Ok(result.Data) : Error(result.Decision);
+        }).WithTags("Invoice Drafts (Development)");
+
         var group = app.MapGroup("/api/dev/taxpayers/{taxpayerId:guid}/invoices")
             .WithTags("Invoice Drafts (Development)");
 

@@ -11,7 +11,7 @@ public static class FiscalParticipantDirectoryEndpoints
     {
         app.MapGet("/api/dev/fiscal-participants", async (
             HttpContext http, int? page, int? pageSize, string? type, int? kind,
-            string? query, FiscalParticipantDirectoryService service, CancellationToken ct) =>
+            string? query, Guid? customerId, FiscalParticipantDirectoryService service, CancellationToken ct) =>
         {
             var ip = http.Connection.RemoteIpAddress;
             if (ip is null || !(IPAddress.IsLoopback(ip) ||
@@ -21,7 +21,7 @@ public static class FiscalParticipantDirectoryEndpoints
             var token = auth.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
                 ? auth[7..].Trim() : null;
             var result = await service.ListAsync(token, page ?? 1, pageSize ?? 20,
-                type, kind, query, ct);
+                type, kind, query, ct, customerId);
             return result.Decision switch
             {
                 PartyDetailsDecision.Success => Results.Ok(result),

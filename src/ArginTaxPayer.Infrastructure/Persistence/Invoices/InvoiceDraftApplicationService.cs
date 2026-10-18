@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using ArginTaxPayer.Domain.Invoices;
 using ArginTaxPayer.Infrastructure.Persistence.Taxpayers;
+using ArginTaxPayer.Infrastructure.Persistence.Parties;
 using Microsoft.EntityFrameworkCore;
 
 namespace ArginTaxPayer.Infrastructure.Persistence.Invoices;
@@ -13,7 +14,7 @@ public enum InvoiceApiDecision
 }
 
 public sealed record CreateInvoiceDraftRequest(
-    DateTime IssueDateUtc, string SellerDisplayName, string? BuyerDisplayName);
+    DateTime IssueDateUtc, string SellerDisplayName, string? BuyerDisplayName, Guid? BuyerPartyId = null);
 
 public sealed record InvoiceDraftView(
     Guid Id, Guid CustomerUserId, Guid TaxpayerId,
@@ -60,9 +61,33 @@ public sealed class InvoiceDraftApplicationService(
         if (access.Decision != InvoiceApiDecision.Success)
             return new(access.Decision);
 
-        if (input is null || input.IssueDateUtc.Kind != DateTimeKind.Utc ||
+        if (input is null || input.BuyerPartyId is null ||
+            input.BuyerPartyId == Guid.Empty || input.IssueDateUtc.Kind != DateTimeKind.Utc ||
             !ValidName(input.SellerDisplayName) ||
             input.BuyerDisplayName is not null && !ValidName(input.BuyerDisplayName))
+            return new(InvoiceApiDecision.Invalid);
+
+        var seller = await db.TaxpayerProfiles.AsNoTracking()
+            .Where(x => x.Id == taxpayerId && x.CustomerUserId == access.CustomerId &&
+                x.Status == ArginTaxPayer.Domain.Taxpayers.TaxpayerStatus.Active)
+            .Select(x => x.DisplayName).SingleOrDefaultAsync(ct);
+        if (seller is null) return new(InvoiceApiDecision.NotFound);
+        // Seller is always the selected taxpayer. It must never be edited
+        // independently of its fiscal taxpayer identity.
+        if (input.SellerDisplayName != seller) return new(InvoiceApiDecision.Invalid);
+        string? buyer = null;
+        if (input.BuyerPartyId is { } buyerId && buyerId != Guid.Empty)
+        {
+            buyer = await (from link in db.CustomerPartyLinks.AsNoTracking()
+                join party in db.Parties.AsNoTracking() on link.PartyId equals party.Id
+                where link.CustomerUserId == access.CustomerId &&
+                    link.UnlinkedAtUtc == null && party.Id == buyerId &&
+                    party.Status == PartyStatus.Active
+                select party.DisplayName).SingleOrDefaultAsync(ct);
+            if (buyer is null || buyer != input.BuyerDisplayName)
+                return new(InvoiceApiDecision.Invalid);
+        }
+        else if (input.BuyerDisplayName is not null)
             return new(InvoiceApiDecision.Invalid);
 
         var now = DateTime.UtcNow;
@@ -72,9 +97,9 @@ public sealed class InvoiceDraftApplicationService(
         var aggregate = InvoiceAggregate.CreateDraft(
             id, access.CustomerId, taxpayerId, null, now,
             input.IssueDateUtc,
-            new InvoicePartySnapshot(null, input.SellerDisplayName),
-            input.BuyerDisplayName is null ? null :
-                new InvoicePartySnapshot(null, input.BuyerDisplayName));
+            new InvoicePartySnapshot(null, seller),
+            buyer is null ? null :
+                new InvoicePartySnapshot(null, buyer));
 
         var snapshot = JsonSerializer.Serialize(new
         {
@@ -86,6 +111,7 @@ public sealed class InvoiceDraftApplicationService(
             subject = (int)aggregate.SubjectSelection.Subject,
             issueDateUtc = aggregate.IssueDateUtc,
             seller = aggregate.Seller.DisplayName,
+            buyerPartyId = input.BuyerPartyId,
             buyer = aggregate.Buyer?.DisplayName,
             lines = Array.Empty<object>()
         });
@@ -134,6 +160,33 @@ public sealed class InvoiceDraftApplicationService(
             .Take(100)
             .ToArrayAsync(ct);
         return (InvoiceApiDecision.Success, invoices.Select(View).ToArray());
+    }
+
+    /// <summary>Read all visible invoices, optionally scoped to one customer or taxpayer.</summary>
+    public async Task<(InvoiceApiDecision Decision, InvoiceDraftView[] Data)> ListVisibleAsync(
+        string? token, Guid? customerId, Guid? taxpayerId,
+        CancellationToken ct = default)
+    {
+        var principal = await scope.ResolveAsync(token, ct);
+        if (principal.Decision == TaxpayerScopeDecision.Unauthenticated)
+            return (InvoiceApiDecision.Unauthenticated, []);
+        if (principal.Decision != TaxpayerScopeDecision.Allowed)
+            return (InvoiceApiDecision.Forbidden, []);
+
+        // The scoped taxpayer SQL predicate independently enforces the live
+        // customer relationship and current Level2 ownership / MFA. No client
+        // supplied customer ID can extend its reach.
+        var allowed = scope.ScopedQuery(principal.ActorId, principal.Level1)
+            .Select(x => x.Id);
+        var query = db.InvoiceDocuments.AsNoTracking()
+            .Where(x => allowed.Contains(x.TaxpayerId));
+        if (customerId.HasValue)
+            query = query.Where(x => x.CustomerUserId == customerId.Value);
+        if (taxpayerId.HasValue)
+            query = query.Where(x => x.TaxpayerId == taxpayerId.Value);
+        var rows = await query.OrderByDescending(x => x.UpdatedAtUtc)
+            .ThenBy(x => x.Id).Take(100).ToArrayAsync(ct);
+        return (InvoiceApiDecision.Success, rows.Select(View).ToArray());
     }
 
     private static InvoiceDraftView View(StoredInvoice invoice) =>

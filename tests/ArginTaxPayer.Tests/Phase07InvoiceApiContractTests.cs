@@ -57,6 +57,20 @@ public sealed class Phase07InvoiceApiContractTests
     }
 
     [Fact]
+    public void New_customer_scoped_invoice_overview_and_linked_buyer_contracts_exist()
+    {
+        var service = typeof(InvoiceDraftApplicationService);
+        Assert.NotNull(service.GetMethod("ListVisibleAsync"));
+        var draftProperties = typeof(CreateInvoiceDraftRequest).GetProperties()
+            .Select(x => x.Name).ToArray();
+        Assert.Contains("BuyerPartyId", draftProperties);
+        Assert.DoesNotContain("CustomerUserId", draftProperties);
+        Assert.DoesNotContain("SellerTaxpayerId", draftProperties);
+        Assert.NotNull(typeof(InvoiceDraftDevelopmentEndpoints)
+            .GetMethod("MapInvoiceDraftDevelopmentEndpoints"));
+    }
+
+    [Fact]
     public void Service_has_typed_authenticated_list_get_and_create_contracts()
     {
         var type = typeof(InvoiceDraftApplicationService);

@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { PersianDatePicker } from "../catalog/persian-date-picker";
+import { PersianTimePicker } from "../components/persian-time-picker";
 
 type Taxpayer = { id: string; displayName: string; status: number };
 type Invoice = { id: string; customerUserId: string; taxpayerId: string; revision: number;
@@ -10,6 +11,8 @@ type Invoice = { id: string; customerUserId: string; taxpayerId: string; revisio
 type CatalogItem = { id: string; title: string; internalCode?: string };
 type CatalogPage = { items: CatalogItem[] };
 type Account = { customerUserId: string; companyName?: string | null; personName?: string | null };
+type FiscalEntry = { id: string; customerUserId: string; type: "buyer" | "taxpayer"; displayName: string; identifier: string; status: number };
+type FiscalPage = { items: FiscalEntry[]; total: number };
 type Row = { key: number; productId: string; name: string; quantity: string;
   unitPrice: string; discount: string; vatRate: string };
 type Step = 0 | 1 | 2;
@@ -41,9 +44,16 @@ const amount = (value: string) => {
 };
 const fmt = (value: number) => value.toLocaleString("fa-IR", { maximumFractionDigits: 2 });
 
-export default function InvoiceEntryWorkspace({actorId}: {actorId: string}) {
+export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: string; isAdmin: boolean}) {
   const [taxpayers, setTaxpayers] = useState<Taxpayer[]>([]);
   const [taxpayerId, setTaxpayerId] = useState("");
+  const [filterCustomer, setFilterCustomer] = useState("");
+  const [filterTaxpayer, setFilterTaxpayer] = useState("");
+  const [headerCustomer, setHeaderCustomer] = useState(isAdmin ? "" : actorId);
+  const [buyerId, setBuyerId] = useState("");
+  const [buyerQuery, setBuyerQuery] = useState("");
+  const [buyers, setBuyers] = useState<FiscalEntry[]>([]);
+  const [buyerLoading, setBuyerLoading] = useState(false);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -56,8 +66,7 @@ export default function InvoiceEntryWorkspace({actorId}: {actorId: string}) {
   const openButton = useRef<HTMLButtonElement>(null);
   const [date, setDate] = useState(todayUtc);
   const [hour, setHour] = useState("12:00");
-  const [seller, setSeller] = useState("");
-  const [buyer, setBuyer] = useState("");
+
   const [invoiceType, setInvoiceType] = useState(1);
   const [pattern, setPattern] = useState(1);
   const [kind, setKind] = useState<"products" | "services">("products");
@@ -77,7 +86,8 @@ export default function InvoiceEntryWorkspace({actorId}: {actorId: string}) {
         if (!live) return;
         const active = list.filter(t => t.status === 1);
         setTaxpayers(active);
-        setTaxpayerId(current => active.some(t => t.id === current) ? current : active[0]?.id ?? "");
+        setTaxpayerId(current => active.some(t => t.id === current) ? current :
+          isAdmin ? "" : active[0]?.id ?? "");
       })
       .catch(e => { if (live) setError((e as Error).message); })
       .finally(() => { if (live) setLoading(false); });
@@ -88,15 +98,67 @@ export default function InvoiceEntryWorkspace({actorId}: {actorId: string}) {
   }, []);
 
   const reload = useCallback(async () => {
-    if (!taxpayerId) { setInvoices([]); return; }
     setLoading(true);
     try {
-      const list = await getJson<Invoice[]>("/api/invoices/" + taxpayerId);
+      const query = new URLSearchParams();
+      if (filterCustomer) query.set("customerId", filterCustomer);
+      if (filterTaxpayer) query.set("taxpayerId", filterTaxpayer);
+      const list = await getJson<Invoice[]>("/api/invoices/overview" + (query.size ? "?" + query : ""));
       setInvoices(list); setError("");
     } catch (e) { setInvoices([]); setError((e as Error).message); }
     finally { setLoading(false); }
-  }, [taxpayerId]);
+  }, [filterCustomer, filterTaxpayer]);
   useEffect(() => { setDetail(null); void reload(); }, [reload]);
+
+  const [customerTaxpayers, setCustomerTaxpayers] = useState<Taxpayer[]>([]);
+  const chosenTaxpayer = (isAdmin ? customerTaxpayers : taxpayers)
+    .find(t => t.id === taxpayerId);
+  const chosenBuyer = buyers.find(b => b.id === buyerId);
+  const [taxpayerOwners, setTaxpayerOwners] = useState<Record<string,string>>({});
+  const visibleTaxpayers = isAdmin ? customerTaxpayers : taxpayers;
+
+  useEffect(() => {
+    if (!isAdmin || !headerCustomer) {
+      setCustomerTaxpayers([]);
+      return;
+    }
+    let active = true;
+    getJson<Taxpayer[]>("/api/customer-owners/" + headerCustomer + "/taxpayers")
+      .then(list => {
+        if (!active) return;
+        const eligible = list.filter(t => t.status === 1);
+        setCustomerTaxpayers(eligible);
+        setTaxpayerOwners(old => ({
+          ...old, ...Object.fromEntries(eligible.map(t => [t.id,headerCustomer]))
+        }));
+      }).catch(() => {if(active)setCustomerTaxpayers([]);});
+    return () => {active=false;};
+  }, [isAdmin,headerCustomer]);
+
+  useEffect(() => {
+    if (!isAdmin || !filterCustomer) return;
+    let active = true;
+    getJson<Taxpayer[]>("/api/customer-owners/" + filterCustomer + "/taxpayers")
+      .then(list => { if (active) setTaxpayerOwners(old => ({
+        ...old,...Object.fromEntries(list.map(t => [t.id,filterCustomer]))
+      })); }).catch(()=>{});
+    return ()=>{active=false;};
+  }, [isAdmin,filterCustomer]);
+
+  useEffect(() => {
+    if (!modal || !headerCustomer) { setBuyers([]); return; }
+    let active = true;
+    setBuyerLoading(true);
+    const params = new URLSearchParams({
+      page:"1",pageSize:"100",type:"buyer",customerId:headerCustomer
+    });
+    if (buyerQuery.trim()) params.set("query",buyerQuery.trim());
+    getJson<FiscalPage>("/api/fiscal-participants?" + params)
+      .then(page => {if(active)setBuyers(page.items.filter(x=>x.status===1));})
+      .catch(() => {if(active)setBuyers([]);})
+      .finally(()=>{if(active)setBuyerLoading(false);});
+    return ()=>{active=false;};
+  }, [modal,headerCustomer,buyerQuery]);
 
   useEffect(() => {
     if (!modal || step !== 1) return;
@@ -139,7 +201,9 @@ export default function InvoiceEntryWorkspace({actorId}: {actorId: string}) {
   function open() {
     setDetail(null);
     setStep(0); setDate(todayUtc()); setHour("12:00");
-    setSeller(""); setBuyer(""); setInvoiceType(1); setPattern(1);
+    setBuyerId(""); setBuyerQuery(""); setInvoiceType(1); setPattern(1);
+    setHeaderCustomer(isAdmin ? (filterCustomer || "") : actorId);
+    setTaxpayerId(isAdmin ? "" : taxpayerId);
     setRows([]); setError(""); setNotice(""); setModal(true);
   }
   function close() { if (!busy) setModal(false); }
@@ -169,7 +233,7 @@ export default function InvoiceEntryWorkspace({actorId}: {actorId: string}) {
 
   async function saveHeader(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (step !== 2 || busy || !taxpayerId || !persistableHeader) return;
+    if (step !== 2 || busy || !taxpayerId || !persistableHeader || !chosenTaxpayer || !buyerId || !chosenBuyer) return;
     const issued = new Date(date + "T" + hour + ":00.000Z");
     if (!date || !/^([01]\d|2[0-3]):[0-5]\d$/.test(hour) ||
         Number.isNaN(issued.getTime()) || issued.toISOString().slice(0,10) !== date) {
@@ -181,7 +245,8 @@ export default function InvoiceEntryWorkspace({actorId}: {actorId: string}) {
         method:"POST", headers:{"Content-Type":"application/json"},
         body: JSON.stringify({
           issueDateUtc: issued.toISOString(),
-          sellerDisplayName:seller.trim(), buyerDisplayName:buyer.trim() || null
+          sellerDisplayName:chosenTaxpayer.displayName,
+          buyerDisplayName:chosenBuyer.displayName, buyerPartyId:buyerId
         })
       });
       setModal(false); setDetail(created);
@@ -194,11 +259,22 @@ export default function InvoiceEntryWorkspace({actorId}: {actorId: string}) {
   return <div className="invoice-entry invoice-register" dir="rtl" lang="fa">
     <div className="invoice-register__toolbar">
       <div className="invoice-register__filters">
+        {isAdmin && <>
+          <label htmlFor="invoice-list-customer">مشتری نرم‌افزار</label>
+          <select id="invoice-list-customer" value={filterCustomer}
+            onChange={e=>{setFilterCustomer(e.target.value);setFilterTaxpayer("");}}>
+            <option value="">همه مشتریان زیرمجموعه</option>
+            {accounts.map(a=><option key={a.customerUserId} value={a.customerUserId}>
+              {a.companyName || a.personName || "حساب مشتری"}
+            </option>)}
+          </select>
+        </>}
         <label htmlFor="invoice-list-taxpayer">مؤدی</label>
-        <select id="invoice-list-taxpayer" value={taxpayerId} disabled={loading}
-          onChange={e => setTaxpayerId(e.target.value)}>
-          <option value="">انتخاب مؤدی</option>
-          {taxpayers.map(t => <option key={t.id} value={t.id}>{t.displayName}</option>)}
+        <select id="invoice-list-taxpayer" value={filterTaxpayer}
+          onChange={e=>setFilterTaxpayer(e.target.value)}>
+          <option value="">همه مؤدیان مجاز</option>
+          {taxpayers.filter(t=>!filterCustomer || taxpayerOwners[t.id]===filterCustomer)
+            .map(t=><option key={t.id} value={t.id}>{t.displayName}</option>)}
         </select>
         <label htmlFor="invoice-list-search">جست‌وجو</label>
         <input id="invoice-list-search" type="search" value={search}
@@ -208,19 +284,22 @@ export default function InvoiceEntryWorkspace({actorId}: {actorId: string}) {
         <button type="button" className="identity-secondary" disabled={loading}
           onClick={() => void reload()}>بازخوانی</button>
         <button ref={openButton} type="button" className="identity-primary"
-          disabled={!taxpayerId || loading} onClick={open}>+ افزودن صورتحساب</button>
+          disabled={loading} onClick={open}>+ افزودن صورتحساب</button>
       </div>
     </div>
     {error && !modal && <p role="alert" className="form-error">{error}</p>}
     {notice && <p role="status" className="auth-info">{notice}</p>}
     <div className="invoice-register__table-wrap">
       <table className="invoice-register__table">
-        <thead><tr><th>شناسه</th><th>تاریخ صدور</th><th>موضوع</th>
+        <thead><tr><th>شناسه</th>{isAdmin && <th>مشتری</th>}<th>مؤدی فروشنده</th><th>تاریخ صدور</th><th>موضوع</th>
           <th>وضعیت داخلی</th><th>نسخه</th><th>عملیات</th></tr></thead>
-        <tbody>{loading ? <tr><td colSpan={6}>در حال دریافت…</td></tr> :
-          filtered.length === 0 ? <tr><td colSpan={6}>صورتحسابی برای نمایش وجود ندارد.</td></tr> :
+        <tbody>{loading ? <tr><td colSpan={isAdmin ? 8 : 7}>در حال دریافت…</td></tr> :
+          filtered.length === 0 ? <tr><td colSpan={isAdmin ? 8 : 7}>صورتحسابی برای نمایش وجود ندارد.</td></tr> :
           filtered.map(item => <tr key={item.id}>
             <td><bdi dir="ltr" title={item.id}>{item.id.slice(0,8)}…</bdi></td>
+            {isAdmin && <td>{accounts.find(a=>a.customerUserId===item.customerUserId)?.companyName ||
+              accounts.find(a=>a.customerUserId===item.customerUserId)?.personName || "حساب مشتری"}</td>}
+            <td>{taxpayers.find(t=>t.id===item.taxpayerId)?.displayName || "مؤدی ثبت‌شده"}</td>
             <td>{toFaDate(item.issueDateUtc)}</td><td>{item.subject}</td>
             <td>{item.state === "Draft" ? "پیش‌نویس" : item.state}</td>
             <td>{item.revision}</td>
@@ -270,22 +349,45 @@ export default function InvoiceEntryWorkspace({actorId}: {actorId: string}) {
           <div className="invoice-register__dialog-body">
             {error && <p role="alert" className="form-error">{error}</p>}
             {step === 0 && <section aria-label="سربرگ صورتحساب" className="invoice-register__fields">
-              <label htmlFor="invoice-taxpayer">مؤدی صادرکننده</label>
+              {isAdmin && <>
+                <label htmlFor="invoice-header-customer">مشتری نرم‌افزار</label>
+                <select id="invoice-header-customer" value={headerCustomer} required
+                  onChange={e=>{setHeaderCustomer(e.target.value);setTaxpayerId("");setBuyerId("");}}>
+                  <option value="">انتخاب مشتری</option>
+                  {accounts.map(a=><option key={a.customerUserId} value={a.customerUserId}>
+                    {a.companyName || a.personName || "مشتری مجاز"}
+                  </option>)}
+                </select>
+              </>}
+              <label htmlFor="invoice-taxpayer">مؤدی صادرکننده / فروشنده</label>
               <select id="invoice-taxpayer" value={taxpayerId} required
-                onChange={e => setTaxpayerId(e.target.value)}>
-                {taxpayers.map(t => <option key={t.id} value={t.id}>{t.displayName}</option>)}
+                onChange={e=>{setTaxpayerId(e.target.value);setBuyerId("");}}>
+                <option value="">انتخاب مؤدی فروشنده</option>
+                {visibleTaxpayers.map(t => <option key={t.id} value={t.id}>{t.displayName}</option>)}
               </select>
-              <label htmlFor="invoice-seller">فروشنده</label>
-              <input id="invoice-seller" required maxLength={256}
-                value={seller} onChange={e => setSeller(e.target.value)} />
-              <label htmlFor="invoice-buyer">خریدار (اختیاری)</label>
-              <input id="invoice-buyer" maxLength={256} value={buyer}
-                onChange={e => setBuyer(e.target.value)}/>
+              <label>فروشنده</label>
+              <output className="invoice-register__seller">
+                {chosenTaxpayer?.displayName || "با انتخاب مؤدی تعیین می‌شود"}
+              </output>
+              <label htmlFor="invoice-buyer-search">خریدار ثبت‌شده</label>
+              <div className="invoice-register__buyer">
+                <input id="invoice-buyer-search" type="search" value={buyerQuery}
+                  placeholder="جست‌وجوی نام یا شناسه خریدار" autoComplete="off"
+                  onChange={e=>{setBuyerQuery(e.target.value);setBuyerId("");}}/>
+                <select id="invoice-buyer" value={buyerId} required
+                  aria-label="انتخاب خریدار از نتایج جست‌وجو"
+                  onChange={e=>setBuyerId(e.target.value)}>
+                  <option value="">انتخاب خریدار</option>
+                  {buyers.map(b=><option key={b.id} value={b.id}>
+                    {b.displayName} — {b.identifier}
+                  </option>)}
+                </select>
+                {buyerLoading && <small role="status">در حال دریافت خریداران…</small>}
+              </div>
               <label htmlFor="invoice-date">تاریخ صدور شمسی</label>
               <PersianDatePicker id="invoice-date" value={date} onChange={setDate} floating/>
-              <label htmlFor="invoice-hour">ساعت UTC</label>
-              <input id="invoice-hour" type="time" dir="ltr" required value={hour}
-                onChange={e => setHour(e.target.value)}/>
+              <label htmlFor="invoice-hour">ساعت صدور (UTC)</label>
+              <PersianTimePicker id="invoice-hour" value={hour} onChange={setHour} timeZoneLabel="UTC" />
               <label htmlFor="invoice-type">نوع صورتحساب</label>
               <select id="invoice-type" value={invoiceType} onChange={e => {
                 const next = Number(e.target.value);
@@ -373,10 +475,10 @@ export default function InvoiceEntryWorkspace({actorId}: {actorId: string}) {
             {step > 0 && <button type="button" className="identity-secondary"
               onClick={() => {setError("");setStep((step-1) as Step);}} disabled={busy}>مرحله قبل</button>}
             {step < 2 ? <button type="button" className="identity-primary"
-              disabled={step === 0 && (!seller.trim() || !taxpayerId || !date)}
+              disabled={step === 0 && (!taxpayerId || !buyerId || !headerCustomer || !date)}
               onClick={() => {setError("");setStep((step+1) as Step);}}>مرحله بعد</button> :
               <button type="submit" className="identity-primary"
-                disabled={busy || !persistableHeader || !seller.trim() || !taxpayerId}>
+                disabled={busy || !persistableHeader || !taxpayerId || !buyerId}>
                 {busy ? "در حال ثبت…" : "ذخیره فقط سربرگ پیش‌نویس"}</button>}
           </footer>
         </form>

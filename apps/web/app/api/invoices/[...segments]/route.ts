@@ -6,6 +6,8 @@ export const dynamic = "force-dynamic";
 type Context = { params: Promise<{ segments: string[] }> };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function target(segments: string[], method: "GET" | "POST"): string | null {
+  if (segments.length === 1 && segments[0] === "overview" && method === "GET")
+    return "/api/dev/invoices";
   if (segments.length < 1 || !uuid.test(segments[0])) return null;
   if (segments.length === 1 && (method === "GET" || method === "POST"))
     return "/api/dev/taxpayers/" + segments[0] + "/invoices";
@@ -39,16 +41,26 @@ async function proxy(request: NextRequest, context: Context, method: "GET" | "PO
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
         return error(400, "invalid_payload");
       const data = parsed as Record<string, unknown>;
-      if (Object.keys(data).some(k => !["issueDateUtc", "sellerDisplayName", "buyerDisplayName"].includes(k)) ||
+      if (Object.keys(data).some(k => !["issueDateUtc", "sellerDisplayName", "buyerDisplayName", "buyerPartyId"].includes(k)) ||
           typeof data.issueDateUtc !== "string" ||
           typeof data.sellerDisplayName !== "string" ||
           (data.buyerDisplayName !== undefined && data.buyerDisplayName !== null &&
-           typeof data.buyerDisplayName !== "string"))
+           typeof data.buyerDisplayName !== "string") ||
+          (data.buyerPartyId !== undefined && data.buyerPartyId !== null &&
+           (typeof data.buyerPartyId !== "string" || !uuid.test(data.buyerPartyId))))
         return error(400, "unsupported_invoice_fields");
     } catch { return error(400, "invalid_payload"); }
   }
   try {
-    const response = await fetch(identityApiOrigin() + url, {
+    const filtered = new URLSearchParams();
+    if (segments.length === 1 && segments[0] === "overview") {
+      for (const key of ["customerId", "taxpayerId"]) {
+        const value = request.nextUrl.searchParams.get(key);
+        if (value && uuid.test(value)) filtered.set(key, value);
+        else if (value) return error(400, "invalid_filter");
+      }
+    }
+    const response = await fetch(identityApiOrigin() + url + (filtered.size ? "?" + filtered : ""), {
       method, cache: "no-store", redirect: "manual",
       signal: AbortSignal.timeout(10000),
       headers: { Authorization: "Bearer " + token,

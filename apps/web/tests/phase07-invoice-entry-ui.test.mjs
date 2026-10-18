@@ -8,6 +8,8 @@ const page = read("../app/(console)/invoices/page.tsx");
 const workspace = read("../app/invoices/workspace.tsx");
 const css = read("../app/globals.css");
 const calendar = read("../app/catalog/persian-date-picker.tsx");
+const timePicker = read("../app/components/persian-time-picker.tsx");
+const api = proxy;
 
 test("invoice register is an authenticated, RTL console view", () => {
   assert.match(page, /currentIdentity\(\)/);
@@ -41,8 +43,9 @@ test("wizard has header, repeatable item rows and totals sections", () => {
 
 test("draft remains honest about persisted fields and fiscal submission", () => {
   assert.match(workspace, /issueDateUtc: issued\.toISOString\(\)/);
-  assert.match(workspace, /sellerDisplayName:seller\.trim\(\)/);
-  assert.match(workspace, /buyerDisplayName:buyer\.trim\(\) \|\| null/);
+  assert.match(workspace, /sellerDisplayName:chosenTaxpayer\.displayName/);
+  assert.match(workspace, /buyerDisplayName:chosenBuyer\.displayName/);
+  assert.match(workspace, /buyerPartyId:buyerId/);
   assert.match(workspace, /ذخیره فقط سربرگ پیش‌نویس/);
   assert.match(workspace, /ردیف‌های آماده‌شده و فوتر ذخیره نخواهند شد/);
   assert.match(workspace, /بدون ارسال مالیاتی/);
@@ -67,4 +70,28 @@ test("Next session proxy only supports scoped reads and header writes", () => {
   assert.match(proxy, /isSameLocalOrigin/);
   assert.match(proxy, /unsupported_invoice_fields/);
   assert.doesNotMatch(proxy, /export async function (PUT|PATCH|DELETE)/);
+});
+
+test("selected taxpayer is the seller and buyer is a scoped searchable directory record", () => {
+  assert.match(workspace, /chosenTaxpayer\.displayName/);
+  assert.match(workspace, /buyerQuery/);
+  assert.match(workspace, /buyerId/);
+  assert.match(workspace, /fiscal-participants\?/);
+  assert.match(workspace, /type:"buyer",customerId:headerCustomer/);
+  assert.doesNotMatch(workspace, /setSeller/);
+});
+test("partner dashboard defaults to all authorized customers, then customer and taxpayer filters", () => {
+  assert.match(page, /isAdmin=\{actor\.roles\.includes\("Level1"\)/);
+  assert.match(workspace, /همه مشتریان زیرمجموعه/);
+  assert.match(workspace, /filterCustomer/);
+  assert.match(workspace, /filterTaxpayer/);
+  assert.match(workspace, /\/api\/invoices\/overview/);
+  assert.match(api, /"overview"/);
+});
+test("shared Persian twenty-four-hour time control is available", () => {
+  assert.match(workspace, /PersianTimePicker/);
+  assert.match(timePicker, /export function PersianTimePicker/);
+  assert.match(timePicker, /Array\.from\(\{length:24\}/);
+  assert.match(timePicker, /۰۱۲۳۴۵۶۷۸۹/);
+  assert.doesNotMatch(workspace, /type="time"/);
 });
