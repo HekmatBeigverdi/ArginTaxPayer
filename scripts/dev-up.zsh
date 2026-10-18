@@ -209,6 +209,7 @@ fi
 print 'Starting Next.js...'
 export ARGIN_IDENTITY_UI_ENABLED=true
 export ARGIN_IDENTITY_API_INTERNAL_BASE_URL=http://127.0.0.1:15089
+export ARGIN_NEXT_DIST_DIR=.next-dev
 cd apps/web
 nohup npm run dev -- --hostname 127.0.0.1 --port 3000 > "$STATE/web.log" 2>&1 < /dev/null &
 web_pid="$!"
