@@ -51,15 +51,18 @@ public sealed class TaxpayerCreationService(
         };
         try
         {
-            await using var transaction = await db.Database.BeginTransactionAsync(
-                System.Data.IsolationLevel.Serializable, ct);
-            if (!await scope.CanManageAsync(actor.Value, request.CustomerUserId.Value, ct))
-                return new(CreateTaxpayerStatus.Forbidden);
-            db.TaxpayerProfiles.Add(profile);
-            await db.SaveChangesAsync(ct);
-            await transaction.CommitAsync(ct);
-            return new(CreateTaxpayerStatus.Created,
-                new TaxpayerCreated(profile.Id, profile.Kind, identifier, name));
+            return await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+            {
+                await using var transaction = await db.Database.BeginTransactionAsync(
+                    System.Data.IsolationLevel.Serializable, ct);
+                if (!await scope.CanManageAsync(actor.Value, request.CustomerUserId.Value, ct))
+                    return new CreateTaxpayerResult(CreateTaxpayerStatus.Forbidden);
+                db.TaxpayerProfiles.Add(profile);
+                await db.SaveChangesAsync(ct);
+                await transaction.CommitAsync(ct);
+                return new CreateTaxpayerResult(CreateTaxpayerStatus.Created,
+                    new TaxpayerCreated(profile.Id, profile.Kind, identifier, name));
+            });
         }
         catch (DbUpdateException ex) when (ex.InnerException is PostgresException
             { SqlState: PostgresErrorCodes.UniqueViolation })

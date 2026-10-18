@@ -16,5 +16,6 @@
     <ProjectReference Include="../../src/ArginTaxPayer.Application/ArginTaxPayer.Application.csproj" />
     <ProjectReference Include="../../src/ArginTaxPayer.Infrastructure/ArginTaxPayer.Infrastructure.csproj" />
     <ProjectReference Include="../../src/ArginTaxPayer.Api/ArginTaxPayer.Api.csproj" />
+    <ProjectReference Include="../../tools/ArginTaxPayer.IdentityOperator/ArginTaxPayer.IdentityOperator.csproj" />
   </ItemGroup>
 </Project>

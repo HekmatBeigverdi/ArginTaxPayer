@@ -107,7 +107,7 @@ test("accessible buyer combobox supports keyboard selection and resolves selecte
 });
 test("all authorized customers are paged server-side", () => {
   assert.match(workspace, /listPageSize = 50/);
-  assert.match(workspace, /query\.set\("page",String\(listPage\)\)/);
+  assert.match(workspace, /query\.set\("page",\s*String\(listPage\)\)/);
   assert.match(workspace, /صفحه قبل|قبلی/);
   assert.match(workspace, /صفحه بعد|بعدی/);
   assert.match(workspace, /همه مشتریان زیرمجموعه/);

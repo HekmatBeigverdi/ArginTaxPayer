@@ -1,12 +1,15 @@
 using ArginTaxPayer.Infrastructure.Persistence;
 using ArginTaxPayer.Infrastructure.Persistence.Identity;
+using ArginTaxPayer.IdentityOperator;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 
 var nominateLevel1 = args.Length == 2 && args[0] == "nominate-level1-test";
-if (!nominateLevel1 && (args.Length != 1 || (args[0] != "enroll-level1-test" && args[0] != "bootstrap-level1-test" && args[0] != "inspect-level1-test")))
+var resetEnroll = OperatorCommandPolicy.TryParse(args);
+if (!nominateLevel1 && resetEnroll is null &&
+    (args.Length != 1 || (args[0] != "enroll-level1-test" && args[0] != "bootstrap-level1-test" && args[0] != "inspect-level1-test")))
 {
-    Console.Error.WriteLine("Usage: dotnet run --project tools/ArginTaxPayer.IdentityOperator -- enroll-level1-test|bootstrap-level1-test|inspect-level1-test");
+    Console.Error.WriteLine("Usage: dotnet run --project tools/ArginTaxPayer.IdentityOperator -- enroll-level1-test|bootstrap-level1-test|inspect-level1-test|reset-enroll-level1-test <mobile>");
     Console.Error.WriteLine("Trusted operator only: nominate-level1-test <mobile> (activation requires the user's Authenticator proof)");
     return 2;
 }
@@ -113,6 +116,59 @@ static string Hidden(string label)
     return value;
 }
 
+if (resetEnroll is not null)
+{
+    var target = await db.IdentityUsers.AsNoTracking()
+        .Include(x => x.Roles)
+        .SingleOrDefaultAsync(x => x.NormalizedMobile == resetEnroll.Mobile && x.IsActive);
+    if (target is null || target.PasswordHash is null ||
+        !target.Roles.Any(x => x.Role == IdentityRoleNames.Level1) ||
+        !IdentityPasswordHasher.Verify(Hidden("Administrator password (hidden): "), target.PasswordHash))
+    {
+        Console.Error.WriteLine("Invalid active Level1 administrator identity or password.");
+        return 2;
+    }
+
+    Console.Write("This permanently resets MFA for the selected TEST Level1 account. Type RESET-MFA to continue: ");
+    if (Console.ReadLine() != "RESET-MFA") return 2;
+
+    await using var resetTransaction = await db.Database.BeginTransactionAsync();
+    var now = DateTime.UtcNow;
+    await db.IdentityMfaChallenges.Where(x => x.UserId == target.Id).ExecuteDeleteAsync();
+    await db.IdentityRecoveryCodes.Where(x => x.UserId == target.Id).ExecuteDeleteAsync();
+    await db.IdentityMfaStates.Where(x => x.UserId == target.Id).ExecuteDeleteAsync();
+    await db.IdentitySessions.Where(x => x.UserId == target.Id && x.RevokedAtUtc == null)
+        .ExecuteUpdateAsync(s => s.SetProperty(x => x.RevokedAtUtc, now));
+
+    var resetMfa = new IdentityMfaService(db, crypto, new IdentitySessionService(db));
+    var resetEnrollment = await resetMfa.BeginEnrollmentAsync(target.Id);
+    if (resetEnrollment is null)
+    {
+        await resetTransaction.RollbackAsync();
+        Console.Error.WriteLine("MFA reset enrollment could not be started.");
+        return 1;
+    }
+
+    Console.WriteLine("Private enrollment URI — never log or share:");
+    Console.WriteLine(resetEnrollment.ProvisioningUri);
+    if (!await TerminalQrCode.TryPrintAsync(resetEnrollment.ProvisioningUri))
+        Console.WriteLine("QR unavailable: install it with `brew install qrencode`, then rerun the reset command.");
+    var resetCode = Hidden("Enter the new authenticator's six-digit code (hidden): ");
+    var resetRecovery = await resetMfa.ConfirmEnrollmentAsync(target.Id, resetCode);
+    if (resetRecovery is null)
+    {
+        await resetTransaction.RollbackAsync();
+        Console.Error.WriteLine("New MFA code was rejected; the reset was rolled back.");
+        return 1;
+    }
+
+    await resetTransaction.CommitAsync();
+    Console.WriteLine("MFA reset and re-enrollment committed for the selected TEST Level1 account.");
+    Console.WriteLine("Recovery codes — store OFFLINE; shown only once:");
+    foreach (var item in resetRecovery.Codes) Console.WriteLine(item);
+    return 0;
+}
+
 Console.Write("Existing Level 1 administrator email: ");
 string email;
 try { email = InitialAdministratorBootstrap.NormalizeEmail(Console.ReadLine() ?? ""); }
@@ -151,6 +207,8 @@ if (enrollment is null)
 
 Console.WriteLine("Private enrollment URI — never log or share:");
 Console.WriteLine(enrollment.ProvisioningUri);
+if (!await TerminalQrCode.TryPrintAsync(enrollment.ProvisioningUri))
+    Console.WriteLine("QR unavailable: install it with `brew install qrencode`, then rerun enrollment.");
 var code = Hidden("Enter the authenticator's six-digit code (hidden): ");
 var recovery = await mfa.ConfirmEnrollmentAsync(user.Id, code);
 if (recovery is null)

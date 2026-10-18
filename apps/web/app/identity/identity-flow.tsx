@@ -15,6 +15,8 @@ const purposeCaptions: Record<Purpose, string> = {
 };
 
 const MFA_EXPIRED_MESSAGE = "مهلت تأیید دومرحله‌ای تمام شد. لطفاً مجدداً وارد شوید.";
+const MFA_NOT_CONFIGURED_MESSAGE =
+  "پیکربندی سرویس MFA کامل نیست؛ کلید امنیتی MFA را تنظیم و سرویس را راه‌اندازی مجدد کنید.";
 
 function getPurpose(tab: Tab, forgot: boolean): Purpose {
   if (forgot) {
@@ -257,6 +259,11 @@ export default function IdentityFlow() {
           setStep("mfa");
           setCode("");
           setPassword("");
+          return;
+        }
+
+        if (challengeResponse.response.status === 404) {
+          setError(MFA_NOT_CONFIGURED_MESSAGE);
           return;
         }
       }
