@@ -62,6 +62,8 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [search, setSearch] = useState("");
+  const [listPage, setListPage] = useState(1);
+  const listPageSize = 50;
   const [modal, setModal] = useState(false);
   const [step, setStep] = useState<Step>(0);
   const dialog = useRef<HTMLDivElement>(null);
@@ -105,11 +107,13 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
       const query = new URLSearchParams();
       if (filterCustomer) query.set("customerId", filterCustomer);
       if (filterTaxpayer) query.set("taxpayerId", filterTaxpayer);
+      query.set("page", String(listPage));
+      query.set("pageSize", String(listPageSize));
       const list = await getJson<Invoice[]>("/api/invoices/overview" + (query.size ? "?" + query : ""));
       setInvoices(list); setError("");
     } catch (e) { setInvoices([]); setError((e as Error).message); }
     finally { setLoading(false); }
-  }, [filterCustomer, filterTaxpayer]);
+  }, [filterCustomer, filterTaxpayer, listPage]);
   useEffect(() => { setDetail(null); void reload(); }, [reload]);
 
   const [customerTaxpayers, setCustomerTaxpayers] = useState<Taxpayer[]>([]);
@@ -279,7 +283,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
         {isAdmin && <>
           <label htmlFor="invoice-list-customer">مشتری نرم‌افزار</label>
           <select id="invoice-list-customer" value={filterCustomer}
-            onChange={e=>{setFilterCustomer(e.target.value);setFilterTaxpayer("");}}>
+            onChange={e=>{setFilterCustomer(e.target.value);setFilterTaxpayer("");setListPage(1);}}>
             <option value="">همه مشتریان زیرمجموعه</option>
             {accounts.map(a=><option key={a.customerUserId} value={a.customerUserId}>
               {a.companyName || a.personName || "حساب مشتری"}
@@ -288,7 +292,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
         </>}
         <label htmlFor="invoice-list-taxpayer">مؤدی</label>
         <select id="invoice-list-taxpayer" value={filterTaxpayer}
-          onChange={e=>setFilterTaxpayer(e.target.value)}>
+          onChange={e=>{setFilterTaxpayer(e.target.value);setListPage(1);}}>
           <option value="">همه مؤدیان مجاز</option>
           {taxpayers.filter(t=>!filterCustomer || taxpayerOwners[t.id]===filterCustomer)
             .map(t=><option key={t.id} value={t.id}>{t.displayName}</option>)}
@@ -324,6 +328,14 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
               onClick={() => setDetail(item)}>مشاهده</button></td>
           </tr>)}</tbody>
       </table>
+    </div>
+    <div className="invoice-register__pager" aria-label="صفحه‌بندی صورتحساب‌ها">
+      <span>صفحه {listPage} — حداکثر {listPageSize} صورتحساب در هر صفحه</span>
+      <button type="button" className="identity-secondary" disabled={loading || listPage === 1}
+        onClick={()=>setListPage(p=>Math.max(1,p-1))}>صفحه قبل</button>
+      <button type="button" className="identity-secondary"
+        disabled={loading || invoices.length < listPageSize}
+        onClick={()=>setListPage(p=>p+1)}>صفحه بعد</button>
     </div>
     {detail && <div className="invoice-register__overlay" onMouseDown={e => {
       if (e.currentTarget === e.target) setDetail(null);
