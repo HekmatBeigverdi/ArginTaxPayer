@@ -20,7 +20,8 @@ public sealed class InvoiceEntryWorkspace
 }
 
 public sealed record InvoiceEntryLine(Guid? CatalogItemId, string Description,
-    decimal Quantity, decimal UnitPriceRial, decimal DiscountPerUnitRial, decimal? VatRatePercent);
+    decimal Quantity, decimal UnitPriceRial, decimal DiscountPerUnitRial, decimal? VatRatePercent,
+    Guid? UnitId = null, string? CatalogCodeSnapshot = null);
 public enum InvoiceDraftSettlementMethod { Unknown = 0, Cash = 1, Credit = 2, CashAndCredit = 3 }
 
 public sealed record InvoiceDraftFinancialSummary(decimal GrossRial, decimal DiscountRial,
@@ -208,20 +209,54 @@ public sealed class InvoiceEntryWorkspaceService(
         if (input.BuyerPartyId == Guid.Empty || input.Lines!.Any(l =>
                 l.CatalogItemId == Guid.Empty))
             return new(InvoiceApiDecision.Invalid);
+        // Rebuild official unit + internal item code snapshots from the tenant's
+        // catalog on first selection; never trust client-provided snapshot metadata.
         var productIds = input.Lines!.Where(l => l.CatalogItemId.HasValue)
             .Select(l => l.CatalogItemId!.Value).Distinct().ToArray();
-        if (productIds.Length > 0)
+        var catalogItems = await db.CustomerCatalogItems.AsNoTracking()
+            .Where(c => productIds.Contains(c.Id) && c.CustomerUserId == access.Item2)
+            .Select(c => new { c.Id, c.InternalCode, c.BaseUnitId, c.Status })
+            .ToDictionaryAsync(c => c.Id, ct);
+        if (productIds.Any(id => !catalogItems.ContainsKey(id)))
+            return new(InvoiceApiDecision.Invalid);
+        var original = input.Id is { } existingId
+            ? await db.InvoiceEntryWorkspaces.AsNoTracking()
+                .Where(w => w.Id == existingId && w.CustomerUserId == access.Item2)
+                .Select(w => w.DraftJson).SingleOrDefaultAsync(ct)
+            : null;
+        var previousLines = original is null ? Array.Empty<InvoiceEntryLine>() :
+            JsonSerializer.Deserialize<SaveInvoiceEntryRequest>(original)?.Lines ?? [];
+        var canonicalLines = new List<InvoiceEntryLine>(input.Lines.Length);
+        foreach (var line in input.Lines)
         {
-            var allowedCount = await db.CustomerCatalogItems.AsNoTracking().CountAsync(c =>
-                productIds.Contains(c.Id) && c.CustomerUserId == access.Item2 &&
-                c.Status == 1,ct);
-            if (allowedCount != productIds.Length)
+            if (line.CatalogItemId is not { } itemId)
+            {
+                if (line.UnitId is not null || line.CatalogCodeSnapshot is not null)
+                    return new(InvoiceApiDecision.Invalid);
+                canonicalLines.Add(line);
+                continue;
+            }
+            var item = catalogItems[itemId];
+            var previous = previousLines.FirstOrDefault(l => l.CatalogItemId == itemId &&
+                l.UnitId is not null && l.CatalogCodeSnapshot is not null);
+            if (item.Status != 1 && previous is null)
                 return new(InvoiceApiDecision.Invalid);
+            // Snapshot is frozen for a previously selected catalog item, including
+            // when its live title/code/unit changes after draft creation.
+            var unit = previous?.UnitId ?? item.BaseUnitId;
+            var code = previous?.CatalogCodeSnapshot ?? item.InternalCode;
+            if (line.UnitId is { } requestedUnit && requestedUnit != unit)
+                return new(InvoiceApiDecision.Invalid);
+            canonicalLines.Add(line with {
+                UnitId = unit,
+                CatalogCodeSnapshot = code
+            });
         }
 
         var now = DateTime.UtcNow;
         var json = JsonSerializer.Serialize(input with {
-            Id = null, ExpectedRevision = 0, BuyerDisplayName = selectedBuyerName
+            Id = null, ExpectedRevision = 0, BuyerDisplayName = selectedBuyerName,
+            Lines = canonicalLines.ToArray()
         });
         if (input.Id is null)
         {
