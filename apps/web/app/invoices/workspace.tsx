@@ -77,6 +77,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [search, setSearch] = useState("");
+  const [searchHelpOpen, setSearchHelpOpen] = useState(false);
   const [reviewFilter, setReviewFilter] = useState("");
   const [listPage, setListPage] = useState(1);
   const listPageSize = 50;
@@ -113,7 +114,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
           isAdmin ? "" : active[0]?.id ?? "");
       })
       .catch(e => { if (live) setError((e as Error).message); })
-      .finally(() => { if (live) setLoading(false); });
+
     getJson<Account[]>("/api/customer-owners/accounts")
       .then(list => { if (live && Array.isArray(list)) setAccounts(list); })
       .catch(() => {});
@@ -415,9 +416,19 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
           <option value="ChangesRequested">نیازمند اصلاح</option>
           <option value="Approved">تأیید داخلی</option>
         </select>
-        <label htmlFor="invoice-list-search">جست‌وجو <span title="جست‌وجو بر اساس نام خریدار، نام فروشنده، شناسه ملی یا اقتصادی خریدار و فروشنده، و شناسه سیستمی" aria-label="راهنمای جست‌وجو" tabIndex={0} role="note" style={{cursor:"help",display:"inline-grid",placeItems:"center",border:"1px solid currentColor",borderRadius:"50%",width:17,height:17,fontSize:12}}>?</span></label>
-        <input id="invoice-list-search" type="search" value={search} maxLength={100}
-          onChange={e => {setSearch(e.target.value);setListPage(1);}} placeholder="نام خریدار، فروشنده یا کد اقتصادی" />
+        <div className="invoice-register__search">
+          <div className="invoice-register__search-label">
+            <label htmlFor="invoice-list-search">جست‌وجو</label>
+            <div className="invoice-register__help-wrap">
+              <button type="button" className="invoice-register__help-trigger" aria-label="راهنمای فیلدهای قابل جست‌وجو" aria-expanded={searchHelpOpen} aria-controls="invoice-search-help" onClick={() => setSearchHelpOpen(v=>!v)}>?</button>
+              {searchHelpOpen && <div id="invoice-search-help" className="invoice-register__help-tooltip" role="tooltip">
+                جست‌وجو بر اساس نام خریدار یا فروشنده، شناسه ملی یا کد اقتصادی آن‌ها و شناسه سیستمی صورتحساب انجام می‌شود.
+              </div>}
+            </div>
+          </div>
+          <input id="invoice-list-search" type="search" value={search} maxLength={100}
+            onChange={e => {setSearch(e.target.value);setListPage(1);}} placeholder="نام خریدار، فروشنده، کد اقتصادی یا شناسه سیستمی" />
+        </div>
       </div>
       <div className="invoice-register__actions">
         <button type="button" className="identity-secondary" disabled={loading}
@@ -429,9 +440,10 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
     {error && !modal && <p role="alert" className="form-error">{error}</p>}
     {notice && <p role="status" className="auth-info">{notice}</p>}
     <div className="console-table-scroll invoice-register__table-wrap" aria-busy={loading} style={{position:"relative",minHeight:"220px"}}>
-      {loading && <div role="status" aria-live="polite" style={{position:"absolute",inset:0,zIndex:2,background:"var(--color-surface, rgba(255,255,255,.92))",padding:12,display:"grid",gap:9,alignContent:"start"}}>
-        <span style={{fontWeight:600}}>در حال به‌روزرسانی فهرست صورتحساب‌ها…</span>
-        {Array.from({length:5},(_,i)=><div key={i} className="invoice-table-skeleton" style={{height:30,borderRadius:7,background:"linear-gradient(90deg,#e5e7eb 20%,#f3f4f6 48%,#e5e7eb 75%)",backgroundSize:"200% 100%",animation:"invoice-shimmer 1.3s ease-in-out infinite"}}/>)}
+      {loading && <div className="argin-loader argin-loader-overlay invoice-register__loading" role="status" aria-live="polite">
+        <span className="argin-loader-spinner" aria-hidden="true" />
+        <strong>در حال بارگذاری صورتحساب‌ها…</strong>
+        <span className="argin-loader-subtitle">لطفاً تا دریافت اطلاعات منتظر بمانید</span>
       </div>}
       <table className="console-table">
         <thead><tr><th>شناسه سیستمی</th>{isAdmin && <th>مشتری</th>}<th>مؤدی فروشنده</th><th>خریدار</th><th>تاریخ صدور</th><th>موضوع</th>
