@@ -464,3 +464,8 @@ Owner approved yearly reset and expanding serial length. Updated **pending/unapp
 - Revised *unapplied* migration: Before historic invoice reference assignment, find invoice customers missing `customer_commercial_owners`. If and only if **exactly one active user has Level1 role**, insert missing owner rows assigning that Level1 as root with partner NULL, channel `Level1Created` (DB-allowed value 2), revision 1. Do not overwrite existing ownership; `ON CONFLICT DO NOTHING`. If multiple/no active roots, raise descriptive error and leave transaction unchanged.
 - Fix SQL syntax `END $;` to `END $$;` by replacing backfill block. After assigning default owners, backfill all legacy invoice codes. No legacy invoice deletion. Future invoice creation continues to depend on verified commercial ownership.
 - Pending: operator Build + test DB migration, inspect Level1 candidates and reassigned customers, uniqueness and post-transfer behavior. No migration was executed by GitHub connector.
+
+### Step08 primary Level1 selection correction (2026-10-19)
+- Operator verified two active Level1 accounts; confirmed principal account as UUID `3054f5ac-38b4-429e-8dc2-8f9e1125bc7f` and normalized mobile `+989192424119`; second is a STEP10 test administrator.
+- Updated unapplied migration so orphan legacy invoice customer ownership is assigned **only to the confirmed primary Level1**, requiring an active matching UUID, mobile, and Level1 role. Missing/mismatched primary account fails closed. Existing owned accounts and test admin remain unchanged.
+- Operator must build, verify target `argintaxpayer_test`, migrate and validate owner counts. Not yet verified by a live DB execution.
