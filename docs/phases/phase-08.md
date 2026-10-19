@@ -469,3 +469,9 @@ Owner approved yearly reset and expanding serial length. Updated **pending/unapp
 - Operator verified two active Level1 accounts; confirmed principal account as UUID `3054f5ac-38b4-429e-8dc2-8f9e1125bc7f` and normalized mobile `+989192424119`; second is a STEP10 test administrator.
 - Updated unapplied migration so orphan legacy invoice customer ownership is assigned **only to the confirmed primary Level1**, requiring an active matching UUID, mobile, and Level1 role. Missing/mismatched primary account fails closed. Existing owned accounts and test admin remain unchanged.
 - Operator must build, verify target `argintaxpayer_test`, migrate and validate owner counts. Not yet verified by a live DB execution.
+
+### Step08 follow-up — invoice register loading and search UX (2026-10-19)
+- Reused the existing `argin-loader`, `argin-loader-overlay` and `argin-loader-spinner` styles instead of a custom skeleton.
+- Fixed first-load race: `/api/taxpayers/list` no longer controls invoice-table `loading`; only the current invoice overview request can dismiss the overlay, including time spent in search debounce. Stale requests are ignored by request sequence checks. While loading, the prior data remain mounted under an overlay, preventing intermediate empty-table flash.
+- Made the invoice search form control take the full available row width on desktop and mobile. Changed passive `?` span into an actual toggle button with an accessible tooltip.
+- Added `apps/web/tests/phase08-invoice-loading-ui.test.mjs` as a static regression test. Live macOS UI checks and operator approval pending; Step09 not started.
