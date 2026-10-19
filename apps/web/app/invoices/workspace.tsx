@@ -10,7 +10,8 @@ import InvoiceValidationPanel from "./invoice-validation-panel";
 type Taxpayer = { id: string; displayName: string; status: number };
 type Invoice = { id: string; customerUserId: string; taxpayerId: string; revision: number;
   kind?: "workspace"; lastCompletedStep?: number;
-  state: string; subject: string; issueDateUtc: string; updatedAtUtc: string };
+  state: string; subject: string; issueDateUtc: string; updatedAtUtc: string;
+  reviewState?: "WorkingDraft" | "Draft" | "InReview" | "ChangesRequested" | "Approved" };
 type CatalogItem = { id: string; title: string; internalCode?: string };
 type CatalogPage = { items: CatalogItem[] };
 type Account = { customerUserId: string; companyName?: string | null; personName?: string | null };
@@ -74,6 +75,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [search, setSearch] = useState("");
+  const [reviewFilter, setReviewFilter] = useState("");
   const [listPage, setListPage] = useState(1);
   const listPageSize = 50;
   const [modal, setModal] = useState(false);
@@ -122,6 +124,8 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
       const query = new URLSearchParams();
       if (filterCustomer) query.set("customerId", filterCustomer);
       if (filterTaxpayer) query.set("taxpayerId", filterTaxpayer);
+      if (reviewFilter) query.set("reviewState", reviewFilter);
+      if (search.trim()) query.set("search", search.trim());
       query.set("page", String(listPage));
       query.set("pageSize", String(listPageSize));
       const list = await getJson<Invoice[]>("/api/invoices/overview?" + query);
@@ -129,7 +133,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
       setError("");
     } catch (e) { setInvoices([]); setError((e as Error).message); }
     finally { setLoading(false); }
-  }, [filterCustomer, filterTaxpayer, listPage]);
+  }, [filterCustomer, filterTaxpayer, reviewFilter, search, listPage]);
   useEffect(() => { setDetail(null); void reload(); }, [reload]);
 
   const [customerTaxpayers, setCustomerTaxpayers] = useState<Taxpayer[]>([]);
@@ -373,8 +377,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
       (r.vatRate===""?null:Number(r.vatRate))!==editing.lines[i]?.vatRatePercent) ||
     settlement===3 && Number(cashInput)!==(editing.cashAmountRial??0)
   );
-  const filtered = invoices.filter(row =>
-    (row.id + " " + row.state + " " + row.subject).toLowerCase().includes(search.toLowerCase()));
+  const filtered = invoices; // All filters are applied server-side before paging.
 
   return <div className="invoice-entry invoice-register" dir="rtl" lang="fa">
     <div className="invoice-register__toolbar">
@@ -396,9 +399,19 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
           {taxpayers.filter(t=>!filterCustomer || taxpayerOwners[t.id]===filterCustomer)
             .map(t=><option key={t.id} value={t.id}>{t.displayName}</option>)}
         </select>
+        <label htmlFor="invoice-list-review">وضعیت بازبینی</label>
+        <select id="invoice-list-review" value={reviewFilter}
+          onChange={e=>{setReviewFilter(e.target.value);setListPage(1);}}>
+          <option value="">همه وضعیت‌ها</option>
+          <option value="WorkingDraft">در حال تکمیل</option>
+          <option value="Draft">پیش‌نویس داخلی</option>
+          <option value="InReview">در انتظار بازبینی</option>
+          <option value="ChangesRequested">نیازمند اصلاح</option>
+          <option value="Approved">تأیید داخلی</option>
+        </select>
         <label htmlFor="invoice-list-search">جست‌وجو</label>
         <input id="invoice-list-search" type="search" value={search}
-          onChange={e => setSearch(e.target.value)} placeholder="شناسه / وضعیت" />
+          onChange={e => {setSearch(e.target.value);setListPage(1);}} placeholder="جست‌وجو با شناسه صورتحساب" />
       </div>
       <div className="invoice-register__actions">
         <button type="button" className="identity-secondary" disabled={loading}
@@ -421,7 +434,10 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
               accounts.find(a=>a.customerUserId===item.customerUserId)?.personName || "حساب مشتری"}</td>}
             <td>{taxpayers.find(t=>t.id===item.taxpayerId)?.displayName || "مؤدی ثبت‌شده"}</td>
             <td>{toFaDate(item.issueDateUtc)}</td><td>{item.subject}</td>
-            <td>{item.state === "WorkingDraft" ? "در حال تکمیل" : item.state === "Draft" ? "پیش‌نویس" : item.state}</td>
+            <td>{item.reviewState === "WorkingDraft" ? "در حال تکمیل" :
+              item.reviewState === "InReview" ? "در انتظار بازبینی" :
+              item.reviewState === "ChangesRequested" ? "نیازمند اصلاح" :
+              item.reviewState === "Approved" ? "تأیید داخلی" : "پیش‌نویس داخلی"}</td>
             <td>{item.revision}</td>
             <td>{item.kind === "workspace" ? <button type="button" className="console-row-action"
               onClick={() => void editDraft(item)}>ویرایش و ادامه</button> :
@@ -454,7 +470,11 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
           <dt>شناسه داخلی</dt><dd dir="ltr">{detail.id}</dd>
           <dt>تاریخ</dt><dd>{toFaDate(detail.issueDateUtc)}</dd>
           <dt>موضوع</dt><dd>{detail.subject}</dd>
-          <dt>وضعیت داخلی</dt><dd>{detail.state}</dd>
+          <dt>وضعیت بازبینی</dt><dd>{detail.reviewState === "Approved" ? "تأیید داخلی" :
+            detail.reviewState === "InReview" ? "در انتظار بازبینی" :
+            detail.reviewState === "ChangesRequested" ? "نیازمند اصلاح" :
+            detail.reviewState === "WorkingDraft" ? "در حال تکمیل" : "پیش‌نویس داخلی"}</dd>
+          <dt>وضعیت سند فاز ۷</dt><dd>{detail.state}</dd>
           <dt>نسخه</dt><dd>{detail.revision}</dd>
         </dl>
         <p className="field-hint">این وضعیت به معنی تأیید سازمان امور مالیاتی نیست.</p>
