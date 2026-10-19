@@ -1,4 +1,6 @@
 using System.Data;
+using System.Security.Cryptography;
+using System.Text;
 using ArginTaxPayer.Domain.Invoices;
 using ArginTaxPayer.Infrastructure.Persistence.Identity;
 using ArginTaxPayer.Infrastructure.Persistence.Taxpayers;
@@ -9,12 +11,12 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Invoices;
 
 public enum InvoiceReviewCommandDecision
 {
-    Success, Unauthenticated, Forbidden, NotFound, Invalid, Conflict
+    Success, Unauthenticated, Forbidden, NotFound, Invalid, Conflict, IdempotencyKeyConflict
 }
 
 public sealed record InvoiceReviewCommand(
     Guid InvoiceId, long ExpectedReviewRevision, InvoiceReviewAction Action,
-    string? ChangeReason = null);
+    string? ChangeReason = null, string? IdempotencyKey = null);
 
 public sealed record InvoiceReviewCommandResult(
     InvoiceReviewCommandDecision Decision, InvoiceReviewState? State = null,
@@ -31,7 +33,10 @@ public sealed class InvoiceReviewCommandService(
         string? token, InvoiceReviewCommand? command, CancellationToken ct = default)
     {
         if (command is null || command.InvoiceId == Guid.Empty ||
-            command.ExpectedReviewRevision < 1 || !Enum.IsDefined(command.Action))
+            command.ExpectedReviewRevision < 1 || !Enum.IsDefined(command.Action) ||
+            string.IsNullOrWhiteSpace(command.IdempotencyKey) ||
+            command.IdempotencyKey.Length > 128 ||
+            command.IdempotencyKey.Any(char.IsControl))
             return new(InvoiceReviewCommandDecision.Invalid);
         if (command.Action == InvoiceReviewAction.RequestChanges &&
             (string.IsNullOrWhiteSpace(command.ChangeReason) ||
@@ -93,6 +98,23 @@ public sealed class InvoiceReviewCommandService(
                 if (!authorized)
                     return new InvoiceReviewCommandResult(InvoiceReviewCommandDecision.Forbidden);
 
+                // The same actor/key cannot be repurposed for another payload,
+                // including another invoice. Resolve replay before the CAS check.
+                var fingerprint = Fingerprint(command);
+                var previous = await db.InvoiceReviewRequests.AsNoTracking()
+                    .Where(x => x.CustomerUserId == invoice.CustomerUserId &&
+                        x.TaxpayerId == invoice.TaxpayerId &&
+                        x.ActorUserId == principal.ActorId &&
+                        x.IdempotencyKey == command.IdempotencyKey)
+                    .SingleOrDefaultAsync(ct);
+                if (previous is not null)
+                    return previous.InvoiceId != invoice.Id ||
+                        previous.FingerprintSha256 != fingerprint
+                        ? new InvoiceReviewCommandResult(InvoiceReviewCommandDecision.IdempotencyKeyConflict)
+                        : new InvoiceReviewCommandResult(InvoiceReviewCommandDecision.Success,
+                            (InvoiceReviewState)previous.ResultState,
+                            previous.ResultReviewRevision);
+
                 var now = DateTime.UtcNow;
                 // No persisted review row means implicit Draft, revision 1.
                 // The first successful transition inserts a row and event in one transaction.
@@ -151,6 +173,13 @@ public sealed class InvoiceReviewCommandService(
                     ChangeReason = command.Action == InvoiceReviewAction.RequestChanges
                         ? command.ChangeReason!.Trim() : null
                 });
+                db.InvoiceReviewRequests.Add(new StoredInvoiceReviewRequest {
+                    Id = Guid.NewGuid(), CustomerUserId = invoice.CustomerUserId,
+                    TaxpayerId = invoice.TaxpayerId, InvoiceId = invoice.Id,
+                    ActorUserId = principal.ActorId, IdempotencyKey = command.IdempotencyKey!,
+                    FingerprintSha256 = fingerprint, ResultReviewRevision = nextRevision,
+                    ResultState = (int)toState, CompletedAtUtc = now
+                });
                 await db.SaveChangesAsync(ct);
                 await tx.CommitAsync(ct);
                 return new InvoiceReviewCommandResult(InvoiceReviewCommandDecision.Success,
@@ -172,4 +201,14 @@ public sealed class InvoiceReviewCommandService(
             return new(InvoiceReviewCommandDecision.Conflict);
         }
     }
+    private static string Fingerprint(InvoiceReviewCommand command)
+    {
+        var reason = command.Action == InvoiceReviewAction.RequestChanges
+            ? command.ChangeReason!.Trim() : "";
+        // Length-prefixed, unambiguous canonical payload, independent of key.
+        var payload = $"{command.InvoiceId:N}|{command.ExpectedReviewRevision}|{(int)command.Action}|{reason.Length}:{reason}";
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(payload)))
+            .ToLowerInvariant();
+    }
+
 }
