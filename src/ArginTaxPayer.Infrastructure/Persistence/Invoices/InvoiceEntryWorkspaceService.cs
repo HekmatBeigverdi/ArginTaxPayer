@@ -85,7 +85,8 @@ public sealed record InvoiceEntryView(Guid Id, Guid CustomerUserId, Guid Taxpaye
     decimal? CreditAmountRial, InvoiceDraftFinancialSummary FinancialSummary,
     string? ContractNumber = null, string? ServiceBillId = null, int? FlightType = null,
     decimal? GoldConstructionFeeRial = null, decimal? GoldSellerProfitRial = null,
-    decimal? GoldCommissionRial = null, decimal? GoldTotalFeeProfitRial = null);
+    decimal? GoldCommissionRial = null, decimal? GoldTotalFeeProfitRial = null,
+    Guid? FiscalMemoryId = null);
 public sealed record InvoiceEntryResult(InvoiceApiDecision Decision, InvoiceEntryView? Draft = null);
 
 /// <summary>
@@ -207,7 +208,7 @@ public sealed class InvoiceEntryWorkspaceService(
         if (input.BuyerPartyId == Guid.Empty || input.Lines!.Any(l =>
                 l.CatalogItemId == Guid.Empty))
             return new(InvoiceApiDecision.Invalid);
-        var productIds = input.Lines.Where(l => l.CatalogItemId.HasValue)
+        var productIds = input.Lines!.Where(l => l.CatalogItemId.HasValue)
             .Select(l => l.CatalogItemId!.Value).Distinct().ToArray();
         if (productIds.Length > 0)
         {
