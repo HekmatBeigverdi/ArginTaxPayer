@@ -34,15 +34,20 @@ public static class InvoiceDraftSettlementPolicy
         decimal gross = 0, discount = 0, vat = 0;
         foreach (var line in lines)
         {
-            gross = checked(gross + line.Quantity * line.UnitPriceRial);
-            discount = checked(discount + line.Quantity * line.DiscountPerUnitRial);
-            vat = checked(vat + line.Quantity *
-                (line.UnitPriceRial - line.DiscountPerUnitRial) *
-                (line.VatRatePercent ?? 0m) / 100m);
+            // Quantize each invoice line once using decimal; aggregate rounded
+            // amounts, never floating-point UI totals or client-provided sums.
+            var grossLine = decimal.Round(checked(line.Quantity * line.UnitPriceRial),
+                2, MidpointRounding.AwayFromZero);
+            var discountLine = decimal.Round(checked(line.Quantity * line.DiscountPerUnitRial),
+                2, MidpointRounding.AwayFromZero);
+            var baseLine = checked(grossLine - discountLine);
+            var vatLine = decimal.Round(checked(
+                baseLine * (line.VatRatePercent ?? 0m) / 100m),
+                2, MidpointRounding.AwayFromZero);
+            gross = checked(gross + grossLine);
+            discount = checked(discount + discountLine);
+            vat = checked(vat + vatLine);
         }
-        gross = decimal.Round(gross, 2, MidpointRounding.AwayFromZero);
-        discount = decimal.Round(discount, 2, MidpointRounding.AwayFromZero);
-        vat = decimal.Round(vat, 2, MidpointRounding.AwayFromZero);
         var subtotal = checked(gross - discount);
         return new(gross, discount, subtotal, vat, checked(subtotal + vat));
     }
