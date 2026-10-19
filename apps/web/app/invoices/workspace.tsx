@@ -11,7 +11,8 @@ type Taxpayer = { id: string; displayName: string; status: number };
 type Invoice = { id: string; customerUserId: string; taxpayerId: string; revision: number;
   kind?: "workspace"; lastCompletedStep?: number;
   state: string; subject: string; issueDateUtc: string; updatedAtUtc: string;
-  reviewState?: "WorkingDraft" | "Draft" | "InReview" | "ChangesRequested" | "Approved" };
+  reviewState?: "WorkingDraft" | "Draft" | "InReview" | "ChangesRequested" | "Approved";
+  systemCode?: string; sellerName?: string | null; buyerName?: string | null };
 type CatalogItem = { id: string; title: string; internalCode?: string };
 type CatalogPage = { items: CatalogItem[] };
 type Account = { customerUserId: string; companyName?: string | null; personName?: string | null };
@@ -71,6 +72,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   const [buyerActive, setBuyerActive] = useState(0);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
+  const requestSeq = useRef(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -119,6 +121,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   }, []);
 
   const reload = useCallback(async () => {
+    const requestId = ++requestSeq.current;
     setLoading(true);
     try {
       const query = new URLSearchParams();
@@ -129,12 +132,15 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
       query.set("page", String(listPage));
       query.set("pageSize", String(listPageSize));
       const list = await getJson<Invoice[]>("/api/invoices/overview?" + query);
-      setInvoices(list);
-      setError("");
-    } catch (e) { setInvoices([]); setError((e as Error).message); }
-    finally { setLoading(false); }
+      if (requestId === requestSeq.current) { setInvoices(list); setError(""); }
+    } catch (e) { if (requestId === requestSeq.current) setError((e as Error).message); }
+    finally { if (requestId === requestSeq.current) setLoading(false); }
   }, [filterCustomer, filterTaxpayer, reviewFilter, search, listPage]);
-  useEffect(() => { setDetail(null); void reload(); }, [reload]);
+  useEffect(() => {
+    setDetail(null);
+    const timer = window.setTimeout(() => {void reload();}, search ? 280 : 0);
+    return () => { window.clearTimeout(timer); requestSeq.current++; };
+  }, [reload]);
 
   const [customerTaxpayers, setCustomerTaxpayers] = useState<Taxpayer[]>([]);
   const [taxpayerOwners, setTaxpayerOwners] = useState<Record<string,string>>({});
@@ -409,9 +415,9 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
           <option value="ChangesRequested">نیازمند اصلاح</option>
           <option value="Approved">تأیید داخلی</option>
         </select>
-        <label htmlFor="invoice-list-search">جست‌وجو</label>
+        <label htmlFor="invoice-list-search">جست‌وجو <span title="نام خریدار، نام فروشنده، شناسه ملی یا کد اقتصادی فروشنده و اطلاعات ثبت‌شده در صورتحساب" aria-label="راهنمای جست‌وجو" tabIndex={0} role="note" style={{cursor:"help"}}>ⓘ</span></label>
         <input id="invoice-list-search" type="search" value={search}
-          onChange={e => {setSearch(e.target.value);setListPage(1);}} placeholder="جست‌وجو با شناسه صورتحساب" />
+          onChange={e => {setSearch(e.target.value);setListPage(1);}} placeholder="نام خریدار، فروشنده یا کد اقتصادی" />
       </div>
       <div className="invoice-register__actions">
         <button type="button" className="identity-secondary" disabled={loading}
@@ -422,17 +428,21 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
     </div>
     {error && !modal && <p role="alert" className="form-error">{error}</p>}
     {notice && <p role="status" className="auth-info">{notice}</p>}
-    <div className="console-table-scroll invoice-register__table-wrap">
+    <div className="console-table-scroll invoice-register__table-wrap" aria-busy={loading} style={{position:"relative",minHeight:"220px"}}>
+      {loading && <div role="status" aria-live="polite" style={{position:"absolute",inset:0,zIndex:2,background:"var(--color-surface, rgba(255,255,255,.92))",padding:12,display:"grid",gap:9,alignContent:"start"}}>
+        <span style={{fontWeight:600}}>در حال به‌روزرسانی فهرست صورتحساب‌ها…</span>
+        {Array.from({length:5},(_,i)=><div key={i} className="invoice-table-skeleton" style={{height:30,borderRadius:7,background:"linear-gradient(90deg,#e5e7eb 20%,#f3f4f6 48%,#e5e7eb 75%)",backgroundSize:"200% 100%",animation:"invoice-shimmer 1.3s ease-in-out infinite"}}/>)}
+      </div>}
       <table className="console-table">
-        <thead><tr><th>شناسه</th>{isAdmin && <th>مشتری</th>}<th>مؤدی فروشنده</th><th>تاریخ صدور</th><th>موضوع</th>
+        <thead><tr><th>شناسه سیستمی</th>{isAdmin && <th>مشتری</th>}<th>مؤدی فروشنده</th><th>خریدار</th><th>تاریخ صدور</th><th>موضوع</th>
           <th>وضعیت داخلی</th><th>نسخه</th><th>عملیات</th></tr></thead>
-        <tbody>{loading ? <tr><td colSpan={isAdmin ? 8 : 7}>در حال دریافت…</td></tr> :
-          filtered.length === 0 ? <tr><td colSpan={isAdmin ? 8 : 7}>صورتحسابی برای نمایش وجود ندارد.</td></tr> :
+        <tbody>{filtered.length === 0 ? <tr><td colSpan={isAdmin ? 9 : 8}>صورتحسابی برای نمایش وجود ندارد.</td></tr> :
           filtered.map(item => <tr key={item.id}>
-            <td><bdi dir="ltr" title={item.id}>{item.id.slice(0,8)}…</bdi></td>
+            <td><button type="button" className="console-row-action" title="کپی شناسه برای پشتیبانی" onClick={() => {void navigator.clipboard.writeText(item.systemCode || item.id).then(()=>setNotice("شناسه سیستمی کپی شد."));}}><bdi dir="ltr">{item.systemCode || item.id}</bdi> ⧉</button></td>
             {isAdmin && <td>{accounts.find(a=>a.customerUserId===item.customerUserId)?.companyName ||
               accounts.find(a=>a.customerUserId===item.customerUserId)?.personName || "حساب مشتری"}</td>}
-            <td>{taxpayers.find(t=>t.id===item.taxpayerId)?.displayName || "مؤدی ثبت‌شده"}</td>
+            <td>{item.sellerName || taxpayers.find(t=>t.id===item.taxpayerId)?.displayName || "مؤدی ثبت‌شده"}</td>
+            <td>{item.buyerName || "ثبت نشده"}</td>
             <td>{toFaDate(item.issueDateUtc)}</td><td>{item.subject}</td>
             <td>{item.reviewState === "WorkingDraft" ? "در حال تکمیل" :
               item.reviewState === "InReview" ? "در انتظار بازبینی" :
@@ -467,7 +477,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
             aria-label="بستن جزئیات">×</button>
         </div>
         <dl className="invoice-register__totals">
-          <dt>شناسه داخلی</dt><dd dir="ltr">{detail.id}</dd>
+          <dt>شناسه سیستمی</dt><dd dir="ltr">{detail.systemCode || detail.id}</dd>
           <dt>تاریخ</dt><dd>{toFaDate(detail.issueDateUtc)}</dd>
           <dt>موضوع</dt><dd>{detail.subject}</dd>
           <dt>وضعیت بازبینی</dt><dd>{detail.reviewState === "Approved" ? "تأیید داخلی" :
