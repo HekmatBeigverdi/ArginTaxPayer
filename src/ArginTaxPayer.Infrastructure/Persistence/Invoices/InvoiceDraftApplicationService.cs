@@ -220,9 +220,12 @@ public sealed class InvoiceDraftApplicationService(
         if (!string.IsNullOrWhiteSpace(search))
         {
             var value = search.Trim();
-            var codeMatched = InvoiceSupportCode.TryDecode(value, out var codeId);
+            var normalizedCode = value.ToUpperInvariant();
             var pattern = "%" + value.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_") + "%";
-            query = query.Where(x => (codeMatched && x.Id == codeId) ||
+            query = query.Where(x => db.InvoiceHumanReferences.Any(r =>
+                    r.SourceId == x.Id &&
+                    r.SourceKind == (x.Source == 1 ? "workspace" : "document") &&
+                    r.SystemCode == normalizedCode) ||
                 db.TaxpayerProfiles.Any(t => t.Id == x.TaxpayerId &&
                     t.CustomerUserId == x.CustomerUserId &&
                     (EF.Functions.ILike(t.DisplayName, pattern) ||
@@ -264,6 +267,11 @@ public sealed class InvoiceDraftApplicationService(
         var documentJson = await db.InvoiceDocuments.AsNoTracking()
             .Where(w => ids.Contains(w.Id)).Select(w => new { w.Id, w.SnapshotJson })
             .ToDictionaryAsync(w => w.Id, w => w.SnapshotJson, ct);
+        var referenceRows = await db.InvoiceHumanReferences.AsNoTracking()
+            .Where(r => ids.Contains(r.SourceId))
+            .Select(r => new { r.SourceId, r.SourceKind, r.SystemCode }).ToArrayAsync(ct);
+        var referenceCodes = referenceRows.ToDictionary(
+            r => (r.SourceKind, r.SourceId), r => r.SystemCode);
         var buyers = new Dictionary<Guid, string?>();
         foreach (var row in rows)
         {
@@ -293,7 +301,7 @@ public sealed class InvoiceDraftApplicationService(
                 x.Source == 1 ? "workspace" : null, x.Step,
                 x.Source == 1 ? "WorkingDraft" :
                     ((InvoiceReviewState)(x.Review ?? 1)).ToString(),
-                InvoiceSupportCode.Encode(x.Id),
+                referenceCodes.GetValueOrDefault((x.Source == 1 ? "workspace" : "document", x.Id)),
                 names.GetValueOrDefault(x.TaxpayerId),
                 buyers.GetValueOrDefault(x.Id))).ToArray());
     }
