@@ -72,13 +72,19 @@ public sealed record SaveInvoiceEntryRequest(Guid? Id, Guid TaxpayerId, long Exp
     int Type, int Pattern, InvoiceEntryLine[]? Lines,
     string? BuyerDisplayName = null, string? InvoiceDescription = null,
     InvoiceDraftSettlementMethod SettlementMethod = InvoiceDraftSettlementMethod.Unknown,
-    decimal? CashAmountRial = null, decimal? CreditAmountRial = null);
+    decimal? CashAmountRial = null, decimal? CreditAmountRial = null,
+    string? ContractNumber = null, string? ServiceBillId = null, int? FlightType = null,
+    decimal? GoldConstructionFeeRial = null, decimal? GoldSellerProfitRial = null,
+    decimal? GoldCommissionRial = null, decimal? GoldTotalFeeProfitRial = null);
 public sealed record InvoiceEntryView(Guid Id, Guid CustomerUserId, Guid TaxpayerId, long Revision,
     int LastCompletedStep, DateTime IssueDateUtc, DateTime UpdatedAtUtc,
     Guid? BuyerPartyId, int Type, int Pattern, InvoiceEntryLine[] Lines,
     string? BuyerDisplayName, string? InvoiceDescription,
     InvoiceDraftSettlementMethod SettlementMethod, decimal? CashAmountRial,
-    decimal? CreditAmountRial, InvoiceDraftFinancialSummary FinancialSummary);
+    decimal? CreditAmountRial, InvoiceDraftFinancialSummary FinancialSummary,
+    string? ContractNumber = null, string? ServiceBillId = null, int? FlightType = null,
+    decimal? GoldConstructionFeeRial = null, decimal? GoldSellerProfitRial = null,
+    decimal? GoldCommissionRial = null, decimal? GoldTotalFeeProfitRial = null);
 public sealed record InvoiceEntryResult(InvoiceApiDecision Decision, InvoiceEntryView? Draft = null);
 
 /// <summary>
@@ -125,6 +131,30 @@ public sealed class InvoiceEntryWorkspaceService(
                 l.DiscountPerUnitRial < 0 || l.DiscountPerUnitRial > l.UnitPriceRial ||
                 l.VatRatePercent is < 0 or >= 1000))
             return false;
+        static bool Digits(string? v,int max) => v is {Length: > 0} &&
+            v.Length <= max && v.All(c => c is >= '0' and <= '9');
+        if (input.ContractNumber is not null &&
+            (input.Type != 1 || input.Pattern != 4 || !Digits(input.ContractNumber,12)) ||
+            input.ServiceBillId is not null &&
+            (input.Type != 1 || input.Pattern != 5 || !Digits(input.ServiceBillId,19)) ||
+            input.FlightType is not null &&
+            (input.Type != 1 || input.Pattern != 6 || input.FlightType is not (1 or 2)) ||
+            input.Pattern != 3 &&
+            (input.GoldConstructionFeeRial is not null || input.GoldSellerProfitRial is not null ||
+             input.GoldCommissionRial is not null || input.GoldTotalFeeProfitRial is not null) ||
+            new decimal?[] { input.GoldConstructionFeeRial, input.GoldSellerProfitRial,
+                input.GoldCommissionRial, input.GoldTotalFeeProfitRial }.Any(v => v is < 0 or > 999999999999999m))
+            return false;
+        // Workspaces may be saved incomplete, but completed header must include
+        // the official condition-specific fields before moving past step zero.
+        if (input.LastCompletedStep >= 1 &&
+            (input.Type == 1 && input.Pattern == 4 && !Digits(input.ContractNumber,12) ||
+             input.Type == 1 && input.Pattern == 5 && !Digits(input.ServiceBillId,19) ||
+             input.Type == 1 && input.Pattern == 6 && input.FlightType is not (1 or 2) ||
+             input.Pattern == 3 &&
+             (input.GoldConstructionFeeRial is null || input.GoldSellerProfitRial is null ||
+              input.GoldCommissionRial is null || input.GoldTotalFeeProfitRial is null)))
+            return false;
         try
         {
             var summary = InvoiceDraftSettlementPolicy.Calculate(input.Lines);
@@ -143,7 +173,10 @@ public sealed class InvoiceEntryWorkspaceService(
             value.BuyerPartyId,value.Type,value.Pattern,value.Lines ?? [],
             value.BuyerDisplayName, value.InvoiceDescription, value.SettlementMethod,
             value.CashAmountRial, value.CreditAmountRial,
-            InvoiceDraftSettlementPolicy.Calculate(value.Lines ?? []));
+            InvoiceDraftSettlementPolicy.Calculate(value.Lines ?? []),
+            value.ContractNumber,value.ServiceBillId,value.FlightType,
+            value.GoldConstructionFeeRial,value.GoldSellerProfitRial,
+            value.GoldCommissionRial,value.GoldTotalFeeProfitRial);
     }
 
     public async Task<InvoiceEntryResult> SaveAsync(string? token,
