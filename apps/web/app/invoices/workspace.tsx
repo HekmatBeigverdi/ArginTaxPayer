@@ -6,6 +6,7 @@ import { PersianDatePicker } from "../catalog/persian-date-picker";
 import { PersianTimePicker } from "../components/persian-time-picker";
 import SearchableCatalogPicker from "./searchable-catalog-picker";
 import InvoiceValidationPanel from "./invoice-validation-panel";
+import {invoicePreview} from "./invoice-financial-preview.mjs";
 
 type Taxpayer = { id: string; displayName: string; status: number };
 type Invoice = { id: string; customerUserId: string; taxpayerId: string; revision: number;
@@ -331,6 +332,8 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
         Number(r.vatRate)<0 || Number(r.vatRate)>=1000)) {
       setError("شرح یا مقادیر یکی از ردیف‌ها معتبر نیست.");return;
     }
+    try { invoicePreview(rows); }
+    catch { setError("مقادیر عددی ردیف‌ها یا دقت آن‌ها معتبر نیست."); return; }
     const cash = settlement === 1 ? calculated.total : settlement === 2 ? 0 :
       settlement === 3 ? roundRial(Number(cashInput)) : null;
     const credit = settlement === 1 ? 0 : settlement === 2 ? calculated.total :
@@ -408,18 +411,8 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   }
   const roundRial = (value:number) => Math.round((value + Number.EPSILON) * 100) / 100;
   const calculated = useMemo(() => {
-    const base = rows.reduce((total, row) =>
-      total + amount(row.quantity) * amount(row.unitPrice), 0);
-    const discount = rows.reduce((total, row) =>
-      total + Math.min(amount(row.discount), amount(row.unitPrice)) * amount(row.quantity), 0);
-    const vat = rows.reduce((total, row) =>
-      total + Math.max(0, amount(row.unitPrice) - amount(row.discount)) *
-      amount(row.quantity) * amount(row.vatRate) / 100, 0);
-    const gross = roundRial(base);
-    const totalDiscount = roundRial(discount);
-    const vatPreview = roundRial(vat);
-    return {base:gross, discount:totalDiscount, vat:vatPreview,
-      total: roundRial(gross-totalDiscount+vatPreview)};
+    try { return invoicePreview(rows); }
+    catch { return {base:0,discount:0,vat:0,total:0}; }
   }, [rows]);
   const cashPreview = settlement === 1 ? calculated.total : settlement === 2 ? 0 :
     settlement === 3 ? roundRial(amount(cashInput)) : 0;
