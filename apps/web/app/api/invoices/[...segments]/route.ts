@@ -62,7 +62,7 @@ async function proxy(request: NextRequest, context: Context, method: "GET" | "PO
           "issueDateUtc","buyerPartyId","type","pattern","lines",
           "invoiceDescription","settlementMethod","cashAmountRial","creditAmountRial",
           "contractNumber","serviceBillId","flightType","goldConstructionFeeRial",
-          "goldSellerProfitRial","goldCommissionRial","goldTotalFeeProfitRial"];
+          "goldSellerProfitRial","goldCommissionRial","goldTotalFeeProfitRial","fiscalMemoryId"];
         if (Object.keys(data).some(k=>!permitted.includes(k)) ||
             typeof data.taxpayerId !== "string" || !uuid.test(data.taxpayerId) ||
             typeof data.issueDateUtc !== "string" || !Array.isArray(data.lines) ||
