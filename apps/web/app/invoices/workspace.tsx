@@ -15,7 +15,7 @@ type Invoice = { id: string; customerUserId: string; taxpayerId: string; revisio
   systemCode?: string; sellerName?: string | null; buyerName?: string | null };
 type CatalogItem = { id: string; title: string; internalCode?: string };
 type HeaderOptions = {taxpayer:{id:string;displayName:string;normalizedIdentifier:string};
-  memories:{id:string;memoryIdentifier:string;status:string}[]};
+  memories:{id:string;memoryIdentifier:string;status:number}[]};
 type FormMetadata = { edition: string; verifiedForSubmission: boolean;
   entries: {type:number;pattern:number|null;requiredFields:string[]}[] };
 type CatalogPage = { items: CatalogItem[] };
