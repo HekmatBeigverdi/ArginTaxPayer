@@ -663,3 +663,12 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 .invoice-validation__history>strong{display:block;margin-bottom:8px}
 .invoice-validation__history li{display:flex;flex-wrap:wrap;justify-content:space-between;gap:7px;padding:6px 8px;border-bottom:1px solid #e6edf1;font-size:11px}
 @media(max-width:700px){.invoice-validation__reference{grid-template-columns:minmax(0,1fr)}.invoice-validation__findings li{grid-template-columns:50px minmax(0,1fr)}.invoice-validation__findings li code{grid-column:2}}
+
+/* Phase 08 invoice overview: shimmer while maintaining table dimensions. */
+@keyframes invoice-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .invoice-table-skeleton { animation: none !important; }
+}
