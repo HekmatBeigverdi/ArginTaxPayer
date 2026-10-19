@@ -81,6 +81,20 @@ async function proxy(request: NextRequest, context: Context, method: "GET" | "PO
         if (value && (key === "page" || key === "pageSize" ? /^[1-9]\d{0,5}$/.test(value) : uuid.test(value))) filtered.set(key, value);
         else if (value) return error(400, "invalid_filter");
       }
+      if (segments[0] === "overview") {
+        const reviewState = request.nextUrl.searchParams.get("reviewState");
+        if (reviewState !== null) {
+          if (!["Draft", "InReview", "ChangesRequested", "Approved", "WorkingDraft"].includes(reviewState))
+            return error(400, "invalid_filter");
+          filtered.set("reviewState", reviewState);
+        }
+        const search = request.nextUrl.searchParams.get("search");
+        if (search !== null) {
+          if (search.length > 128 || /[\\x00-\\x1f\\x7f]/.test(search))
+            return error(400, "invalid_filter");
+          if (search.trim()) filtered.set("search", search.trim());
+        }
+      }
     }
     const response = await fetch(identityApiOrigin() + url + (filtered.size ? "?" + filtered : ""), {
       method, cache: "no-store", redirect: "manual",
