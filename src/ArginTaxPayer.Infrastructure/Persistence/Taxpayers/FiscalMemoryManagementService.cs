@@ -24,7 +24,7 @@ public sealed record FiscalMemoryOperationResult(FiscalMemoryOperationStatus Sta
 /// </summary>
 public sealed class FiscalMemoryManagementService(
     ArginTaxPayerDbContext db, IdentityAuthorizationService authorization,
-    ParticipantScopeService scope)
+    ParticipantScopeService scope, TaxpayerScopeService taxpayerScope)
 {
     private async Task<FiscalMemoryOperationStatus?> AuthenticateLevel1Async(string? bearer, CancellationToken ct)
     {
@@ -41,13 +41,14 @@ public sealed class FiscalMemoryManagementService(
     private async Task<FiscalMemoryOperationStatus?> AuthenticateParticipantAsync(
         string? bearer, Guid taxpayerId, CancellationToken ct)
     {
-        var actor = await authorization.CurrentUserIdAsync(bearer, ct);
-        if (actor is null) return FiscalMemoryOperationStatus.Unauthenticated;
-        var owner = await db.TaxpayerProfiles.AsNoTracking()
-            .Where(p => p.Id == taxpayerId).Select(p => p.CustomerUserId).SingleOrDefaultAsync(ct);
-        if (owner is null || !await scope.CanManageAsync(actor.Value, owner.Value, ct))
+        var principal = await taxpayerScope.ResolveAsync(bearer, ct);
+        if (principal.Decision == TaxpayerScopeDecision.Unauthenticated)
+            return FiscalMemoryOperationStatus.Unauthenticated;
+        if (principal.Decision != TaxpayerScopeDecision.Allowed)
             return FiscalMemoryOperationStatus.Forbidden;
-        return null;
+        var permitted = await taxpayerScope.ScopedQuery(principal.ActorId, principal.Level1)
+            .AnyAsync(p => p.Id == taxpayerId && p.Status == TaxpayerStatus.Active, ct);
+        return permitted ? null : FiscalMemoryOperationStatus.NotFound;
     }
 
     public async Task<FiscalMemoryOperationResult> RegisterAsync(
@@ -111,10 +112,8 @@ public sealed class FiscalMemoryManagementService(
     public async Task<(FiscalMemoryOperationStatus Status, FiscalMemoryView[]? Memories)> ListAsync(
         string? bearer, Guid taxpayerId, CancellationToken ct = default)
     {
-        var denied = await AuthenticateLevel1Async(bearer, ct);
+        var denied = await AuthenticateParticipantAsync(bearer, taxpayerId, ct);
         if (denied is { } failure) return (failure, null);
-        if (!await db.TaxpayerProfiles.AsNoTracking().AnyAsync(p => p.Id == taxpayerId, ct))
-            return (FiscalMemoryOperationStatus.NotFound, null);
         var list = await db.FiscalMemories.AsNoTracking()
             .Where(x => x.TaxpayerId == taxpayerId)
             .OrderBy(x => x.CreatedAtUtc)
