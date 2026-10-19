@@ -165,8 +165,8 @@ public sealed class InvoiceReviewCommandService(
             return new(InvoiceReviewCommandDecision.Conflict);
         }
         catch (DbUpdateException ex) when (ex.InnerException is PostgresException pg &&
-            pg.SqlState is PostgresErrorCodes.SerializationFailure or
-                PostgresErrorCodes.UniqueViolation)
+            (pg.SqlState == PostgresErrorCodes.SerializationFailure ||
+             pg.SqlState == PostgresErrorCodes.UniqueViolation))
         {
             db.ChangeTracker.Clear();
             return new(InvoiceReviewCommandDecision.Conflict);
