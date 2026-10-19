@@ -1,4 +1,5 @@
 using System.Text.Json;
+using ArginTaxPayer.Domain.Invoices;
 using ArginTaxPayer.Infrastructure.Persistence.Parties;
 using ArginTaxPayer.Infrastructure.Persistence.Taxpayers;
 using Microsoft.EntityFrameworkCore;
@@ -110,7 +111,10 @@ public sealed class InvoiceEntryWorkspaceService(
         if (input.TaxpayerId == Guid.Empty || input.ExpectedRevision < 0 ||
             input.LastCompletedStep is < 0 or > 2 ||
             input.IssueDateUtc.Kind != DateTimeKind.Utc ||
-            input.Type is < 1 or > 2 || input.Pattern is < 1 or > 14 ||
+            input.Type is < 1 or > 2 ||
+            OfficialV79InvoicePatternMatrix.Create().Evaluate(
+                new InvoiceTypePattern((ElectronicInvoiceType)input.Type,input.Pattern),
+                input.IssueDateUtc) != InvoicePatternDecision.AllowedByReferencedEdition ||
             input.Lines is null || input.Lines.Length > 150 ||
             input.InvoiceDescription is { Length: > 1500 } ||
             (input.InvoiceDescription?.Any(c => char.IsControl(c) &&
