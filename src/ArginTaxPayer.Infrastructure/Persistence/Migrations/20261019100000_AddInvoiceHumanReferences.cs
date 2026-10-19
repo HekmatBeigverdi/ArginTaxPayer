@@ -130,37 +130,68 @@ CREATE TRIGGER trg_phase08_invoice_document_system_code
  AFTER INSERT ON invoice_documents FOR EACH ROW
  EXECUTE FUNCTION phase08_invoice_support_insert('document');
 
--- Existing records receive codes at migration time according to CURRENT commercial owner.
--- No historical owner-at-creation assumption is fabricated.
+-- Legacy invoices with missing ownership belong to the unambiguous Level1 root.
+-- Do not assign a random root if more than one active Level1 exists.
+DO $$
+DECLARE
+ root_id uuid;
+ root_count integer;
+ repaired integer;
+BEGIN
+ SELECT count(DISTINCT u.id), min(u.id)
+ INTO root_count, root_id
+ FROM identity_users u
+ JOIN identity_user_roles r ON r.user_id = u.id AND r.role = 'Level1'
+ WHERE u.is_active = true;
+
+ IF EXISTS (
+   SELECT 1
+   FROM (
+     SELECT customer_user_id FROM invoice_entry_workspaces
+     UNION
+     SELECT customer_user_id FROM invoice_documents
+   ) c
+   LEFT JOIN customer_commercial_owners o ON o.customer_user_id = c.customer_user_id
+   WHERE o.customer_user_id IS NULL
+ ) THEN
+   IF root_count <> 1 THEN
+     RAISE EXCEPTION 'Unassigned legacy invoice customers require exactly one active Level1 (found %); resolve ownership before migration', root_count;
+   END IF;
+
+   INSERT INTO customer_commercial_owners (
+     customer_user_id, root_level1_user_id, partner_level2_user_id,
+     acquisition_channel, revision, created_at_utc, updated_at_utc
+   )
+   SELECT c.customer_user_id, root_id, NULL, 2, 1, now(), now()
+   FROM (
+     SELECT customer_user_id FROM invoice_entry_workspaces
+     UNION
+     SELECT customer_user_id FROM invoice_documents
+   ) c
+   LEFT JOIN customer_commercial_owners o ON o.customer_user_id = c.customer_user_id
+   WHERE o.customer_user_id IS NULL
+   ON CONFLICT (customer_user_id) DO NOTHING;
+
+   GET DIAGNOSTICS repaired = ROW_COUNT;
+   RAISE NOTICE 'Assigned % legacy invoice customers to sole active Level1', repaired;
+ END IF;
+END $$;
+
+-- Allocate support references for all historical invoices after ownership reconciliation.
 DO $$
 DECLARE item record;
-        skipped_count integer := 0;
 BEGIN
  FOR item IN
-   SELECT 'workspace'::varchar AS kind,w.id,w.customer_user_id,
-          w.updated_at_utc AS at_utc,
-          o.customer_user_id AS owner_customer_id
-     FROM invoice_entry_workspaces w
-     LEFT JOIN customer_commercial_owners o ON o.customer_user_id = w.customer_user_id
+   SELECT 'workspace'::varchar AS kind,id,customer_user_id,updated_at_utc AS at_utc
+   FROM invoice_entry_workspaces
    UNION ALL
-   SELECT 'document'::varchar,d.id,d.customer_user_id,
-          d.updated_at_utc,o.customer_user_id
-     FROM invoice_documents d
-     LEFT JOIN customer_commercial_owners o ON o.customer_user_id = d.customer_user_id
+   SELECT 'document'::varchar,id,customer_user_id,updated_at_utc
+   FROM invoice_documents
    ORDER BY at_utc,id
  LOOP
-   IF item.owner_customer_id IS NULL THEN
-     -- Legacy customers awaiting root-supervised commercial attribution.
-     -- Do not invent an administrator and do not delete their invoices.
-     skipped_count := skipped_count + 1;
-     CONTINUE;
-   END IF;
    PERFORM phase08_allocate_invoice_support(item.kind,item.id,item.customer_user_id);
  END LOOP;
- IF skipped_count > 0 THEN
-   RAISE NOTICE 'Invoice support backfill: % orphaned legacy records retained without codes; resolve ownership and run controlled backfill', skipped_count;
- END IF;
-END $;
+END $$;
 
 CREATE FUNCTION phase08_immutable_support_ref() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
