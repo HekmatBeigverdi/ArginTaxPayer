@@ -221,18 +221,19 @@ public sealed class InvoiceDraftApplicationService(
         {
             var value = search.Trim();
             var codeMatched = InvoiceSupportCode.TryDecode(value, out var codeId);
+            var pattern = "%" + value.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_") + "%";
             query = query.Where(x => (codeMatched && x.Id == codeId) ||
                 db.TaxpayerProfiles.Any(t => t.Id == x.TaxpayerId &&
                     t.CustomerUserId == x.CustomerUserId &&
-                    (EF.Functions.ILike(t.DisplayName, "%" + value + "%") ||
-                     EF.Functions.ILike(t.NormalizedIdentifier, "%" + value + "%"))) ||
+                    (EF.Functions.ILike(t.DisplayName, pattern) ||
+                     EF.Functions.ILike(t.NormalizedIdentifier, pattern))) ||
                 db.InvoiceParticipantDetails.Any(d =>
                     d.CustomerUserId == x.CustomerUserId && d.TaxpayerId == x.TaxpayerId &&
-                    d.EconomicCode != null && EF.Functions.ILike(d.EconomicCode, "%" + value + "%")) ||
+                    d.EconomicCode != null && EF.Functions.ILike(d.EconomicCode, pattern)) ||
                 (x.Source == 1 && db.InvoiceEntryWorkspaces.Any(w =>
-                    w.Id == x.Id && EF.Functions.ILike(w.DraftJson, "%" + value + "%"))) ||
+                    w.Id == x.Id && EF.Functions.ILike(w.DraftJson, pattern))) ||
                 (x.Source == 0 && db.InvoiceDocuments.Any(d =>
-                    d.Id == x.Id && EF.Functions.ILike(d.SnapshotJson, "%" + value + "%"))));
+                    d.Id == x.Id && EF.Functions.ILike(d.SnapshotJson, pattern))));
         }
         var rows = await query.OrderByDescending(x => x.UpdatedAtUtc)
             .ThenBy(x => x.Id).Skip((page - 1) * pageSize)
