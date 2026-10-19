@@ -20,17 +20,17 @@ public static class InvoiceReviewDevelopmentEndpoints
         var group = app.MapGroup("/api/dev/invoices/{invoiceId:guid}/review")
             .WithTags("Invoice Review (Development)");
 
-        group.MapPost("/submit", async (Guid invoiceId,
+        group.MapPost("/submit", (Guid invoiceId,
             [FromBody] ReviewActionRequest request, HttpContext http,
             InvoiceReviewCommandService service, CancellationToken ct) =>
             Run(http, invoiceId, request, InvoiceReviewAction.SubmitForReview, service, ct));
 
-        group.MapPost("/request-changes", async (Guid invoiceId,
+        group.MapPost("/request-changes", (Guid invoiceId,
             [FromBody] ReviewActionRequest request, HttpContext http,
             InvoiceReviewCommandService service, CancellationToken ct) =>
             Run(http, invoiceId, request, InvoiceReviewAction.RequestChanges, service, ct));
 
-        group.MapPost("/approve", async (Guid invoiceId,
+        group.MapPost("/approve", (Guid invoiceId,
             [FromBody] ReviewActionRequest request, HttpContext http,
             InvoiceReviewCommandService service, CancellationToken ct) =>
             Run(http, invoiceId, request, InvoiceReviewAction.Approve, service, ct));
