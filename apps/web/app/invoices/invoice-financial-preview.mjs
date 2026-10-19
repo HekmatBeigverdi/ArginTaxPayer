@@ -32,7 +32,8 @@ export function invoicePreview(lines){
   const rowGross=moneyRound(multiply(qty,price).n,qty.scale+price.scale);
   const rowDiscount=moneyRound(multiply(qty,reduction).n,qty.scale+reduction.scale);
   const net=rowGross-rowDiscount;
-  const rowVat=moneyRound(net*rate.n,rate.scale+2);
+  const divisor=power(rate.scale+2);
+  const rowVat=(net*rate.n+divisor/2n)/divisor;
   gross+=rowGross;discount+=rowDiscount;vat+=rowVat;
  }
  return {base:formatCents(gross),discount:formatCents(discount),
