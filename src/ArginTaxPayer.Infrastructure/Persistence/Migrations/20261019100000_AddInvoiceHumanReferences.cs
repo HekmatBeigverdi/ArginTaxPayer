@@ -138,13 +138,14 @@ DECLARE
  root_count integer;
  repaired integer;
 BEGIN
- SELECT count(*), min(u.id)
- INTO root_count, root_id
+ SELECT count(*)
+ INTO root_count
  FROM identity_users u
  JOIN identity_user_roles r ON r.user_id = u.id AND r.role = 'Level1'
  WHERE u.id = '3054f5ac-38b4-429e-8dc2-8f9e1125bc7f'::uuid
    AND u.normalized_mobile = '+989192424119'
    AND u.is_active = true;
+ root_id := '3054f5ac-38b4-429e-8dc2-8f9e1125bc7f'::uuid;
 
  IF EXISTS (
    SELECT 1
