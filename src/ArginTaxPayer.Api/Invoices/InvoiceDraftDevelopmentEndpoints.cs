@@ -69,7 +69,7 @@ public static class InvoiceDraftDevelopmentEndpoints
         {
             if (!Local(http)) return Results.NotFound();
             var result = await service.ListVisibleAsync(Token(http), customerId, taxpayerId,
-                page ?? 1, pageSize ?? 50, ct);
+                page ?? 1, pageSize ?? 50, ct, reviewState, search);
             return result.Decision == InvoiceApiDecision.Success
                 ? Results.Ok(result.Data) : Error(result.Decision);
         }).WithTags("Invoice Drafts (Development)");
