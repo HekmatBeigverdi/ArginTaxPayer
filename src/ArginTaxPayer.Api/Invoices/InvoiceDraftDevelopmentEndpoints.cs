@@ -2,6 +2,8 @@ using System.Net;
 using ArginTaxPayer.Infrastructure.Persistence.Invoices;
 using ArginTaxPayer.Infrastructure.Persistence.Taxpayers;
 using ArginTaxPayer.Domain.Invoices;
+using ArginTaxPayer.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Mvc;
 
 namespace ArginTaxPayer.Api.Invoices;
@@ -15,6 +17,26 @@ public static class InvoiceDraftDevelopmentEndpoints
     public static IEndpointRouteBuilder MapInvoiceDraftDevelopmentEndpoints(
         this IEndpointRouteBuilder app)
     {
+        app.MapGet("/api/dev/invoices/header-options/{taxpayerId:guid}", async (
+            Guid taxpayerId, HttpContext http, TaxpayerScopeService scope,
+            ArginTaxPayerDbContext db, CancellationToken ct) =>
+        {
+            if (!Local(http)) return Results.NotFound();
+            var actor = await scope.ResolveAsync(Token(http), ct);
+            if (actor.Decision == TaxpayerScopeDecision.Unauthenticated) return Results.Unauthorized();
+            if (actor.Decision != TaxpayerScopeDecision.Allowed) return Results.StatusCode(403);
+            var taxpayer = await scope.ScopedQuery(actor.ActorId,actor.Level1)
+                .Where(p => p.Id == taxpayerId)
+                .Select(p => new {p.Id,p.DisplayName,p.NormalizedIdentifier}).SingleOrDefaultAsync(ct);
+            if (taxpayer is null) return Results.NotFound();
+            var memories = await db.FiscalMemories.AsNoTracking()
+                .Where(m => m.TaxpayerId == taxpayerId)
+                .OrderBy(m => m.MemoryIdentifier)
+                .Select(m => new {m.Id,m.MemoryIdentifier,status = m.Status.ToString()})
+                .ToArrayAsync(ct);
+            return Results.Ok(new { taxpayer, memories });
+        }).WithTags("Invoice Header Options (Development)");
+
         app.MapGet("/api/dev/invoices/form-metadata", async (
             HttpContext http, TaxpayerScopeService scope, CancellationToken ct) =>
         {
