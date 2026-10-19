@@ -42,7 +42,7 @@ CREATE TABLE invoice_support_references (
  CONSTRAINT uq_invoice_support_source UNIQUE(source_kind,source_id),
  CONSTRAINT uq_invoice_support_system_code UNIQUE(system_code),
  CONSTRAINT uq_invoice_support_serial UNIQUE(admin_user_id,persian_year,serial),
- CONSTRAINT ck_invoice_support_format CHECK(system_code ~ '^[0-9]{5,}-[0-9]{2}-[A-Z]{3})
+ CONSTRAINT ck_invoice_support_format CHECK(system_code ~ '^[0-9]{5,}-[0-9]{2}-[A-Z]{3}
 );
 
 CREATE FUNCTION phase08_persian_year_for_issue(date_value timestamptz)
@@ -226,7 +226,7 @@ DECLARE
  admin_code varchar(3);
  ordinal_value integer;
  year_value integer;
- serial_value integer;
+ serial_value bigint;
  full_code text;
 BEGIN
  IF EXISTS (SELECT 1 FROM invoice_support_references
@@ -246,7 +246,7 @@ BEGIN
    VALUES(owner_id,year_value,1)
    ON CONFLICT(admin_user_id,persian_year)
    DO UPDATE SET last_serial = invoice_support_counters.last_serial + 1
-     WHERE invoice_support_counters.last_serial < 99999
+     WHERE invoice_support_counters.last_serial < 9223372036854775807
    RETURNING last_serial INTO serial_value;
  IF serial_value IS NULL THEN
    RAISE EXCEPTION 'Invoice support sequence exhausted';
