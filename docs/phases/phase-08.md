@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 08: Invoice Workflows and UI
 
-**Status:** Steps 01–06 owner-approved by operator; Step 07 API changes committed, local regression/HTTP checks pending.
+**Status:** Steps 01–07 owner-approved; Step 08 server/UI filters committed and Next.js forwarding bug corrected; local acceptance pending.
 **Branch:** `phase/08-invoice-workflows-ui`
 **Baseline:** `main` at `364462848914f289916962a0578c9fac9cd85ce1` (GitHub inspected 2026-10-18).
 **Roadmap source:** `docs/roadmap/18-phases.md`, phase 08 of 18.
@@ -413,3 +413,12 @@ dotnet test ArginTaxPayer.sln
 Operator curl of POST `/api/dev/invoices/{invoiceId}/review/submit` without bearer token returned HTTP 500: `System.Text.Json` attempted to serialize `AsyncTaskMethodBuilder...AsyncStateMachineBox` because Minimal API handler was declared `async` yet returned the un-awaited `Task<IResult>` from `Run` as its expression body. Fixed all three review routes (`submit`, `request-changes`, `approve`) by removing outer `async`: delegate now directly returns `Task<IResult>`, which ASP.NET Core awaits and writes as `IResult`. No DB schema/API shape changes.
 
 **Operator retest required:** run `dotnet test ArginTaxPayer.sln`; restart the API with `zsh scripts/dev-down.zsh && zsh scripts/dev-up.zsh`; then repeat no-token curl (expected 401). This HTTP 500 is a confirmed defect; step is **not accepted** until actual smoke result is provided. On an absent/unreachable test DB, initial transaction setup may produce a separate error; confirm `/health/ready` and the test database.
+
+## Step08 — Filter forwarding regression correction (2026-10-19)
+
+- Operator reported that changing review status or typing search had no effect on invoice list.
+- Root cause verified in `apps/web/app/api/invoices/[...segments]/route.ts`: the Next.js authenticated proxy forwarded only `customerId`, `taxpayerId`, `page`, `pageSize` and silently stripped newly introduced `reviewState` and `search`. This made server-side filters unreachable from UI.
+- Fixed overview-only forwarding of allowlisted `reviewState` values and bounded, control-character-free `search`. Existing authenticated cookie, same-origin and legacy query behavior remain unchanged; invalid filter values fail 400.
+- Added `apps/web/tests/phase08-invoice-overview-filter.test.mjs` to guard the forwarding code against regression. These are code contract tests; they do not substitute for browser + HTTP acceptance.
+- **Operator retest:** `git pull --ff-only`; `npm --prefix apps/web test`; `npm --prefix apps/web run typecheck`; restart Next.js with dev-down/up; verify filter InReview/Approved/WorkingDraft and search for partial invoice UUID, including no-results and paging reset.
+- **Status:** patch committed, live execution pending; Step09 blocked until explicit owner acceptance.
