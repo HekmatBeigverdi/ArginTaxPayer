@@ -90,7 +90,7 @@ async function proxy(request: NextRequest, context: Context, method: "GET" | "PO
         }
         const search = request.nextUrl.searchParams.get("search");
         if (search !== null) {
-          if (search.length > 128 || /[\\x00-\\x1f\\x7f]/.test(search))
+          if (search.length > 128 || /[\x00-\x1f\x7f]/.test(search))
             return error(400, "invalid_filter");
           if (search.trim()) filtered.set("search", search.trim());
         }
