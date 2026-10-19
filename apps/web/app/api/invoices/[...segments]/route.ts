@@ -57,7 +57,9 @@ async function proxy(request: NextRequest, context: Context, method: "GET" | "PO
       if (segments[0] === "workspaces") {
         const permitted = ["id","taxpayerId","expectedRevision","lastCompletedStep",
           "issueDateUtc","buyerPartyId","type","pattern","lines",
-          "invoiceDescription","settlementMethod","cashAmountRial","creditAmountRial"];
+          "invoiceDescription","settlementMethod","cashAmountRial","creditAmountRial",
+          "contractNumber","serviceBillId","flightType","goldConstructionFeeRial",
+          "goldSellerProfitRial","goldCommissionRial","goldTotalFeeProfitRial"];
         if (Object.keys(data).some(k=>!permitted.includes(k)) ||
             typeof data.taxpayerId !== "string" || !uuid.test(data.taxpayerId) ||
             typeof data.issueDateUtc !== "string" || !Array.isArray(data.lines) ||
