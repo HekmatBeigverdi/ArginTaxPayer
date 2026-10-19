@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 08: Invoice Workflows and UI
 
-**Status:** Steps 01–09 owner-approved; Step 10 implemented in GitHub, macOS/browser acceptance pending.
+**Status:** Steps 01–10 owner-approved; Step 11 implementation committed, macOS/browser acceptance pending.
 **Branch:** `phase/08-invoice-workflows-ui`
 **Baseline:** `main` at `364462848914f289916962a0578c9fac9cd85ce1` (GitHub inspected 2026-10-18).
 **Roadmap source:** `docs/roadmap/18-phases.md`, phase 08 of 18.
@@ -45,8 +45,8 @@
 | 07 | Workflow API contracts | Expose scoped commands, queries and stable typed errors | Backward compatible, stable response contracts | Development command API committed; operator tests pending |
 | 08 | Invoice workspace list | Show customer-scoped drafts, review queue, filters, pagination | Correct statuses and scoped results | Owner-approved 2026-10-19 |
 | 09 | Dynamic invoice forms | Drive conditional fields by official rule-set and pattern metadata | Valid combinations enabled; invalid blocked | Owner-approved 2026-10-19 |
-| 10 | Header and party entry | Taxpayer, memory, buyer, issue date, header validation | Localized field errors and valid persisted values | Code committed; macOS acceptance pending |
-| 11 | Line and catalog entry | Search/select Phase06 catalog items, quantity, unit, price and snapshots | Historic invoice unchanged after catalog edit | Not started |
+| 10 | Header and party entry | Taxpayer, memory, buyer, issue date, header validation | Localized field errors and valid persisted values | Owner-approved 2026-10-19 |
+| 11 | Line and catalog entry | Search/select Phase06 catalog items, quantity, unit, price and snapshots | Historic invoice unchanged after catalog edit | Code committed; operator acceptance pending |
 | 12 | Calculations and financial summary | Display discount, charges, VAT and final totals using Phase07 engine | UI/API totals match canonical model | Not started |
 | 13 | Settlement methods and fields | Cash, credit and mixed invoice terms and reconciliation | Valid mix accepted; mismatch rejected | Not started |
 | 14 | Save/resume draft UX | Enhance existing resumable workspaces and unsaved-change handling | Draft resumes exactly once without lost fields | Not started |
@@ -508,3 +508,12 @@ Owner approved yearly reset and expanding serial length. Updated **pending/unapp
 - Replaced first-memory registration/list checks with a consistent `TaxpayerScopeService.ResolveAsync` + current `ScopedQuery(actorId,level1)` + active taxpayer membership. This grants access to active taxpayer's customer account and currently authorized Level2/Level1 only; returns 401 for unauthenticated and 404 for out-of-scope taxpayer IDs. It does NOT grant access to other customers, former partners, inactive taxpayers, or certificate-management transitions; those retain Level1-only policy.
 - The existing first-memory-only invariant, serializable transaction, revision checks, pending-verification status and no real authority connection remain unchanged. A second memory still requires the future reviewed exception process; no private keys or JWTs are accepted by this endpoint.
 - Added `apps/web/tests/phase08-step10-fiscal-memory-access.test.mjs` guard. Changes are code-only, no migration. **Live macOS integration and browser acceptance pending**. Test roles: owning customer, current assigned Level2, Level1, other customer, former Level2, missing MFA, second memory attempt. Step11 remains blocked.
+
+### Step11 — Phase06 catalog-linked invoice line snapshots (2026-10-19)
+- Operator explicitly approved Phase08 Step10 after local tests, including first fiscal-memory registration permission fixes.
+- Preserves existing searchable Phase06 product/service catalog and manual line entry. Selecting catalog items now captures `BaseUnitId` and customer `InternalCode`; these are typed nullable `UnitId` / `CatalogCodeSnapshot` fields in the existing `InvoiceEntryLine` JSON, without a DB migration.
+- The server does not trust client-side snapshot fields: it verifies catalog item belongs to the current software customer, fetches the canonical base unit/code and serializes canonical line metadata. Reopening existing saved entries returns the original snapshot from draft JSON, including when the catalog's current code/unit changes; inactive catalog items may be retained only if already referenced with a prior snapshot. Selecting newly inactive catalog items is forbidden. Manual unlinked lines cannot smuggle unit/catalog metadata.
+- Existing amount/quantity/VAT validation, revision/CAS, access scoping and calculation preview are retained. Catalog names are copied to the draft description; later catalog title edits do not rewrite the saved description.
+- Added static regression contract test `apps/web/tests/phase08-step11-catalog-snapshots.test.mjs`.
+- **Outstanding acceptance:** .NET build/test + npm test/typecheck/build on macOS; add catalog product/service with unit, save, edit catalog title/internal code/base unit, resume draft and ensure saved line stays stable; verify cross-customer catalog ID rejection, inactive new selection rejection, manual line success and arithmetic. Existing old drafts without stored unit metadata are initialized with current catalog values at their next save; cannot reconstruct historical past values retroactively. Formal regulatory tax-line frozen aggregate/snapshot conversion remains governed by Phase07 rules and should not be confused with draft JSON.
+- No migration, tax-authority call or production data update. Step12 blocked until owner acceptance.
