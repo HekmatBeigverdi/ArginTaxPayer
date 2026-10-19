@@ -438,7 +438,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
           <th>وضعیت داخلی</th><th>نسخه</th><th>عملیات</th></tr></thead>
         <tbody>{filtered.length === 0 ? <tr><td colSpan={isAdmin ? 9 : 8}>صورتحسابی برای نمایش وجود ندارد.</td></tr> :
           filtered.map(item => <tr key={item.id}>
-            <td><button type="button" className="console-row-action" title="کپی شناسه برای پشتیبانی" onClick={() => {void navigator.clipboard.writeText(item.systemCode || item.id).then(()=>setNotice("شناسه سیستمی کپی شد."));}}><bdi dir="ltr">{item.systemCode || item.id}</bdi> ⧉</button></td>
+            <td><button type="button" className="console-row-action" title="کپی شناسه برای پشتیبانی" disabled={!item.systemCode} onClick={() => {void navigator.clipboard.writeText(item.systemCode || "").then(()=>setNotice("شناسه سیستمی کپی شد."));}}><bdi dir="ltr">{item.systemCode || "در انتظار تخصیص"}</bdi> ⧉</button></td>
             {isAdmin && <td>{accounts.find(a=>a.customerUserId===item.customerUserId)?.companyName ||
               accounts.find(a=>a.customerUserId===item.customerUserId)?.personName || "حساب مشتری"}</td>}
             <td>{item.sellerName || taxpayers.find(t=>t.id===item.taxpayerId)?.displayName || "مؤدی ثبت‌شده"}</td>
@@ -477,7 +477,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
             aria-label="بستن جزئیات">×</button>
         </div>
         <dl className="invoice-register__totals">
-          <dt>شناسه سیستمی</dt><dd dir="ltr">{detail.systemCode || detail.id}</dd>
+          <dt>شناسه سیستمی</dt><dd dir="ltr">{detail.systemCode || "در انتظار تخصیص"}</dd>
           <dt>تاریخ</dt><dd>{toFaDate(detail.issueDateUtc)}</dd>
           <dt>موضوع</dt><dd>{detail.subject}</dd>
           <dt>وضعیت بازبینی</dt><dd>{detail.reviewState === "Approved" ? "تأیید داخلی" :
