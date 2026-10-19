@@ -17,6 +17,8 @@ namespace ArginTaxPayer.Infrastructure.Persistence;
 public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbContext> options)
     : DbContext(options)
 {
+    public DbSet<StoredInvoiceReview> InvoiceReviews => Set<StoredInvoiceReview>();
+    public DbSet<StoredInvoiceReviewEvent> InvoiceReviewEvents => Set<StoredInvoiceReviewEvent>();
     public DbSet<InvoiceEntryWorkspace> InvoiceEntryWorkspaces => Set<InvoiceEntryWorkspace>();
     public DbSet<StoredInvoice> InvoiceDocuments => Set<StoredInvoice>();
     public DbSet<StoredInvoiceRevision> InvoiceDocumentRevisions => Set<StoredInvoiceRevision>();
@@ -61,6 +63,7 @@ public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbConte
         base.OnModelCreating(modelBuilder);
         CatalogModelConfiguration.Apply(modelBuilder);
         InvoicePersistenceModelConfiguration.Apply(modelBuilder);
+        InvoiceReviewPersistenceConfiguration.Apply(modelBuilder);
         InvoiceEntryWorkspaceConfiguration.Apply(modelBuilder);
 
 
