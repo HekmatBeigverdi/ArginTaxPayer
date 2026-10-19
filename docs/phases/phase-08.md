@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 08: Invoice Workflows and UI
 
-**Status:** Steps 01–04 owner-approved by operator; Step 05 implementation committed, local execution/evidence pending.
+**Status:** Steps 01–05 owner-approved by operator; Step 06 implemented, migration not applied and integration tests pending.
 **Branch:** `phase/08-invoice-workflows-ui`
 **Baseline:** `main` at `364462848914f289916962a0578c9fac9cd85ce1` (GitHub inspected 2026-10-18).
 **Roadmap source:** `docs/roadmap/18-phases.md`, phase 08 of 18.
@@ -40,8 +40,8 @@
 | 02 | Workflow state contracts | Define internal Draft/InReview/ChangesRequested/Approved state transitions | Allowed and forbidden transitions deterministic | Owner-approved 2026-10-18 |
 | 03 | Actor authorization and ownership | Implement role/scope matrix for customer, Level1 and owning Level2 | All reads/writes scoped before data return | Owner-approved 2026-10-19; runtime wiring deferred to Steps05/07 |
 | 04 | Workflow persistence and migration plan | Add minimal additive workflow and audit entities when existing Phase07 storage insufficient | No silent loss of historical invoices; migration separately authorized | Owner-approved 2026-10-19; migration application not independently verified |
-| 05 | Workflow command services | Create draft submission, change request, internal approval | State and history consistent after commit | Implemented; operator tests pending |
-| 06 | Concurrency and idempotency | Prevent lost updates, duplicate review submissions and simultaneous approvals | One accepted write, deterministic conflict/replay | Not started |
+| 05 | Workflow command services | Create draft submission, change request, internal approval | State and history consistent after commit | Owner-approved 2026-10-19 |
+| 06 | Concurrency and idempotency | Prevent lost updates, duplicate review submissions and simultaneous approvals | One accepted write, deterministic conflict/replay | Source committed; migration and operator regression pending |
 | 07 | Workflow API contracts | Expose scoped commands, queries and stable typed errors | Backward compatible, stable response contracts | Not started |
 | 08 | Invoice workspace list | Show customer-scoped drafts, review queue, filters, pagination | Correct statuses and scoped results | Not started |
 | 09 | Dynamic invoice forms | Drive conditional fields by official rule-set and pattern metadata | Valid combinations enabled; invalid blocked | Not started |
@@ -383,3 +383,15 @@ dotnet test ArginTaxPayer.sln
 ```
 - No new migration, live official API, SMS, external authority submission, or customer data manipulation in this step.
 - **Step05 status:** committed and awaiting macOS build/regression evidence and owner signoff.
+
+## Step 06 — Idempotency / concurrency delivery (2026-10-19)
+
+- Step05 acceptance explicitly confirmed by owner.
+- Added `invoice_review_requests`, a new append-only table with a unique index on `(customer_user_id,taxpayer_id,actor_user_id,idempotency_key)`, immutable payload SHA-256 fingerprint and durable result review revision/state. FK references the scoped review cursor, preventing cross-tenant attachment. New EF entity/configuration and DbContext registration.
+- New additive migration: `20261019090000_AddInvoiceReviewIdempotency`. It includes immutable-result trigger and rollback data guard. **NOT EXECUTED**. Do not modify an already applied Step04 migration; this new migration follows it.
+- Every valid `InvoiceReviewCommand` now requires a bounded non-control idempotency key. Once actor and invoice scope are revalidated, an identical recorded key returns its persisted outcome before current-state revision comparison. Reusing the same actor/key for a different fingerprint or invoice results in `IdempotencyKeyConflict`; a new key with stale revision results in `Conflict`.
+- For newly accepted operations, status cursor, event, and idempotency result are persisted together inside the serializable transaction. Unique-constraint or serialization collisions produce a conflict; after the winning request commits, an identical retry can obtain the stored result. No tax authority submission or side effect occurs.
+- Tests added: `Phase08InvoiceReviewIdempotencyTests` for EF composite scoped index and invalid input; existing `Phase08InvoiceReviewCommandContractTests` remain. **No tests have been run by GitHub connector.** Actual simultaneous requests, replay against persisted test fixtures, request collision and rollback must be exercised on `argintaxpayer_test` as operator acceptance before signoff. DI/API remains pending Step07.
+- **Migration prerequisite:** first independently confirm `20261019080000_AddInvoiceReviewWorkflowPersistence` in the test database `__EFMigrationsHistory`. Review `dotnet ef migrations script 20261019080000_AddInvoiceReviewWorkflowPersistence 20261019090000_AddInvoiceReviewIdempotency --project src/ArginTaxPayer.Infrastructure --startup-project src/ArginTaxPayer.Api -o /tmp/phase08-step06-review.sql`. With explicit approval and live `current_database() = 'argintaxpayer_test'`, operator may apply only the new migration. Never apply on production. Check EF model snapshot drift before scaffolding subsequent migrations.
+- Focused macOS command: `dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --filter FullyQualifiedName~Phase08InvoiceReviewIdempotencyTests`; also run `dotnet test ArginTaxPayer.sln`.
+- **Status:** committed, migration still pending, full PostgreSQL concurrency evidence and signoff pending. Step07 blocked.
