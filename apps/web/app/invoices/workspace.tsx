@@ -13,7 +13,7 @@ type Invoice = { id: string; customerUserId: string; taxpayerId: string; revisio
   state: string; subject: string; issueDateUtc: string; updatedAtUtc: string;
   reviewState?: "WorkingDraft" | "Draft" | "InReview" | "ChangesRequested" | "Approved";
   systemCode?: string; sellerName?: string | null; buyerName?: string | null };
-type CatalogItem = { id: string; title: string; internalCode?: string };
+type CatalogItem = { id: string; title: string; internalCode?: string; baseUnitId?: string };
 type HeaderOptions = {taxpayer:{id:string;displayName:string;normalizedIdentifier:string};
   memories:{id:string;memoryIdentifier:string;status:number}[]};
 type FormMetadata = { edition: string; verifiedForSubmission: boolean;
@@ -22,10 +22,10 @@ type CatalogPage = { items: CatalogItem[] };
 type Account = { customerUserId: string; companyName?: string | null; personName?: string | null };
 type FiscalEntry = { id: string; customerUserId: string; type: "buyer" | "taxpayer"; displayName: string; identifier: string; status: number };
 type FiscalPage = { items: FiscalEntry[]; total: number };
-type Row = { key: number; productId: string; name: string; quantity: string;
+type Row = { key: number; productId: string; unitId?: string; catalogCodeSnapshot?: string; name: string; quantity: string;
   unitPrice: string; discount: string; vatRate: string };
 type Step = 0 | 1 | 2;
-type SavedEntryLine = { catalogItemId: string | null; description: string; quantity: number;
+type SavedEntryLine = { catalogItemId: string | null; unitId?: string | null; catalogCodeSnapshot?: string | null; description: string; quantity: number;
   unitPriceRial: number; discountPerUnitRial: number; vatRatePercent: number | null };
 type SavedEntry = { id: string; customerUserId: string; taxpayerId: string;
   revision: number; lastCompletedStep: number; issueDateUtc: string; updatedAtUtc: string;
@@ -306,6 +306,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
       setCashInput(saved.settlementMethod === 3 ? String(saved.cashAmountRial ?? "") : "");
       setRows(saved.lines.map((line,index)=>({
         key:index+1,productId:line.catalogItemId ?? "",
+        unitId:line.unitId ?? undefined,catalogCodeSnapshot:line.catalogCodeSnapshot ?? undefined,
         name:line.description,quantity:String(line.quantity),
         unitPrice:String(line.unitPriceRial),discount:String(line.discountPerUnitRial),
         vatRate:String(line.vatRatePercent ?? "")
@@ -366,7 +367,8 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
       invoiceDescription:invoiceDescription.trim() || null,
       settlementMethod:settlement, cashAmountRial:cash, creditAmountRial:credit,
       lines:rows.map(r=>({
-        catalogItemId:r.productId || null,description:r.name.trim(),
+        catalogItemId:r.productId || null,unitId:r.unitId || null,
+        description:r.name.trim(),
         quantity:Number(r.quantity),unitPriceRial:Number(r.unitPrice),
         discountPerUnitRial:Number(r.discount),
         vatRatePercent:r.vatRate==="" ? null : Number(r.vatRate)
@@ -395,7 +397,9 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   function addRow(item?: CatalogItem) {
     nextKey.current++;
     setRows(current => current.concat({
-      key: nextKey.current, productId: item?.id ?? "", name: item?.title ?? "",
+      key: nextKey.current, productId: item?.id ?? "",
+      unitId:item?.baseUnitId,catalogCodeSnapshot:item?.internalCode,
+      name: item?.title ?? "",
       quantity:"1", unitPrice:"0", discount:"0", vatRate:"0"
     }));
   }
@@ -707,6 +711,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
               {rows.length === 0 ? <p className="identity-muted">هنوز ردیفی اضافه نشده است.</p> :
                 rows.map((row,index) => <div className="invoice-register__item" key={row.key}>
                   <strong>ردیف {index+1}</strong>
+                  {row.productId && <small className="field-hint">کد کالا/خدمت هنگام انتخاب: <bdi dir="ltr">{row.catalogCodeSnapshot || "—"}</bdi> · واحد پایه ثبت‌شده: <bdi dir="ltr">{row.unitId || "پس از ذخیره تعیین می‌شود"}</bdi></small>}
                   <label>شرح<input value={row.name} maxLength={256}
                     onChange={e => updateRow(row.key,{name:e.target.value})}/></label>
                   <label>مقدار<input dir="ltr" type="number" min="0.00000001" step="any"
