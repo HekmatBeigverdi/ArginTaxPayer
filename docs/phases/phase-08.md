@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 08: Invoice Workflows and UI
 
-**Status:** Steps 01–07 owner-approved; Step 08 server/UI filters committed and Next.js forwarding bug corrected; local acceptance pending.
+**Status:** Steps 01–08 owner-approved; Step 09 implementation committed, operator acceptance pending.
 **Branch:** `phase/08-invoice-workflows-ui`
 **Baseline:** `main` at `364462848914f289916962a0578c9fac9cd85ce1` (GitHub inspected 2026-10-18).
 **Roadmap source:** `docs/roadmap/18-phases.md`, phase 08 of 18.
@@ -43,8 +43,8 @@
 | 05 | Workflow command services | Create draft submission, change request, internal approval | State and history consistent after commit | Owner-approved 2026-10-19 |
 | 06 | Concurrency and idempotency | Prevent lost updates, duplicate review submissions and simultaneous approvals | One accepted write, deterministic conflict/replay | Owner-approved 2026-10-19; local logs not independently archived |
 | 07 | Workflow API contracts | Expose scoped commands, queries and stable typed errors | Backward compatible, stable response contracts | Development command API committed; operator tests pending |
-| 08 | Invoice workspace list | Show customer-scoped drafts, review queue, filters, pagination | Correct statuses and scoped results | Not started |
-| 09 | Dynamic invoice forms | Drive conditional fields by official rule-set and pattern metadata | Valid combinations enabled; invalid blocked | Not started |
+| 08 | Invoice workspace list | Show customer-scoped drafts, review queue, filters, pagination | Correct statuses and scoped results | Owner-approved 2026-10-19 |
+| 09 | Dynamic invoice forms | Drive conditional fields by official rule-set and pattern metadata | Valid combinations enabled; invalid blocked | API/UI metadata integration committed; acceptance pending |
 | 10 | Header and party entry | Taxpayer, memory, buyer, issue date, header validation | Localized field errors and valid persisted values | Not started |
 | 11 | Line and catalog entry | Search/select Phase06 catalog items, quantity, unit, price and snapshots | Historic invoice unchanged after catalog edit | Not started |
 | 12 | Calculations and financial summary | Display discount, charges, VAT and final totals using Phase07 engine | UI/API totals match canonical model | Not started |
@@ -475,3 +475,10 @@ Owner approved yearly reset and expanding serial length. Updated **pending/unapp
 - Fixed first-load race: `/api/taxpayers/list` no longer controls invoice-table `loading`; only the current invoice overview request can dismiss the overlay, including time spent in search debounce. Stale requests are ignored by request sequence checks. While loading, the prior data remain mounted under an overlay, preventing intermediate empty-table flash.
 - Made the invoice search form control take the full available row width on desktop and mobile. Changed passive `?` span into an actual toggle button with an accessible tooltip.
 - Added `apps/web/tests/phase08-invoice-loading-ui.test.mjs` as a static regression test. Live macOS UI checks and operator approval pending; Step09 not started.
+
+### Step 09 — Implementation and acceptance (2026-10-19)
+- Owner explicitly approved Step08 after browser/table-spinner/search checks. Step09 begun according to fixed 22-step plan.
+- Added a **development-only** authenticated GET `/api/dev/invoices/form-metadata`, backed directly by `OfficialV79InvoicePatternMatrix.Create()` in the domain. Returns official edition, explicit not-verified-for-submission flag, allowed (type,pattern) pairs and rule-derived conditional-field requirements (contract, bill, flight type, gold fields). Current Phase07 resumable wizard only accepts types 1 and 2, so no type-3 save path is presented.
+- Extended allowlisted Next.js BFF route `/api/invoices/form-metadata`. Frontend now fetches entries from backend and uses them as sole selector options; disables selects while metadata unavailable, shows explicit error, rule edition and notice for patterns requiring supplemental fields. Pattern display labels remain localized UI copy, not eligibility rules. Existing server-side `InvoiceEntryWorkspaceService.Valid` revalidation is unchanged.
+- Added `apps/web/tests/phase08-step09-dynamic-form.test.mjs` contract checks. **No runtime tests have been executed by GitHub connector.**
+- **Outstanding acceptance / scope:** Conditional-field data entry and persistence (contract, service bill, flight type, gold fields), full rule findings and blocking invalid submit still require implementing typed wizard fields and server-side validation. Do not represent this step as complete merely because metadata selectors are now dynamic. Operator must run macOS `npm --prefix apps/web test`, typecheck, build, `dotnet build ArginTaxPayer.sln`, `dotnet test ArginTaxPayer.sln` and HTTP/browser validation before signoff. Never claim tax authority issuance readiness.
