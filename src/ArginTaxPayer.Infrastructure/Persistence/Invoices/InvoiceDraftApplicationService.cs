@@ -230,6 +230,18 @@ public sealed class InvoiceDraftApplicationService(
                 db.InvoiceParticipantDetails.Any(d =>
                     d.CustomerUserId == x.CustomerUserId && d.TaxpayerId == x.TaxpayerId &&
                     d.EconomicCode != null && EF.Functions.ILike(d.EconomicCode, pattern)) ||
+                db.Parties.Any(p => p.OwnerCustomerUserId == x.CustomerUserId &&
+                    (EF.Functions.ILike(p.DisplayName, pattern) ||
+                     EF.Functions.ILike(p.NormalizedIdentifier, pattern) ||
+                     db.InvoiceParticipantDetails.Any(d => d.CustomerUserId == x.CustomerUserId &&
+                         d.PartyId == p.Id && d.EconomicCode != null &&
+                         EF.Functions.ILike(d.EconomicCode, pattern))) &&
+                    ((x.Source == 1 && db.InvoiceEntryWorkspaces.Any(w =>
+                        w.Id == x.Id &&
+                        InvoiceJsonFields.Text(w.DraftJson, "BuyerPartyId") == p.Id.ToString())) ||
+                     (x.Source == 0 && db.InvoiceDocuments.Any(d =>
+                        d.Id == x.Id &&
+                        InvoiceJsonFields.Text(d.SnapshotJson, "buyerPartyId") == p.Id.ToString())))) ||
                 (x.Source == 1 && db.InvoiceEntryWorkspaces.Any(w =>
                     w.Id == x.Id && EF.Functions.ILike(
                         InvoiceJsonFields.Text(w.DraftJson, "BuyerDisplayName") ?? "", pattern))) ||
