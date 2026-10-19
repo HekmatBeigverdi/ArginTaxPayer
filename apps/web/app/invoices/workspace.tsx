@@ -322,7 +322,9 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
     const required = formMetadata?.entries.find(p=>p.type===invoiceType && p.pattern===pattern)?.requiredFields;
     if (!formMetadata || !required) {setError("قواعد انتخاب الگو بارگذاری نشده‌اند.");return;}
     const needed = required.includes("goldFields") ? ["goldConstructionFeeRial","goldSellerProfitRial","goldCommissionRial","goldTotalFeeProfitRial"] : required;
-    if (completeStep>=1 && needed.some(k=>!conditionalFields[k]?.trim())) {
+    if (completeStep>=1 && needed.some(k=>!conditionalFields[k]?.trim() ||
+      (k!=="contractNumber" && k!=="serviceBillId" &&
+        (!Number.isFinite(Number(conditionalFields[k])) || Number(conditionalFields[k])<0)))) {
       setError("لطفاً فیلدهای الزامی این الگو را تکمیل کنید.");return;
     }
     const payload = {
