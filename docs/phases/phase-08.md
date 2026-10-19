@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 08: Invoice Workflows and UI
 
-**Status:** Steps 01–05 owner-approved by operator; Step 06 implemented, migration not applied and integration tests pending.
+**Status:** Steps 01–06 owner-approved by operator; Step 07 API changes committed, local regression/HTTP checks pending.
 **Branch:** `phase/08-invoice-workflows-ui`
 **Baseline:** `main` at `364462848914f289916962a0578c9fac9cd85ce1` (GitHub inspected 2026-10-18).
 **Roadmap source:** `docs/roadmap/18-phases.md`, phase 08 of 18.
@@ -41,8 +41,8 @@
 | 03 | Actor authorization and ownership | Implement role/scope matrix for customer, Level1 and owning Level2 | All reads/writes scoped before data return | Owner-approved 2026-10-19; runtime wiring deferred to Steps05/07 |
 | 04 | Workflow persistence and migration plan | Add minimal additive workflow and audit entities when existing Phase07 storage insufficient | No silent loss of historical invoices; migration separately authorized | Owner-approved 2026-10-19; migration application not independently verified |
 | 05 | Workflow command services | Create draft submission, change request, internal approval | State and history consistent after commit | Owner-approved 2026-10-19 |
-| 06 | Concurrency and idempotency | Prevent lost updates, duplicate review submissions and simultaneous approvals | One accepted write, deterministic conflict/replay | Source committed; migration and operator regression pending |
-| 07 | Workflow API contracts | Expose scoped commands, queries and stable typed errors | Backward compatible, stable response contracts | Not started |
+| 06 | Concurrency and idempotency | Prevent lost updates, duplicate review submissions and simultaneous approvals | One accepted write, deterministic conflict/replay | Owner-approved 2026-10-19; local logs not independently archived |
+| 07 | Workflow API contracts | Expose scoped commands, queries and stable typed errors | Backward compatible, stable response contracts | Development command API committed; operator tests pending |
 | 08 | Invoice workspace list | Show customer-scoped drafts, review queue, filters, pagination | Correct statuses and scoped results | Not started |
 | 09 | Dynamic invoice forms | Drive conditional fields by official rule-set and pattern metadata | Valid combinations enabled; invalid blocked | Not started |
 | 10 | Header and party entry | Taxpayer, memory, buyer, issue date, header validation | Localized field errors and valid persisted values | Not started |
@@ -395,3 +395,15 @@ dotnet test ArginTaxPayer.sln
 - **Migration prerequisite:** first independently confirm `20261019080000_AddInvoiceReviewWorkflowPersistence` in the test database `__EFMigrationsHistory`. Review `dotnet ef migrations script 20261019080000_AddInvoiceReviewWorkflowPersistence 20261019090000_AddInvoiceReviewIdempotency --project src/ArginTaxPayer.Infrastructure --startup-project src/ArginTaxPayer.Api -o /tmp/phase08-step06-review.sql`. With explicit approval and live `current_database() = 'argintaxpayer_test'`, operator may apply only the new migration. Never apply on production. Check EF model snapshot drift before scaffolding subsequent migrations.
 - Focused macOS command: `dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --filter FullyQualifiedName~Phase08InvoiceReviewIdempotencyTests`; also run `dotnet test ArginTaxPayer.sln`.
 - **Status:** committed, migration still pending, full PostgreSQL concurrency evidence and signoff pending. Step07 blocked.
+
+## Step 07 — API contracts delivery (2026-10-19)
+
+- Owner confirmed all Step06 acceptance criteria. Independent macOS/Ubuntu raw test transcripts are not included in this repo.
+- Added `src/ArginTaxPayer.Api/Invoices/InvoiceReviewDevelopmentEndpoints.cs` and registered scoped `InvoiceReviewCommandService` and endpoint mapping in `src/ArginTaxPayer.Api/Program.cs` only when existing Development identity mode is enabled. Requests additionally require local loopback source IP.
+- **Routes**: POST `/api/dev/invoices/{invoiceId}/review/submit`; POST `/api/dev/invoices/{invoiceId}/review/request-changes`; POST `/api/dev/invoices/{invoiceId}/review/approve`.
+- **Body**: `{"expectedReviewRevision":1,"idempotencyKey":"unique-request-key","reason":null}` (reason mandatory and bounded for request-changes, forbidden for other actions). Bearer token required; authorization and tenant scoping re-evaluated by the command service on every attempt.
+- **Stable outcomes**: 200 `{"state":"InReview|ChangesRequested|Approved","revision":N,"authoritySubmitted":false}`; 400 `invalid_invoice_review_request`; 401 unauthenticated; 403 forbidden; 404 invoice hidden/not found or non-loopback; 409 `invoice_review_revision_conflict` or `invoice_review_idempotency_conflict`. Do not leak raw exception or tenant metadata in errors.
+- **Limits**: These are explicitly **development-only command contracts**, not publicly hosted production invoices APIs. Query/read contracts and UI listing are planned for Step08; do not claim this step delivers review GET endpoints.
+- **Tests added**: `tests/ArginTaxPayer.Tests/Phase08InvoiceReviewApiContractTests.cs` checks HTTP code mapping. All code/tests are committed but GitHub connector does not execute them; owner must run full solution test, launch localhost API, test no-token 401, wrong-tenant denial, permitted transitions, idempotent replay, stale revision 409, malformed 400 and non-loopback 404.
+- **Migrations**: No new migrations or database writes have been executed through this change. Step06 migration must already be installed on `argintaxpayer_test` before operational HTTP write tests.
+- **Current status**: awaiting operator verification and explicit owner signoff. Step08 blocked.
