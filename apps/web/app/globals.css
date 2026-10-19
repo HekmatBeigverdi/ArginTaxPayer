@@ -672,3 +672,34 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 @media (prefers-reduced-motion: reduce) {
   .invoice-table-skeleton { animation: none !important; }
 }
+
+/* Phase 08 invoice register: full-row searchable input and usable contextual help. */
+.console-page .invoice-register__toolbar { width:100%; }
+.console-page .invoice-register__filters { flex:1 1 100%; width:100%; min-width:0; }
+.console-page .invoice-register__search {
+  flex:1 0 100%; min-width:0; width:100%; display:flex;
+  flex-direction:column; align-items:stretch; gap:5px;
+}
+.console-page .invoice-register__search-label { display:flex; align-items:center; gap:8px; }
+.console-page .invoice-register__search input#invoice-list-search {
+  display:block; width:100%; min-width:0; max-width:none; box-sizing:border-box;
+}
+.console-page .invoice-register__help-wrap { position:relative; display:inline-flex; }
+.console-page .invoice-register__help-trigger {
+  display:inline-flex; width:21px; height:21px; justify-content:center;
+  align-items:center; border:1px solid #6c8891; border-radius:50%;
+  background:var(--surface,#fff); color:inherit; cursor:pointer;
+  font:700 12px/1 inherit; padding:0;
+}
+.console-page .invoice-register__help-trigger:focus-visible {
+  outline:2px solid #138c90; outline-offset:2px;
+}
+.console-page .invoice-register__help-tooltip {
+  position:absolute; top:calc(100% + 7px); right:0; z-index:15;
+  width:max-content; max-width:min(320px,calc(100vw - 44px));
+  padding:11px 13px; border:1px solid #bed7dd; border-radius:9px;
+  background:var(--surface,#fff); color:inherit;
+  box-shadow:0 8px 25px #173d5629; font-size:12px; line-height:1.9;
+  white-space:normal;
+}
+.invoice-register__loading { z-index:5; display:flex; }
