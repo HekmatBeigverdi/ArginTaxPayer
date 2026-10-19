@@ -107,38 +107,9 @@ public sealed class InvoiceReviewCommandService(
                     return new InvoiceReviewCommandResult(InvoiceReviewCommandDecision.Conflict);
                 if (!InvoiceReviewPolicy.CanApply(state, command.Action))
                     return new InvoiceReviewCommandResult(InvoiceReviewCommandDecision.Invalid);
-                if (command.Action == InvoiceReviewAction.SubmitForReview &&
+                if (command.Action is InvoiceReviewAction.SubmitForReview or InvoiceReviewAction.Approve &&
                     invoice.State != InvoiceLifecycleState.Validated)
                     return new InvoiceReviewCommandResult(InvoiceReviewCommandDecision.Invalid);
-
-                InvoiceReviewSnapshot next;
-                try
-                {
-                    // Reconstruct the snapshot through domain transitions.
-                    // An existing cursor's preconditions are guaranteed by the database.
-                    var candidate = InvoiceReviewSnapshot.NewDraft(invoice.Id, now);
-                    if (current is null)
-                        next = candidate.Propose(command.Action, principal.ActorId, revision, now,
-                            command.ChangeReason);
-                    else
-                    {
-                        var target = command.Action switch {
-                            InvoiceReviewAction.SubmitForReview => InvoiceReviewState.InReview,
-                            InvoiceReviewAction.RequestChanges => InvoiceReviewState.ChangesRequested,
-                            InvoiceReviewAction.Approve => InvoiceReviewState.Approved,
-                            _ => throw new InvalidOperationException()
-                        };
-                        next = candidate.Propose(InvoiceReviewAction.SubmitForReview,
-                            principal.ActorId, 1, now);
-                        // Existing cursor is handled using the guarded state policy above;
-                        // persisted state and revision are set only via CAS.
-                        _ = target;
-                    }
-                }
-                catch (ArgumentException)
-                {
-                    return new InvoiceReviewCommandResult(InvoiceReviewCommandDecision.Invalid);
-                }
 
                 var toState = command.Action switch {
                     InvoiceReviewAction.SubmitForReview => InvoiceReviewState.InReview,
