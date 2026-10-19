@@ -19,7 +19,8 @@ public sealed record CreateInvoiceDraftRequest(
 public sealed record InvoiceDraftView(
     Guid Id, Guid CustomerUserId, Guid TaxpayerId,
     long Revision, string State, string Subject, DateTime IssueDateUtc,
-    DateTime UpdatedAtUtc, string? Kind = null, int? LastCompletedStep = null);
+    DateTime UpdatedAtUtc, string? Kind = null, int? LastCompletedStep = null,
+    string? ReviewState = null);
 
 public sealed record InvoiceDraftResult(InvoiceApiDecision Decision,
     InvoiceDraftView? Invoice = null);
@@ -165,9 +166,13 @@ public sealed class InvoiceDraftApplicationService(
     /// <summary>Read all visible invoices, optionally scoped to one customer or taxpayer.</summary>
     public async Task<(InvoiceApiDecision Decision, InvoiceDraftView[] Data)> ListVisibleAsync(
         string? token, Guid? customerId, Guid? taxpayerId,
-        int page = 1, int pageSize = 50, CancellationToken ct = default)
+        int page = 1, int pageSize = 50, CancellationToken ct = default,
+        string? reviewState = null, string? search = null)
     {
-        if (page < 1 || pageSize is < 1 or > 100 || page > 100000)
+        if (page < 1 || pageSize is < 1 or > 100 || page > 100000 ||
+            search is { Length: > 128 } ||
+            reviewState is not null && reviewState is not
+                ("Draft" or "InReview" or "ChangesRequested" or "Approved" or "WorkingDraft"))
             return (InvoiceApiDecision.Invalid, []);
         var principal = await scope.ResolveAsync(token, ct);
         if (principal.Decision == TaxpayerScopeDecision.Unauthenticated)
@@ -186,7 +191,10 @@ public sealed class InvoiceDraftApplicationService(
                 x.Id, x.CustomerUserId, x.TaxpayerId, x.Revision,
                 x.IssueDateUtc, x.UpdatedAtUtc,
                 Lifecycle = (int?)x.State, SubjectValue = (int?)x.Subject,
-                Source = 0, Step = (int?)null
+                Source = 0, Step = (int?)null,
+                Review = db.InvoiceReviews.Where(v => v.InvoiceId == x.Id &&
+                    v.CustomerUserId == x.CustomerUserId && v.TaxpayerId == x.TaxpayerId)
+                    .Select(v => (int?)v.State).FirstOrDefault()
             });
         var working = db.InvoiceEntryWorkspaces.AsNoTracking()
             .Where(x => allowed.Contains(x.TaxpayerId))
@@ -194,13 +202,25 @@ public sealed class InvoiceDraftApplicationService(
                 x.Id, x.CustomerUserId, x.TaxpayerId, x.Revision,
                 x.IssueDateUtc, x.UpdatedAtUtc,
                 Lifecycle = (int?)null, SubjectValue = (int?)null,
-                Source = 1, Step = (int?)x.LastCompletedStep
+                Source = 1, Step = (int?)x.LastCompletedStep, Review = (int?)null
             });
         var query = documents.Concat(working);
         if (customerId.HasValue)
             query = query.Where(x => x.CustomerUserId == customerId.Value);
         if (taxpayerId.HasValue)
             query = query.Where(x => x.TaxpayerId == taxpayerId.Value);
+        if (reviewState is not null)
+            query = reviewState == "WorkingDraft"
+                ? query.Where(x => x.Source == 1)
+                : query.Where(x => x.Source == 0 &&
+                    (x.Review ?? 1) == (reviewState == "Draft" ? 1 :
+                     reviewState == "InReview" ? 2 :
+                     reviewState == "ChangesRequested" ? 3 : 4));
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var value = search.Trim();
+            query = query.Where(x => x.Id.ToString().Contains(value));
+        }
         var rows = await query.OrderByDescending(x => x.UpdatedAtUtc)
             .ThenBy(x => x.Id).Skip((page - 1) * pageSize)
             .Take(pageSize).ToArrayAsync(ct);
@@ -211,7 +231,9 @@ public sealed class InvoiceDraftApplicationService(
                 x.Source == 1 ? "Original" :
                     ((InvoiceSubject)x.SubjectValue!.Value).ToString(),
                 x.IssueDateUtc,x.UpdatedAtUtc,
-                x.Source == 1 ? "workspace" : null, x.Step)).ToArray());
+                x.Source == 1 ? "workspace" : null, x.Step,
+                x.Source == 1 ? "WorkingDraft" :
+                    ((InvoiceReviewState)(x.Review ?? 1)).ToString())).ToArray());
     }
 
     private static InvoiceDraftView View(StoredInvoice invoice) =>
