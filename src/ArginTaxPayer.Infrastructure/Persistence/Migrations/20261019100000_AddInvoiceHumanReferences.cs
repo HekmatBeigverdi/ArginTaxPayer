@@ -46,7 +46,7 @@ CREATE TABLE invoice_support_references (
 );
 
 CREATE FUNCTION phase08_persian_year_for_issue(date_value timestamptz)
-RETURNS integer LANGUAGE plpgsql IMMUTABLE AS $$
+RETURNS integer LANGUAGE plpgsql STABLE AS $$
 DECLARE
  local_date date := (date_value AT TIME ZONE 'Asia/Tehran')::date;
  year_number integer := EXTRACT(YEAR FROM local_date)::integer;
