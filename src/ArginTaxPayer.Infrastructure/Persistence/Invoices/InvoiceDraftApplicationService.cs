@@ -237,8 +237,9 @@ public sealed class InvoiceDraftApplicationService(
         var rows = await query.OrderByDescending(x => x.UpdatedAtUtc)
             .ThenBy(x => x.Id).Skip((page - 1) * pageSize)
             .Take(pageSize).ToArrayAsync(ct);
+        var taxpayerIds = rows.Select(x => x.TaxpayerId).Distinct().ToArray();
         var names = await db.TaxpayerProfiles.AsNoTracking()
-            .Where(t => rows.Select(x => x.TaxpayerId).Contains(t.Id))
+            .Where(t => taxpayerIds.Contains(t.Id))
             .Select(t => new { t.Id, t.DisplayName })
             .ToDictionaryAsync(t => t.Id, t => t.DisplayName, ct);
         var ids = rows.Select(x => x.Id).ToArray();
