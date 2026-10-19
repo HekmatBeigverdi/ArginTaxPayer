@@ -14,6 +14,8 @@ type Invoice = { id: string; customerUserId: string; taxpayerId: string; revisio
   reviewState?: "WorkingDraft" | "Draft" | "InReview" | "ChangesRequested" | "Approved";
   systemCode?: string; sellerName?: string | null; buyerName?: string | null };
 type CatalogItem = { id: string; title: string; internalCode?: string };
+type HeaderOptions = {taxpayer:{id:string;displayName:string;normalizedIdentifier:string};
+  memories:{id:string;memoryIdentifier:string;status:string}[]};
 type FormMetadata = { edition: string; verifiedForSubmission: boolean;
   entries: {type:number;pattern:number|null;requiredFields:string[]}[] };
 type CatalogPage = { items: CatalogItem[] };
@@ -33,7 +35,8 @@ type SavedEntry = { id: string; customerUserId: string; taxpayerId: string;
   cashAmountRial?: number | null; creditAmountRial?: number | null;
   contractNumber?: string|null;serviceBillId?: string|null;flightType?: number|null;
   goldConstructionFeeRial?: number|null;goldSellerProfitRial?: number|null;
-  goldCommissionRial?: number|null;goldTotalFeeProfitRial?: number|null; };
+  goldCommissionRial?: number|null;goldTotalFeeProfitRial?: number|null;
+  fiscalMemoryId?: string|null; };
 const headings = ["سربرگ صورتحساب", "اقلام صورتحساب", "مرور نهایی و تسویه"] as const;
 type Settlement = 0 | 1 | 2 | 3;
 const errorCodes: Record<number, string> = {
@@ -59,9 +62,24 @@ const fmt = (value: number) => value.toLocaleString("fa-IR", { maximumFractionDi
 export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: string; isAdmin: boolean}) {
   const [taxpayers, setTaxpayers] = useState<Taxpayer[]>([]);
   const [taxpayerId, setTaxpayerId] = useState("");
+  const [memoryId,setMemoryId] = useState("");
+  const [headerOptions,setHeaderOptions] = useState<HeaderOptions|null>(null);
+  const [headerLoading,setHeaderLoading] = useState(false);
+  const [headerError,setHeaderError] = useState("");
   const [filterCustomer, setFilterCustomer] = useState("");
   const [filterTaxpayer, setFilterTaxpayer] = useState("");
   const [headerCustomer, setHeaderCustomer] = useState(isAdmin ? "" : actorId);
+  useEffect(() => {
+    if (!modal || !taxpayerId) { setHeaderOptions(null);setHeaderLoading(false);return; }
+    let current = true;
+    setHeaderLoading(true);setHeaderError("");
+    getJson<HeaderOptions>("/api/invoices/header-options/"+taxpayerId)
+      .then(data => {if(current)setHeaderOptions(data);})
+      .catch(()=>{if(current){setHeaderOptions(null);setHeaderError("دریافت اطلاعات مؤدی و حافظه مالیاتی ناموفق بود.");}})
+      .finally(()=>{if(current)setHeaderLoading(false);});
+    return ()=>{current=false;};
+  },[modal,taxpayerId]);
+
   const [buyerId, setBuyerId] = useState("");
   const [buyerQuery, setBuyerQuery] = useState("");
   const [buyers, setBuyers] = useState<FiscalEntry[]>([]);
@@ -259,6 +277,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
     setDetail(null);
     setStep(0); setDate(todayUtc()); setHour("12:00");
     setBuyerId(""); setBuyerQuery(""); setBuyerOpen(false); setInvoiceType(1); setPattern(1);
+    setMemoryId("");setHeaderOptions(null);
     setConditionalFields({});
     setHeaderCustomer(isAdmin ? (filterCustomer || "") : actorId);
     setTaxpayerId(isAdmin ? "" : taxpayerId);
@@ -274,6 +293,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
       setTaxpayerId(saved.taxpayerId);
       setDate(saved.issueDateUtc.slice(0,10));
       setHour(saved.issueDateUtc.slice(11,16));
+      setMemoryId(saved.fiscalMemoryId ?? "");
       setBuyerId(saved.buyerPartyId ?? "");
       setBuyerQuery(saved.buyerDisplayName ?? "");
       setBuyerOpen(false);
@@ -327,11 +347,18 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
         (!Number.isFinite(Number(conditionalFields[k])) || Number(conditionalFields[k])<0)))) {
       setError("لطفاً فیلدهای الزامی این الگو را تکمیل کنید.");return;
     }
+    if (headerLoading || headerError || !headerOptions || headerOptions.taxpayer.id!==taxpayerId) {
+      setError("اطلاعات مؤدی صادرکننده هنوز آماده نیست؛ مجدداً تلاش کنید.");return;
+    }
+    if(memoryId && !headerOptions.memories.some(m=>m.id===memoryId)) {
+      setError("حافظه مالیاتی انتخاب‌شده به مؤدی صادرکننده تعلق ندارد.");return;
+    }
+    if (buyerQuery.trim() && !buyerId) {setError("خریدار را از فهرست خریداران ثبت‌شده انتخاب کنید.");return;}
     const payload = {
       id:editing?.id ?? null,
       taxpayerId, expectedRevision:editing?.revision ?? 0,
       lastCompletedStep:completeStep, issueDateUtc:issued.toISOString(),
-      buyerPartyId:buyerId || null, type:invoiceType,pattern,
+      buyerPartyId:buyerId || null, fiscalMemoryId:memoryId || null, type:invoiceType,pattern,
       ...Object.fromEntries(["contractNumber","serviceBillId","flightType",
         "goldConstructionFeeRial","goldSellerProfitRial","goldCommissionRial","goldTotalFeeProfitRial"]
         .map(k=>[k, !needed.includes(k) || !conditionalFields[k]?.trim() ? null :
@@ -552,7 +579,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
               {isAdmin && <>
                 <label htmlFor="invoice-header-customer">مشتری نرم‌افزار</label>
                 <select id="invoice-header-customer" value={headerCustomer} required
-                  onChange={e=>{setHeaderCustomer(e.target.value);setTaxpayerId("");setBuyerId("");setBuyerQuery("");setBuyerOpen(false);}}>
+                  onChange={e=>{setHeaderCustomer(e.target.value);setTaxpayerId("");setMemoryId("");setHeaderOptions(null);setBuyerId("");setBuyerQuery("");setBuyerOpen(false);}}>
                   <option value="">انتخاب مشتری</option>
                   {accounts.map(a=><option key={a.customerUserId} value={a.customerUserId}>
                     {a.companyName || a.personName || "مشتری مجاز"}
@@ -561,10 +588,24 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
               </>}
               <label htmlFor="invoice-taxpayer">مؤدی صادرکننده / فروشنده</label>
               <select id="invoice-taxpayer" value={taxpayerId} required
-                onChange={e=>{setTaxpayerId(e.target.value);setBuyerId("");setBuyerQuery("");setBuyerOpen(false);}}>
+                onChange={e=>{setTaxpayerId(e.target.value);setMemoryId("");setHeaderOptions(null);setBuyerId("");setBuyerQuery("");setBuyerOpen(false);}}>
                 <option value="">انتخاب مؤدی فروشنده</option>
                 {visibleTaxpayers.map(t => <option key={t.id} value={t.id}>{t.displayName}</option>)}
               </select>
+              <label htmlFor="invoice-memory">حافظه مالیاتی فروشنده (در پیش‌نویس اختیاری)</label>
+              <select id="invoice-memory" value={memoryId} disabled={headerLoading || !headerOptions}
+                onChange={e=>setMemoryId(e.target.value)}>
+                <option value="">بدون انتخاب حافظه مالیاتی</option>
+                {(headerOptions?.memories ?? []).map(m=><option key={m.id} value={m.id}>
+                  {m.memoryIdentifier} — {m.status}
+                </option>)}
+              </select>
+              {headerLoading && <small role="status">در حال دریافت اطلاعات مؤدی و حافظه مالیاتی…</small>}
+              {headerError && <small role="alert" className="form-error">{headerError}</small>}
+              {headerOptions && <small className="invoice-register__hint">
+                شناسه ثبت‌شده مؤدی: <bdi dir="ltr">{headerOptions.taxpayer.normalizedIdentifier}</bdi>
+                {headerOptions.memories.length===0 ? " — حافظه مالیاتی ثبت نشده است." : ""}
+              </small>}
               <label htmlFor="invoice-buyer-search">خریدار ثبت‌شده</label>
               <div className="invoice-register__buyer">
                 <input id="invoice-buyer-search" type="search" value={buyerQuery}
