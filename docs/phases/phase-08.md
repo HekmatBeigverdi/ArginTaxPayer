@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 08: Invoice Workflows and UI
 
-**Status:** Steps 01–03 owner-approved; Step 04 additive EF model/migration committed, operator build/SQL review and approval pending.
+**Status:** Steps 01–04 owner-approved by operator; Step 05 implementation committed, local execution/evidence pending.
 **Branch:** `phase/08-invoice-workflows-ui`
 **Baseline:** `main` at `364462848914f289916962a0578c9fac9cd85ce1` (GitHub inspected 2026-10-18).
 **Roadmap source:** `docs/roadmap/18-phases.md`, phase 08 of 18.
@@ -39,8 +39,8 @@
 | 01 | Architecture baseline and branch hygiene | Freeze Phase07 interfaces, database migration inventory, role matrix, branch and build hygiene | Baseline reviewed; ignore generated files; no code or migration | Owner-approved 2026-10-18 |
 | 02 | Workflow state contracts | Define internal Draft/InReview/ChangesRequested/Approved state transitions | Allowed and forbidden transitions deterministic | Owner-approved 2026-10-18 |
 | 03 | Actor authorization and ownership | Implement role/scope matrix for customer, Level1 and owning Level2 | All reads/writes scoped before data return | Owner-approved 2026-10-19; runtime wiring deferred to Steps05/07 |
-| 04 | Workflow persistence and migration plan | Add minimal additive workflow and audit entities when existing Phase07 storage insufficient | No silent loss of historical invoices; migration separately authorized | Committed, not applied; operator verification pending |
-| 05 | Workflow command services | Create draft submission, change request, internal approval | State and history consistent after commit | Not started |
+| 04 | Workflow persistence and migration plan | Add minimal additive workflow and audit entities when existing Phase07 storage insufficient | No silent loss of historical invoices; migration separately authorized | Owner-approved 2026-10-19; migration application not independently verified |
+| 05 | Workflow command services | Create draft submission, change request, internal approval | State and history consistent after commit | Implemented; operator tests pending |
 | 06 | Concurrency and idempotency | Prevent lost updates, duplicate review submissions and simultaneous approvals | One accepted write, deterministic conflict/replay | Not started |
 | 07 | Workflow API contracts | Expose scoped commands, queries and stable typed errors | Backward compatible, stable response contracts | Not started |
 | 08 | Invoice workspace list | Show customer-scoped drafts, review queue, filters, pagination | Correct statuses and scoped results | Not started |
@@ -365,3 +365,21 @@ After Steps01–21 have owner-approved evidence, Step22 requires separate final 
 At owner request, standard macOS developer scripts now manage a separate **optional** AutoSSH localhost forward for remote Adminer (`127.0.0.1:18081 -> VPS 127.0.0.1:8081`). This does not alter the existing PostgreSQL tunnel `15432`, API `15089`, or Web `3000`. The change touches `scripts/dev-up.zsh`, `scripts/dev-down.zsh`, and `scripts/dev-status.zsh`: dedicated PID/log `~/.argintaxpayer-test/adminer.{pid,log}`, safe non-hijacking behavior when port 18081 is occupied, and independent Adminer readiness probe. The VPS **must already host** Adminer on its loopback port 8081; opening an SSH forward cannot install/start Adminer. No PostgreSQL migration or runtime DB mutation is performed by these script edits.
 
 Operator checks: `zsh -n scripts/dev-up.zsh scripts/dev-down.zsh scripts/dev-status.zsh`, `zsh scripts/dev-up.zsh`, `zsh scripts/dev-status.zsh`, browser `http://127.0.0.1:18081`, then `zsh scripts/dev-down.zsh`. These checks remain pending on macOS; no assertion of functional test success.
+
+## Step 05 — Implementation and validation record (2026-10-19)
+
+- Owner explicitly approved Step04. Database migration application was **not independently verified** by this GitHub-only workflow. Before any integration test, operator must establish live test DB name and applied migration history; do not infer application from approval.
+- Added `src/ArginTaxPayer.Infrastructure/Persistence/Invoices/InvoiceReviewCommandService.cs`: authenticated, database-scoped command orchestration for `SubmitForReview`, `RequestChanges` and `Approve`, with current actor roles, current partner commercial ownership and active customer/taxpayer membership rechecked inside a serializable transaction. A separate review cursor and append-only event are committed together; CAS revision checked, concurrency/duplicate conflicts mapped to a conflict outcome.
+- Existing historical invoices without a review row are treated as implicit review Draft with review revision 1. First accepted transition inserts the cursor and revision 2 history event in a single transaction; subsequent transitions compare `revision` and `state` in UPDATE predicate.
+- Submit and approval require the Phase07 invoice lifecycle to be `Validated`; approved review status remains strictly internal and does **not** call Phase07 `FinalizeInternally`, mutate tax authority state, or transmit documents.
+- The service currently has **no API exposure or DI registration** (Step07). Real operation replay identifiers and exact-once idempotency remain in Step06; this step provides revision/transaction conflict protection, not a completed idempotency guarantee.
+- Added `tests/ArginTaxPayer.Tests/Phase08InvoiceReviewCommandContractTests.cs` for malformed requests before database use. **Tests not executed through GitHub connector**; full integration scenarios (valid customer submission, Level2/Level1 approval, ex-partner denials, concurrent submissions, audit trigger and forced rollback) remain mandatory operator evidence, with concurrency/idempotency extensions in Step06.
+- macOS checks:
+```bash
+git switch phase/08-invoice-workflows-ui
+git pull --ff-only
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --filter FullyQualifiedName~Phase08InvoiceReviewCommandContractTests
+dotnet test ArginTaxPayer.sln
+```
+- No new migration, live official API, SMS, external authority submission, or customer data manipulation in this step.
+- **Step05 status:** committed and awaiting macOS build/regression evidence and owner signoff.
