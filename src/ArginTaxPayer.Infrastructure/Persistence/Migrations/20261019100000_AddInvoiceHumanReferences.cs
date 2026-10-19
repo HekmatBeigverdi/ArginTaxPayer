@@ -181,8 +181,7 @@ DROP TABLE invoice_admin_codes;
 DROP SEQUENCE invoice_admin_code_ordinal_seq;
 """);
     }
-}
-)
+})
 );
 
 CREATE FUNCTION phase08_persian_year_for_issue(date_value timestamptz)
