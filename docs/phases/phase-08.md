@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 08: Invoice Workflows and UI
 
-**Status:** Steps 01–02 owner-approved; Step 03 contracts committed, awaiting operator test and owner approval.
+**Status:** Steps 01–03 owner-approved; Step 04 additive EF model/migration committed, operator build/SQL review and approval pending.
 **Branch:** `phase/08-invoice-workflows-ui`
 **Baseline:** `main` at `364462848914f289916962a0578c9fac9cd85ce1` (GitHub inspected 2026-10-18).
 **Roadmap source:** `docs/roadmap/18-phases.md`, phase 08 of 18.
@@ -38,8 +38,8 @@
 |---|---|---|---|---|
 | 01 | Architecture baseline and branch hygiene | Freeze Phase07 interfaces, database migration inventory, role matrix, branch and build hygiene | Baseline reviewed; ignore generated files; no code or migration | Owner-approved 2026-10-18 |
 | 02 | Workflow state contracts | Define internal Draft/InReview/ChangesRequested/Approved state transitions | Allowed and forbidden transitions deterministic | Owner-approved 2026-10-18 |
-| 03 | Actor authorization and ownership | Implement role/scope matrix for customer, Level1 and owning Level2 | All reads/writes scoped before data return | Pure authorization policy committed; persistence integration pending Step05 |
-| 04 | Workflow persistence and migration plan | Add minimal additive workflow and audit entities when existing Phase07 storage insufficient | No silent loss of historical invoices; migration separately authorized | Not started |
+| 03 | Actor authorization and ownership | Implement role/scope matrix for customer, Level1 and owning Level2 | All reads/writes scoped before data return | Owner-approved 2026-10-19; runtime wiring deferred to Steps05/07 |
+| 04 | Workflow persistence and migration plan | Add minimal additive workflow and audit entities when existing Phase07 storage insufficient | No silent loss of historical invoices; migration separately authorized | Committed, not applied; operator verification pending |
 | 05 | Workflow command services | Create draft submission, change request, internal approval | State and history consistent after commit | Not started |
 | 06 | Concurrency and idempotency | Prevent lost updates, duplicate review submissions and simultaneous approvals | One accepted write, deterministic conflict/replay | Not started |
 | 07 | Workflow API contracts | Expose scoped commands, queries and stable typed errors | Backward compatible, stable response contracts | Not started |
@@ -338,3 +338,15 @@ After Steps01–21 have owner-approved evidence, Step22 requires separate final 
 - **Database migrations:** none; **API/UI changes:** none; **customer data used:** none.
 - **Tests added, not executed in GitHub connector:** `dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --filter FullyQualifiedName~Phase08InvoiceWorkflowAccessTests`. Full suite and local operator checks remain pending.
 - **Step02 approval:** owner explicitly confirmed all acceptance criteria before Step03. **Step03 approval:** pending operator test and explicit signoff.
+
+## Step 04 — Implementation record (2026-10-19)
+
+- **Owner signoff Step03:** explicitly received on 2026-10-19; specific operator evidence provided by owner in prior turn, not independently logged here.
+- **Files:** `src/ArginTaxPayer.Infrastructure/Persistence/Invoices/InvoiceReviewStorageEntities.cs`, `InvoiceReviewPersistenceConfiguration.cs`, `src/ArginTaxPayer.Infrastructure/Persistence/ArginTaxPayerDbContext.cs`, `src/ArginTaxPayer.Infrastructure/Persistence/Migrations/20261019080000_AddInvoiceReviewWorkflowPersistence.cs`, `tests/ArginTaxPayer.Tests/Phase08InvoiceReviewPersistenceModelTests.cs` and this document.
+- **Schema:** additive `invoice_reviews` cursor keyed by invoice, FK scoped by customer/taxpayer/invoice to existing `invoice_documents`, positive review revision, state constraint and index; `invoice_review_events` append-only audit, composite scoped FK, unique (invoice,revision), action/transition checks, immutable UPDATE/DELETE trigger, and restricted FK deletions.
+- **Backward compatibility:** no modifications to Phase07 invoice tables, no data backfill, no automatic state initialization for existing invoices. Existing documents without a review row remain valid and must be interpreted as legacy/uninitialized until explicitly adopted through an authorized workflow service (Step05).
+- **Security and CAS:** review revision is EF concurrency token. Actual compare-and-swap update, actor authentication, transaction and append-only event insert must be implemented and tested in Steps05–06. Do not expose direct unsafeguarded DbSet mutations as a workflow API.
+- **Migration execution:** NOT APPLIED. Precondition: authorized operator explicitly verifies `current_database() = 'argintaxpayer_test'`, presence of preceding Phase07 migrations, reviews SQL and rollback behavior, and grants approval. DB snapshot and EF pending-model-change checks require scrutiny at implementation validation; a manually authored SQL migration may need a regenerated EF model snapshot before any later EF scaffold. Do not assert EF snapshot synchronized until verified.
+- **Potential risks:** table creation locks, future migration snapshot drift, state adoption of legacy drafts, audit integrity if privileged database roles disable trigger. Mitigations: additive tables, FK, checked transitions, append-only guard, no automatic rollout.
+- **Test added:** `Phase08InvoiceReviewPersistenceModelTests` inspects EF mappings without opening a connection. Not executed by GitHub connector. No PostgreSQL write, API, UI or HTTP tests performed. Run focused tests and full .NET test on macOS. Before database execution, inspect migration SQL from source and read-only gate, never run `dotnet ef database update` in this Step04 review.
+- **Owner signoff:** pending. Step05 blocked.
