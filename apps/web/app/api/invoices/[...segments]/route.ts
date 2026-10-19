@@ -17,6 +17,9 @@ function target(segments: string[], method: "GET" | "POST"): string | null {
   }
   if (segments.length === 2 && segments[0] === "references" && method === "GET" && uuid.test(segments[1]))
     return "/api/dev/invoice-references/" + segments[1];
+  if (segments.length === 2 && segments[0] === "header-options" &&
+      method === "GET" && uuid.test(segments[1]))
+    return "/api/dev/invoices/header-options/" + segments[1];
   if (segments.length === 1 && segments[0] === "form-metadata" && method === "GET")
     return "/api/dev/invoices/form-metadata";
   if (segments.length === 1 && segments[0] === "overview" && method === "GET")
