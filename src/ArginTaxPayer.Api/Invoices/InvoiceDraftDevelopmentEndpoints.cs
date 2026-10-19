@@ -64,7 +64,7 @@ public static class InvoiceDraftDevelopmentEndpoints
         }).WithTags("Resumable Invoice Drafts (Development)");
 
         app.MapGet("/api/dev/invoices", async (Guid? customerId, Guid? taxpayerId,
-            int? page, int? pageSize,
+            int? page, int? pageSize, string? reviewState, string? search,
             HttpContext http, InvoiceDraftApplicationService service, CancellationToken ct) =>
         {
             if (!Local(http)) return Results.NotFound();
