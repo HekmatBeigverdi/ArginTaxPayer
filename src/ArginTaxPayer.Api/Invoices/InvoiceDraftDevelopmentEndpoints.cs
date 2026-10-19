@@ -1,5 +1,7 @@
 using System.Net;
 using ArginTaxPayer.Infrastructure.Persistence.Invoices;
+using ArginTaxPayer.Infrastructure.Persistence.Taxpayers;
+using ArginTaxPayer.Domain.Invoices;
 using Microsoft.AspNetCore.Mvc;
 
 namespace ArginTaxPayer.Api.Invoices;
@@ -13,6 +15,34 @@ public static class InvoiceDraftDevelopmentEndpoints
     public static IEndpointRouteBuilder MapInvoiceDraftDevelopmentEndpoints(
         this IEndpointRouteBuilder app)
     {
+        app.MapGet("/api/dev/invoices/form-metadata", async (
+            HttpContext http, TaxpayerScopeService scope, CancellationToken ct) =>
+        {
+            if (!Local(http)) return Results.NotFound();
+            var actor = await scope.ResolveAsync(Token(http), ct);
+            if (actor.Decision == TaxpayerScopeDecision.Unauthenticated)
+                return Results.Unauthorized();
+            if (actor.Decision != TaxpayerScopeDecision.Allowed)
+                return Results.StatusCode(403);
+            var matrix = OfficialV79InvoicePatternMatrix.Create();
+            var entries = matrix.Entries.Select(e => new
+            {
+                type = (int)e.Type, pattern = e.Pattern,
+                requiredFields = e.Type == ElectronicInvoiceType.First && e.Pattern == 4
+                    ? new[] { "contractNumber" }
+                    : e.Type == ElectronicInvoiceType.First && e.Pattern == 5
+                    ? new[] { "serviceBillId" }
+                    : e.Type == ElectronicInvoiceType.First && e.Pattern == 6
+                    ? new[] { "flightType" }
+                    : e.Pattern == 3 ? new[] { "goldFields" } : Array.Empty<string>()
+            }).ToArray();
+            return Results.Ok(new {
+                edition = matrix.Source.Edition,
+                verifiedForSubmission = matrix.Source.VerifiedForSubmission,
+                entries
+            });
+        }).WithTags("Invoice Form Metadata (Development)");
+
         app.MapGet("/api/dev/invoice-workspaces/{id:guid}/validation", async (
             Guid id, HttpContext http, InvoiceValidationReferenceService service,
             CancellationToken ct) =>
