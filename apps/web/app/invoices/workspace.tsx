@@ -30,7 +30,10 @@ type SavedEntry = { id: string; customerUserId: string; taxpayerId: string;
   buyerPartyId: string | null; buyerDisplayName?: string | null;
   type: number; pattern: number; lines: SavedEntryLine[];
   invoiceDescription?: string | null; settlementMethod?: number;
-  cashAmountRial?: number | null; creditAmountRial?: number | null; };
+  cashAmountRial?: number | null; creditAmountRial?: number | null;
+  contractNumber?: string|null;serviceBillId?: string|null;flightType?: number|null;
+  goldConstructionFeeRial?: number|null;goldSellerProfitRial?: number|null;
+  goldCommissionRial?: number|null;goldTotalFeeProfitRial?: number|null; };
 const headings = ["سربرگ صورتحساب", "اقلام صورتحساب", "مرور نهایی و تسویه"] as const;
 type Settlement = 0 | 1 | 2 | 3;
 const errorCodes: Record<number, string> = {
@@ -86,6 +89,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
 
   const [formMetadata, setFormMetadata] = useState<FormMetadata | null>(null);
   const [formMetadataError, setFormMetadataError] = useState("");
+  const [conditionalFields,setConditionalFields] = useState<Record<string,string>>({});
   const [invoiceType, setInvoiceType] = useState(1);
   const [pattern, setPattern] = useState(1);
   const [kind, setKind] = useState<"products" | "services">("products");
@@ -255,6 +259,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
     setDetail(null);
     setStep(0); setDate(todayUtc()); setHour("12:00");
     setBuyerId(""); setBuyerQuery(""); setBuyerOpen(false); setInvoiceType(1); setPattern(1);
+    setConditionalFields({});
     setHeaderCustomer(isAdmin ? (filterCustomer || "") : actorId);
     setTaxpayerId(isAdmin ? "" : taxpayerId);
     setRows([]); setInvoiceDescription(""); setSettlement(0); setCashInput("");
@@ -273,6 +278,9 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
       setBuyerQuery(saved.buyerDisplayName ?? "");
       setBuyerOpen(false);
       setInvoiceType(saved.type); setPattern(saved.pattern);
+      setConditionalFields(Object.fromEntries((["contractNumber","serviceBillId","flightType",
+        "goldConstructionFeeRial","goldSellerProfitRial","goldCommissionRial","goldTotalFeeProfitRial"] as const)
+        .map(key=>[key,saved[key] == null?"":String(saved[key])])));
       setInvoiceDescription(saved.invoiceDescription ?? "");
       setSettlement((saved.settlementMethod ?? 0) as Settlement);
       setCashInput(saved.settlementMethod === 3 ? String(saved.cashAmountRial ?? "") : "");
@@ -311,11 +319,21 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
       setError("برای روش نقدی و نسیه، مبلغ نقدی باید بیشتر از صفر و کمتر از جمع صورتحساب باشد.");
       return;
     }
+    const required = formMetadata?.entries.find(p=>p.type===invoiceType && p.pattern===pattern)?.requiredFields;
+    if (!formMetadata || !required) {setError("قواعد انتخاب الگو بارگذاری نشده‌اند.");return;}
+    const needed = required.includes("goldFields") ? ["goldConstructionFeeRial","goldSellerProfitRial","goldCommissionRial","goldTotalFeeProfitRial"] : required;
+    if (completeStep>=1 && needed.some(k=>!conditionalFields[k]?.trim())) {
+      setError("لطفاً فیلدهای الزامی این الگو را تکمیل کنید.");return;
+    }
     const payload = {
       id:editing?.id ?? null,
       taxpayerId, expectedRevision:editing?.revision ?? 0,
       lastCompletedStep:completeStep, issueDateUtc:issued.toISOString(),
       buyerPartyId:buyerId || null, type:invoiceType,pattern,
+      ...Object.fromEntries(["contractNumber","serviceBillId","flightType",
+        "goldConstructionFeeRial","goldSellerProfitRial","goldCommissionRial","goldTotalFeeProfitRial"]
+        .map(k=>[k, !needed.includes(k) || !conditionalFields[k]?.trim() ? null :
+          k==="contractNumber"||k==="serviceBillId" ? conditionalFields[k].trim() : Number(conditionalFields[k])])),
       invoiceDescription:invoiceDescription.trim() || null,
       settlementMethod:settlement, cashAmountRial:cash, creditAmountRial:credit,
       lines:rows.map(r=>({
@@ -600,6 +618,23 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
                 {(formMetadata?.entries.filter(p=>p.type===invoiceType && p.pattern!==null) ?? []).map(p =>
                   <option key={p.pattern} value={p.pattern!}>{({1:"فروش",2:"فروش ارز",3:"طلا و جواهر",4:"پیمانکاری",5:"قبوض خدماتی",6:"بلیت هواپیما",7:"صادرات",8:"بارنامه",9:"فرآورده‌های نفتی",11:"بورس کالا",13:"خدمات بیمه‌ای",14:"فروش زنجیره"} as Record<number,string>)[p.pattern!] ?? ("الگوی "+p.pattern)}</option>)}
               </select>
+              {(formMetadata?.entries.find(p=>p.type===invoiceType && p.pattern===pattern)?.requiredFields ?? []).flatMap(field =>
+                field==="goldFields" ? ["goldConstructionFeeRial","goldSellerProfitRial","goldCommissionRial","goldTotalFeeProfitRial"] : [field]
+              ).map(field => <div key={field} className="invoice-register__conditional-field">
+                <label htmlFor={"invoice-conditional-"+field}>{({
+                  contractNumber:"شماره قرارداد",serviceBillId:"شناسه قبض خدماتی",flightType:"نوع پرواز",
+                  goldConstructionFeeRial:"اجرت ساخت (ریال)",goldSellerProfitRial:"سود فروشنده (ریال)",
+                  goldCommissionRial:"حق‌العمل (ریال)",goldTotalFeeProfitRial:"جمع اجرت و سود و حق‌العمل (ریال)"
+                } as Record<string,string>)[field]}</label>
+                {field==="flightType" ?
+                  <select id={"invoice-conditional-"+field} value={conditionalFields[field] ?? ""}
+                    onChange={e=>setConditionalFields(old=>({...old,[field]:e.target.value}))}>
+                    <option value="">انتخاب کنید</option><option value="1">داخلی</option><option value="2">خارجی</option>
+                  </select> :
+                  <input id={"invoice-conditional-"+field} dir="ltr" inputMode="numeric"
+                    value={conditionalFields[field] ?? ""} maxLength={field==="contractNumber"?12:field==="serviceBillId"?19:20}
+                    onChange={e=>setConditionalFields(old=>({...old,[field]:e.target.value}))} />}
+              </div>)}
               {formMetadataError && <p role="alert" className="form-error">{formMetadataError}</p>}
               {formMetadata && <p className="invoice-register__hint">قواعد انتخاب الگو: {formMetadata.edition} — صرفاً اعتبارسنجی داخلی؛ مجوز ارسال به سامانه مودیان نیست.</p>}
               {(formMetadata?.entries.find(p=>p.type===invoiceType && p.pattern===pattern)?.requiredFields.length ?? 0)>0 &&
