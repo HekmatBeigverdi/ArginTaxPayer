@@ -69,17 +69,6 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   const [filterCustomer, setFilterCustomer] = useState("");
   const [filterTaxpayer, setFilterTaxpayer] = useState("");
   const [headerCustomer, setHeaderCustomer] = useState(isAdmin ? "" : actorId);
-  useEffect(() => {
-    if (!modal || !taxpayerId) { setHeaderOptions(null);setHeaderLoading(false);return; }
-    let current = true;
-    setHeaderLoading(true);setHeaderError("");
-    getJson<HeaderOptions>("/api/invoices/header-options/"+taxpayerId)
-      .then(data => {if(current)setHeaderOptions(data);})
-      .catch(()=>{if(current){setHeaderOptions(null);setHeaderError("دریافت اطلاعات مؤدی و حافظه مالیاتی ناموفق بود.");}})
-      .finally(()=>{if(current)setHeaderLoading(false);});
-    return ()=>{current=false;};
-  },[modal,taxpayerId]);
-
   const [buyerId, setBuyerId] = useState("");
   const [buyerQuery, setBuyerQuery] = useState("");
   const [buyers, setBuyers] = useState<FiscalEntry[]>([]);
@@ -121,6 +110,17 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   const [cashInput,setCashInput] = useState("");
   const nextKey = useRef(0);
   const [detail, setDetail] = useState<Invoice | null>(null);
+
+  useEffect(() => {
+    if (!modal || !taxpayerId) { setHeaderOptions(null);setHeaderLoading(false);return; }
+    let current = true;
+    setHeaderLoading(true);setHeaderError("");
+    getJson<HeaderOptions>("/api/invoices/header-options/"+taxpayerId)
+      .then(data => {if(current)setHeaderOptions(data);})
+      .catch(()=>{if(current){setHeaderOptions(null);setHeaderError("دریافت اطلاعات مؤدی و حافظه مالیاتی ناموفق بود.");}})
+      .finally(()=>{if(current)setHeaderLoading(false);});
+    return ()=>{current=false;};
+  },[modal,taxpayerId]);
 
   useEffect(() => {
     let live = true;
