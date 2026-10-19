@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 08: Invoice Workflows and UI
 
-**Status:** Steps 01–08 owner-approved; Step 09 implementation committed, operator acceptance pending.
+**Status:** Steps 01–09 owner-approved; Step 10 implemented in GitHub, macOS/browser acceptance pending.
 **Branch:** `phase/08-invoice-workflows-ui`
 **Baseline:** `main` at `364462848914f289916962a0578c9fac9cd85ce1` (GitHub inspected 2026-10-18).
 **Roadmap source:** `docs/roadmap/18-phases.md`, phase 08 of 18.
@@ -44,8 +44,8 @@
 | 06 | Concurrency and idempotency | Prevent lost updates, duplicate review submissions and simultaneous approvals | One accepted write, deterministic conflict/replay | Owner-approved 2026-10-19; local logs not independently archived |
 | 07 | Workflow API contracts | Expose scoped commands, queries and stable typed errors | Backward compatible, stable response contracts | Development command API committed; operator tests pending |
 | 08 | Invoice workspace list | Show customer-scoped drafts, review queue, filters, pagination | Correct statuses and scoped results | Owner-approved 2026-10-19 |
-| 09 | Dynamic invoice forms | Drive conditional fields by official rule-set and pattern metadata | Valid combinations enabled; invalid blocked | API/UI metadata integration committed; acceptance pending |
-| 10 | Header and party entry | Taxpayer, memory, buyer, issue date, header validation | Localized field errors and valid persisted values | Not started |
+| 09 | Dynamic invoice forms | Drive conditional fields by official rule-set and pattern metadata | Valid combinations enabled; invalid blocked | Owner-approved 2026-10-19 |
+| 10 | Header and party entry | Taxpayer, memory, buyer, issue date, header validation | Localized field errors and valid persisted values | Code committed; macOS acceptance pending |
 | 11 | Line and catalog entry | Search/select Phase06 catalog items, quantity, unit, price and snapshots | Historic invoice unchanged after catalog edit | Not started |
 | 12 | Calculations and financial summary | Display discount, charges, VAT and final totals using Phase07 engine | UI/API totals match canonical model | Not started |
 | 13 | Settlement methods and fields | Cash, credit and mixed invoice terms and reconciliation | Valid mix accepted; mismatch rejected | Not started |
@@ -487,3 +487,11 @@ Owner approved yearly reset and expanding serial length. Updated **pending/unapp
 - Wizard renders conditional inputs from the official metadata `requiredFields` entries. It stores contract reference, service-bill identifier, flight type and the four gold-specific amount fields in the existing JSON workspace payload; reopening a draft restores them. No schema change.
 - Extended the allowed proxy fields and the typed `SaveInvoiceEntryRequest` / `InvoiceEntryView` contracts. Backend validation enforces the domain V7.9 type/pattern matrix, proper conditional field shape, disallows stray condition-specific fields and requires relevant fields when completing step 1 or 2. Incomplete stage-0 drafts remain resumable.
 - **Acceptance pending:** macOS .NET build/test + web tests/typecheck/build; authenticated form-metadata GET, new/save/reload pattern 4/5/6/3, invalid combination/direct API rejection, scoped access and no regression to regular sales patterns. No connector-side test execution was possible. Step10 not started; Step09 awaits owner approval.
+
+### Step 10 — Seller, fiscal memory and buyer header integration (2026-10-19)
+- Step09 explicitly owner-approved; fixed step sequencing preserved.
+- Added development-only authenticated `GET /api/dev/invoices/header-options/{taxpayerId}` returning seller identity and fiscal memories from authorized `TaxpayerScopeService.ScopedQuery`. Unowned taxpayer IDs return 404, unauthenticated session 401; no key material exposed.
+- Next.js invoice proxy allowlists the scoped header-options GET. Wizard loads on selected taxpayer, resets selected fiscal memory when taxpayer/customer changes; displays identifier and option status. A fiscal-memory ID is optional for an incomplete working draft: absence of a verified memory cannot be interpreted as permission to submit to the tax authority.
+- The existing save request and canonical draft view now persist `fiscalMemoryId` in draft JSON, with server-side taxpayer equality validation; saves reject memory IDs belonging to another taxpayer. No DB schema migration.
+- Buyer text must resolve to a selected buyer ID (free-text buyer name is rejected on client), and backend pre-existing buyer validation still verifies active and linked customer. Existing Persian calendar selector and UTC timestamp serialization are preserved, not replaced with an unverified timezone conversion. Existing type/pattern validation continues.
+- Added web contract tests. **GitHub edits were not run through .NET or Node tests in this session; no local DB mutation or live provider connection.** Operator must run macOS full build+tests, visit invoice modal, test seller-memory switching, buyer selection, save/reload, negative cross-taxpayer memory on POST, Jalali date and revision CAS. Step 10 awaits explicit acceptance; Step11 not started.
