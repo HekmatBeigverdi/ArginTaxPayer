@@ -14,7 +14,7 @@ public static class InvoiceSupportCode
     {
         id = Guid.Empty;
         if (code is null || code.Length != 22 ||
-            code.Any(c => !char.IsLetterOrDigit(c) && c is not '-' and '_'))
+            code.Any(c => !char.IsLetterOrDigit(c) && c is not ('-' or '_')))
             return false;
         try
         {
