@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 08: Invoice Workflows and UI
 
-**Status:** Steps 01–10 owner-approved; Step 11 implementation committed, macOS/browser acceptance pending.
+**Status:** Steps 01–11 owner-approved; Step 12 implementation committed, macOS/browser acceptance pending.
 **Branch:** `phase/08-invoice-workflows-ui`
 **Baseline:** `main` at `364462848914f289916962a0578c9fac9cd85ce1` (GitHub inspected 2026-10-18).
 **Roadmap source:** `docs/roadmap/18-phases.md`, phase 08 of 18.
@@ -46,8 +46,8 @@
 | 08 | Invoice workspace list | Show customer-scoped drafts, review queue, filters, pagination | Correct statuses and scoped results | Owner-approved 2026-10-19 |
 | 09 | Dynamic invoice forms | Drive conditional fields by official rule-set and pattern metadata | Valid combinations enabled; invalid blocked | Owner-approved 2026-10-19 |
 | 10 | Header and party entry | Taxpayer, memory, buyer, issue date, header validation | Localized field errors and valid persisted values | Owner-approved 2026-10-19 |
-| 11 | Line and catalog entry | Search/select Phase06 catalog items, quantity, unit, price and snapshots | Historic invoice unchanged after catalog edit | Code committed; operator acceptance pending |
-| 12 | Calculations and financial summary | Display discount, charges, VAT and final totals using Phase07 engine | UI/API totals match canonical model | Not started |
+| 11 | Line and catalog entry | Search/select Phase06 catalog items, quantity, unit, price and snapshots | Historic invoice unchanged after catalog edit | Owner-approved 2026-10-19 |
+| 12 | Calculations and financial summary | Display discount, charges, VAT and final totals using Phase07 engine | UI/API totals match canonical model | Code committed; operator acceptance pending |
 | 13 | Settlement methods and fields | Cash, credit and mixed invoice terms and reconciliation | Valid mix accepted; mismatch rejected | Not started |
 | 14 | Save/resume draft UX | Enhance existing resumable workspaces and unsaved-change handling | Draft resumes exactly once without lost fields | Not started |
 | 15 | Review and internal approval UI | Review summary, validation feedback, approve and return with reason | Readonly approval snapshot and reasoned change requests | Not started |
@@ -517,3 +517,12 @@ Owner approved yearly reset and expanding serial length. Updated **pending/unapp
 - Added static regression contract test `apps/web/tests/phase08-step11-catalog-snapshots.test.mjs`.
 - **Outstanding acceptance:** .NET build/test + npm test/typecheck/build on macOS; add catalog product/service with unit, save, edit catalog title/internal code/base unit, resume draft and ensure saved line stays stable; verify cross-customer catalog ID rejection, inactive new selection rejection, manual line success and arithmetic. Existing old drafts without stored unit metadata are initialized with current catalog values at their next save; cannot reconstruct historical past values retroactively. Formal regulatory tax-line frozen aggregate/snapshot conversion remains governed by Phase07 rules and should not be confused with draft JSON.
 - No migration, tax-authority call or production data update. Step12 blocked until owner acceptance.
+
+### Step12 — Deterministic decimal financial summary (2026-10-19)
+- Operator explicitly approved Step11.
+- Canonical server-side `InvoiceDraftSettlementPolicy.Calculate` now calculates monetary Gross, Discount and VAT in .NET decimal **per line**, rounding each to 2 digits with `MidpointRounding.AwayFromZero`, then sums the rounded line amounts, and constructs Net and Grand Total. Preview only; not an authority-accepted tax amount. The existing per-invoice settlement consistency rule now uses these canonical values.
+- The invoice wizard no longer aggregates binary floating-point products directly. New `invoice-financial-preview.mjs` uses exact parsed base-10 input and BigInt arithmetic to mirror server's per-line rounding, with an accompanying TS declaration. Initial invalid inputs report an error at save rather than silently issuing a financial value. Currency display remains Rial.
+- Updated UI preview in Step2 for gross, discount, net, VAT and total. No fixed VAT rate is inferred (each line retains explicit VAT rate). There is no model for other charges in current wizard: the UI continues to explicitly show these as unsupported; this does not claim full financial approval or tax-authority compliance.
+- Regression tests: `Phase08Step12FinancialSummaryTests.cs` and `phase08-step12-financial-preview.test.mjs`; covers VAT, discounts, decimal half rounding, split cash/credit reconciliation and invalid entries. Existing draft JSON and financial summary read contract are unchanged. No migration.
+- **Acceptance gate:** run `dotnet build ArginTaxPayer.sln`, `dotnet test ArginTaxPayer.sln`, `npm --prefix apps/web test`, `npm --prefix apps/web run typecheck`, `npm --prefix apps/web run build` on macOS. In browser test multiple decimal quantities, small fractional Rial values, discount, VAT, save/reload and compare UI with the API's `financialSummary`; verify mixed settlement and old draft opening. **Potential limitation:** BigInt cents are converted to JavaScript Number for UI formatting and mixed-settlement input; totals above JS safe integer precision require dedicated string-decimal formatting and are NOT fully guaranteed by this step. No provider calls or production updates.
+- Step13 not started; awaiting explicit owner acceptance.
