@@ -139,6 +139,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   }, [filterCustomer, filterTaxpayer, reviewFilter, search, listPage]);
   useEffect(() => {
     setDetail(null);
+    setLoading(true);
     const timer = window.setTimeout(() => {void reload();}, search ? 280 : 0);
     return () => { window.clearTimeout(timer); requestSeq.current++; };
   }, [reload]);
