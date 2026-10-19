@@ -2,7 +2,7 @@
 # Read-only local status; no secrets or complete connection strings printed.
 emulate -L zsh
 STATE="$HOME/.argintaxpayer-test"
-for spec in "15432:PostgreSQL tunnel" "15089:.NET API" "3000:Next.js"; do
+for spec in "15432:PostgreSQL tunnel" "18081:Adminer tunnel" "15089:.NET API" "3000:Next.js"; do
   port="${spec%%:*}"
   label="${spec#*:}"
   if lsof -nP -iTCP:$port -sTCP:LISTEN >/dev/null 2>&1; then
@@ -21,4 +21,9 @@ if curl --noproxy '*' -fsS http://127.0.0.1:15089/health/dev-identity 2>/dev/nul
 else
   print 'NOT READY OTP environment'
 fi
-print "Log files: $STATE/api.log, $STATE/web.log, $STATE/autossh.log"
+if curl --noproxy "*" -fsS --max-time 3 http://127.0.0.1:18081/ > /dev/null 2>&1; then
+  print "READY Adminer at http://127.0.0.1:18081"
+else
+  print "NOT READY Adminer (VPS service or tunnel unavailable)"
+fi
+print "Log files: $STATE/api.log, $STATE/web.log, $STATE/autossh.log, $STATE/adminer.log"
