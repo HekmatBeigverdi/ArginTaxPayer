@@ -20,7 +20,8 @@ public sealed record InvoiceDraftView(
     Guid Id, Guid CustomerUserId, Guid TaxpayerId,
     long Revision, string State, string Subject, DateTime IssueDateUtc,
     DateTime UpdatedAtUtc, string? Kind = null, int? LastCompletedStep = null,
-    string? ReviewState = null);
+    string? ReviewState = null, string? SystemCode = null,
+    string? SellerName = null, string? BuyerName = null);
 
 public sealed record InvoiceDraftResult(InvoiceApiDecision Decision,
     InvoiceDraftView? Invoice = null);
@@ -219,11 +220,52 @@ public sealed class InvoiceDraftApplicationService(
         if (!string.IsNullOrWhiteSpace(search))
         {
             var value = search.Trim();
-            query = query.Where(x => x.Id.ToString().Contains(value));
+            query = query.Where(x =>
+                db.TaxpayerProfiles.Any(t => t.Id == x.TaxpayerId &&
+                    t.CustomerUserId == x.CustomerUserId &&
+                    (EF.Functions.ILike(t.DisplayName, "%" + value + "%") ||
+                     EF.Functions.ILike(t.NormalizedIdentifier, "%" + value + "%"))) ||
+                db.InvoiceParticipantDetails.Any(d =>
+                    d.CustomerUserId == x.CustomerUserId && d.TaxpayerId == x.TaxpayerId &&
+                    d.EconomicCode != null && EF.Functions.ILike(d.EconomicCode, "%" + value + "%")) ||
+                (x.Source == 1 && db.InvoiceEntryWorkspaces.Any(w =>
+                    w.Id == x.Id && EF.Functions.ILike(w.DraftJson, "%" + value + "%"))) ||
+                (x.Source == 0 && db.InvoiceDocuments.Any(d =>
+                    d.Id == x.Id && EF.Functions.ILike(d.SnapshotJson, "%" + value + "%"))));
         }
         var rows = await query.OrderByDescending(x => x.UpdatedAtUtc)
             .ThenBy(x => x.Id).Skip((page - 1) * pageSize)
             .Take(pageSize).ToArrayAsync(ct);
+        var names = await db.TaxpayerProfiles.AsNoTracking()
+            .Where(t => rows.Select(x => x.TaxpayerId).Contains(t.Id))
+            .Select(t => new { t.Id, t.DisplayName })
+            .ToDictionaryAsync(t => t.Id, t => t.DisplayName, ct);
+        var ids = rows.Select(x => x.Id).ToArray();
+        var draftJson = await db.InvoiceEntryWorkspaces.AsNoTracking()
+            .Where(w => ids.Contains(w.Id)).Select(w => new { w.Id, w.DraftJson })
+            .ToDictionaryAsync(w => w.Id, w => w.DraftJson, ct);
+        var documentJson = await db.InvoiceDocuments.AsNoTracking()
+            .Where(w => ids.Contains(w.Id)).Select(w => new { w.Id, w.SnapshotJson })
+            .ToDictionaryAsync(w => w.Id, w => w.SnapshotJson, ct);
+        var buyers = new Dictionary<Guid, string?>();
+        foreach (var row in rows)
+        {
+            var json = row.Source == 1
+                ? draftJson.GetValueOrDefault(row.Id) : documentJson.GetValueOrDefault(row.Id);
+            if (string.IsNullOrEmpty(json)) continue;
+            try
+            {
+                using var parsed = JsonDocument.Parse(json);
+                var root = parsed.RootElement;
+                if (root.TryGetProperty("BuyerDisplayName", out var draftBuyer) &&
+                    draftBuyer.ValueKind == JsonValueKind.String)
+                    buyers[row.Id] = draftBuyer.GetString();
+                else if (root.TryGetProperty("buyer", out var buyer) &&
+                    buyer.ValueKind == JsonValueKind.String)
+                    buyers[row.Id] = buyer.GetString();
+            }
+            catch (JsonException) { /* Historical malformed snapshot: no display name. */ }
+        }
         return (InvoiceApiDecision.Success, rows.Select(x =>
             new InvoiceDraftView(x.Id,x.CustomerUserId,x.TaxpayerId,x.Revision,
                 x.Source == 1 ? "WorkingDraft" :
@@ -233,7 +275,10 @@ public sealed class InvoiceDraftApplicationService(
                 x.IssueDateUtc,x.UpdatedAtUtc,
                 x.Source == 1 ? "workspace" : null, x.Step,
                 x.Source == 1 ? "WorkingDraft" :
-                    ((InvoiceReviewState)(x.Review ?? 1)).ToString())).ToArray());
+                    ((InvoiceReviewState)(x.Review ?? 1)).ToString(),
+                InvoiceSupportCode.Encode(x.Id),
+                names.GetValueOrDefault(x.TaxpayerId),
+                buyers.GetValueOrDefault(x.Id))).ToArray());
     }
 
     private static InvoiceDraftView View(StoredInvoice invoice) =>
