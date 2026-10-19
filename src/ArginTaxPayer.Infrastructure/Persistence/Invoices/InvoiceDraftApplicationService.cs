@@ -231,9 +231,11 @@ public sealed class InvoiceDraftApplicationService(
                     d.CustomerUserId == x.CustomerUserId && d.TaxpayerId == x.TaxpayerId &&
                     d.EconomicCode != null && EF.Functions.ILike(d.EconomicCode, pattern)) ||
                 (x.Source == 1 && db.InvoiceEntryWorkspaces.Any(w =>
-                    w.Id == x.Id && EF.Functions.ILike(w.DraftJson, pattern))) ||
+                    w.Id == x.Id && EF.Functions.ILike(
+                        InvoiceJsonFields.Text(w.DraftJson, "BuyerDisplayName") ?? "", pattern))) ||
                 (x.Source == 0 && db.InvoiceDocuments.Any(d =>
-                    d.Id == x.Id && EF.Functions.ILike(d.SnapshotJson, pattern))));
+                    d.Id == x.Id && EF.Functions.ILike(
+                        InvoiceJsonFields.Text(d.SnapshotJson, "buyer") ?? "", pattern))));
         }
         var rows = await query.OrderByDescending(x => x.UpdatedAtUtc)
             .ThenBy(x => x.Id).Skip((page - 1) * pageSize)
