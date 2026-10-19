@@ -407,3 +407,9 @@ dotnet test ArginTaxPayer.sln
 - **Tests added**: `tests/ArginTaxPayer.Tests/Phase08InvoiceReviewApiContractTests.cs` checks HTTP code mapping. All code/tests are committed but GitHub connector does not execute them; owner must run full solution test, launch localhost API, test no-token 401, wrong-tenant denial, permitted transitions, idempotent replay, stale revision 409, malformed 400 and non-loopback 404.
 - **Migrations**: No new migrations or database writes have been executed through this change. Step06 migration must already be installed on `argintaxpayer_test` before operational HTTP write tests.
 - **Current status**: awaiting operator verification and explicit owner signoff. Step08 blocked.
+
+### Step 07 — HTTP 500 corrective patch (2026-10-19)
+
+Operator curl of POST `/api/dev/invoices/{invoiceId}/review/submit` without bearer token returned HTTP 500: `System.Text.Json` attempted to serialize `AsyncTaskMethodBuilder...AsyncStateMachineBox` because Minimal API handler was declared `async` yet returned the un-awaited `Task<IResult>` from `Run` as its expression body. Fixed all three review routes (`submit`, `request-changes`, `approve`) by removing outer `async`: delegate now directly returns `Task<IResult>`, which ASP.NET Core awaits and writes as `IResult`. No DB schema/API shape changes.
+
+**Operator retest required:** run `dotnet test ArginTaxPayer.sln`; restart the API with `zsh scripts/dev-down.zsh && zsh scripts/dev-up.zsh`; then repeat no-token curl (expected 401). This HTTP 500 is a confirmed defect; step is **not accepted** until actual smoke result is provided. On an absent/unreachable test DB, initial transaction setup may produce a separate error; confirm `/health/ready` and the test database.
