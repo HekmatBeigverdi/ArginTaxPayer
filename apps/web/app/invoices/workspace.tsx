@@ -415,8 +415,8 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
           <option value="ChangesRequested">نیازمند اصلاح</option>
           <option value="Approved">تأیید داخلی</option>
         </select>
-        <label htmlFor="invoice-list-search">جست‌وجو <span title="نام خریدار، نام فروشنده، شناسه ملی یا کد اقتصادی فروشنده و اطلاعات ثبت‌شده در صورتحساب" aria-label="راهنمای جست‌وجو" tabIndex={0} role="note" style={{cursor:"help"}}>ⓘ</span></label>
-        <input id="invoice-list-search" type="search" value={search}
+        <label htmlFor="invoice-list-search">جست‌وجو <span title="جست‌وجو بر اساس نام خریدار، نام فروشنده، شناسه ملی یا اقتصادی خریدار و فروشنده، و شناسه سیستمی" aria-label="راهنمای جست‌وجو" tabIndex={0} role="note" style={{cursor:"help",display:"inline-grid",placeItems:"center",border:"1px solid currentColor",borderRadius:"50%",width:17,height:17,fontSize:12}}>?</span></label>
+        <input id="invoice-list-search" type="search" value={search} maxLength={100}
           onChange={e => {setSearch(e.target.value);setListPage(1);}} placeholder="نام خریدار، فروشنده یا کد اقتصادی" />
       </div>
       <div className="invoice-register__actions">
