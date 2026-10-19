@@ -17,6 +17,7 @@ namespace ArginTaxPayer.Infrastructure.Persistence;
 public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbContext> options)
     : DbContext(options)
 {
+    public DbSet<InvoiceHumanReference> InvoiceHumanReferences => Set<InvoiceHumanReference>();
     public DbSet<StoredInvoiceReviewRequest> InvoiceReviewRequests => Set<StoredInvoiceReviewRequest>();
     public DbSet<StoredInvoiceReview> InvoiceReviews => Set<StoredInvoiceReview>();
     public DbSet<StoredInvoiceReviewEvent> InvoiceReviewEvents => Set<StoredInvoiceReviewEvent>();
@@ -67,6 +68,23 @@ public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbConte
         CatalogModelConfiguration.Apply(modelBuilder);
         InvoicePersistenceModelConfiguration.Apply(modelBuilder);
         InvoiceReviewPersistenceConfiguration.Apply(modelBuilder);
+        var support = modelBuilder.Entity<InvoiceHumanReference>();
+        support.ToTable("invoice_support_references");
+        support.HasKey(x => x.Id);
+        support.Property(x => x.Id).HasColumnName("id");
+        support.Property(x => x.SourceKind).HasColumnName("source_kind");
+        support.Property(x => x.SourceId).HasColumnName("source_id");
+        support.Property(x => x.AdminUserId).HasColumnName("admin_user_id");
+        support.Property(x => x.PersianYear).HasColumnName("persian_year");
+        support.Property(x => x.Serial).HasColumnName("serial");
+        support.Property(x => x.SystemCode).HasColumnName("system_code");
+        support.Property(x => x.AssignedAtUtc).HasColumnName("assigned_at_utc")
+            .HasColumnType("timestamp with time zone");
+        support.HasIndex(x => new { x.SourceKind, x.SourceId }).IsUnique()
+            .HasDatabaseName("uq_invoice_support_source");
+        support.HasIndex(x => x.SystemCode).IsUnique()
+            .HasDatabaseName("uq_invoice_support_system_code");
+
         InvoiceReviewRequestPersistenceConfiguration.Apply(modelBuilder);
         InvoiceEntryWorkspaceConfiguration.Apply(modelBuilder);
 
