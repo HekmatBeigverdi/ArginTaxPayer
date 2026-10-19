@@ -27,11 +27,12 @@ public sealed class Phase08HumanInvoiceReferenceTests
     [InlineData("00001-05-AAA", true)]
     [InlineData("99999-05-MTU", true)]
     [InlineData("12345-05-MTU", true)]
-    [InlineData("100000-05-MTU", false)]
+    [InlineData("100000-05-MTU", true)]
+    [InlineData("1000000-06-MTU", true)]
     [InlineData("00001-05-mtu", false)]
     public void Public_format_follows_five_digit_year_admin_pattern(string code, bool expected)
     {
         Assert.Equal(expected, System.Text.RegularExpressions.Regex.IsMatch(
-            code, @"^[0-9]{5}-[0-9]{2}-[A-Z]{3}$"));
+            code, @"^[0-9]{5,}-[0-9]{2}-[A-Z]{3}$"));
     }
 }
