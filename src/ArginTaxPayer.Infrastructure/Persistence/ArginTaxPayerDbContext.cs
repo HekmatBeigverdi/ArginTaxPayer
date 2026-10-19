@@ -61,6 +61,8 @@ public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbConte
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.HasDbFunction(typeof(InvoiceJsonFields).GetMethod(nameof(InvoiceJsonFields.Text))!)
+            .HasName("jsonb_extract_path_text").IsBuiltIn();
         base.OnModelCreating(modelBuilder);
         CatalogModelConfiguration.Apply(modelBuilder);
         InvoicePersistenceModelConfiguration.Apply(modelBuilder);
