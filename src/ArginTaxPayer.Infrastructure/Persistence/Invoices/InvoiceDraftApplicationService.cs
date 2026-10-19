@@ -220,7 +220,8 @@ public sealed class InvoiceDraftApplicationService(
         if (!string.IsNullOrWhiteSpace(search))
         {
             var value = search.Trim();
-            query = query.Where(x =>
+            var codeMatched = InvoiceSupportCode.TryDecode(value, out var codeId);
+            query = query.Where(x => (codeMatched && x.Id == codeId) ||
                 db.TaxpayerProfiles.Any(t => t.Id == x.TaxpayerId &&
                     t.CustomerUserId == x.CustomerUserId &&
                     (EF.Functions.ILike(t.DisplayName, "%" + value + "%") ||
