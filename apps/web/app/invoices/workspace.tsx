@@ -14,6 +14,8 @@ type Invoice = { id: string; customerUserId: string; taxpayerId: string; revisio
   reviewState?: "WorkingDraft" | "Draft" | "InReview" | "ChangesRequested" | "Approved";
   systemCode?: string; sellerName?: string | null; buyerName?: string | null };
 type CatalogItem = { id: string; title: string; internalCode?: string };
+type FormMetadata = { edition: string; verifiedForSubmission: boolean;
+  entries: {type:number;pattern:number|null;requiredFields:string[]}[] };
 type CatalogPage = { items: CatalogItem[] };
 type Account = { customerUserId: string; companyName?: string | null; personName?: string | null };
 type FiscalEntry = { id: string; customerUserId: string; type: "buyer" | "taxpayer"; displayName: string; identifier: string; status: number };
@@ -37,14 +39,7 @@ const errorCodes: Record<number, string> = {
   409: "تغییر هم‌زمان رخ داده است؛ فهرست را بازخوانی کنید.",
   503: "سرویس فعلاً در دسترس نیست."
 };
-const patterns: Record<number, { code: number; title: string }[]> = {
-  1: [{code:1,title:"فروش"},{code:2,title:"فروش ارز"},{code:3,title:"طلا و جواهر"},
-    {code:4,title:"پیمانکاری"},{code:5,title:"قبوض خدماتی"},{code:6,title:"بلیت هواپیما"},
-    {code:7,title:"صادرات"},{code:8,title:"بارنامه"},{code:9,title:"فرآورده‌های نفتی"},
-    {code:11,title:"بورس کالا"},{code:13,title:"خدمات بیمه‌ای"},{code:14,title:"فروش زنجیره"}],
-  2: [{code:1,title:"فروش"},{code:3,title:"طلا و جواهر"},{code:9,title:"فرآورده‌های نفتی"},
-    {code:13,title:"خدمات بیمه‌ای"}]
-};
+
 async function getJson<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, { credentials: "same-origin", cache: "no-store", ...init });
   if (!response.ok) throw new Error(errorCodes[response.status] || "خطای سرویس (" + response.status + ")");
@@ -89,6 +84,8 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   const [date, setDate] = useState(todayUtc);
   const [hour, setHour] = useState("12:00");
 
+  const [formMetadata, setFormMetadata] = useState<FormMetadata | null>(null);
+  const [formMetadataError, setFormMetadataError] = useState("");
   const [invoiceType, setInvoiceType] = useState(1);
   const [pattern, setPattern] = useState(1);
   const [kind, setKind] = useState<"products" | "services">("products");
@@ -102,6 +99,14 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   const [cashInput,setCashInput] = useState("");
   const nextKey = useRef(0);
   const [detail, setDetail] = useState<Invoice | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    getJson<FormMetadata>("/api/invoices/form-metadata")
+      .then(data => { if (live && data.entries.length) setFormMetadata(data); })
+      .catch(() => { if (live) setFormMetadataError("دریافت قواعد رسمی فرم ناموفق بود؛ انتخاب الگو موقتاً غیرفعال است."); });
+    return () => { live = false; };
+  }, []);
 
   useEffect(() => {
     let live = true;
@@ -584,15 +589,21 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
               <label htmlFor="invoice-hour">ساعت صدور (UTC)</label>
               <PersianTimePicker id="invoice-hour" value={hour} onChange={setHour} timeZoneLabel="UTC" />
               <label htmlFor="invoice-type">نوع صورتحساب</label>
-              <select id="invoice-type" value={invoiceType} onChange={e => {
+              <select id="invoice-type" disabled={!formMetadata || busy} value={invoiceType} onChange={e => {
                 const next = Number(e.target.value);
-                setInvoiceType(next); setPattern(patterns[next][0].code);
+                setInvoiceType(next);
+                setPattern(formMetadata?.entries.find(p=>p.type===next)?.pattern ?? 1);
               }}><option value={1}>نوع اول</option><option value={2}>نوع دوم</option></select>
               <label htmlFor="invoice-pattern">الگوی صورتحساب</label>
-              <select id="invoice-pattern" value={pattern}
+              <select id="invoice-pattern" disabled={!formMetadata || busy} value={pattern}
                 onChange={e => setPattern(Number(e.target.value))}>
-                {patterns[invoiceType].map(p => <option key={p.code} value={p.code}>{p.title}</option>)}
+                {(formMetadata?.entries.filter(p=>p.type===invoiceType && p.pattern!==null) ?? []).map(p =>
+                  <option key={p.pattern} value={p.pattern!}>{({1:"فروش",2:"فروش ارز",3:"طلا و جواهر",4:"پیمانکاری",5:"قبوض خدماتی",6:"بلیت هواپیما",7:"صادرات",8:"بارنامه",9:"فرآورده‌های نفتی",11:"بورس کالا",13:"خدمات بیمه‌ای",14:"فروش زنجیره"} as Record<number,string>)[p.pattern!] ?? ("الگوی "+p.pattern)}</option>)}
               </select>
+              {formMetadataError && <p role="alert" className="form-error">{formMetadataError}</p>}
+              {formMetadata && <p className="invoice-register__hint">قواعد انتخاب الگو: {formMetadata.edition} — صرفاً اعتبارسنجی داخلی؛ مجوز ارسال به سامانه مودیان نیست.</p>}
+              {(formMetadata?.entries.find(p=>p.type===invoiceType && p.pattern===pattern)?.requiredFields.length ?? 0)>0 &&
+                <p role="status" className="invoice-register__hint">این الگو به فیلدهای تکمیلی اختصاصی نیاز دارد؛ تکمیل و اعتبارسنجی آن‌ها در مراحل بعدی فرم انجام خواهد شد.</p>}
               <p className="invoice-register__hint">اطلاعات مرحله‌ای در پیش‌نویس خصوصی ذخیره می‌شوند؛ ثبت خریدار را می‌توانید بعداً تکمیل کنید. این پیش‌نویس مجوز ارسال مالیاتی ندارد.</p>
             </section>}
             {step === 1 && <section aria-label="اقلام صورتحساب">
