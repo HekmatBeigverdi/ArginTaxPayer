@@ -138,11 +138,13 @@ DECLARE
  root_count integer;
  repaired integer;
 BEGIN
- SELECT count(DISTINCT u.id), min(u.id)
+ SELECT count(*), min(u.id)
  INTO root_count, root_id
  FROM identity_users u
  JOIN identity_user_roles r ON r.user_id = u.id AND r.role = 'Level1'
- WHERE u.is_active = true;
+ WHERE u.id = '3054f5ac-38b4-429e-8dc2-8f9e1125bc7f'::uuid
+   AND u.normalized_mobile = '+989192424119'
+   AND u.is_active = true;
 
  IF EXISTS (
    SELECT 1
@@ -155,7 +157,7 @@ BEGIN
    WHERE o.customer_user_id IS NULL
  ) THEN
    IF root_count <> 1 THEN
-     RAISE EXCEPTION 'Unassigned legacy invoice customers require exactly one active Level1 (found %); resolve ownership before migration', root_count;
+     RAISE EXCEPTION 'Confirmed primary Level1 admin unavailable or identity mismatch; cannot assign legacy invoice ownership';
    END IF;
 
    INSERT INTO customer_commercial_owners (
