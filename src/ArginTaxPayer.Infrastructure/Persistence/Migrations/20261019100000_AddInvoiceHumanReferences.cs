@@ -134,18 +134,33 @@ CREATE TRIGGER trg_phase08_invoice_document_system_code
 -- No historical owner-at-creation assumption is fabricated.
 DO $$
 DECLARE item record;
+        skipped_count integer := 0;
 BEGIN
  FOR item IN
-   SELECT 'workspace'::varchar AS kind,id,customer_user_id,updated_at_utc AS at_utc
-   FROM invoice_entry_workspaces
+   SELECT 'workspace'::varchar AS kind,w.id,w.customer_user_id,
+          w.updated_at_utc AS at_utc,
+          o.customer_user_id AS owner_customer_id
+     FROM invoice_entry_workspaces w
+     LEFT JOIN customer_commercial_owners o ON o.customer_user_id = w.customer_user_id
    UNION ALL
-   SELECT 'document'::varchar,id,customer_user_id,updated_at_utc
-   FROM invoice_documents
+   SELECT 'document'::varchar,d.id,d.customer_user_id,
+          d.updated_at_utc,o.customer_user_id
+     FROM invoice_documents d
+     LEFT JOIN customer_commercial_owners o ON o.customer_user_id = d.customer_user_id
    ORDER BY at_utc,id
  LOOP
+   IF item.owner_customer_id IS NULL THEN
+     -- Legacy customers awaiting root-supervised commercial attribution.
+     -- Do not invent an administrator and do not delete their invoices.
+     skipped_count := skipped_count + 1;
+     CONTINUE;
+   END IF;
    PERFORM phase08_allocate_invoice_support(item.kind,item.id,item.customer_user_id);
  END LOOP;
-END $$;
+ IF skipped_count > 0 THEN
+   RAISE NOTICE 'Invoice support backfill: % orphaned legacy records retained without codes; resolve ownership and run controlled backfill', skipped_count;
+ END IF;
+END $;
 
 CREATE FUNCTION phase08_immutable_support_ref() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
