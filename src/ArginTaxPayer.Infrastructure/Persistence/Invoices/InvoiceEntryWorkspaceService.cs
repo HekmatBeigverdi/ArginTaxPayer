@@ -75,7 +75,8 @@ public sealed record SaveInvoiceEntryRequest(Guid? Id, Guid TaxpayerId, long Exp
     decimal? CashAmountRial = null, decimal? CreditAmountRial = null,
     string? ContractNumber = null, string? ServiceBillId = null, int? FlightType = null,
     decimal? GoldConstructionFeeRial = null, decimal? GoldSellerProfitRial = null,
-    decimal? GoldCommissionRial = null, decimal? GoldTotalFeeProfitRial = null);
+    decimal? GoldCommissionRial = null, decimal? GoldTotalFeeProfitRial = null,
+    Guid? FiscalMemoryId = null);
 public sealed record InvoiceEntryView(Guid Id, Guid CustomerUserId, Guid TaxpayerId, long Revision,
     int LastCompletedStep, DateTime IssueDateUtc, DateTime UpdatedAtUtc,
     Guid? BuyerPartyId, int Type, int Pattern, InvoiceEntryLine[] Lines,
@@ -176,7 +177,7 @@ public sealed class InvoiceEntryWorkspaceService(
             InvoiceDraftSettlementPolicy.Calculate(value.Lines ?? []),
             value.ContractNumber,value.ServiceBillId,value.FlightType,
             value.GoldConstructionFeeRial,value.GoldSellerProfitRial,
-            value.GoldCommissionRial,value.GoldTotalFeeProfitRial);
+            value.GoldCommissionRial,value.GoldTotalFeeProfitRial,value.FiscalMemoryId);
     }
 
     public async Task<InvoiceEntryResult> SaveAsync(string? token,
@@ -186,6 +187,13 @@ public sealed class InvoiceEntryWorkspaceService(
             return new(InvoiceApiDecision.Invalid);
         var access = await Authorize(token,input.TaxpayerId,ct);
         if (access.Item1 != InvoiceApiDecision.Success) return new(access.Item1);
+        // Fiscal memory must belong to the selected, currently accessible seller.
+        // It remains an optional draft reference until authoritative verification
+        // and activation are available in later phases.
+        if (input.FiscalMemoryId is { } memoryId &&
+            (memoryId == Guid.Empty || !await db.FiscalMemories.AsNoTracking().AnyAsync(
+                m => m.Id == memoryId && m.TaxpayerId == input.TaxpayerId, ct)))
+            return new(InvoiceApiDecision.Invalid);
         string? selectedBuyerName = null;
         if (input.BuyerPartyId is { } buyer && buyer != Guid.Empty)
         {
