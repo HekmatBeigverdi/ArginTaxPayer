@@ -128,7 +128,7 @@ public static class InvoiceDraftDevelopmentEndpoints
             if (input?.Invoices is not { Length: > 0 and <= 50 } ||
                 input.BatchKey is not { Length: >= 8 and <= 64 } ||
                 input.BatchKey.Any(c=>!char.IsAsciiLetterOrDigit(c) && c is not '-' and not '_') ||
-                input.Invoices.Any(x=>x.InvoiceKey is not { Length: >= 1 and <= 64 } ||
+                input.Invoices.Any(x=>x is null || x.InvoiceKey is not { Length: >= 1 and <= 64 } ||
                     x.InvoiceKey.Any(c=>!char.IsAsciiLetterOrDigit(c) && c is not '-' and not '_')) ||
                 input.Invoices.Select(x=>x.InvoiceKey).Distinct(StringComparer.Ordinal).Count() !=
                     input.Invoices.Length)
