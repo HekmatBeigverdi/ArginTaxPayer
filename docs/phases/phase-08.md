@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 08: Invoice Workflows and UI
 
-**Status:** Steps 01–18 owner-approved; Step18 operational tests/deferred hardening explicitly pending; Step19 regression hardening in progress.
+**Status:** Steps 01–18 owner-approved (Step18 operational test deferral recorded); Step19 regression code and runner committed, operator execution pending.
 **Branch:** `phase/08-invoice-workflows-ui`
 **Baseline:** `main` at `364462848914f289916962a0578c9fac9cd85ce1` (GitHub inspected 2026-10-18).
 **Roadmap source:** `docs/roadmap/18-phases.md`, phase 08 of 18.
@@ -54,7 +54,7 @@
 | 16 | Audit and revision history | Show immutable actor/timestamp/reason/revision timeline | No historical rewrites or unauthorized reads | Owner-approved 2026-10-20; test DB table created |
 | 17 | Import mapping and preview | CSV/XLSX bounded parsing, column mapping and row-level preview | Explain valid/invalid rows before approval | Owner-approved 2026-10-20 |
 | 18 | Controlled batch draft import | Explicit import confirmation with per-row durable outcomes | Retry creates no duplicate invoices; partial failures explained | Owner-approved 2026-10-20 with deferred real import tests and failure-ledger improvements |
-| 19 | Comprehensive regression and security | Domain, API, web, migration safety and Phase03-07 compatibility | Required tests green without disabling tests | Not started |
+| 19 | Comprehensive regression and security | Domain, API, web, migration safety and Phase03-07 compatibility | Required tests green without disabling tests | Regression tests and script committed; runtime evidence pending |
 | 20 | macOS operator acceptance | Independent macOS build and workflow/browser/db/HTTP acceptance | Commit SHA, operator results and caveats recorded | Not started |
 | 21 | Ubuntu operator acceptance | Same SHA, independent Ubuntu build and integration tests | Matching SHA and Ubuntu evidence documented | Not started |
 | 22 | Phase closeout and publication | Close one master doc, review final evidence; optional main merge/tag/release only upon separate owner approval | Explicit owner signoff and verified GitHub artifacts | Not started |
@@ -650,3 +650,11 @@ Owner approved yearly reset and expanding serial length. Updated **pending/unapp
 - Owner explicitly accepted Step18 without running external-data import tests due to current product priorities. This is **administrative acceptance**, not evidence of successful macOS, PostgreSQL, concurrency, or browser verification.
 - Deferred backlog: fix and exercise all import compile/runtime issues during regression; validate official invoice constraints, header and buyer rights, decimal monetary accuracy, UTF-8/XLSX handling, invalid-row independence, idempotency/concurrent retries and conflict handling; design persistent append-only batch-result ledger for failed attempts if later required; improve template UX and replacing UUIDs with selectable users/taxpayers.
 - Keep API developer-only. Do not include Import behavior in a claim of full tested readiness, and never run batch writes against production data. Step19 may proceed for core regression; owner may elect to leave deferred Import integration tests documented rather than block phase planning.
+
+### Step19 — Core regression and security sweep (2026-10-20)
+- Added `Phase08Step19RegressionTests.cs`: exact decimal calculation, explicit VAT inputs (not a built-in current rate), all settlement-mode consistency invariants, negative amount rejection, deterministic tenant-scoped import IDs.
+- Added `phase08-step19-security-regression.test.mjs`: verify same-origin authenticated Next BFF, local-only developer invoice endpoints, live taxpayer scoping and buyer linkage, wizard revision/unsaved-draft continuity, CSV error guards and import-only draft operations. This is a source-level guard, not proof of live authorization.
+- Added `scripts/phase08-step19-verify.sh` for one repeatable operator run on the feature branch: clean Git worktree check, dotnet restore/build/test and web npm test/typecheck/build. **Never runs EF database update**, login operations, network mutation, batch HTTP writes or production commands. Operator can execute it as `bash scripts/phase08-step19-verify.sh`.
+- Migration safety review: Step18 introduces no schema changes; audit migration Step16 was owner-reported applied to test database. Future DB tests require independent verification of `current_database()=argintaxpayer_test` with review of EF migration plan before writes. The mere presence of this test runner does not satisfy macOS/Ubuntu integration acceptance.
+- Explicit owner-approved exception: Step18 bulk import integration, browser tests, concurrent retries, incomplete persisted failed-outcome ledger, template usability and scenario hardening are deferred for later priority. No tests were disabled or deleted to obtain a green claim.
+- **Delivery status:** regression files and command committed; remote GitHub tool cannot execute macOS or VPS tests. Step19's original acceptance criterion "required tests green" remains **unverified** until operator shares output. Step20 macOS acceptance must not be labeled successful before actual evidence; Step21 Ubuntu remains separate.
