@@ -670,3 +670,8 @@ Owner approved yearly reset and expanding serial length. Updated **pending/unapp
 - Operator reported web node tests 186/186 passing, followed by three TypeScript TS2307 errors for imported brand PNG in dashboard, console shell and identity screen; Ubuntu regression marked FAIL. No successful build or operator acceptance has been reported.
 - Three components now use the Next.js public asset URL `/brand/argin-logo.png` rather than importing PNG as a TypeScript module. Existing width/height, alt text and presentation remain unchanged.
 - Added `apps/web/tests/phase08-step21-brand-public-path.test.mjs` regression guard. No migration required. Repeat Ubuntu `bash scripts/phase08-step21-ubuntu-acceptance.sh`, verify full typecheck/build and browser logo visibility; macOS re-verification required on final same commit.
+
+### Step21 Ubuntu branding regression follow-up (2026-10-20)
+- Ubuntu web suite reported 185/187 passing; failures were two outdated assertions in `apps/web/tests/branding.test.mjs` expecting imported PNG modules, after Step21 changed the three components to use a public asset URL to resolve Ubuntu TS2307.
+- Assertions now verify `/brand/argin-logo.png` in login, sidebar, header and dashboard and still check actual PNG existence/transparency. No application runtime or database changes, no migration.
+- This does not prove platform parity: macOS PASS was from an earlier commit. Repeat all suites on Ubuntu and macOS at the exact same SHA, then record the outcomes. Step21 remains pending.
