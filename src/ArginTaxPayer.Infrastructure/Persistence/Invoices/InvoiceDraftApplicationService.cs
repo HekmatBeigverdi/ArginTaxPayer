@@ -212,11 +212,16 @@ public sealed class InvoiceDraftApplicationService(
             query = query.Where(x => x.TaxpayerId == taxpayerId.Value);
         if (reviewState is not null)
             query = reviewState == "WorkingDraft"
-                ? query.Where(x => x.Source == 1)
+                ? query.Where(x => x.Source == 1 &&
+                    db.InvoiceEntryWorkspaces.Any(w => w.Id == x.Id &&
+                        (InvoiceJsonFields.Text(w.DraftJson,"InternalReviewState") == null ||
+                         InvoiceJsonFields.Text(w.DraftJson,"InternalReviewState") == "Draft")))
                 : query.Where(x => x.Source == 0 &&
                     (x.Review ?? 1) == (reviewState == "Draft" ? 1 :
                      reviewState == "InReview" ? 2 :
-                     reviewState == "ChangesRequested" ? 3 : 4));
+                     reviewState == "ChangesRequested" ? 3 : 4) ||
+                    x.Source == 1 && db.InvoiceEntryWorkspaces.Any(w => w.Id == x.Id &&
+                        InvoiceJsonFields.Text(w.DraftJson,"InternalReviewState") == reviewState));
         if (!string.IsNullOrWhiteSpace(search))
         {
             var value = search.Trim();
@@ -272,6 +277,7 @@ public sealed class InvoiceDraftApplicationService(
             .Select(r => new { r.SourceId, r.SourceKind, r.SystemCode }).ToArrayAsync(ct);
         var referenceCodes = referenceRows.ToDictionary(
             r => (r.SourceKind, r.SourceId), r => r.SystemCode);
+        var workspaceReviews = new Dictionary<Guid,string>();
         var buyers = new Dictionary<Guid, string?>();
         foreach (var row in rows)
         {
@@ -282,6 +288,9 @@ public sealed class InvoiceDraftApplicationService(
             {
                 using var parsed = JsonDocument.Parse(json);
                 var root = parsed.RootElement;
+                if (row.Source == 1 && root.TryGetProperty("InternalReviewState",out var review) &&
+                    review.ValueKind == JsonValueKind.String)
+                    workspaceReviews[row.Id] = review.GetString() ?? "Draft";
                 if (root.TryGetProperty("BuyerDisplayName", out var draftBuyer) &&
                     draftBuyer.ValueKind == JsonValueKind.String)
                     buyers[row.Id] = draftBuyer.GetString();
@@ -299,7 +308,7 @@ public sealed class InvoiceDraftApplicationService(
                     ((InvoiceSubject)x.SubjectValue!.Value).ToString(),
                 x.IssueDateUtc,x.UpdatedAtUtc,
                 x.Source == 1 ? "workspace" : null, x.Step,
-                x.Source == 1 ? "WorkingDraft" :
+                x.Source == 1 ? workspaceReviews.GetValueOrDefault(x.Id,"WorkingDraft") :
                     ((InvoiceReviewState)(x.Review ?? 1)).ToString(),
                 referenceCodes.GetValueOrDefault((x.Source == 1 ? "workspace" : "document", x.Id)),
                 names.GetValueOrDefault(x.TaxpayerId),
