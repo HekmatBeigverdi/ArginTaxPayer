@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 08: Invoice Workflows and UI
 
-**Status:** Steps 01–18 owner-approved (Step18 operational test deferral recorded); Step19 regression code and runner committed, operator execution pending.
+**Status:** Steps 01–19 owner-approved; Step18 tests deferred; Step20 macOS operator evidence pending.
 **Branch:** `phase/08-invoice-workflows-ui`
 **Baseline:** `main` at `364462848914f289916962a0578c9fac9cd85ce1` (GitHub inspected 2026-10-18).
 **Roadmap source:** `docs/roadmap/18-phases.md`, phase 08 of 18.
@@ -54,8 +54,8 @@
 | 16 | Audit and revision history | Show immutable actor/timestamp/reason/revision timeline | No historical rewrites or unauthorized reads | Owner-approved 2026-10-20; test DB table created |
 | 17 | Import mapping and preview | CSV/XLSX bounded parsing, column mapping and row-level preview | Explain valid/invalid rows before approval | Owner-approved 2026-10-20 |
 | 18 | Controlled batch draft import | Explicit import confirmation with per-row durable outcomes | Retry creates no duplicate invoices; partial failures explained | Owner-approved 2026-10-20 with deferred real import tests and failure-ledger improvements |
-| 19 | Comprehensive regression and security | Domain, API, web, migration safety and Phase03-07 compatibility | Required tests green without disabling tests | Regression tests and script committed; runtime evidence pending |
-| 20 | macOS operator acceptance | Independent macOS build and workflow/browser/db/HTTP acceptance | Commit SHA, operator results and caveats recorded | Not started |
+| 19 | Comprehensive regression and security | Domain, API, web, migration safety and Phase03-07 compatibility | Required tests green without disabling tests | Owner accepted; runtime evidence pending |
+| 20 | macOS operator acceptance | Independent macOS build and workflow/browser/db/HTTP acceptance | Commit SHA, operator results and caveats recorded | Checklist and runner committed; operator evidence pending |
 | 21 | Ubuntu operator acceptance | Same SHA, independent Ubuntu build and integration tests | Matching SHA and Ubuntu evidence documented | Not started |
 | 22 | Phase closeout and publication | Close one master doc, review final evidence; optional main merge/tag/release only upon separate owner approval | Explicit owner signoff and verified GitHub artifacts | Not started |
 
