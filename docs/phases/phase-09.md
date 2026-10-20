@@ -1,12 +1,12 @@
 # ArginTaxPayer — Phase 09: Cryptographic Keys & Digital Signing — Key-Based Path
 
-**وضعیت:** برنامه ۱۸ گامی با دستور آغاز گام۱ مبنای اجرا شد؛ گام۱ آماده بررسی است و هنوز تأیید نشده.
+**وضعیت:** برنامه ۱۸ گامی با دستور آغاز گام۱ مبنای اجرا شد؛ گام۱ به تأیید مالک رسید؛ طراحی گام۲ آماده بررسی است و هنوز تأیید نشده.
 **تاریخ بررسی:** 2026-10-20
 **Repository:** HekmatBeigverdi/ArginTaxPayer
 **Base:** main — `b8f307ed06041d902aed9d8432d3b082e1cd714a`
 **Previous release:** `phase-08-v1.0.0`
 **Branch:** `phase/09-cryptographic-keys-signing`
-**تعداد پیشنهادی ثابت:** ۱۸ گام، شامل پذیرش نهایی و انتشار مشروط. پس از تصویب، تغییر تعداد، ترتیب یا محدوده نیازمند تأیید صریح مالک است. زیرکار و رفع نقص داخل گام مرتبط ثبت می‌شود، نه با افزودن گام جدید.
+**تعداد ثابت مصوب:** ۱۸ گام، شامل پذیرش نهایی و انتشار مشروط. پس از تصویب، تغییر تعداد، ترتیب یا محدوده نیازمند تأیید صریح مالک است. زیرکار و رفع نقص داخل گام مرتبط ثبت می‌شود، نه با افزودن گام جدید.
 **Goal:** نگهداری امن و ایزوله کلید، تولید و ورود کلید خصوصی قبلی، دریافت کلید عمومی و امضای محلی برای مسیر بدون گواهی مستقل؛ بدون اتصال یا ارسال واقعی صورتحساب.
 **روش اجرا:** اجرای مستقیم گام‌به‌گام با مهارت executing-plans پس از تصویب؛ توقف در پایان هر گام تا تأیید صریح مالک. این سند هم طراحی و هم برنامه و دفتر شواهد فاز است؛ فایل موازی برای گزارش هر گام ساخته نمی‌شود.
 
@@ -104,7 +104,7 @@ Certificate metadata موجود حفظ می‌شود؛ موجودیت جدید c
 
 ## 5. جدول ثابت پیشنهادی ۱۸ گام
 
-گام۱ آغاز شده و آماده بررسی است؛ گام‌های۲–۱۸ شروع نشده‌اند. پایان هر گام نیازمند تأیید صریح مالک است. وابستگی ترتیبی حفظ می‌شود؛ کارهای گواهی‌محور از این جدول حذف شده‌اند.
+گام۱ تأیید شده؛ گام۲ آماده بررسی است؛ گام‌های۳–۱۸ شروع نشده‌اند. پایان هر گام نیازمند تأیید صریح مالک است. وابستگی ترتیبی حفظ می‌شود؛ کارهای گواهی‌محور از این جدول حذف شده‌اند.
 
 | گام | خروجی | معیار پذیرش |
 |---|---|---|
@@ -254,7 +254,7 @@ git status --short
 
 ## 11. دفتر اجرا و تأیید
 
-**تصویب برنامه:** دستور مالک برای اجرای گام۱ دریافت شد. **گام ۱:** آماده بررسی؛ تأیید نشده. **گام‌های ۲–۱۸:** آغاز نشده. **DB migration:** مجوز اجرا ندارد. **Merge/Tag/Release:** مجوز ندارد.
+**تصویب برنامه:** دستور مالک برای اجرای گام۱ دریافت شد. **گام ۱:** تأیید صریح مالک در 2026-10-20. **گام ۲:** طراحی آماده بررسی؛ تأیید نشده. **گام‌های ۳–۱۸:** آغاز نشده. **DB migration:** مجوز اجرا ندارد. **Merge/Tag/Release:** مجوز ندارد.
 
 برای هر گام همین‌جا یک رکورد با فیلدهای زیر افزوده می‌شود:
 شماره/عنوان ثابت؛ هدف؛ منابع دقیق و تعارض‌ها؛ فایل‌ها و commit SHA؛ تست‌های اجراشده با count و skipped؛ تست‌های اجرا‌نشده و علت؛ دستورات واقعی macOS؛ وضعیت migration/SQL/DB guard؛ شواهد redacted؛ معیارهای پذیرش تکمیل/مسدود؛ ریسک و بدهی؛ تصمیم صریح مالک با تاریخ. وضعیت «آماده بررسی» با «تأییدشده» فرق دارد.
@@ -263,7 +263,7 @@ git status --short
 
 ## گام 01 — تثبیت منابع و ابزار بررسی (2026-10-20)
 
-**وضعیت:** پیاده‌سازی و ممیزی این گام آماده بررسی مالک؛ پذیرش نهایی macOS و تأیید صریح گام هنوز دریافت نشده. دستور «گام ۱ را انجام بده» مجوز آغاز برنامه ۱۸ گامی ثبت شد؛ تغییر تعداد/ترتیب مجاز نیست. گام ۲ آغاز نشده است.
+**وضعیت:** تأییدشده با پیام صریح مالک «گام ۱ تایید هست گام ۲ را کامل کن» در 2026-10-20. جزئیات خروجی جدید macOS همراه این تأیید ارسال نشده؛ تأیید مالک ثبت می‌شود و آزمون‌های اجرا‌نشده قبلی به PASS تبدیل نمی‌شوند. دستور آغاز گام۲ دریافت شد؛ تعداد/ترتیب۱۸گام ثابت است.
 **مبنای اجرای این گام:** `38b40eae93f769a04c06d807405ddf0a80322fd4`، با ancestor فاز ۸ `b8f307ed06041d902aed9d8432d3b082e1cd714a`. کار در worktree ایزوله انجام شد؛ main و checkout قبلی بازنویسی نشدند.
 
 ### تطبیق بایت منابع
@@ -348,3 +348,180 @@ bash scripts/phase09-verify.sh pure
 این دستور بدون DB، restore/build/.NET tests و npm ci/test/typecheck/build را اجرا می‌کند و اتمام آن پذیرش دیتابیس یا امضای مالیاتی نیست. فعلاً integration/full را برای گام۱ اجرا نکنید؛ migration لازم نیست و تنظیم credential یا اتصال DB برای پذیرش این گام ضروری نیست.
 
 **معیارهای پذیرش گام۱:** منابع۷گانه با SHA منطبق؛ profile legacy از JWS جدا؛ اختلاف نسخه‌ها و مخاطرات TLS/OS/culture ثبت؛ هیچ private key یا SDK binary در diff؛ safety tests و preflight در macOS موفق؛ هیچ Migration یا اتصال مالیاتی. نتایج macOS و تأیید صریح مالک برای تغییر وضعیت به «تأییدشده» لازم است.
+
+## گام 02 — معماری custody، قراردادها و مجوزها (2026-10-20)
+
+**وضعیت:** طراحی تکمیل و آماده بررسی مالک؛ گام۲ هنوز تأیید نشده و گام۳ آغاز نشده است.
+**مبنای بررسی:** commit `28b978664469c8f417891e41a4148933df0a3dd3`؛ سند فاز، CertificateCustodyPolicy و ISecretProvider مستقیماً از شاخه خوانده شدند. این گام خروجی معماری و قرارداد طراحی دارد؛ provider اجرایی، policy runtime، schema و endpoint در این گام پیاده‌سازی/نصب نمی‌شوند. رفتارهای تعریف‌شده زیر قرارداد گام‌های۳–۱۶ هستند، نه ادعای اجرای آنها.
+**دامنه:** فقط مسیر بدون گواهی؛ هیچ CSR، certificate یا ارسال واقعی پیش‌نیاز آن نیست. ثبت تأیید گام۱ در همین تغییر انجام شد.
+
+### 02.1 تصمیم معماری قابل پیاده‌سازی
+
+**انتخاب طراحی:** custody سمت سرور با رضایت مالک، primitiveهای .NET و envelope در یک مرز اختصاصی `ProtectedKeyCustody`؛ adapter پیشنهادی برای اجرای گام۵، **Vault Transit برای wrap/unwrap کلید رمزگذاری + KV v2 برای نگهداری envelope رمز‌شده** است. این انتخاب طرح provider است، نه مجوز خرید، نصب، ارسال کلید واقعی یا ادعای آماده‌بودن Vault. نسخه server/client هنگام پیاده‌سازی گام۵ pin و license/dependency بررسی می‌شود؛ latest به عنوان نسخه اجرایی پذیرفته نیست.
+
+Transit محل ذخیره ciphertext برنامه نیست؛ envelope باید در KV نگهداری شود. KEK در Transit مدیریت می‌شود؛ برنامه KEK خام را دریافت نمی‌کند. DEK فقط در buffer گذرا داخل custody وجود دارد. DB تجاری تنها reference داخلی و metadata عمومی را نگه می‌دارد. مدل موجود ExternalVaultReference حفظ می‌شود. ذخیره ciphertext کلید در جدول certificate، قرار دادن master key در appsettings یا استفاده از کلید MFA مجاز نیست.
+
+برای developer/test: adapter ephemeral فقط با کلید synthetic و عمر process؛ توقف process به معنی از دست رفتن داده تست است و پیام محصول نباید آن را «نگهداری پایدار» بنامد. برای آزمون پایداری گام۵، Vault اختصاصی test با credential و namespace جدا لازم است. **اگر provider واقعی موجود نباشد، generate/import واقعی و sign با کلید واقعی مسدودند؛ fallback فایل یا master key محیطی نداریم.**
+
+انتخاب provider قابل جایگزینی است؛ تغییر آن نیازمند حفظ قرارداد حفاظت و review مالک است، نه تغییر تعداد گام‌ها. signer محلی، driver توکن و HSM در این فاز ساخته نمی‌شوند.
+
+| جزء | مسئولیت | نباید انجام دهد |
+|---|---|---|
+| Domain/Signing | state transition، پروفایل مجاز، سیاست دسترسی خالص | دریافت secret bytes، SDK DTO یا HTTP |
+| Application/Signing | resolve scope، رضایت، workflow، revision و idempotency | دریافت KEK یا بازگرداندن private |
+| ProtectedKeyCustody در Infrastructure/Security | تولید/parse موقت کلید، حفاظت envelope، بازگشایی گذرا و dispose | ثبت secret در DTO عمومی، فایل موقت یا log |
+| Infrastructure/Signing | امضای primitive و profile آفلاین legacy با key handle تحت custody | انتخاب الگوریتم از ورودی آزاد یا network dispatch |
+| Persistence/Signing | metadata، operation، audit و review در DB تجاری | ذخیره private، password، DEK یا KEK |
+| Vault adapter | حفاظت و CAS envelope در KV، wrap/unwrap DEK در Transit | قبول vault path/URL دلخواه کاربر |
+| Api/BFF | احراز هویت، Origin، محدودیت upload، DTO عمومی | API عمومی Sign(bytes)، endpoint export private |
+| UI | تولید/ورود کلید، public artifact، fingerprint و history | private preview، localStorage/IndexedDB یا تضمین اتصال رسمی |
+
+این مرز در طراحی ابتدا یک ماژول با DI مشخص است؛ **معادل isolation سخت‌افزاری یا process مستقل نیست**. مهاجم دارای کنترل process custody ممکن است secret گذرا را بخواند. جداسازی process/host در deployment و آزمون آن در گام۵/۱۲ بررسی می‌شود؛ بدون اجرای آن ادعای جداسازی فیزیکی نداریم.
+
+### 02.2 قالب حفاظت و fingerprint
+
+این سیاست امنیت محصول است، نه الزام الگوریتم مالیاتی:
+
+- برای هر KeyVersion یک DEK تصادفی۳۲بایتی با CSPRNG؛ AES-256-GCM، nonce۱۲بایتی و tag۱۶بایتی؛ هر encryption از DEK تازه استفاده می‌کند، از DEK قبلی برای encrypt دوباره استفاده نمی‌شود.
+- plaintext داخل custody، DER PKCS#8 نرمال‌شده است؛ import PEM تنها ورودی گذراست. کلید و bufferهای قابل کنترل در finally پاک و RSA handle dispose می‌شوند؛ managed memory و crash dump «قطعاً پاک‌شده» فرض نمی‌شوند.
+- AAD به صورت bytes ثابت: ASCII `argin:key:v1`، سپس CustomerUserId، TaxpayerId، FiscalMemoryId، KeyVersionId هرکدام UUID در قالب canonical lowercase D و جداکننده `|`. همه شناسه‌ها سرورساخته/سرورتأییدشده‌اند. تغییری در مالک تجاری Level2، CustomerUserId مالک کلید را تغییر نمی‌دهد.
+- envelope: FormatVersion=1، AlgorithmId، Nonce، Ciphertext، Tag، WrappedDek، ProtectionKeyVersion و opaque KeyVersionId؛ AAD از metadata معتبر بازسازی و بررسی می‌شود. format نامعلوم، mismatch یا tamper موجب رد قطعی است.
+- fingerprint داخلی public key: SHA-256 روی DER SubjectPublicKeyInfo، lowercase hex۶۴کاراکتری. این قرارداد **قالب مورد پذیرش کارپوشه را تعیین نمی‌کند**؛ gate گام۶ محفوظ است. fingerprint گواهی قدیمی تغییر معنا نمی‌دهد.
+- plaintext/DEK/password در audit، trace، exception، request dump، analytics یا command argv ممنوع‌اند. envelope و vault reference نیز در response عمومی و log عمومی نمی‌آیند.
+- رمز import اگر بعداً پشتیبانی شود فقط در ورودی گذراست؛ export خصوصی در کل فاز خاموش است. password workflow و PBE تا گام۷ بدون حدس فعال نمی‌شوند.
+
+### 02.3 اعتبار سرویس و دسترسی عملیاتی Vault
+
+- Api/BFF credential مستقیم Vault ندارد؛ فقط custody client یا مرز داخلی مجاز به provider دسترسی دارد. اگر در گام۵ یک process مشترک اجرا شود، این موضوع و ریسک credential مشترک صریح ثبت می‌شود.
+- workload identity/credential با عمر محدود و renew کنترل‌شده، از منبع خصوصی بیرون Git؛ مقدار root/admin token در environment برنامه ممنوع. ISecretProvider فقط bootstrap reference/credential را در boundary مجاز فراهم می‌کند؛ SecretValue.ToString راهکار جلوگیری از serialization نیست.
+- سیاست Vault برای prefix اختصاصی آرگین: read/create/update envelope لازم، wrap/unwrap با KEK مشخص؛ هیچ مجوز root، list سراسری، export KEK، تغییر policy یا destroy تاریخچه به runtime داده نمی‌شود.
+- مسیرها از mapping داخلی KeyVersionId ساخته می‌شوند؛ client path ارسال نمی‌کند. نام مؤدی/کدملی در path قرار نمی‌گیرد. TLS معتبر الزامی است؛ callback همواره true SDK نمونه بازاستفاده نمی‌شود.
+- soft-delete/destroy و KEK rotation دسترسی اپراتوری جدا از workload دارند؛ restore نیازمند runbook و audit است. compromise یا outage هیچ fallback plaintext ایجاد نمی‌کند.
+- مجوز تجاری داخل نرم‌افزار و ACL زیرساخت دو کنترل جدا هستند؛ ACL سرویس به تنهایی tenant authorization نیست. credential مشترک با دسترسی تمام namespace یک residual risk است و ادعای «اپراتور زیرساخت هرگز نمی‌تواند کلید را ببیند» مطرح نمی‌شود.
+
+### 02.4 رضایت و ماتریس دسترسی قطعی
+
+Customer در جدول یعنی مالک حساب نرم‌افزار که Taxpayer به او تعلق دارد. اگر یک مدیر مؤدی متعلق به حساب خودش دارد، از مسیر مالکیت همان حساب عمل می‌کند؛ نقش مدیر به‌خودی‌خود دسترسی custody مشتری ایجاد نمی‌کند.
+
+| عملیات | Customer مالک | Level2 فعلی مشتری | Level1 دارای scope | سرویس داخلی |
+|---|---|---|---|---|
+| metadata/status و public artifact/history تجاری | مجاز | فقط scope فعلی، redacted | طبق scope موجود، redacted | فقط نیاز کاری |
+| generate/import کلید مالک | با رضایت صریح و reauth | پیش‌فرض ممنوع | پیش‌فرض ممنوع | فقط اجرای command معتبر مالک |
+| درخواست تغییر/rotation | برای داده خود | درخواست علت‌دار در scope | درخواست علت‌دار در scope | خودسرانه ممنوع |
+| تأیید تغییر محلی با مجوز KeyChangeReview | تأیید مدیریتی ندارد | scope فعلی + MFA، غیر از annual reset | scope + MFA، شامل بررسی annual exception | فقط مصرف approval معتبر |
+| sign روی snapshot مجاز | ایجاد درخواست محلی خود | پیش‌فرض ممنوع | پیش‌فرض ممنوع | فقط مصرف context معتبر مالک |
+| مشاهده/download private یا password | ممنوع | ممنوع | ممنوع | هیچ API export؛ فقط استفاده گذرا در custody |
+| unwrap DEK/خواندن KV | ممنوع | ممنوع | ممنوع | workload custody با حداقل ACL |
+| تغییر حافظه عملیاتی یا annual binding | در فاز۹ ممنوع | در فاز۹ ممنوع | در فاز۹ ممنوع | تا قابلیت مجاز فاز۱۰/۱۲ ممنوع |
+
+واگذاری تجاری، حق امضا به مدیر نمی‌دهد. approval مدیر اجازه تولید/ورود کلید به جای مالک نیست؛ بعد از approval لازم، **خود مالک** درخواست generation/import و رضایت را انجام می‌دهد. requester و approver یک شخص نباشند؛ self-approval حتی با دو نقش رد می‌شود. تغییر annual در قرارداد فعلی نیازمند Level1 است؛ تأیید Level2 به آن تعمیم داده نمی‌شود.
+
+**رضایت custody:** ثبت نسخه متن، actor، scope، زمانUTC و operation ID پیش از generate/import، با توضیح «کلید خصوصی به‌صورت امن در سرویس آرگین نگهداری می‌شود؛ خروجی خصوصی در این نسخه ارائه نمی‌شود». checkbox از پیش فعال یا رضایت مدیر جایگزین مالک نیست. generation/import بدون رضایت معتبر رد می‌شود.
+
+**reauth:** برای generate/import و درخواست تغییر حساس، احراز مجدد حداکثر۵دقیقه قبل؛ روش‌های ورود تأییدشده موجود (password/OTP و MFA در صورت الزام حساب). موفقیت session قدیمی به تنهایی کافی نیست. توکن reauth به actor، session و purpose متصل است. این مدت سیاست محصول است نه قانون سازمان مالیاتی. برای کار پس‌زمینه آینده، قرارداد workload و رضایت مجزا در فاز۱۰ لازم است؛ credential کاربر در worker ذخیره نمی‌شود.
+
+### 02.5 scope و قراردادهای طراحی تثبیت‌شده
+
+این بخش مشخصات پیاده‌سازی آینده است؛ **کلاس/interface اجرایی جدید در این commit وجود ندارد**.
+
+- `SigningScope(Guid CustomerUserId, Guid TaxpayerId, Guid FiscalMemoryId)`: فقط Application resolver از actor/session و رابطه واقعی DB می‌سازد. active بودن مؤدی، رابطه حافظه با مؤدی، CustomerUserId و مالکیت فعلی پیش از عملیات و هنگام commit/sign دوباره کنترل می‌شوند.
+- `GenerateKeyCommand`: TaxpayerId، FiscalMemoryId، ProfileId، OperationId، ConsentVersion، ReauthReference و ExpectedRevision. CustomerUserId از payload معتبر نمی‌شود؛ سرور resolve می‌کند.
+- `ImportKeyCommand`: metadata همان بالا + ورودی disposable `SensitiveKeyInput`. کلاس sensitive یک byte-buffer محدود دارد، record نیست، public getter قابل serialization برای bytes ندارد، ToString فقط redacted و Dispose پاک‌کننده است؛ API model عمومی و storage model آن نیست.
+- `IKeyCustodyService.GenerateAsync(SigningScope, GenerateKeyCommand, CancellationToken) -> Task<KeyOperationResult>`.
+- `IKeyCustodyService.ImportAsync(SigningScope, ImportKeyCommand, SensitiveKeyInput, CancellationToken) -> Task<KeyOperationResult>`.
+- `KeyOperationResult`: Status، OperationId، optional KeyVersionId و PublicKeyView؛ فاقد private، ciphertext، vault URL/reference، password و DEK. نتیجه public-only قابل replay است.
+- `PublicKeyView`: KeyVersionId، PublicFingerprintSha256، AlgorithmProfileId، LifecycleState، PortalVerificationState، Revision و PublicArtifactAvailability. artifact فقط پس از تعیین encoding در گام۶.
+- `IKeyProtectionProvider.WrapDataKeyAsync/UnwrapDataKeyAsync`: فقط در custody، با ProtectionContext معتبر و buffer disposable؛ در Application/API expose نمی‌شود. بدنه این قرارداد و نسخه پروتکل Vault در گام۵ با API نسخه pin‌شده تثبیت می‌شود.
+- `IKeyOperationRepository`: reserve operation، compare revision، complete metadata+audit در یک transaction؛ داده private دریافت نمی‌کند.
+- `ISigningAuditSink`: رویداد ثابت با EventId/OperationId/Actor/Scope/Action/Outcome/UTC/Revision/Fingerprint؛ payload آزاد و exception serialization ندارد.
+- `IDigitalSigningService.SignAsync(AuthorizedSigningRequest, CancellationToken) -> Task<SigningResult>`: فقط مصرف داخلی؛ درخواست شامل SnapshotId/Hash، Scope، KeyVersionId، ProfileId، ExpectedRevision و AuthorizationContext داخلی است. payload صورتحساب را سرویس از snapshot مورد اعتماد resolve می‌کند؛ متن دلخواه browser پذیرفته نمی‌شود.
+- `SigningResult`: signature به Base64 عادی، ProfileId، KeyVersionId و SnapshotHash؛ پاسخ مصرف‌کننده داخلی است، نه public download توکن auth. امضای nonce واقعی و توکن مالیاتی در فاز۹ ایجاد نمی‌شود.
+
+قرارداد موجود IPrivateKeyCustody حذف نمی‌شود. adapter آینده باید FiscalMemoryId را به scope قانونی resolve کند؛ هیچ endpoint مستقیم آن و هیچ `GetPrivateKey` اضافه نمی‌شود. fingerprint هر بار از public واقعی مشتق می‌شود؛ caller نمی‌تواند مقدار fingerprint دلخواه را به عنوان شاهد تطابق ثبت کند.
+
+### 02.6 ماشین وضعیت و gate خارجی
+
+دو محور مستقل داریم: LifecycleState و PortalVerificationState. lifecycle هیچ‌گاه Connected یا TaxAuthorityAccepted نامیده نمی‌شود.
+
+| وضعیت مبدأ | عملیات مجاز | مقصد | شرط |
+|---|---|---|---|
+| نبود کلید | generate/import | Staged | مالک، رضایت، reauth، reserve operation و provider آماده |
+| Staged | validate+seal+DB audit commit | LocallyReady | کلید valid و envelope پایدار و metadata هماهنگ |
+| Staged | شکست یا timeout | Failed/RecoveryRequired در operation | هیچ کلید انتخاب‌شده قابل استفاده ایجاد نشود |
+| LocallyReady | select برای تست/امضای محلی | SelectedLocal | مالک، revision و unique؛ sign فقط purpose محلی |
+| SelectedLocal | suspend | Suspended | actor مجاز یا safety stop؛ علت و audit |
+| SelectedLocal/LocallyReady/Suspended | compromise | Compromised | توقف فوری sign؛ append-only history |
+| SelectedLocal | جایگزینی محلی مصوب | Superseded | انتخاب نسخه جدید و بستن نسخه قبلی اتمیک |
+| Suspended | بررسی و resume محلی | LocallyReady | revision، approval لازم و رضایت مالک؛ selection مجدد جدا |
+| Compromised/Superseded | sign یا فعال‌کردن مجدد | رد | terminal برای انتخاب و امضای جدید |
+
+PortalVerificationState در این فاز `Unverified` یا `AwaitingExternalVerification` است. ارائه public key توسط کاربر فقط `MatchesProvidedPublicKey` را به عنوان نتیجه بررسی محلی ثبت می‌کند؛ به معنی ثبت یا اعتبار رسمی نیست. هیچ approval محلی PortalVerified ایجاد نمی‌کند.
+
+نسخه جدید می‌تواند برای آزمون محلی انتخاب شود؛ این کار binding حافظه عملیاتی، سابقه invoiceها یا key-version اسناد قبلی را تغییر نمی‌دهد. امضای آنلاین آینده باید gate مستقل تأیید رسمی کلید همان حافظه و entitlement را بگذراند.
+
+### 02.7 transaction، replay، revoke و race
+
+1. Reserve operation با کلید یکتای CustomerUserId/TaxpayerId/FiscalMemoryId/OperationId و request metadata digest غیرمحرمانه. digest هرگز hash private/password نیست؛ fingerprint public پس از parse می‌تواند به نتیجه اضافه شود.
+2. provider با opaque operation/key-version ID و create-if-absent/CAS یک envelope staging ایجاد می‌کند. retry برای همان operation نباید کلید دوم generate کند؛ پس از timeout ابتدا وضعیت provider reconcile می‌شود.
+3. DB transaction metadata/version/selection و audit موفق را اتمیک می‌نویسد؛ پیش از commit مالکیت/session/revision مجدداً بررسی می‌شود. هیچ فرض transaction توزیع‌شده بین DB و Vault نداریم.
+4. envelope بدون DB commit فقط orphan/staged است و sign نمی‌شود؛ reconciliation بر اساس operation ID آن را complete یا quarantine می‌کند. cleanup خودکار evidence و نسخه فعال را حذف نمی‌کند.
+5. scope انتقال‌یافته، session revoked، stale revision یا تغییر profile بین reserve و commit: fail closed؛ actor قدیمی حق اتمام ندارد.
+6. برای sign مجاز، ابتدا durable intent ثبت؛ انتخاب نسخه و مجوز در نقطه پذیرش sign تحت هماهنگی transaction/revision تثبیت می‌شود. suspension قبل از این نقطه sign را رد می‌کند؛ suspension بعد از پذیرفته‌شدن ممکن است امضای درحال‌اجرای همان snapshot را لغو نکند. نتیجه پس از fail audit/publication تحویل نمی‌شود. ادعای «لغو امضای تولیدشده در گذشته» نداریم.
+7. approval تغییر یک‌باره، scope-bound، revision-bound و برای این طراحی دارای اعتبار۲۴ساعته است؛ مصرف اتمیک با command مالک و رویداد audit. approval منقضی یا مصرف‌شده replay نمی‌شود. این مدت سیاست داخلی محصول است.
+8. نبود DB/audit/provider اجازه نتیجه موفق نمی‌دهد. عملیات failed و denied بدون secret ثبت می‌شوند؛ اگر audit مرکزی unavailable باشد، رویداد حداقلی redacted در operational sink محدود ثبت و عملیات حساس متوقف می‌شود؛ این sink جای business audit اتمیک نیست.
+
+### 02.8 threat model و آزمون‌های الزامی مصرف‌کننده
+
+| تهدید | کنترل طراحی | شاهد اجرایی لازم در گام مرتبط |
+|---|---|---|
+| IDOR و Level2 قبلی | server scope + recheck ownership/session | گام۱۴/۱۶: HTTP واقعی و انتقال همزمان |
+| admin با قصد خواندن/استفاده کلید | deny generate/import/sign/export برای حساب دیگر؛ ACL مجزا | گام۱۴/۱۶: metadata allowed و sign/export denied |
+| DB dump یا backup سرقت‌شده | فقط opaque reference؛ envelope در Vault و KEK مستقل | گام۵/۱۲: restore/absence-of-key tests |
+| ciphertext/AAD جابه‌جا بین مؤدیان | scope-bound AAD و version | گام۵: tamper و tenant swap قطعی rejected |
+| مهاجم با دسترسی runtime custody | کوتاه‌کردن عمر secret، credential محدود، dump/telemetry policy | گام۵/۱۶: redaction؛ residual risk host admin محفوظ |
+| CSRF، upload بزرگ و PEM بدساخت | BFF Origin و parser bounded و no-store | گام۷/۱۴: HTTP و parser negative tests |
+| replay و double generation | reserve operation و provider CAS/reconcile | گام۴/۱۶: concurrent retry/crash |
+| rotate/revoke حین sign | نقطه پذیرش تعریف‌شده و revision/selection | گام۱۱/۱۶: دو ترتیب race و تاریخچه |
+| outage Vault/audit و timeout | fail closed بدون fallback plaintext | گام۵/۱۲/۱۶: fault injection |
+| اختلاط JWS و legacy | profile version ثابت از گام۱ | گام۹: bytes/verify و non-JWS format |
+| import private بدون public ثبت‌شده | وضعیت Unverified صریح | گام۸/۱۵: match محلی با registration یکی نشود |
+| استثنای annual توسط Level2 | approval محلی از annual binding جدا | گام۱۳/۱۶: deny و عدم تغییر حافظه |
+
+### 02.9 backup، rotation و مرز تحویل
+
+Backup به سه مجموعه مستقل نیاز دارد: DB metadata+audit، KV envelopeها و اطلاعات operation، و recovery قابل استفاده KEK/Vault با کنترل دسترسی مستقل. صرفاً backup DB بازیابی کلید را ممکن نمی‌کند. RPO/RTO، cadence، محل backup و آزمون restore واقعی در گام۱۲ با deployment واقعی تصویب می‌شوند؛ اکنون disaster recovery آماده ادعا نمی‌شود.
+
+rotation KEK با rewrap WrappedDek و حفظ private/public fingerprint انجام می‌شود؛ rotation کلید امضا یک KeyVersion و public جدید ایجاد می‌کند. فعال‌سازی خارجی کلید جدید در حافظه فعلی تا قابلیت تأیید فاز۱۰ مسدود می‌ماند. حذف نسخه KEK تا تعیین backup retention و restore gate مجاز نیست. compromised key به صورت محلی بسته و کاربر برای روال رسمی تعویض هدایت می‌شود؛ «ابطال رسمی خودکار» وجود ندارد.
+
+CSR/گواهی، export private، real auth/nonce، ارسال صورتحساب، entitlement، تیکتینگ و بدهی import فاز۸ وارد این گام نشدند. هیچ migration تولید یا اجرا نشد و جداول certificate فعلی تغییر نکردند.
+
+### 02.10 منابع طراحی و شواهد
+
+منابع مالیاتی و legacy همان شناسه/صفحات و SHAهای گام۱ هستند؛ این گام الزام مالیاتی جدیدی استنتاج نمی‌کند. منابع زیر فقط قابلیت provider و primitive عمومی را تأیید می‌کنند، نه تأیید محصول یا انطباق مالیاتی:
+- HashiCorp، Transit secrets engine: https://developer.hashicorp.com/vault/docs/secrets/transit — Transit داده ارسالی برنامه را ذخیره نمی‌کند؛ encryption/key versioning را از storage جدا طراحی کرده‌ایم.
+- HashiCorp، KV v2: https://developer.hashicorp.com/vault/docs/secrets/kv/kv-v2 — مرجع backend نگهداری نسخه‌دار envelope.
+- Microsoft، AesGcm در .NET9: https://learn.microsoft.com/en-us/dotnet/api/system.security.cryptography.aesgcm?view=net-9.0 — مرجع primitive؛ پارامترهای envelope بالا سیاست داخلی آرگین‌اند.
+
+**بازبینی طراحی:** جدول۱۸گام بدون تغییر؛ دامنه بدون گواهی حفظ؛ نقش‌ها و reauth، export-deny، provider/failure، AAD، وضعیت محلی/خارجی، race و backup به گام‌های اجرایی مالک متصل شدند. فقط همین فایل تغییر کرده است.
+**محدودیت اجرا:** محیط پروژه در این نوبت unavailable است؛ build، Python/.NET tests، preflight، اتصال provider و DB اجرا نشدند. آمار PASS گام۱ شواهد همان گام است، نه اجرای مجدد این گام. تست‌های policy/authorization فوق قرارداد آزمون‌های مراحل اجرا هستند و در این commit تست اجرایی جدید ساخته نشده است.
+**وضعیت تأیید:** آماده review معماری؛ قبول مالک در پیام بعدی لازم است. قبول این طراحی مجوز provisioning Vault، import secret واقعی، migration یا انتشار main نیست.
+
+### دستورات بررسی macOS و معیار پذیرش گام۲
+
+از ریشه مخزن:
+
+```bash
+git fetch origin
+git switch phase/09-cryptographic-keys-signing
+git pull --ff-only
+git status --short
+git log -1 --oneline
+git show --stat --oneline HEAD
+git diff HEAD^ HEAD --check
+python3 tests/phase09_verify_test.py
+bash scripts/phase09-verify.sh preflight
+```
+
+انتظار: فقط `docs/phases/phase-09.md` در تغییر این گام؛ هشت safety test ابزار موجود موفق و preflight با checkout تمیز/۱۸گام موفق. این آزمون‌ها معماری یا runtime authorization/provider را اثبات نمی‌کنند.
+
+معیار پذیرش اصلی این گام، review و تأیید طراحی بالاست: رضایت صریح مالک، deny پیش‌فرض مدیریتی برای custody/sign، provider مستقل از DB، KEK جدا از MFA، حالات local/external جدا و fail-closed. نیازی به اجرای migration، ساخت Vault، تولید کلید واقعی یا تکرار full build برای این تغییر صرفاً سندی نیست. پس از تأیید گام۲، گام۳ فقط مدل داده و SQL پیشنهادی را برای بررسی آماده می‌کند.
