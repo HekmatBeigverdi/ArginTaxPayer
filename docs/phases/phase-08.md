@@ -675,3 +675,8 @@ Owner approved yearly reset and expanding serial length. Updated **pending/unapp
 - Ubuntu web suite reported 185/187 passing; failures were two outdated assertions in `apps/web/tests/branding.test.mjs` expecting imported PNG modules, after Step21 changed the three components to use a public asset URL to resolve Ubuntu TS2307.
 - Assertions now verify `/brand/argin-logo.png` in login, sidebar, header and dashboard and still check actual PNG existence/transparency. No application runtime or database changes, no migration.
 - This does not prove platform parity: macOS PASS was from an earlier commit. Repeat all suites on Ubuntu and macOS at the exact same SHA, then record the outcomes. Step21 remains pending.
+
+### Step21 Ubuntu owner acceptance and final parity hold (2026-10-20)
+- Owner explicitly reported all six Ubuntu Step21 checklist items successful: 744/744 .NET tests (0 failed), web tests/typecheck/build, isolated test DB, API/Web/logo HTTP probes, and Git review. These are owner-reported acceptance results; no fresh raw complete logs for every item were provided to the assistant.
+- Ubuntu HEAD reported `051b7026699267f847f65eeff7e5bdf43c72ccca`, with local modifications to `scripts/phase08-step21-ubuntu-acceptance.sh` and `scripts/ubuntu-dev.sh`. Their diffs have not been reviewed or committed; do not discard or imply a clean worktree.
+- Record **Ubuntu operator checklist accepted, Step21 final closure conditional** on macOS rerun at the same final source SHA and disposition of Ubuntu local script modifications. Do not start Step22 or release solely from the checklist acknowledgment. No production deployment or migrations performed.
