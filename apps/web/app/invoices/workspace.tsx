@@ -323,22 +323,22 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
     // as step 1, then navigate to step 2; enforce terms on final completion only.
     const persistedStep: Step = !exit && step===1 && completeStep===2 ? 1 : completeStep;
     if (busy || !taxpayerId || !headerCustomer) {
-      setError("ابتدا مشتری و مؤدی صادرکننده را انتخاب کنید."); return;
+      setError("ابتدا مشتری و مؤدی صادرکننده را انتخاب کنید."); return false;
     }
     const issued = new Date(date+"T"+hour+":00.000Z");
     if(Number.isNaN(issued.valueOf()) || issued.toISOString().slice(0,10)!==date) {
-      setError("تاریخ یا ساعت صدور معتبر نیست.");return;
+      setError("تاریخ یا ساعت صدور معتبر نیست.");return false;
     }
     if(rows.some(r=>!r.name.trim() || !Number.isFinite(Number(r.quantity)) ||
         Number(r.quantity)<0 || Number(r.unitPrice)<0 ||
         Number(r.discount)<0 || Number(r.discount)>Number(r.unitPrice) ||
         Number(r.vatRate)<0 || Number(r.vatRate)>=1000)) {
-      setError("شرح یا مقادیر یکی از ردیف‌ها معتبر نیست.");return;
+      setError("شرح یا مقادیر یکی از ردیف‌ها معتبر نیست.");return false;
     }
     try { invoicePreview(rows); }
-    catch { setError("مقادیر عددی ردیف‌ها یا دقت آن‌ها معتبر نیست."); return; }
+    catch { setError("مقادیر عددی ردیف‌ها یا دقت آن‌ها معتبر نیست."); return false; }
     if (persistedStep===2 && settlement===0) {
-      setError("برای تکمیل مراحل، روش تسویه صورتحساب را انتخاب کنید.");return;
+      setError("برای تکمیل مراحل، روش تسویه صورتحساب را انتخاب کنید.");return false;
     }
     const cash = settlement === 1 ? calculated.total : settlement === 2 ? 0 :
       settlement === 3 ? roundRial(Number(cashInput)) : null;
@@ -347,23 +347,23 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
     if (settlement === 3 && (cashInput.trim() === "" || !Number.isFinite(cash) ||
         Number(cash) <= 0 || Number(credit) <= 0 || Number(cash) >= calculated.total)) {
       setError("برای روش نقدی و نسیه، مبلغ نقدی باید بیشتر از صفر و کمتر از جمع صورتحساب باشد.");
-      return;
+      return false;
     }
     const required = formMetadata?.entries.find(p=>p.type===invoiceType && p.pattern===pattern)?.requiredFields;
-    if (!formMetadata || !required) {setError("قواعد انتخاب الگو بارگذاری نشده‌اند.");return;}
+    if (!formMetadata || !required) {setError("قواعد انتخاب الگو بارگذاری نشده‌اند.");return false;}
     const needed = required.includes("goldFields") ? ["goldConstructionFeeRial","goldSellerProfitRial","goldCommissionRial","goldTotalFeeProfitRial"] : required;
     if (completeStep>=1 && needed.some(k=>!conditionalFields[k]?.trim() ||
       (k!=="contractNumber" && k!=="serviceBillId" &&
         (!Number.isFinite(Number(conditionalFields[k])) || Number(conditionalFields[k])<0)))) {
-      setError("لطفاً فیلدهای الزامی این الگو را تکمیل کنید.");return;
+      setError("لطفاً فیلدهای الزامی این الگو را تکمیل کنید.");return false;
     }
     if (headerLoading || headerError || !headerOptions || headerOptions.taxpayer.id!==taxpayerId) {
-      setError("اطلاعات مؤدی صادرکننده هنوز آماده نیست؛ مجدداً تلاش کنید.");return;
+      setError("اطلاعات مؤدی صادرکننده هنوز آماده نیست؛ مجدداً تلاش کنید.");return false;
     }
     if(memoryId && !headerOptions.memories.some(m=>m.id===memoryId)) {
-      setError("حافظه مالیاتی انتخاب‌شده به مؤدی صادرکننده تعلق ندارد.");return;
+      setError("حافظه مالیاتی انتخاب‌شده به مؤدی صادرکننده تعلق ندارد.");return false;
     }
-    if (buyerQuery.trim() && !buyerId) {setError("خریدار را از فهرست خریداران ثبت‌شده انتخاب کنید.");return;}
+    if (buyerQuery.trim() && !buyerId) {setError("خریدار را از فهرست خریداران ثبت‌شده انتخاب کنید.");return false;}
     const payload = {
       id:editing?.id ?? null,
       taxpayerId, expectedRevision:editing?.revision ?? 0,
@@ -395,7 +395,8 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
       else setStep(completeStep);
       await reload();
       if(navigateToBuyers) window.location.assign("/parties");
-    } catch(e) {setError((e as Error).message);}
+      return true;
+    } catch(e) {setError((e as Error).message);return false;}
     finally {setBusy(false);}
   }
   function nextStep() {
@@ -795,7 +796,8 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
               </div>
               {editing && <InvoiceValidationPanel
                 draftId={editing.id} taxpayerId={editing.taxpayerId}
-                revision={editing.revision} dirty={validationDirty}/>}
+                revision={editing.revision} dirty={validationDirty}
+                onSave={()=>saveWorkspace(step===2 && settlement===0 ? 1 : step,false)}/>}
               <p className="invoice-register__hint">
                 توضیحات و تسویه در پیش‌نویس قابل‌ویرایش ذخیره می‌شوند.
                 مبالغ مالیاتی و روش تسویه قبل از صدور رسمی باید در سرویس اعتبارسنجی
