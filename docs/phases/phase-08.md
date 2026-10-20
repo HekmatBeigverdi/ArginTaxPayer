@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 08: Invoice Workflows and UI
 
-**Status:** Steps 01–12 owner-approved; Step 13 code committed, macOS/browser acceptance pending.
+**Status:** Steps 01–13 owner-approved; Step 14 code committed, macOS/browser acceptance pending.
 **Branch:** `phase/08-invoice-workflows-ui`
 **Baseline:** `main` at `364462848914f289916962a0578c9fac9cd85ce1` (GitHub inspected 2026-10-18).
 **Roadmap source:** `docs/roadmap/18-phases.md`, phase 08 of 18.
@@ -48,8 +48,8 @@
 | 10 | Header and party entry | Taxpayer, memory, buyer, issue date, header validation | Localized field errors and valid persisted values | Owner-approved 2026-10-19 |
 | 11 | Line and catalog entry | Search/select Phase06 catalog items, quantity, unit, price and snapshots | Historic invoice unchanged after catalog edit | Owner-approved 2026-10-19 |
 | 12 | Calculations and financial summary | Display discount, charges, VAT and final totals using Phase07 engine | UI/API totals match canonical model | Owner-approved 2026-10-19 |
-| 13 | Settlement methods and fields | Cash, credit and mixed invoice terms and reconciliation | Valid mix accepted; mismatch rejected | Implemented, operator acceptance pending |
-| 14 | Save/resume draft UX | Enhance existing resumable workspaces and unsaved-change handling | Draft resumes exactly once without lost fields | Not started |
+| 13 | Settlement methods and fields | Cash, credit and mixed invoice terms and reconciliation | Valid mix accepted; mismatch rejected | Owner-approved 2026-10-20 |
+| 14 | Save/resume draft UX | Enhance existing resumable workspaces and unsaved-change handling | Draft resumes exactly once without lost fields | Code committed; operator acceptance pending |
 | 15 | Review and internal approval UI | Review summary, validation feedback, approve and return with reason | Readonly approval snapshot and reasoned change requests | Not started |
 | 16 | Audit and revision history | Show immutable actor/timestamp/reason/revision timeline | No historical rewrites or unauthorized reads | Not started |
 | 17 | Import mapping and preview | CSV/XLSX bounded parsing, column mapping and row-level preview | Explain valid/invalid rows before approval | Not started |
@@ -553,3 +553,12 @@ Owner approved yearly reset and expanding serial length. Updated **pending/unapp
 - Owner confirmed first picker-level Escape handling did not prevent modal closure. Root cause: parent `document` keydown handler independently closed the modal whenever Escape arrived; child suppression was not a sufficient global invariant.
 - Parent now detects the open catalog via `data-invoice-catalog-open` before closing; dispatches a dismissal request and returns without closing the modal. Picker listens to that request, clears open state, and retains its dedicated close button and outside-pointer dismissal. With picker closed, Escape still closes modal.
 - Regression guard: `apps/web/tests/phase08-step13-modal-escape-priority.test.mjs`. Requires operator macOS/browser acceptance; not claimed runtime verified.
+
+### Step14 — Draft UX persistence and conflict safety (2026-10-20)
+- Owner explicitly approved Step13, including the latest Escape-priority fixes.
+- Existing server `InvoiceEntryWorkspaceService.SaveAsync` already provides persisted draft JSON, revision compare-and-swap and authorized reloading. These invariants were preserved; no schema changes.
+- The UI now captures a form-data snapshot after opening/rehydrating its modal, warns before closing via close button or Escape if fields diverge, and warns before browser unload. On successful save the baseline is reset. The snapshot includes header, seller memory, buyer, conditional data, line rows, description and settlement. It is a UI safeguard, not a persistent autosave.
+- Reopening a saved draft resumes at one step beyond its last completed step (up to final step2), instead of repeatedly presenting an already completed step. First save and subsequent saves update the same existing workspace ID rather than deliberately creating another record.
+- Concurrent edits remain rejected via server `ExpectedRevision`; the UI 409 message now explicitly says the form was not saved and that the operator must reopen the workspace. No silent conflict overwrite.
+- `phase08-step14-draft-resume.test.mjs` covers snapshot/discard checks, resume offset and CAS contract.
+- **Test acceptance needed:** macOS dotnet build/test, npm test/typecheck/build; create draft and resume; edit a saved line then click close or Escape and verify cancel; test browser refresh warning; save and reopen ensuring exactly one workspace; try two browser sessions to confirm 409 avoids overwrite and requires reload. These actions were not executed by GitHub connector. No database migration, authority call or production data update. Step15 remains blocked pending owner signoff.
