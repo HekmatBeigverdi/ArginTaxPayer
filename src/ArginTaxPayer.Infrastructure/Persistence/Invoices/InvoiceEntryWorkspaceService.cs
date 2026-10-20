@@ -240,6 +240,10 @@ public sealed class InvoiceEntryWorkspaceService(
                 .Where(w => w.Id == existingId && w.CustomerUserId == access.Item2)
                 .Select(w => w.DraftJson).SingleOrDefaultAsync(ct)
             : null;
+        var reviewBeforeEdit = original is null ? null :
+            JsonSerializer.Deserialize<SaveInvoiceEntryRequest>(original)?.InternalReviewState;
+        if (reviewBeforeEdit is "InReview" or "Approved")
+            return new(InvoiceApiDecision.Invalid);
         var previousLines = original is null ? Array.Empty<InvoiceEntryLine>() :
             JsonSerializer.Deserialize<SaveInvoiceEntryRequest>(original)?.Lines ?? [];
         var canonicalLines = new List<InvoiceEntryLine>(input.Lines.Length);
