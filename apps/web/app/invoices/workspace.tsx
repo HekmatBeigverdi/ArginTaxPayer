@@ -6,7 +6,6 @@ import { PersianDatePicker } from "../catalog/persian-date-picker";
 import { PersianTimePicker } from "../components/persian-time-picker";
 import SearchableCatalogPicker from "./searchable-catalog-picker";
 import InvoiceValidationPanel from "./invoice-validation-panel";
-import InternalReviewPanel from "./internal-review-panel";
 import {invoicePreview} from "./invoice-financial-preview.mjs";
 
 type Taxpayer = { id: string; displayName: string; status: number };
@@ -113,7 +112,6 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   const [cashInput,setCashInput] = useState("");
   const nextKey = useRef(0);
   const [detail, setDetail] = useState<Invoice | null>(null);
-  const [reviewId,setReviewId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!modal || !taxpayerId) { setHeaderOptions(null);setHeaderLoading(false);return; }
@@ -559,9 +557,8 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
               item.reviewState === "ChangesRequested" ? "نیازمند اصلاح" :
               item.reviewState === "Approved" ? "تأیید داخلی" : "پیش‌نویس داخلی"}</td>
             <td>{item.revision}</td>
-            <td>{item.kind === "workspace" ? <><button type="button" className="console-row-action"
-              onClick={() => void editDraft(item)}>ویرایش و ادامه</button>{" "}<button type="button" className="console-row-action"
-              onClick={() => setReviewId(item.id)}>بررسی داخلی</button></> :
+            <td>{item.kind === "workspace" ? <button type="button" className="console-row-action"
+              onClick={() => void editDraft(item)}>ویرایش و ادامه</button> :
               <button type="button" className="console-row-action"
                 onClick={() => setDetail(item)}>مشاهده</button>}</td>
           </tr>)}</tbody>
@@ -577,7 +574,6 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
           onClick={()=>setListPage(p=>p+1)}>بعدی</button>
       </div>
     </footer>
-    {reviewId && <InternalReviewPanel id={reviewId} isAdmin={isAdmin} actorId={actorId} onClose={()=>setReviewId(null)} onChanged={()=>void reload()}/>}
     {detail && <div className="invoice-register__overlay" onMouseDown={e => {
       if (e.currentTarget === e.target) setDetail(null);
     }}>
