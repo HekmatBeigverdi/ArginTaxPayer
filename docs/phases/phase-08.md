@@ -621,3 +621,9 @@ Owner approved yearly reset and expanding serial length. Updated **pending/unapp
 - Replaced the tall per-item cards with a dense, labelled inline-edit grid, sticky table headings, max 440px/48vh scroll area, compact delete control and row count. Original line identifiers, catalog snapshots, monetary values, normal save behavior and tenant scope are preserved.
 - Escape dismisses the importer before its parent invoice modal; no schema or API migration.
 - Regression checks: `apps/web/tests/phase08-step17-compact-ui.test.mjs`. Run macOS npm tests/typecheck/build and verify opening importer, downloading and reimporting the template, then editing 20+ rows with an independent scrollable table. Runtime checks are still pending.
+
+### Step16 UI adjustment (2026-10-20)
+- History timestamps are shown in the Persian calendar with Asia/Tehran time zone, while original stored UTC remains unchanged.
+- The authenticated actor's software profile first and last name are displayed instead of its UUID, with a neutral fallback for missing profiles.
+- History results are ordered by event timestamp descending and then revision descending, both in the scoped API and UI.
+- Added regression coverage in phase08-step16-history-display.test.mjs. No migration required; operator tests pending.
