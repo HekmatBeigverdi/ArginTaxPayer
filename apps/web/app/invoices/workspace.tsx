@@ -577,7 +577,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
           onClick={()=>setListPage(p=>p+1)}>بعدی</button>
       </div>
     </footer>
-    {reviewId && <InternalReviewPanel id={reviewId} onClose={()=>setReviewId(null)} onChanged={()=>void reload()}/>}
+    {reviewId && <InternalReviewPanel id={reviewId} isAdmin={isAdmin} actorId={actorId} onClose={()=>setReviewId(null)} onChanged={()=>void reload()}/>}
     {detail && <div className="invoice-register__overlay" onMouseDown={e => {
       if (e.currentTarget === e.target) setDetail(null);
     }}>
