@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 08: Invoice Workflows and UI
 
-**Status:** Steps 01–20 owner-approved; Step18 import integration tests deferred; Step21 Ubuntu acceptance runner committed, operator evidence pending.
+**Status:** Phase08 implementation and operator signoff complete 2026-10-20 (Steps 01–22 administratively closed); publication to `main`, annotated tag, and GitHub Release **not performed** and require separate explicit permission. Outstanding acceptance exceptions are documented below.
 **Branch:** `phase/08-invoice-workflows-ui`
 **Baseline:** `main` at `364462848914f289916962a0578c9fac9cd85ce1` (GitHub inspected 2026-10-18).
 **Roadmap source:** `docs/roadmap/18-phases.md`, phase 08 of 18.
@@ -56,8 +56,8 @@
 | 18 | Controlled batch draft import | Explicit import confirmation with per-row durable outcomes | Retry creates no duplicate invoices; partial failures explained | Owner-approved 2026-10-20 with deferred real import tests and failure-ledger improvements |
 | 19 | Comprehensive regression and security | Domain, API, web, migration safety and Phase03-07 compatibility | Required tests green without disabling tests | Owner accepted; runtime evidence pending |
 | 20 | macOS operator acceptance | Independent macOS build and workflow/browser/db/HTTP acceptance | Commit SHA, operator results and caveats recorded | Owner-approved 2026-10-20; regression PASS, API 200, Web 307; browser acceptance accepted by owner without itemized evidence |
-| 21 | Ubuntu operator acceptance | Same SHA, independent Ubuntu build and integration tests | Matching SHA and Ubuntu evidence documented | Acceptance script committed, awaiting VPS operator evidence |
-| 22 | Phase closeout and publication | Close one master doc, review final evidence; optional main merge/tag/release only upon separate owner approval | Explicit owner signoff and verified GitHub artifacts | Not started |
+| 21 | Ubuntu operator acceptance | Same SHA, independent Ubuntu build and integration tests | Matching SHA and Ubuntu evidence documented | Owner-approved Ubuntu six-item checklist on 2026-10-20; final same-SHA parity and local Ubuntu script-diff review unverified |
+| 22 | Phase closeout and publication | Close one master doc, review final evidence; optional main merge/tag/release only upon separate owner approval | Explicit owner signoff and verified GitHub artifacts | Documentation closeout owner-authorized 2026-10-20; publication pending separate owner approval and verifications |
 
 ## Per-step delivery contracts
 
@@ -279,7 +279,7 @@
 - **Security/validation:** No premature merge, migrations, tag or release.
 - **Acceptance:** Explicit owner signoff and verified GitHub artifacts.
 - **Tests/evidence:** Final compare, independent platform evidence and GitHub checks. Record commands and actual outcomes; do not claim tests that were not run.
-- **Implementation status:** Not started.
+- **Implementation status:** Documentation closure authorized by owner 2026-10-20. Merge/tag/Release not performed. See final closure report appended to this document.
 
 ## Step 01 — Completion evidence (2026-10-18)
 
@@ -685,3 +685,13 @@ Owner approved yearly reset and expanding serial length. Updated **pending/unapp
 - Owner supplied macOS Step20 runner output: Next.js 15.5.27 production build completed, `STEP19 source/build regression completed`, `RESULT source regression: PASS`, local API HTTP 200, web HTTP 307, PostgreSQL through API READY, OTP environment READY; Adminer NOT READY (not gating). Evidence path `~/.argintaxpayer-test/phase08-step20/mac-acceptance-20261020-171009.txt`.
 - Runner explicitly distinguishes read-only HTTP reachability from authenticated browser acceptance; checklist A–H not individually reported; Step18 bulk import remains owner-DEFERRED.
 - The pasted macOS output did not show the Git SHA. Final cross-platform parity and Ubuntu's two locally modified scripts remain pending verification; owner-reported Ubuntu acceptance is recorded in preceding section. No claim of final Step21 same-SHA closure yet.
+
+## Phase08 final owner signoff and handoff (2026-10-20)
+
+- **Owner decision:** `فاز را تمام کن` — close Phase08 implementation and its single master phase document. Steps 01–22 are **administratively closed** with the specific verification exceptions below; this is not evidence of an all-green, same-SHA release gate.
+- **macOS:** Owner-supplied `bash scripts/phase08-step20-macos-acceptance.sh` output confirms Next.js production build, `RESULT source regression: PASS`, PostgreSQL via API READY, OTP READY, HTTP API 200, web 307; Adminer NOT READY (non-gating). Log reported at `~/.argintaxpayer-test/phase08-step20/mac-acceptance-20261020-171009.txt`. HTTP 307 is reachability, not authenticated browser proof. The provided pasted output does not contain the macOS SHA.
+- **Ubuntu:** Owner explicitly certified all six checklist checks (744 .NET tests passed, web tests/typecheck/build, `argintaxpayer_test`, API/Web/Logo, and Git inspection) successful. Earlier full Ubuntu runner failed during `npm ci` with process `Killed`, after 744/744 .NET tests passed; owner says later manual commands succeeded. Raw successful full Ubuntu runner log not supplied. Operator-reported Ubuntu commit was `051b7026699267f847f65eeff7e5bdf43c72ccca` and working tree modified `scripts/phase08-step21-ubuntu-acceptance.sh` and `scripts/ubuntu-dev.sh`; diff not provided or reviewed.
+- **Accepted exceptions:** Step18 bulk import operational/integration/browser/concurrency QA remains explicitly owner-deferred; manual macOS browser scenarios A–H not individually attested; cross-platform matching SHA for the final code not demonstrated; Ubuntu local runner modifications unreviewed. These remain follow-up quality gates and must not be relabeled as PASS.
+- **Security/ops:** No production deployment, official tax issuance, production DB action, migration, or automatic server setting changes were performed as part of this closure.
+- **Publication gate remains open:** No GitHub merge to `main`, annotated Phase08 tag, or GitHub Release has been executed. The phase's own release policy requires a **separate, explicit owner approval** plus recorded same-SHA and script-diff reconciliation before publication. Final release SHA, tag and URL are unavailable until then.
+- **Phase09 handoff:** Phase08 invoice draft and UI workflow work is administratively complete; Phase09 signing/CSR/keys is planned, **not started**. Preserve deferrals and security boundaries in the Phase09 baseline.
