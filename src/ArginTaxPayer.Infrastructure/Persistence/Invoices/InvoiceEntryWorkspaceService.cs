@@ -102,6 +102,21 @@ public sealed record InvoiceEntryView(Guid Id, Guid CustomerUserId, Guid Taxpaye
     Guid? ReviewedByUserId = null, DateTime? ReviewedAtUtc = null);
 public sealed record InvoiceEntryResult(InvoiceApiDecision Decision, InvoiceEntryView? Draft = null);
 
+public static class InvoiceInternalReviewPolicy
+{
+    public static bool CanTransition(string? currentState, string action) =>
+        action switch
+        {
+            "submit" => currentState is null or "Draft" or "ChangesRequested",
+            "approve" or "return" => currentState == "InReview",
+            _ => false
+        };
+
+    public static bool ReviewerMayDecide(bool isAdministrator, Guid actorId, Guid? submittedBy) =>
+        isAdministrator && actorId != Guid.Empty && submittedBy != actorId;
+}
+
+
 /// <summary>
 /// Draft only, no issuance; authorization is checked on every read/write.
 /// JSON is canonicalized from typed server-validated values, not trusted raw input.
@@ -338,8 +353,7 @@ public sealed class InvoiceEntryWorkspaceService(
         var draft = JsonSerializer.Deserialize<SaveInvoiceEntryRequest>(row.DraftJson);
         if (draft is null) return new(InvoiceApiDecision.Invalid);
         var current = draft.InternalReviewState ?? "Draft";
-        if (command.Action == "submit" && current is not ("Draft" or "ChangesRequested") ||
-            command.Action != "submit" && current != "InReview")
+        if (!InvoiceInternalReviewPolicy.CanTransition(current,command.Action))
             return new(InvoiceApiDecision.Invalid);
         if (command.Action == "submit" && (row.LastCompletedStep != 2 ||
             draft.BuyerPartyId is null || draft.Lines is not { Length: > 0 } ||
@@ -364,7 +378,8 @@ public sealed class InvoiceEntryWorkspaceService(
                 db.IdentityMfaStates.Any(m=>m.UserId==u.Id && m.EnabledAtUtc != null) &&
                 u.Roles.Any(role=>role.Role==IdentityRoleNames.Level1 ||
                     role.Role==IdentityRoleNames.Level2),ct);
-            if (!reviewer || draft.SubmittedByUserId == principal.ActorId)
+            if (!InvoiceInternalReviewPolicy.ReviewerMayDecide(
+                    reviewer,principal.ActorId,draft.SubmittedByUserId))
                 return new(InvoiceApiDecision.Forbidden);
         }
         var state = command.Action switch {
