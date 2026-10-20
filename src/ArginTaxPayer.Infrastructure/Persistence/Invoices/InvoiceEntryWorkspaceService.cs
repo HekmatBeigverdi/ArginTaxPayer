@@ -33,7 +33,7 @@ public sealed class InvoiceEntryWorkspaceRevision
 }
 
 public sealed record InvoiceWorkspaceRevisionView(long Revision, Guid ActorUserId,
-    string Action, string Reason, DateTime OccurredAtUtc);
+    string Action, string Reason, DateTime OccurredAtUtc, string ActorDisplayName);
 public sealed record InvoiceWorkspaceHistoryResult(InvoiceApiDecision Decision,
     InvoiceWorkspaceRevisionView[] History);
 
@@ -361,11 +361,20 @@ public sealed class InvoiceEntryWorkspaceService(
         var exists = await db.InvoiceEntryWorkspaces.AsNoTracking()
             .AnyAsync(w=>w.Id==workspaceId && allowed.Contains(w.TaxpayerId),ct);
         if (!exists) return new(InvoiceApiDecision.NotFound,[]);
-        var history = await db.InvoiceEntryWorkspaceRevisions.AsNoTracking()
+        var entries = await db.InvoiceEntryWorkspaceRevisions.AsNoTracking()
             .Where(h=>h.WorkspaceId==workspaceId && allowed.Contains(h.TaxpayerId))
-            .OrderBy(h=>h.Revision)
-            .Select(h=>new InvoiceWorkspaceRevisionView(h.Revision,h.ActorUserId,
-                h.Action,h.Reason,h.OccurredAtUtc)).Take(500).ToArrayAsync(ct);
+            .OrderByDescending(h=>h.OccurredAtUtc).ThenByDescending(h=>h.Revision)
+            .Take(500).ToArrayAsync(ct);
+        var actorIds = entries.Select(h=>h.ActorUserId).Distinct().ToArray();
+        var names = await db.SoftwareUserProfiles.AsNoTracking()
+            .Where(p=>actorIds.Contains(p.UserId))
+            .Select(p=>new {p.UserId,p.FirstName,p.LastName})
+            .ToDictionaryAsync(p=>p.UserId,p=>
+                (p.FirstName+" "+p.LastName).Trim(),ct);
+        var history = entries.Select(h=>new InvoiceWorkspaceRevisionView(
+            h.Revision,h.ActorUserId,h.Action,h.Reason,h.OccurredAtUtc,
+            names.TryGetValue(h.ActorUserId,out var name) && !string.IsNullOrWhiteSpace(name)
+                ? name : "کاربر ثبت‌شده")).ToArray();
         return new(InvoiceApiDecision.Success,history);
     }
 
