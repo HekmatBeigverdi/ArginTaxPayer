@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export type InvoiceCatalogChoice = { id: string; title: string; internalCode?: string };
 
@@ -11,9 +11,27 @@ export default function SearchableCatalogPicker({
   onChoose(item: InvoiceCatalogChoice): void; loading: boolean;
 }) {
   const [open,setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onPointer = (event: PointerEvent) => {
+      if (event.target instanceof Node && !root.current?.contains(event.target)) setOpen(false);
+    };
+    document.addEventListener("pointerdown",onPointer);
+    return () => document.removeEventListener("pointerdown",onPointer);
+  },[open]);
+  useEffect(() => {
+    const dismiss = () => setOpen(false);
+    window.addEventListener("invoice-catalog-dismiss",dismiss);
+    return () => window.removeEventListener("invoice-catalog-dismiss",dismiss);
+  },[]);
   const [active,setActive] = useState(0);
   const selected = items[active];
-  return <div className="invoice-register__catalog-combo">
+  return <div className="invoice-register__catalog-combo" ref={root}
+    data-invoice-catalog-open={open ? "true" : "false"}
+    onKeyDown={event=>{if(event.key==="Escape" && open){
+      event.preventDefault();event.stopPropagation();setOpen(false);
+    }}}>
     <input type="search" role="combobox" id="invoice-catalog-search"
       autoComplete="off" aria-autocomplete="list"
       aria-expanded={open} aria-controls="invoice-catalog-options"
@@ -23,7 +41,9 @@ export default function SearchableCatalogPicker({
       onFocus={()=>setOpen(true)}
       onChange={e=>{onQueryChange(e.target.value);setOpen(true);setActive(0);}}
       onKeyDown={event=>{
-        if(event.key==="Escape") setOpen(false);
+        if(event.key==="Escape" && open){
+          event.preventDefault();event.stopPropagation();setOpen(false);return;
+        }
         if(event.key==="ArrowDown"){event.preventDefault();setOpen(true);
           setActive(i=>Math.min(items.length-1,i+1));}
         if(event.key==="ArrowUp"){event.preventDefault();
@@ -33,6 +53,8 @@ export default function SearchableCatalogPicker({
         }
       }}
     />
+    {open && <button type="button" className="identity-secondary"
+      aria-label="بستن فهرست کالا و خدمات" onClick={()=>setOpen(false)}>× بستن فهرست</button>}
     {open && <div className="invoice-register__catalog-options" role="listbox"
       id="invoice-catalog-options" aria-label="نتایج کالا و خدمات">
       {loading && <p>در حال جست‌وجو…</p>}

@@ -77,7 +77,7 @@ public sealed class Phase07ResumableInvoiceDraftTests
 
     [Theory]
     [InlineData(InvoiceDraftSettlementMethod.Unknown,null,null,true)]
-    [InlineData(InvoiceDraftSettlementMethod.Unknown,0,0,true)]
+    [InlineData(InvoiceDraftSettlementMethod.Unknown,0,0,false)]
     [InlineData(InvoiceDraftSettlementMethod.Cash,198,0,true)]
     [InlineData(InvoiceDraftSettlementMethod.Credit,0,198,true)]
     [InlineData(InvoiceDraftSettlementMethod.CashAndCredit,100,98,true)]

@@ -62,6 +62,7 @@ stop_pid_tree() {
 
 typeset -a started_pids=()
 started_autossh=0
+started_adminer=0
 started_api=0
 started_web=0
 cleanup_on_failure() {
@@ -72,6 +73,7 @@ cleanup_on_failure() {
   (( started_api )) && rm -f "$STATE/api.pid"
   (( started_web )) && rm -f "$STATE/web.pid"
   (( started_autossh )) && rm -f "$STATE/autossh.pid"
+  (( started_adminer )) && rm -f "$STATE/adminer.pid"
 }
 trap cleanup_on_failure EXIT
 
@@ -98,6 +100,29 @@ done
 if (( ! tunnel_ready )); then
   print -u2 "AutoSSH failed. Check $STATE/autossh.log and SSH key authentication."
   exit 1
+fi
+
+# Optional, separately managed Adminer forward. Independent of PostgreSQL tunnel.
+# Failures do not disable the API or database. The VPS Adminer service must
+# already be available at 127.0.0.1:8081; no public VPS port is opened here.
+if ! lsof -nP -iTCP:18081 -sTCP:LISTEN >/dev/null 2>&1; then
+  print 'Starting AutoSSH Adminer tunnel...'
+  AUTOSSH_GATETIME=0 nohup autossh -M 0 -N \
+    -o BatchMode=yes -o ServerAliveInterval=15 -o ServerAliveCountMax=3 \
+    -o ConnectTimeout=10 -o ExitOnForwardFailure=yes \
+    -L 127.0.0.1:18081:127.0.0.1:8081 argindev@85.133.244.156 \
+    > "$STATE/adminer.log" 2>&1 < /dev/null &
+  adminer_pid="$!"
+  started_pids+=("$adminer_pid")
+  started_adminer=1
+  echo "$adminer_pid" > "$STATE/adminer.pid"
+else
+  print 'Port 18081 already in use; not starting or taking ownership of an Adminer tunnel.'
+fi
+if lsof -nP -iTCP:18081 -sTCP:LISTEN >/dev/null 2>&1; then
+  print 'Adminer forward: http://127.0.0.1:18081 (requires VPS Adminer service)'
+else
+  print 'Adminer forward unavailable; inspect ~/.argintaxpayer-test/adminer.log'
 fi
 
 # A listening local port is not proof that the SSH forward reaches PostgreSQL.
@@ -233,6 +258,6 @@ fi
 print 'Services launched. Panel: http://127.0.0.1:3000/identity'
 print 'Status: zsh scripts/dev-status.zsh'
 print 'Stop: zsh scripts/dev-down.zsh'
-print "Logs: $STATE/{api,web,autossh}.log"
+print "Logs: $STATE/{api,web,autossh,adminer}.log"
 print 'SMS remains under your private Ghasedak__EnableLiveSending setting; no test sends are triggered here.'
 trap - EXIT

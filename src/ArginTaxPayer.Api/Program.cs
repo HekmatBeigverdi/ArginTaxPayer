@@ -66,6 +66,7 @@ if (identityDevelopmentEnabled)
     builder.Services.AddScoped<CustomerCommercialOwnershipService>();
     builder.Services.AddScoped<TaxpayerScopeService>();
     builder.Services.AddScoped<InvoiceDraftApplicationService>();
+    builder.Services.AddScoped<InvoiceReviewCommandService>();
     builder.Services.AddScoped<InvoiceEntryWorkspaceService>();
     builder.Services.AddScoped<InvoiceValidationReferenceService>();
     builder.Services.AddScoped<FiscalCertificateMetadataService>();
@@ -127,6 +128,7 @@ if (app.Environment.IsDevelopment())
         app.MapFiscalParticipantDirectoryEndpoints();
         app.MapInvoiceParticipantEndpoints();
         app.MapInvoiceDraftDevelopmentEndpoints();
+        app.MapInvoiceReviewDevelopmentEndpoints();
         app.MapCustomerProfileDevelopmentEndpoints();
         app.MapCustomerTaxpayerMembershipEndpoints();
         app.MapCustomerSelfServiceEndpoints();

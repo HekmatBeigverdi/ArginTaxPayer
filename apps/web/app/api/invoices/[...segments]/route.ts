@@ -7,8 +7,12 @@ type Context = { params: Promise<{ segments: string[] }> };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function target(segments: string[], method: "GET" | "POST"): string | null {
   if (segments[0] === "workspaces") {
+    if (segments.length===2 && segments[1]==="bulk" && method==="POST")
+      return "/api/dev/invoice-workspaces/bulk";
     if (segments.length === 1 && (method === "GET" || method === "POST"))
       return "/api/dev/invoice-workspaces";
+    if (segments.length === 3 && method === "GET" && uuid.test(segments[1]) &&
+        segments[2] === "history") return "/api/dev/invoice-workspaces/"+segments[1]+"/history";
     if (segments.length === 3 && method === "GET" && uuid.test(segments[1]) &&
         segments[2] === "validation") return "/api/dev/invoice-workspaces/"+segments[1]+"/validation";
     if (segments.length === 2 && method === "GET" && uuid.test(segments[1]))
@@ -17,6 +21,11 @@ function target(segments: string[], method: "GET" | "POST"): string | null {
   }
   if (segments.length === 2 && segments[0] === "references" && method === "GET" && uuid.test(segments[1]))
     return "/api/dev/invoice-references/" + segments[1];
+  if (segments.length === 2 && segments[0] === "header-options" &&
+      method === "GET" && uuid.test(segments[1]))
+    return "/api/dev/invoices/header-options/" + segments[1];
+  if (segments.length === 1 && segments[0] === "form-metadata" && method === "GET")
+    return "/api/dev/invoices/form-metadata";
   if (segments.length === 1 && segments[0] === "overview" && method === "GET")
     return "/api/dev/invoices";
   if (segments.length < 1 || !uuid.test(segments[0])) return null;
@@ -47,15 +56,36 @@ async function proxy(request: NextRequest, context: Context, method: "GET" | "PO
       return error(415, "json_required");
     try {
       body = await request.text();
-      if (!body || body.length > (segments[0] === "workspaces" ? 120000 : 2048)) return error(400, "invalid_payload");
+      if (!body || body.length > (segments[0] === "workspaces" && segments[1] === "bulk" ? 500000 : segments[0] === "workspaces" ? 120000 : 2048)) return error(400, "invalid_payload");
       const parsed: unknown = JSON.parse(body);
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
         return error(400, "invalid_payload");
       const data = parsed as Record<string, unknown>;
-      if (segments[0] === "workspaces") {
+      if (segments[0] === "workspaces" && segments[1] === "bulk") {
+        const invoices=data.invoices;
+        if (Object.keys(data).some(k=>!["batchKey","invoices"].includes(k)) ||
+            typeof data.batchKey!=="string" || !/^[a-zA-Z0-9_-]{8,64}$/.test(data.batchKey) ||
+            !Array.isArray(invoices) || invoices.length<1 || invoices.length>50 ||
+            invoices.some((item:unknown)=>{
+              if(!item||typeof item!=="object"||Array.isArray(item))return true;
+              const entry=item as Record<string,unknown>;
+              if(Object.keys(entry).some(k=>!["invoiceKey","draft"].includes(k)) ||
+                  typeof entry.invoiceKey!=="string" ||
+                  !/^[a-zA-Z0-9_-]{1,64}$/.test(entry.invoiceKey) ||
+                  !entry.draft||typeof entry.draft!=="object"||Array.isArray(entry.draft))return true;
+              const draft=entry.draft as Record<string,unknown>;
+              return typeof draft.taxpayerId!=="string"||!uuid.test(draft.taxpayerId) ||
+                typeof draft.issueDateUtc!=="string" || !Array.isArray(draft.lines) ||
+                draft.lines.length>150 || draft.lines.length<1 ||
+                draft.id!=null || draft.expectedRevision!==0 || draft.lastCompletedStep!==2;
+            }))
+          return error(400,"invalid_bulk_manifest");
+      } else if (segments[0] === "workspaces") {
         const permitted = ["id","taxpayerId","expectedRevision","lastCompletedStep",
           "issueDateUtc","buyerPartyId","type","pattern","lines",
-          "invoiceDescription","settlementMethod","cashAmountRial","creditAmountRial"];
+          "invoiceDescription","settlementMethod","cashAmountRial","creditAmountRial",
+          "contractNumber","serviceBillId","flightType","goldConstructionFeeRial",
+          "goldSellerProfitRial","goldCommissionRial","goldTotalFeeProfitRial","fiscalMemoryId"];
         if (Object.keys(data).some(k=>!permitted.includes(k)) ||
             typeof data.taxpayerId !== "string" || !uuid.test(data.taxpayerId) ||
             typeof data.issueDateUtc !== "string" || !Array.isArray(data.lines) ||
@@ -81,10 +111,24 @@ async function proxy(request: NextRequest, context: Context, method: "GET" | "PO
         if (value && (key === "page" || key === "pageSize" ? /^[1-9]\d{0,5}$/.test(value) : uuid.test(value))) filtered.set(key, value);
         else if (value) return error(400, "invalid_filter");
       }
+      if (segments[0] === "overview") {
+        const reviewState = request.nextUrl.searchParams.get("reviewState");
+        if (reviewState !== null) {
+          if (!["Draft", "InReview", "ChangesRequested", "Approved", "WorkingDraft"].includes(reviewState))
+            return error(400, "invalid_filter");
+          filtered.set("reviewState", reviewState);
+        }
+        const search = request.nextUrl.searchParams.get("search");
+        if (search !== null) {
+          if (search.length > 128 || /[\x00-\x1f\x7f]/.test(search))
+            return error(400, "invalid_filter");
+          if (search.trim()) filtered.set("search", search.trim());
+        }
+      }
     }
     const response = await fetch(identityApiOrigin() + url + (filtered.size ? "?" + filtered : ""), {
       method, cache: "no-store", redirect: "manual",
-      signal: AbortSignal.timeout(10000),
+      signal: AbortSignal.timeout(segments[1]==="bulk"?60000:10000),
       headers: { Authorization: "Bearer " + token,
         ...(body ? { "Content-Type": "application/json" } : {}) },
       ...(body ? { body } : {})

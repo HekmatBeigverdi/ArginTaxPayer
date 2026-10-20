@@ -6,43 +6,50 @@ import { PersianDatePicker } from "../catalog/persian-date-picker";
 import { PersianTimePicker } from "../components/persian-time-picker";
 import SearchableCatalogPicker from "./searchable-catalog-picker";
 import InvoiceValidationPanel from "./invoice-validation-panel";
+import InvoiceHistoryPanel from "./invoice-history-panel";
+import InvoiceImportPanel, {type ImportValues} from "./invoice-import-panel";
+import BulkInvoiceImportPanel from "./bulk-invoice-import-panel";
+import {invoicePreview} from "./invoice-financial-preview.mjs";
 
 type Taxpayer = { id: string; displayName: string; status: number };
 type Invoice = { id: string; customerUserId: string; taxpayerId: string; revision: number;
   kind?: "workspace"; lastCompletedStep?: number;
-  state: string; subject: string; issueDateUtc: string; updatedAtUtc: string };
-type CatalogItem = { id: string; title: string; internalCode?: string };
+  state: string; subject: string; issueDateUtc: string; updatedAtUtc: string;
+  reviewState?: "WorkingDraft" | "Draft" | "InReview" | "ChangesRequested" | "Approved";
+  systemCode?: string; sellerName?: string | null; buyerName?: string | null };
+type CatalogItem = { id: string; title: string; internalCode?: string; baseUnitId?: string };
+type HeaderOptions = {taxpayer:{id:string;displayName:string;normalizedIdentifier:string};
+  memories:{id:string;memoryIdentifier:string;status:number}[]};
+type FormMetadata = { edition: string; verifiedForSubmission: boolean;
+  entries: {type:number;pattern:number|null;requiredFields:string[]}[] };
 type CatalogPage = { items: CatalogItem[] };
 type Account = { customerUserId: string; companyName?: string | null; personName?: string | null };
 type FiscalEntry = { id: string; customerUserId: string; type: "buyer" | "taxpayer"; displayName: string; identifier: string; status: number };
 type FiscalPage = { items: FiscalEntry[]; total: number };
-type Row = { key: number; productId: string; name: string; quantity: string;
+type Row = { key: number; productId: string; unitId?: string; catalogCodeSnapshot?: string; name: string; quantity: string;
   unitPrice: string; discount: string; vatRate: string };
 type Step = 0 | 1 | 2;
-type SavedEntryLine = { catalogItemId: string | null; description: string; quantity: number;
+type SavedEntryLine = { catalogItemId: string | null; unitId?: string | null; catalogCodeSnapshot?: string | null; description: string; quantity: number;
   unitPriceRial: number; discountPerUnitRial: number; vatRatePercent: number | null };
 type SavedEntry = { id: string; customerUserId: string; taxpayerId: string;
   revision: number; lastCompletedStep: number; issueDateUtc: string; updatedAtUtc: string;
   buyerPartyId: string | null; buyerDisplayName?: string | null;
   type: number; pattern: number; lines: SavedEntryLine[];
   invoiceDescription?: string | null; settlementMethod?: number;
-  cashAmountRial?: number | null; creditAmountRial?: number | null; };
+  cashAmountRial?: number | null; creditAmountRial?: number | null;
+  contractNumber?: string|null;serviceBillId?: string|null;flightType?: number|null;
+  goldConstructionFeeRial?: number|null;goldSellerProfitRial?: number|null;
+  goldCommissionRial?: number|null;goldTotalFeeProfitRial?: number|null;
+  fiscalMemoryId?: string|null; };
 const headings = ["سربرگ صورتحساب", "اقلام صورتحساب", "مرور نهایی و تسویه"] as const;
 type Settlement = 0 | 1 | 2 | 3;
 const errorCodes: Record<number, string> = {
   400: "ورودی پیش‌نویس معتبر نیست.", 401: "نشست منقضی شده است؛ دوباره وارد شوید.",
   403: "برای این پرونده دسترسی ندارید.", 404: "مؤدی یا صورتحساب یافت نشد.",
-  409: "تغییر هم‌زمان رخ داده است؛ فهرست را بازخوانی کنید.",
+  409: "نسخه این پیش‌نویس در محل دیگری تغییر کرده است. برای جلوگیری از بازنویسی اطلاعات، ذخیره انجام نشد؛ پیش‌نویس را دوباره باز کنید.",
   503: "سرویس فعلاً در دسترس نیست."
 };
-const patterns: Record<number, { code: number; title: string }[]> = {
-  1: [{code:1,title:"فروش"},{code:2,title:"فروش ارز"},{code:3,title:"طلا و جواهر"},
-    {code:4,title:"پیمانکاری"},{code:5,title:"قبوض خدماتی"},{code:6,title:"بلیت هواپیما"},
-    {code:7,title:"صادرات"},{code:8,title:"بارنامه"},{code:9,title:"فرآورده‌های نفتی"},
-    {code:11,title:"بورس کالا"},{code:13,title:"خدمات بیمه‌ای"},{code:14,title:"فروش زنجیره"}],
-  2: [{code:1,title:"فروش"},{code:3,title:"طلا و جواهر"},{code:9,title:"فرآورده‌های نفتی"},
-    {code:13,title:"خدمات بیمه‌ای"}]
-};
+
 async function getJson<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, { credentials: "same-origin", cache: "no-store", ...init });
   if (!response.ok) throw new Error(errorCodes[response.status] || "خطای سرویس (" + response.status + ")");
@@ -59,6 +66,10 @@ const fmt = (value: number) => value.toLocaleString("fa-IR", { maximumFractionDi
 export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: string; isAdmin: boolean}) {
   const [taxpayers, setTaxpayers] = useState<Taxpayer[]>([]);
   const [taxpayerId, setTaxpayerId] = useState("");
+  const [memoryId,setMemoryId] = useState("");
+  const [headerOptions,setHeaderOptions] = useState<HeaderOptions|null>(null);
+  const [headerLoading,setHeaderLoading] = useState(false);
+  const [headerError,setHeaderError] = useState("");
   const [filterCustomer, setFilterCustomer] = useState("");
   const [filterTaxpayer, setFilterTaxpayer] = useState("");
   const [headerCustomer, setHeaderCustomer] = useState(isAdmin ? "" : actorId);
@@ -70,20 +81,29 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   const [buyerActive, setBuyerActive] = useState(0);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
+  const requestSeq = useRef(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [search, setSearch] = useState("");
+  const [searchHelpOpen, setSearchHelpOpen] = useState(false);
+  const [reviewFilter, setReviewFilter] = useState("");
   const [listPage, setListPage] = useState(1);
   const listPageSize = 50;
   const [modal, setModal] = useState(false);
+  const [importOpen,setImportOpen] = useState(false);
+  const [bulkOpen,setBulkOpen] = useState(false);
   const [editing, setEditing] = useState<SavedEntry | null>(null);
   const [step, setStep] = useState<Step>(0);
+  const [savedSnapshot,setSavedSnapshot] = useState<string | null>(null);
   const dialog = useRef<HTMLDivElement>(null);
   const openButton = useRef<HTMLButtonElement>(null);
   const [date, setDate] = useState(todayUtc);
   const [hour, setHour] = useState("12:00");
 
+  const [formMetadata, setFormMetadata] = useState<FormMetadata | null>(null);
+  const [formMetadataError, setFormMetadataError] = useState("");
+  const [conditionalFields,setConditionalFields] = useState<Record<string,string>>({});
   const [invoiceType, setInvoiceType] = useState(1);
   const [pattern, setPattern] = useState(1);
   const [kind, setKind] = useState<"products" | "services">("products");
@@ -99,6 +119,25 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   const [detail, setDetail] = useState<Invoice | null>(null);
 
   useEffect(() => {
+    if (!modal || !taxpayerId) { setHeaderOptions(null);setHeaderLoading(false);return; }
+    let current = true;
+    setHeaderLoading(true);setHeaderError("");
+    getJson<HeaderOptions>("/api/invoices/header-options/"+taxpayerId)
+      .then(data => {if(current)setHeaderOptions(data);})
+      .catch(()=>{if(current){setHeaderOptions(null);setHeaderError("دریافت اطلاعات مؤدی و حافظه مالیاتی ناموفق بود.");}})
+      .finally(()=>{if(current)setHeaderLoading(false);});
+    return ()=>{current=false;};
+  },[modal,taxpayerId]);
+
+  useEffect(() => {
+    let live = true;
+    getJson<FormMetadata>("/api/invoices/form-metadata")
+      .then(data => { if (live && data.entries.length) setFormMetadata(data); })
+      .catch(() => { if (live) setFormMetadataError("دریافت قواعد رسمی فرم ناموفق بود؛ انتخاب الگو موقتاً غیرفعال است."); });
+    return () => { live = false; };
+  }, []);
+
+  useEffect(() => {
     let live = true;
     getJson<Taxpayer[]>("/api/taxpayers/list")
       .then(list => {
@@ -109,7 +148,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
           isAdmin ? "" : active[0]?.id ?? "");
       })
       .catch(e => { if (live) setError((e as Error).message); })
-      .finally(() => { if (live) setLoading(false); });
+
     getJson<Account[]>("/api/customer-owners/accounts")
       .then(list => { if (live && Array.isArray(list)) setAccounts(list); })
       .catch(() => {});
@@ -117,20 +156,27 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   }, []);
 
   const reload = useCallback(async () => {
+    const requestId = ++requestSeq.current;
     setLoading(true);
     try {
       const query = new URLSearchParams();
       if (filterCustomer) query.set("customerId", filterCustomer);
       if (filterTaxpayer) query.set("taxpayerId", filterTaxpayer);
+      if (reviewFilter) query.set("reviewState", reviewFilter);
+      if (search.trim()) query.set("search", search.trim());
       query.set("page", String(listPage));
       query.set("pageSize", String(listPageSize));
       const list = await getJson<Invoice[]>("/api/invoices/overview?" + query);
-      setInvoices(list);
-      setError("");
-    } catch (e) { setInvoices([]); setError((e as Error).message); }
-    finally { setLoading(false); }
-  }, [filterCustomer, filterTaxpayer, listPage]);
-  useEffect(() => { setDetail(null); void reload(); }, [reload]);
+      if (requestId === requestSeq.current) { setInvoices(list); setError(""); }
+    } catch (e) { if (requestId === requestSeq.current) setError((e as Error).message); }
+    finally { if (requestId === requestSeq.current) setLoading(false); }
+  }, [filterCustomer, filterTaxpayer, reviewFilter, search, listPage]);
+  useEffect(() => {
+    setDetail(null);
+    setLoading(true);
+    const timer = window.setTimeout(() => {void reload();}, search ? 280 : 0);
+    return () => { window.clearTimeout(timer); requestSeq.current++; };
+  }, [reload]);
 
   const [customerTaxpayers, setCustomerTaxpayers] = useState<Taxpayer[]>([]);
   const [taxpayerOwners, setTaxpayerOwners] = useState<Record<string,string>>({});
@@ -212,7 +258,20 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
     const before = document.activeElement;
     dialog.current?.focus();
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !busy) { setModal(false); return; }
+      if (event.key === "Escape") {
+        if (importOpen) {event.preventDefault();setImportOpen(false);return;}
+        // Open inner popovers get the first Escape, regardless of focus.
+        // In particular the catalog picker can be open while a different
+        // control is focused, so bubbling suppression alone is insufficient.
+        if (dialog.current?.querySelector('[data-invoice-catalog-open="true"]')) {
+          event.preventDefault();
+          event.stopPropagation();
+          window.dispatchEvent(new Event("invoice-catalog-dismiss"));
+          return;
+        }
+        if (!busy && (!unsavedRef.current || window.confirm("تغییرات ذخیره‌نشده از بین می‌روند. پنجره بسته شود؟"))) setModal(false);
+        return;
+      }
       if (event.key !== "Tab" || !dialog.current) return;
       const elements = [...dialog.current.querySelectorAll<HTMLElement>(
         'button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),a[href]'
@@ -231,59 +290,76 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
       if (before instanceof HTMLElement && before.isConnected) before.focus();
       else openButton.current?.focus();
     };
-  }, [modal, busy]);
+  }, [modal, busy, importOpen]);
 
   function open() {
     setEditing(null);
     setDetail(null);
     setStep(0); setDate(todayUtc()); setHour("12:00");
     setBuyerId(""); setBuyerQuery(""); setBuyerOpen(false); setInvoiceType(1); setPattern(1);
+    setMemoryId("");setHeaderOptions(null);
+    setConditionalFields({});
     setHeaderCustomer(isAdmin ? (filterCustomer || "") : actorId);
     setTaxpayerId(isAdmin ? "" : taxpayerId);
     setRows([]); setInvoiceDescription(""); setSettlement(0); setCashInput("");
-    setError(""); setNotice(""); setModal(true);
+    setSavedSnapshot(null); setError(""); setNotice(""); setModal(true);
   }
   async function editDraft(draft: Invoice) {
     setBusy(true); setError("");
     try {
       const saved = await getJson<SavedEntry>("/api/invoices/workspaces/"+draft.id);
       setEditing(saved);
+      setSavedSnapshot(null);
       setHeaderCustomer(saved.customerUserId);
       setTaxpayerId(saved.taxpayerId);
       setDate(saved.issueDateUtc.slice(0,10));
       setHour(saved.issueDateUtc.slice(11,16));
+      setMemoryId(saved.fiscalMemoryId ?? "");
       setBuyerId(saved.buyerPartyId ?? "");
       setBuyerQuery(saved.buyerDisplayName ?? "");
       setBuyerOpen(false);
       setInvoiceType(saved.type); setPattern(saved.pattern);
+      setConditionalFields(Object.fromEntries((["contractNumber","serviceBillId","flightType",
+        "goldConstructionFeeRial","goldSellerProfitRial","goldCommissionRial","goldTotalFeeProfitRial"] as const)
+        .map(key=>[key,saved[key] == null?"":String(saved[key])])));
       setInvoiceDescription(saved.invoiceDescription ?? "");
       setSettlement((saved.settlementMethod ?? 0) as Settlement);
       setCashInput(saved.settlementMethod === 3 ? String(saved.cashAmountRial ?? "") : "");
       setRows(saved.lines.map((line,index)=>({
         key:index+1,productId:line.catalogItemId ?? "",
+        unitId:line.unitId ?? undefined,catalogCodeSnapshot:line.catalogCodeSnapshot ?? undefined,
         name:line.description,quantity:String(line.quantity),
         unitPrice:String(line.unitPriceRial),discount:String(line.discountPerUnitRial),
         vatRate:String(line.vatRatePercent ?? "")
       })));
       nextKey.current = saved.lines.length;
-      setStep(Math.min(2,Math.max(0,saved.lastCompletedStep)) as Step);
+      setStep(Math.min(2,Math.max(0,saved.lastCompletedStep+1)) as Step);
       setDetail(null); setModal(true);
     } catch(e) {setError((e as Error).message);}
     finally {setBusy(false);}
   }
-  async function saveWorkspace(completeStep: Step, exit: boolean, navigateToBuyers = false) {
+  async function saveWorkspace(completeStep: Step, exit: boolean, navigateToBuyers = false,
+    preserveVisibleStep = false) {
+    // Opening the settlement screen does not complete it. Persist the lines
+    // as step 1, then navigate to step 2; enforce terms on final completion only.
+    const persistedStep: Step = !exit && step===1 && completeStep===2 ? 1 : completeStep;
     if (busy || !taxpayerId || !headerCustomer) {
-      setError("ابتدا مشتری و مؤدی صادرکننده را انتخاب کنید."); return;
+      setError("ابتدا مشتری و مؤدی صادرکننده را انتخاب کنید."); return false;
     }
     const issued = new Date(date+"T"+hour+":00.000Z");
     if(Number.isNaN(issued.valueOf()) || issued.toISOString().slice(0,10)!==date) {
-      setError("تاریخ یا ساعت صدور معتبر نیست.");return;
+      setError("تاریخ یا ساعت صدور معتبر نیست.");return false;
     }
     if(rows.some(r=>!r.name.trim() || !Number.isFinite(Number(r.quantity)) ||
         Number(r.quantity)<0 || Number(r.unitPrice)<0 ||
         Number(r.discount)<0 || Number(r.discount)>Number(r.unitPrice) ||
         Number(r.vatRate)<0 || Number(r.vatRate)>=1000)) {
-      setError("شرح یا مقادیر یکی از ردیف‌ها معتبر نیست.");return;
+      setError("شرح یا مقادیر یکی از ردیف‌ها معتبر نیست.");return false;
+    }
+    try { invoicePreview(rows); }
+    catch { setError("مقادیر عددی ردیف‌ها یا دقت آن‌ها معتبر نیست."); return false; }
+    if (persistedStep===2 && settlement===0) {
+      setError("برای تکمیل مراحل، روش تسویه صورتحساب را انتخاب کنید.");return false;
     }
     const cash = settlement === 1 ? calculated.total : settlement === 2 ? 0 :
       settlement === 3 ? roundRial(Number(cashInput)) : null;
@@ -292,17 +368,37 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
     if (settlement === 3 && (cashInput.trim() === "" || !Number.isFinite(cash) ||
         Number(cash) <= 0 || Number(credit) <= 0 || Number(cash) >= calculated.total)) {
       setError("برای روش نقدی و نسیه، مبلغ نقدی باید بیشتر از صفر و کمتر از جمع صورتحساب باشد.");
-      return;
+      return false;
     }
+    const required = formMetadata?.entries.find(p=>p.type===invoiceType && p.pattern===pattern)?.requiredFields;
+    if (!formMetadata || !required) {setError("قواعد انتخاب الگو بارگذاری نشده‌اند.");return false;}
+    const needed = required.includes("goldFields") ? ["goldConstructionFeeRial","goldSellerProfitRial","goldCommissionRial","goldTotalFeeProfitRial"] : required;
+    if (completeStep>=1 && needed.some(k=>!conditionalFields[k]?.trim() ||
+      (k!=="contractNumber" && k!=="serviceBillId" &&
+        (!Number.isFinite(Number(conditionalFields[k])) || Number(conditionalFields[k])<0)))) {
+      setError("لطفاً فیلدهای الزامی این الگو را تکمیل کنید.");return false;
+    }
+    if (headerLoading || headerError || !headerOptions || headerOptions.taxpayer.id!==taxpayerId) {
+      setError("اطلاعات مؤدی صادرکننده هنوز آماده نیست؛ مجدداً تلاش کنید.");return false;
+    }
+    if(memoryId && !headerOptions.memories.some(m=>m.id===memoryId)) {
+      setError("حافظه مالیاتی انتخاب‌شده به مؤدی صادرکننده تعلق ندارد.");return false;
+    }
+    if (buyerQuery.trim() && !buyerId) {setError("خریدار را از فهرست خریداران ثبت‌شده انتخاب کنید.");return false;}
     const payload = {
       id:editing?.id ?? null,
       taxpayerId, expectedRevision:editing?.revision ?? 0,
-      lastCompletedStep:completeStep, issueDateUtc:issued.toISOString(),
-      buyerPartyId:buyerId || null, type:invoiceType,pattern,
+      lastCompletedStep:persistedStep, issueDateUtc:issued.toISOString(),
+      buyerPartyId:buyerId || null, fiscalMemoryId:memoryId || null, type:invoiceType,pattern,
+      ...Object.fromEntries(["contractNumber","serviceBillId","flightType",
+        "goldConstructionFeeRial","goldSellerProfitRial","goldCommissionRial","goldTotalFeeProfitRial"]
+        .map(k=>[k, !needed.includes(k) || !conditionalFields[k]?.trim() ? null :
+          k==="contractNumber"||k==="serviceBillId" ? conditionalFields[k].trim() : Number(conditionalFields[k])])),
       invoiceDescription:invoiceDescription.trim() || null,
       settlementMethod:settlement, cashAmountRial:cash, creditAmountRial:credit,
       lines:rows.map(r=>({
-        catalogItemId:r.productId || null,description:r.name.trim(),
+        catalogItemId:r.productId || null,unitId:r.unitId || null,
+        description:r.name.trim(),
         quantity:Number(r.quantity),unitPriceRial:Number(r.unitPrice),
         discountPerUnitRial:Number(r.discount),
         vatRatePercent:r.vatRate==="" ? null : Number(r.vatRate)
@@ -315,43 +411,45 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
         body:JSON.stringify(payload)
       });
       setEditing(saved);
+      setSavedSnapshot(draftSnapshot);
       setNotice("پیش‌نویس با نسخه "+saved.revision+" ذخیره شد. برای ادامه از «ویرایش» استفاده کنید.");
       if(exit || navigateToBuyers) setModal(false);
-      else setStep(completeStep);
+      else if(!preserveVisibleStep) setStep(completeStep);
       await reload();
       if(navigateToBuyers) window.location.assign("/parties");
-    } catch(e) {setError((e as Error).message);}
+      return true;
+    } catch(e) {setError((e as Error).message);return false;}
     finally {setBusy(false);}
   }
   function nextStep() {
     if(step===0 && !taxpayerId){setError("مؤدی صادرکننده را انتخاب کنید.");return;}
     if(step<2) void saveWorkspace((step+1) as Step,false);
   }
-  function close() { if (!busy) setModal(false); }
+  function close() { if (importOpen) {setImportOpen(false);return;} if (!busy && (!unsavedChanges || window.confirm("تغییرات ذخیره‌نشده از بین می‌روند. پنجره بسته شود؟"))) setModal(false); }
   function addRow(item?: CatalogItem) {
     nextKey.current++;
     setRows(current => current.concat({
-      key: nextKey.current, productId: item?.id ?? "", name: item?.title ?? "",
+      key: nextKey.current, productId: item?.id ?? "",
+      unitId:item?.baseUnitId,catalogCodeSnapshot:item?.internalCode,
+      name: item?.title ?? "",
       quantity:"1", unitPrice:"0", discount:"0", vatRate:"0"
     }));
+  }
+  function applyImportedRows(imported: ImportValues[]) {
+    setRows(current => current.concat(imported.map(value => ({
+      key:++nextKey.current,productId:"",name:value.description,
+      quantity:value.quantity,unitPrice:value.unitPrice,
+      discount:value.discount,vatRate:value.vatRate
+    }))));
+    setNotice(imported.length+" ردیف از پیش‌نمایش به فرم اضافه شد؛ ذخیره پیش‌نویس هنوز انجام نشده است.");
   }
   function updateRow(key: number, changes: Partial<Row>) {
     setRows(current => current.map(row => row.key === key ? {...row,...changes} : row));
   }
   const roundRial = (value:number) => Math.round((value + Number.EPSILON) * 100) / 100;
   const calculated = useMemo(() => {
-    const base = rows.reduce((total, row) =>
-      total + amount(row.quantity) * amount(row.unitPrice), 0);
-    const discount = rows.reduce((total, row) =>
-      total + Math.min(amount(row.discount), amount(row.unitPrice)) * amount(row.quantity), 0);
-    const vat = rows.reduce((total, row) =>
-      total + Math.max(0, amount(row.unitPrice) - amount(row.discount)) *
-      amount(row.quantity) * amount(row.vatRate) / 100, 0);
-    const gross = roundRial(base);
-    const totalDiscount = roundRial(discount);
-    const vatPreview = roundRial(vat);
-    return {base:gross, discount:totalDiscount, vat:vatPreview,
-      total: roundRial(gross-totalDiscount+vatPreview)};
+    try { return invoicePreview(rows); }
+    catch { return {base:0,discount:0,vat:0,total:0}; }
   }, [rows]);
   const cashPreview = settlement === 1 ? calculated.total : settlement === 2 ? 0 :
     settlement === 3 ? roundRial(amount(cashInput)) : 0;
@@ -360,21 +458,43 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   const settlementError = settlement === 3 &&
     (cashInput.trim() === "" || !Number.isFinite(Number(cashInput)) ||
       cashPreview <= 0 || cashPreview >= calculated.total);
+  const draftSnapshot = JSON.stringify({
+    headerCustomer,taxpayerId,memoryId,buyerId,date,hour,invoiceType,pattern,
+    conditionalFields,rows,invoiceDescription,settlement,cashInput
+  });
+  useEffect(() => {
+    if (modal && savedSnapshot === null) setSavedSnapshot(draftSnapshot);
+  }, [modal, savedSnapshot, draftSnapshot]);
+  const unsavedChanges = modal && savedSnapshot !== null &&
+    draftSnapshot !== savedSnapshot;
   const validationDirty = editing !== null && (
     editing.taxpayerId!==taxpayerId || editing.issueDateUtc.slice(0,16)!==date+"T"+hour ||
-    (editing.buyerPartyId??"")!==buyerId || editing.type!==invoiceType ||
-    editing.pattern!==pattern || (editing.invoiceDescription??"")!==invoiceDescription.trim() ||
+    (editing.buyerPartyId??"")!==buyerId || (editing.fiscalMemoryId??"")!==memoryId ||
+    editing.type!==invoiceType || editing.pattern!==pattern ||
+    (editing.invoiceDescription??"")!==invoiceDescription.trim() ||
     (editing.settlementMethod??0)!==settlement ||
     rows.length!==editing.lines.length ||
     rows.some((r,i)=>r.name.trim()!==editing.lines[i]?.description ||
       Number(r.quantity)!==editing.lines[i]?.quantity ||
       Number(r.unitPrice)!==editing.lines[i]?.unitPriceRial ||
       Number(r.discount)!==editing.lines[i]?.discountPerUnitRial ||
-      (r.vatRate===""?null:Number(r.vatRate))!==editing.lines[i]?.vatRatePercent) ||
+      (r.vatRate===""?null:Number(r.vatRate))!==editing.lines[i]?.vatRatePercent ||
+      (r.productId||null)!==editing.lines[i]?.catalogItemId) ||
     settlement===3 && Number(cashInput)!==(editing.cashAmountRial??0)
   );
-  const filtered = invoices.filter(row =>
-    (row.id + " " + row.state + " " + row.subject).toLowerCase().includes(search.toLowerCase()));
+  const unsavedRef = useRef(false);
+  unsavedRef.current = unsavedChanges;
+  useEffect(()=>{
+    if(!modal) return;
+    const beforeUnload=(event:BeforeUnloadEvent)=>{
+      if(!unsavedRef.current)return;
+      event.preventDefault();
+      event.returnValue="";
+    };
+    window.addEventListener("beforeunload",beforeUnload);
+    return ()=>window.removeEventListener("beforeunload",beforeUnload);
+  },[modal]);
+  const filtered = invoices; // All filters are applied server-side before paging.
 
   return <div className="invoice-entry invoice-register" dir="rtl" lang="fa">
     <div className="invoice-register__toolbar">
@@ -396,11 +516,33 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
           {taxpayers.filter(t=>!filterCustomer || taxpayerOwners[t.id]===filterCustomer)
             .map(t=><option key={t.id} value={t.id}>{t.displayName}</option>)}
         </select>
-        <label htmlFor="invoice-list-search">جست‌وجو</label>
-        <input id="invoice-list-search" type="search" value={search}
-          onChange={e => setSearch(e.target.value)} placeholder="شناسه / وضعیت" />
+        <label htmlFor="invoice-list-review">وضعیت بازبینی</label>
+        <select id="invoice-list-review" value={reviewFilter}
+          onChange={e=>{setReviewFilter(e.target.value);setListPage(1);}}>
+          <option value="">همه وضعیت‌ها</option>
+          <option value="WorkingDraft">در حال تکمیل</option>
+          <option value="Draft">پیش‌نویس داخلی</option>
+          <option value="InReview">در انتظار بازبینی</option>
+          <option value="ChangesRequested">نیازمند اصلاح</option>
+          <option value="Approved">تأیید داخلی</option>
+        </select>
+        <div className="invoice-register__search">
+          <div className="invoice-register__search-label">
+            <label htmlFor="invoice-list-search">جست‌وجو</label>
+            <div className="invoice-register__help-wrap">
+              <button type="button" className="invoice-register__help-trigger" aria-label="راهنمای فیلدهای قابل جست‌وجو" aria-expanded={searchHelpOpen} aria-controls="invoice-search-help" onClick={() => setSearchHelpOpen(v=>!v)}>?</button>
+              {searchHelpOpen && <div id="invoice-search-help" className="invoice-register__help-tooltip" role="tooltip">
+                جست‌وجو بر اساس نام خریدار یا فروشنده، شناسه ملی یا کد اقتصادی آن‌ها و شناسه سیستمی صورتحساب انجام می‌شود.
+              </div>}
+            </div>
+          </div>
+          <input id="invoice-list-search" type="search" value={search} maxLength={100}
+            onChange={e => {setSearch(e.target.value);setListPage(1);}} placeholder="نام خریدار، فروشنده، کد اقتصادی یا شناسه سیستمی" />
+        </div>
       </div>
       <div className="invoice-register__actions">
+        <button type="button" className="identity-secondary" disabled={loading}
+          onClick={()=>setBulkOpen(true)}>ورود گروهی صورتحساب‌ها</button>
         <button type="button" className="identity-secondary" disabled={loading}
           onClick={() => void reload()}>بازخوانی</button>
         <button ref={openButton} type="button" className="identity-primary"
@@ -409,19 +551,27 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
     </div>
     {error && !modal && <p role="alert" className="form-error">{error}</p>}
     {notice && <p role="status" className="auth-info">{notice}</p>}
-    <div className="console-table-scroll invoice-register__table-wrap">
+    <div className="console-table-scroll invoice-register__table-wrap" aria-busy={loading} style={{position:"relative",minHeight:"220px"}}>
+      {loading && <div className="argin-loader argin-loader-overlay invoice-register__loading" role="status" aria-live="polite">
+        <span className="argin-loader-spinner" aria-hidden="true" />
+        <strong>در حال بارگذاری صورتحساب‌ها…</strong>
+        <span className="argin-loader-subtitle">لطفاً تا دریافت اطلاعات منتظر بمانید</span>
+      </div>}
       <table className="console-table">
-        <thead><tr><th>شناسه</th>{isAdmin && <th>مشتری</th>}<th>مؤدی فروشنده</th><th>تاریخ صدور</th><th>موضوع</th>
+        <thead><tr><th>شناسه سیستمی</th>{isAdmin && <th>مشتری</th>}<th>مؤدی فروشنده</th><th>خریدار</th><th>تاریخ صدور</th><th>موضوع</th>
           <th>وضعیت داخلی</th><th>نسخه</th><th>عملیات</th></tr></thead>
-        <tbody>{loading ? <tr><td colSpan={isAdmin ? 8 : 7}>در حال دریافت…</td></tr> :
-          filtered.length === 0 ? <tr><td colSpan={isAdmin ? 8 : 7}>صورتحسابی برای نمایش وجود ندارد.</td></tr> :
+        <tbody>{filtered.length === 0 ? <tr><td colSpan={isAdmin ? 9 : 8}>صورتحسابی برای نمایش وجود ندارد.</td></tr> :
           filtered.map(item => <tr key={item.id}>
-            <td><bdi dir="ltr" title={item.id}>{item.id.slice(0,8)}…</bdi></td>
+            <td><button type="button" className="console-row-action" title="کپی شناسه برای پشتیبانی" disabled={!item.systemCode} onClick={() => {void navigator.clipboard.writeText(item.systemCode || "").then(()=>setNotice("شناسه سیستمی کپی شد."));}}><bdi dir="ltr">{item.systemCode || "در انتظار تخصیص"}</bdi> ⧉</button></td>
             {isAdmin && <td>{accounts.find(a=>a.customerUserId===item.customerUserId)?.companyName ||
               accounts.find(a=>a.customerUserId===item.customerUserId)?.personName || "حساب مشتری"}</td>}
-            <td>{taxpayers.find(t=>t.id===item.taxpayerId)?.displayName || "مؤدی ثبت‌شده"}</td>
+            <td>{item.sellerName || taxpayers.find(t=>t.id===item.taxpayerId)?.displayName || "مؤدی ثبت‌شده"}</td>
+            <td>{item.buyerName || "ثبت نشده"}</td>
             <td>{toFaDate(item.issueDateUtc)}</td><td>{item.subject}</td>
-            <td>{item.state === "WorkingDraft" ? "در حال تکمیل" : item.state === "Draft" ? "پیش‌نویس" : item.state}</td>
+            <td>{item.reviewState === "WorkingDraft" ? "در حال تکمیل" :
+              item.reviewState === "InReview" ? "در انتظار بازبینی" :
+              item.reviewState === "ChangesRequested" ? "نیازمند اصلاح" :
+              item.reviewState === "Approved" ? "تأیید داخلی" : "پیش‌نویس داخلی"}</td>
             <td>{item.revision}</td>
             <td>{item.kind === "workspace" ? <button type="button" className="console-row-action"
               onClick={() => void editDraft(item)}>ویرایش و ادامه</button> :
@@ -440,6 +590,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
           onClick={()=>setListPage(p=>p+1)}>بعدی</button>
       </div>
     </footer>
+    {bulkOpen && <BulkInvoiceImportPanel onClose={()=>setBulkOpen(false)} onChanged={()=>void reload()}/>}
     {detail && <div className="invoice-register__overlay" onMouseDown={e => {
       if (e.currentTarget === e.target) setDetail(null);
     }}>
@@ -451,10 +602,14 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
             aria-label="بستن جزئیات">×</button>
         </div>
         <dl className="invoice-register__totals">
-          <dt>شناسه داخلی</dt><dd dir="ltr">{detail.id}</dd>
+          <dt>شناسه سیستمی</dt><dd dir="ltr">{detail.systemCode || "در انتظار تخصیص"}</dd>
           <dt>تاریخ</dt><dd>{toFaDate(detail.issueDateUtc)}</dd>
           <dt>موضوع</dt><dd>{detail.subject}</dd>
-          <dt>وضعیت داخلی</dt><dd>{detail.state}</dd>
+          <dt>وضعیت بازبینی</dt><dd>{detail.reviewState === "Approved" ? "تأیید داخلی" :
+            detail.reviewState === "InReview" ? "در انتظار بازبینی" :
+            detail.reviewState === "ChangesRequested" ? "نیازمند اصلاح" :
+            detail.reviewState === "WorkingDraft" ? "در حال تکمیل" : "پیش‌نویس داخلی"}</dd>
+          <dt>وضعیت سند فاز ۷</dt><dd>{detail.state}</dd>
           <dt>نسخه</dt><dd>{detail.revision}</dd>
         </dl>
         <p className="field-hint">این وضعیت به معنی تأیید سازمان امور مالیاتی نیست.</p>
@@ -484,7 +639,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
               {isAdmin && <>
                 <label htmlFor="invoice-header-customer">مشتری نرم‌افزار</label>
                 <select id="invoice-header-customer" value={headerCustomer} required
-                  onChange={e=>{setHeaderCustomer(e.target.value);setTaxpayerId("");setBuyerId("");setBuyerQuery("");setBuyerOpen(false);}}>
+                  onChange={e=>{setHeaderCustomer(e.target.value);setTaxpayerId("");setMemoryId("");setHeaderOptions(null);setBuyerId("");setBuyerQuery("");setBuyerOpen(false);}}>
                   <option value="">انتخاب مشتری</option>
                   {accounts.map(a=><option key={a.customerUserId} value={a.customerUserId}>
                     {a.companyName || a.personName || "مشتری مجاز"}
@@ -493,10 +648,24 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
               </>}
               <label htmlFor="invoice-taxpayer">مؤدی صادرکننده / فروشنده</label>
               <select id="invoice-taxpayer" value={taxpayerId} required
-                onChange={e=>{setTaxpayerId(e.target.value);setBuyerId("");setBuyerQuery("");setBuyerOpen(false);}}>
+                onChange={e=>{setTaxpayerId(e.target.value);setMemoryId("");setHeaderOptions(null);setBuyerId("");setBuyerQuery("");setBuyerOpen(false);}}>
                 <option value="">انتخاب مؤدی فروشنده</option>
                 {visibleTaxpayers.map(t => <option key={t.id} value={t.id}>{t.displayName}</option>)}
               </select>
+              <label htmlFor="invoice-memory">حافظه مالیاتی فروشنده (در پیش‌نویس اختیاری)</label>
+              <select id="invoice-memory" value={memoryId} disabled={headerLoading || !headerOptions}
+                onChange={e=>setMemoryId(e.target.value)}>
+                <option value="">بدون انتخاب حافظه مالیاتی</option>
+                {(headerOptions?.memories ?? []).map(m=><option key={m.id} value={m.id}>
+                  {m.memoryIdentifier} — {m.status}
+                </option>)}
+              </select>
+              {headerLoading && <small role="status">در حال دریافت اطلاعات مؤدی و حافظه مالیاتی…</small>}
+              {headerError && <small role="alert" className="form-error">{headerError}</small>}
+              {headerOptions && <small className="invoice-register__hint">
+                شناسه ثبت‌شده مؤدی: <bdi dir="ltr">{headerOptions.taxpayer.normalizedIdentifier}</bdi>
+                {headerOptions.memories.length===0 ? " — حافظه مالیاتی ثبت نشده است." : ""}
+              </small>}
               <label htmlFor="invoice-buyer-search">خریدار ثبت‌شده</label>
               <div className="invoice-register__buyer">
                 <input id="invoice-buyer-search" type="search" value={buyerQuery}
@@ -541,53 +710,85 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
               <label htmlFor="invoice-hour">ساعت صدور (UTC)</label>
               <PersianTimePicker id="invoice-hour" value={hour} onChange={setHour} timeZoneLabel="UTC" />
               <label htmlFor="invoice-type">نوع صورتحساب</label>
-              <select id="invoice-type" value={invoiceType} onChange={e => {
+              <select id="invoice-type" disabled={!formMetadata || busy} value={invoiceType} onChange={e => {
                 const next = Number(e.target.value);
-                setInvoiceType(next); setPattern(patterns[next][0].code);
+                setInvoiceType(next);
+                setPattern(formMetadata?.entries.find(p=>p.type===next)?.pattern ?? 1);
               }}><option value={1}>نوع اول</option><option value={2}>نوع دوم</option></select>
               <label htmlFor="invoice-pattern">الگوی صورتحساب</label>
-              <select id="invoice-pattern" value={pattern}
+              <select id="invoice-pattern" disabled={!formMetadata || busy} value={pattern}
                 onChange={e => setPattern(Number(e.target.value))}>
-                {patterns[invoiceType].map(p => <option key={p.code} value={p.code}>{p.title}</option>)}
+                {(formMetadata?.entries.filter(p=>p.type===invoiceType && p.pattern!==null) ?? []).map(p =>
+                  <option key={p.pattern} value={p.pattern!}>{({1:"فروش",2:"فروش ارز",3:"طلا و جواهر",4:"پیمانکاری",5:"قبوض خدماتی",6:"بلیت هواپیما",7:"صادرات",8:"بارنامه",9:"فرآورده‌های نفتی",11:"بورس کالا",13:"خدمات بیمه‌ای",14:"فروش زنجیره"} as Record<number,string>)[p.pattern!] ?? ("الگوی "+p.pattern)}</option>)}
               </select>
+              {(formMetadata?.entries.find(p=>p.type===invoiceType && p.pattern===pattern)?.requiredFields ?? []).flatMap(field =>
+                field==="goldFields" ? ["goldConstructionFeeRial","goldSellerProfitRial","goldCommissionRial","goldTotalFeeProfitRial"] : [field]
+              ).map(field => <div key={field} className="invoice-register__conditional-field">
+                <label htmlFor={"invoice-conditional-"+field}>{({
+                  contractNumber:"شماره قرارداد",serviceBillId:"شناسه قبض خدماتی",flightType:"نوع پرواز",
+                  goldConstructionFeeRial:"اجرت ساخت (ریال)",goldSellerProfitRial:"سود فروشنده (ریال)",
+                  goldCommissionRial:"حق‌العمل (ریال)",goldTotalFeeProfitRial:"جمع اجرت و سود و حق‌العمل (ریال)"
+                } as Record<string,string>)[field]}</label>
+                {field==="flightType" ?
+                  <select id={"invoice-conditional-"+field} value={conditionalFields[field] ?? ""}
+                    onChange={e=>setConditionalFields(old=>({...old,[field]:e.target.value}))}>
+                    <option value="">انتخاب کنید</option><option value="1">داخلی</option><option value="2">خارجی</option>
+                  </select> :
+                  <input id={"invoice-conditional-"+field} dir="ltr" inputMode="numeric"
+                    value={conditionalFields[field] ?? ""} maxLength={field==="contractNumber"?12:field==="serviceBillId"?19:20}
+                    onChange={e=>setConditionalFields(old=>({...old,[field]:e.target.value}))} />}
+              </div>)}
+              {formMetadataError && <p role="alert" className="form-error">{formMetadataError}</p>}
+              {formMetadata && <p className="invoice-register__hint">قواعد انتخاب الگو: {formMetadata.edition} — صرفاً اعتبارسنجی داخلی؛ مجوز ارسال به سامانه مودیان نیست.</p>}
+              {(formMetadata?.entries.find(p=>p.type===invoiceType && p.pattern===pattern)?.requiredFields.length ?? 0)>0 &&
+                <p role="status" className="invoice-register__hint">این الگو به فیلدهای تکمیلی اختصاصی نیاز دارد؛ تکمیل و اعتبارسنجی آن‌ها در مراحل بعدی فرم انجام خواهد شد.</p>}
               <p className="invoice-register__hint">اطلاعات مرحله‌ای در پیش‌نویس خصوصی ذخیره می‌شوند؛ ثبت خریدار را می‌توانید بعداً تکمیل کنید. این پیش‌نویس مجوز ارسال مالیاتی ندارد.</p>
             </section>}
             {step === 1 && <section aria-label="اقلام صورتحساب">
-              <p className="invoice-register__hint">ردیف‌های این مرحله در پیش‌نویس قابل‌ویرایش ذخیره می‌شوند؛ پیش از صدور مالیاتی به اعتبارسنجی رسمی نیاز دارند.</p>
-              <div className="invoice-register__row-tools">
+              <div className="invoice-register__row-tools" style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:8}}>
                 <label htmlFor="invoice-kind">نوع قلم</label>
-                <select id="invoice-kind" value={kind}
-                  onChange={e => setKind(e.target.value as "products"|"services")}>
+                <select id="invoice-kind" value={kind} onChange={e=>setKind(e.target.value as "products"|"services")} style={{maxWidth:125}}>
                   <option value="products">کالا</option><option value="services">خدمت</option>
                 </select>
+                <button type="button" className="identity-secondary" onClick={()=>setImportOpen(true)} disabled={busy}>
+                  <span aria-hidden="true">↥ </span>ورود از فایل
+                </button>
+                <button type="button" className="identity-secondary" onClick={()=>addRow()} disabled={busy}>+ ردیف جدید</button>
+                <strong style={{marginInlineStart:"auto"}}>اقلام ({rows.length})</strong>
               </div>
-              <div className="invoice-register__catalog-picker">
+              <div className="invoice-register__catalog-picker" style={{marginBottom:8}}>
                 <label htmlFor="invoice-catalog-search">انتخاب کالا / خدمت</label>
                 <SearchableCatalogPicker items={catalog} value={catalogQuery}
-                  onQueryChange={setCatalogQuery} loading={catalogBusy}
-                  onChoose={addRow}/>
+                  onQueryChange={setCatalogQuery} loading={catalogBusy} onChoose={addRow}/>
               </div>
-              <div className="invoice-register__row-heading">
-                <h3>ردیف‌های صورتحساب ({rows.length})</h3>
-                <button type="button" className="identity-secondary" onClick={() => addRow()}>
-                  + ردیف جدید</button>
+              {importOpen && <InvoiceImportPanel disabled={busy} onImport={applyImportedRows}
+                onClose={()=>setImportOpen(false)}/>}
+              <div className="console-table-scroll" style={{maxHeight:"min(48vh,440px)",overflow:"auto",border:"1px solid var(--border,#d3dce0)",borderRadius:8}}>
+                <table className="console-table" style={{width:"100%",minWidth:770,tableLayout:"fixed",borderCollapse:"separate",borderSpacing:0}}>
+                  <thead style={{position:"sticky",top:0,zIndex:1,background:"var(--surface,#fff)"}}>
+                    <tr><th style={{width:44}}>ردیف</th><th style={{width:"28%"}}>شرح کالا یا خدمت</th>
+                    <th>مقدار</th><th>فی واحد (ریال)</th><th>تخفیف واحد</th><th>VAT (%)</th><th style={{width:56}}>عملیات</th></tr>
+                  </thead>
+                  <tbody>{rows.length===0?<tr><td colSpan={7}>هنوز ردیفی اضافه نشده است.</td></tr>:
+                    rows.map((row,index)=><tr key={row.key}>
+                      <td>{index+1}</td>
+                      <td><input aria-label={"شرح ردیف "+(index+1)} title={row.productId?("کد ثبت‌شده: "+(row.catalogCodeSnapshot||"—")):""}
+                        style={{width:"100%",minWidth:0}} value={row.name} maxLength={256}
+                        onChange={e=>updateRow(row.key,{name:e.target.value})}/></td>
+                      <td><input aria-label={"مقدار ردیف "+(index+1)} style={{width:"100%",minWidth:0}} dir="ltr" type="number" min="0.00000001" step="any"
+                        value={row.quantity} onChange={e=>updateRow(row.key,{quantity:e.target.value})}/></td>
+                      <td><input aria-label={"قیمت واحد ردیف "+(index+1)} style={{width:"100%",minWidth:0}} dir="ltr" type="number" min="0" step="any"
+                        value={row.unitPrice} onChange={e=>updateRow(row.key,{unitPrice:e.target.value})}/></td>
+                      <td><input aria-label={"تخفیف ردیف "+(index+1)} style={{width:"100%",minWidth:0}} dir="ltr" type="number" min="0" step="any"
+                        value={row.discount} onChange={e=>updateRow(row.key,{discount:e.target.value})}/></td>
+                      <td><input aria-label={"VAT ردیف "+(index+1)} style={{width:"100%",minWidth:0}} dir="ltr" type="number" min="0" step="any"
+                        value={row.vatRate} onChange={e=>updateRow(row.key,{vatRate:e.target.value})}/></td>
+                      <td><button type="button" aria-label={"حذف ردیف "+(index+1)} title="حذف ردیف"
+                        className="console-row-action" style={{padding:"4px 7px"}} disabled={busy}
+                        onClick={()=>setRows(current=>current.filter(x=>x.key!==row.key))}>×</button></td>
+                    </tr>)}</tbody>
+                </table>
               </div>
-              {rows.length === 0 ? <p className="identity-muted">هنوز ردیفی اضافه نشده است.</p> :
-                rows.map((row,index) => <div className="invoice-register__item" key={row.key}>
-                  <strong>ردیف {index+1}</strong>
-                  <label>شرح<input value={row.name} maxLength={256}
-                    onChange={e => updateRow(row.key,{name:e.target.value})}/></label>
-                  <label>مقدار<input dir="ltr" type="number" min="0.00000001" step="any"
-                    value={row.quantity} onChange={e => updateRow(row.key,{quantity:e.target.value})}/></label>
-                  <label>فی واحد (ریال)<input dir="ltr" type="number" min="0" step="any"
-                    value={row.unitPrice} onChange={e => updateRow(row.key,{unitPrice:e.target.value})}/></label>
-                  <label>تخفیف واحد<input dir="ltr" type="number" min="0" step="any"
-                    value={row.discount} onChange={e => updateRow(row.key,{discount:e.target.value})}/></label>
-                  <label>نرخ VAT (%)<input dir="ltr" type="number" min="0" step="any"
-                    value={row.vatRate} onChange={e => updateRow(row.key,{vatRate:e.target.value})}/></label>
-                  <button type="button" className="identity-secondary"
-                    onClick={() => setRows(current => current.filter(x => x.key !== row.key))}>حذف ردیف</button>
-                </div>)}
               <p className="field-hint">برای مدیریت کاتالوگ به <Link href="/catalog">کالاها و خدمات</Link> مراجعه کنید.</p>
             </section>}
             {step === 2 && <section aria-label="مرور نهایی و تسویه صورتحساب"
@@ -603,7 +804,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
                     <dt>مؤدی / فروشنده</dt>
                     <dd>{visibleTaxpayers.find(t=>t.id===taxpayerId)?.displayName || "مؤدی انتخاب‌شده"}</dd>
                     <dt>خریدار</dt><dd>{buyerQuery || "هنوز انتخاب نشده"}</dd>
-                    <dt>تاریخ و زمان</dt><dd dir="ltr">{date} {hour} UTC</dd>
+                    <dt>تاریخ و زمان</dt><dd>{new Intl.DateTimeFormat("fa-IR-u-ca-persian",{timeZone:"Asia/Tehran",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).format(new Date(date+"T"+hour+":00Z"))}</dd>
                     <dt>نوع و الگو</dt><dd>نوع {invoiceType} · الگوی {pattern}</dd>
                     <dt>تعداد ردیف‌ها</dt><dd>{rows.length}</dd>
                   </dl>
@@ -645,6 +846,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
                     value={fmt(creditPreview)} readOnly aria-readonly="true" />
                 </div>
               </div>
+              {settlement===0 && <p role="status" className="field-hint">برای تکمیل مرحله نهایی، روش تسویه را مشخص کنید؛ ذخیره پیش‌نویس همچنان مجاز است.</p>}
               {settlementError && <p role="alert" className="form-error">
                 برای تسویه نقدی و نسیه، مبلغ نقدی باید مثبت و کمتر از مبلغ صورتحساب باشد.
               </p>}
@@ -656,9 +858,11 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
                   placeholder="توضیحات، توافقات یا شرح تکمیلی فاکتور (اختیاری)"/>
                 <small>{invoiceDescription.length} / ۱۵۰۰ نویسه</small>
               </div>
+              {editing && <InvoiceHistoryPanel workspaceId={editing.id}/>}
               {editing && <InvoiceValidationPanel
                 draftId={editing.id} taxpayerId={editing.taxpayerId}
-                revision={editing.revision} dirty={validationDirty}/>}
+                revision={editing.revision} dirty={validationDirty}
+                onSave={()=>saveWorkspace(step===2 && settlement===0 ? 1 : step,false,false,true)}/>}
               <p className="invoice-register__hint">
                 توضیحات و تسویه در پیش‌نویس قابل‌ویرایش ذخیره می‌شوند.
                 مبالغ مالیاتی و روش تسویه قبل از صدور رسمی باید در سرویس اعتبارسنجی
@@ -668,7 +872,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
           </div>
           <footer className="invoice-register__dialog-footer">
             <button type="button" className="identity-secondary" disabled={busy || !taxpayerId}
-              onClick={() => void saveWorkspace(step,true)}>ذخیره و ادامه بعداً</button>
+              onClick={() => void saveWorkspace(step===2 && settlement===0 ? 1 : step,true)}>ذخیره و ادامه بعداً</button>
             {step===0 && !buyerId && <button type="button" className="identity-secondary"
               disabled={busy || !taxpayerId} onClick={() => void saveWorkspace(0,true,true)}>
                 ذخیره و ثبت خریدار</button>}
@@ -680,7 +884,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
               disabled={busy || step === 0 && (!taxpayerId || !headerCustomer || !date)}
               onClick={nextStep}>مرحله بعد</button> :
               <button type="button" className="identity-primary"
-                disabled={busy || !taxpayerId || settlementError}
+                disabled={busy || !taxpayerId || settlementError || settlement===0}
                 onClick={() => void saveWorkspace(2,true)}>
                 {busy ? "در حال ذخیره…" : "ذخیره مراحل و خروج"}</button>}
           </footer>

@@ -36,7 +36,7 @@ test("wizard has header, repeatable item rows and totals sections", () => {
   assert.match(workspace, /step === 1/);
   assert.match(workspace, /step === 2/);
   assert.match(workspace, /setRows\(current => current\.concat/);
-  assert.match(workspace, /setRows\(current => current\.filter/);
+  assert.match(workspace, /setRows\(current\s*=>\s*current\.filter/);
   assert.match(workspace, /vatRate/);
   assert.match(workspace, /calculated\.total/);
 });
@@ -49,7 +49,7 @@ test("wizard persists editable private drafts and supports later resumption", ()
   assert.match(workspace, /ویرایش و ادامه/);
   assert.match(workspace, /ذخیره و ادامه بعداً/);
   assert.match(workspace, /ذخیره و ثبت خریدار/);
-  assert.match(workspace, /lastCompletedStep:completeStep/);
+  assert.match(workspace, /lastCompletedStep:persistedStep/);
   assert.match(workspace, /buyerPartyId:buyerId \|\| null/);
   assert.match(workspace, /lines:rows\.map/);
   assert.match(workspace, /بدون ارسال مالیاتی/);

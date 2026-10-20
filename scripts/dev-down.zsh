@@ -25,7 +25,7 @@ stop_service_listeners() {
   done
 }
 
-for service in web api autossh; do
+for service in web api adminer autossh; do
   pidfile="$STATE/$service.pid"
   if [[ -f "$pidfile" ]]; then
     pid="$(< "$pidfile")"
@@ -42,5 +42,6 @@ done
 stop_service_listeners 15089 'ArginTaxPayer.Api'
 stop_service_listeners 3000 'next-server'
 stop_service_listeners 15432 'autossh'
+# Adminer forward uses the dedicated PID file; never kill an unrelated listener on 18081.
 
 print 'All tracked ArginTaxPayer development launchers were signaled to stop.'
