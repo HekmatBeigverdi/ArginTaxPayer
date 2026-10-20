@@ -6,8 +6,8 @@ const specs=[
  ["description","شرح کالا/خدمت"],["quantity","مقدار"],["unitPrice","قیمت واحد (ریال)"],
  ["discount","تخفیف واحد (ریال)"],["vatRate","نرخ VAT (درصد)"]
 ] as const;
-export default function InvoiceImportPanel({onImport,disabled}:{
- onImport:(rows:ImportValues[])=>void;disabled:boolean
+export default function InvoiceImportPanel({onImport,disabled,onClose}:{
+ onImport:(rows:ImportValues[])=>void;disabled:boolean;onClose:()=>void
 }){
  const [matrix,setMatrix]=useState<string[][]>([]);
  const [mapping,setMapping]=useState<ImportMapping>({});
@@ -44,7 +44,11 @@ export default function InvoiceImportPanel({onImport,disabled}:{
   }catch(e){setError((e as Error).message);}
   finally{setBusy(false);}
  }
- return <section aria-label="ورود آزمایشی ردیف‌های صورتحساب" className="invoice-register__fields">
+ return <div className="invoice-register__overlay" onMouseDown={e=>{if(e.currentTarget===e.target&&!busy)onClose();}}>
+ <div className="invoice-register__detail-modal" role="dialog" aria-modal="true" aria-label="ورود ردیف‌ها از فایل" dir="rtl"
+  style={{width:"min(900px,96vw)",maxHeight:"90vh",overflowY:"auto"}}>
+ <header className="invoice-register__dialog-header"><h2>ورود ردیف‌ها از فایل</h2><button type="button" className="identity-secondary" disabled={busy} onClick={onClose}>× بستن</button></header>
+ <section aria-label="ورود آزمایشی ردیف‌های صورتحساب" className="invoice-register__fields" style={{padding:16}}>
   <h3>ورود ردیف‌ها از CSV / Excel</h3>
   <p className="field-hint">ابتدا فایل را پیش‌نمایش و ستون‌ها را نگاشت کنید. در این گام هیچ اطلاعاتی مستقیماً در دیتابیس ثبت نمی‌شود. فقط با تأیید شما، ردیف‌های معتبر به فرم اضافه می‌شوند.</p>
   <input ref={fileInput} id="invoice-import-file" className="console-file-visually-hidden"
@@ -95,9 +99,9 @@ export default function InvoiceImportPanel({onImport,disabled}:{
    </div>
    <button type="button" className="identity-secondary"
     disabled={disabled||busy||invalid>0||previews.items.length===0}
-    onClick={()=>{onImport(previews.items.map(x=>x.values));setMatrix([]);setFilename("");}}>
+    onClick={()=>{onImport(previews.items.map(x=>x.values));setMatrix([]);setFilename("");onClose();}}>
     افزودن ردیف‌های پیش‌نمایش‌شده به فرم</button>
    </>}
   </>}
- </section>;
+ </section></div></div>;
 }
