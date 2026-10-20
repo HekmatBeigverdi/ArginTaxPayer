@@ -288,7 +288,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
       if (before instanceof HTMLElement && before.isConnected) before.focus();
       else openButton.current?.focus();
     };
-  }, [modal, busy]);
+  }, [modal, busy, importOpen]);
 
   function open() {
     setEditing(null);
