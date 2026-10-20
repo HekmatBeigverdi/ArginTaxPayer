@@ -4,7 +4,7 @@ import {useEffect,useState} from "react";
 type Line={description:string;quantity:number;unitPriceRial:number;discountPerUnitRial:number;vatRatePercent:number|null};
 type Draft={id:string;revision:number;taxpayerId:string;lastCompletedStep:number;buyerDisplayName:string|null;
   issueDateUtc:string;lines:Line[];financialSummary:{grossRial:number;discountRial:number;previewVatRial:number;previewGrandTotalRial:number};
-  internalReviewState:string|null;internalReviewReason:string|null};
+  internalReviewState:string|null;internalReviewReason:string|null;submittedByUserId:string|null};
 type Finding={key:string;severity:string;message:string;fieldPath:string};
 type Validation={revision:number;findings:Finding[];isSubmissionAuthorized:boolean;edition:string};
 async function fetchJson<T>(path:string,init?:RequestInit):Promise<T>{
@@ -13,8 +13,8 @@ async function fetchJson<T>(path:string,init?:RequestInit):Promise<T>{
   "برای تأیید یا بازگرداندن این پیش‌نویس مجوز ندارید.":"عملیات انجام نشد (HTTP "+res.status+").");
  return res.json() as Promise<T>;
 }
-export default function InternalReviewPanel({id,onClose,onChanged}:{
-  id:string;onClose:()=>void;onChanged:()=>void
+export default function InternalReviewPanel({id,onClose,onChanged,isAdmin,actorId}:{
+  id:string;onClose:()=>void;onChanged:()=>void;isAdmin:boolean;actorId:string
 }){
  const [draft,setDraft]=useState<Draft|null>(null);
  const [validation,setValidation]=useState<Validation|null>(null);
@@ -71,7 +71,7 @@ export default function InternalReviewPanel({id,onClose,onChanged}:{
       <h3>گزارش پیش‌اعتبارسنجی {validation?.edition}</h3>
       <p>{failures.length} خطا · {validation?.findings.filter(x=>x.severity==="warning").length??0} هشدار</p>
       <ul>{validation?.findings.map((v,i)=><li key={i}><strong>{v.severity==="error"?"خطا":"هشدار"}:</strong> {v.message}</li>)}</ul>
-      {state==="InReview" && <>
+      {state==="InReview" && isAdmin && draft.submittedByUserId!==actorId && <>
        <label htmlFor="internal-review-reason">علت بازگرداندن برای اصلاح</label>
        <textarea id="internal-review-reason" maxLength={1000} rows={2} value={reason} onChange={e=>setReason(e.target.value)}/>
       </>}
@@ -79,7 +79,7 @@ export default function InternalReviewPanel({id,onClose,onChanged}:{
        {(state==="Draft"||state==="ChangesRequested")&&<button type="button" className="identity-primary"
         disabled={busy||draft.lastCompletedStep!==2||failures.length>0}
         onClick={()=>void act("submit")}>ارسال برای بازبینی داخلی</button>}
-       {state==="InReview"&&<>
+       {state==="InReview" && isAdmin && draft.submittedByUserId!==actorId &&<>
         <button type="button" disabled={busy||failures.length>0} className="identity-primary" onClick={()=>void act("approve")}>تأیید داخلی</button>
         <button type="button" disabled={busy||!reason.trim()} className="identity-secondary" onClick={()=>void act("return")}>بازگرداندن برای اصلاح</button>
        </>}
