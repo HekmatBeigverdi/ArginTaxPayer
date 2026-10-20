@@ -123,6 +123,23 @@ public sealed record InvoiceEntryView(Guid Id, Guid CustomerUserId, Guid Taxpaye
 public sealed record InvoiceEntryResult(InvoiceApiDecision Decision, InvoiceEntryView? Draft = null,
     bool Replayed = false);
 
+public static class InvoiceBulkIdentity
+{
+    public static Guid StableWorkspaceId(Guid customerId, string importKey) =>
+        new(SHA256.HashData(Encoding.UTF8.GetBytes(
+            customerId.ToString("N")+":"+importKey)).AsSpan(0,16));
+
+    public static string Fingerprint(SaveInvoiceEntryRequest input) =>
+        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
+            JsonSerializer.Serialize(input with {
+                Id = null, ExpectedRevision = 0, BuyerDisplayName = null,
+                BulkFingerprint = null, InternalReviewState = null,
+                InternalReviewReason = null, SubmittedByUserId = null,
+                ReviewedByUserId = null, ReviewedAtUtc = null
+            })))).ToLowerInvariant();
+}
+
+
 /// <summary>
 /// Draft only, no issuance; authorization is checked on every read/write.
 /// JSON is canonicalized from typed server-validated values, not trusted raw input.
@@ -302,16 +319,9 @@ public sealed class InvoiceEntryWorkspaceService(
                 c is not '-' and not '_' and not ':')))
             return new(InvoiceApiDecision.Invalid);
         var fingerprint = input.BulkImportKey is null ? null :
-            Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
-                JsonSerializer.Serialize(input with {
-                    Id = null, ExpectedRevision = 0, BuyerDisplayName = null,
-                    BulkFingerprint = null, InternalReviewState = null,
-                    InternalReviewReason = null, SubmittedByUserId = null,
-                    ReviewedByUserId = null, ReviewedAtUtc = null
-                })))).ToLowerInvariant();
+            InvoiceBulkIdentity.Fingerprint(input);
         Guid? importId = input.BulkImportKey is null ? null :
-            new Guid(SHA256.HashData(Encoding.UTF8.GetBytes(
-                access.Item2.ToString("N")+":"+input.BulkImportKey)).AsSpan(0,16));
+            InvoiceBulkIdentity.StableWorkspaceId(access.Item2,input.BulkImportKey);
         if (importId is { } existingImportId)
         {
             var prior = await db.InvoiceEntryWorkspaces.AsNoTracking()
