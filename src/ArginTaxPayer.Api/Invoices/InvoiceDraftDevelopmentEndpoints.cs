@@ -96,6 +96,16 @@ public static class InvoiceDraftDevelopmentEndpoints
                 ? Results.Ok(result.Drafts) : Error(result.Decision);
         }).WithTags("Resumable Invoice Drafts (Development)");
 
+        app.MapPost("/api/dev/invoice-workspaces/{id:guid}/review", async (
+            Guid id, [FromBody] InvoiceEntryWorkspaceService.ReviewCommand command,
+            HttpContext http, InvoiceEntryWorkspaceService service, CancellationToken ct) =>
+        {
+            if (!Local(http)) return Results.NotFound();
+            var outcome = await service.ReviewAsync(Token(http),id,command,ct);
+            return outcome.Decision == InvoiceApiDecision.Success
+                ? Results.Ok(outcome.Draft) : Error(outcome.Decision);
+        }).WithTags("Internal Invoice Review (Development)");
+
         app.MapGet("/api/dev/invoice-workspaces/{id:guid}", async (
             Guid id,HttpContext http,InvoiceEntryWorkspaceService service,CancellationToken ct) =>
         {
