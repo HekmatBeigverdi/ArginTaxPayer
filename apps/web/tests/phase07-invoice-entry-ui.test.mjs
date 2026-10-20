@@ -36,7 +36,7 @@ test("wizard has header, repeatable item rows and totals sections", () => {
   assert.match(workspace, /step === 1/);
   assert.match(workspace, /step === 2/);
   assert.match(workspace, /setRows\(current => current\.concat/);
-  assert.match(workspace, /setRows\(current => current\.filter/);
+  assert.match(workspace, /setRows\(current\s*=>\s*current\.filter/);
   assert.match(workspace, /vatRate/);
   assert.match(workspace, /calculated\.total/);
 });
