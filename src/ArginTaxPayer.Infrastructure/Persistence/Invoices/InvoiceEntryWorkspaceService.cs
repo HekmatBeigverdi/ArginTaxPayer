@@ -1,6 +1,7 @@
 using System.Text.Json;
 using ArginTaxPayer.Domain.Invoices;
 using ArginTaxPayer.Infrastructure.Persistence.Parties;
+using ArginTaxPayer.Infrastructure.Persistence.Identity;
 using ArginTaxPayer.Infrastructure.Persistence.Taxpayers;
 using Microsoft.EntityFrameworkCore;
 
@@ -84,7 +85,9 @@ public sealed record SaveInvoiceEntryRequest(Guid? Id, Guid TaxpayerId, long Exp
     string? ContractNumber = null, string? ServiceBillId = null, int? FlightType = null,
     decimal? GoldConstructionFeeRial = null, decimal? GoldSellerProfitRial = null,
     decimal? GoldCommissionRial = null, decimal? GoldTotalFeeProfitRial = null,
-    Guid? FiscalMemoryId = null);
+    Guid? FiscalMemoryId = null, string? InternalReviewState = null,
+    string? InternalReviewReason = null, Guid? SubmittedByUserId = null,
+    Guid? ReviewedByUserId = null, DateTime? ReviewedAtUtc = null);
 public sealed record InvoiceEntryView(Guid Id, Guid CustomerUserId, Guid TaxpayerId, long Revision,
     int LastCompletedStep, DateTime IssueDateUtc, DateTime UpdatedAtUtc,
     Guid? BuyerPartyId, int Type, int Pattern, InvoiceEntryLine[] Lines,
@@ -190,7 +193,9 @@ public sealed class InvoiceEntryWorkspaceService(
             InvoiceDraftSettlementPolicy.Calculate(value.Lines ?? []),
             value.ContractNumber,value.ServiceBillId,value.FlightType,
             value.GoldConstructionFeeRial,value.GoldSellerProfitRial,
-            value.GoldCommissionRial,value.GoldTotalFeeProfitRial,value.FiscalMemoryId);
+            value.GoldCommissionRial,value.GoldTotalFeeProfitRial,value.FiscalMemoryId,
+            value.InternalReviewState,value.InternalReviewReason,value.SubmittedByUserId,
+            value.ReviewedByUserId,value.ReviewedAtUtc);
     }
 
     public async Task<InvoiceEntryResult> SaveAsync(string? token,
@@ -265,9 +270,13 @@ public sealed class InvoiceEntryWorkspaceService(
         }
 
         var now = DateTime.UtcNow;
+        // A draft edit always invalidates a prior internal approval. Review
+        // metadata is server-owned and may never be forged through the save API.
         var json = JsonSerializer.Serialize(input with {
             Id = null, ExpectedRevision = 0, BuyerDisplayName = selectedBuyerName,
-            Lines = canonicalLines.ToArray()
+            Lines = canonicalLines.ToArray(), InternalReviewState = "Draft",
+            InternalReviewReason = null, SubmittedByUserId = null,
+            ReviewedByUserId = null, ReviewedAtUtc = null
         });
         if (input.Id is null)
         {
@@ -297,6 +306,74 @@ public sealed class InvoiceEntryWorkspaceService(
         var saved = await db.InvoiceEntryWorkspaces.AsNoTracking()
             .SingleAsync(x => x.Id == input.Id && x.CustomerUserId == access.Item2,ct);
         return new(InvoiceApiDecision.Success,View(saved));
+    }
+
+    public sealed record ReviewCommand(long ExpectedRevision, string Action, string? Reason);
+
+    public async Task<InvoiceEntryResult> ReviewAsync(string? token, Guid workspaceId,
+        ReviewCommand command, CancellationToken ct = default)
+    {
+        var principal = await scope.ResolveAsync(token,ct);
+        if (principal.Decision == TaxpayerScopeDecision.Unauthenticated)
+            return new(InvoiceApiDecision.Unauthenticated);
+        if (principal.Decision != TaxpayerScopeDecision.Allowed)
+            return new(InvoiceApiDecision.Forbidden);
+        if (workspaceId == Guid.Empty || command is null || command.ExpectedRevision < 1 ||
+            command.Action is not ("submit" or "approve" or "return") ||
+            command.Reason is { Length: > 1000 } ||
+            command.Reason?.Any(char.IsControl) == true ||
+            command.Action == "return" && string.IsNullOrWhiteSpace(command.Reason))
+            return new(InvoiceApiDecision.Invalid);
+        var allowed = scope.ScopedQuery(principal.ActorId,principal.Level1).Select(t=>t.Id);
+        var row = await db.InvoiceEntryWorkspaces.AsNoTracking()
+            .SingleOrDefaultAsync(w=>w.Id==workspaceId && allowed.Contains(w.TaxpayerId),ct);
+        if (row is null) return new(InvoiceApiDecision.NotFound);
+        if (row.Revision != command.ExpectedRevision) return new(InvoiceApiDecision.Conflict);
+        var draft = JsonSerializer.Deserialize<SaveInvoiceEntryRequest>(row.DraftJson);
+        if (draft is null) return new(InvoiceApiDecision.Invalid);
+        var current = draft.InternalReviewState ?? "Draft";
+        if (command.Action == "submit" && current is not ("Draft" or "ChangesRequested") ||
+            command.Action != "submit" && current != "InReview")
+            return new(InvoiceApiDecision.Invalid);
+        if (command.Action == "submit" && (row.LastCompletedStep != 2 ||
+            draft.BuyerPartyId is null || draft.Lines is not { Length: > 0 } ||
+            draft.SettlementMethod == InvoiceDraftSettlementMethod.Unknown ||
+            draft.Lines.Any(l=>l.Quantity<=0 || string.IsNullOrWhiteSpace(l.Description))))
+            return new(InvoiceApiDecision.Invalid);
+        if (command.Action != "submit")
+        {
+            // Internal approval is only available to a current authorized
+            // administrator, never to a submitting customer or the same actor.
+            var reviewer = await db.IdentityUsers.AsNoTracking().AnyAsync(u=>
+                u.Id==principal.ActorId && u.IsActive &&
+                db.IdentityMfaStates.Any(m=>m.UserId==u.Id && m.EnabledAtUtc != null) &&
+                u.Roles.Any(role=>role.Role==IdentityRoleNames.Level1 ||
+                    role.Role==IdentityRoleNames.Level2),ct);
+            if (!reviewer || draft.SubmittedByUserId == principal.ActorId)
+                return new(InvoiceApiDecision.Forbidden);
+        }
+        var state = command.Action switch {
+            "submit" => "InReview", "approve" => "Approved", _ => "ChangesRequested"
+        };
+        var now = DateTime.UtcNow;
+        var next = draft with {
+            InternalReviewState = state,
+            InternalReviewReason = command.Action=="return" ? command.Reason!.Trim() : null,
+            SubmittedByUserId = command.Action=="submit" ? principal.ActorId : draft.SubmittedByUserId,
+            ReviewedByUserId = command.Action=="submit" ? null : principal.ActorId,
+            ReviewedAtUtc = command.Action=="submit" ? null : now
+        };
+        var json = JsonSerializer.Serialize(next);
+        var changed = await db.InvoiceEntryWorkspaces.Where(w=>w.Id==workspaceId &&
+                w.CustomerUserId==row.CustomerUserId &&
+                w.TaxpayerId==row.TaxpayerId &&
+                w.Revision==command.ExpectedRevision)
+            .ExecuteUpdateAsync(u=>u.SetProperty(x=>x.DraftJson,json)
+                .SetProperty(x=>x.Revision,x=>x.Revision+1)
+                .SetProperty(x=>x.UpdatedAtUtc,now),ct);
+        if (changed!=1) return new(InvoiceApiDecision.Conflict);
+        row.DraftJson=json;row.Revision++;row.UpdatedAtUtc=now;
+        return new(InvoiceApiDecision.Success,View(row));
     }
 
     public async Task<InvoiceEntryResult> GetAsync(string? token,Guid id,
