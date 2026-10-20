@@ -6,6 +6,7 @@ import { PersianDatePicker } from "../catalog/persian-date-picker";
 import { PersianTimePicker } from "../components/persian-time-picker";
 import SearchableCatalogPicker from "./searchable-catalog-picker";
 import InvoiceValidationPanel from "./invoice-validation-panel";
+import InvoiceHistoryPanel from "./invoice-history-panel";
 import {invoicePreview} from "./invoice-financial-preview.mjs";
 
 type Taxpayer = { id: string; displayName: string; status: number };
@@ -833,6 +834,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
                   placeholder="توضیحات، توافقات یا شرح تکمیلی فاکتور (اختیاری)"/>
                 <small>{invoiceDescription.length} / ۱۵۰۰ نویسه</small>
               </div>
+              {editing && <InvoiceHistoryPanel workspaceId={editing.id}/>}
               {editing && <InvoiceValidationPanel
                 draftId={editing.id} taxpayerId={editing.taxpayerId}
                 revision={editing.revision} dirty={validationDirty}
