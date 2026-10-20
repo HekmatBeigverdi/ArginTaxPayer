@@ -22,7 +22,10 @@ export default function SearchableCatalogPicker({
   },[open]);
   const [active,setActive] = useState(0);
   const selected = items[active];
-  return <div className="invoice-register__catalog-combo" ref={root}>
+  return <div className="invoice-register__catalog-combo" ref={root}
+    onKeyDown={event=>{if(event.key==="Escape" && open){
+      event.preventDefault();event.stopPropagation();setOpen(false);
+    }}}>
     <input type="search" role="combobox" id="invoice-catalog-search"
       autoComplete="off" aria-autocomplete="list"
       aria-expanded={open} aria-controls="invoice-catalog-options"
