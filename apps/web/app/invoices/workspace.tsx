@@ -43,7 +43,7 @@ type Settlement = 0 | 1 | 2 | 3;
 const errorCodes: Record<number, string> = {
   400: "ورودی پیش‌نویس معتبر نیست.", 401: "نشست منقضی شده است؛ دوباره وارد شوید.",
   403: "برای این پرونده دسترسی ندارید.", 404: "مؤدی یا صورتحساب یافت نشد.",
-  409: "تغییر هم‌زمان رخ داده است؛ فهرست را بازخوانی کنید.",
+  409: "نسخه این پیش‌نویس در محل دیگری تغییر کرده است. برای جلوگیری از بازنویسی اطلاعات، ذخیره انجام نشد؛ پیش‌نویس را دوباره باز کنید.",
   503: "سرویس فعلاً در دسترس نیست."
 };
 
@@ -90,6 +90,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState<SavedEntry | null>(null);
   const [step, setStep] = useState<Step>(0);
+  const [savedSnapshot,setSavedSnapshot] = useState<string | null>(null);
   const dialog = useRef<HTMLDivElement>(null);
   const openButton = useRef<HTMLButtonElement>(null);
   const [date, setDate] = useState(todayUtc);
@@ -262,7 +263,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
           window.dispatchEvent(new Event("invoice-catalog-dismiss"));
           return;
         }
-        if (!busy) setModal(false);
+        if (!busy && (!unsavedRef.current || window.confirm("تغییرات ذخیره‌نشده از بین می‌روند. پنجره بسته شود؟"))) setModal(false);
         return;
       }
       if (event.key !== "Tab" || !dialog.current) return;
@@ -295,13 +296,14 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
     setHeaderCustomer(isAdmin ? (filterCustomer || "") : actorId);
     setTaxpayerId(isAdmin ? "" : taxpayerId);
     setRows([]); setInvoiceDescription(""); setSettlement(0); setCashInput("");
-    setError(""); setNotice(""); setModal(true);
+    setSavedSnapshot(null); setError(""); setNotice(""); setModal(true);
   }
   async function editDraft(draft: Invoice) {
     setBusy(true); setError("");
     try {
       const saved = await getJson<SavedEntry>("/api/invoices/workspaces/"+draft.id);
       setEditing(saved);
+      setSavedSnapshot(null);
       setHeaderCustomer(saved.customerUserId);
       setTaxpayerId(saved.taxpayerId);
       setDate(saved.issueDateUtc.slice(0,10));
@@ -325,7 +327,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
         vatRate:String(line.vatRatePercent ?? "")
       })));
       nextKey.current = saved.lines.length;
-      setStep(Math.min(2,Math.max(0,saved.lastCompletedStep)) as Step);
+      setStep(Math.min(2,Math.max(0,saved.lastCompletedStep+1)) as Step);
       setDetail(null); setModal(true);
     } catch(e) {setError((e as Error).message);}
     finally {setBusy(false);}
@@ -403,6 +405,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
         body:JSON.stringify(payload)
       });
       setEditing(saved);
+      setSavedSnapshot(draftSnapshot);
       setNotice("پیش‌نویس با نسخه "+saved.revision+" ذخیره شد. برای ادامه از «ویرایش» استفاده کنید.");
       if(exit || navigateToBuyers) setModal(false);
       else if(!preserveVisibleStep) setStep(completeStep);
@@ -416,7 +419,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
     if(step===0 && !taxpayerId){setError("مؤدی صادرکننده را انتخاب کنید.");return;}
     if(step<2) void saveWorkspace((step+1) as Step,false);
   }
-  function close() { if (!busy) setModal(false); }
+  function close() { if (!busy && (!unsavedChanges || window.confirm("تغییرات ذخیره‌نشده از بین می‌روند. پنجره بسته شود؟"))) setModal(false); }
   function addRow(item?: CatalogItem) {
     nextKey.current++;
     setRows(current => current.concat({
@@ -441,19 +444,39 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   const settlementError = settlement === 3 &&
     (cashInput.trim() === "" || !Number.isFinite(Number(cashInput)) ||
       cashPreview <= 0 || cashPreview >= calculated.total);
+  const draftSnapshot = JSON.stringify({
+    headerCustomer,taxpayerId,memoryId,buyerId,date,hour,invoiceType,pattern,
+    conditionalFields,rows,invoiceDescription,settlement,cashInput
+  });
+  const unsavedChanges = modal && savedSnapshot !== null &&
+    draftSnapshot !== savedSnapshot;
   const validationDirty = editing !== null && (
     editing.taxpayerId!==taxpayerId || editing.issueDateUtc.slice(0,16)!==date+"T"+hour ||
-    (editing.buyerPartyId??"")!==buyerId || editing.type!==invoiceType ||
-    editing.pattern!==pattern || (editing.invoiceDescription??"")!==invoiceDescription.trim() ||
+    (editing.buyerPartyId??"")!==buyerId || (editing.fiscalMemoryId??"")!==memoryId ||
+    editing.type!==invoiceType || editing.pattern!==pattern ||
+    (editing.invoiceDescription??"")!==invoiceDescription.trim() ||
     (editing.settlementMethod??0)!==settlement ||
     rows.length!==editing.lines.length ||
     rows.some((r,i)=>r.name.trim()!==editing.lines[i]?.description ||
       Number(r.quantity)!==editing.lines[i]?.quantity ||
       Number(r.unitPrice)!==editing.lines[i]?.unitPriceRial ||
       Number(r.discount)!==editing.lines[i]?.discountPerUnitRial ||
-      (r.vatRate===""?null:Number(r.vatRate))!==editing.lines[i]?.vatRatePercent) ||
+      (r.vatRate===""?null:Number(r.vatRate))!==editing.lines[i]?.vatRatePercent ||
+      (r.productId||null)!==editing.lines[i]?.catalogItemId) ||
     settlement===3 && Number(cashInput)!==(editing.cashAmountRial??0)
   );
+  const unsavedRef = useRef(false);
+  unsavedRef.current = unsavedChanges;
+  useEffect(()=>{
+    if(!modal) return;
+    const beforeUnload=(event:BeforeUnloadEvent)=>{
+      if(!unsavedRef.current)return;
+      event.preventDefault();
+      event.returnValue="";
+    };
+    window.addEventListener("beforeunload",beforeUnload);
+    return ()=>window.removeEventListener("beforeunload",beforeUnload);
+  },[modal]);
   const filtered = invoices; // All filters are applied server-side before paging.
 
   return <div className="invoice-entry invoice-register" dir="rtl" lang="fa">
