@@ -120,7 +120,8 @@ public sealed record InvoiceEntryView(Guid Id, Guid CustomerUserId, Guid Taxpaye
     Guid? FiscalMemoryId = null, string? InternalReviewState = null,
     string? InternalReviewReason = null, Guid? SubmittedByUserId = null,
     Guid? ReviewedByUserId = null, DateTime? ReviewedAtUtc = null);
-public sealed record InvoiceEntryResult(InvoiceApiDecision Decision, InvoiceEntryView? Draft = null);
+public sealed record InvoiceEntryResult(InvoiceApiDecision Decision, InvoiceEntryView? Draft = null,
+    bool Replayed = false);
 
 /// <summary>
 /// Draft only, no issuance; authorization is checked on every read/write.
@@ -320,7 +321,7 @@ public sealed class InvoiceEntryWorkspaceService(
             {
                 var priorPayload = JsonSerializer.Deserialize<SaveInvoiceEntryRequest>(prior.DraftJson);
                 return priorPayload?.BulkFingerprint == fingerprint
-                    ? new(InvoiceApiDecision.Success,View(prior))
+                    ? new(InvoiceApiDecision.Success,View(prior),true)
                     : new(InvoiceApiDecision.Conflict);
             }
         }
@@ -336,7 +337,7 @@ public sealed class InvoiceEntryWorkspaceService(
         var principal = await scope.ResolveAsync(token,ct);
         if (principal.Decision != TaxpayerScopeDecision.Allowed)
             return new(InvoiceApiDecision.Forbidden);
-        return await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+        try { return await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
         {
             await using var transaction = await db.Database.BeginTransactionAsync(ct);
             InvoiceEntryWorkspace saved;
@@ -379,7 +380,20 @@ public sealed class InvoiceEntryWorkspaceService(
             await db.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);
             return new InvoiceEntryResult(InvoiceApiDecision.Success,View(saved));
-        });
+        }); }
+        catch (DbUpdateException ex) when (importId is not null &&
+            ex.InnerException is Npgsql.PostgresException pg &&
+            pg.SqlState == "23505")
+        {
+            var prior = await db.InvoiceEntryWorkspaces.AsNoTracking()
+                .Where(w=>w.Id==importId && w.CustomerUserId==access.Item2 &&
+                    w.TaxpayerId==input.TaxpayerId).SingleOrDefaultAsync(ct);
+            var old = prior is null ? null :
+                JsonSerializer.Deserialize<SaveInvoiceEntryRequest>(prior.DraftJson);
+            return old?.BulkFingerprint == fingerprint && prior is not null
+                ? new(InvoiceApiDecision.Success,View(prior),true)
+                : new(InvoiceApiDecision.Conflict);
+        }
     }
 
     public async Task<InvoiceWorkspaceHistoryResult> HistoryAsync(
