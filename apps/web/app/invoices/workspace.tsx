@@ -8,6 +8,7 @@ import SearchableCatalogPicker from "./searchable-catalog-picker";
 import InvoiceValidationPanel from "./invoice-validation-panel";
 import InvoiceHistoryPanel from "./invoice-history-panel";
 import InvoiceImportPanel, {type ImportValues} from "./invoice-import-panel";
+import BulkInvoiceImportPanel from "./bulk-invoice-import-panel";
 import {invoicePreview} from "./invoice-financial-preview.mjs";
 
 type Taxpayer = { id: string; displayName: string; status: number };
@@ -91,6 +92,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   const listPageSize = 50;
   const [modal, setModal] = useState(false);
   const [importOpen,setImportOpen] = useState(false);
+  const [bulkOpen,setBulkOpen] = useState(false);
   const [editing, setEditing] = useState<SavedEntry | null>(null);
   const [step, setStep] = useState<Step>(0);
   const [savedSnapshot,setSavedSnapshot] = useState<string | null>(null);
@@ -540,6 +542,8 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
       </div>
       <div className="invoice-register__actions">
         <button type="button" className="identity-secondary" disabled={loading}
+          onClick={()=>setBulkOpen(true)}>ورود گروهی صورتحساب‌ها</button>
+        <button type="button" className="identity-secondary" disabled={loading}
           onClick={() => void reload()}>بازخوانی</button>
         <button ref={openButton} type="button" className="identity-primary"
           disabled={loading} onClick={open}>+ افزودن صورتحساب</button>
@@ -586,6 +590,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
           onClick={()=>setListPage(p=>p+1)}>بعدی</button>
       </div>
     </footer>
+    {bulkOpen && <BulkInvoiceImportPanel onClose={()=>setBulkOpen(false)} onChanged={()=>void reload()}/>}
     {detail && <div className="invoice-register__overlay" onMouseDown={e => {
       if (e.currentTarget === e.target) setDetail(null);
     }}>
