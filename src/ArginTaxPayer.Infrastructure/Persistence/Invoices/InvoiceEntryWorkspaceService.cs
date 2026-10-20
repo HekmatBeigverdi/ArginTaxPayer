@@ -97,7 +97,9 @@ public sealed record InvoiceEntryView(Guid Id, Guid CustomerUserId, Guid Taxpaye
     string? ContractNumber = null, string? ServiceBillId = null, int? FlightType = null,
     decimal? GoldConstructionFeeRial = null, decimal? GoldSellerProfitRial = null,
     decimal? GoldCommissionRial = null, decimal? GoldTotalFeeProfitRial = null,
-    Guid? FiscalMemoryId = null);
+    Guid? FiscalMemoryId = null, string? InternalReviewState = null,
+    string? InternalReviewReason = null, Guid? SubmittedByUserId = null,
+    Guid? ReviewedByUserId = null, DateTime? ReviewedAtUtc = null);
 public sealed record InvoiceEntryResult(InvoiceApiDecision Decision, InvoiceEntryView? Draft = null);
 
 /// <summary>
