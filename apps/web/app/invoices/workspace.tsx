@@ -318,7 +318,8 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
     } catch(e) {setError((e as Error).message);}
     finally {setBusy(false);}
   }
-  async function saveWorkspace(completeStep: Step, exit: boolean, navigateToBuyers = false) {
+  async function saveWorkspace(completeStep: Step, exit: boolean, navigateToBuyers = false,
+    preserveVisibleStep = false) {
     // Opening the settlement screen does not complete it. Persist the lines
     // as step 1, then navigate to step 2; enforce terms on final completion only.
     const persistedStep: Step = !exit && step===1 && completeStep===2 ? 1 : completeStep;
@@ -392,7 +393,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
       setEditing(saved);
       setNotice("پیش‌نویس با نسخه "+saved.revision+" ذخیره شد. برای ادامه از «ویرایش» استفاده کنید.");
       if(exit || navigateToBuyers) setModal(false);
-      else setStep(completeStep);
+      else if(!preserveVisibleStep) setStep(completeStep);
       await reload();
       if(navigateToBuyers) window.location.assign("/parties");
       return true;
@@ -797,7 +798,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
               {editing && <InvoiceValidationPanel
                 draftId={editing.id} taxpayerId={editing.taxpayerId}
                 revision={editing.revision} dirty={validationDirty}
-                onSave={()=>saveWorkspace(step===2 && settlement===0 ? 1 : step,false)}/>}
+                onSave={()=>saveWorkspace(step===2 && settlement===0 ? 1 : step,false,false,true)}/>}
               <p className="invoice-register__hint">
                 توضیحات و تسویه در پیش‌نویس قابل‌ویرایش ذخیره می‌شوند.
                 مبالغ مالیاتی و روش تسویه قبل از صدور رسمی باید در سرویس اعتبارسنجی
