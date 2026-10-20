@@ -121,7 +121,8 @@ public static class InvoiceDraftDevelopmentEndpoints
 
         app.MapPost("/api/dev/invoice-workspaces/bulk", async (
             [FromBody] BulkInvoiceWorkspaceRequest input, HttpContext http,
-            InvoiceEntryWorkspaceService service, CancellationToken ct) =>
+            InvoiceEntryWorkspaceService service, ArginTaxPayerDbContext db,
+            CancellationToken ct) =>
         {
             if (!Local(http)) return Results.NotFound();
             if (input?.Invoices is not { Length: > 0 and <= 50 } ||
@@ -162,6 +163,7 @@ public static class InvoiceDraftDevelopmentEndpoints
                 }
                 catch (DbUpdateException)
                 {
+                    db.ChangeTracker.Clear();
                     results.Add(new(invoice.InvoiceKey,"failed",null,"database_error"));
                 }
             }
