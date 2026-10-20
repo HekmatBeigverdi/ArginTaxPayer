@@ -65,6 +65,16 @@ public static class InvoiceDraftDevelopmentEndpoints
             });
         }).WithTags("Invoice Form Metadata (Development)");
 
+        app.MapGet("/api/dev/invoice-workspaces/{id:guid}/history", async (
+            Guid id, HttpContext http, InvoiceEntryWorkspaceService service,
+            CancellationToken ct) =>
+        {
+            if (!Local(http)) return Results.NotFound();
+            var history = await service.HistoryAsync(Token(http),id,ct);
+            return history.Decision == InvoiceApiDecision.Success
+                ? Results.Ok(history.History) : Error(history.Decision);
+        }).WithTags("Invoice Draft History (Development)");
+
         app.MapGet("/api/dev/invoice-workspaces/{id:guid}/validation", async (
             Guid id, HttpContext http, InvoiceValidationReferenceService service,
             CancellationToken ct) =>
