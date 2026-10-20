@@ -535,3 +535,9 @@ Owner approved yearly reset and expanding serial length. Updated **pending/unapp
 - Tests: `Phase08Step13SettlementPolicyTests.cs` covers cash/credit/mixed edges including mismatch/zero; `phase08-step13-settlement.test.mjs` checks UI/server contract.
 - No DB schema change, financial receipt, subscription charge or actual partner payout is created. Versioned invoice-pattern-specific authority submission constraints are not inferred from generic payment choices.
 - Operator acceptance pending: macOS `dotnet build/test` and npm `test/typecheck/build`; browser check all four methods, save/reopen mixed amounts, direct API invalid totals and unfinished draft preservation. No tests executed by the repository connector. Step14 awaits owner signoff.
+
+### Step13 bugfix — premature settlement error when navigating from line entry (2026-10-20)
+- Owner screenshot showed the **line entry screen** reporting settlement selection required before the final settlement screen was accessible.
+- Root cause: `nextStep()` passed `completeStep=2` into `saveWorkspace(2,false)`. The step13 validation erroneously treated navigation to the summary as final settlement completion, and the server's `LastCompletedStep==2` check would have rejected a direct work-around as well.
+- On transition from UI step 1 to step 2, persist `lastCompletedStep=1` (lines saved, settlement not completed) while still navigating to visible step 2; only final save `saveWorkspace(2,true)` enforces settlement. This preserves server-side authoritative validation. Existing incomplete drafts remain resumable.
+- Added `phase08-step13-navigation.test.mjs` static regression guard. No migration; macOS operator test and owner signoff still pending.
