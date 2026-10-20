@@ -7,6 +7,8 @@ export default function BulkInvoiceImportPanel({onClose,onChanged}:{
  onClose:()=>void;onChanged:()=>void
 }){
  const fileRef=useRef<HTMLInputElement>(null);
+ const [dragging,setDragging]=useState(false);
+ const [busy,setBusy]=useState(false);
  useEffect(()=>{
   const onKey=(event:KeyboardEvent)=>{
    if(event.key==="Escape"&&!busy){event.preventDefault();onClose();}
@@ -14,8 +16,6 @@ export default function BulkInvoiceImportPanel({onClose,onChanged}:{
   document.addEventListener("keydown",onKey);
   return ()=>document.removeEventListener("keydown",onKey);
  },[busy,onClose]);
- const [dragging,setDragging]=useState(false);
- const [busy,setBusy]=useState(false);
  const [filename,setFilename]=useState("");
  const [batchKey,setBatchKey]=useState("");
  const [items,setItems]=useState<BulkInvoicePreview[]>([]);
