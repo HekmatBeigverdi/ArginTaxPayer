@@ -25,7 +25,7 @@ async function readJson<T>(url:string):Promise<T> {
 
 export default function InvoiceValidationPanel({
   draftId,taxpayerId,revision,dirty,onSave
-}:{draftId:string;taxpayerId:string;revision:number;dirty:boolean;onSave:()=>Promise<void>}) {
+}:{draftId:string;taxpayerId:string;revision:number;dirty:boolean;onSave:()=>Promise<boolean>}) {
   const [report,setReport]=useState<Evaluation|null>(null);
   const [references,setReferences]=useState<Ref[]>([]);
   const [subject,setSubject]=useState("Original");
@@ -61,7 +61,9 @@ export default function InvoiceValidationPanel({
         <p>این بررسی برای تکمیل فرم است؛ مجوز ارسال مالیاتی صادر نمی‌کند.</p></div>
       <button type="button" className="identity-secondary"
         disabled={loading||checkingAfterSave} onClick={()=>{
-          if(dirty){setCheckingAfterSave(true);void onSave().catch(e=>{setCheckingAfterSave(false);setError((e as Error).message);});}
+          if(dirty){setCheckingAfterSave(true);void onSave().then(saved=>{
+            if(!saved){setCheckingAfterSave(false);setError("ذخیره تغییرات انجام نشد؛ خطای نمایش‌داده‌شده در فرم را بررسی کنید.");}
+          }).catch(e=>{setCheckingAfterSave(false);setError((e as Error).message);});}
           else void refresh();
         }}>
         {loading||checkingAfterSave?"در حال ذخیره/بررسی…":dirty?"ذخیره تغییرات و بررسی":"بررسی پیش‌نویس ذخیره‌شده"}
