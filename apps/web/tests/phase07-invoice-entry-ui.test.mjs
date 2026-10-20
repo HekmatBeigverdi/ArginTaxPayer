@@ -49,7 +49,7 @@ test("wizard persists editable private drafts and supports later resumption", ()
   assert.match(workspace, /ویرایش و ادامه/);
   assert.match(workspace, /ذخیره و ادامه بعداً/);
   assert.match(workspace, /ذخیره و ثبت خریدار/);
-  assert.match(workspace, /lastCompletedStep:completeStep/);
+  assert.match(workspace, /lastCompletedStep:persistedStep/);
   assert.match(workspace, /buyerPartyId:buyerId \|\| null/);
   assert.match(workspace, /lines:rows\.map/);
   assert.match(workspace, /بدون ارسال مالیاتی/);
