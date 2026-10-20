@@ -36,7 +36,7 @@ test("existing wizard remains resumable and has no mandatory admin review gate",
 test("CSV malformed quoting and duplicate column source mappings are rejected",()=>{
  assert.throws(()=>parseCsv('a,b\n"unterminated'),/نقل‌قول/);
  assert.throws(()=>previewRows([["a","b","c"],["item","1","2"]],
-  {description:0,quantity:0,unitPrice:2}),/نگاشت/);
+  {description:0,quantity:0,unitPrice:2}),/ستون/);
 });
 test("bulk preview rejects duplicated header names",()=>{
  const headers=["invoiceKey","taxpayerId","buyerPartyId","issueDateUtc","type","pattern",
