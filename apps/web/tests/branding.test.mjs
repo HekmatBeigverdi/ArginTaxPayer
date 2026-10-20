@@ -17,10 +17,10 @@ test("same logo is used for login, sidebar, header and metadata", () => {
   assert.match(read("app/layout.tsx"), /\/brand\/argin-logo\.png/);
   const login = read("app/identity/page.tsx");
   const shell = read("app/components/console-shell.tsx");
-  assert.match(login, /import arginLogo from "\.\.\/\.\.\/public\/brand\/argin-logo\.png"/);
-  assert.match(shell, /import arginLogo from "\.\.\/\.\.\/public\/brand\/argin-logo\.png"/);
-  assert.equal((login.match(/src=\{arginLogo\}/g) ?? []).length, 1);
-  assert.equal((shell.match(/src=\{arginLogo\}/g) ?? []).length, 2);
+  assert.match(login, /src="\/brand\/argin-logo\.png"/);
+  assert.match(shell, /src="\/brand\/argin-logo\.png"/);
+  assert.equal((login.match(/src="\/brand\/argin-logo\.png"/g) ?? []).length, 1);
+  assert.equal((shell.match(/src="\/brand\/argin-logo\.png"/g) ?? []).length, 2);
   assert.match(login, /argin-login-logo/);
   assert.match(shell, /argin-sidebar-logo/);
   assert.match(shell, /argin-header-logo/);
@@ -42,7 +42,7 @@ test("dashboard hero uses transparent image instead of letter tile", () => {
   const home = read("app/(console)/dashboard/page.tsx");
   const css = read("app/globals.css");
   assert.match(home, /argin-welcome-logo/);
-  assert.match(home, /src=\{arginLogo\}/);
+  assert.match(home, /src="\/brand\/argin-logo\.png"/);
   assert.doesNotMatch(home, /app-welcome-graphic" aria-hidden="true">آ/);
   assert.match(css, /\.argin-brand-logo\{[^}]*background:transparent/);
   assert.match(css, /\.app-welcome \.app-welcome-graphic\.argin-welcome-logo\{/);
