@@ -6,6 +6,20 @@ public static class InvoiceEntryWorkspaceConfiguration
 {
     public static void Apply(ModelBuilder modelBuilder)
     {
+        var history = modelBuilder.Entity<InvoiceEntryWorkspaceRevision>();
+        history.ToTable("invoice_entry_workspace_revisions");
+        history.HasKey(h=>new {h.WorkspaceId,h.Revision});
+        history.Property(h=>h.WorkspaceId).HasColumnName("workspace_id");
+        history.Property(h=>h.CustomerUserId).HasColumnName("customer_user_id");
+        history.Property(h=>h.TaxpayerId).HasColumnName("taxpayer_id");
+        history.Property(h=>h.Revision).HasColumnName("revision");
+        history.Property(h=>h.ActorUserId).HasColumnName("actor_user_id");
+        history.Property(h=>h.Action).HasColumnName("action").HasMaxLength(16);
+        history.Property(h=>h.Reason).HasColumnName("reason").HasMaxLength(1000);
+        history.Property(h=>h.SnapshotJson).HasColumnName("snapshot_json").HasColumnType("jsonb");
+        history.Property(h=>h.OccurredAtUtc).HasColumnName("occurred_at_utc").HasColumnType("timestamp with time zone");
+        history.HasIndex(h=>new {h.CustomerUserId,h.TaxpayerId,h.WorkspaceId,h.Revision})
+            .HasDatabaseName("ix_invoice_workspace_history_scope");
         var e = modelBuilder.Entity<InvoiceEntryWorkspace>();
         e.ToTable("invoice_entry_workspaces", table =>
         {
