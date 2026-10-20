@@ -9,6 +9,8 @@ function target(segments: string[], method: "GET" | "POST"): string | null {
   if (segments[0] === "workspaces") {
     if (segments.length === 1 && (method === "GET" || method === "POST"))
       return "/api/dev/invoice-workspaces";
+    if (segments.length === 3 && method === "POST" && uuid.test(segments[1]) &&
+        segments[2] === "review") return "/api/dev/invoice-workspaces/"+segments[1]+"/review";
     if (segments.length === 3 && method === "GET" && uuid.test(segments[1]) &&
         segments[2] === "validation") return "/api/dev/invoice-workspaces/"+segments[1]+"/validation";
     if (segments.length === 2 && method === "GET" && uuid.test(segments[1]))
@@ -52,12 +54,19 @@ async function proxy(request: NextRequest, context: Context, method: "GET" | "PO
       return error(415, "json_required");
     try {
       body = await request.text();
-      if (!body || body.length > (segments[0] === "workspaces" ? 120000 : 2048)) return error(400, "invalid_payload");
+      if (!body || body.length > (segments[0] === "workspaces" && segments[2] !== "review" ? 120000 : 2048)) return error(400, "invalid_payload");
       const parsed: unknown = JSON.parse(body);
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
         return error(400, "invalid_payload");
       const data = parsed as Record<string, unknown>;
-      if (segments[0] === "workspaces") {
+      if (segments[0] === "workspaces" && segments[2] === "review") {
+        if (Object.keys(data).some(k=>!["expectedRevision","action","reason"].includes(k)) ||
+            !Number.isSafeInteger(data.expectedRevision) || Number(data.expectedRevision)<1 ||
+            !["submit","approve","return"].includes(String(data.action)) ||
+            data.reason !== undefined && data.reason !== null &&
+              (typeof data.reason !== "string" || data.reason.length > 1000))
+          return error(400,"invalid_review_command");
+      } else if (segments[0] === "workspaces") {
         const permitted = ["id","taxpayerId","expectedRevision","lastCompletedStep",
           "issueDateUtc","buyerPartyId","type","pattern","lines",
           "invoiceDescription","settlementMethod","cashAmountRial","creditAmountRial",
