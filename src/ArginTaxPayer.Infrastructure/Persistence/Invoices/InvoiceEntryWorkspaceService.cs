@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using ArginTaxPayer.Domain.Invoices;
 using ArginTaxPayer.Infrastructure.Persistence.Parties;
@@ -104,7 +106,8 @@ public sealed record SaveInvoiceEntryRequest(Guid? Id, Guid TaxpayerId, long Exp
     decimal? GoldCommissionRial = null, decimal? GoldTotalFeeProfitRial = null,
     Guid? FiscalMemoryId = null, string? InternalReviewState = null,
     string? InternalReviewReason = null, Guid? SubmittedByUserId = null,
-    Guid? ReviewedByUserId = null, DateTime? ReviewedAtUtc = null);
+    Guid? ReviewedByUserId = null, DateTime? ReviewedAtUtc = null,
+    string? BulkImportKey = null, string? BulkFingerprint = null);
 public sealed record InvoiceEntryView(Guid Id, Guid CustomerUserId, Guid TaxpayerId, long Revision,
     int LastCompletedStep, DateTime IssueDateUtc, DateTime UpdatedAtUtc,
     Guid? BuyerPartyId, int Type, int Pattern, InvoiceEntryLine[] Lines,
@@ -291,9 +294,40 @@ public sealed class InvoiceEntryWorkspaceService(
         var now = DateTime.UtcNow;
         // A draft edit always invalidates a prior internal approval. Review
         // metadata is server-owned and may never be forged through the save API.
+        // Deterministic, tenant-scoped identity makes replay and concurrent
+        // retries resolve to the same draft. No extra approval workflow.
+        if (input.BulkImportKey is { } key &&
+            (key.Length is < 8 or > 160 || key.Any(c => !char.IsAsciiLetterOrDigit(c) &&
+                c is not '-' and not '_' and not ':')))
+            return new(InvoiceApiDecision.Invalid);
+        var fingerprint = input.BulkImportKey is null ? null :
+            Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
+                JsonSerializer.Serialize(input with {
+                    Id = null, ExpectedRevision = 0, BuyerDisplayName = null,
+                    BulkFingerprint = null, InternalReviewState = null,
+                    InternalReviewReason = null, SubmittedByUserId = null,
+                    ReviewedByUserId = null, ReviewedAtUtc = null
+                })))).ToLowerInvariant();
+        Guid? importId = input.BulkImportKey is null ? null :
+            new Guid(SHA256.HashData(Encoding.UTF8.GetBytes(
+                access.Item2.ToString("N")+":"+input.BulkImportKey)).AsSpan(0,16));
+        if (importId is { } existingImportId)
+        {
+            var prior = await db.InvoiceEntryWorkspaces.AsNoTracking()
+                .Where(w=>w.Id==existingImportId && w.CustomerUserId==access.Item2 &&
+                    w.TaxpayerId==input.TaxpayerId).SingleOrDefaultAsync(ct);
+            if (prior is not null)
+            {
+                var priorPayload = JsonSerializer.Deserialize<SaveInvoiceEntryRequest>(prior.DraftJson);
+                return priorPayload?.BulkFingerprint == fingerprint
+                    ? new(InvoiceApiDecision.Success,View(prior))
+                    : new(InvoiceApiDecision.Conflict);
+            }
+        }
         var json = JsonSerializer.Serialize(input with {
             Id = null, ExpectedRevision = 0, BuyerDisplayName = selectedBuyerName,
-            Lines = canonicalLines.ToArray(), InternalReviewState = "Draft",
+            Lines = canonicalLines.ToArray(), BulkFingerprint = fingerprint,
+            InternalReviewState = "Draft",
             InternalReviewReason = null, SubmittedByUserId = null,
             ReviewedByUserId = null, ReviewedAtUtc = null
         });
@@ -310,7 +344,7 @@ public sealed class InvoiceEntryWorkspaceService(
             {
                 if (input.ExpectedRevision != 0) return new InvoiceEntryResult(InvoiceApiDecision.Conflict);
                 saved = new InvoiceEntryWorkspace {
-                    Id = Guid.NewGuid(),CustomerUserId = access.Item2,
+                    Id = importId ?? Guid.NewGuid(),CustomerUserId = access.Item2,
                     TaxpayerId = input.TaxpayerId,Revision = 1,
                     LastCompletedStep = input.LastCompletedStep,
                     IssueDateUtc = input.IssueDateUtc,DraftJson = json,UpdatedAtUtc = now
