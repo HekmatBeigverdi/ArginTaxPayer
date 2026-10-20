@@ -1,5 +1,5 @@
 "use client";
-import {useMemo,useState} from "react";
+import {useMemo,useRef,useState,type DragEvent} from "react";
 import {MAX_IMPORT_BYTES,parseCsv,parseXlsx,previewRows,type ImportMapping} from "./invoice-import-preview.mjs";
 export type ImportValues={description:string;quantity:string;unitPrice:string;discount:string;vatRate:string};
 const specs=[
@@ -14,6 +14,9 @@ export default function InvoiceImportPanel({onImport,disabled}:{
  const [filename,setFilename]=useState("");
  const [error,setError]=useState("");
  const [busy,setBusy]=useState(false);
+ const [dragging,setDragging]=useState(false);
+ const [progress,setProgress]=useState(0);
+ const fileInput=useRef<HTMLInputElement>(null);
  const previews=useMemo(()=>{
   if(!matrix.length)return {items:[],error:""};
   try{return {items:previewRows(matrix,mapping),error:""};}
@@ -21,14 +24,15 @@ export default function InvoiceImportPanel({onImport,disabled}:{
  },[matrix,mapping]);
  const invalid=previews.items.filter(x=>x.errors.length>0).length;
  async function load(file:File|undefined){
-  setMatrix([]);setMapping({});setFilename("");setError("");
+  setMatrix([]);setMapping({});setFilename("");setError("");setProgress(0);
   if(!file)return;
   if(file.size>MAX_IMPORT_BYTES){setError("حداکثر حجم مجاز فایل ۲ مگابایت است.");return;}
-  setBusy(true);
+  setBusy(true);setFilename(file.name);
   try{
    const xlsx=/\.xlsx$/i.test(file.name),csv=/\.csv$/i.test(file.name);
    if(!xlsx&&!csv)throw Error("فرمت فایل باید CSV یا XLSX باشد.");
    const data=xlsx?await parseXlsx(await file.arrayBuffer()):parseCsv(await file.text());
+   setProgress(85);
    if(data.length<2)throw Error("فایل فاقد ردیف داده است.");
    const headers=data[0].map(x=>x.trim().toLowerCase());
    const aliases:Record<string,string[]>={description:["description","شرح","کالا","خدمت"],
@@ -36,17 +40,39 @@ export default function InvoiceImportPanel({onImport,disabled}:{
     discount:["discount","تخفیف"],vatRate:["vatrate","vat","مالیات","ارزش افزوده"]};
    const values:ImportMapping={};
    for(const [key] of specs){const i=headers.findIndex(h=>aliases[key].includes(h));values[key]=i<0?null:i;}
-   setMapping(values);setMatrix(data);setFilename(file.name);
+   setMapping(values);setMatrix(data);setProgress(100);
   }catch(e){setError((e as Error).message);}
   finally{setBusy(false);}
  }
  return <section aria-label="ورود آزمایشی ردیف‌های صورتحساب" className="invoice-register__fields">
   <h3>ورود ردیف‌ها از CSV / Excel</h3>
   <p className="field-hint">ابتدا فایل را پیش‌نمایش و ستون‌ها را نگاشت کنید. در این گام هیچ اطلاعاتی مستقیماً در دیتابیس ثبت نمی‌شود. فقط با تأیید شما، ردیف‌های معتبر به فرم اضافه می‌شوند.</p>
-  <label htmlFor="invoice-import-file">انتخاب فایل CSV یا XLSX (حداکثر ۲ مگابایت، ۵۰۰ ردیف)</label>
-  <input id="invoice-import-file" type="file" accept=".csv,.xlsx" disabled={busy||disabled}
-   onChange={e=>void load(e.currentTarget.files?.[0])}/>
-  {busy&&<p role="status">در حال پردازش فایل…</p>}
+  <input ref={fileInput} id="invoice-import-file" className="console-file-visually-hidden"
+   type="file" accept=".csv,.xlsx" disabled={busy||disabled}
+   onChange={e=>{void load(e.currentTarget.files?.[0]);e.currentTarget.value="";}}/>
+  <div className={"console-logo-dropzone"+(dragging?" is-dragging":"")+
+   (busy||disabled?" is-disabled":"")} role="button"
+   tabIndex={busy||disabled?-1:0} aria-disabled={busy||disabled}
+   aria-label="انتخاب یا رها کردن فایل اکسل یا CSV صورتحساب"
+   onClick={()=>{if(!busy&&!disabled)fileInput.current?.click();}}
+   onKeyDown={e=>{if((e.key==="Enter"||e.key===" ")&&!busy&&!disabled){e.preventDefault();fileInput.current?.click();}}}
+   onDragOver={e=>{e.preventDefault();if(!busy&&!disabled)setDragging(true);}}
+   onDragLeave={e=>{if(!e.currentTarget.contains(e.relatedTarget as Node))setDragging(false);}}
+   onDrop={(e:DragEvent<HTMLDivElement>)=>{e.preventDefault();setDragging(false);
+     if(!busy&&!disabled)void load(e.dataTransfer.files.item(0)??undefined);}}>
+   <span className="console-logo-upload-icon" aria-hidden="true">↑</span>
+   <strong>{busy?"در حال پردازش فایل…":"فایل را اینجا رها کنید یا برای انتخاب کلیک کنید"}</strong>
+   <small>Excel (.xlsx) یا CSV • حداکثر ۲ مگابایت • حداکثر ۵۰۰ ردیف</small>
+   <small>بعد از انتخاب فایل، ستون‌ها را بررسی و نگاشت کنید</small>
+  </div>
+  {(busy||filename)&&<div className="console-upload-status" role="status" aria-live="polite">
+    <div><span>{filename}</span><strong>{progress}٪</strong></div>
+    <progress max={100} value={progress} aria-label="پیشرفت خواندن و بررسی فایل"/>
+  </div>}
+  <a href="/api/invoices/template" download="ArginTaxPayer_Invoice_Import_Template.xlsx"
+   className="identity-secondary" style={{display:"inline-flex",alignItems:"center",marginTop:8}}>
+   دریافت فایل نمونه Excel
+  </a>
   {error&&<p role="alert" className="form-error">{error}</p>}
   {filename&&<p role="status">فایل انتخاب‌شده: {filename}</p>}
   {matrix.length>0&&<>
