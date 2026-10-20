@@ -10,6 +10,8 @@ function target(segments: string[], method: "GET" | "POST"): string | null {
     if (segments.length === 1 && (method === "GET" || method === "POST"))
       return "/api/dev/invoice-workspaces";
     if (segments.length === 3 && method === "GET" && uuid.test(segments[1]) &&
+        segments[2] === "history") return "/api/dev/invoice-workspaces/"+segments[1]+"/history";
+    if (segments.length === 3 && method === "GET" && uuid.test(segments[1]) &&
         segments[2] === "validation") return "/api/dev/invoice-workspaces/"+segments[1]+"/validation";
     if (segments.length === 2 && method === "GET" && uuid.test(segments[1]))
       return "/api/dev/invoice-workspaces/" + segments[1];
