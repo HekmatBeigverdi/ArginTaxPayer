@@ -257,6 +257,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
     dialog.current?.focus();
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
+        if (importOpen) {event.preventDefault();setImportOpen(false);return;}
         // Open inner popovers get the first Escape, regardless of focus.
         // In particular the catalog picker can be open while a different
         // control is focused, so bubbling suppression alone is insufficient.
@@ -422,7 +423,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
     if(step===0 && !taxpayerId){setError("مؤدی صادرکننده را انتخاب کنید.");return;}
     if(step<2) void saveWorkspace((step+1) as Step,false);
   }
-  function close() { if (!busy && (!unsavedChanges || window.confirm("تغییرات ذخیره‌نشده از بین می‌روند. پنجره بسته شود؟"))) setModal(false); }
+  function close() { if (importOpen) {setImportOpen(false);return;} if (!busy && (!unsavedChanges || window.confirm("تغییرات ذخیره‌نشده از بین می‌روند. پنجره بسته شود؟"))) setModal(false); }
   function addRow(item?: CatalogItem) {
     nextKey.current++;
     setRows(current => current.concat({
