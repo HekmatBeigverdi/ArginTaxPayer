@@ -35,12 +35,12 @@ public sealed class Phase07ComprehensiveRegressionTests
     [InlineData(-1, 0, 0, false)]
     [InlineData(0, -1, 0, false)]
     [InlineData(0, 0, -1, false)]
-    [InlineData(100, 0, 0, true)]
-    [InlineData(0, 0, 0, true)]
-    public void Draft_settlement_cannot_accept_negative_amounts(
+    [InlineData(100, 0, 0, false)]
+    [InlineData(0, 0, 0, false)]
+    public void Draft_settlement_rejects_amounts_without_a_settlement_method(
         int grand, int cash, int credit, bool expected)
     {
-        // Unknown settlement is not proof of cash received.
+        // Unknown settlement cannot carry monetary terms; the amounts must be omitted.
         Assert.Equal(expected, InvoiceDraftSettlementPolicy.IsConsistent(
             InvoiceDraftSettlementMethod.Unknown, cash, credit, grand));
     }
