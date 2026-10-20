@@ -144,7 +144,7 @@ public static class InvoiceDraftDevelopmentEndpoints
                 try
                 {
                     var draft = invoice.Draft with {
-                        BulkImportKey = input.BatchKey + ":" + invoice.InvoiceKey,
+                        BulkImportKey = "invoice:" + invoice.InvoiceKey,
                         BulkFingerprint = null, Id = null, ExpectedRevision = 0
                     };
                     var saved = await service.SaveAsync(Token(http),draft,ct);
