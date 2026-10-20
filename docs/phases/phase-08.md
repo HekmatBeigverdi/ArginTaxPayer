@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 08: Invoice Workflows and UI
 
-**Status:** Steps 01–19 owner-approved; Step18 tests deferred; Step20 macOS operator evidence pending.
+**Status:** Steps 01–20 owner-approved; Step18 import integration tests deferred; Step21 Ubuntu acceptance runner committed, operator evidence pending.
 **Branch:** `phase/08-invoice-workflows-ui`
 **Baseline:** `main` at `364462848914f289916962a0578c9fac9cd85ce1` (GitHub inspected 2026-10-18).
 **Roadmap source:** `docs/roadmap/18-phases.md`, phase 08 of 18.
@@ -55,8 +55,8 @@
 | 17 | Import mapping and preview | CSV/XLSX bounded parsing, column mapping and row-level preview | Explain valid/invalid rows before approval | Owner-approved 2026-10-20 |
 | 18 | Controlled batch draft import | Explicit import confirmation with per-row durable outcomes | Retry creates no duplicate invoices; partial failures explained | Owner-approved 2026-10-20 with deferred real import tests and failure-ledger improvements |
 | 19 | Comprehensive regression and security | Domain, API, web, migration safety and Phase03-07 compatibility | Required tests green without disabling tests | Owner accepted; runtime evidence pending |
-| 20 | macOS operator acceptance | Independent macOS build and workflow/browser/db/HTTP acceptance | Commit SHA, operator results and caveats recorded | Checklist and runner committed; operator evidence pending |
-| 21 | Ubuntu operator acceptance | Same SHA, independent Ubuntu build and integration tests | Matching SHA and Ubuntu evidence documented | Not started |
+| 20 | macOS operator acceptance | Independent macOS build and workflow/browser/db/HTTP acceptance | Commit SHA, operator results and caveats recorded | Owner-approved 2026-10-20; regression PASS, API 200, Web 307; browser acceptance accepted by owner without itemized evidence |
+| 21 | Ubuntu operator acceptance | Same SHA, independent Ubuntu build and integration tests | Matching SHA and Ubuntu evidence documented | Acceptance script committed, awaiting VPS operator evidence |
 | 22 | Phase closeout and publication | Close one master doc, review final evidence; optional main merge/tag/release only upon separate owner approval | Explicit owner signoff and verified GitHub artifacts | Not started |
 
 ## Per-step delivery contracts
@@ -658,3 +658,10 @@ Owner approved yearly reset and expanding serial length. Updated **pending/unapp
 - Migration safety review: Step18 introduces no schema changes; audit migration Step16 was owner-reported applied to test database. Future DB tests require independent verification of `current_database()=argintaxpayer_test` with review of EF migration plan before writes. The mere presence of this test runner does not satisfy macOS/Ubuntu integration acceptance.
 - Explicit owner-approved exception: Step18 bulk import integration, browser tests, concurrent retries, incomplete persisted failed-outcome ledger, template usability and scenario hardening are deferred for later priority. No tests were disabled or deleted to obtain a green claim.
 - **Delivery status:** regression files and command committed; remote GitHub tool cannot execute macOS or VPS tests. Step19's original acceptance criterion "required tests green" remains **unverified** until operator shares output. Step20 macOS acceptance must not be labeled successful before actual evidence; Step21 Ubuntu remains separate.
+
+### Step20 owner signoff and Step21 Ubuntu gate (2026-10-20)
+- Owner explicitly approved Step20 after macOS report showed `RESULT source regression: PASS`, API readiness HTTP 200, and web HTTP 307. HTTP 307 is route reachability, not proof of authenticated login. No item-by-item manual browser evidence was supplied; preserve that exception rather than claim it passed. Step18 Import integration tests remain DEFERRED by owner.
+- Added `scripts/phase08-step21-ubuntu-acceptance.sh` for native Ubuntu verification with branch, clean worktree and tool preflights, test-only `ubuntu-dev.sh verify`, service status, read-only API/Web HTTP checks, timestamped log under `~/.argintaxpayer-test/phase08-step21/`, and required operator checklist. It never runs migrations or live tax transmission.
+- `ubuntu-dev.sh verify` enables test-database PostgreSQL integration, and independently confirms `current_database()=argintaxpayer_test` before proceeding. **Only run against the isolated test DB; integration tests may write to it.** Do not infer database safety just from configured connection-string text.
+- IMPORTANT same-SHA gate: subsequent documentation and runner commits mean current Step21 SHA may differ from the macOS Step20 report SHA. Operator must compare logged macOS SHA and Ubuntu SHA and repeat Mac Step20 regression on the final candidate SHA if they differ. Do not claim same-SHA acceptance without that verification.
+- Step21 coding/preparation is complete but acceptance is pending actual Ubuntu `verify`, browser and HTTP evidence, and owner confirmation. Step22 closeout must wait.
