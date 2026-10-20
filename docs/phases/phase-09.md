@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 09: Cryptographic Keys and Digital Signing
 
-**Status:** Step 01 approved. The owner's instruction to complete Step 03 authorizes continuation from the Step 02 design. Step 03 data-model and migration design is ready for review; it is not owner-approved.
+**Status:** Step 01 approved. The owner's instruction to complete Step 03 authorizes continuation from the Step 02 design. Step 03 now includes persistence entities, EF configuration, a registered migration and frozen target model/snapshot, and 11 model/script tests. Implementation is ready for executable verification and owner review; it is not owner-approved.
 **Documentation language:** English. This edition replaces the Persian master document without changing the agreed scope or step order.
 **Last reviewed:** 2026-10-20.
 **Repository:** HekmatBeigverdi/ArginTaxPayer.
@@ -243,7 +243,7 @@ Provider references inspected in Step 02:
 |---|---|---|---|
 | 01 | Baseline and legacy-source audit | Seven source hashes; exact offline profile; differences/security findings recorded | Owner-approved 2026-10-20 |
 | 02 | Architecture, custody and authorization contracts | Consent, protected provider design, lifecycle and default-deny access | Design accepted for continuation; runtime checks not rerun |
-| 03 | Data model and additive migration proposal | Scope FKs, uniqueness/CAS, reviewed SQL and recovery plan; no DB execution | Ready for owner review |
+| 03 | Data model and additive migration proposal | Scope FKs, uniqueness/CAS, reviewed SQL and recovery plan; no DB execution | Source delivered; executable verification and owner review pending |
 | 04 | Operation persistence, audit and idempotency | Approved test migration only; atomic audit and recoverable provider/DB outcomes | Not started |
 | 05 | Envelope protection and vault provider | Tamper/AAD/missing-KEK denial; no private bytes in business DB | Not started |
 | 06 | Key generation and public artifact | Official profile; no certificate/CSR/private response; portal encoding verified | Not started |
@@ -332,8 +332,8 @@ The owner's subsequent instruction to correct documentation language and complet
 
 ## 9. Step 03 — Data model and migration proposal
 
-**Status:** Design complete and ready for owner review. No migration applied, no EF migration registered, and no live database inspected.
-**Delivery type:** A precise schema/DDL proposal inside this master document, as stated in the Step 02 handoff. Executable EF entities/configuration, migration scaffolding/model snapshot alignment and persistence tests belong to the Step 04 implementation after this proposal is approved. Do not describe this SQL as generated, compiled, or database-tested.
+**Status:** Implementation files delivered; build/model/SQL execution is still pending because the execution environment is unavailable. Migration registered but NOT APPLIED. No live database inspected.
+**Delivery correction:** The earlier documentation-only delivery did not complete Step 03. The owner explicitly requested the real implementation. Step 03 now owns the entities, EF mapping, migration, frozen target model/snapshot and persistence-model tests; Step 04 remains operation repositories and transaction services. Files were manually authored/aligned against existing repository conventions, not scaffolded or compiled by EF tooling in this unavailable environment.
 **Inspected existing source:** ArginTaxPayerDbContext.cs, FiscalMemory.cs, TaxpayerProfile.cs, FiscalCertificateMetadata.cs, and 20261018090000_ScopeFiscalParticipantsPerCustomer.cs at the current source baseline.
 
 ### 9.1 Compatibility decisions
@@ -356,7 +356,7 @@ The owner's subsequent instruction to correct documentation language and complet
 | SigningOperation | Reserve/reconcile a scope-bound generate/import/change/sign operation | Unique scoped OperationId; metadata-only digest; revision; no secret hash |
 | SigningConsent | Immutable evidence of owner consent for a specific operation | Actor equals owning CustomerUserId; text version and UTC; not managerial consent |
 | SigningKeyVersion | Public metadata and opaque custody locator for one key | Scope FKs; one originating operation; immutable public identity once sealed |
-| SigningKeySelection | Current key selected for local signing | One row per fiscal memory; same-scope key FK; LocallyReady key only |
+| SigningKeySelection | Current key selected for local signing | One retained row per fiscal memory; nullable key on unselection; same-scope FK; LocallyReady selected key only |
 | SigningChangeRequest | Review state, reason, distinct approver, expiry, one-time consumption | Revision-bound; no subscription mutation; annual exception not applied here |
 | SigningAuditEvent | Append-only fixed-schema sensitive-operation history | Scoped actor/event/operation/time; no arbitrary JSON or request body |
 
@@ -373,219 +373,32 @@ Origin: Generated=1, Imported=2.
 
 Reauthentication references are not persisted as reusable tokens. Record an evidence event ID or timestamp, never the reauth bearer credential. Vault references are opaque, internal, immutable after sealing, and excluded from public projections.
 
-### 9.3 Proposed PostgreSQL DDL — REVIEW ONLY
+### 9.3 Registered additive migration — NOT APPLIED
 
-This is a migration design draft, not an executable EF migration delivered by this step. Do not paste it into a running database. Step 04 must scaffold/review the EF migration and align its snapshot, inspect the exact generated SQL against this proposal, and obtain separate approval before applying it to argintaxpayer_test.
+Migration ID: `20261020181500_AddPhase09SigningMetadata`.
 
-The transaction uses bounded lock/statement timeouts. Failure must roll back the whole transaction. No IF NOT EXISTS hides a partial previous installation.
+Authoritative source:
+- `src/ArginTaxPayer.Infrastructure/Persistence/Migrations/20261020181500_AddPhase09SigningMetadata.cs`.
+- Its `.Designer.cs` contains a frozen full target model.
+- `ArginTaxPayerDbContextModelSnapshot.cs` includes the same six metadata entities.
 
-```sql
-BEGIN;
-SET LOCAL lock_timeout = '5s';
-SET LOCAL statement_timeout = '60s';
+The earlier SQL draft has been replaced by the actual migration source to avoid two divergent copies. This migration is manually authored, matching existing raw-SQL migration conventions; do not describe it as generated by a successful scaffold command.
 
-DO $$
-BEGIN
-  IF current_database() <> 'argintaxpayer_test' THEN
-    RAISE EXCEPTION 'Phase09 draft requires argintaxpayer_test';
-  END IF;
-END $$;
+Up creates six signing tables, two DB-only parent-scope unique indexes, mapped keys/indexes/checks, scoped FKs and database guard functions/triggers. It uses EF's migration transaction with bounded local lock/statement timeouts and checks `current_database() = 'argintaxpayer_test'`. It never applies itself on host startup.
 
-CREATE UNIQUE INDEX ux_phase09_taxpayer_scope
-  ON taxpayer_profiles(id, customer_user_id);
-CREATE UNIQUE INDEX ux_phase09_memory_scope
-  ON fiscal_memories(id, taxpayer_id);
+Legacy `TaxpayerProfile.CustomerUserId` stays nullable. Its composite parent index/FK is an additional SQL-level scope guard, not an EF alternate key: promoting the nullable parent property into an EF key would incorrectly make legacy ownership required. The EF model maps restrictive direct parent FKs for operations, plus composite same-scope FKs among new entities. Snapshot and migration target preserve existing parent model definitions.
 
-CREATE TABLE signing_operations (
-  id uuid PRIMARY KEY,
-  customer_user_id uuid NOT NULL,
-  taxpayer_id uuid NOT NULL,
-  fiscal_memory_id uuid NOT NULL,
-  operation_id uuid NOT NULL,
-  actor_user_id uuid NOT NULL REFERENCES identity_users(id) ON DELETE RESTRICT,
-  operation_kind smallint NOT NULL CHECK (operation_kind BETWEEN 1 AND 4),
-  profile_id varchar(96) NOT NULL,
-  metadata_digest_sha256 varchar(64) NOT NULL
-    CHECK (metadata_digest_sha256 ~ '^[0-9a-f]{64}$'),
-  state smallint NOT NULL CHECK (state BETWEEN 1 AND 5),
-  safe_error_code varchar(64) NULL,
-  revision bigint NOT NULL DEFAULT 1 CHECK (revision > 0),
-  created_at_utc timestamptz NOT NULL,
-  updated_at_utc timestamptz NOT NULL,
-  CONSTRAINT ck_signing_op_time CHECK (updated_at_utc >= created_at_utc),
-  CONSTRAINT fk_signing_op_taxpayer
-    FOREIGN KEY(taxpayer_id, customer_user_id)
-    REFERENCES taxpayer_profiles(id, customer_user_id) ON DELETE RESTRICT,
-  CONSTRAINT fk_signing_op_memory
-    FOREIGN KEY(fiscal_memory_id, taxpayer_id)
-    REFERENCES fiscal_memories(id, taxpayer_id) ON DELETE RESTRICT,
-  CONSTRAINT ux_signing_op_idempotency
-    UNIQUE(customer_user_id, taxpayer_id, fiscal_memory_id, operation_id),
-  CONSTRAINT ux_signing_op_scope
-    UNIQUE(id, customer_user_id, taxpayer_id, fiscal_memory_id)
-);
+Selection records are retained rather than deleted when no key is selected: set KeyVersionId to null and increment Revision with an audit event. This avoids reusing a revision after delete/reinsert. Selections with non-null keys must reference LocallyReady at commit.
 
-CREATE TABLE signing_consents (
-  id uuid PRIMARY KEY,
-  operation_record_id uuid NOT NULL,
-  customer_user_id uuid NOT NULL,
-  taxpayer_id uuid NOT NULL,
-  fiscal_memory_id uuid NOT NULL,
-  actor_user_id uuid NOT NULL REFERENCES identity_users(id) ON DELETE RESTRICT,
-  consent_version varchar(64) NOT NULL CHECK (length(trim(consent_version)) > 0),
-  reauthenticated_at_utc timestamptz NOT NULL,
-  consented_at_utc timestamptz NOT NULL,
-  CONSTRAINT ck_signing_consent_owner CHECK (actor_user_id = customer_user_id),
-  CONSTRAINT ck_signing_consent_time CHECK (
-    consented_at_utc >= reauthenticated_at_utc AND
-    consented_at_utc <= reauthenticated_at_utc + interval '5 minutes'),
-  CONSTRAINT ux_signing_consent_operation UNIQUE(operation_record_id),
-  CONSTRAINT fk_signing_consent_operation FOREIGN KEY
-    (operation_record_id, customer_user_id, taxpayer_id, fiscal_memory_id)
-    REFERENCES signing_operations(id, customer_user_id, taxpayer_id, fiscal_memory_id)
-    ON DELETE RESTRICT
-);
+Audit gains fixed SubjectKind and SubjectId fields and a unique subject/revision index. Subject kinds are Operation=1, KeyVersion=2, Selection=3, Review=4, Consent=5. The deferred guard requires matching scope, subject and revision; no arbitrary JSON is added.
 
-CREATE TABLE signing_key_versions (
-  id uuid PRIMARY KEY,
-  customer_user_id uuid NOT NULL,
-  taxpayer_id uuid NOT NULL,
-  fiscal_memory_id uuid NOT NULL,
-  origin_operation_record_id uuid NOT NULL,
-  origin smallint NOT NULL CHECK (origin IN (1,2)),
-  version_number bigint NOT NULL CHECK (version_number > 0),
-  profile_id varchar(96) NOT NULL,
-  public_fingerprint_sha256 varchar(64) NULL
-    CHECK (public_fingerprint_sha256 ~ '^[0-9a-f]{64}$'),
-  public_spki_der bytea NULL
-    CHECK (octet_length(public_spki_der) BETWEEN 1 AND 4096),
-  custody_reference varchar(256) NULL
-    CHECK (custody_reference ~ '^vault://[A-Za-z0-9/_-]{1,248}$'),
-  protection_key_version varchar(64) NULL,
-  lifecycle_state smallint NOT NULL CHECK (lifecycle_state BETWEEN 1 AND 5),
-  portal_state smallint NOT NULL DEFAULT 1 CHECK (portal_state IN (1,2)),
-  public_match smallint NOT NULL DEFAULT 1 CHECK (public_match IN (1,2,3)),
-  revision bigint NOT NULL DEFAULT 1 CHECK (revision > 0),
-  created_at_utc timestamptz NOT NULL,
-  updated_at_utc timestamptz NOT NULL,
-  CONSTRAINT ck_signing_key_time CHECK (updated_at_utc >= created_at_utc),
-  CONSTRAINT ck_signing_key_sealed CHECK (
-    lifecycle_state = 1 OR
-    (public_fingerprint_sha256 IS NOT NULL AND public_spki_der IS NOT NULL
-      AND custody_reference IS NOT NULL AND protection_key_version IS NOT NULL)),
-  CONSTRAINT ck_signing_key_ready_match CHECK (
-    lifecycle_state <> 2 OR public_match <> 3),
-  CONSTRAINT fk_signing_key_origin FOREIGN KEY
-    (origin_operation_record_id, customer_user_id, taxpayer_id, fiscal_memory_id)
-    REFERENCES signing_operations(id, customer_user_id, taxpayer_id, fiscal_memory_id)
-    ON DELETE RESTRICT,
-  CONSTRAINT ux_signing_key_origin UNIQUE(origin_operation_record_id),
-  CONSTRAINT ux_signing_key_version UNIQUE(fiscal_memory_id, version_number),
-  CONSTRAINT ux_signing_key_scope
-    UNIQUE(id, customer_user_id, taxpayer_id, fiscal_memory_id)
-);
+The nullable consumed-operation reference uses a filtered unique index rather than an EF alternate key, so pending requests remain nullable.
 
-CREATE UNIQUE INDEX ux_signing_key_custody
-  ON signing_key_versions(custody_reference)
-  WHERE custody_reference IS NOT NULL;
-CREATE INDEX ix_signing_key_customer_history
-  ON signing_key_versions(customer_user_id, taxpayer_id, created_at_utc, id);
-CREATE INDEX ix_signing_op_recovery
-  ON signing_operations(state, updated_at_utc, id)
-  WHERE state IN (1,2,5);
+No connection, database write, migration script execution, or provider operation was performed while creating these files.
 
-CREATE TABLE signing_key_selections (
-  fiscal_memory_id uuid PRIMARY KEY,
-  customer_user_id uuid NOT NULL,
-  taxpayer_id uuid NOT NULL,
-  key_version_id uuid NOT NULL,
-  revision bigint NOT NULL DEFAULT 1 CHECK (revision > 0),
-  selected_at_utc timestamptz NOT NULL,
-  selected_by_user_id uuid NOT NULL REFERENCES identity_users(id) ON DELETE RESTRICT,
-  CONSTRAINT fk_signing_selection_key FOREIGN KEY
-    (key_version_id, customer_user_id, taxpayer_id, fiscal_memory_id)
-    REFERENCES signing_key_versions(id, customer_user_id, taxpayer_id, fiscal_memory_id)
-    ON DELETE RESTRICT
-);
+### 9.4 Implemented migration guards and service boundaries
 
-CREATE TABLE signing_change_requests (
-  id uuid PRIMARY KEY,
-  customer_user_id uuid NOT NULL,
-  taxpayer_id uuid NOT NULL,
-  fiscal_memory_id uuid NOT NULL,
-  current_key_version_id uuid NOT NULL,
-  expected_key_revision bigint NOT NULL CHECK (expected_key_revision > 0),
-  kind smallint NOT NULL CHECK (kind BETWEEN 1 AND 3),
-  state smallint NOT NULL CHECK (state BETWEEN 1 AND 5),
-  reason_code varchar(64) NOT NULL,
-  explanation varchar(1000) NOT NULL CHECK (length(trim(explanation)) > 0),
-  requested_by_user_id uuid NOT NULL REFERENCES identity_users(id) ON DELETE RESTRICT,
-  reviewed_by_user_id uuid NULL REFERENCES identity_users(id) ON DELETE RESTRICT,
-  decision_reason varchar(1000) NULL,
-  requested_at_utc timestamptz NOT NULL,
-  reviewed_at_utc timestamptz NULL,
-  expires_at_utc timestamptz NULL,
-  consumed_at_utc timestamptz NULL,
-  consumed_by_operation_record_id uuid NULL UNIQUE,
-  revision bigint NOT NULL DEFAULT 1 CHECK (revision > 0),
-  CONSTRAINT ck_signing_review_distinct CHECK (
-    reviewed_by_user_id IS NULL OR reviewed_by_user_id <> requested_by_user_id),
-  CONSTRAINT ck_signing_review_decision CHECK (
-    (state = 1 AND reviewed_by_user_id IS NULL AND reviewed_at_utc IS NULL
-       AND expires_at_utc IS NULL) OR
-    (state IN (2,3,4,5) AND reviewed_by_user_id IS NOT NULL
-       AND reviewed_at_utc IS NOT NULL AND reviewed_at_utc >= requested_at_utc
-       AND decision_reason IS NOT NULL AND length(trim(decision_reason)) > 0)),
-  CONSTRAINT ck_signing_review_expiry CHECK (
-    (state = 3 AND expires_at_utc IS NULL) OR state = 1 OR
-    (state IN (2,4,5) AND expires_at_utc IS NOT NULL
-      AND expires_at_utc = reviewed_at_utc + interval '24 hours')),
-  CONSTRAINT ck_signing_review_consumption CHECK (
-    (state = 4 AND consumed_at_utc IS NOT NULL
-      AND consumed_by_operation_record_id IS NOT NULL
-      AND consumed_at_utc >= reviewed_at_utc AND consumed_at_utc <= expires_at_utc) OR
-    (state <> 4 AND consumed_at_utc IS NULL AND consumed_by_operation_record_id IS NULL)),
-  CONSTRAINT fk_signing_review_key FOREIGN KEY
-    (current_key_version_id, customer_user_id, taxpayer_id, fiscal_memory_id)
-    REFERENCES signing_key_versions(id, customer_user_id, taxpayer_id, fiscal_memory_id)
-    ON DELETE RESTRICT,
-  CONSTRAINT fk_signing_review_consumption FOREIGN KEY
-    (consumed_by_operation_record_id, customer_user_id, taxpayer_id, fiscal_memory_id)
-    REFERENCES signing_operations(id, customer_user_id, taxpayer_id, fiscal_memory_id)
-    ON DELETE RESTRICT
-);
-CREATE INDEX ix_signing_review_scope_state
-  ON signing_change_requests(customer_user_id, taxpayer_id, state, requested_at_utc);
-
-CREATE TABLE signing_audit_events (
-  id uuid PRIMARY KEY,
-  customer_user_id uuid NOT NULL,
-  taxpayer_id uuid NOT NULL,
-  fiscal_memory_id uuid NOT NULL,
-  operation_record_id uuid NOT NULL,
-  actor_user_id uuid NOT NULL REFERENCES identity_users(id) ON DELETE RESTRICT,
-  action_code varchar(64) NOT NULL,
-  outcome_code varchar(64) NOT NULL,
-  revision bigint NOT NULL CHECK (revision > 0),
-  public_fingerprint_sha256 varchar(64) NULL
-    CHECK (public_fingerprint_sha256 ~ '^[0-9a-f]{64}$'),
-  occurred_at_utc timestamptz NOT NULL,
-  CONSTRAINT fk_signing_audit_operation FOREIGN KEY
-    (operation_record_id, customer_user_id, taxpayer_id, fiscal_memory_id)
-    REFERENCES signing_operations(id, customer_user_id, taxpayer_id, fiscal_memory_id)
-    ON DELETE RESTRICT
-);
-CREATE INDEX ix_signing_audit_scope_time
-  ON signing_audit_events(customer_user_id, taxpayer_id, occurred_at_utc, id);
-
-COMMIT;
-```
-
-The DDL above defines tables/indexes/checks/FKs. It is not the complete runnable migration until the mandatory trigger and EF deliverables below are implemented and reviewed. A database name guard is not identity/role authorization.
-
-### 9.4 Mandatory guards for the Step 04 migration
-
-The final migration MUST include the following database guards; a migration lacking them must not be applied:
+The migration now contains append-only/retention, mutation/revision, selection locking/readiness, consent and deferred audit guards. They require PostgreSQL execution tests before approval to apply. The following remain the full acceptance contract, including authorization and recovery responsibilities implemented by later services:
 - Append-only consent/audit: reject UPDATE, DELETE and TRUNCATE. Runtime role is not table owner and cannot disable triggers or alter/drop these tables.
 - Key identity immutability: scope, origin, originating operation, version number, profile and created time never change. Fingerprint/SPKI/custody locator can be populated while Staged and previously null, then are immutable. Protection-key version may change only through audited CAS rewrap; public identity remains unchanged.
 - Revision guard: mutable updates advance revision by exactly one and never move updated_at_utc backwards. Application updates still use WHERE revision = ExpectedRevision; an increment trigger alone does not prevent lost updates.
@@ -598,12 +411,12 @@ The final migration MUST include the following database guards; a migration lack
 - Public-key fingerprint/SPKI consistency is computed/verified in custody/application; SQL does not pretend to parse RSA or prove key possession.
 - Expired approvals are rejected by server UTC even before a background worker marks them Expired; CHECK constraints do not use clock-dependent NOW() as an expiry mechanism.
 
-A selection may be deleted as part of suspension; history is retained in append-only audit. Key/operation/review rows are not routinely physically deleted. Use restrictive FKs and runtime grants; migration downgrade cannot bypass them.
+A selection is unselected by setting KeyVersionId to null in an audited revision; its row cannot be deleted/truncated. Audit and consent cannot be updated/deleted/truncated. Other signing rows retain immutable identity fields and positive revision progression. Actual role/grant restrictions and authenticated authorization remain later service/deployment gates; table-owner/superuser access is not neutralized by triggers.
 
-### 9.5 EF mapping contract and concurrency
+### 9.5 EF mapping and concurrency contract
 
-Step 04 implementation must add:
-- DbSets and focused configuration classes for the six records; configure existing parent alternate keys to match the two proposed composite indexes.
+Step 03 now provides six entity classes and SigningModelConfiguration, wires six DbSets into the existing context, updates the frozen snapshot and migration target, and adds model/script tests. The following requirements include later repository behavior:
+- DbSets and explicit configuration for all six records; DB-only parent composite indexes preserve nullable legacy ownership. Do not add an EF alternate key containing nullable TaxpayerProfile.CustomerUserId.
 - Composite scoped FKs with Restrict; positive long Revision as IsConcurrencyToken; timestamptz fields accepting only UTC; numeric enum persistence matching this document.
 - PublicSpkiDer bytea is PUBLIC key data, not encrypted/private material. Do not expose internal entities directly as API DTOs.
 - Explicit model snapshot alignment and an EF no-pending-model-changes check. No hand-waved successful scaffold is recorded in this step.
@@ -636,37 +449,74 @@ The proposed migration remains test-only guarded. Production enablement requires
 |---|---|---|
 | English master document and 18-step order | No Persian prose; order 01–18 unchanged | Structural document review |
 | Existing certificate/invoice data | No alterations/backfill/private-key data | Proposed DDL inspection only |
-| Customer A with taxpayer/memory B | Composite FK rejection | Designed; PostgreSQL execution pending |
-| Two selected keys for one memory | Unique selection rejection | Designed; concurrency execution pending |
-| Stale key/selection revision | One accepted write, deterministic conflict | Designed; EF/PG tests pending |
-| Cross-scope consumption/consent/audit | Composite FK rejection | Designed; PG tests pending |
+| Customer A with taxpayer/memory B | Composite FK rejection | Implemented in migration; PostgreSQL execution pending |
+| Two selected keys for one memory | Unique selection rejection | Implemented constraints; concurrency execution pending |
+| Stale key/selection revision | One accepted write, deterministic conflict | Model tests added; EF/PG execution pending |
+| Cross-scope consumption/consent/audit | Composite FK rejection | Implemented in migration; PG execution pending |
 | Repeat OperationId | Same compatible public-only outcome; conflicting request rejected | Designed; repository tests pending |
-| Audit/consent mutation | UPDATE/DELETE/TRUNCATE denied | Trigger implementation/tests required in Step 04 |
-| Rotate/suspend versus select/sign | No invalid selected key at commit; documented admission order | Deferred trigger + locking tests required |
+| Audit/consent mutation | UPDATE/DELETE/TRUNCATE denied | Trigger source delivered; PostgreSQL tests pending |
+| Rotate/suspend versus select/sign | No invalid selected key at commit; documented admission order | Deferred triggers and locking source delivered; runtime tests pending |
 | Private material in DB/schema | No private/password/DEK/KEK/envelope columns | Structural proposal inspection |
 | Legacy null owner | Refuse key setup; no inferred customer | Composite FK/application design |
-| Actual EF/SQL/build validation | Complete migration, snapshot and tests | NOT EXECUTED; execution environment unavailable |
+| Actual EF/SQL/build validation | Migration, snapshot and tests delivered | NOT EXECUTED; execution environment unavailable |
 
-There is no successful .NET build, EF scaffold, PostgreSQL syntax/transaction test, model test or macOS run claimed for Step 03. The provided SQL is deliberately review-only; implementing its mandatory guards is a prerequisite to the executable persistence step.
+The source implementation is delivered, including migration guards. No successful .NET build, EF scaffold, PostgreSQL execution, model-test run or macOS run is claimed. Generated SQL and runtime/snapshot parity must now be verified with the delivered tests. Step 04 must not begin until the owner reviews Step 03; applying this migration remains separately approval-gated.
 
-### 9.8 macOS review commands
+### 9.8 Implementation inventory, checks and macOS acceptance
 
-This commit changes only the master document. No migration command should be run for it.
+Files delivered:
+- Six classes under `Infrastructure/Persistence/Signing/`: SigningOperation, SigningConsent, SigningKeyVersion, SigningKeySelection, SigningChangeRequest, SigningAuditEvent.
+- SigningModelConfiguration.cs and six DbSets/context registration.
+- Migration `20261020181500_AddPhase09SigningMetadata.cs` and frozen `.Designer.cs`.
+- Updated ArginTaxPayerDbContextModelSnapshot.cs.
+- `tests/ArginTaxPayer.Tests/Phase09SigningPersistenceModelTests.cs`: 11 tests.
+
+The tests cover entity/table registration, restrictive FKs, no shadow/secret properties, composite scope, nullable legacy ownership and approval consumption, retained selection revisions, no global fingerprint uniqueness, snapshot parity, migration discovery/target model and generated Up/Down script safety. They do not connect to PostgreSQL or apply the migration.
+
+Structural review performed through the available orchestration runtime:
+- Exactly six CREATE TABLE statements; all 80 mapped scalar properties appear in entity/configuration/snapshot/DDL.
+- Constraint/index/trigger identifiers fit PostgreSQL's 63-character limit.
+- Frozen snapshot/target definitions are included; they do not call the mutable live configuration.
+- Complete trigger source is present; the earlier incomplete proposal is no longer the migration implementation.
+- An issue found during source generation was corrected before delivery: replacement text containing a SQL regex dollar sign must not be interpreted as JavaScript replacement expansion. The final migration has six tables, not duplicated DDL.
+- This structural review is not a C# compiler, EF model initialization or a PostgreSQL parser. The 11 tests are ADDED, NOT EXECUTED.
+
+Execution was attempted again and returned no usable execution environment. Build, .NET tests, real migration generation and PostgreSQL guard behavior cannot be marked PASS. No database migration has been applied.
+
+From the repository root on macOS:
 
 ```bash
 git fetch origin
 git switch phase/09-cryptographic-keys-signing
 git pull --ff-only
 git status --short
-git show --stat --oneline HEAD
-git diff HEAD^ HEAD --check
+git log -1 --oneline
 python3 tests/phase09_verify_test.py
 bash scripts/phase09-verify.sh preflight
+bash scripts/phase09-verify.sh focused --filter FullyQualifiedName~Phase09SigningPersistenceModelTests
 ```
 
-Expected: only docs/phases/phase-09.md changed; eight existing verifier safety tests pass; preflight confirms a clean checkout and 18 ordered steps. These commands do not prove the proposed PostgreSQL schema. A full product rebuild is not required for this documentation-only change.
+Expected: eight verifier safety tests and eleven new .NET model/script tests pass; the new migration is discoverable and the runtime model matches the committed snapshot. No database connection is opened by those model/script tests.
 
-Owner review must cover the independent key model, scope FKs, unique selection, immutable history, consent/approval boundaries, lock/CAS design and safe migration gate. Wait for explicit Step 03 approval before implementing Step 04. Applying any migration still requires separate permission.
+Optional full no-DB regression after the focused run:
+
+```bash
+bash scripts/phase09-verify.sh pure
+```
+
+To create a SQL file for owner review only (the file is not applied):
+
+```bash
+mkdir -p /tmp/argin-phase09-review
+dotnet ef migrations script 20261020104500_AddInvoiceWorkspaceRevisionAudit 20261020181500_AddPhase09SigningMetadata \
+  --project src/ArginTaxPayer.Infrastructure \
+  --startup-project src/ArginTaxPayer.Api \
+  --output /tmp/argin-phase09-review/phase09-signing-metadata.sql
+```
+
+Do not run database update, integration/full, or execute this SQL without separate owner approval. Do not regenerate or remove migrations to bypass a failed snapshot test; report the exact failure for correction.
+
+Acceptance: real files present, build/model/script tests successful on macOS, unchanged legacy null ownership/certificate data, only additive guarded migration, and owner review. PostgreSQL execution/trigger tests remain an explicit subsequent approved test-database gate. Step 03 is not owner-approved and Step 04 has not started.
 
 ## 10. Deferred debt and final release boundary
 

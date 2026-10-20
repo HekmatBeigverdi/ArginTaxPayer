@@ -1,3 +1,4 @@
+using ArginTaxPayer.Infrastructure.Persistence.Signing;
 using ArginTaxPayer.Infrastructure.Persistence.Invoices;
 using ArginTaxPayer.Infrastructure.Persistence.Outbox;
 using ArginTaxPayer.Infrastructure.Persistence.Idempotency;
@@ -17,6 +18,12 @@ namespace ArginTaxPayer.Infrastructure.Persistence;
 public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbContext> options)
     : DbContext(options)
 {
+    public DbSet<SigningOperation> SigningOperations => Set<SigningOperation>();
+    public DbSet<SigningConsent> SigningConsents => Set<SigningConsent>();
+    public DbSet<SigningKeyVersion> SigningKeyVersions => Set<SigningKeyVersion>();
+    public DbSet<SigningKeySelection> SigningKeySelections => Set<SigningKeySelection>();
+    public DbSet<SigningChangeRequest> SigningChangeRequests => Set<SigningChangeRequest>();
+    public DbSet<SigningAuditEvent> SigningAuditEvents => Set<SigningAuditEvent>();
     public DbSet<InvoiceHumanReference> InvoiceHumanReferences => Set<InvoiceHumanReference>();
     public DbSet<StoredInvoiceReviewRequest> InvoiceReviewRequests => Set<StoredInvoiceReviewRequest>();
     public DbSet<StoredInvoiceReview> InvoiceReviews => Set<StoredInvoiceReview>();
@@ -63,6 +70,7 @@ public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbConte
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        SigningModelConfiguration.Configure(modelBuilder);
         modelBuilder.HasDbFunction(typeof(InvoiceJsonFields).GetMethod(nameof(InvoiceJsonFields.Text))!)
             .HasName("jsonb_extract_path_text").IsBuiltIn();
         base.OnModelCreating(modelBuilder);
