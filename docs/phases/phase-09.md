@@ -545,3 +545,12 @@ python3 scripts/phase09_apply_migration.py
 The helper reads prompts from the terminal, accepts a hidden password, hardcodes loopback port15432 and argintaxpayer_test, uses the existing actual-database guard, requires the exact preceding migration, refuses unexpected pre-existing signing tables, checks EF model drift, creates a private custom-format backup and SQL review file, then requires APPLY. It rechecks the clean checkout and history before updating only the explicit target migration, and checks the resulting history/table count.
 
 It does not start services/tunnels, reset history, or claim a complete restore/trigger/security test. The helper has been source-reviewed and its committed content checked, but execution and database application have NOT been performed by the assistant because the execution environment is unavailable. Operator results and Step03 approval remain pending.
+
+### Step 03 operator migration result — 2026-10-20
+
+The owner supplied macOS terminal output showing:
+- Applying migration 20261020181500_AddPhase09SigningMetadata.
+- EF reported Done.
+- The helper reported the target migration applied to argintaxpayer_test and found all six signing tables.
+
+Status: operator-reported migration application successful. This is not independent assistant execution or proof of trigger behavior, authorization, concurrency, recovery or key custody. No new model-test counts were supplied with this output, and final owner signoff of Step03 is still pending. Step04 has not started.
