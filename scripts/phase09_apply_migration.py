@@ -28,9 +28,8 @@ def read_terminal(prompt):
     # File execution normally has a terminal stdin. Explicit /dev/tty also
     # supports a redirected stdin without the heredoc input()/EOF failure.
     try:
-        with open("/dev/tty", "r+") as terminal:
-            terminal.write(prompt)
-            terminal.flush()
+        with open("/dev/tty", "r") as terminal:
+            print(prompt, end="", file=sys.stderr, flush=True)
             answer = terminal.readline()
     except OSError:
         raise verify.SafeError("An interactive terminal is required.") from None
