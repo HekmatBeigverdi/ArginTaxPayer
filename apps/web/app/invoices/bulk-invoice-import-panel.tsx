@@ -40,6 +40,19 @@ export default function BulkInvoiceImportPanel({onClose,onChanged}:{
   }catch(e){setError((e as Error).message);}
   finally{setBusy(false);}
  }
+ function exportReport(){
+  if(!outcomes)return;
+  const clean=(value:string)=>'"'+
+   (/^[=+@-]/.test(value)?"'"+value:value).replaceAll('"','""')+'"';
+  const columns=["invoiceKey","status","draftId","error"];
+  const csv="\uFEFF"+columns.join(",")+"\r\n"+
+   outcomes.map(item=>columns.map(key=>
+    clean(String(item[key as keyof Outcome]??""))).join(",")).join("\r\n");
+  const url=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));
+  const link=document.createElement("a");link.href=url;
+  link.download="ArginTaxPayer_Import_Results_"+batchKey.slice(0,12)+".csv";
+  link.click();URL.revokeObjectURL(url);
+ }
  async function submit(){
   if(!batchKey||busy||items.every(i=>i.draft===null)||outcomes)return;
   setBusy(true);setError("");
@@ -110,6 +123,7 @@ export default function BulkInvoiceImportPanel({onClose,onChanged}:{
     <div className="invoice-register__actions" style={{marginTop:12}}>
      <button type="button" className="identity-primary" disabled={busy||items.every(i=>i.draft===null)||!!outcomes}
       onClick={()=>void submit()}>{busy?"در حال ثبت…":"تأیید و ثبت پیش‌نویس‌های معتبر"}</button>
+     {outcomes&&<button type="button" className="identity-secondary" onClick={exportReport}>دانلود گزارش نتیجه CSV</button>}
      {outcomes&&<button type="button" className="identity-secondary" onClick={()=>{setOutcomes(null);setError("");}}>
        بررسی دوباره نتایج یا Retry همان فایل</button>}
     </div>
