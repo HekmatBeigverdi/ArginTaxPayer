@@ -344,6 +344,15 @@ public sealed class InvoiceEntryWorkspaceService(
             draft.SettlementMethod == InvoiceDraftSettlementMethod.Unknown ||
             draft.Lines.Any(l=>l.Quantity<=0 || string.IsNullOrWhiteSpace(l.Description))))
             return new(InvoiceApiDecision.Invalid);
+        // Approval must never bypass the same essential local preflight used
+        // before queueing a draft for review.
+        if (command.Action == "approve" &&
+            (draft.Lines is not { Length: > 0 } ||
+             draft.Lines.Any(l=>l.Quantity<=0 || string.IsNullOrWhiteSpace(l.Description)) ||
+             draft.BuyerPartyId is null || draft.SettlementMethod ==
+                 InvoiceDraftSettlementMethod.Unknown ||
+             row.LastCompletedStep != 2))
+            return new(InvoiceApiDecision.Invalid);
         if (command.Action != "submit")
         {
             // Internal approval is only available to a current authorized
