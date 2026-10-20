@@ -7,8 +7,8 @@ const table=[
  ["کاغذ A4",2,5000,0,10],["خودکار آبی",5,2000,100,10],
  ["پوشه اداری",3,1500,0,10]
 ];
-function worksheet(){
- const rows=table.map((row,i)=>'<row r="'+(i+1)+'">'+row.map((v,j)=>{
+function worksheet(data=table){
+ const rows=data.map((row,i)=>'<row r="'+(i+1)+'">'+row.map((v,j)=>{
   const ref=String.fromCharCode(65+j)+(i+1);
   return typeof v==="number"?'<c r="'+ref+'"><v>'+v+'</v></c>':
    '<c r="'+ref+'" t="inlineStr"'+(i===0?' s="1"':'')+'><is><t>'+xmlEscape(v)+'</t></is></c>';
@@ -47,7 +47,7 @@ function zip(entries){
  let p=0;for(const part of [...parts,...directory,footer]){bytes.set(part,p);p+=part.length;}
  return bytes;
 }
-export function invoiceTemplateXlsx(){
+export function invoiceTemplateXlsx(data=table){
  return zip([
   ["[Content_Types].xml",'<?xml version="1.0" encoding="UTF-8"?>'+
    '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'+
@@ -77,6 +77,20 @@ export function invoiceTemplateXlsx(){
    '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'+
    '<cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'+
    '<xf numFmtId="0" fontId="1" fillId="1" borderId="0" xfId="0"/></cellXfs></styleSheet>'],
-  ["xl/worksheets/sheet1.xml",worksheet()]
+  ["xl/worksheets/sheet1.xml",worksheet(data)]
+ ]);
+}
+
+export function bulkInvoiceTemplateXlsx(){
+ return invoiceTemplateXlsx([
+  ["invoiceKey","taxpayerId","buyerPartyId","issueDateUtc","type","pattern",
+   "settlementMethod","cashAmountRial","description","quantity","unitPriceRial",
+   "discountPerUnitRial","vatRatePercent"],
+  ["INV-001","REPLACE_WITH_TAXPAYER_UUID","REPLACE_WITH_BUYER_UUID",
+   "2026-10-20T09:00:00Z",1,1,1,0,"کاغذ A4",2,5000,0,10],
+  ["INV-001","REPLACE_WITH_TAXPAYER_UUID","REPLACE_WITH_BUYER_UUID",
+   "2026-10-20T09:00:00Z",1,1,1,0,"خودکار آبی",5,2000,100,10],
+  ["INV-002","REPLACE_WITH_TAXPAYER_UUID","REPLACE_WITH_BUYER_UUID",
+   "2026-10-20T10:00:00Z",1,1,2,0,"خدمات نصب",1,200000,0,10]
  ]);
 }
