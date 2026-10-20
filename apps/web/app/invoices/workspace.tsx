@@ -7,6 +7,7 @@ import { PersianTimePicker } from "../components/persian-time-picker";
 import SearchableCatalogPicker from "./searchable-catalog-picker";
 import InvoiceValidationPanel from "./invoice-validation-panel";
 import InvoiceHistoryPanel from "./invoice-history-panel";
+import InvoiceImportPanel, {type ImportValues} from "./invoice-import-panel";
 import {invoicePreview} from "./invoice-financial-preview.mjs";
 
 type Taxpayer = { id: string; displayName: string; status: number };
@@ -430,6 +431,14 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
       quantity:"1", unitPrice:"0", discount:"0", vatRate:"0"
     }));
   }
+  function applyImportedRows(imported: ImportValues[]) {
+    setRows(current => current.concat(imported.map(value => ({
+      key:++nextKey.current,productId:"",name:value.description,
+      quantity:value.quantity,unitPrice:value.unitPrice,
+      discount:value.discount,vatRate:value.vatRate
+    }))));
+    setNotice(imported.length+" ردیف از پیش‌نمایش به فرم اضافه شد؛ ذخیره پیش‌نویس هنوز انجام نشده است.");
+  }
   function updateRow(key: number, changes: Partial<Row>) {
     setRows(current => current.map(row => row.key === key ? {...row,...changes} : row));
   }
@@ -737,6 +746,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
                   <option value="products">کالا</option><option value="services">خدمت</option>
                 </select>
               </div>
+              <InvoiceImportPanel disabled={busy} onImport={applyImportedRows}/>
               <div className="invoice-register__catalog-picker">
                 <label htmlFor="invoice-catalog-search">انتخاب کالا / خدمت</label>
                 <SearchableCatalogPicker items={catalog} value={catalogQuery}
