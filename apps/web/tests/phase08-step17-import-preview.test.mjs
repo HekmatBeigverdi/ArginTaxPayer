@@ -15,7 +15,7 @@ test("invalid rows explain which input failed",()=>{
  const result=previewRows(rows,map);
  assert.equal(result.length,2);
  assert.ok(result[0].errors.length>0);
- assert.match(result[1].errors.join(" "),"تخفیف");
+ assert.match(result[1].errors.join(" "),/تخفیف/);
 });
 test("duplicate mappings and huge inputs rejected",()=>{
  assert.throws(()=>previewRows([["a","b"],["x","1"]],{description:0,quantity:0,unitPrice:1}),/ستون/);

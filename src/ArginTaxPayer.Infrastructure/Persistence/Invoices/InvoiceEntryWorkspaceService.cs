@@ -302,47 +302,50 @@ public sealed class InvoiceEntryWorkspaceService(
         var principal = await scope.ResolveAsync(token,ct);
         if (principal.Decision != TaxpayerScopeDecision.Allowed)
             return new(InvoiceApiDecision.Forbidden);
-        await using var transaction = await db.Database.BeginTransactionAsync(ct);
-        InvoiceEntryWorkspace saved;
-        if (input.Id is null)
+        return await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
         {
-            if (input.ExpectedRevision != 0) return new(InvoiceApiDecision.Conflict);
-            saved = new InvoiceEntryWorkspace {
-                Id = Guid.NewGuid(),CustomerUserId = access.Item2,
-                TaxpayerId = input.TaxpayerId,Revision = 1,
-                LastCompletedStep = input.LastCompletedStep,
-                IssueDateUtc = input.IssueDateUtc,DraftJson = json,UpdatedAtUtc = now
-            };
-            db.InvoiceEntryWorkspaces.Add(saved);
+            await using var transaction = await db.Database.BeginTransactionAsync(ct);
+            InvoiceEntryWorkspace saved;
+            if (input.Id is null)
+            {
+                if (input.ExpectedRevision != 0) return new InvoiceEntryResult(InvoiceApiDecision.Conflict);
+                saved = new InvoiceEntryWorkspace {
+                    Id = Guid.NewGuid(),CustomerUserId = access.Item2,
+                    TaxpayerId = input.TaxpayerId,Revision = 1,
+                    LastCompletedStep = input.LastCompletedStep,
+                    IssueDateUtc = input.IssueDateUtc,DraftJson = json,UpdatedAtUtc = now
+                };
+                db.InvoiceEntryWorkspaces.Add(saved);
+                await db.SaveChangesAsync(ct);
+            }
+            else
+            {
+                if (input.Id == Guid.Empty || input.ExpectedRevision < 1)
+                    return new InvoiceEntryResult(InvoiceApiDecision.Invalid);
+                var updated = await db.InvoiceEntryWorkspaces.Where(x => x.Id == input.Id &&
+                    x.CustomerUserId == access.Item2 && x.TaxpayerId == input.TaxpayerId &&
+                    x.Revision == input.ExpectedRevision)
+                    .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(x => x.Revision,x => x.Revision + 1)
+                        .SetProperty(x => x.DraftJson,json)
+                        .SetProperty(x => x.IssueDateUtc,input.IssueDateUtc)
+                        .SetProperty(x => x.LastCompletedStep,input.LastCompletedStep)
+                        .SetProperty(x => x.UpdatedAtUtc,now),ct);
+                if (updated != 1) return new InvoiceEntryResult(InvoiceApiDecision.Conflict);
+                saved = await db.InvoiceEntryWorkspaces.AsNoTracking()
+                    .SingleAsync(x => x.Id == input.Id && x.CustomerUserId == access.Item2,ct);
+            }
+            db.InvoiceEntryWorkspaceRevisions.Add(new InvoiceEntryWorkspaceRevision {
+                WorkspaceId = saved.Id, CustomerUserId = access.Item2,
+                TaxpayerId = input.TaxpayerId, Revision = saved.Revision,
+                ActorUserId = principal.ActorId, Action = input.Id is null ? "create" : "save",
+                Reason = input.Id is null ? "ایجاد پیش‌نویس" : "ذخیره تغییرات پیش‌نویس",
+                SnapshotJson = json, OccurredAtUtc = now
+            });
             await db.SaveChangesAsync(ct);
-        }
-        else
-        {
-            if (input.Id == Guid.Empty || input.ExpectedRevision < 1)
-                return new(InvoiceApiDecision.Invalid);
-            var updated = await db.InvoiceEntryWorkspaces.Where(x => x.Id == input.Id &&
-                x.CustomerUserId == access.Item2 && x.TaxpayerId == input.TaxpayerId &&
-                x.Revision == input.ExpectedRevision)
-                .ExecuteUpdateAsync(setters => setters
-                    .SetProperty(x => x.Revision,x => x.Revision + 1)
-                    .SetProperty(x => x.DraftJson,json)
-                    .SetProperty(x => x.IssueDateUtc,input.IssueDateUtc)
-                    .SetProperty(x => x.LastCompletedStep,input.LastCompletedStep)
-                    .SetProperty(x => x.UpdatedAtUtc,now),ct);
-            if (updated != 1) return new(InvoiceApiDecision.Conflict);
-            saved = await db.InvoiceEntryWorkspaces.AsNoTracking()
-                .SingleAsync(x => x.Id == input.Id && x.CustomerUserId == access.Item2,ct);
-        }
-        db.InvoiceEntryWorkspaceRevisions.Add(new InvoiceEntryWorkspaceRevision {
-            WorkspaceId = saved.Id, CustomerUserId = access.Item2,
-            TaxpayerId = input.TaxpayerId, Revision = saved.Revision,
-            ActorUserId = principal.ActorId, Action = input.Id is null ? "create" : "save",
-            Reason = input.Id is null ? "ایجاد پیش‌نویس" : "ذخیره تغییرات پیش‌نویس",
-            SnapshotJson = json, OccurredAtUtc = now
+            await transaction.CommitAsync(ct);
+            return new InvoiceEntryResult(InvoiceApiDecision.Success,View(saved));
         });
-        await db.SaveChangesAsync(ct);
-        await transaction.CommitAsync(ct);
-        return new(InvoiceApiDecision.Success,View(saved));
     }
 
     public async Task<InvoiceWorkspaceHistoryResult> HistoryAsync(
