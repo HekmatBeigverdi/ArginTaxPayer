@@ -448,6 +448,9 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
     headerCustomer,taxpayerId,memoryId,buyerId,date,hour,invoiceType,pattern,
     conditionalFields,rows,invoiceDescription,settlement,cashInput
   });
+  useEffect(() => {
+    if (modal && savedSnapshot === null) setSavedSnapshot(draftSnapshot);
+  }, [modal, savedSnapshot, draftSnapshot]);
   const unsavedChanges = modal && savedSnapshot !== null &&
     draftSnapshot !== savedSnapshot;
   const validationDirty = editing !== null && (
