@@ -90,6 +90,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   const [listPage, setListPage] = useState(1);
   const listPageSize = 50;
   const [modal, setModal] = useState(false);
+  const [importOpen,setImportOpen] = useState(false);
   const [editing, setEditing] = useState<SavedEntry | null>(null);
   const [step, setStep] = useState<Step>(0);
   const [savedSnapshot,setSavedSnapshot] = useState<string | null>(null);
@@ -738,43 +739,50 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
               <p className="invoice-register__hint">اطلاعات مرحله‌ای در پیش‌نویس خصوصی ذخیره می‌شوند؛ ثبت خریدار را می‌توانید بعداً تکمیل کنید. این پیش‌نویس مجوز ارسال مالیاتی ندارد.</p>
             </section>}
             {step === 1 && <section aria-label="اقلام صورتحساب">
-              <p className="invoice-register__hint">ردیف‌های این مرحله در پیش‌نویس قابل‌ویرایش ذخیره می‌شوند؛ پیش از صدور مالیاتی به اعتبارسنجی رسمی نیاز دارند.</p>
-              <div className="invoice-register__row-tools">
+              <div className="invoice-register__row-tools" style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:8}}>
                 <label htmlFor="invoice-kind">نوع قلم</label>
-                <select id="invoice-kind" value={kind}
-                  onChange={e => setKind(e.target.value as "products"|"services")}>
+                <select id="invoice-kind" value={kind} onChange={e=>setKind(e.target.value as "products"|"services")} style={{maxWidth:125}}>
                   <option value="products">کالا</option><option value="services">خدمت</option>
                 </select>
+                <button type="button" className="identity-secondary" onClick={()=>setImportOpen(true)} disabled={busy}>
+                  <span aria-hidden="true">↥ </span>ورود از فایل
+                </button>
+                <button type="button" className="identity-secondary" onClick={()=>addRow()} disabled={busy}>+ ردیف جدید</button>
+                <strong style={{marginInlineStart:"auto"}}>اقلام ({rows.length})</strong>
               </div>
-              <InvoiceImportPanel disabled={busy} onImport={applyImportedRows}/>
-              <div className="invoice-register__catalog-picker">
+              <div className="invoice-register__catalog-picker" style={{marginBottom:8}}>
                 <label htmlFor="invoice-catalog-search">انتخاب کالا / خدمت</label>
                 <SearchableCatalogPicker items={catalog} value={catalogQuery}
-                  onQueryChange={setCatalogQuery} loading={catalogBusy}
-                  onChoose={addRow}/>
+                  onQueryChange={setCatalogQuery} loading={catalogBusy} onChoose={addRow}/>
               </div>
-              <div className="invoice-register__row-heading">
-                <h3>ردیف‌های صورتحساب ({rows.length})</h3>
-                <button type="button" className="identity-secondary" onClick={() => addRow()}>
-                  + ردیف جدید</button>
+              {importOpen && <InvoiceImportPanel disabled={busy} onImport={applyImportedRows}
+                onClose={()=>setImportOpen(false)}/>}
+              <div className="console-table-scroll" style={{maxHeight:"min(48vh,440px)",overflow:"auto",border:"1px solid var(--border,#d3dce0)",borderRadius:8}}>
+                <table className="console-table" style={{width:"100%",minWidth:770,tableLayout:"fixed",borderCollapse:"separate",borderSpacing:0}}>
+                  <thead style={{position:"sticky",top:0,zIndex:1,background:"var(--surface,#fff)"}}>
+                    <tr><th style={{width:44}}>ردیف</th><th style={{width:"28%"}}>شرح کالا یا خدمت</th>
+                    <th>مقدار</th><th>فی واحد (ریال)</th><th>تخفیف واحد</th><th>VAT (%)</th><th style={{width:56}}>عملیات</th></tr>
+                  </thead>
+                  <tbody>{rows.length===0?<tr><td colSpan={7}>هنوز ردیفی اضافه نشده است.</td></tr>:
+                    rows.map((row,index)=><tr key={row.key}>
+                      <td>{index+1}</td>
+                      <td><input aria-label={"شرح ردیف "+(index+1)} title={row.productId?("کد ثبت‌شده: "+(row.catalogCodeSnapshot||"—")):""}
+                        style={{width:"100%",minWidth:0}} value={row.name} maxLength={256}
+                        onChange={e=>updateRow(row.key,{name:e.target.value})}/></td>
+                      <td><input aria-label={"مقدار ردیف "+(index+1)} style={{width:"100%",minWidth:0}} dir="ltr" type="number" min="0.00000001" step="any"
+                        value={row.quantity} onChange={e=>updateRow(row.key,{quantity:e.target.value})}/></td>
+                      <td><input aria-label={"قیمت واحد ردیف "+(index+1)} style={{width:"100%",minWidth:0}} dir="ltr" type="number" min="0" step="any"
+                        value={row.unitPrice} onChange={e=>updateRow(row.key,{unitPrice:e.target.value})}/></td>
+                      <td><input aria-label={"تخفیف ردیف "+(index+1)} style={{width:"100%",minWidth:0}} dir="ltr" type="number" min="0" step="any"
+                        value={row.discount} onChange={e=>updateRow(row.key,{discount:e.target.value})}/></td>
+                      <td><input aria-label={"VAT ردیف "+(index+1)} style={{width:"100%",minWidth:0}} dir="ltr" type="number" min="0" step="any"
+                        value={row.vatRate} onChange={e=>updateRow(row.key,{vatRate:e.target.value})}/></td>
+                      <td><button type="button" aria-label={"حذف ردیف "+(index+1)} title="حذف ردیف"
+                        className="console-row-action" style={{padding:"4px 7px"}} disabled={busy}
+                        onClick={()=>setRows(current=>current.filter(x=>x.key!==row.key))}>×</button></td>
+                    </tr>)}</tbody>
+                </table>
               </div>
-              {rows.length === 0 ? <p className="identity-muted">هنوز ردیفی اضافه نشده است.</p> :
-                rows.map((row,index) => <div className="invoice-register__item" key={row.key}>
-                  <strong>ردیف {index+1}</strong>
-                  {row.productId && <small className="field-hint">کد کالا/خدمت هنگام انتخاب: <bdi dir="ltr">{row.catalogCodeSnapshot || "—"}</bdi> · واحد پایه ثبت‌شده: <bdi dir="ltr">{row.unitId || "پس از ذخیره تعیین می‌شود"}</bdi></small>}
-                  <label>شرح<input value={row.name} maxLength={256}
-                    onChange={e => updateRow(row.key,{name:e.target.value})}/></label>
-                  <label>مقدار<input dir="ltr" type="number" min="0.00000001" step="any"
-                    value={row.quantity} onChange={e => updateRow(row.key,{quantity:e.target.value})}/></label>
-                  <label>فی واحد (ریال)<input dir="ltr" type="number" min="0" step="any"
-                    value={row.unitPrice} onChange={e => updateRow(row.key,{unitPrice:e.target.value})}/></label>
-                  <label>تخفیف واحد<input dir="ltr" type="number" min="0" step="any"
-                    value={row.discount} onChange={e => updateRow(row.key,{discount:e.target.value})}/></label>
-                  <label>نرخ VAT (%)<input dir="ltr" type="number" min="0" step="any"
-                    value={row.vatRate} onChange={e => updateRow(row.key,{vatRate:e.target.value})}/></label>
-                  <button type="button" className="identity-secondary"
-                    onClick={() => setRows(current => current.filter(x => x.key !== row.key))}>حذف ردیف</button>
-                </div>)}
               <p className="field-hint">برای مدیریت کاتالوگ به <Link href="/catalog">کالاها و خدمات</Link> مراجعه کنید.</p>
             </section>}
             {step === 2 && <section aria-label="مرور نهایی و تسویه صورتحساب"
