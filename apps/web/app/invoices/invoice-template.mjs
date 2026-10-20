@@ -15,7 +15,7 @@ function worksheet(data=table){
  }).join("")+'</row>').join("");
  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
  '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'+
- '<cols><col min="1" max="1" width="32" customWidth="1"/><col min="2" max="5" width="22" customWidth="1"/></cols>'+
+ '<cols>'+data[0].map((name,i)=>'<col min="'+(i+1)+'" max="'+(i+1)+'" width="'+Math.max(19,Math.min(36,String(name).length+6))+'" customWidth="1"/>').join('')+'</cols>'+
  '<sheetData>'+rows+'</sheetData></worksheet>';
 }
 function crc32(data){
