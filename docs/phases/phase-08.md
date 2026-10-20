@@ -665,3 +665,8 @@ Owner approved yearly reset and expanding serial length. Updated **pending/unapp
 - `ubuntu-dev.sh verify` enables test-database PostgreSQL integration, and independently confirms `current_database()=argintaxpayer_test` before proceeding. **Only run against the isolated test DB; integration tests may write to it.** Do not infer database safety just from configured connection-string text.
 - IMPORTANT same-SHA gate: subsequent documentation and runner commits mean current Step21 SHA may differ from the macOS Step20 report SHA. Operator must compare logged macOS SHA and Ubuntu SHA and repeat Mac Step20 regression on the final candidate SHA if they differ. Do not claim same-SHA acceptance without that verification.
 - Step21 coding/preparation is complete but acceptance is pending actual Ubuntu `verify`, browser and HTTP evidence, and owner confirmation. Step22 closeout must wait.
+
+### Step21 Ubuntu TS2307 image module correction (2026-10-20)
+- Operator reported web node tests 186/186 passing, followed by three TypeScript TS2307 errors for imported brand PNG in dashboard, console shell and identity screen; Ubuntu regression marked FAIL. No successful build or operator acceptance has been reported.
+- Three components now use the Next.js public asset URL `/brand/argin-logo.png` rather than importing PNG as a TypeScript module. Existing width/height, alt text and presentation remain unchanged.
+- Added `apps/web/tests/phase08-step21-brand-public-path.test.mjs` regression guard. No migration required. Repeat Ubuntu `bash scripts/phase08-step21-ubuntu-acceptance.sh`, verify full typecheck/build and browser logo visibility; macOS re-verification required on final same commit.
