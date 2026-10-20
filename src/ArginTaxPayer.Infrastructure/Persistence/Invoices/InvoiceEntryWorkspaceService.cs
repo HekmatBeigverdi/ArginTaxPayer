@@ -58,16 +58,17 @@ public static class InvoiceDraftSettlementPolicy
         if (!Enum.IsDefined(method) || grandTotalRial < 0 ||
             cashRial is < 0 || creditRial is < 0) return false;
         if (method == InvoiceDraftSettlementMethod.Unknown)
-            return (cashRial is null or 0m) && (creditRial is null or 0m);
-        // Both amounts may be absent while a working draft is incomplete.
-        if (cashRial is null && creditRial is null) return true;
+            return cashRial is null && creditRial is null;
+        // Incomplete drafts may omit amounts; completed settlement is checked
+        // separately at the step boundary, and must be fully reconciled.
         if (cashRial is null || creditRial is null) return false;
         if (cashRial.Value + creditRial.Value != grandTotalRial) return false;
         return method switch
         {
             InvoiceDraftSettlementMethod.Cash => creditRial.Value == 0 && cashRial.Value == grandTotalRial,
             InvoiceDraftSettlementMethod.Credit => cashRial.Value == 0 && creditRial.Value == grandTotalRial,
-            InvoiceDraftSettlementMethod.CashAndCredit => cashRial.Value > 0 && creditRial.Value > 0,
+            InvoiceDraftSettlementMethod.CashAndCredit => cashRial.Value > 0 && creditRial.Value > 0 &&
+                cashRial.Value < grandTotalRial && creditRial.Value < grandTotalRial,
             _ => false
         };
     }
@@ -166,6 +167,10 @@ public sealed class InvoiceEntryWorkspaceService(
         try
         {
             var summary = InvoiceDraftSettlementPolicy.Calculate(input.Lines);
+            if (input.LastCompletedStep == 2 &&
+                (input.SettlementMethod == InvoiceDraftSettlementMethod.Unknown ||
+                 input.CashAmountRial is null || input.CreditAmountRial is null))
+                return false;
             return InvoiceDraftSettlementPolicy.IsConsistent(input.SettlementMethod,
                 input.CashAmountRial, input.CreditAmountRial, summary.PreviewGrandTotalRial);
         }
