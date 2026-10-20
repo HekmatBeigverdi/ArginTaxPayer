@@ -20,9 +20,15 @@ export default function SearchableCatalogPicker({
     document.addEventListener("pointerdown",onPointer);
     return () => document.removeEventListener("pointerdown",onPointer);
   },[open]);
+  useEffect(() => {
+    const dismiss = () => setOpen(false);
+    window.addEventListener("invoice-catalog-dismiss",dismiss);
+    return () => window.removeEventListener("invoice-catalog-dismiss",dismiss);
+  },[]);
   const [active,setActive] = useState(0);
   const selected = items[active];
   return <div className="invoice-register__catalog-combo" ref={root}
+    data-invoice-catalog-open={open ? "true" : "false"}
     onKeyDown={event=>{if(event.key==="Escape" && open){
       event.preventDefault();event.stopPropagation();setOpen(false);
     }}}>
