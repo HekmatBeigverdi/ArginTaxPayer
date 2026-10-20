@@ -21,6 +21,7 @@ public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbConte
     public DbSet<StoredInvoiceReviewRequest> InvoiceReviewRequests => Set<StoredInvoiceReviewRequest>();
     public DbSet<StoredInvoiceReview> InvoiceReviews => Set<StoredInvoiceReview>();
     public DbSet<StoredInvoiceReviewEvent> InvoiceReviewEvents => Set<StoredInvoiceReviewEvent>();
+    public DbSet<InvoiceEntryWorkspaceRevision> InvoiceEntryWorkspaceRevisions => Set<InvoiceEntryWorkspaceRevision>();
     public DbSet<InvoiceEntryWorkspace> InvoiceEntryWorkspaces => Set<InvoiceEntryWorkspace>();
     public DbSet<StoredInvoice> InvoiceDocuments => Set<StoredInvoice>();
     public DbSet<StoredInvoiceRevision> InvoiceDocumentRevisions => Set<StoredInvoiceRevision>();
