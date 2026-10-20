@@ -531,3 +531,17 @@ Acceptance: real files present, build/model/script tests successful on macOS, un
 | Portal public-key encoding and current legacy live support | Required gates before the corresponding public-artifact/live features |
 
 Step 18 requires all agreed signoffs and explicit treatment of remaining limitations. Functional acceptance alone does not authorize publication. Main merge, proposed tag phase-09-v1.0.0, and GitHub Release require separate approval and verified artifact identities.
+
+### Step 03 operator migration helper
+
+Added `scripts/phase09_apply_migration.py` after the owner's request to replace the inline heredoc. The earlier inline script's input() failed because stdin was occupied by source text; that reported attempt stopped before connecting or applying any migration.
+
+Run from the checkout after dev-up/dev-status and the focused model tests:
+
+```bash
+python3 scripts/phase09_apply_migration.py
+```
+
+The helper reads prompts from the terminal, accepts a hidden password, hardcodes loopback port15432 and argintaxpayer_test, uses the existing actual-database guard, requires the exact preceding migration, refuses unexpected pre-existing signing tables, checks EF model drift, creates a private custom-format backup and SQL review file, then requires APPLY. It rechecks the clean checkout and history before updating only the explicit target migration, and checks the resulting history/table count.
+
+It does not start services/tunnels, reset history, or claim a complete restore/trigger/security test. The helper has been source-reviewed and its committed content checked, but execution and database application have NOT been performed by the assistant because the execution environment is unavailable. Operator results and Step03 approval remain pending.
