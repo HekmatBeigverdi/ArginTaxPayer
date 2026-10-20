@@ -334,6 +334,9 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
     }
     try { invoicePreview(rows); }
     catch { setError("مقادیر عددی ردیف‌ها یا دقت آن‌ها معتبر نیست."); return; }
+    if (completeStep===2 && settlement===0) {
+      setError("برای تکمیل مراحل، روش تسویه صورتحساب را انتخاب کنید.");return;
+    }
     const cash = settlement === 1 ? calculated.total : settlement === 2 ? 0 :
       settlement === 3 ? roundRial(Number(cashInput)) : null;
     const credit = settlement === 1 ? 0 : settlement === 2 ? calculated.total :
@@ -775,6 +778,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
                     value={fmt(creditPreview)} readOnly aria-readonly="true" />
                 </div>
               </div>
+              {settlement===0 && <p role="status" className="field-hint">برای تکمیل مرحله نهایی، روش تسویه را مشخص کنید؛ ذخیره پیش‌نویس همچنان مجاز است.</p>}
               {settlementError && <p role="alert" className="form-error">
                 برای تسویه نقدی و نسیه، مبلغ نقدی باید مثبت و کمتر از مبلغ صورتحساب باشد.
               </p>}
@@ -798,7 +802,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
           </div>
           <footer className="invoice-register__dialog-footer">
             <button type="button" className="identity-secondary" disabled={busy || !taxpayerId}
-              onClick={() => void saveWorkspace(step,true)}>ذخیره و ادامه بعداً</button>
+              onClick={() => void saveWorkspace(step===2 && settlement===0 ? 1 : step,true)}>ذخیره و ادامه بعداً</button>
             {step===0 && !buyerId && <button type="button" className="identity-secondary"
               disabled={busy || !taxpayerId} onClick={() => void saveWorkspace(0,true,true)}>
                 ذخیره و ثبت خریدار</button>}
@@ -810,7 +814,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
               disabled={busy || step === 0 && (!taxpayerId || !headerCustomer || !date)}
               onClick={nextStep}>مرحله بعد</button> :
               <button type="button" className="identity-primary"
-                disabled={busy || !taxpayerId || settlementError}
+                disabled={busy || !taxpayerId || settlementError || settlement===0}
                 onClick={() => void saveWorkspace(2,true)}>
                 {busy ? "در حال ذخیره…" : "ذخیره مراحل و خروج"}</button>}
           </footer>
