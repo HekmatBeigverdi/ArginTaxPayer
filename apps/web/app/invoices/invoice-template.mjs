@@ -15,7 +15,7 @@ function worksheet(){
  }).join("")+'</row>').join("");
  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
  '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'+
- '<cols><col min="1" max="1" width="28" customWidth="1"/><col min="2" max="5" width="20" customWidth="1"/></cols>'+
+ '<cols><col min="1" max="1" width="32" customWidth="1"/><col min="2" max="5" width="22" customWidth="1"/></cols>'+
  '<sheetData>'+rows+'</sheetData></worksheet>';
 }
 function crc32(data){
@@ -71,8 +71,8 @@ export function invoiceTemplateXlsx(){
    '</Relationships>'],
   ["xl/styles.xml",'<?xml version="1.0" encoding="UTF-8"?>'+
    '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'+
-   '<fonts count="2"><font/><font><b/><color rgb="FFFFFFFF"/></font></fonts>'+
-   '<fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF087450"/><bgColor indexed="64"/></patternFill></fill></fills>'+
+   '<fonts count="2"><font/><font><b/><color rgb="FF173C32"/></font></fonts>'+
+   '<fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFE4F2EB"/><bgColor indexed="64"/></patternFill></fill></fills>'+
    '<borders count="1"><border/></borders>'+
    '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'+
    '<cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'+
