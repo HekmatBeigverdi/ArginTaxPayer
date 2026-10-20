@@ -252,7 +252,19 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
     const before = document.activeElement;
     dialog.current?.focus();
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !busy) { setModal(false); return; }
+      if (event.key === "Escape") {
+        // Open inner popovers get the first Escape, regardless of focus.
+        // In particular the catalog picker can be open while a different
+        // control is focused, so bubbling suppression alone is insufficient.
+        if (dialog.current?.querySelector('[data-invoice-catalog-open="true"]')) {
+          event.preventDefault();
+          event.stopPropagation();
+          window.dispatchEvent(new Event("invoice-catalog-dismiss"));
+          return;
+        }
+        if (!busy) setModal(false);
+        return;
+      }
       if (event.key !== "Tab" || !dialog.current) return;
       const elements = [...dialog.current.querySelectorAll<HTMLElement>(
         'button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),a[href]'
