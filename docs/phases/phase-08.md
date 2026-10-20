@@ -548,3 +548,8 @@ Owner approved yearly reset and expanding serial length. Updated **pending/unapp
 - The catalog picker now offers a visible close button, outside-pointer dismissal, and handles Escape on the whole picker with preventDefault/stopPropagation while open. Other modal Escape behavior is preserved.
 - Added `phase08-step13-review-dropdown-regression.test.mjs`. These are application-only changes without migration, connection test, or tax-authority calls.
 - Operator acceptance still needed: macOS npm test/typecheck/build; in step2 open catalog list, press Escape and confirm the modal stays; use close button and outside click. In step3 change a field and select Save+Review, confirm one revision increment and updated preview; on server error the action must become clickable again. Step13 not owner-approved until operator confirmation.
+
+### Step13 additional Escape regression fix (2026-10-20)
+- Owner confirmed first picker-level Escape handling did not prevent modal closure. Root cause: parent `document` keydown handler independently closed the modal whenever Escape arrived; child suppression was not a sufficient global invariant.
+- Parent now detects the open catalog via `data-invoice-catalog-open` before closing; dispatches a dismissal request and returns without closing the modal. Picker listens to that request, clears open state, and retains its dedicated close button and outside-pointer dismissal. With picker closed, Escape still closes modal.
+- Regression guard: `apps/web/tests/phase08-step13-modal-escape-priority.test.mjs`. Requires operator macOS/browser acceptance; not claimed runtime verified.
