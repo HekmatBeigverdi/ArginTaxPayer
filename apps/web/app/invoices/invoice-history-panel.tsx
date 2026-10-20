@@ -1,6 +1,6 @@
 "use client";
 import {useEffect,useState} from "react";
-type Entry={revision:number;actorUserId:string;action:string;reason:string;occurredAtUtc:string};
+type Entry={revision:number;actorUserId:string;actorDisplayName:string;action:string;reason:string;occurredAtUtc:string};
 export default function InvoiceHistoryPanel({workspaceId}:{workspaceId:string}){
  const [rows,setRows]=useState<Entry[]>([]);
  const [error,setError]=useState("");
@@ -22,11 +22,11 @@ export default function InvoiceHistoryPanel({workspaceId}:{workspaceId:string}){
    {error&&<p role="alert" className="form-error">{error}</p>}
    {!loading&&!error&&rows.length===0&&<p className="field-hint">برای این پیش‌نویس هنوز سابقه‌ای در جدول تاریخچه موجود نیست.</p>}
    {rows.length>0&&<div className="console-table-scroll"><table className="console-table">
-    <thead><tr><th>نسخه</th><th>عملیات</th><th>تاریخ UTC</th><th>کاربر ثبت‌کننده</th><th>شرح</th></tr></thead>
-    <tbody>{rows.map(item=><tr key={item.revision}>
+    <thead><tr><th>نسخه</th><th>عملیات</th><th>تاریخ تغییر (شمسی)</th><th>کاربر ثبت‌کننده</th><th>شرح</th></tr></thead>
+    <tbody>{[...rows].sort((a,b)=>Date.parse(b.occurredAtUtc)-Date.parse(a.occurredAtUtc)||b.revision-a.revision).map(item=><tr key={item.revision}>
      <td>{item.revision}</td><td>{item.action==="create"?"ایجاد":"ذخیره تغییرات"}</td>
-     <td><bdi dir="ltr">{item.occurredAtUtc}</bdi></td>
-     <td><bdi dir="ltr">{item.actorUserId}</bdi></td><td>{item.reason}</td>
+     <td>{new Intl.DateTimeFormat("fa-IR-u-ca-persian",{timeZone:"Asia/Tehran",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit",hourCycle:"h23"}).format(new Date(item.occurredAtUtc))}</td>
+     <td>{item.actorDisplayName}</td><td>{item.reason}</td>
     </tr>)}</tbody>
    </table></div>}
    <p className="field-hint">این تاریخچه صرفاً ثبت نسخه‌های پیش‌نویس است و به معنای تأیید یا ارسال مالیاتی نیست.</p>
