@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 09: Cryptographic Keys & Digital Signing — Key-Based Path
 
-**وضعیت:** پیشنهاد برنامه برای تصویب مالک؛ هیچ گام اجرایی آغاز یا تأیید نشده است.
+**وضعیت:** برنامه ۱۸ گامی با دستور آغاز گام۱ مبنای اجرا شد؛ گام۱ آماده بررسی است و هنوز تأیید نشده.
 **تاریخ بررسی:** 2026-10-20
 **Repository:** HekmatBeigverdi/ArginTaxPayer
 **Base:** main — `b8f307ed06041d902aed9d8432d3b082e1cd714a`
@@ -104,7 +104,7 @@ Certificate metadata موجود حفظ می‌شود؛ موجودیت جدید c
 
 ## 5. جدول ثابت پیشنهادی ۱۸ گام
 
-همه گام‌ها شروع‌نشده‌اند. پایان هر گام نیازمند تأیید صریح مالک است. وابستگی ترتیبی حفظ می‌شود؛ کارهای گواهی‌محور از این جدول حذف شده‌اند.
+گام۱ آغاز شده و آماده بررسی است؛ گام‌های۲–۱۸ شروع نشده‌اند. پایان هر گام نیازمند تأیید صریح مالک است. وابستگی ترتیبی حفظ می‌شود؛ کارهای گواهی‌محور از این جدول حذف شده‌اند.
 
 | گام | خروجی | معیار پذیرش |
 |---|---|---|
@@ -156,7 +156,7 @@ Certificate metadata موجود حفظ می‌شود؛ موجودیت جدید c
 
 هر گام: ۱) آزمون رفتاری متناسب، ۲) اجرای آن و مشاهده failure مورد انتظار، ۳) پیاده‌سازی حداقلی، ۴) اجرای آزمون و regression مرتبط، ۵) review diff برای secret و scope، ۶) commit قابل بازبینی، ۷) ثبت شواهد و دستورات macOS در همین سند، ۸) توقف برای تأیید مالک. گام‌های صرفاً سندی به build اجباری بی‌فایده نیاز ندارند؛ acceptance آنها review و checksum است. تولید migration با اجرای آن یک مجوز نیست.
 
-در گام ۱ اسکریپت واحد `scripts/phase09-verify.sh` ساخته می‌شود؛ **در حال حاضر وجود ندارد**. قرارداد آن: pure برای unit/source بدون DB؛ focused برای تست‌های گام با اطمینان از کشف حداقل یک تست؛ integration فقط پس از parse connection و تأیید `SELECT current_database() = 'argintaxpayer_test'`؛ full برای کل regression و web. unset بودن PG integration باید از خروجی معلوم باشد؛ skip به عنوان PASS گزارش نمی‌شود. هیچ mode migration اعمال نمی‌کند. clean و SHA پیش/پس ثبت می‌شوند؛ تست نباید secret config را چاپ کند.
+در گام ۱ اسکریپت واحد `scripts/phase09-verify.sh` ساخته می‌شود؛ **در گام۱ ایجاد شد**. قرارداد آن: pure برای unit/source بدون DB؛ focused برای تست‌های گام با اطمینان از کشف حداقل یک تست؛ integration فقط پس از parse connection و تأیید `SELECT current_database() = 'argintaxpayer_test'`؛ full برای کل regression و web. unset بودن PG integration باید از خروجی معلوم باشد؛ skip به عنوان PASS گزارش نمی‌شود. هیچ mode migration اعمال نمی‌کند. clean و SHA پیش/پس ثبت می‌شوند؛ تست نباید secret config را چاپ کند.
 
 الگوی دستورات macOS که انتهای هر گام با فیلتر واقعی و پیش‌نیاز دقیق تکمیل خواهد شد:
 
@@ -254,9 +254,97 @@ git status --short
 
 ## 11. دفتر اجرا و تأیید
 
-**تصویب برنامه:** در انتظار مالک. **گام ۱:** آغاز نشده. **گام‌های ۲–۱۸:** آغاز نشده. **DB migration:** مجوز اجرا ندارد. **Merge/Tag/Release:** مجوز ندارد.
+**تصویب برنامه:** دستور مالک برای اجرای گام۱ دریافت شد. **گام ۱:** آماده بررسی؛ تأیید نشده. **گام‌های ۲–۱۸:** آغاز نشده. **DB migration:** مجوز اجرا ندارد. **Merge/Tag/Release:** مجوز ندارد.
 
 برای هر گام همین‌جا یک رکورد با فیلدهای زیر افزوده می‌شود:
 شماره/عنوان ثابت؛ هدف؛ منابع دقیق و تعارض‌ها؛ فایل‌ها و commit SHA؛ تست‌های اجراشده با count و skipped؛ تست‌های اجرا‌نشده و علت؛ دستورات واقعی macOS؛ وضعیت migration/SQL/DB guard؛ شواهد redacted؛ معیارهای پذیرش تکمیل/مسدود؛ ریسک و بدهی؛ تصمیم صریح مالک با تاریخ. وضعیت «آماده بررسی» با «تأییدشده» فرق دارد.
 
 **شرط پایان فاز:** ۱۸ گام با signoff واقعی، همه تست‌های الزامی و same-SHA تأیید، restore آزموده، منابع/profile legacy مشخص، هیچ ادعای اتصال واقعی، و بدهی‌های باقی‌مانده شفاف. تأیید عملکرد به‌تنهایی مجوز انتشار نیست. در گام ۱۸ نتیجه Merge/Tag/Release تنها پس از اجرای تأییدشده و مشاهده artifact واقعی ثبت می‌شود.
+
+## گام 01 — تثبیت منابع و ابزار بررسی (2026-10-20)
+
+**وضعیت:** پیاده‌سازی و ممیزی این گام آماده بررسی مالک؛ پذیرش نهایی macOS و تأیید صریح گام هنوز دریافت نشده. دستور «گام ۱ را انجام بده» مجوز آغاز برنامه ۱۸ گامی ثبت شد؛ تغییر تعداد/ترتیب مجاز نیست. گام ۲ آغاز نشده است.
+**مبنای اجرای این گام:** `38b40eae93f769a04c06d807405ddf0a80322fd4`، با ancestor فاز ۸ `b8f307ed06041d902aed9d8432d3b082e1cd714a`. کار در worktree ایزوله انجام شد؛ main و checkout قبلی بازنویسی نشدند.
+
+### تطبیق بایت منابع
+
+اصل چهار ZIP و سه PDF بازیابی و SHA256 محاسبه شد؛ هر هفت مورد با کاتالوگ تطابق دارند. هیچ ZIP، باینری SDK یا PEM نمونه وارد Git نشد. فایل‌ها فقط به عنوان شواهد خصوصی خوانده شدند و نمونه کلیدها اجرا/مصرف نشدند.
+
+| ID | SHA256 بایت اصلی بررسی‌شده |
+|---|---|
+| SDK-SOURCE-OLD 0.0.30 | `91f7b10914778b0ce13406bf09adce037c669ffd954b6db243b3f0f08528387a` |
+| SDK-NUGET-OLD 0.0.34 | `8c08bc486ac7081cc1063058860c2accb3cf96ad7a50252ca1e72e230b868690` |
+| SDK-SOURCE-NEW 2.0.32 | `66f2936c67c61e1c9c40660e7f9e0bd7666576b8b741fc2d5232a7a1f0d4d2f0` |
+| SDK-NUGET-NEW 2.0.32 | `abc9a5ea63b7d0ac7d4fe4548d3d92f981f8ab586b28fe1f4ba500bfc8d1997d` |
+| TAX-CONNECT-16 | `a4995c5a1f8766338a3816d28fd87bd3488dce6f91514557d304fe17d7eb595e` |
+| TAX-SDK-GUIDE-OLD | `ef3439dcb1a8aa7b5dc1ca46dadf8ee333da01a38fe7910d483342135f1c134a` |
+| TAX-SDK-GUIDE-NEW | `5c4145ae701832ea5017ff68cc1a8a9ef0cffe2761a3b5ca94ceceef1823accf` |
+
+### پروفایل انتخاب‌شده و source → تصمیم → آزمون آتی
+
+**شناسه پروفایل محلی پیشنهادی تثبیت‌شده:** `legacy-key-source-0.0.30-rsa-sha256-pkcs1-base64`. این شناسه مرجع رفتار آفلاین است، نه نام پروتکل رسمی یا ادعای تأیید live. بسته NuGet جدیدی نصب نشده است. منبع 0.0.30 مبنای قابل خواندن رفتار است؛ binary 0.0.34 فقط مرجع مقایسه باقی می‌ماند تا تطبیق مستقل انجام شود. اگر در آینده binary انتخاب شود باید نسخه و قرارداد آن صریح و آزموده باشد.
+
+| منبع دقیق | نتیجه مستند | آزمون/گام مصرف‌کننده |
+|---|---|---|
+| راهنمای legacy ص۴–۹، به‌ویژه ص۸–۹ | مسیر SELF_TSP با کلید قبلی متناظر با public ثبت‌شده؛ فایل PEM با PRIVATE KEY و PKCS#8؛ بدون ورودی certificate | import/key match گام۷–۸؛ sign گام۹ |
+| SOURCE-OLD، `TaxCollectData.Library/Business/Signatory/Pkcs8Signatory.cs` خطوط۴۵–۴۶ | UTF-8 → RSA SignData با SHA256 و Pkcs1 → Base64 معمولی؛ **نه Base64URL/JWS** | گام۹: verify با کلید صحیح، wrong key و tampered input؛ Persian/UTF-8 و Base64 padding |
+| همان فایل، SHA `3e050951a98e38fd60c15d10efb9b8665a8a3e297bc3733e47401a482289a107` | Sign(string) روی bytes رشته؛ normalization مرحله جداست؛ فایل private در SDK نمونه نیازمند جایگزین امن است | گام۵/۹: signer protected، بدون temp plaintext |
+| SOURCE-OLD، `Business/Signatory/InMemorySignatory.cs` SHA `2d42acc7f0e5415d93c9e9046b3b49815a12a48bc6c72b78c6ca5b4758838bc4` | همان primitive برای رشته؛ نگهداری string در SDK الگوی مناسب custody آرگین نیست | گام۲/۵/۹؛ قرارداد حداقل عمر secret |
+| SOURCE-OLD، `Extensions/ServiceCollectionExtensions.cs` خطوط۱۱۱–۱۲۰، SHA `ea6cf6150d82387a291986577f7eeda70a3424d09aeeb876fbd8aa5f9d8e6f85` | apiVersion خالی → ObjectNormalizer/ObjectTransferApi؛ v1 → SimpleNormalizer/SimpleTransferApi؛ نباید مخلوط شوند | گام۹: دو fixture مستقل؛ انتخاب قرارداد wire در فاز۱۰ |
+| SOURCE-OLD، `Business/Normalize/ObjectNormalizer.cs` SHA `8a0adcab1e6b8fb766d35582f1497d510c7e0b88e338abc91b4b298bd281ecdd` | flatten مسیرها با نقطه و E-index، sort کلیدها، delimiter # و escape ##، empty/null با #؛ headerها و Bearer treatment در متن منبع | گام۹: fixture `Field#0#Value` موجود در تست SDK؛ nested/array/null/#/bool/headers؛ culture و empty object باید مستقل بررسی شوند |
+| SOURCE-OLD، `Business/Normalize/SimpleNormalizer.cs` SHA `9ab2ae3c6db5269a591f8eeaaebb1280a85ab94a4659ce43e8b30ccf1ff7562a` | JSON سپس الحاق token header، requestTraceId و timestamp به ترتیب موجود؛ جایگزین عمومی ObjectNormalizer نیست | گام۹ fixture جدا؛ عدم ادعای یک normalization جهانی |
+| TAX-CONNECT-16 ص۵ | ذکر public key/گواهی با طول۲۰۴۸؛ برنامه تولید RSA-2048 بر این بند متکی است، نه توصیه اندازه دلخواه از SDK | گام۶ و ۹؛ استمرار پشتیبانی live مسیر قدیمی در فاز۱۰ |
+| راهنمای جدید ص۴–۷ و TAX-CONNECT-16 ص۹–۱۲ | مسیر گواهی و nonce/JWS؛ SDK 2.0.32 دارای factory با private+certificate و JwsSignatory دارای x5c است | فقط مرز معماری؛ در این فاز پیاده‌سازی نمی‌شود |
+
+**محدودیت قالب عمومی:** از قالب PKCS#8 خصوصی نمی‌توان قالب public مورد پذیرش کارپوشه را استنتاج کرد. SPKI/PKCS#1 و PEM/Base64 خروجی عمومی باید پیش از فعال‌کردن دانلود قابل ثبت در گام۶ با بند رسمی مربوط تطبیق شوند؛ تا آن زمان برچسب «تأییدشده برای کارپوشه» مجاز نیست. CSR پیش‌نیاز این بررسی نیست.
+
+### تفاوت نسخه‌ها و مخاطرات شناسایی‌شده
+
+- source قدیمی csproj نسخه0.0.30 و target netstandard2.0 دارد. nuspec قدیمی نسخه0.0.34 با repository commit `d986076958bbfe27f122d0745712d8666046669a` است؛ **برابری binary/source اثبات نشده**. راهنمای جدید 2.0.31 و package/source جدید 2.0.32 هستند؛ هر دو حفظ و cross-wire ممنوع.
+- SOURCE-OLD، ServiceCollectionExtensions.cs خط۱۳۰: callback اعتبارسنجی TLS همواره true است. **این transport نباید وارد محصول شود.** سند مرجع امضا است، نه مجوز کپی کل SDK. کلاینت شبکه امن و live dispatch متعلق به فاز۱۰ است.
+- DefaultEncryptor.cs دارای RSACng و catch با خروجی رشته `error` است؛ وابستگی OS و masking failure مناسب نیست. الگوریتم wire encryption از این نمونه به سیاست encryption-at-rest تعمیم داده نمی‌شود؛ custody مستقل است.
+- ObjectNormalizer از sort و ToString استفاده می‌کند؛ اختلاف فرهنگ/اعداد و empty-object در fixture باید بررسی شوند. تعویض خودسرانه comparator ممکن است wire bytes را عوض کند؛ رفتار دقیق در گام۹ با بردارها تثبیت می‌شود.
+- TaxApiService.Instance و DI singleton نمونه برای tenantهای همزمان نباید process-wide استفاده شوند؛ primitive امضا و state هر مؤدی جدا می‌مانند.
+- قدیمی بودن dependencyها به تنهایی نتیجه ممیزی آسیب‌پذیری نیست. NuGet/SDK dependency adoption، security review و binary execution در این گام انجام نشدند.
+- اعتبار عملیاتی امروز مسیر قدیمی و قرارداد دقیق public artifact هنوز gateهای اعلام‌شده‌اند؛ هیچ endpoint مالیاتی صدا زده نشد. این موارد مانع ثبت ممیزی منابع نیستند، ولی مانع ادعای قابلیت live یا قالب عمومی تأییدشده هستند.
+
+### ابزار تحویل‌شده
+
+- `scripts/phase09-verify.sh`: wrapper Bash سازگار با macOS/Ubuntu، بدون source فایل env خودکار.
+- `scripts/phase09_verify.py`: preflight ancestry/clean tree/۱۸ گام و SHA؛ modeهای pure/focused/integration/full؛ منع match تهی در discovery و شمارش TRX؛ هیچ migration یا startup سرویس.
+- `tests/phase09_verify_test.py`: هشت آزمون ایمنی parser، exact DB، alias تکراری، quoted password، پورت/loopback، mismatch نام واقعی، redaction خطای provider، حذف تنظیمات inherited و empty discovery. تست guard از subprocess جایگزین استفاده می‌کند؛ **اتصال DB واقعی را اثبات نمی‌کند**.
+
+`preflight` فقط ساختار و SHA را بررسی می‌کند و به .NET/DB نیاز ندارد. `pure` build/.NET tests/web را با حذف ConnectionStrings و PG* و integration=0 اجرا می‌کند؛ تست‌های قدیمی opt-in که early return می‌کنند همچنان ممکن است در xUnit passed شمارده شوند، بنابراین این mode هرگز پذیرش DB نیست. `focused --filter` نیز بدون DB است. `integration` و `full` ابتدا connection string را با subset صریح و نام دقیق test DB/loopback parse و سپس read-only `SELECT current_database()` با psql اجرا می‌کنند؛ در صورت شکست، هیچ build/test شروع نمی‌شود. password در argv یا خروجی guard قرار نمی‌گیرد. تنظیمات ناشناخته یا alias تکراری به جای حدس رد می‌شوند؛ service/options/PGSERVICE ارثی مجاز نیستند.
+
+### شواهد اجرا و محدودیت محیط
+
+- Python safety tests: **8/8 PASS**؛ Bash syntax: **PASS**؛ preflight روی checkout تمیز: **PASS**. این‌ها آزمون ابزار هستند، نه آزمون cryptography محصول.
+- اصل هفت فایل: checksum **7/7 MATCH**؛ مسیرهای منبع بالا خوانده شدند؛ هیچ باینری SDK اجرا نشد.
+- .NET build/test: **اجرا نشده**؛ dotnet در این محیط نصب نیست. PG واقعی: **اجرا نشده**؛ دیتابیس/credential تست در اختیار این اجرا نیست.
+- پذیرش macOS، Ubuntu و browser: هنوز **انجام نشده**؛ در این گام UI یا runtime محصول تغییر نکرده است.
+- Web regression: پس از نصب دقیق lockfile با npm ci، **187/187 PASS، صفر failed/skipped**. اجرای اولیه قبل از نصب dependency به دلیل نبود typescript در mfa-proxy.test.mjs شکست خورد؛ پس از npm ci همان suite بدون تغییر سورس سبز شد. Typecheck/build وب در این گام ادعا نشده‌اند.
+
+### دستورات پذیرش گام۱ روی macOS
+
+این گام تغییر UI، DB یا primitive رمزنگاری محصول ندارد؛ تست ضروری آن ممیزی مستند و ابزار safety/preflight است. از ریشه مخزن:
+
+```bash
+git fetch origin
+git switch phase/09-cryptographic-keys-signing
+git pull --ff-only
+git status --short
+git log -1 --oneline
+python3 tests/phase09_verify_test.py
+bash -n scripts/phase09-verify.sh
+bash scripts/phase09-verify.sh preflight
+```
+
+انتظار: هشت تست safety موفق، syntax بدون خطا، checkout تمیز، ancestry صحیح و جدول۱۸گامی. برای baseline کامل بدون DB روی مک با .NET SDK مطابق global.json و Node/npm نصب‌شده:
+
+```bash
+bash scripts/phase09-verify.sh pure
+```
+
+این دستور بدون DB، restore/build/.NET tests و npm ci/test/typecheck/build را اجرا می‌کند و اتمام آن پذیرش دیتابیس یا امضای مالیاتی نیست. فعلاً integration/full را برای گام۱ اجرا نکنید؛ migration لازم نیست و تنظیم credential یا اتصال DB برای پذیرش این گام ضروری نیست.
+
+**معیارهای پذیرش گام۱:** منابع۷گانه با SHA منطبق؛ profile legacy از JWS جدا؛ اختلاف نسخه‌ها و مخاطرات TLS/OS/culture ثبت؛ هیچ private key یا SDK binary در diff؛ safety tests و preflight در macOS موفق؛ هیچ Migration یا اتصال مالیاتی. نتایج macOS و تأیید صریح مالک برای تغییر وضعیت به «تأییدشده» لازم است.
