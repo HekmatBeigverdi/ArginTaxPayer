@@ -385,6 +385,7 @@ public sealed class InvoiceEntryWorkspaceService(
             ex.InnerException is Npgsql.PostgresException pg &&
             pg.SqlState == "23505")
         {
+            db.ChangeTracker.Clear(); // Remove failed INSERT before retrying other items.
             var prior = await db.InvoiceEntryWorkspaces.AsNoTracking()
                 .Where(w=>w.Id==importId && w.CustomerUserId==access.Item2 &&
                     w.TaxpayerId==input.TaxpayerId).SingleOrDefaultAsync(ct);
