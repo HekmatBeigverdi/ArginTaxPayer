@@ -24,13 +24,14 @@ async function readJson<T>(url:string):Promise<T> {
 }
 
 export default function InvoiceValidationPanel({
-  draftId,taxpayerId,revision,dirty
-}:{draftId:string;taxpayerId:string;revision:number;dirty:boolean}) {
+  draftId,taxpayerId,revision,dirty,onSave
+}:{draftId:string;taxpayerId:string;revision:number;dirty:boolean;onSave:()=>Promise<void>}) {
   const [report,setReport]=useState<Evaluation|null>(null);
   const [references,setReferences]=useState<Ref[]>([]);
   const [subject,setSubject]=useState("Original");
   const [selectedRef,setSelectedRef]=useState("");
   const [loading,setLoading]=useState(false);
+  const [checkingAfterSave,setCheckingAfterSave]=useState(false);
   const [error,setError]=useState("");
   async function refresh() {
     if(dirty) {setError("ابتدا تغییرات فرم را ذخیره کنید.");return;}
@@ -50,14 +51,20 @@ export default function InvoiceValidationPanel({
   useEffect(()=>{
     setReport(null);setReferences([]);setSubject("Original");setSelectedRef("");
   },[draftId,revision,taxpayerId]);
+  useEffect(()=>{
+    if(checkingAfterSave && !dirty){setCheckingAfterSave(false);void refresh();}
+  },[revision,dirty,checkingAfterSave]);
   const issues=report?.findings ?? [];
   return <section className="invoice-validation" aria-labelledby="invoice-validation-title">
     <div className="invoice-validation__heading">
       <div><h3 id="invoice-validation-title">پیش‌بررسی و سوابق ارجاع</h3>
         <p>این بررسی برای تکمیل فرم است؛ مجوز ارسال مالیاتی صادر نمی‌کند.</p></div>
       <button type="button" className="identity-secondary"
-        disabled={loading||dirty} onClick={()=>void refresh()}>
-        {loading?"در حال بررسی…":"بررسی پیش‌نویس ذخیره‌شده"}
+        disabled={loading||checkingAfterSave} onClick={()=>{
+          if(dirty){setCheckingAfterSave(true);void onSave().catch(e=>{setCheckingAfterSave(false);setError((e as Error).message);});}
+          else void refresh();
+        }}>
+        {loading||checkingAfterSave?"در حال ذخیره/بررسی…":dirty?"ذخیره تغییرات و بررسی":"بررسی پیش‌نویس ذخیره‌شده"}
       </button>
     </div>
     {dirty && <p role="status" className="invoice-validation__warning">
