@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 09: Cryptographic Keys and Digital Signing
 
-**Status:** Step 01 approved. The owner's instruction to complete Step 03 authorizes continuation from the Step 02 design. Step 03 now includes persistence entities, EF configuration, a registered migration and frozen target model/snapshot, and 11 model/script tests. Implementation is ready for executable verification and owner review; it is not owner-approved.
+**Status:** Steps 01 and 03 explicitly owner-approved; Step 02 design accepted for continuation. The Phase09 migration was applied by the owner to argintaxpayer_test. Step 04 source implementation is delivered for executable verification and owner review; Step 05 has not started.
 **Documentation language:** English. This edition replaces the Persian master document without changing the agreed scope or step order.
 **Last reviewed:** 2026-10-20.
 **Repository:** HekmatBeigverdi/ArginTaxPayer.
@@ -243,8 +243,8 @@ Provider references inspected in Step 02:
 |---|---|---|---|
 | 01 | Baseline and legacy-source audit | Seven source hashes; exact offline profile; differences/security findings recorded | Owner-approved 2026-10-20 |
 | 02 | Architecture, custody and authorization contracts | Consent, protected provider design, lifecycle and default-deny access | Design accepted for continuation; runtime checks not rerun |
-| 03 | Data model and additive migration proposal | Scope FKs, uniqueness/CAS, reviewed SQL and recovery plan; no DB execution | Source delivered; executable verification and owner review pending |
-| 04 | Operation persistence, audit and idempotency | Approved test migration only; atomic audit and recoverable provider/DB outcomes | Not started |
+| 03 | Data model and additive migration proposal | Model/migration delivered; operator applied migration on isolated test DB | Owner-approved 2026-10-20 |
+| 04 | Operation persistence, audit and idempotency | Atomic journal/consent/audit, replay, CAS and recovery states | Source delivered; execution and owner review pending |
 | 05 | Envelope protection and vault provider | Tamper/AAD/missing-KEK denial; no private bytes in business DB | Not started |
 | 06 | Key generation and public artifact | Official profile; no certificate/CSR/private response; portal encoding verified | Not started |
 | 07 | Existing private-key import | Bounded valid formats; malformed/weak input denied; no plaintext temp/log | Not started |
@@ -554,3 +554,102 @@ The owner supplied macOS terminal output showing:
 - The helper reported the target migration applied to argintaxpayer_test and found all six signing tables.
 
 Status: operator-reported migration application successful. This is not independent assistant execution or proof of trigger behavior, authorization, concurrency, recovery or key custody. No new model-test counts were supplied with this output, and final owner signoff of Step03 is still pending. Step04 has not started.
+
+## 11. Step 04 — Operation persistence, atomic audit and idempotency
+
+**Owner approval:** The owner explicitly approved Step03 and requested Step04 on 2026-10-20. Earlier Step03 pending text is historical evidence, not the current signoff. The existing migration was operator-reported applied to argintaxpayer_test; this step adds no migration/schema change.
+**Source baseline:** `8b4abd9b35725984b66748eab7696c898919328a`.
+**Status:** Implementation delivered for testing. No successful build, unit-test run, PostgreSQL run or authenticated runtime check is claimed by the assistant; the execution environment returned unavailable again. Step05 has not started.
+
+### Delivered implementation
+
+- Application/Signing/SigningOperationContracts.cs: scoped generate/import claims, public-only operation views, fixed failure enums and ISigningOperationRepository.
+- Domain/Signing/SigningOperationPolicy.cs: source-pinned profile/consent versions, terminal-state protection, canonical public fingerprints and five-minute UTC authentication policy.
+- Infrastructure/Persistence/Signing/EfSigningOperationRepository.cs: owner-authorized reservation/advance, scoped metadata lookup, optimistic revision checks, database serialization per memory and EF execution-strategy handling.
+- SigningOperationAudit.cs: fixed-schema operation and consent audit staged on the same context transaction; no request body, exception or arbitrary log payload.
+- PersistenceRegistration.cs: scoped DI registration only when PostgreSQL is configured.
+- Three test files: policy, no-DB validation, and explicitly opt-in PostgreSQL integration.
+- scripts/phase09_step04_verify.py: runs focused no-DB checks, prompts securely for the existing loopback test DB, then runs only the six PG tests without applying migrations.
+
+No endpoint, provider, generated private key, ciphertext storage, live authority request, fiscal-memory activation, or entitlement update was added. These are internal persistence contracts, not a public method for a browser to assert arbitrary provider success.
+
+### Reservation and replay contract
+
+ReserveAsync accepts only Generate/Import, the pinned legacy profile, explicit server-custody acceptance and the current consent-text version. Import requires a canonical PUBLIC fingerprint derived before reservation; no private-key/password hash enters the journal.
+
+The metadata digest is computed server-side from scope, kind, profile, consent version and optional public fingerprint. Same scoped OperationId with matching actor/digest replays the existing public-only result; changed metadata conflicts. A database unique key plus per-memory transaction locking protects concurrent attempts. A simultaneous losing transaction may return Conflict; a subsequent matching retry replays the winner. No claim is silently replaced.
+
+A new reservation requires a currently valid authenticated owner session and a DB-recorded login timestamp within five minutes. The client cannot provide a reauthentication timestamp. Current taxpayer/memory membership and customer profile access are checked; administrative metadata access does not grant custody mutation. Metadata reads retain the existing scoped Level1/Level2 rules.
+
+Operation, owner consent, operation-revision audit and consent audit are saved in one transaction. Deferred DB guards execute during commit before a success result is returned. Missing audit/FK/revision errors never become successful results. Unknown database failures propagate for safe higher-layer handling; caller/provider error strings are not persisted.
+
+This service owns its clean DbContext transaction and refuses composition with pending changes or an already active transaction. It clears only its owned tracking lifecycle; external provider calls are never placed inside the retry callback.
+
+### Staging, failure and recovery
+
+The persisted state machine supports Reserved -> VaultStaged/Failed/RecoveryRequired; VaultStaged -> Committed/Failed/RecoveryRequired; RecoveryRequired -> VaultStaged/Committed/Failed. Terminal operations cannot restart. Compare-and-swap uses the persisted Revision; a matching replay of the immediately applied transition returns the current public-only view.
+
+AdvanceAsync is an INTERNAL orchestration API. VaultStaged means a future trusted provider adapter reported a durable staging result; no public endpoint accepts this assertion. RecoveryRequired stores a fixed safe code such as PROVIDER_OUTCOME_UNKNOWN, not an exception body. The stable operation record ID and scope are the reconciliation identity for the future provider. No retry is authorized to create a second key merely because a provider call timed out.
+
+Committed is denied until the same scoped originating operation has a LocallyReady key with sealed public metadata and owner consent. For imports, the sealed public fingerprint must also reproduce the original metadata digest, preventing a changed imported key from satisfying the old claim. This step does not manufacture that key or pretend a metadata row proves cryptographic validation. Actual generation/import/provider receipt validation belongs to Steps05–09.
+
+There is no distributed transaction between PostgreSQL and Vault. Step04 supplies the durable operation/recovery journal and consent/audit atomicity; provider probing, envelope orphan reconciliation and protected-result persistence are completed with the provider in Step05 and recovery exercises in Step12. No provider cleanup deletes key history.
+
+Session/ownership is checked within the transaction and again before saving a mutation. Serializable transaction admission defines ordering for overlapping changes; an operation admitted before concurrent revocation may complete under that ordering. Later signing admission and transfer/MFA/session race coverage remain required in Step16; this step does not claim a full authorization audit.
+
+### Tests added and database safety
+
+Pure tests: 18 policy cases and 3 invalid-input tests. Invalid requests use an unreachable PostgreSQL port to prove their validation path returns before opening a connection.
+
+Six PostgreSQL tests cover:
+1. Atomic reservation/consent/audit, replay, and changed-metadata conflict.
+2. Unknown provider outcome, transition replay, recovery progression, refusal to commit without a sealed key, and terminal-state protection.
+3. Missing consent, foreign customer and revoked-session denial.
+4. Concurrent same-ID reservation: one persisted operation, deterministic retry replay.
+5. Deferred missing-audit rollback and append-only audit rejection.
+6. Successful completion/replay after matching scoped, sealed public metadata (ephemeral synthetic RSA public key; no real vault).
+
+The PG attribute reports SKIPPED when RUN_ARGINTAXPAYER_PG_INTEGRATION is not1; it does not silently return a passing test. When enabled, fixtures require both the parsed DB name and actual current_database() to equal argintaxpayer_test, and require the already-approved Phase09 migration in history. Tests never migrate/EnsureCreated automatically.
+
+Fixtures use synthetic accounts, taxpayers and memory IDs. Append-only journal/consent/audit fixtures are intentionally retained in the TEST database; cleanup does not disable triggers, truncate or delete protected history. No production/developer DB is permitted.
+
+### macOS acceptance commands
+
+From the repository root, first run the source/model/policy checks without database integration:
+
+```bash
+git fetch origin
+git switch phase/09-cryptographic-keys-signing
+git pull --ff-only
+python3 tests/phase09_verify_test.py
+bash scripts/phase09-verify.sh focused --filter FullyQualifiedName~Phase09Signing
+```
+
+Expected focused coverage: 11 existing model/script tests +21 pure Step04 cases; six Step04 PG tests explicitly skipped when integration is disabled. Actual discovery/counts must be captured; none are reported as already executed by the assistant.
+
+For the real six PostgreSQL tests, use the existing dev-up/dev-status tunnel and private exported test configuration, then run:
+
+```bash
+zsh scripts/dev-up.zsh
+zsh scripts/dev-status.zsh
+bash scripts/phase09-verify.sh integration --filter FullyQualifiedName~Phase09SigningOperationPostgresTests
+```
+
+ConnectionStrings__ArginTaxPayerDb must explicitly point to argintaxpayer_test using the approved loopback/tunnel configuration. The verifier checks the actual database before build/test. The interactive migration helper did not export its private Python environment back into the calling shell; configure the existing private test connection without posting credentials in chat. Do not assume dev-up's developer DB settings are the test DB.
+
+Acceptance requires successful build, all focused pure/model tests, all six PG tests without skips, inspection of scoped rows/audit/revisions and explicit owner approval. If any test fails, stop and report the exact error. No additional migration or key-provider setup is needed for Step04. Step05 remains unstarted.
+
+### Simplified Step04 operator command
+
+The new helper avoids relying on a connection string exported by the earlier migration process:
+
+```bash
+git fetch origin
+git switch phase/09-cryptographic-keys-signing
+git pull --ff-only
+zsh scripts/dev-up.zsh
+zsh scripts/dev-status.zsh
+python3 scripts/phase09_step04_verify.py
+```
+
+It runs focused model/policy/validation checks first, then prompts for the test DB user/password and runs the five guarded PG tests. Passwords are not stored or printed. Expected no-DB focused result: 32 executed tests and six explicit PG skips; final PG run: six executed, zero skipped. Exact runner counts are evidence to capture, not assistant-observed PASS results.
