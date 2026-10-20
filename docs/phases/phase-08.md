@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 08: Invoice Workflows and UI
 
-**Status:** Steps 01–11 owner-approved; Step 12 implementation committed, macOS/browser acceptance pending.
+**Status:** Steps 01–12 owner-approved; Step 13 code committed, macOS/browser acceptance pending.
 **Branch:** `phase/08-invoice-workflows-ui`
 **Baseline:** `main` at `364462848914f289916962a0578c9fac9cd85ce1` (GitHub inspected 2026-10-18).
 **Roadmap source:** `docs/roadmap/18-phases.md`, phase 08 of 18.
@@ -47,8 +47,8 @@
 | 09 | Dynamic invoice forms | Drive conditional fields by official rule-set and pattern metadata | Valid combinations enabled; invalid blocked | Owner-approved 2026-10-19 |
 | 10 | Header and party entry | Taxpayer, memory, buyer, issue date, header validation | Localized field errors and valid persisted values | Owner-approved 2026-10-19 |
 | 11 | Line and catalog entry | Search/select Phase06 catalog items, quantity, unit, price and snapshots | Historic invoice unchanged after catalog edit | Owner-approved 2026-10-19 |
-| 12 | Calculations and financial summary | Display discount, charges, VAT and final totals using Phase07 engine | UI/API totals match canonical model | Code committed; operator acceptance pending |
-| 13 | Settlement methods and fields | Cash, credit and mixed invoice terms and reconciliation | Valid mix accepted; mismatch rejected | Not started |
+| 12 | Calculations and financial summary | Display discount, charges, VAT and final totals using Phase07 engine | UI/API totals match canonical model | Owner-approved 2026-10-19 |
+| 13 | Settlement methods and fields | Cash, credit and mixed invoice terms and reconciliation | Valid mix accepted; mismatch rejected | Implemented, operator acceptance pending |
 | 14 | Save/resume draft UX | Enhance existing resumable workspaces and unsaved-change handling | Draft resumes exactly once without lost fields | Not started |
 | 15 | Review and internal approval UI | Review summary, validation feedback, approve and return with reason | Readonly approval snapshot and reasoned change requests | Not started |
 | 16 | Audit and revision history | Show immutable actor/timestamp/reason/revision timeline | No historical rewrites or unauthorized reads | Not started |
@@ -526,3 +526,12 @@ Owner approved yearly reset and expanding serial length. Updated **pending/unapp
 - Regression tests: `Phase08Step12FinancialSummaryTests.cs` and `phase08-step12-financial-preview.test.mjs`; covers VAT, discounts, decimal half rounding, split cash/credit reconciliation and invalid entries. Existing draft JSON and financial summary read contract are unchanged. No migration.
 - **Acceptance gate:** run `dotnet build ArginTaxPayer.sln`, `dotnet test ArginTaxPayer.sln`, `npm --prefix apps/web test`, `npm --prefix apps/web run typecheck`, `npm --prefix apps/web run build` on macOS. In browser test multiple decimal quantities, small fractional Rial values, discount, VAT, save/reload and compare UI with the API's `financialSummary`; verify mixed settlement and old draft opening. **Potential limitation:** BigInt cents are converted to JavaScript Number for UI formatting and mixed-settlement input; totals above JS safe integer precision require dedicated string-decimal formatting and are NOT fully guaranteed by this step. No provider calls or production updates.
 - Step13 not started; awaiting explicit owner acceptance.
+
+### Step13 — Cash, credit and mixed payment terms (2026-10-20)
+- Owner explicitly approved Step12. The existing UI and server settlement mechanisms have been tightened without implementing collections or ledger accounting.
+- Canonical server policy supports Unknown (only for incomplete draft), Cash (cash equals total, credit 0), Credit (cash 0, credit equals total), Mixed (both positive and their sum exactly equals canonical grand total). Both amounts may be omitted for unfinished drafts; partially specified pairs or contradictory mixes are rejected.
+- Completing last wizard step (`LastCompletedStep == 2`) rejects Unknown or missing cash/credit amounts even if the client omits them; intermediate steps remain resumable.
+- UI shows the unknown-method warning, disables final completion for unknown or invalid mixed terms and permits saving an incomplete draft as completed-step 1, without falsely presenting it as settlement-ready. Backend remains authoritative and checks direct API tampering.
+- Tests: `Phase08Step13SettlementPolicyTests.cs` covers cash/credit/mixed edges including mismatch/zero; `phase08-step13-settlement.test.mjs` checks UI/server contract.
+- No DB schema change, financial receipt, subscription charge or actual partner payout is created. Versioned invoice-pattern-specific authority submission constraints are not inferred from generic payment choices.
+- Operator acceptance pending: macOS `dotnet build/test` and npm `test/typecheck/build`; browser check all four methods, save/reopen mixed amounts, direct API invalid totals and unfinished draft preservation. No tests executed by the repository connector. Step14 awaits owner signoff.
