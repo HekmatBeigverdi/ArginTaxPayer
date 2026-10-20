@@ -61,6 +61,7 @@ public static class InvoiceDraftSettlementPolicy
             return cashRial is null && creditRial is null;
         // Incomplete drafts may omit amounts; completed settlement is checked
         // separately at the step boundary, and must be fully reconciled.
+        if (cashRial is null && creditRial is null) return true;
         if (cashRial is null || creditRial is null) return false;
         if (cashRial.Value + creditRial.Value != grandTotalRial) return false;
         return method switch
