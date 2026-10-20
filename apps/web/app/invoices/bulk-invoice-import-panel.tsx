@@ -1,5 +1,5 @@
 "use client";
-import {useMemo,useRef,useState,type DragEvent} from "react";
+import {useEffect,useMemo,useRef,useState,type DragEvent} from "react";
 import {parseCsv,parseXlsx,MAX_IMPORT_BYTES} from "./invoice-import-preview.mjs";
 import {previewBulkInvoices,type BulkInvoicePreview} from "./bulk-import-preview.mjs";
 type Outcome={invoiceKey:string;status:string;draftId:string|null;error:string|null};
@@ -7,6 +7,13 @@ export default function BulkInvoiceImportPanel({onClose,onChanged}:{
  onClose:()=>void;onChanged:()=>void
 }){
  const fileRef=useRef<HTMLInputElement>(null);
+ useEffect(()=>{
+  const onKey=(event:KeyboardEvent)=>{
+   if(event.key==="Escape"&&!busy){event.preventDefault();onClose();}
+  };
+  document.addEventListener("keydown",onKey);
+  return ()=>document.removeEventListener("keydown",onKey);
+ },[busy,onClose]);
  const [dragging,setDragging]=useState(false);
  const [busy,setBusy]=useState(false);
  const [filename,setFilename]=useState("");
@@ -96,7 +103,7 @@ export default function BulkInvoiceImportPanel({onClose,onChanged}:{
        return <tr key={item.invoiceKey}>
         <td dir="ltr">{item.invoiceKey}</td><td>{item.lineCount}</td><td>{formatter.format(item.total)}</td>
         <td>{item.errors.length?item.errors.join("؛ "):"معتبر"}</td>
-        <td>{state}{outcome?.draftId&&<small style={{display:"block"}} dir="ltr">{outcome.draftId}</small>}</td>
+        <td>{state}{outcome?.error&&<small style={{display:"block"}}>{outcome.error}</small>}{outcome?.draftId&&<small style={{display:"block"}} dir="ltr">{outcome.draftId}</small>}</td>
        </tr>;
      })}</tbody></table>
     </div>}
