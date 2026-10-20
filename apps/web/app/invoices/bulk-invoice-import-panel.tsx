@@ -34,19 +34,21 @@ export default function BulkInvoiceImportPanel({onClose,onChanged}:{
   finally{setBusy(false);}
  }
  async function submit(){
-  if(!batchKey||busy||invalid||!items.length||outcomes)return;
+  if(!batchKey||busy||items.every(i=>i.draft===null)||outcomes)return;
   setBusy(true);setError("");
   try{
    const response=await fetch("/api/invoices/workspaces/bulk",{
     method:"POST",credentials:"same-origin",
     headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({batchKey,invoices:items.map(i=>({invoiceKey:i.invoiceKey,draft:i.draft}))})
+    body:JSON.stringify({batchKey,invoices:items.filter(i=>i.draft!==null).map(i=>({invoiceKey:i.invoiceKey,draft:i.draft}))})
    });
    if(!response.ok)throw Error(response.status===401?"نشست کاربری معتبر نیست.":response.status===503?
     "ارتباط با API برقرار نشد؛ با همان فایل دوباره تلاش کنید.":
     "درخواست ثبت گروهی پذیرفته نشد (HTTP "+response.status+").");
    const result=await response.json() as {results:Outcome[]};
-   setOutcomes(result.results);
+   setOutcomes([...items.filter(i=>i.draft===null).map(i=>({
+    invoiceKey:i.invoiceKey,status:"invalid",draftId:null,error:i.errors.join("؛ ")
+   })),...result.results]);
    onChanged();
   }catch(e){setError((e as Error).message);}
   finally{setBusy(false);}
@@ -99,8 +101,8 @@ export default function BulkInvoiceImportPanel({onClose,onChanged}:{
      })}</tbody></table>
     </div>}
     <div className="invoice-register__actions" style={{marginTop:12}}>
-     <button type="button" className="identity-primary" disabled={busy||invalid>0||!items.length||!!outcomes}
-      onClick={()=>void submit()}>{busy?"در حال ثبت…":"تأیید و ثبت گروهی پیش‌نویس‌ها"}</button>
+     <button type="button" className="identity-primary" disabled={busy||items.every(i=>i.draft===null)||!!outcomes}
+      onClick={()=>void submit()}>{busy?"در حال ثبت…":"تأیید و ثبت پیش‌نویس‌های معتبر"}</button>
      {outcomes&&<button type="button" className="identity-secondary" onClick={()=>{setOutcomes(null);setError("");}}>
        بررسی دوباره نتایج یا Retry همان فایل</button>}
     </div>
