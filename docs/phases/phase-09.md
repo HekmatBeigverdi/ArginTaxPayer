@@ -525,3 +525,12 @@ bash scripts/phase09-verify.sh preflight
 انتظار: فقط `docs/phases/phase-09.md` در تغییر این گام؛ هشت safety test ابزار موجود موفق و preflight با checkout تمیز/۱۸گام موفق. این آزمون‌ها معماری یا runtime authorization/provider را اثبات نمی‌کنند.
 
 معیار پذیرش اصلی این گام، review و تأیید طراحی بالاست: رضایت صریح مالک، deny پیش‌فرض مدیریتی برای custody/sign، provider مستقل از DB، KEK جدا از MFA، حالات local/external جدا و fail-closed. نیازی به اجرای migration، ساخت Vault، تولید کلید واقعی یا تکرار full build برای این تغییر صرفاً سندی نیست. پس از تأیید گام۲، گام۳ فقط مدل داده و SQL پیشنهادی را برای بررسی آماده می‌کند.
+
+
+### تلاش مجدد برای آزمون گام۲ — 2026-10-20، ساعت21:24 تهران
+
+به درخواست مالک اجرای تست دوباره امتحان شد. محیط اجرا خطای `No usable execution environment is available` برگرداند؛ بنابراین Python safety tests، Bash syntax، preflight و .NET اجرا نشدند. روی commit `8112f38a485dd5620fe4c5a8faf7f405c99c691f` نیز GitHub connector هیچ workflow run مرتبط برنگرداند؛ این نتیجه اثبات اجرای CI نیست.
+
+بررسی مجدد متن نسخه واقعی GitHub انجام شد: تعداد/ترتیب۱۸گام، حضور طراحی گام۲، profile legacy، منع export خصوصی، جدایی PortalVerificationState و شروع‌نشدن گام۳ هر شش مورد برقرارند. این‌ها **بررسی ساختاری سند** هستند، نه اجرای تست runtime.
+
+طراحی گام۲ تحویل شده است؛ درخواست مجدد آزمون، به عنوان تأیید صریح گام۲ تعبیر نمی‌شود. وضعیت اجرای آزمون همچنان مسدود به نبود محیط است؛ هیچ PASS جدیدی برای ابزار یا runtime ثبت نشده و گام۳ شروع نشده است. دستورات macOS بخش قبل همچنان معتبرند.
