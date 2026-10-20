@@ -319,6 +319,9 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
     finally {setBusy(false);}
   }
   async function saveWorkspace(completeStep: Step, exit: boolean, navigateToBuyers = false) {
+    // Opening the settlement screen does not complete it. Persist the lines
+    // as step 1, then navigate to step 2; enforce terms on final completion only.
+    const persistedStep: Step = !exit && step===1 && completeStep===2 ? 1 : completeStep;
     if (busy || !taxpayerId || !headerCustomer) {
       setError("ابتدا مشتری و مؤدی صادرکننده را انتخاب کنید."); return;
     }
@@ -334,7 +337,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
     }
     try { invoicePreview(rows); }
     catch { setError("مقادیر عددی ردیف‌ها یا دقت آن‌ها معتبر نیست."); return; }
-    if (completeStep===2 && settlement===0) {
+    if (persistedStep===2 && settlement===0) {
       setError("برای تکمیل مراحل، روش تسویه صورتحساب را انتخاب کنید.");return;
     }
     const cash = settlement === 1 ? calculated.total : settlement === 2 ? 0 :
@@ -364,7 +367,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
     const payload = {
       id:editing?.id ?? null,
       taxpayerId, expectedRevision:editing?.revision ?? 0,
-      lastCompletedStep:completeStep, issueDateUtc:issued.toISOString(),
+      lastCompletedStep:persistedStep, issueDateUtc:issued.toISOString(),
       buyerPartyId:buyerId || null, fiscalMemoryId:memoryId || null, type:invoiceType,pattern,
       ...Object.fromEntries(["contractNumber","serviceBillId","flightType",
         "goldConstructionFeeRial","goldSellerProfitRial","goldCommissionRial","goldTotalFeeProfitRial"]
