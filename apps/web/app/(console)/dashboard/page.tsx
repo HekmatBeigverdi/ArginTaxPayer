@@ -1,6 +1,5 @@
 import Link from "next/link";
 import Image from "next/image";
-import arginLogo from "../../../public/brand/argin-logo.png";
 import { currentIdentity } from "../../../lib/identity";
 
 export const dynamic = "force-dynamic";
@@ -39,7 +38,7 @@ export default async function DashboardPage() {
           <p>{admin
             ? "مدیریت حساب‌های نرم‌افزار و مشتریان را از بخش‌های مستقل انجام دهید."
             : "از اینجا به اطلاعات مؤدیان و بخش‌های پنل خود دسترسی دارید."}</p></div>
-          <Image className="app-welcome-graphic argin-welcome-logo" src={arginLogo} width={128} height={128} alt="نشان آرگین" priority unoptimized />
+          <Image className="app-welcome-graphic argin-welcome-logo" src="/brand/argin-logo.png" width={128} height={128} alt="نشان آرگین" priority unoptimized />
         </div>
         <section aria-label="نمای کلی امکانات" className="app-summary">
           <div><small>نقش فعال</small><strong>{role}</strong></div>
