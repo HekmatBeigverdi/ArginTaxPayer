@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 08: Invoice Workflows and UI
 
-**Status:** Steps 01–13 owner-approved; Step 14 code committed, macOS/browser acceptance pending.
+**Status:** Steps 01–14 owner-approved; Step 15 implemented in GitHub, macOS/operator acceptance pending.
 **Branch:** `phase/08-invoice-workflows-ui`
 **Baseline:** `main` at `364462848914f289916962a0578c9fac9cd85ce1` (GitHub inspected 2026-10-18).
 **Roadmap source:** `docs/roadmap/18-phases.md`, phase 08 of 18.
@@ -49,8 +49,8 @@
 | 11 | Line and catalog entry | Search/select Phase06 catalog items, quantity, unit, price and snapshots | Historic invoice unchanged after catalog edit | Owner-approved 2026-10-19 |
 | 12 | Calculations and financial summary | Display discount, charges, VAT and final totals using Phase07 engine | UI/API totals match canonical model | Owner-approved 2026-10-19 |
 | 13 | Settlement methods and fields | Cash, credit and mixed invoice terms and reconciliation | Valid mix accepted; mismatch rejected | Owner-approved 2026-10-20 |
-| 14 | Save/resume draft UX | Enhance existing resumable workspaces and unsaved-change handling | Draft resumes exactly once without lost fields | Code committed; operator acceptance pending |
-| 15 | Review and internal approval UI | Review summary, validation feedback, approve and return with reason | Readonly approval snapshot and reasoned change requests | Not started |
+| 14 | Save/resume draft UX | Enhance existing resumable workspaces and unsaved-change handling | Draft resumes exactly once without lost fields | Owner-approved 2026-10-20 |
+| 15 | Review and internal approval UI | Review summary, validation feedback, approve and return with reason | Readonly approval snapshot and reasoned change requests | Code committed; operator acceptance pending |
 | 16 | Audit and revision history | Show immutable actor/timestamp/reason/revision timeline | No historical rewrites or unauthorized reads | Not started |
 | 17 | Import mapping and preview | CSV/XLSX bounded parsing, column mapping and row-level preview | Explain valid/invalid rows before approval | Not started |
 | 18 | Controlled batch draft import | Explicit import confirmation with per-row durable outcomes | Retry creates no duplicate invoices; partial failures explained | Not started |
@@ -562,3 +562,13 @@ Owner approved yearly reset and expanding serial length. Updated **pending/unapp
 - Concurrent edits remain rejected via server `ExpectedRevision`; the UI 409 message now explicitly says the form was not saved and that the operator must reopen the workspace. No silent conflict overwrite.
 - `phase08-step14-draft-resume.test.mjs` covers snapshot/discard checks, resume offset and CAS contract.
 - **Test acceptance needed:** macOS dotnet build/test, npm test/typecheck/build; create draft and resume; edit a saved line then click close or Escape and verify cancel; test browser refresh warning; save and reopen ensuring exactly one workspace; try two browser sessions to confirm 409 avoids overwrite and requires reload. These actions were not executed by GitHub connector. No database migration, authority call or production data update. Step15 remains blocked pending owner signoff.
+
+### Step15 — Internal invoice review UI, guarded workflow and reasoned rework (2026-10-20)
+- Owner explicitly approved Phase08 Step14. Step16 remains deferred until Step15 owner acceptance.
+- Persisted internal review metadata in the existing typed invoice-workspace JSON (`InternalReviewState`, `InternalReviewReason`, submitter/reviewer and review UTC). The review is **only local/internal**, never a tax-authority acceptance, digital signature or invoice transmission. No new database migration was introduced.
+- Scoped developer-only `POST /api/dev/invoice-workspaces/{id}/review` accepts exactly `expectedRevision`, `action` (`submit`, `approve`, `return`) and optional `reason`. Next.js BFF forwards only the allowlisted operation under authenticated local origin and bounded JSON input.
+- Workflow: `Draft|ChangesRequested -> InReview` (complete saved invoice required); `InReview -> Approved` or `InReview -> ChangesRequested`. `return` requires a nonempty, bounded textual reason. Internal review of one's own submitted invoice is forbidden; approval/return require an active Level1/Level2 admin with MFA and current scoped taxpayer access. Every decision uses atomic `ExpectedRevision` compare-and-swap, increments revision and records reviewer/time. A saved draft cannot be overwritten normally while `InReview` or `Approved`; edits to a returned invoice reset review to `Draft`, requiring a new submission.
+- Added a read-only review dialog from workspace list: line summaries, money totals, saved revision, validation feedback, internal actions according to actor and current state, error feedback and reason input. The invoice overview receives workspace review state from persisted typed draft JSON; filters include those states. No copy of live uncommitted edits is approved.
+- Tests added: `Phase08Step15InternalReviewPolicyTests.cs` checks topology and reviewer segregation; `phase08-step15-internal-review.test.mjs` static contract assertions for UI and proxy.
+- **Limitations/next phase:** the existing JSON record stores only *current* review metadata and latest reason, not append-only review events. Phase08 Step16 must add durable immutable audit/history before production use; no immutable historical decision ledger is claimed. In this development step, the approved workspaces are read-only through normal update API, but not yet attested or submitted. Existing UI preflight is informational and not proof of official rule readiness. Connection/signing is deferred to Phases09/10.
+- **Operator acceptance pending:** run Mac `dotnet build ArginTaxPayer.sln` / `dotnet test ArginTaxPayer.sln`, and `npm --prefix apps/web test`, `npm --prefix apps/web run typecheck`, `npm --prefix apps/web run build`; exercise owner submit, separate Level1/Level2 approval, reasoned return, edit/resubmit, self-review rejection, other customer denial, dual-tab 409, approved editing rejection and overview filters. No tests were executed by GitHub connector. No DB migration/provider call/production mutation.
