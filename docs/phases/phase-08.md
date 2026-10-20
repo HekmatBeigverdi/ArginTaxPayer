@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 08: Invoice Workflows and UI
 
-**Status:** Steps 01–17 owner-approved; Step 18 bulk draft import implemented in GitHub, macOS/API operator acceptance pending.
+**Status:** Steps 01–18 owner-approved; Step18 operational tests/deferred hardening explicitly pending; Step19 regression hardening in progress.
 **Branch:** `phase/08-invoice-workflows-ui`
 **Baseline:** `main` at `364462848914f289916962a0578c9fac9cd85ce1` (GitHub inspected 2026-10-18).
 **Roadmap source:** `docs/roadmap/18-phases.md`, phase 08 of 18.
@@ -53,7 +53,7 @@
 | 15 | Self-service draft review and validation UI | User independently views saved draft and preflight findings; errors are handled by user, with external support when needed | No administrator approval gate; saved draft validation and editing remain accessible | Owner-approved 2026-10-20 |
 | 16 | Audit and revision history | Show immutable actor/timestamp/reason/revision timeline | No historical rewrites or unauthorized reads | Owner-approved 2026-10-20; test DB table created |
 | 17 | Import mapping and preview | CSV/XLSX bounded parsing, column mapping and row-level preview | Explain valid/invalid rows before approval | Owner-approved 2026-10-20 |
-| 18 | Controlled batch draft import | Explicit import confirmation with per-row durable outcomes | Retry creates no duplicate invoices; partial failures explained | Code committed; operator acceptance and durable failure-outcome review pending |
+| 18 | Controlled batch draft import | Explicit import confirmation with per-row durable outcomes | Retry creates no duplicate invoices; partial failures explained | Owner-approved 2026-10-20 with deferred real import tests and failure-ledger improvements |
 | 19 | Comprehensive regression and security | Domain, API, web, migration safety and Phase03-07 compatibility | Required tests green without disabling tests | Not started |
 | 20 | macOS operator acceptance | Independent macOS build and workflow/browser/db/HTTP acceptance | Commit SHA, operator results and caveats recorded | Not started |
 | 21 | Ubuntu operator acceptance | Same SHA, independent Ubuntu build and integration tests | Matching SHA and Ubuntu evidence documented | Not started |
@@ -645,3 +645,8 @@ Owner approved yearly reset and expanding serial length. Updated **pending/unapp
 - Extracted `InvoiceBulkIdentity.StableWorkspaceId/Fingerprint` as independently testable pure policy; added `Phase08Step18InvoiceBulkIdentityTests.cs` for same-key replay, tenant separation, and changed-content conflict. Concurrent unique-key collision handling detaches failed EF entities before continuing to the next invoice.
 - **Unchanged limitation:** exported reports are local files. Failed attempts are not stored in an append-only server-side batch-outcome ledger. Revisit a separate ledger with explicit schema approval if durable retrieval of past failed attempts becomes an acceptance requirement. Successful draft and audit records ARE durable.
 - Template generation and grouping were exercised in the tool sandbox (XLSX ZIP signature and 13 exact headers; 2 documents from 3 lines; invalid-row isolation; 50-invoice bound). Browser, .NET build and test-PostgreSQL acceptance remain pending and are not represented as successful.
+
+### Step18 owner decision — accepted with deferred tests (2026-10-20)
+- Owner explicitly accepted Step18 without running external-data import tests due to current product priorities. This is **administrative acceptance**, not evidence of successful macOS, PostgreSQL, concurrency, or browser verification.
+- Deferred backlog: fix and exercise all import compile/runtime issues during regression; validate official invoice constraints, header and buyer rights, decimal monetary accuracy, UTF-8/XLSX handling, invalid-row independence, idempotency/concurrent retries and conflict handling; design persistent append-only batch-result ledger for failed attempts if later required; improve template UX and replacing UUIDs with selectable users/taxpayers.
+- Keep API developer-only. Do not include Import behavior in a claim of full tested readiness, and never run batch writes against production data. Step19 may proceed for core regression; owner may elect to leave deferred Import integration tests documented rather than block phase planning.
