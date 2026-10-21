@@ -1,20 +1,20 @@
 # ArginTaxPayer — Phase 09: Cryptographic Keys and Digital Signing
 
-**Status:** Steps01,03,04,05,06,07,08 and09 owner-approved; Steps10,11,12,13,14,15,16 and17 source delivered for build/test, with runtime evidence pending. Step18 has not started. Prior build/live-provider and official portal-format evidence gaps remain explicit.
+**Status:** Steps01,03,04,05,06,07,08 and09 owner-approved; Steps10–17 source delivered for build/test, with runtime evidence pending. Step18 source delivered for temporary unrestricted taxpayer capacity; Steps19–26 have not started. Prior build/live-provider and official portal-format evidence gaps remain explicit.
 **Documentation language:** English. This edition replaces the Persian master document without changing the agreed scope or step order.
 **Last reviewed:** 2026-10-21.
 **Repository:** HekmatBeigverdi/ArginTaxPayer.
 **Base branch/commit:** main / `b8f307ed06041d902aed9d8432d3b082e1cd714a`.
 **Previous release:** `phase-08-v1.0.0`.
 **Phase branch:** `phase/09-cryptographic-keys-signing`.
-**Fixed step count:** 18. Changing the count, order, or agreed scope requires explicit owner approval.
+**Fixed step count:** 26. The owner approved extending the original 18-step plan with taxpayer token onboarding, segmented taxpayer UI, read-only connection testing, approval workflow and final cross-platform acceptance before closeout.
 **Current source baseline:** `7f746d6904f977bff044c889a01bd0f9394c757a`.
 **Goal:** Secure generation/import, public-key handling, protected custody, and offline digital signing for the key-based path without an independent signing certificate.
 **Execution:** Deliver one step at a time, update this document, provide macOS checks, and wait for explicit approval before continuing. No database migration may be applied without separate owner approval.
 
 ## 1. Scope and owner decisions
 
-The initial 24-step proposal was reduced to 18 steps at the owner's explicit request to prioritize the certificate-free key-based path.
+The initial 24-step proposal was reduced to 18 steps, then extended to 26 steps at the owner's explicit request to complete taxpayer key/token onboarding inside this phase before closeout. Until the future plan/entitlement phase is implemented, taxpayer creation is temporarily unrestricted for all users.
 
 In scope:
 - Generate a private/public key pair inside the application, with explicit informed server-custody consent.
@@ -258,7 +258,15 @@ Provider references inspected in Step 02:
 | 15 | Persian RTL key-management UI | Owner generate/import, public download/status/history, compact accessible UX | Source delivered 2026-10-21; build/runtime pending |
 | 16 | Security/authorization/concurrency/regression | Real isolated HTTP/PG cases, transfer/session races, leak capture, Phases06–08 | Source delivered 2026-10-21; runtime pending |
 | 17 | macOS and Ubuntu acceptance | Identical SHA, clean trees, independent build/test/browser/restore evidence | Preflight delivered 2026-10-21; operator evidence pending |
-| 18 | Closeout and conditional publication | All signoffs; separate permission for merge/tag/release | Not started |
+| 18 | Temporary taxpayer capacity and onboarding foundation | All users may define taxpayers before plan enforcement; capacity hook is fail-closed when configured | Source delivered 2026-10-21; runtime pending |
+| 19 | Segmented taxpayer and token UI | Non-scrolling sections for identity, fiscal memory, key/token and history | Not started |
+| 20 | Existing-key/token onboarding | Secure TXT private-key import, public match, memory ID and custody | Not started |
+| 21 | New key/token onboarding | Generate private/public artifacts, public download and controlled private handoff | Not started |
+| 22 | Read-only taxpayer connection test | Official SDK/endpoint authentication without invoice dispatch | Not started |
+| 23 | Single-memory change request | User request, reason, revision and plan-aware second-memory denial | Not started |
+| 24 | Level1 approval and token recreation | One-time approval/rejection, expiry, audit and safe replacement | Not started |
+| 25 | Integrated onboarding acceptance | Legacy/new user, plan capacity, scope, race, leak and connection cases | Not started |
+| 26 | Closeout and conditional publication | All signoffs; separate permission for merge/tag/release | Not started |
 
 ## 6. Implementation ownership and verification
 
@@ -1137,3 +1145,19 @@ python3 scripts/phase09_step17_verify.py
 After the preflight, run the Ubuntu .NET/web build and tests, the isolated HTTP/PostgreSQL checks, and the approved backup/restore rehearsal. Record each result with the exact SHA. Any mismatch, skipped test, missing restore evidence or dirty tree blocks Step17 acceptance. Step18 remains the closeout and publication decision.
 
 **Current acceptance:** Step17 preflight delivered; independent macOS/Ubuntu runtime, browser, PostgreSQL and restore evidence remains pending.
+
+## 25. Step18 — Temporary taxpayer capacity and onboarding foundation
+
+The owner changed the remaining phase structure before closeout. Until the future plan/entitlement phase exists, all users may define one or more taxpayers regardless of their currently purchased plan. This is an explicit temporary policy, not a permanent entitlement. The domain policy now accepts unlimited taxpayer creation while capacity configuration is absent; once plan capacity is configured, it enforces the configured maximum and fails closed for invalid limits.
+
+This step adds no plan tables, subscription enforcement, migration, model or snapshot. It creates the policy seam needed for the later plan phase without inventing a plan or blocking current onboarding. Steps19–25 will implement the segmented taxpayer/token UI, existing-key import, new key generation, read-only authority connection test, single-memory change request, Level1 approval and integrated acceptance. Step26 remains closeout and publication.
+
+Local source check:
+
+```bash
+python3 tests/phase09_verify_test.py
+```
+
+The six focused C# capacity cases remain pending runtime execution because `dotnet` is unavailable in the authoring environment. No database tunnel or migration is required. The current UI still does not create a real key; that capability is scheduled for Steps20–22.
+
+**Current acceptance:** Step18 source delivered for build/test; temporary unrestricted taxpayer capacity is documented and the plan-enforcement hook is ready.
