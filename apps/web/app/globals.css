@@ -730,5 +730,11 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 
 .fiscal-section-loading { display:inline-flex; align-items:center; gap:6px; margin-inline-start:12px; font-size:11px; font-weight:400; color:#526d70; vertical-align:middle; }
 .fiscal-section-loading .argin-loader-spinner { width:14px; height:14px; border-width:2px; flex:none; }
+.existing-key-import form { display:grid; gap:8px; }
+.existing-key-import label { display:grid; gap:4px; font-size:12px; }
+.existing-key-import textarea { width:100%; resize:vertical; font:12px monospace; padding:7px; border:1px solid var(--argin-line); border-radius:6px; }
+.existing-key-import .signing-custody-consent { display:flex; align-items:center; gap:6px; }
+.existing-key-import .signing-custody-consent input { width:16px; min-height:16px; }
+.existing-key-import bdi { overflow-wrap:anywhere; }
 @media (prefers-reduced-motion: reduce) { .fiscal-section-loading .argin-loader-spinner { animation:none; } }
 

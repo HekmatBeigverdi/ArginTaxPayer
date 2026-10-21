@@ -2,6 +2,9 @@ using ArginTaxPayer.Application.Signing;
 using ArginTaxPayer.Domain.Signing;
 using ArginTaxPayer.Infrastructure.Signing.Generation;
 using ArginTaxPayer.Infrastructure.Signing.Protection;
+using ArginTaxPayer.Infrastructure.Signing.Matching;
+using System.Text;
+using System.Security.Cryptography;
 
 namespace ArginTaxPayer.Infrastructure.Signing.Import;
 
@@ -24,6 +27,22 @@ internal sealed class SigningKeyImportService(ISigningImportJournal journal, IGe
                 if (authorization.Status != SigningGenerationStatus.Replayed) return new(authorization.Status);
                 ct.ThrowIfCancellationRequested();
                 using var key = parser.Parse(input);
+                if (request.ExistingPublicKeyPem is { } publicPem)
+                {
+                    if (publicPem.Length is < 1 or > 16384 || publicPem.Any(c => c > 127))
+                        return new(SigningGenerationStatus.Invalid);
+                    byte[] supplied;
+                    try
+                    {
+                        supplied = new SigningPublicKeyParser().Parse(
+                            publicPem.TrimStart().StartsWith("-----BEGIN RSA PUBLIC KEY-----", StringComparison.Ordinal)
+                                ? SigningPublicKeyFormat.RsaPublicPem : SigningPublicKeyFormat.SpkiPem,
+                            Encoding.ASCII.GetBytes(publicPem));
+                    }
+                    catch (KeyProtectionException) { return new(SigningGenerationStatus.Invalid); }
+                    if (!CryptographicOperations.FixedTimeEquals(supplied, key.PublicSpkiDer))
+                        return new(SigningGenerationStatus.Invalid);
+                }
                 ct.ThrowIfCancellationRequested();
                 var reservation = await journal.ReserveImportAsync(bearer, request, key.PublicFingerprintSha256, ct);
                 if (reservation.Status is not (SigningGenerationStatus.Created or SigningGenerationStatus.Replayed))

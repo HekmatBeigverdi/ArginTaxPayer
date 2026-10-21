@@ -3,7 +3,7 @@ namespace ArginTaxPayer.Application.Signing;
 public enum SigningPrivateKeyFormat { Pkcs8Der = 1, Pkcs8Pem = 2, EncryptedPkcs8Der = 3, EncryptedPkcs8Pem = 4 }
 
 public sealed record ImportSigningKeyRequest(Guid TaxpayerId, Guid FiscalMemoryId, Guid OperationId,
-    string ProfileId, string ConsentVersion, bool AcceptServerCustody);
+    string ProfileId, string ConsentVersion, bool AcceptServerCustody, string? ExistingPublicKeyPem = null);
 
 public interface ISigningKeyImportService
 {

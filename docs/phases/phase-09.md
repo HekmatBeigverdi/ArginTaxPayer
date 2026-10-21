@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 09: Cryptographic Keys and Digital Signing
 
-**Status:** Steps01,03,04,05,06,07,08 and09 owner-approved; Steps10–17 source delivered for build/test, with runtime evidence pending. Step18 source delivered for temporary unrestricted taxpayer capacity; Steps19–26 have not started. Prior build/live-provider and official portal-format evidence gaps remain explicit.
+**Status:** Steps18–19 owner-approved, including invoice-style accordions and per-section loading. Step20 existing-key onboarding is delivered for operator acceptance. Steps21–26 remain pending. Earlier cross-platform/Vault/authority evidence gaps are not implied closed by UI approval.
 **Documentation language:** English. This edition replaces the Persian master document without changing the agreed scope or step order.
 **Last reviewed:** 2026-10-21.
 **Repository:** HekmatBeigverdi/ArginTaxPayer.
@@ -8,9 +8,13 @@
 **Previous release:** `phase-08-v1.0.0`.
 **Phase branch:** `phase/09-cryptographic-keys-signing`.
 **Fixed step count:** 26. The owner approved extending the original 18-step plan with taxpayer token onboarding, segmented taxpayer UI, read-only connection testing, approval workflow and final cross-platform acceptance before closeout.
-**Current source baseline:** `7f746d6904f977bff044c889a01bd0f9394c757a`.
+**Current source baseline:** `7ef6524cec951fa925191afae762257860ca0c52` (before Step20).
 **Goal:** Secure generation/import, public-key handling, protected custody, and offline digital signing for the key-based path without an independent signing certificate.
 **Execution:** Deliver one step at a time, update this document, provide macOS checks, and wait for explicit approval before continuing. No database migration may be applied without separate owner approval.
+
+### Scope amendment (supersedes historical deferrals below)
+
+The approved 26-step roadmap moves read-only authority authentication into Step22 and controlled private-key handoff for newly generated keys into Step21. Invoice dispatch remains Phase10. Historical statements below about disabled import UI, export and future-host-only registration describe earlier deliveries, not the revised roadmap. Step20 enables only existing-key import in the local Development host. Public-key comparison is mathematical and never proves portal registration.
 
 ## 1. Scope and owner decisions
 
@@ -259,8 +263,8 @@ Provider references inspected in Step 02:
 | 16 | Security/authorization/concurrency/regression | Real isolated HTTP/PG cases, transfer/session races, leak capture, Phases06–08 | Source delivered 2026-10-21; runtime pending |
 | 17 | macOS and Ubuntu acceptance | Identical SHA, clean trees, independent build/test/browser/restore evidence | Preflight delivered 2026-10-21; operator evidence pending |
 | 18 | Temporary taxpayer capacity and onboarding foundation | All users may define taxpayers before plan enforcement; capacity hook is fail-closed when configured | Source delivered 2026-10-21; runtime pending |
-| 19 | Segmented taxpayer and token UI | Non-scrolling sections for identity, fiscal memory, key/token and history | Source delivered 2026-10-21; build/runtime pending |
-| 20 | Existing-key/token onboarding | Secure TXT private-key import, public match, memory ID and custody | Not started |
+| 19 | Segmented taxpayer and token UI | Compact exclusive accordions, invoice modal shell and independent loading | Owner-approved 2026-10-21 |
+| 20 | Existing-key/token onboarding | Secure TXT private-key import, public match, memory ID and custody | Delivered; operator acceptance pending |
 | 21 | New key/token onboarding | Generate private/public artifacts, public download and controlled private handoff | Not started |
 | 22 | Read-only taxpayer connection test | Official SDK/endpoint authentication without invoice dispatch | Not started |
 | 23 | Single-memory change request | User request, reason, revision and plan-aware second-memory denial | Not started |
@@ -1172,4 +1176,56 @@ The focused Node UI gate checks the section grid, Persian token section and disa
 node --test apps/web/tests/phase09-step19-taxpayer-sections.test.mjs
 ```
 
-**Current acceptance:** Step19 source delivered for build/test; browser visual acceptance remains pending.
+**Current acceptance:** Owner approved Step19 and its accordion/loading corrections on 2026-10-21. Actual layout uses the invoice dialog shell and exclusive accordion sections, not the earlier two-column proposal. All headings remain visible during independent loads; dependent creation sections display prerequisites until identity exists.
+
+
+## 27. Step20 — Existing private-key onboarding
+
+### Delivered behavior
+
+- In `/parties`, open the taxpayer dossier, register the existing fiscal-memory identifier, and expand the connection/key section. The owning software account can paste its existing TXT/PEM private key, optionally supply the prior public PEM for comparison, and explicitly accept encrypted server custody.
+- Only RSA2048/e65537 PKCS#8 PRIVATE KEY or ENCRYPTED PRIVATE KEY is accepted. Encrypted PKCS#8 uses the existing bounded PBES2 policy. PKCS#1 RSA PRIVATE KEY is rejected explicitly; the application does not guess or silently convert formats. Public comparison accepts SPKI PUBLIC KEY or RSA PUBLIC KEY PEM and rejects mismatch before reservation/custody.
+- The UI reads configuration/session/key metadata from an authenticated BFF route; it displays missing custody configuration, owner-only access, five-minute recent-login requirements, existing-key restriction and recovery messages. The private field/password clear after each submission and are never written to browser storage. A timeout preserves the operation ID; reopening recovers the server-side operation ID.
+- API/BFF integration uses the existing import service, durable journal, consent and Vault envelope custody. It does not register generation, signing or replacement endpoints. The existing per-memory transactional claim prevents uncontrolled replacement. Responses expose only public fingerprints and key metadata, never private material or vault locators.
+- Same-local-Origin checking at the cookie-authenticated BFF, loopback/bearer checks at the API, no-store, 96 KiB streamed request cap, bounded field lengths, per-bearer request throttling and sanitized failures are applied. Controllable byte/character buffers are cleared; managed JSON/JS strings cannot be guaranteed erased from memory.
+- In this local Development composition the API hosts custody and holds the restricted Vault capability. This is shared-process hosting, not production process isolation. The browser-facing BFF never receives Vault credentials. Production remains disabled.
+- No migration, schema or EF snapshot change. Existing Phase09 metadata migration must already be installed. No tax-authority connection or invoice dispatch is performed. Generation is Step21 and read-only connection is Step22.
+
+### Custody prerequisites
+
+The UI works without these settings and explains why import is unavailable. Actual private-key storage requires the previously reviewed external Vault Transit/KV-v2 provider, valid HTTPS trust, its restricted Agent token file, and the existing isolated database migration. Do not enable the flags against an unprepared provider. Do not paste a real key merely to test the disabled state.
+
+Add the following to the existing private `.env.dev.local` only after that provider is ready; replace bracketed values with the actual deployment values:
+
+```dotenv
+SigningKeyImport__Enabled=true
+SigningKeyProtection__Enabled=true
+SigningKeyProtection__Address=https://<vault-host>/
+SigningKeyProtection__TransitMount=<transit-mount>
+SigningKeyProtection__TransitKey=<restricted-transit-key>
+SigningKeyProtection__KvMount=<kv-v2-mount>
+SigningKeyProtection__AgentTokenFile=/absolute/path/to/restricted-agent-token
+SigningKeyProtection__ServerVersion=2.2.0
+```
+
+The adapter's existing reviewed version is 2.2.0; it verifies the actual server version and Transit restrictions. This step does not install Vault or alter that pinned version. Keep both enable flags false when no accepted provider exists. Restart local services with `zsh scripts/dev-up.zsh` after private configuration changes. Keep the existing AutoSSH workflow; no Ubuntu execution is required at this step.
+
+### Verification and operator commands
+
+```bash
+git status --short
+git fetch origin
+git switch phase/09-cryptographic-keys-signing
+git pull --ff-only origin phase/09-cryptographic-keys-signing
+npm --prefix apps/web test
+npm --prefix apps/web run typecheck
+npm --prefix apps/web run build
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --filter 'FullyQualifiedName~Phase09ImportOnboardingTests|FullyQualifiedName~Phase09SigningKeyImportTests|FullyQualifiedName~Phase09SigningImportWorkflowTests'
+zsh scripts/dev-up.zsh
+```
+
+UI acceptance: use the owning account with a fresh login; inspect missing-provider messaging; with configured isolated custody import a disposable test key, verify optional public-key match/mismatch, reload the public fingerprint, and verify the private field is empty. Attempt from a different owner/admin and confirm denial. Existing-key replacement must not create another key. A successful import is not a successful tax-authority connection.
+
+**Verification executed:** Next.js production build and TypeScript passed; all 207 web tests passed, including streamed-body limits and the real BFF handler's Origin/authentication/public-response projection cases. The .NET SDK 9.0.202 compiled the test project with zero errors (13 existing warnings). All 30 focused C# tests passed with zero skips: Phase09ImportOnboardingTests, Phase09SigningKeyImportTests and Phase09SigningImportWorkflowTests. The 21 Python verifier-unit tests passed; their simulated TRX/provider messages are not evidence of live PostgreSQL/Vault execution. Initial parallel MSBuild failed on the environment's named-pipe restriction; single-process build and subsequent VSTest execution succeeded.
+
+**Current acceptance:** Implementation delivered; operator UI, configured Vault and isolated PostgreSQL integration acceptance remain pending. No migration was executed and no real private key was submitted. Step21 has not started.

@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import InvoiceParticipantForm from "../parties/invoice-participant-form";
 import SectionLoading from "../components/section-loading";
 import ConsoleLoader from "../components/console-loader";
+import ExistingKeyImport from "./existing-key-import";
 
 type Taxpayer = { id: string; kind: number; normalizedIdentifier: string; displayName: string; status: number; revision: number };
 type Memory = { id: string; taxpayerId: string; memoryIdentifier: string; status: number; revision: number };
@@ -39,6 +40,7 @@ export default function TaxpayerWorkspace({ isLevel1, initialTaxpayerId, showCre
   const [certificates, setCertificates] = useState<Record<string, Certificate[]>>({});
   const [detailsLoading, setDetailsLoading] = useState(Boolean(initialTaxpayerId));
   const [detailsError, setDetailsError] = useState("");
+  const [importLoading, setImportLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -196,17 +198,17 @@ export default function TaxpayerWorkspace({ isLevel1, initialTaxpayerId, showCre
           </>}
         </div></details>
         <details name="fiscal-sections" className="fiscal-section">
-          <summary>اتصال به سامانه مؤدیان — کلید/توکن</summary>
+          <summary>اتصال به سامانه مؤدیان — کلید/توکن{importLoading && <SectionLoading />}</summary>
           <div className="fiscal-section-content taxpayer-token-panel">
-          <div className="taxpayer-section-heading"><h2>اتصال و کلید/توکن</h2><span className="planned">در گام‌های بعدی</span></div>
-          <p className="field-hint">این بخش محل ورود کلید موجود، ساخت کلید جدید، ثبت public key و تست read-only اتصال خواهد بود.</p>
+          <div className="taxpayer-section-heading"><h2>اتصال و کلید/توکن</h2></div>
+          <ExistingKeyImport key={initialTaxpayerId || selectedId} taxpayerId={initialTaxpayerId || selectedId}
+            memories={memories} loadingMemories={detailsLoading} onLoadingChange={setImportLoading}/>
           <div className="taxpayer-token-status"><strong>وضعیت اتصال</strong><span>هنوز بررسی نشده</span></div>
           <div className="taxpayer-token-actions">
-            <button type="button" className="identity-secondary" disabled>ورود کلید موجود</button>
             <button type="button" className="identity-secondary" disabled>ساخت کلید جدید</button>
             <button type="button" className="identity-secondary" disabled>تست اتصال</button>
           </div>
-          <p className="field-hint">کلید خصوصی در این صفحه نمایش داده نمی‌شود و اتصال واقعی تا تکمیل گام‌های ۲۰ تا ۲۲ فعال نخواهد شد.</p>
+          <p className="field-hint">ساخت کلید جدید و تست اتصال در گام‌های ۲۱ و ۲۲ فعال می‌شوند. ثبت کلید موجود به معنی تأیید اتصال نیست.</p>
         </div></details>
         </div>
       </>}

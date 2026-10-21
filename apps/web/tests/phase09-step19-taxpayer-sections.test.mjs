@@ -10,9 +10,9 @@ test("Step19 groups taxpayer details into responsive sections", () => {
   assert.match(source, /اتصال و کلید\/توکن/);
 });
 
-test("Step19 keeps token actions disabled until later onboarding steps", () => {
-  assert.match(source, /ورود کلید موجود/);
+test("Step20 wires import while generation and connection remain later steps", () => {
+  assert.match(source, /<ExistingKeyImport/);
   assert.match(source, /ساخت کلید جدید/);
   assert.match(source, /تست اتصال/);
-  assert.match(source, /گام‌های ۲۰ تا ۲۲/);
+  assert.match(source, /گام‌های ۲۱ و ۲۲/);
 });

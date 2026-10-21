@@ -16,6 +16,12 @@ using ArginTaxPayer.Application;
 using ArginTaxPayer.Infrastructure;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using System.Text.Json;
+using ArginTaxPayer.Infrastructure.Signing.Import;
+using ArginTaxPayer.Infrastructure.Persistence.Signing;
+using System.Threading.RateLimiting;
+using System.Security.Cryptography;
+using System.Text;
+using Microsoft.AspNetCore.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 var identityDevelopmentEnabled = builder.Environment.IsDevelopment() &&
@@ -32,6 +38,21 @@ builder.Services.AddArginTaxPayerPersistence(builder.Configuration, builder.Envi
 builder.Services.AddOpenApi();
 if (identityDevelopmentEnabled)
 {
+    builder.Services.AddPhase09KeyImport(builder.Configuration);
+    builder.Services.AddScoped<EfSigningOperationRepository>();
+    builder.Services.AddRateLimiter(options =>
+    {
+        options.RejectionStatusCode = 429;
+        options.OnRejected = (context, _) =>
+        {
+            context.HttpContext.Response.Headers.CacheControl = "no-store";
+            return ValueTask.CompletedTask;
+        };
+        options.AddPolicy("signing-import", http => RateLimitPartition.GetFixedWindowLimiter(
+            Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
+                http.Request.Headers.Authorization.ToString()))), _ => new FixedWindowRateLimiterOptions
+            { PermitLimit = 12, Window = TimeSpan.FromMinutes(1), QueueLimit = 0, AutoReplenishment = true }));
+    });
     builder.Services.AddSingleton<IdentityProtectionService>();
     builder.Services.AddScoped<IdentityCredentialService>();
     builder.Services.AddScoped<IdentityAdministratorUserProvisioning>();
@@ -87,6 +108,7 @@ builder.Services.AddHealthChecks()
 
 var app = builder.Build();
 app.UseMiddleware<CorrelationIdMiddleware>();
+if (identityDevelopmentEnabled) app.UseRateLimiter();
 
 // Never expose the API contract endpoint in Production by default.
 if (app.Environment.IsDevelopment())
@@ -124,6 +146,7 @@ if (app.Environment.IsDevelopment())
         app.MapIdentityDevelopmentEndpoints();
         app.MapSoftwareUserProfileEndpoints();
         app.MapTaxpayerDevelopmentEndpoints();
+        app.MapSigningImportEndpoints();
         app.MapPartyDevelopmentEndpoints();
         app.MapFiscalParticipantDirectoryEndpoints();
         app.MapInvoiceParticipantEndpoints();
