@@ -6,6 +6,7 @@ import SectionLoading from "../components/section-loading";
 import ConsoleLoader from "../components/console-loader";
 import ExistingKeyImport from "./existing-key-import";
 import SigningKeyGeneration from "./signing-key-generation";
+import SigningConnectionTest from "./signing-connection-test";
 
 type Taxpayer = { id: string; kind: number; normalizedIdentifier: string; displayName: string; status: number; revision: number };
 type Memory = { id: string; taxpayerId: string; memoryIdentifier: string; status: number; revision: number };
@@ -206,11 +207,7 @@ export default function TaxpayerWorkspace({ isLevel1, initialTaxpayerId, showCre
             memories={memories} loadingMemories={detailsLoading} onLoadingChange={setImportLoading}/>
           <SigningKeyGeneration taxpayerId={initialTaxpayerId || selectedId} memories={memories}
             loadingMemories={detailsLoading}/>
-          <div className="taxpayer-token-status"><strong>وضعیت اتصال</strong><span>هنوز بررسی نشده</span></div>
-          <div className="taxpayer-token-actions">
-            <button type="button" className="identity-secondary" disabled>تست اتصال</button>
-          </div>
-          <p className="field-hint">ثبت کلید موجود به معنی تأیید اتصال نیست؛ تست اتصال در گام ۲۲ فعال می‌شود.</p>
+          <SigningConnectionTest taxpayerId={initialTaxpayerId || selectedId} memories={memories} loadingMemories={detailsLoading}/>
         </div></details>
         </div>
       </>}
