@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 09: Cryptographic Keys and Digital Signing
 
-**Status:** Steps01,03,04,05,06,07,08 and09 owner-approved; Step10 and Step11 source delivered for build/test, with runtime evidence pending. Step12 has not started. Prior build/live-provider and official portal-format evidence gaps remain explicit.
+**Status:** Steps01,03,04,05,06,07,08 and09 owner-approved; Steps10,11 and12 source delivered for build/test, with runtime evidence pending. Step13 has not started. Prior build/live-provider and official portal-format evidence gaps remain explicit.
 **Documentation language:** English. This edition replaces the Persian master document without changing the agreed scope or step order.
 **Last reviewed:** 2026-10-21.
 **Repository:** HekmatBeigverdi/ArginTaxPayer.
@@ -252,7 +252,7 @@ Provider references inspected in Step 02:
 | 09 | Offline legacy signing and SDK compatibility | Exact encoding/normalization fixtures; no live authority request | Source delivered 2026-10-21; build/runtime pending |
 | 10 | Application signing and immutable snapshot | Trusted snapshot/hash/key version; no Sent/dispatch mutation | Source delivered 2026-10-21; build/runtime pending |
 | 11 | Key lifecycle and local rotation | Compromised/revoked denial; atomic selection and race behavior | Source delivered 2026-10-21; build/runtime pending |
-| 12 | Backup, recovery and KEK rotation | Synthetic restore, resumable rewrap, failure without KEK, runbook | Not started |
+| 12 | Backup, recovery and KEK rotation | Synthetic restore, resumable rewrap, failure without KEK, runbook | Source delivered 2026-10-21; build/runtime pending |
 | 13 | Controlled change review | Reason, scope, revision, expiry and one-time approval; no annual bypass | Not started |
 | 14 | Secure API/BFF | HTTP authorization, CSRF, limits, no-store; no private-read/export/sign oracle | Not started |
 | 15 | Persian RTL key-management UI | Owner generate/import, public download/status/history, compact accessible UX | Not started |
@@ -1001,3 +1001,22 @@ python3 scripts/phase09_step11_verify.py
 No AutoSSH PostgreSQL tunnel is required for the local gate, and no migration is applied. Step12 has not started.
 
 **Current acceptance:** Step11 source delivered for build/test; runtime verification remains pending because `dotnet` is unavailable in the authoring environment.
+
+## 19. Step12 — Backup, recovery and KEK rotation
+
+Step12 adds a custody-host recovery coordinator for resumable envelope rewrap. It consumes an explicit scope-bound workload and expected envelope version, advances only after each successful CAS rewrap, and returns a checkpoint containing index, completed count and opaque storage path. A missing protection service or stale version pauses recovery without claiming success. The coordinator never exports plaintext, DEK, KEK or private material.
+
+The local gate adds eight no-database cases for empty restore, invalid checkpoints, resumability, explicit CAS version, missing-key-protection and conflict outcomes, secret-free checkpoints and scope-bound paths. No migration, model or snapshot change was added. Vault restore, backup archive creation and real KEK execution remain pending runtime gates because `dotnet` and the deployed custody service are unavailable in the authoring environment.
+
+From a clean macOS checkout:
+
+```bash
+git fetch origin
+git switch phase/09-cryptographic-keys-signing
+git pull --ff-only
+python3 scripts/phase09_step12_verify.py
+```
+
+No database tunnel is required for this local gate and no migration is applied. Step13 has not started.
+
+**Current acceptance:** Step12 source delivered for build/test; runtime verification remains pending.

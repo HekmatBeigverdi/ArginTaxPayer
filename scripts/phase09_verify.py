@@ -225,6 +225,11 @@ def dotnet_tests(env, test_filter=None):
             if any(sum(int(c.get(key, -1)) for c in counts) != value
                    for key, value in expected.items()):
                 raise SafeError('Step11 requires exactly ten passed lifecycle tests with zero skips.')
+        if test_filter == 'FullyQualifiedName~Phase09SigningRecovery':
+            expected = {'total': 8, 'executed': 8, 'passed': 8, 'failed': 0, 'notExecuted': 0}
+            if any(sum(int(c.get(key, -1)) for c in counts) != value
+                   for key, value in expected.items()):
+                raise SafeError('Step12 requires exactly eight passed recovery tests with zero skips.')
         if env.get('RUN_ARGINTAXPAYER_PG_INTEGRATION') == '1' and test_filter in journal_filters:
             number = journal_filters[test_filter]
             expected = {'total': number, 'executed': number, 'passed': number, 'failed': 0, 'notExecuted': 0}
