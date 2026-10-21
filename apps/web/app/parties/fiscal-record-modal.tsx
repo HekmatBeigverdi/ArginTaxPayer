@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import InvoiceParticipantForm from "./invoice-participant-form";
 import TaxpayerWorkspace from "../taxpayers/taxpayer-workspace";
-import ConsoleLoader from "../components/console-loader";
+import SectionLoading from "../components/section-loading";
 
 type FiscalRow = { id: string; buyerId: string; type: "buyer" | "taxpayer";
   kind: number | null; name: string; identifier: string; status: string };
@@ -25,6 +25,7 @@ export default function FiscalRecordModal({ record, isLevel1, onClose, onChanged
   const [identifier, setIdentifier] = useState(""); const [registration, setRegistration] = useState("");
   const [buyerKind, setBuyerKind] = useState(record.kind ?? 1);
   const [busy, setBusy] = useState(false); const [loading, setLoading] = useState(true);
+  const [fiscalLoading, setFiscalLoading] = useState(true);
   const [error, setError] = useState(""); const [notice, setNotice] = useState("");
   const closeRef = useRef<HTMLButtonElement>(null); const dialog = useRef<HTMLDivElement>(null);
   const title = record.type === "buyer" ? "خریدار" : "مؤدی";
@@ -32,7 +33,7 @@ export default function FiscalRecordModal({ record, isLevel1, onClose, onChanged
     record.id + (record.kind === 1 ? "/natural" : "/legal");
   const source = record.type === "buyer" ? buyerPath : "/api/taxpayers/" + record.id;
   const load = useCallback(async () => {
-    setLoading(true); setError("");
+    setLoading(true); setError(""); setPerson(null);
     try {
       const res = await fetch(source, { credentials: "same-origin", cache: "no-store" });
       if (!res.ok) throw new Error(errorText(res.status));
@@ -140,10 +141,12 @@ export default function FiscalRecordModal({ record, isLevel1, onClose, onChanged
           disabled={busy} onClick={onClose} aria-label="بستن پنجره" title="بستن">×</button>
       </header>
       <div className="argin-modal-body fiscal-dialog-body">
-        {loading ? <ConsoleLoader label={"در حال دریافت پرونده " + title + "…"} /> : person && <>
+        <>
           <details name="fiscal-sections" className="fiscal-section" open>
-            <summary>اطلاعات هویتی {title}</summary>
-            <div className="fiscal-section-content">
+            <summary>اطلاعات هویتی {title}{loading && <SectionLoading />}</summary>
+            <div className="fiscal-section-content" aria-busy={loading}>
+          {loading ? <p className="field-hint">در حال دریافت اطلاعات هویتی…</p> : !person ?
+            <div role="alert"><p>{error}</p><button type="button" className="identity-secondary" onClick={() => void load()}>تلاش مجدد</button></div> : <>
           {mode === "view" && <div className="console-directory-actions">
             {record.status === "فعال" && <button type="button" className="identity-primary" onClick={() => setMode("edit")}>ویرایش {title}</button>}
             {record.status === "فعال" && <button type="button" className="identity-secondary" onClick={() => setMode("archive")}>بایگانی {title}</button>}
@@ -187,12 +190,13 @@ export default function FiscalRecordModal({ record, isLevel1, onClose, onChanged
               <div><dt>شناسه پرونده</dt><dd dir="ltr">{record.id}</dd></div>
             </dl>
           </>}
+          </>}
             </div>
           </details>
           <details name="fiscal-sections" className="fiscal-section">
-            <summary>اطلاعات مالیاتی، تماس و نشانی</summary>
+            <summary>اطلاعات مالیاتی، تماس و نشانی{fiscalLoading && <SectionLoading />}</summary>
             <div className="fiscal-section-content">
-            <InvoiceParticipantForm key={record.id} customerId={record.buyerId} subjectId={record.id}
+            <InvoiceParticipantForm onLoadingChange={setFiscalLoading} key={record.id} customerId={record.buyerId} subjectId={record.id}
               role={record.type === "buyer" ? "buyer" : "seller"} personKind={record.kind ?? undefined}/>
             </div>
           </details>
@@ -200,8 +204,8 @@ export default function FiscalRecordModal({ record, isLevel1, onClose, onChanged
               <TaxpayerWorkspace initialTaxpayerId={record.id} customerId={record.buyerId}
                 showCreateForm={false} showTaxpayerList={false} isLevel1={isLevel1}/>
             </section>}
-        </>}
-        {error && <p role="alert" className="party-error">{error}</p>}
+        </>
+        {person && error && <p role="alert" className="party-error">{error}</p>}
         {notice && <p role="status" className="party-success">{notice}</p>}
       </div>
     </div>

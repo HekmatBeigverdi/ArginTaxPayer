@@ -31,27 +31,28 @@ function responseError(status: number, body: string): string {
   return "ذخیره ناموفق بود (کد " + status + ").";
 }
 
-export default function InvoiceParticipantForm({ customerId, subjectId, role, personKind }:
-  { customerId: string; subjectId: string; role: "buyer" | "seller"; personKind?: number }) {
+export default function InvoiceParticipantForm({ customerId, subjectId, role, personKind, onLoadingChange }:
+  { customerId: string; subjectId: string; role: "buyer" | "seller"; personKind?: number; onLoadingChange?: (loading: boolean) => void }) {
   const [details, setDetails] = useState<Details>(blank);
   const [changed, setChanged] = useState<FiscalField[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [saving, setSaving] = useState(false);
   const [invoiceType, setInvoiceType] = useState("1");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const endpoint = urlFor(customerId, role, subjectId);
   const load = useCallback(async () => {
-    setLoading(true); setError("");
+    setLoading(true); setLoadError(""); setError(""); onLoadingChange?.(true);
     try {
       const res = await fetch(endpoint, { cache: "no-store", credentials: "same-origin" });
       if (!res.ok) throw new Error(responseError(res.status, await res.text()));
       const stored = await bodyOrNull(res);
       setDetails(stored ? { ...blank(), ...stored } : blank());
       setChanged([]);
-    } catch (ex) { setError((ex as Error).message); }
-    finally { setLoading(false); }
-  }, [endpoint]);
+    } catch (ex) { setLoadError((ex as Error).message); }
+    finally { setLoading(false); onLoadingChange?.(false); }
+  }, [endpoint, onLoadingChange]);
   useEffect(() => { void load(); }, [load]);
 
   function update(key: FiscalField, value: string) {
@@ -99,6 +100,11 @@ export default function InvoiceParticipantForm({ customerId, subjectId, role, pe
     } catch (ex) { setError((ex as Error).message); }
     finally { setSaving(false); }
   }
+
+  if (loading || loadError) return <section className="invoice-participant" aria-busy={loading}>
+    {loading ? <p className="field-hint">در حال دریافت اطلاعات مالیاتی…</p> :
+      <div role="alert"><p>{loadError}</p><button type="button" className="identity-secondary" onClick={() => void load()}>تلاش مجدد</button></div>}
+  </section>;
 
   return <section className="invoice-participant" aria-busy={loading || saving}>
     <div className="taxpayer-section-heading">

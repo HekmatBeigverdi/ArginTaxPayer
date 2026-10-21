@@ -727,3 +727,8 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 .fiscal-dialog .console-directory-actions { padding-bottom:8px; margin-bottom:8px; gap:6px; }
 .fiscal-dialog .field-hint { font-size:11px; line-height:1.7; }
 
+
+.fiscal-section-loading { display:inline-flex; align-items:center; gap:6px; margin-inline-start:12px; font-size:11px; font-weight:400; color:#526d70; vertical-align:middle; }
+.fiscal-section-loading .argin-loader-spinner { width:14px; height:14px; border-width:2px; flex:none; }
+@media (prefers-reduced-motion: reduce) { .fiscal-section-loading .argin-loader-spinner { animation:none; } }
+

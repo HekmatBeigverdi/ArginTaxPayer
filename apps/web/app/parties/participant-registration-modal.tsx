@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import SectionLoading from "../components/section-loading";
 import InvoiceParticipantForm from "./invoice-participant-form";
 import TaxpayerWorkspace from "../taxpayers/taxpayer-workspace";
 import { canRegisterParticipant } from "./participant-access.mjs";
@@ -28,6 +29,7 @@ export default function ParticipantRegistrationModal({ mode, buyers, level1, act
   const [lastName, setLastName] = useState("");
   const [registrationNumber, setRegistrationNumber] = useState("");
   const [subjectId, setSubjectId] = useState(initialSubjectId);
+  const [fiscalLoading, setFiscalLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const dialog = useRef<HTMLDivElement>(null);
@@ -158,11 +160,15 @@ export default function ParticipantRegistrationModal({ mode, buyers, level1, act
             disabled={busy || !authorizedCustomer}>
             {busy ? "در حال ثبت…" : "ثبت هویت و ادامه به مشخصات مالیاتی"}</button>
         </form></div></details> : <>
+          <details name="fiscal-sections" className="fiscal-section">
+            <summary>اطلاعات هویتی {mode === "buyer" ? "خریدار" : "مؤدی"}</summary>
+            <div className="fiscal-section-content">هویت پرونده ثبت شده است.</div>
+          </details>
           <p className="party-success" role="status">پرونده هویتی ثبت شد. اکنون اطلاعات مالیاتی را تکمیل و ذخیره کنید.</p>
           <details name="fiscal-sections" className="fiscal-section" open>
-            <summary>اطلاعات مالیاتی، تماس و نشانی</summary>
+            <summary>اطلاعات مالیاتی، تماس و نشانی{fiscalLoading && <SectionLoading />}</summary>
             <div className="fiscal-section-content">
-          <InvoiceParticipantForm key={subjectId} customerId={customerId}
+          <InvoiceParticipantForm onLoadingChange={setFiscalLoading} key={subjectId} customerId={customerId}
             subjectId={subjectId} role={mode === "buyer" ? "buyer" : "seller"} personKind={Number(kind)}/>
             </div></details>
           {mode === "seller" && <div className="argin-memory-step">
@@ -173,6 +179,13 @@ export default function ParticipantRegistrationModal({ mode, buyers, level1, act
             void onCompleted(); onClose();
           }}>پایان و بازگشت به فهرست</button>
         </>}
+        {!complete && (mode === "seller"
+          ? ["اطلاعات مالیاتی، تماس و نشانی", "حافظه‌های مالیاتی", "اتصال به سامانه مؤدیان — کلید/توکن"]
+          : ["اطلاعات مالیاتی، تماس و نشانی"]).map(section =>
+          <details name="fiscal-sections" className="fiscal-section" key={section}>
+            <summary>{section}</summary>
+            <div className="fiscal-section-content field-hint">ابتدا هویت {mode === "seller" ? "مؤدی" : "خریدار"} را ثبت کنید</div>
+          </details>)}
       </div>
     </div>
   </div>;

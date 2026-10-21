@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import InvoiceParticipantForm from "../parties/invoice-participant-form";
+import SectionLoading from "../components/section-loading";
 import ConsoleLoader from "../components/console-loader";
 
 type Taxpayer = { id: string; kind: number; normalizedIdentifier: string; displayName: string; status: number; revision: number };
@@ -36,6 +37,8 @@ export default function TaxpayerWorkspace({ isLevel1, initialTaxpayerId, showCre
   const [details, setDetails] = useState<Taxpayer | null>(null);
   const [memories, setMemories] = useState<Memory[]>([]);
   const [certificates, setCertificates] = useState<Record<string, Certificate[]>>({});
+  const [detailsLoading, setDetailsLoading] = useState(Boolean(initialTaxpayerId));
+  const [detailsError, setDetailsError] = useState("");
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -68,12 +71,15 @@ export default function TaxpayerWorkspace({ isLevel1, initialTaxpayerId, showCre
   }, [reload, showTaxpayerList]);
 
   const show = useCallback(async (id: string) => {
+    setDetailsLoading(true); setDetailsError("");
     setError(""); setNotice(""); setSelectedId(id); setDetails(null); setMemories([]); setCertificates({});
     try {
-      const profile = await request<Taxpayer>("/" + id);
-      const list = await request<Memory[]>("/" + id + "/memories");
+      const [profile, list] = await Promise.all([
+        request<Taxpayer>("/" + id), request<Memory[]>("/" + id + "/memories")
+      ]);
       setDetails(profile); setEditName(profile.displayName); setMemories(list);
-    } catch (ex) { setError((ex as Error).message); }
+    } catch (ex) { setDetailsError((ex as Error).message); }
+    finally { setDetailsLoading(false); }
   }, []);
 
   useEffect(() => { if (initialTaxpayerId) void show(initialTaxpayerId); }, [initialTaxpayerId, show]);
@@ -137,12 +143,12 @@ export default function TaxpayerWorkspace({ isLevel1, initialTaxpayerId, showCre
     <section className="taxpayer-main" aria-label="مدیریت اطلاعات مؤدی">
       {error && <p role="alert" className="form-error">{error}</p>}
       {notice && <p role="status" className="auth-info">{notice}</p>}
-      {!details && <div className="taxpayer-panel"><h2>جزئیات مؤدی</h2>
+      {!details && !initialTaxpayerId && !selectedId && <div className="taxpayer-panel"><h2>جزئیات مؤدی</h2>
         <p className="identity-muted">برای مشاهده اطلاعات، یک مؤدی را از فهرست انتخاب کنید.</p></div>}
-      {details && <>
-        {showTaxpayerList && customerId && <InvoiceParticipantForm key={details.id} customerId={customerId} subjectId={details.id} role="seller" personKind={details.kind} />}
+      {(details || initialTaxpayerId || selectedId) && <>
+        {details && showTaxpayerList && customerId && <InvoiceParticipantForm key={details.id} customerId={customerId} subjectId={details.id} role="seller" personKind={details.kind} />}
         <div className="taxpayer-sections-grid">
-        {showTaxpayerList && <article className="taxpayer-panel">
+        {details && showTaxpayerList && <article className="taxpayer-panel">
           <div className="taxpayer-section-heading"><h2>{details.displayName}</h2>
             <button type="button" className="identity-secondary" onClick={() => void show(details.id)}>بازخوانی جزئیات</button></div>
           <dl className="taxpayer-facts"><div><dt>نوع</dt><dd>{details.kind === 1 ? "حقیقی" : "حقوقی"}</dd></div>
@@ -158,8 +164,10 @@ export default function TaxpayerWorkspace({ isLevel1, initialTaxpayerId, showCre
           <p className="field-hint">ویرایش نام به معنای تغییر شناسه رسمی، مالکیت مؤدی یا حافظه مالیاتی نیست.</p>
         </article>}
         <details name="fiscal-sections" className="fiscal-section">
-          <summary>حافظه‌های مالیاتی</summary>
-          <div className="fiscal-section-content">
+          <summary>حافظه‌های مالیاتی{detailsLoading && <SectionLoading />}</summary>
+          <div className="fiscal-section-content" aria-busy={detailsLoading}>
+          {detailsLoading ? <p className="field-hint">در حال دریافت حافظه‌های مالیاتی…</p> : detailsError ?
+            <div role="alert"><p>{detailsError}</p><button type="button" className="identity-secondary" onClick={() => void show(initialTaxpayerId || selectedId)}>تلاش مجدد</button></div> : <>
           {memories.length === 0 ? <p className="identity-muted">هنوز حافظه‌ای ثبت نشده است.</p> :
             <ul className="taxpayer-memory-list">{memories.map(m => <li key={m.id}>
               <div><strong dir="ltr">{m.memoryIdentifier}</strong>
@@ -185,6 +193,7 @@ export default function TaxpayerWorkspace({ isLevel1, initialTaxpayerId, showCre
             <p className="field-hint">تأیید اتصال واقعی، تعویض حافظه و ورود کلید خصوصی در مراحل آتی فعال می‌شود.</p>
           </form>}
           <p className="taxpayer-warning">تست واقعی ارتباط با سازمان مالیاتی و تأیید توکن هنوز فعال نیست؛ هیچ وضعیت «اتصال موفق» به‌صورت نمایشی ساخته نمی‌شود.</p>
+          </>}
         </div></details>
         <details name="fiscal-sections" className="fiscal-section">
           <summary>اتصال به سامانه مؤدیان — کلید/توکن</summary>

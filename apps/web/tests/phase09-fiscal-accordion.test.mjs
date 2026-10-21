@@ -16,7 +16,7 @@ for (const path of ['parties/fiscal-record-modal.tsx', 'parties/participant-regi
 test('memory and connection are independent exclusive accordion sections', () => {
   const source = read('taxpayers/taxpayer-workspace.tsx');
   assert.equal((source.match(/<details name="fiscal-sections"/g) || []).length, 2);
-  assert.match(source, /<summary>حافظه‌های مالیاتی<\/summary>/);
+  assert.match(source, /<summary>حافظه‌های مالیاتی\{detailsLoading && <SectionLoading \/>\}<\/summary>/);
   assert.match(source, /<summary>اتصال به سامانه مؤدیان — کلید\/توکن<\/summary>/);
   assert.match(source, /if \(!showTaxpayerList\) return;/);
   assert.match(source, /showTaxpayerList && customerId/);
