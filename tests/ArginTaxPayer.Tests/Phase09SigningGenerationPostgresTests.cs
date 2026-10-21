@@ -50,7 +50,7 @@ public sealed class Phase09SigningGenerationPostgresTests
         const string password = "Synthetic-signing-fixture-only-2026!";
         db.IdentityUsers.Add(new IdentityUser
         {
-            Id = customer, NormalizedEmail = email, IsActive = true,
+            Id = customer, NormalizedEmail = InitialAdministratorBootstrap.NormalizeEmail(email), IsActive = true,
             CreatedAtUtc = now, PasswordChangedAtUtc = now,
             PasswordHash = IdentityPasswordHasher.Hash(password),
             Roles = [new() { UserId = customer, Role = IdentityRoleNames.Customer, AssignedAtUtc = now }]
