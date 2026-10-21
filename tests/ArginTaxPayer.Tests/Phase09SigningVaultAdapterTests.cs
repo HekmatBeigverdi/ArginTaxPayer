@@ -141,7 +141,7 @@ public sealed class Phase09SigningVaultAdapterTests
         {
             using var json = JsonDocument.Parse(text);
             Assert.Equal(0, json.RootElement.GetProperty("options").GetProperty("cas").GetInt32());
-            Assert.False(json.RootElement.GetProperty("data").TryGetProperty("PrivateKey", out _));
+            Assert.False(json.RootElement.GetProperty("data").TryGetProperty("PrivateKey", out JsonElement _));
             return Handler.Json(new { data = new { version = 1 } });
         };
         using var transport = Transport(handler);
