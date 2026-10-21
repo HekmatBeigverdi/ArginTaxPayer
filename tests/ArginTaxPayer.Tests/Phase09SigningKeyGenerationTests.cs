@@ -1,4 +1,6 @@
 using System.Security.Cryptography;
+using System.IO.Compression;
+using System.Text;
 using System.Text.Json;
 using ArginTaxPayer.Application.Signing;
 using ArginTaxPayer.Domain.Signing;
@@ -63,6 +65,52 @@ public sealed class Phase09SigningKeyGenerationTests
     }
 
     [Fact]
+    public void Initial_handoff_builds_matching_public_and_private_key_zip()
+    {
+        using var key = new RsaGeneratedKeyFactory().Create();
+        using var handoff = GeneratedKeyHandoff.Create(key.PrivateMaterial.Bytes.ToArray(), key.PublicSpkiDer);
+
+        Assert.Equal(key.PublicFingerprintSha256, handoff.PublicFingerprintSha256);
+        Assert.Contains("-----BEGIN PRIVATE KEY-----", handoff.PrivatePem);
+        Assert.Contains("-----BEGIN PUBLIC KEY-----", handoff.PublicPem);
+
+        var zip = SigningKeyDownloadPackage.Create(handoff);
+        using var archive = new ZipArchive(new MemoryStream(zip), ZipArchiveMode.Read);
+        Assert.Equal(new[] { "private.key", "public.key" }, archive.Entries.Select(x => x.Name).OrderBy(x => x));
+
+        var publicPem = ReadEntry(archive, "public.key");
+        var privatePem = ReadEntry(archive, "private.key");
+        using var publicRsa = RSA.Create();
+        using var privateRsa = RSA.Create();
+        publicRsa.ImportFromPem(publicPem);
+        privateRsa.ImportFromPem(privatePem);
+        Assert.Equal(key.PublicFingerprintSha256,
+            RsaSigningKeyMaterial.Fingerprint(publicRsa.ExportSubjectPublicKeyInfo()));
+        var message = Encoding.UTF8.GetBytes("phase09-step21");
+        Assert.True(publicRsa.VerifyData(message,
+            privateRsa.SignData(message, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1),
+            HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1));
+    }
+
+    [Fact]
+    public void Disposed_handoff_zeroes_and_rejects_private_material()
+    {
+        using var key = new RsaGeneratedKeyFactory().Create();
+        var handoff = GeneratedKeyHandoff.Create(key.PrivateMaterial.Bytes.ToArray(), key.PublicSpkiDer);
+        handoff.Dispose();
+
+        Assert.Throws<ObjectDisposedException>(() => _ = handoff.PrivatePem);
+        Assert.Throws<ObjectDisposedException>(() => SigningKeyDownloadPackage.Create(handoff));
+    }
+
+    private static string ReadEntry(ZipArchive archive, string name)
+    {
+        using var stream = archive.GetEntry(name)!.Open();
+        using var reader = new StreamReader(stream, Encoding.UTF8);
+        return reader.ReadToEnd();
+    }
+
+    [Fact]
     public async Task Winner_generates_once_then_committed_retry_uses_public_metadata_only()
     {
         var journal = new Journal();
@@ -75,6 +123,23 @@ public sealed class Phase09SigningKeyGenerationTests
         Assert.Equal(1, factory.Calls);
         Assert.Equal(1, custody.Stages);
         Assert.Equal(1, custody.ReadinessCalls);
+    }
+
+    [Fact]
+    public async Task Initial_handoff_is_available_only_to_the_new_generation_claim_winner()
+    {
+        var journal = new Journal();
+        var custody = new Custody();
+        var service = new SigningKeyGenerationService(journal, custody, new Factory());
+        var request = Request();
+
+        using var first = await service.GenerateWithInitialHandoffAsync("token", request);
+        Assert.Equal(SigningGenerationStatus.Created, first.Result.Status);
+        Assert.NotNull(first.Handoff);
+
+        using var replay = await service.GenerateWithInitialHandoffAsync("token", request);
+        Assert.Equal(SigningGenerationStatus.Replayed, replay.Result.Status);
+        Assert.Null(replay.Handoff);
     }
 
     [Fact]
