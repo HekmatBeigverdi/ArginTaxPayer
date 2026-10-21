@@ -265,7 +265,7 @@ Provider references inspected in Step 02:
 | 18 | Temporary taxpayer capacity and onboarding foundation | All users may define taxpayers before plan enforcement; capacity hook is fail-closed when configured | Source delivered 2026-10-21; runtime pending |
 | 19 | Segmented taxpayer and token UI | Compact exclusive accordions, invoice modal shell and independent loading | Owner-approved 2026-10-21 |
 | 20 | Existing-key/token onboarding | Secure TXT private-key import, public match, memory ID and custody | Delivered; operator acceptance pending |
-| 21 | New key/token onboarding | Generate private/public artifacts, public download and controlled private handoff | Not started |
+| 21 | New key/token onboarding | Generate private/public artifacts, public download and controlled private handoff | Implemented; owner acceptance pending |
 | 22 | Read-only taxpayer connection test | Official SDK/endpoint authentication without invoice dispatch | Not started |
 | 23 | Single-memory change request | User request, reason, revision and plan-aware second-memory denial | Not started |
 | 24 | Level1 approval and token recreation | One-time approval/rejection, expiry, audit and safe replacement | Not started |
@@ -1154,7 +1154,7 @@ After the preflight, run the Ubuntu .NET/web build and tests, the isolated HTTP/
 
 The owner changed the remaining phase structure before closeout. Until the future plan/entitlement phase exists, all users may define one or more taxpayers regardless of their currently purchased plan. This is an explicit temporary policy, not a permanent entitlement. The domain policy now accepts unlimited taxpayer creation while capacity configuration is absent; once plan capacity is configured, it enforces the configured maximum and fails closed for invalid limits.
 
-This step adds no plan tables, subscription enforcement, migration, model or snapshot. It creates the policy seam needed for the later plan phase without inventing a plan or blocking current onboarding. Steps19–25 will implement the segmented taxpayer/token UI, existing-key import, new key generation, read-only authority connection test, single-memory change request, Level1 approval and integrated acceptance. Step26 remains closeout and publication.
+This step adds no plan tables, subscription enforcement, migration, model or snapshot. It creates the policy seam needed for the later plan phase without inventing a plan or blocking current onboarding. Steps19–25 implement the segmented taxpayer/token UI, existing-key import, new key generation, read-only authority connection test, single-memory change request, Level1 approval and integrated acceptance. Step26 remains closeout and publication.
 
 Local source check:
 
@@ -1228,4 +1228,27 @@ UI acceptance: use the owning account with a fresh login; inspect missing-provid
 
 **Verification executed:** Next.js production build and TypeScript passed; all 207 web tests passed, including streamed-body limits and the real BFF handler's Origin/authentication/public-response projection cases. The .NET SDK 9.0.202 compiled the test project with zero errors (13 existing warnings). All 30 focused C# tests passed with zero skips: Phase09ImportOnboardingTests, Phase09SigningKeyImportTests and Phase09SigningImportWorkflowTests. The 21 Python verifier-unit tests passed; their simulated TRX/provider messages are not evidence of live PostgreSQL/Vault execution. Initial parallel MSBuild failed on the environment's named-pipe restriction; single-process build and subsequent VSTest execution succeeded.
 
-**Current acceptance:** Implementation delivered; operator UI, configured Vault and isolated PostgreSQL integration acceptance remain pending. No migration was executed and no real private key was submitted. Step21 has not started.
+**Current acceptance:** Implementation delivered; operator UI, configured Vault and isolated PostgreSQL integration acceptance remain pending. No migration was executed and no real private key was submitted. Step21 is documented below.
+
+## 28. Step21 — New signing-key onboarding and controlled initial download
+
+### Delivered behavior
+
+- The existing `SigningKeyGenerationService` is now registered in the Development API composition and exposed through an owner-scoped `POST /api/dev/signing/{taxpayerId}/{memoryId}/generate` route. The route is loopback-only, bearer-authenticated through the existing owner journal, requires fresh owner authentication, the fixed consent version and explicit server-custody acceptance, and fails closed when generation/protection flags are disabled.
+- A newly claimed generation creates a two-file ZIP containing `public.key` and `private.key`. The public key is the canonical SPKI PEM used for registration in the tax portal; the private PKCS#8 PEM is intended for the accounting software. CSR is not generated because it is not used in this onboarding flow; the tax portal returns the tax-memory identifier after public-key registration.
+- Private material exists only in the in-memory initial handoff. The ZIP is returned with `no-store`/`no-cache` headers and strict attachment metadata. No private key, ZIP, Vault locator, password or export selector is accepted or persisted by the API/BFF.
+- The same operation ID is idempotent for public metadata, but replay never returns the private handoff. If the first download is lost, the owner must begin a new generation operation. Vault staging, commit failure, cancellation and unavailable-provider paths fail closed.
+- The BFF validates same-origin access, bearer cookie presence, bounded JSON input and UUID scope, then streams the ZIP response without buffering it through JSON or exposing a generic export route. It forwards only safe download/fingerprint headers.
+- The taxpayer connection UI now includes readiness and fresh-login messaging, explicit one-time-download consent, fingerprint display, secure ZIP download, tax-portal instructions and replay/lost-download guidance. It does not use browser storage, private-key preview or clipboard persistence. The connection test remains deferred to Step22.
+
+### Security and data-model boundary
+
+- No migration, EF model or snapshot change was created or executed. Existing signing-operation idempotency and consent records are reused.
+- No public private-key export endpoint exists. The internal handoff has no arbitrary unwrap-by-key-id operation and is disposed after package creation. Public metadata remains the only replayable result.
+- The implementation is intentionally limited to the initial owner handoff. It does not claim successful tax-portal registration or connection; those remain separate user actions and Step22 verification.
+
+### Verification
+
+Focused source tests cover ZIP key matching, fingerprint integrity, handoff disposal, first-generation/replay separation, API request guards, BFF no-store streaming and UI consent/readiness/download behavior. Full Phase09 and macOS operator verification must be recorded after the configured Vault/database environment is exercised.
+
+**Current acceptance:** Source implementation delivered; owner must still confirm the configured-Vault end-to-end download and approve final Step21 acceptance. No migration was executed.

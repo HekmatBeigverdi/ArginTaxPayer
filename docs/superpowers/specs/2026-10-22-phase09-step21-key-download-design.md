@@ -1,6 +1,6 @@
 # Phase09 Step21 — Generated Signing Key Onboarding Design
 
-Date: 2026-10-22  
+Date: 2026-10-22
 Status: Design approved in conversation; implementation plan pending review
 
 ## Goal
