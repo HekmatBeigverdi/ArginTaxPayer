@@ -9,6 +9,6 @@ internal interface ISigningKeyLifecycleJournal
 {
     Task<(SigningLifecycleStatus Status, LifecycleKeyState? State)> AuthorizeAsync(
         string? bearer, SigningKeyLifecycleCommand command, CancellationToken ct);
-    Task<SigningLifecycleResult> ApplyAtomicAsync(string? bearer, SigningKeyLifecycleCommand command,
+    Task<SigningKeyLifecycleResult> ApplyAtomicAsync(string? bearer, SigningKeyLifecycleCommand command,
         LifecycleKeyState state, CancellationToken ct);
 }
