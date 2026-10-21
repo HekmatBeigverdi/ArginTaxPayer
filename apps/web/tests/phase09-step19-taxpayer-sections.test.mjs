@@ -10,9 +10,9 @@ test("Step19 groups taxpayer details into responsive sections", () => {
   assert.match(source, /اتصال و کلید\/توکن/);
 });
 
-test("Step20 wires import while generation and connection remain later steps", () => {
+test("Steps20-21 wire import and generation while connection remains later", () => {
   assert.match(source, /<ExistingKeyImport/);
-  assert.match(source, /ساخت کلید جدید/);
+  assert.match(source, /<SigningKeyGeneration/);
   assert.match(source, /تست اتصال/);
-  assert.match(source, /گام‌های ۲۱ و ۲۲/);
+  assert.match(source, /گام ۲۲/);
 });
