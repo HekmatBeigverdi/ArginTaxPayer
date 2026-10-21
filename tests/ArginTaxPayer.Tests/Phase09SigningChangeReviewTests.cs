@@ -94,7 +94,7 @@ public sealed class Phase09SigningChangeReviewTests
     [Fact]
     public void Annual_reset_is_not_a_supported_review_kind()
     {
-        Assert.False(Enum.IsDefined(typeof(SigningChangeKind), 99));
+        Assert.False(Enum.IsDefined(typeof(SigningChangeKind), (short)99));
     }
 
     [Fact]
