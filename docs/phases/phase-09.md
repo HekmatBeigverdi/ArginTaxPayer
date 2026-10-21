@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 09: Cryptographic Keys and Digital Signing
 
-**Status:** Steps01,03,04,05,06,07,08 and09 owner-approved; Steps10,11,12,13 and14 source delivered for build/test, with runtime evidence pending. Step15 has not started. Prior build/live-provider and official portal-format evidence gaps remain explicit.
+**Status:** Steps01,03,04,05,06,07,08 and09 owner-approved; Steps10,11,12,13,14 and15 source delivered for build/test, with runtime evidence pending. Step16 has not started. Prior build/live-provider and official portal-format evidence gaps remain explicit.
 **Documentation language:** English. This edition replaces the Persian master document without changing the agreed scope or step order.
 **Last reviewed:** 2026-10-21.
 **Repository:** HekmatBeigverdi/ArginTaxPayer.
@@ -255,7 +255,7 @@ Provider references inspected in Step 02:
 | 12 | Backup, recovery and KEK rotation | Synthetic restore, resumable rewrap, failure without KEK, runbook | Source delivered 2026-10-21; build/runtime pending |
 | 13 | Controlled change review | Reason, scope, revision, expiry and one-time approval; no annual bypass | Source delivered 2026-10-21; build/runtime pending |
 | 14 | Secure API/BFF | HTTP authorization, CSRF, limits, no-store; no private-read/export/sign oracle | Source delivered 2026-10-21; build/runtime pending |
-| 15 | Persian RTL key-management UI | Owner generate/import, public download/status/history, compact accessible UX | Not started |
+| 15 | Persian RTL key-management UI | Owner generate/import, public download/status/history, compact accessible UX | Source delivered 2026-10-21; build/runtime pending |
 | 16 | Security/authorization/concurrency/regression | Real isolated HTTP/PG cases, transfer/session races, leak capture, Phases06–08 | Not started |
 | 17 | macOS and Ubuntu acceptance | Identical SHA, clean trees, independent build/test/browser/restore evidence | Not started |
 | 18 | Closeout and conditional publication | All signoffs; separate permission for merge/tag/release | Not started |
@@ -1058,3 +1058,22 @@ python3 scripts/phase09_step14_verify.py
 No database tunnel is required for this local gate and no migration is applied. Step15 has not started.
 
 **Current acceptance:** Step14 source delivered for build/test; runtime verification remains pending.
+
+## 22. Step15 — Persian RTL key-management UI
+
+Step15 adds the authenticated console route `/keys` and a compact Persian RTL key-management workspace. It shows taxpayer/fiscal-memory scope facts, public fingerprint and lifecycle history, revision, selection status and portal-verification state. Private-key, password, DEK, KEK and export values are not represented in the component. Generate, import and rotation controls remain visibly disabled until the authenticated secure API contract and later runtime gates are enabled.
+
+The UI uses the existing console shell, responsive table/panel layout, LTR isolation for identifiers and a security notice explaining that private material is never displayed or downloaded. The route is intentionally not wired to a new API in this step. No migration, model or snapshot change was added.
+
+From a clean macOS checkout:
+
+```bash
+git fetch origin
+git switch phase/09-cryptographic-keys-signing
+git pull --ff-only
+python3 scripts/phase09_step15_verify.py
+```
+
+The local gate runs the Python safety suite and the focused Node UI tests. It requires no database tunnel and performs no API, Vault or authority request. Step16 has not started.
+
+**Current acceptance:** Step15 source delivered for build/test; runtime/browser evidence remains pending.
