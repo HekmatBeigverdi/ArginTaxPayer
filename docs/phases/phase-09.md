@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 09: Cryptographic Keys and Digital Signing
 
-**Status:** Steps01,03,04,05 and06 explicitly owner-approved; Step02 design accepted for continuation. Step07 source is delivered; build/runtime acceptance is pending; Step08 has not started. Prior build/live-provider and official portal-format evidence gaps remain explicit.
+**Status:** Steps01,03,04,05,06 and07 explicitly owner-approved; Step02 design accepted for continuation. Step08 source delivered for build/test; Step09 has not started. Prior build/live-provider and official portal-format evidence gaps remain explicit.
 **Documentation language:** English. This edition replaces the Persian master document without changing the agreed scope or step order.
 **Last reviewed:** 2026-10-21.
 **Repository:** HekmatBeigverdi/ArginTaxPayer.
@@ -8,7 +8,7 @@
 **Previous release:** `phase-08-v1.0.0`.
 **Phase branch:** `phase/09-cryptographic-keys-signing`.
 **Fixed step count:** 18. Changing the count, order, or agreed scope requires explicit owner approval.
-**Current source baseline:** `3e869745cb3603ad113b9bb27ffe35a270bb02cd`.
+**Current source baseline:** `1a431b1fd231f9b6f8a8218267ff164232c6ee2a`.
 **Goal:** Secure generation/import, public-key handling, protected custody, and offline digital signing for the key-based path without an independent signing certificate.
 **Execution:** Deliver one step at a time, update this document, provide macOS checks, and wait for explicit approval before continuing. No database migration may be applied without separate owner approval.
 
@@ -247,8 +247,8 @@ Provider references inspected in Step 02:
 | 04 | Operation persistence, audit and idempotency | Atomic journal/consent/audit, replay, CAS and recovery states | Owner-approved 2026-10-21 |
 | 05 | Envelope protection and vault provider | Tamper/AAD/missing-KEK denial; no private bytes in business DB | Owner-approved2026-10-21; prior provider execution gates retained |
 | 06 | Key generation and public artifact | Fixed local profile; public-only artifact; official portal encoding remains blocked | Owner-approved2026-10-21; prior evidence limits retained |
-| 07 | Existing private-key import | Bounded valid formats; malformed/weak input denied; no plaintext temp/log | Source delivered; build/runtime pending |
-| 08 | Private/public match and fingerprint | Canonical public match and challenge; registration not inferred | Not started |
+| 07 | Existing private-key import | Bounded valid formats; malformed/weak input denied; no plaintext temp/log | Owner-approved2026-10-21; execution evidence pending |
+| 08 | Private/public match and fingerprint | Canonical public match and challenge; registration not inferred | Source delivered; build/runtime pending |
 | 09 | Offline legacy signing and SDK compatibility | Exact encoding/normalization fixtures; no live authority request | Not started |
 | 10 | Application signing and immutable snapshot | Trusted snapshot/hash/key version; no Sent/dispatch mutation | Not started |
 | 11 | Key lifecycle and local rotation | Compromised/revoked denial; atomic selection and race behavior | Not started |
@@ -850,3 +850,63 @@ Official API references reviewed2026-10-21: Microsoft Learn Rfc2898DeriveBytes.P
 One Important policy gap was identified: encrypted PKCS8 used a BER-capable native importer without proving strict DER for its decrypted contents. The implementation now uses bounded .NET PBKDF2/AES-CBC, validates the complete decrypted DER with the shared plaintext validator, and clears the derived key and plaintext in finally. Two added regression cases target encrypted inner trailing data and nonminimal BER length. They are ADDED, NOT EXECUTED; no C# RED/GREEN evidence is claimed. No other concrete source finding was identified in authorization, disposal, API accessibility or shared kind/origin/digest handling. No minor review item is deferred.
 
 Preserved the owner commit3e869745 email-normalization fix in Step06 and applied the same normalization to the new import fixture.
+
+## 15. Step08 — Private/public match and fingerprint
+
+**Owner approval:** Step07 explicitly approved2026-10-21 if no migration exists. Step07 added no migration; this implements the already approved Section3 comparison direction inline. Owner approval is recorded separately from missing runtime evidence. No new migration/model/snapshot is required or applied.
+
+### Design and implementation plan
+
+Goal: compare a supplied public key with an already sealed owner key using canonical SPKI, its SHA256 fingerprint, and a server-generated local challenge. A match proves local possession only; it cannot prove portal registration, official upload encoding, authority activation or online acceptance.
+
+Architecture: retain the existing owner/session authorization and protected-custody boundary. Parse public material only after owner authentication and fresh login. Persist a key-revision intent audit before reading private custody, run a purpose-separated CSPRNG32-byte challenge with RSA2048/e65537/SHA256/PKCS1 internally, then reauthorize and atomically persist the result/audit before returning public metadata. No challenge, signature, private bytes or provider locator leaves that boundary.
+
+Accepted comparison formats: SPKI DER/PUBLIC KEY PEM and PKCS1 RSAPublicKey DER/RSA PUBLIC KEY PEM. Both canonicalize to DER SPKI; fingerprint is lowercase SHA256 hex over canonical SPKI. These are product comparison formats, not certified portal formats. Exact input bounds:16KiB encoded,4KiB decoded, one ASCII PEM block plus whitespace only, exact DER re-export equality and complete consumption. Reject private/certificate/CSR input, unknown formats, extra blocks/data, BER, wrong strength/exponent. Caller owns the original input; service copies bounded input after authorization and clears its copy and parser buffers, including accidentally supplied private PEM.
+
+Implementation tasks (single master document as requested):
+- Application/Signing/SigningKeyMatchContracts.cs: public request contains taxpayer/memory/key IDs, expected key revision and format. ISigningKeyMatchService.MatchAsync takes a separate ReadOnlyMemory<byte> public input and returns status/key ID/two public fingerprints/revision only. PortalRegistrationProven is always false.
+- Infrastructure/Signing/Matching/SigningPublicKeyParser.cs and RsaKeyMatchProof.cs: canonicalization, fixed local challenge and protected read-only VaultKeyMatchProof. Compare the protected key's derived SPKI with immutable DB metadata first; corrupted custody/metadata is IntegrityFailure, never a user mismatch. Missing envelope is RecoveryRequired; do not create, replace or regenerate anything.
+- MatchContracts.cs and SigningKeyMatchService.cs: authorize, parse, begin audited intent, run proof, complete audited result; fail closed on unavailable/corrupt custody, cancellation or failed commit. No public fingerprint/result is released on a commit failure.
+- Persistence/Signing/EfSigningKeyMatchJournal.cs: reuse the existing serializable per-memory lock and atomic audit helper, without changing Generate/Import journal behavior. Begin and complete each increment key revision and create SubjectKind2 audit at that exact revision. Intent stores the supplied public fingerprint and is valid for five minutes. Completion binds intent ID, actor, scope, original key operation, revision and fingerprints. Stale revision/concurrent changes deny the result. Only committed, consented owner keys in LocallyReady/Suspended are admitted; staged/terminal/selected keys are denied. Ready mismatch becomes Suspended because the existing DB invariant forbids Ready+Mismatch. A later match never automatically resumes a suspended key; Step11 owns controlled resume. PortalState and fiscal-memory/selection rows remain unchanged.
+- SigningKeyMatchRegistration.cs: explicit future custody-host opt-in requires SigningKeyMatching:Enabled and SigningKeyProtection:Enabled, otherwise Unavailable. Api/BFF/UI do not call it. Synthetic parser/proof/workflow/provider and five opt-in PostgreSQL tests, plus scripts/phase09_step08_verify.py and exact no-skip verifier checks.
+
+Review focus: hostile/mislabeled public input; old/foreign/admin sessions before custody; provider corruption versus mismatch; revision/session changes between intent/proof/commit; mismatch suspension without activation or portal claims.
+
+### Execution ledger and rulings
+
+- Baseline:14 Python safety tests passed. Dotnet is unavailable (command not found), so C# tests are source deliverables only; no build, discovery, runtime, PostgreSQL or C# RED/GREEN result is claimed.
+- Verifier test-first evidence: exact Step08 PG count and inherited matching-enable tests produced three expected failures before implementation, then15 Python tests passed after the gates were added. Printed TRX values inside these Python tests are synthetic fixture assertions, not actual DB runs.
+- Ruling: use the existing key revision/audit rows for comparison intent and completion rather than extending the Generate/Import operation-kind constraint. This preserves the approved schema. A lost response may require reading the current public revision and retrying; no exactly-once client replay is promised.
+- Ruling: deny the key currently selected in this step rather than changing selection or silently suspending a selected row against the existing selection-ready trigger. Step11 owns coordinated selection/lifecycle changes. Cleared selections or selection of a different key do not block comparison of this key. This limits availability for later selected keys while preserving current invariants.
+- Ruling: bounded implementation continues under the owner's explicit instruction to complete the next approved step; no new approval round or extra design/plan file is introduced. Work remains isolated from the stale/dirty main checkout and publishes against an expected branch head.
+
+Official .NET API reference reviewed2026-10-21: https://learn.microsoft.com/en-us/dotnet/api/system.security.cryptography.rsa?view=net-9.0 . No third-party crypto dependency or tax-protocol inference.
+
+### Final review and executable checks
+
+Independent source review found one Important availability defect: both guards rejected retained selection rows, including cleared selections. Both predicates now reject only the exact selected key. The first PostgreSQL case includes an audited null selection which must permit a match and an audited selection of the same key which must deny a second private admission. These C# regression assertions remain unexecuted; no RED/GREEN claim is made. A selected-different-key fixture is not separately exercised; the narrowed predicate is source-reviewed behavior, not runtime evidence. No other concrete source finding was reported; no minor is deferred.
+
+Added28 no-DB C# cases (17 parser/proof,9 workflow/DTO and2 protected-custody cases) plus five opt-in real PostgreSQL journal cases with synthetic private custody. Source-derived expected focused count is132 no-DB cases,21 PostgreSQL skips and1 live-Vault skip in default mode. These are discovery expectations, NOT executed counts. The Step08 PostgreSQL gate requires exactly five executed/passed cases with zero skips. Tests cover normal match, mismatch+suspension+no auto-resume, stale/foreign/revoked sessions, concurrency, post-proof revocation, current-revision retry, lifecycle revision race and selection guards. All fixtures are synthetic, retain append-only history and apply no migrations.
+
+Fresh available checks:15 Python safety tests pass; Python syntax and helper --help pass. C# build/discovery/runtime and PostgreSQL execution remain pending because dotnet is absent. Step05 live Vault and exact official portal format gates remain separate.
+
+From a clean macOS checkout:
+
+```bash
+git fetch origin
+git switch phase/09-cryptographic-keys-signing
+git pull --ff-only
+python3 scripts/phase09_step08_verify.py
+```
+
+For the five PostgreSQL tests, keep the established AutoSSH test tunnel and run:
+
+```bash
+zsh scripts/dev-up.zsh
+zsh scripts/dev-status.zsh
+python3 scripts/phase09_step08_verify.py --postgres
+```
+
+The helper prompts for test DB credentials, hardcodes loopback15432/argintaxpayer_test, checks actual current_database(), applies no migration and calls no real Vault or tax authority. Its default mode does not need a database. Matching result never establishes portal registration. Step09 has not started.
+
+**Current acceptance:** Step08 source delivered for build/test and owner review; executable/provider evidence remains pending. No migration/model/snapshot, API/UI wiring or fiscal-memory activation changed.
