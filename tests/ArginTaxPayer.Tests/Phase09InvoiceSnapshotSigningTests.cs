@@ -4,6 +4,7 @@ using ArginTaxPayer.Application.Signing;
 using ArginTaxPayer.Domain.Signing;
 using ArginTaxPayer.Infrastructure.Signing.Generation;
 using ArginTaxPayer.Infrastructure.Signing.InvoiceSnapshot;
+using ArginTaxPayer.Infrastructure.Signing.Offline;
 using ArginTaxPayer.Infrastructure.Signing.Protection;
 using Xunit;
 
@@ -15,7 +16,7 @@ public sealed class Phase09InvoiceSnapshotSigningTests
     public async Task Invalid_request_is_rejected_before_snapshot_or_custody()
     {
         var source = new Source();
-        var custody = new Custody();
+        var custody = new Custody(Array.Empty<byte>());
         var service = new InvoiceSnapshotSigningService(source, new Audit(), custody, new LegacyOfflineSigningEngine());
         var result = await service.SignAsync("token", new AuthorizedSigningRequest(Guid.Empty, Guid.NewGuid(),
             Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), 1, 1, new string('a', 64), SigningOperationPolicy.LegacyProfile));
