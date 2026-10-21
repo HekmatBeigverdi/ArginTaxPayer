@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 09: Cryptographic Keys and Digital Signing
 
-**Status:** Steps01,03,04,05,06,07,08 and09 owner-approved; Step10 source delivered for build/test, with runtime evidence pending. Step11 has not started. Prior build/live-provider and official portal-format evidence gaps remain explicit.
+**Status:** Steps01,03,04,05,06,07,08 and09 owner-approved; Step10 and Step11 source delivered for build/test, with runtime evidence pending. Step12 has not started. Prior build/live-provider and official portal-format evidence gaps remain explicit.
 **Documentation language:** English. This edition replaces the Persian master document without changing the agreed scope or step order.
 **Last reviewed:** 2026-10-21.
 **Repository:** HekmatBeigverdi/ArginTaxPayer.
@@ -251,7 +251,7 @@ Provider references inspected in Step 02:
 | 08 | Private/public match and fingerprint | Canonical public match and challenge; registration not inferred | Owner-approved 2026-10-21; runtime evidence pending |
 | 09 | Offline legacy signing and SDK compatibility | Exact encoding/normalization fixtures; no live authority request | Source delivered 2026-10-21; build/runtime pending |
 | 10 | Application signing and immutable snapshot | Trusted snapshot/hash/key version; no Sent/dispatch mutation | Source delivered 2026-10-21; build/runtime pending |
-| 11 | Key lifecycle and local rotation | Compromised/revoked denial; atomic selection and race behavior | Not started |
+| 11 | Key lifecycle and local rotation | Compromised/revoked denial; atomic selection and race behavior | Source delivered 2026-10-21; build/runtime pending |
 | 12 | Backup, recovery and KEK rotation | Synthetic restore, resumable rewrap, failure without KEK, runbook | Not started |
 | 13 | Controlled change review | Reason, scope, revision, expiry and one-time approval; no annual bypass | Not started |
 | 14 | Secure API/BFF | HTTP authorization, CSRF, limits, no-store; no private-read/export/sign oracle | Not started |
@@ -967,6 +967,37 @@ git pull --ff-only
 python3 scripts/phase09_step10_verify.py
 ```
 
-The command does not require the AutoSSH PostgreSQL tunnel and never applies a migration. Step11 has not started.
+The command does not require the AutoSSH PostgreSQL tunnel and never applies a migration. Step11 is now delivered for build/test.
 
 **Current acceptance:** Step10 source delivered for build/test; runtime verification remains pending because `dotnet` is unavailable in the authoring environment. No migration/model/snapshot or API/UI integration was added.
+
+
+## 18. Step11 — Key lifecycle and local rotation
+
+**Owner approval:** Step10 was approved before this implementation. This step uses the existing Phase09 signing tables and migration contract; it adds no migration or schema change.
+
+### Scope and implementation
+
+- `SigningKeyLifecyclePolicy` centralizes the allowed state graph: `Staged→LocallyReady`, `LocallyReady→Suspended/Compromised/Superseded`, and `Suspended→LocallyReady/Compromised/Superseded`. Compromised and Superseded are terminal and cannot return to signing.
+- `ISigningKeyLifecycleService` accepts a scope-bound command with expected key revision, action, bounded reason and optional replacement identifier. It rejects invalid input before authorization and never trusts caller-provided scope without the journal.
+- Selection is permitted only for `LocallyReady`; unselection requires the exact current selected key. The journal must apply selection, lifecycle, audit and revision changes atomically with a database CAS. The service deliberately does not implement an in-memory lock.
+- Resume is restricted to `Suspended`; compromise reporting remains an immediate local stop. Rotation is represented as a controlled journal operation and cannot use a replacement key supplied as an unreviewed shortcut.
+- No API/BFF endpoint, private-key export, authority activation or automatic key replacement is added.
+- `SigningKeyLifecycleRegistration` is future-host-only and requires explicit `SigningKeyLifecycle:Enabled=true`; the current API/BFF composition does not register lifecycle commands.
+
+### Verification record
+
+Added ten focused no-database C# cases: lifecycle transition matrix, invalid reason/revision rejection, authorization denial, selection readiness, exact selection unselect guard and revision forwarding. The Python verifier adds an exact ten-test no-skip gate. C# compilation/discovery/runtime remains pending because `dotnet` is unavailable here.
+
+From a clean macOS checkout:
+
+```bash
+git fetch origin
+git switch phase/09-cryptographic-keys-signing
+git pull --ff-only
+python3 scripts/phase09_step11_verify.py
+```
+
+No AutoSSH PostgreSQL tunnel is required for the local gate, and no migration is applied. Step12 has not started.
+
+**Current acceptance:** Step11 source delivered for build/test; runtime verification remains pending because `dotnet` is unavailable in the authoring environment.
