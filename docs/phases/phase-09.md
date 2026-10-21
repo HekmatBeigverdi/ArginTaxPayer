@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 09: Cryptographic Keys and Digital Signing
 
-**Status:** Steps 01, 03 and 04 explicitly owner-approved; Step 02 design accepted for continuation. The Phase09 migration was applied by the owner to argintaxpayer_test. Step 05 source implementation is delivered; executable build/provider acceptance is pending. Step 06 has not started.
+**Status:** Steps01,03,04 and05 explicitly owner-approved; Step02 design accepted for continuation. Step06 local source implementation is delivered for build/test; Step07 has not started. Prior build/live-provider evidence gaps remain explicit.
 **Documentation language:** English. This edition replaces the Persian master document without changing the agreed scope or step order.
 **Last reviewed:** 2026-10-21.
 **Repository:** HekmatBeigverdi/ArginTaxPayer.
@@ -8,7 +8,7 @@
 **Previous release:** `phase-08-v1.0.0`.
 **Phase branch:** `phase/09-cryptographic-keys-signing`.
 **Fixed step count:** 18. Changing the count, order, or agreed scope requires explicit owner approval.
-**Current source baseline:** `20d71c18c35b4ca31492834be85aae89b52177bf`.
+**Current source baseline:** `408e8942b2b27ac2eaf5a4718d2afdd1e061a7fe`.
 **Goal:** Secure generation/import, public-key handling, protected custody, and offline digital signing for the key-based path without an independent signing certificate.
 **Execution:** Deliver one step at a time, update this document, provide macOS checks, and wait for explicit approval before continuing. No database migration may be applied without separate owner approval.
 
@@ -245,8 +245,8 @@ Provider references inspected in Step 02:
 | 02 | Architecture, custody and authorization contracts | Consent, protected provider design, lifecycle and default-deny access | Design accepted for continuation; runtime checks not rerun |
 | 03 | Data model and additive migration proposal | Model/migration delivered; operator applied migration on isolated test DB | Owner-approved 2026-10-20 |
 | 04 | Operation persistence, audit and idempotency | Atomic journal/consent/audit, replay, CAS and recovery states | Owner-approved 2026-10-21 |
-| 05 | Envelope protection and vault provider | Tamper/AAD/missing-KEK denial; no private bytes in business DB | Source delivered; build/provider acceptance pending |
-| 06 | Key generation and public artifact | Official profile; no certificate/CSR/private response; portal encoding verified | Not started |
+| 05 | Envelope protection and vault provider | Tamper/AAD/missing-KEK denial; no private bytes in business DB | Owner-approved2026-10-21; prior provider execution gates retained |
+| 06 | Key generation and public artifact | Fixed local profile; public-only artifact; official portal encoding remains blocked | Source delivered; execution/portal-format acceptance pending |
 | 07 | Existing private-key import | Bounded valid formats; malformed/weak input denied; no plaintext temp/log | Not started |
 | 08 | Private/public match and fingerprint | Canonical public match and challenge; registration not inferred | Not started |
 | 09 | Offline legacy signing and SDK compatibility | Exact encoding/normalization fixtures; no live authority request | Not started |
@@ -732,3 +732,67 @@ This opt-in accepts only loopback HTTPS port18200 and hardcodes mounts argin-tra
 Implementation rulings: preserve the previously approved design and one phase document; keep the provider unwired from Api/BFF until custody-host deployment checks pass; use documented derived Transit context for all three wrapping operations. Cost of an incorrect version/API assumption is failed provider admission, so runtime custody stays disabled until the live gate passes.
 
 An independent source reviewer found no Critical/Important implementation defect. Two test-coverage gaps were regraded as required security-acceptance coverage and addressed in source: forged envelope identity headers now exercise cryptographic binding, and synthetic cancellation/malformed-success/unknown-length oversize responses require RecoveryRequired and no retry. Rewrap output is authenticated against the original key before CAS persistence. Those C# regressions remain unexecuted because dotnet is absent; no RED/GREEN evidence is claimed. No remaining minor review finding is deferred.
+
+## 13. Step06 — Key generation and public artifact
+
+**Owner approval:** Step05 approved2026-10-21, with no additional runner transcript. Preserve its runtime/production-enablement gates. Read and preserve the latest owner's compiler correction408e8942.
+**Design:** Implement the existing Section3 server-custody design inline, with a public-only application use case and internal crypto/provider boundaries. No API/UI activation, certificate/CSR, private export, selection/rotation or fiscal-memory activation belongs to this step.
+
+### Implementation plan
+
+1. Add Application/Signing/SigningKeyGenerationContracts.cs and Infrastructure/Signing/Generation/RsaSigningKeyMaterial.cs: fixed2048-bit RSA/e65537 local profile, disposable PKCS8, canonical SPKI fingerprint and technical-review PEM. Tests reject weak/wrong/extra data and ensure no private fields or false portal approval.
+2. Add internal generation workflow/custody adapter and a partial EfSigningOperationRepository generation journal. Reserve owner consent through Step04, perform provider readiness, then atomically allocate the stable staged key ID and CAS-claim the operation before generating anything. The winner alone generates; replays only probe the same envelope. Seal key metadata/operation/audit atomically after authenticated custody. Test missing provider, concurrent claim/replay, uncertain outcome, scope/owner/consent denial and revoked/stale session.
+3. Add explicit future-custody-host DI registration; no Api/BFF registration. Add no-DB and opt-in PostgreSQL verification. Existing model/migration/snapshot stay unchanged. Capture executable evidence honestly; .NET remains absent here.
+
+Review focus: duplicate generation on retry/crash/DB retry; cross-customer scope spoofing; revoked/fresh authentication at mutation; orphan/provider metadata integrity; PEM accidentally containing private material or implying official portal approval.
+
+### Source and portal format gate
+
+Rehashed original official guides. TAX-CONNECT-16 p5 requires2048-bit RSA; TAX-SDK-GUIDE-OLD p9 describes PKCS8 private input corresponding to the public key uploaded in the portal. These do not establish exact portal upload SPKI/PKCS1 wrapping. Searches of official tax domains did not supply authoritative exact encoding evidence. Do not substitute third-party advice or the new certificate protocol. The local artifact is explicitly SPKI DER in PUBLIC KEY PEM for technical review only; PortalUploadApproved is always false and portal state remains Unverified. Portal-approved download is blocked until official format evidence is pinned and tested. This is an outstanding Step06 acceptance gate, not an assumed compatibility claim.
+
+### Implementation decisions and crash behavior
+
+The internal generation service resolves CustomerUserId from the current token, reserves the fixed legacy profile/consent through Step04, and checks protected-provider readiness before claiming. Claim transaction persists one staged SigningKeyVersion (revision1, initial VersionNumber1) and moves the journal Reserved->RecoveryRequired with a fixed unknown-outcome code and revision2. This is a conservative pre-generation intent, not evidence that Vault failed or contains a key. Both subjects have atomic audit. Only the transaction winner receives OwnsClaim=true; execution-strategy attempts reset that flag. RSA creation and all Vault calls are outside database retry callbacks.
+
+A crash after intent and before durable envelope leaves a deliberately nonregenerating recovery state. Subsequent calls only probe the stable identity; no envelope does not grant a second generation. Availability in that case requires the later controlled operator/recovery path. A fresh OperationId cannot bypass this rule or key-rotation review: initial generation is rejected once any key row exists for that memory. No staged/private material is logged, returned to the browser or stored in PostgreSQL.
+
+Vault staging authenticates the full envelope, parses canonical RSA PKCS8, checks strength and derives public SPKI before producing an internal receipt. Completion rechecks current owner/session, fresh login, original operation/kind/profile/digest, current consent version and receipt identity/fingerprint. Key metadata, LocallyReady state, operation Committed and both revision audits commit together. No key selection is inserted; memory status/revision, certificate metadata and authority connection state remain unchanged. A session revoked between custody and completion cannot commit; a fresh owner session may reconcile the same key.
+
+ReadPublicAsync resolves the actual owner from PostgreSQL and applies the existing Level1/Level2/owner metadata scope. Public material is returned only after a committed operation, canonical SPKI validation and stored-fingerprint match. All downloadable bytes are regenerated PUBLIC KEY PEM from parsed public DER. There is no private-key export method, CSR, certificate, generic signing endpoint or authority request.
+
+Enabled generation registration is explicit and separate from API/BFF: both SigningKeyGeneration:Enabled and SigningKeyProtection:Enabled must be true in the future custody host, with PostgreSQL plus approved Vault settings. Otherwise it registers an unavailable service; there is no synthetic provider in product code. Readiness/protocol gates from Step05 and its real-Vault test remain required before enabling real keys. This delivery does not install or configure that host.
+
+### Acceptance and verification
+
+Added10 no-DB C# cases for fixed RSA strength, canonical formats, public-only artifacts, one-generation/replay, unknown acknowledgements, empty recovery, unavailable provider, input/owner denial and disabled DI. Added five opt-in PostgreSQL tests for audit/state sealing, concurrent claims, provider-gap recovery, foreign owner/admin/stale/revoked denial and revocation after custody followed by fresh-owner recovery. PostgreSQL tests use synthetic custody; they do not establish deployed Vault compatibility. They assert six audit events for a normal generation (reserve/consent, claim/key intent, commit/key seal), no selected key and unchanged fiscal-memory status. Append-only synthetic fixture histories remain in argintaxpayer_test. Tests never migrate, disable guards or touch a different DB.
+
+Python verifier extends exact TRX acceptance to all five generation PostgreSQL tests with zero skips, and strips inherited generation-enablement settings in no-DB runs. The new count regression failed before implementation. All13 Python safety tests pass after the fix. Attempted dotnet --info and focused dotnet test returned command not found: no C# build/discovery/test, PostgreSQL or live-Vault PASS is claimed here. Test counts below are source-derived expectations pending runner evidence, not observed .NET results.
+
+Default macOS command, clean checkout, no DB/dev-up required:
+
+```bash
+git fetch origin
+git switch phase/09-cryptographic-keys-signing
+git pull --ff-only
+python3 scripts/phase09_step06_verify.py
+```
+
+Expected13 Python safety tests and82 no-DB Phase09 signing cases pass; eleven PostgreSQL tests and one real-Vault test are skipped. Capture actual TRX counts.
+
+For the five real PostgreSQL generation-journal tests with synthetic custody, use the established tunnel/service helpers:
+
+```bash
+zsh scripts/dev-up.zsh
+zsh scripts/dev-status.zsh
+python3 scripts/phase09_step06_verify.py --postgres
+```
+
+The helper securely prompts for test credentials, verifies actual current_database()=argintaxpayer_test, and requires all five generation tests passed, none skipped. No new migration or Vault setup is needed for these DB tests. The independent Step05 real-Vault gate is still separate.
+
+**Current acceptance:** Step06 local source implementation ready for build/test and owner review. Exact official portal-upload encoding is not established, so portal-approved export remains explicitly blocked. Step07 has not started. No migration/model/snapshot, production key, API/UI wiring or tax-authority state was changed.
+
+### Review ledger
+
+Independent read-only review identified no concrete Critical, Important or Minor source finding. It checked claim ownership across EF retries, nonregenerating recovery, atomic metadata/audit completion, RSA/public-only material, opt-in DI and the Level1/MFA fixture. Compilation and C#/PostgreSQL execution were unavailable to both implementer and reviewer. The owner's previous JSON out-discard shadow fix was preserved.
+
+Rulings: initial generation deliberately stops after any durable key intent rather than allowing a new OperationId to bypass recovery/rotation; a crash before envelope persistence can require operator recovery and costs availability. Official portal encoding is unproven, so technical SPKI output remains explicitly unapproved for portal upload. No runtime security/compatibility success was inferred from source review. No minor review item is deferred.

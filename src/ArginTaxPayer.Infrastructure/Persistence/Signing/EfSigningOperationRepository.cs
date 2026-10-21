@@ -13,7 +13,7 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Signing;
 
 /// <summary>Scoped database-only operation journal. No key generation, vault access, public endpoint,
 /// memory activation, entitlement consumption, or private material is implemented here.</summary>
-public sealed class EfSigningOperationRepository : ISigningOperationRepository
+public sealed partial class EfSigningOperationRepository : ISigningOperationRepository
 {
     private readonly ArginTaxPayerDbContext db;
     private readonly IdentityAuthorizationService identity;

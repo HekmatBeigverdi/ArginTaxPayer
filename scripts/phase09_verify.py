@@ -83,7 +83,8 @@ def parse_connection(text):
 
 def pure_environment():
     env = {k:v for k,v in os.environ.items()
-           if not k.lower().startswith(('connectionstrings__', 'signingkeyprotection__', 'phase09_vault_'))
+           if not k.lower().startswith(('connectionstrings__', 'signingkeyprotection__',
+                                        'signingkeygeneration__', 'phase09_vault_'))
            and not k.startswith('PG')}
     env['RUN_ARGINTAXPAYER_PG_INTEGRATION'] = '0'
     env['RUN_ARGINTAXPAYER_VAULT_INTEGRATION'] = '0'
@@ -197,6 +198,12 @@ def dotnet_tests(env, test_filter=None):
             if any(sum(int(c.get(key, -1)) for c in counts) != value
                    for key, value in expected.items()):
                 raise SafeError('Step05 requires its real Vault test passed with zero skips.')
+        if (env.get('RUN_ARGINTAXPAYER_PG_INTEGRATION') == '1' and
+                test_filter == 'FullyQualifiedName~Phase09SigningGenerationPostgresTests'):
+            expected = {'total': 5, 'executed': 5, 'passed': 5, 'failed': 0, 'notExecuted': 0}
+            if any(sum(int(c.get(key, -1)) for c in counts) != value
+                   for key, value in expected.items()):
+                raise SafeError('Step06 requires exactly five PostgreSQL tests passed with zero skips.')
         for c in counts:
             print('TRX: total={total}, executed={executed}, passed={passed}, failed={failed}, notExecuted={notExecuted}'.format(
                 **{k:c.get(k,'0') for k in ('total','executed','passed','failed','notExecuted')}))
