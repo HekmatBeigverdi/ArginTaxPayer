@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 09: Cryptographic Keys and Digital Signing
 
-**Status:** Steps01,03,04,05,06,07,08 and09 owner-approved; Steps10,11,12,13,14,15 and16 source delivered for build/test, with runtime evidence pending. Step17 has not started. Prior build/live-provider and official portal-format evidence gaps remain explicit.
+**Status:** Steps01,03,04,05,06,07,08 and09 owner-approved; Steps10,11,12,13,14,15,16 and17 source delivered for build/test, with runtime evidence pending. Step18 has not started. Prior build/live-provider and official portal-format evidence gaps remain explicit.
 **Documentation language:** English. This edition replaces the Persian master document without changing the agreed scope or step order.
 **Last reviewed:** 2026-10-21.
 **Repository:** HekmatBeigverdi/ArginTaxPayer.
@@ -257,7 +257,7 @@ Provider references inspected in Step 02:
 | 14 | Secure API/BFF | HTTP authorization, CSRF, limits, no-store; no private-read/export/sign oracle | Source delivered 2026-10-21; build/runtime pending |
 | 15 | Persian RTL key-management UI | Owner generate/import, public download/status/history, compact accessible UX | Source delivered 2026-10-21; build/runtime pending |
 | 16 | Security/authorization/concurrency/regression | Real isolated HTTP/PG cases, transfer/session races, leak capture, Phases06–08 | Source delivered 2026-10-21; runtime pending |
-| 17 | macOS and Ubuntu acceptance | Identical SHA, clean trees, independent build/test/browser/restore evidence | Not started |
+| 17 | macOS and Ubuntu acceptance | Identical SHA, clean trees, independent build/test/browser/restore evidence | Preflight delivered 2026-10-21; operator evidence pending |
 | 18 | Closeout and conditional publication | All signoffs; separate permission for merge/tag/release | Not started |
 
 ## 6. Implementation ownership and verification
@@ -1105,3 +1105,35 @@ python3 scripts/phase09_step16_verify.py
 No database tunnel is required for the source/UI gate and no migration is applied. Step17 has not started.
 
 **Current acceptance:** Step16 source delivered for build/test; live HTTP/PostgreSQL/Vault and browser-runtime evidence remains pending.
+
+## 24. Step17 — macOS and Ubuntu acceptance
+
+Step17 delivers the cross-platform preflight and operator runbook. The acceptance target is one exact commit SHA on both machines, clean worktrees, independent .NET/web build and test output, isolated HTTP/PostgreSQL evidence, browser inspection of `/keys`, and the approved custody backup/restore evidence. The preflight never applies a migration, changes services or creates a release.
+
+The source preflight runs the Python safety suite and the focused UI/security tests, records the current commit, and optionally verifies `PHASE09_EXPECTED_SHA`. It does not claim the unavailable .NET, PostgreSQL, Vault or browser runtime results.
+
+macOS source preflight:
+
+```bash
+git fetch origin
+git switch phase/09-cryptographic-keys-signing
+git pull --ff-only
+export PHASE09_EXPECTED_SHA="$(git rev-parse HEAD)"
+python3 scripts/phase09_step17_verify.py
+```
+
+On macOS, after the preflight, run the repository's existing build and focused .NET/web commands. Then start the authenticated web app and inspect `/keys`; verify RTL layout, public fingerprint/history display, disabled key actions and absence of private material. Do not treat this read-only UI as successful key generation.
+
+Ubuntu operator acceptance, using the same SHA:
+
+```bash
+git fetch origin
+git switch phase/09-cryptographic-keys-signing
+git pull --ff-only
+export PHASE09_EXPECTED_SHA="<the macOS SHA>"
+python3 scripts/phase09_step17_verify.py
+```
+
+After the preflight, run the Ubuntu .NET/web build and tests, the isolated HTTP/PostgreSQL checks, and the approved backup/restore rehearsal. Record each result with the exact SHA. Any mismatch, skipped test, missing restore evidence or dirty tree blocks Step17 acceptance. Step18 remains the closeout and publication decision.
+
+**Current acceptance:** Step17 preflight delivered; independent macOS/Ubuntu runtime, browser, PostgreSQL and restore evidence remains pending.
