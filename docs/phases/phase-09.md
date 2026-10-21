@@ -1285,3 +1285,19 @@ Committed on `work/phase09-step22-readonly-connection` (draft PR #10):
 - `apps/web/tests/phase09-step22-connection-ui.test.mjs`: structural UI/BFF tests. Tests and the new C# policy tests are committed but **not executed** in this connector environment.
 
 **Protocol hold:** Existing source evidence preserves the legacy SDK 0.0.30 and newer certificate/JWS generation as distinct. The legacy guide describes signed GET_TOKEN; this is not sufficient to assert live host, current availability, exact request signing wire bytes and confirmed valid authority token semantics as of 2026-10-22. Therefore the injected implementation remains `UnavailableSigningReadOnlyConnectionTest`: no fabricated success, no live request and no invoice dispatch. For live acceptance review the exact pinned official document/version and source-matching authentication fixtures, then replace this adapter and independently test TLS, timeout, credentials, token validation, owner authorization, Vault scope and replay safety. **Step22 is not complete or owner-approved.** No migration or production feature was changed.
+
+### Step22 correction — existing owner-supplied legacy SDK is the source of truth
+
+The owner reaffirmed that **only the April 1404 certificate-free .NET SDK legacy SELF_TSP flow** is in scope. No protocol selection decision, certificate/JWS adapter or new outside reference search is needed.
+
+The already supplied legacy PDF, "راهنمای اتصال به زیرسامانه جمع‌آوری SDK بدون گواهی-دات نت_8.pdf", gives the following exact example (quick start, PDF page 4):
+- `TaxApiService.Instance.Init(CLIENT_ID, new Pkcs8SignatoryConfig(s_pemFilePath, null), new NormalProperties(ClientType.SELF_TSP), "https://tp.tax.gov.ir/req/api/");`
+- `TaxApiService.Instance.TaxApis.GetServerInformation();`
+- `TaxApiService.Instance.TaxApis.RequestToken();`
+- Read-only fiscal memory lookup: `GetFiscalInformation(CLIENT_ID)` (guide page 21).
+
+The account's existing fiscal-memory identifier is `CLIENT_ID`; existing-key private PEM import and newly generated private key must BOTH use the **same protected signer** from Vault after owner authorization. No private key should be written to an SDK-required plaintext file path. Use an in-memory/DI signing implementation matching the pinned old SDK source/transfer framing, or a properly reviewed equivalent. Do not adopt SDK global singleton across tenants, uncontrolled TLS validation or token caches.
+
+**Revised remaining mandatory work:** obtain the exact previously supplied old SDK 0.0.30 source/request serialization for `RequestToken`, implement a per-request nonce/token authentication transport using the already documented URL, the scoped Vault signer, and verify token semantics plus optional read-only fiscal-information lookup. Test both imported and generated key paths, scope, negative results and no secret leaks. UI and API/BFF preflight were committed; they are not a live connection test until the transport is installed. The official host and flow are no longer treated as unknown. Do not require an additional owner protocol decision. No migration.
+
+The actual old SDK source ZIP was not available as a retrievable raw archive to this assistant through the current project files/connector at this point; do not infer uninspected wire bytes from the PDF quick-start example. New code tests have not been run on macOS. Keep Step22 unapproved until real integration passes.
