@@ -137,7 +137,7 @@ export default function FiscalRecordModal({ record, isLevel1, onClose, onChanged
           {title} — {record.name}</h2>
           <p>این پرونده مستقل از حساب ورود کاربر نرم‌افزار است.</p></div>
         <button type="button" ref={closeRef} className="argin-modal-close"
-          onClick={onClose} aria-label="بستن">×</button>
+          onClick={onClose} aria-label="بستن پنجره" title="بستن">✕</button>
       </header>
       <div className="argin-modal-body">
         {loading ? <ConsoleLoader label={"در حال دریافت پرونده " + title + "…"} /> : person && <>
@@ -188,7 +188,7 @@ export default function FiscalRecordModal({ record, isLevel1, onClose, onChanged
             {record.type === "taxpayer" && <section className="argin-memory-step">
               <h3>حافظه و مشخصات اتصال مؤدی</h3>
               <TaxpayerWorkspace initialTaxpayerId={record.id} customerId={record.buyerId}
-                showCreateForm={false} isLevel1={isLevel1}/>
+                showCreateForm={false} showTaxpayerList={false} isLevel1={isLevel1}/>
             </section>}
           </>}
         </>}

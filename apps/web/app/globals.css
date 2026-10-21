@@ -705,3 +705,5 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
   white-space:normal;
 }
 .invoice-register__loading { z-index:5; display:flex; }
+.argin-modal-close{border-radius:10px!important;font-size:18px!important;line-height:1;display:grid;place-items:center}.argin-modal-close:hover{background:#eaf5f5;border-color:#8fc4c7}.argin-modal-close:focus-visible{outline:3px solid #24a5a3;outline-offset:2px}
+.taxpayer-workspace-single{display:block}.taxpayer-workspace-single>.taxpayer-main{min-width:0}.taxpayer-workspace-single .taxpayer-panel{padding:15px}.taxpayer-workspace-single .taxpayer-facts{margin-bottom:14px}

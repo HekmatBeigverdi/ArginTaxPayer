@@ -163,7 +163,7 @@ export default function ParticipantRegistrationModal({ mode, buyers, level1, act
             <h3>حافظه مالیاتی و اطلاعات گواهی</h3>
             <p>ثبت شناسه حافظه و فراداده گواهی مستقل از ذخیره مشخصات فروشنده است؛ تأیید یا اتصال واقعی به سازمان در این مرحله انجام نمی‌شود.</p>
             <TaxpayerWorkspace key={subjectId} customerId={customerId} isLevel1={level1}
-              initialTaxpayerId={subjectId} showCreateForm={false}/>
+              initialTaxpayerId={subjectId} showCreateForm={false} showTaxpayerList={false}/>
           </div>}
           <button className="identity-secondary" type="button" onClick={() => {
             void onCompleted(); onClose();

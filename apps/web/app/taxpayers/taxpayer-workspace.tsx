@@ -29,8 +29,8 @@ async function request<T>(path: string, method: "GET" | "POST" | "PATCH" = "GET"
   return response.json() as Promise<T>;
 }
 
-export default function TaxpayerWorkspace({ isLevel1, initialTaxpayerId, showCreateForm = true, customerId }:
-  { isLevel1: boolean; initialTaxpayerId?: string; showCreateForm?: boolean; customerId?: string }) {
+export default function TaxpayerWorkspace({ isLevel1, initialTaxpayerId, showCreateForm = true, customerId, showTaxpayerList = true }:
+  { isLevel1: boolean; initialTaxpayerId?: string; showCreateForm?: boolean; customerId?: string; showTaxpayerList?: boolean }) {
   const [taxpayers, setTaxpayers] = useState<Taxpayer[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [details, setDetails] = useState<Taxpayer | null>(null);
@@ -116,8 +116,8 @@ export default function TaxpayerWorkspace({ isLevel1, initialTaxpayerId, showCre
   }
   const filtered = taxpayers.filter(t => (t.displayName + " " + t.normalizedIdentifier)
     .toLocaleLowerCase("fa").includes(search.toLocaleLowerCase("fa")));
-  return <div className="taxpayer-workspace">
-    <aside className="taxpayer-panel">
+  return <div className={"taxpayer-workspace" + (showTaxpayerList ? "" : " taxpayer-workspace-single")}>
+    {showTaxpayerList && <aside className="taxpayer-panel">
       <div className="taxpayer-section-heading"><h2>{isLevel1 ? "فهرست همه مؤدیان" : "مؤدیان واگذارشده به من"}</h2>
         <button className="identity-secondary" type="button" disabled={loading} onClick={() => void reload()}>بازخوانی</button>
       </div>
@@ -132,7 +132,7 @@ export default function TaxpayerWorkspace({ isLevel1, initialTaxpayerId, showCre
             <span>{t.kind === 1 ? "شخص حقیقی" : "شخص حقوقی"} · {taxpayerLabels[t.status] ?? "نامشخص"}</span>
           </button>
         </li>)}</ul>}
-    </aside>
+    </aside>}
     <section className="taxpayer-main" aria-label="مدیریت اطلاعات مؤدی">
       {error && <p role="alert" className="form-error">{error}</p>}
       {notice && <p role="status" className="auth-info">{notice}</p>}
