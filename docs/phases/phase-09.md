@@ -259,7 +259,7 @@ Provider references inspected in Step 02:
 | 16 | Security/authorization/concurrency/regression | Real isolated HTTP/PG cases, transfer/session races, leak capture, Phases06–08 | Source delivered 2026-10-21; runtime pending |
 | 17 | macOS and Ubuntu acceptance | Identical SHA, clean trees, independent build/test/browser/restore evidence | Preflight delivered 2026-10-21; operator evidence pending |
 | 18 | Temporary taxpayer capacity and onboarding foundation | All users may define taxpayers before plan enforcement; capacity hook is fail-closed when configured | Source delivered 2026-10-21; runtime pending |
-| 19 | Segmented taxpayer and token UI | Non-scrolling sections for identity, fiscal memory, key/token and history | Not started |
+| 19 | Segmented taxpayer and token UI | Non-scrolling sections for identity, fiscal memory, key/token and history | Source delivered 2026-10-21; build/runtime pending |
 | 20 | Existing-key/token onboarding | Secure TXT private-key import, public match, memory ID and custody | Not started |
 | 21 | New key/token onboarding | Generate private/public artifacts, public download and controlled private handoff | Not started |
 | 22 | Read-only taxpayer connection test | Official SDK/endpoint authentication without invoice dispatch | Not started |
@@ -1161,3 +1161,15 @@ python3 tests/phase09_verify_test.py
 The six focused C# capacity cases remain pending runtime execution because `dotnet` is unavailable in the authoring environment. No database tunnel or migration is required. The current UI still does not create a real key; that capability is scheduled for Steps20–22.
 
 **Current acceptance:** Step18 source delivered for build/test; temporary unrestricted taxpayer capacity is documented and the plan-enforcement hook is ready.
+
+## 26. Step19 — Segmented taxpayer and token UI
+
+The taxpayer workspace now groups the existing identity and fiscal-memory panels into a responsive two-column section grid that collapses to one column on small screens. A dedicated «اتصال و کلید/توکن» section is visible beside the memory section and contains the future entry points for existing-key import, new-key creation and read-only connection testing. These controls remain disabled until Steps20–22 supply the authenticated workflows. No private material is rendered, and the current memory registration warning remains explicit.
+
+The focused Node UI gate checks the section grid, Persian token section and disabled future actions. No API, migration, model or snapshot change was added.
+
+```bash
+node --test apps/web/tests/phase09-step19-taxpayer-sections.test.mjs
+```
+
+**Current acceptance:** Step19 source delivered for build/test; browser visual acceptance remains pending.

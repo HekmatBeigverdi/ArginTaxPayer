@@ -119,6 +119,7 @@
 :root,body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif}
 
 .party-onboarding{background:#edf7f8;border:1px solid #cfe6e7;border-radius:12px;padding:15px 17px;margin:12px 0 22px;line-height:1.9}.party-onboarding p{color:#586d7e;font-size:13px;margin:6px 0 10px}.party-taxpayer-preview{margin:20px 0;border-top:1px solid #e5eaf1;padding-top:15px}.party-taxpayer-preview ul{padding-right:20px;color:#556d80;font-size:13px}
+.taxpayer-sections-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;align-items:start}.taxpayer-sections-grid>.taxpayer-panel{margin-bottom:0}.taxpayer-token-panel{border-color:#cfe6e7;background:linear-gradient(145deg,#fff,#f4fbfb)}.taxpayer-token-status{display:flex;justify-content:space-between;gap:10px;padding:11px 13px;margin:15px 0;border:1px solid #e0ecef;border-radius:9px;background:#f8fbfc;font-size:13px}.taxpayer-token-status span{color:#8a6b2b}.taxpayer-token-actions{display:flex;gap:8px;flex-wrap:wrap}.taxpayer-token-actions button:disabled{opacity:.6;cursor:not-allowed}@media(max-width:900px){.taxpayer-sections-grid{grid-template-columns:1fr}}
 
 /* Shared ArginTaxPayer design tokens and compact ERP tables */
 :root{--argin-primary:#177f81;--argin-dark:#10283f;--argin-surface:#fff;--argin-page:#f3f6fa;--argin-line:#dae6ed;--argin-text:#20344b;--argin-muted:#64788c}

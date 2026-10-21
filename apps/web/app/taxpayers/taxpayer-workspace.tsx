@@ -140,6 +140,7 @@ export default function TaxpayerWorkspace({ isLevel1, initialTaxpayerId, showCre
         <p className="identity-muted">برای مشاهده اطلاعات، یک مؤدی را از فهرست انتخاب کنید.</p></div>}
       {details && <>
         {customerId && <InvoiceParticipantForm key={details.id} customerId={customerId} subjectId={details.id} role="seller" personKind={details.kind} />}
+        <div className="taxpayer-sections-grid">
         <article className="taxpayer-panel">
           <div className="taxpayer-section-heading"><h2>{details.displayName}</h2>
             <button type="button" className="identity-secondary" onClick={() => void show(details.id)}>بازخوانی جزئیات</button></div>
@@ -183,6 +184,18 @@ export default function TaxpayerWorkspace({ isLevel1, initialTaxpayerId, showCre
           </form>}
           <p className="taxpayer-warning">تست واقعی ارتباط با سازمان مالیاتی و تأیید توکن هنوز فعال نیست؛ هیچ وضعیت «اتصال موفق» به‌صورت نمایشی ساخته نمی‌شود.</p>
         </article>}
+        <article className="taxpayer-panel taxpayer-token-panel">
+          <div className="taxpayer-section-heading"><h2>اتصال و کلید/توکن</h2><span className="planned">در گام‌های بعدی</span></div>
+          <p className="field-hint">این بخش محل ورود کلید موجود، ساخت کلید جدید، ثبت public key و تست read-only اتصال خواهد بود.</p>
+          <div className="taxpayer-token-status"><strong>وضعیت اتصال</strong><span>هنوز بررسی نشده</span></div>
+          <div className="taxpayer-token-actions">
+            <button type="button" className="identity-secondary" disabled>ورود کلید موجود</button>
+            <button type="button" className="identity-secondary" disabled>ساخت کلید جدید</button>
+            <button type="button" className="identity-secondary" disabled>تست اتصال</button>
+          </div>
+          <p className="field-hint">کلید خصوصی در این صفحه نمایش داده نمی‌شود و اتصال واقعی تا تکمیل گام‌های ۲۰ تا ۲۲ فعال نخواهد شد.</p>
+        </article>
+        </div>
       </>}
       {isLevel1 && showCreateForm && <article className="taxpayer-panel">
         <h2>ثبت مؤدی جدید</h2>
