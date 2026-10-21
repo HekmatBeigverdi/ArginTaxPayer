@@ -266,7 +266,7 @@ Provider references inspected in Step 02:
 | 19 | Segmented taxpayer and token UI | Compact exclusive accordions, invoice modal shell and independent loading | Owner-approved 2026-10-21 |
 | 20 | Existing-key/token onboarding | Secure TXT private-key import, public match, memory ID and custody | Delivered; operator acceptance pending |
 | 21 | New key/token onboarding | Generate private/public artifacts, public download and controlled private handoff | Owner-approved 2026-10-22 |
-| 22 | Read-only taxpayer connection test | Official SDK/endpoint authentication without invoice dispatch | In progress: scoped API, same-origin BFF and Persian RTL UI delivered; official live adapter awaits source-backed protocol validation |
+| 22 | Read-only taxpayer connection test | Official SDK/endpoint authentication without invoice dispatch | Live legacy adapter committed; macOS/Vault/authority acceptance pending |
 | 23 | Single-memory change request | User request, reason, revision and plan-aware second-memory denial | Not started |
 | 24 | Level1 approval and token recreation | One-time approval/rejection, expiry, audit and safe replacement | Not started |
 | 25 | Integrated onboarding acceptance | Legacy/new user, plan capacity, scope, race, leak and connection cases | Not started |
@@ -1301,3 +1301,24 @@ The account's existing fiscal-memory identifier is `CLIENT_ID`; existing-key pri
 **Revised remaining mandatory work:** obtain the exact previously supplied old SDK 0.0.30 source/request serialization for `RequestToken`, implement a per-request nonce/token authentication transport using the already documented URL, the scoped Vault signer, and verify token semantics plus optional read-only fiscal-information lookup. Test both imported and generated key paths, scope, negative results and no secret leaks. UI and API/BFF preflight were committed; they are not a live connection test until the transport is installed. The official host and flow are no longer treated as unknown. Do not require an additional owner protocol decision. No migration.
 
 The actual old SDK source ZIP was not available as a retrievable raw archive to this assistant through the current project files/connector at this point; do not infer uninspected wire bytes from the PDF quick-start example. New code tests have not been run on macOS. Keep Step22 unapproved until real integration passes.
+
+### Step22 legacy authority implementation — 2026-10-22
+
+**Source baseline:** owner-provided no-certificate SDK guide (April 1404), with matching TaxCollectData.Library legacy source in `HekmatBeigverdi/TaxPayerBackend` commit `b9247e786787738a1ccaa2f9fd1e7ca6aa580740`. `DefaultTaxApiClient.RequestTokenAsync`, `ObjectTransferApi`, `NormalProperties`, `PacketDtoWithoutSignatureKeyId`, `TokenModel`, and `GetFiscalInformationAsync` were inspected. This resolves the earlier false "source unavailable" hold. Certificate/JWS authentication is excluded by owner decision.
+
+**Delivered on the phase branch:**
+- `LegacyTaxAuthorityConnection` — owner-only fiscal-memory scope; selected (or initial ready) RSA key verified against the stored SPKI, unwrapped only within the trusted server from existing Vault custody. Common implementation for imported and generated keys.
+- Object-transfer signed `POST https://tp.tax.gov.ir/req/api/self-tsp/sync/GET_TOKEN` with the legacy `GetTokenDto.Username` payload, fixed no-encryption/no-packet-content-sign semantics, legacy transfer-sign normalization and the SDK wire DTO; follow up using bearer credential with signed `GET_FISCAL_INFORMATION`.
+- Connection success requires nonempty token and positive expiration plus a valid read-only fiscal-information response. A token alone does not confirm public-key portal registration or fiscal-memory activation.
+- No browser-side private key, no server storage of fetched access tokens, no invoice dispatch or certificate-based request. HTTP client is configured with ordinary TLS validation, no automatic redirects, no cookies and a finite timeout, unlike the legacy SDK's insecure global TLS bypass.
+- Owner authentication, scope and key readiness are checked before Vault custody use. Development loopback API, same-origin BFF and RTL UI were implemented earlier on this branch; they now route to the live adapter when the feature gate is enabled.
+- C# deterministic packet/parser tests were committed; source-only web tests were committed earlier. **Not yet executed in this assistant runtime** (no dotnet installed and GitHub DNS unavailable). Do not claim live connection passed. No migration or schema changes.
+
+**macOS operational acceptance (opt-in only):**
+1. Ensure isolated test PostgreSQL and previously approved Vault Transit/KV-v2 configuration are healthy. No new migration required.
+2. In the private local Development settings (.env.dev.local), set `SigningConnectionTest__Enabled=true`, `SigningKeyProtection__Enabled=true`, and the existing `SigningKeyImport__Enabled=true` or `SigningKeyGeneration__Enabled=true` as appropriate; keep the restricted Vault credentials private.
+3. Run `dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --filter 'FullyQualifiedName~Phase09' --verbosity normal`, `npm --prefix apps/web test`, `npm --prefix apps/web run typecheck`, `npm --prefix apps/web run build` and `python3 tests/phase09_verify_test.py`. Explicit test counts required.
+4. Start services via `zsh scripts/dev-up.zsh` (with AutoSSH tunnel) and open the owner's taxpayer dossier → connection/key accordion → select fiscal memory → Test Connection. Exercise BOTH a verified existing-key import and a newly generated pair after the public key has been registered through the portal and the actual fiscal-memory ID populated. Record only safe status codes and times; never share a token or private key.
+5. Negative tests: nonowner denied; suspended/missing key prevented; unavailable Vault; invalid/rejected authority authentication; timeout; ensure no invoice dispatch and no secrets in browser/server logs.
+6. If authority rejects the first request, inspect safe result and use request metadata locally to reconcile exact serialization with the source-pinned SDK, without overriding TLS validation.
+7. Mark Step22 owner-approved ONLY after operator reports actual live successes or explicitly accepts the remaining environmental limitations.
