@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 09: Cryptographic Keys and Digital Signing
 
-**Status:** Steps01,03,04,05,06,07,08 and09 owner-approved; Steps10,11,12,13,14 and15 source delivered for build/test, with runtime evidence pending. Step16 has not started. Prior build/live-provider and official portal-format evidence gaps remain explicit.
+**Status:** Steps01,03,04,05,06,07,08 and09 owner-approved; Steps10,11,12,13,14,15 and16 source delivered for build/test, with runtime evidence pending. Step17 has not started. Prior build/live-provider and official portal-format evidence gaps remain explicit.
 **Documentation language:** English. This edition replaces the Persian master document without changing the agreed scope or step order.
 **Last reviewed:** 2026-10-21.
 **Repository:** HekmatBeigverdi/ArginTaxPayer.
@@ -256,7 +256,7 @@ Provider references inspected in Step 02:
 | 13 | Controlled change review | Reason, scope, revision, expiry and one-time approval; no annual bypass | Source delivered 2026-10-21; build/runtime pending |
 | 14 | Secure API/BFF | HTTP authorization, CSRF, limits, no-store; no private-read/export/sign oracle | Source delivered 2026-10-21; build/runtime pending |
 | 15 | Persian RTL key-management UI | Owner generate/import, public download/status/history, compact accessible UX | Source delivered 2026-10-21; build/runtime pending |
-| 16 | Security/authorization/concurrency/regression | Real isolated HTTP/PG cases, transfer/session races, leak capture, Phases06–08 | Not started |
+| 16 | Security/authorization/concurrency/regression | Real isolated HTTP/PG cases, transfer/session races, leak capture, Phases06–08 | Source delivered 2026-10-21; runtime pending |
 | 17 | macOS and Ubuntu acceptance | Identical SHA, clean trees, independent build/test/browser/restore evidence | Not started |
 | 18 | Closeout and conditional publication | All signoffs; separate permission for merge/tag/release | Not started |
 
@@ -1077,3 +1077,31 @@ python3 scripts/phase09_step15_verify.py
 The local gate runs the Python safety suite and the focused Node UI tests. It requires no database tunnel and performs no API, Vault or authority request. Step16 has not started.
 
 **Current acceptance:** Step15 source delivered for build/test; runtime/browser evidence remains pending.
+
+## 23. Step16 — Security, authorization, concurrency and regression
+
+Step16 adds a focused source regression gate across the Phase09 security contracts: authenticated scope denial, CSRF, request limits, private-material and signing-oracle refusal, terminal key lifecycle denial and one-time review expiry. It also runs the Step15 key-management UI checks together with the existing Phase08 security regression test. No API endpoint, database migration or custody call is introduced by this step.
+
+The local gate contains ten no-database C# regression cases plus the existing Python safety suite and Node UI/security checks. Real isolated HTTP/PostgreSQL concurrency, transfer/session races, leak capture and full Phases06–08 runtime regression remain operator gates for Step17 because `dotnet` and the deployed services are unavailable in the authoring environment.
+
+UI checks available now on macOS:
+
+```bash
+node --test apps/web/tests/phase09-step15-key-ui.test.mjs
+node --test apps/web/tests/phase08-step19-security-regression.test.mjs
+```
+
+For visual inspection after the authenticated web app is running, open `/keys`. The page is read-only in this step: the key actions remain disabled and no private material is shown. Full API-backed key generation and authenticated race tests are intentionally deferred to the runtime acceptance step.
+
+The complete local source gate is:
+
+```bash
+git fetch origin
+git switch phase/09-cryptographic-keys-signing
+git pull --ff-only
+python3 scripts/phase09_step16_verify.py
+```
+
+No database tunnel is required for the source/UI gate and no migration is applied. Step17 has not started.
+
+**Current acceptance:** Step16 source delivered for build/test; live HTTP/PostgreSQL/Vault and browser-runtime evidence remains pending.
