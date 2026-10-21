@@ -45,7 +45,7 @@ export default function ParticipantRegistrationModal({ mode, buyers, level1, act
       if (event.key === "Escape" && !busyRef.current) onClose();
       if (event.key === "Tab" && dialog.current) {
         const targets = Array.from(dialog.current.querySelectorAll<HTMLElement>(
-          'button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),a[href]'));
+          'summary,button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),a[href]')).filter(element => element.getClientRects().length > 0);
         if (!targets.length) return;
         const first = targets[0], last = targets[targets.length - 1];
         if (event.shiftKey && document.activeElement === first) {
@@ -100,21 +100,23 @@ export default function ParticipantRegistrationModal({ mode, buyers, level1, act
     finally { setBusy(false); }
   }
 
-  return <div className="argin-modal-backdrop" onMouseDown={event => {
+  return <div className="invoice-register__overlay" onMouseDown={event => {
       if (event.target === event.currentTarget && !busy) onClose();
     }}>
-    <div className="argin-modal" role="dialog" aria-modal="true"
+    <div className="invoice-register__dialog fiscal-dialog" role="dialog" aria-modal="true"
       aria-label={mode === "buyer" ? "افزودن خریدار صورتحساب" : "افزودن مؤدی"}
       ref={dialog}>
-      <header className="argin-modal-header">
+      <header className="invoice-register__dialog-header">
         <div><h2>{mode === "buyer" ? "افزودن خریدار صورتحساب" : "افزودن مؤدی"}</h2>
           <p>{complete ? "مرحله دوم: اطلاعات سربرگ و حافظه مالیاتی" :
             "مرحله اول: اطلاعات هویتی طرف صورتحساب (بدون ایجاد حساب ورود)"}</p></div>
-        <button ref={closeRef} type="button" className="argin-modal-close"
+        <button ref={closeRef} type="button" className="identity-secondary"
           disabled={busy} onClick={onClose} aria-label="بستن پنجره">×</button>
       </header>
-      <div className="argin-modal-body">
-        {!complete ? <form className="invoice-fields" onSubmit={create}>
+      <div className="argin-modal-body fiscal-dialog-body">
+        {!complete ? <details name="fiscal-sections" className="fiscal-section" open>
+          <summary>اطلاعات هویتی {mode === "buyer" ? "خریدار" : "مؤدی"}</summary>
+          <div className="fiscal-section-content"><form className="invoice-fields" onSubmit={create}>
           <label>حساب مشتری / مالک پرونده
             <select value={customerId} onChange={e => setCustomerId(e.target.value)} required>
               <option value="">حساب مرتبط را انتخاب کنید</option>
@@ -155,13 +157,15 @@ export default function ParticipantRegistrationModal({ mode, buyers, level1, act
           <button className="identity-primary" type="submit"
             disabled={busy || !authorizedCustomer}>
             {busy ? "در حال ثبت…" : "ثبت هویت و ادامه به مشخصات مالیاتی"}</button>
-        </form> : <>
+        </form></div></details> : <>
           <p className="party-success" role="status">پرونده هویتی ثبت شد. اکنون اطلاعات مالیاتی را تکمیل و ذخیره کنید.</p>
+          <details name="fiscal-sections" className="fiscal-section" open>
+            <summary>اطلاعات مالیاتی، تماس و نشانی</summary>
+            <div className="fiscal-section-content">
           <InvoiceParticipantForm key={subjectId} customerId={customerId}
             subjectId={subjectId} role={mode === "buyer" ? "buyer" : "seller"} personKind={Number(kind)}/>
+            </div></details>
           {mode === "seller" && <div className="argin-memory-step">
-            <h3>حافظه مالیاتی و اطلاعات گواهی</h3>
-            <p>ثبت شناسه حافظه و فراداده گواهی مستقل از ذخیره مشخصات فروشنده است؛ تأیید یا اتصال واقعی به سازمان در این مرحله انجام نمی‌شود.</p>
             <TaxpayerWorkspace key={subjectId} customerId={customerId} isLevel1={level1}
               initialTaxpayerId={subjectId} showCreateForm={false} showTaxpayerList={false}/>
           </div>}
@@ -173,3 +177,4 @@ export default function ParticipantRegistrationModal({ mode, buyers, level1, act
     </div>
   </div>;
 }
+

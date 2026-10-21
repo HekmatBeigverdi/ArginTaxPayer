@@ -707,3 +707,23 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 .invoice-register__loading { z-index:5; display:flex; }
 .argin-modal-close{border-radius:10px!important;font-size:18px!important;line-height:1;display:grid;place-items:center}.argin-modal-close:hover{background:#eaf5f5;border-color:#8fc4c7}.argin-modal-close:focus-visible{outline:3px solid #24a5a3;outline-offset:2px}
 .taxpayer-workspace-single{display:block}.taxpayer-workspace-single>.taxpayer-main{min-width:0}.taxpayer-workspace-single .taxpayer-panel{padding:15px}.taxpayer-workspace-single .taxpayer-facts{margin-bottom:14px}
+
+/* Taxpayer dossiers share the invoice dialog shell and exclusive accordion. */
+.fiscal-dialog { width:min(1020px,100%); }
+.fiscal-dialog-body { padding:12px 16px; }
+.fiscal-section { margin:0 0 8px; border:1px solid var(--argin-line); border-radius:8px; background:white; }
+.fiscal-section > summary { cursor:pointer; padding:10px 12px; font-size:13px; font-weight:700; color:#205c60; background:#f0f7f6; border-radius:8px; }
+.fiscal-section > summary:focus-visible { outline:2px solid var(--argin-primary); outline-offset:2px; }
+.fiscal-section-content { padding:12px; max-height:52dvh; overflow:auto; }
+.fiscal-dialog .taxpayer-workspace-single, .fiscal-dialog .taxpayer-sections-grid { display:block; }
+.fiscal-dialog .argin-memory-step { margin:0; padding:0; border:0; }
+.fiscal-dialog .invoice-participant { margin:0; }
+.fiscal-dialog .invoice-fields { gap:8px 12px; }
+.fiscal-dialog input, .fiscal-dialog select { min-height:32px; padding:5px 8px; font-size:12px; }
+.fiscal-dialog .identity-primary, .fiscal-dialog .identity-secondary { padding:6px 10px; font-size:12px; min-height:32px; }
+.fiscal-dialog .invoice-fields .identity-primary { min-height:32px; margin:4px 0; }
+.fiscal-dialog .taxpayer-facts { margin:0; gap:8px; }
+.fiscal-dialog .taxpayer-facts > div { padding:8px; }
+.fiscal-dialog .console-directory-actions { padding-bottom:8px; margin-bottom:8px; gap:6px; }
+.fiscal-dialog .field-hint { font-size:11px; line-height:1.7; }
+

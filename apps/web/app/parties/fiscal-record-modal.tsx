@@ -62,7 +62,7 @@ export default function FiscalRecordModal({ record, isLevel1, onClose, onChanged
       if (event.key === "Escape" && !busy) onClose();
       if (event.key === "Tab" && dialog.current) {
         const elements = Array.from(dialog.current.querySelectorAll<HTMLElement>(
-          'button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled])'));
+          'summary,button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled])')).filter(element => element.getClientRects().length > 0);
         if (!elements.length) return;
         if (event.shiftKey && document.activeElement === elements[0]) {
           event.preventDefault(); elements[elements.length - 1].focus();
@@ -127,20 +127,23 @@ export default function FiscalRecordModal({ record, isLevel1, onClose, onChanged
     } catch (ex) { setError((ex as Error).message); }
     finally { setBusy(false); }
   }
-  return <div className="argin-modal-backdrop" onMouseDown={e => {
+  return <div className="invoice-register__overlay" onMouseDown={e => {
     if (e.target === e.currentTarget && !busy) onClose();
   }}>
-    <div className="argin-modal" role="dialog" aria-modal="true"
+    <div className="invoice-register__dialog fiscal-dialog" role="dialog" aria-modal="true"
       aria-label={"پرونده " + title + " — " + record.name} ref={dialog}>
-      <header className="argin-modal-header">
+      <header className="invoice-register__dialog-header">
         <div><h2>{mode === "archive" ? "بایگانی " : mode === "edit" ? "ویرایش " : "مشاهده پرونده "}
           {title} — {record.name}</h2>
           <p>این پرونده مستقل از حساب ورود کاربر نرم‌افزار است.</p></div>
-        <button type="button" ref={closeRef} className="argin-modal-close"
-          onClick={onClose} aria-label="بستن پنجره" title="بستن">✕</button>
+        <button type="button" ref={closeRef} className="identity-secondary"
+          disabled={busy} onClick={onClose} aria-label="بستن پنجره" title="بستن">×</button>
       </header>
-      <div className="argin-modal-body">
+      <div className="argin-modal-body fiscal-dialog-body">
         {loading ? <ConsoleLoader label={"در حال دریافت پرونده " + title + "…"} /> : person && <>
+          <details name="fiscal-sections" className="fiscal-section" open>
+            <summary>اطلاعات هویتی {title}</summary>
+            <div className="fiscal-section-content">
           {mode === "view" && <div className="console-directory-actions">
             {record.status === "فعال" && <button type="button" className="identity-primary" onClick={() => setMode("edit")}>ویرایش {title}</button>}
             {record.status === "فعال" && <button type="button" className="identity-secondary" onClick={() => setMode("archive")}>بایگانی {title}</button>}
@@ -183,14 +186,20 @@ export default function FiscalRecordModal({ record, isLevel1, onClose, onChanged
               <div><dt>شناسه قانونی</dt><dd dir="ltr">{identifier}</dd></div>
               <div><dt>شناسه پرونده</dt><dd dir="ltr">{record.id}</dd></div>
             </dl>
+          </>}
+            </div>
+          </details>
+          <details name="fiscal-sections" className="fiscal-section">
+            <summary>اطلاعات مالیاتی، تماس و نشانی</summary>
+            <div className="fiscal-section-content">
             <InvoiceParticipantForm key={record.id} customerId={record.buyerId} subjectId={record.id}
               role={record.type === "buyer" ? "buyer" : "seller"} personKind={record.kind ?? undefined}/>
-            {record.type === "taxpayer" && <section className="argin-memory-step">
-              <h3>حافظه و مشخصات اتصال مؤدی</h3>
+            </div>
+          </details>
+            {record.type === "taxpayer" && <section className="argin-memory-step" aria-label="حافظه مالیاتی و اتصال به سامانه مؤدیان">
               <TaxpayerWorkspace initialTaxpayerId={record.id} customerId={record.buyerId}
                 showCreateForm={false} showTaxpayerList={false} isLevel1={isLevel1}/>
             </section>}
-          </>}
         </>}
         {error && <p role="alert" className="party-error">{error}</p>}
         {notice && <p role="status" className="party-success">{notice}</p>}
@@ -198,3 +207,4 @@ export default function FiscalRecordModal({ record, isLevel1, onClose, onChanged
     </div>
   </div>;
 }
+

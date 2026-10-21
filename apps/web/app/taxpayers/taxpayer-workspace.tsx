@@ -60,11 +60,12 @@ export default function TaxpayerWorkspace({ isLevel1, initialTaxpayerId, showCre
     finally { setLoading(false); }
   }, []);
   useEffect(() => {
+    if (!showTaxpayerList) return;
     void reload();
     const onFocus = () => void reload();
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
-  }, [reload]);
+  }, [reload, showTaxpayerList]);
 
   const show = useCallback(async (id: string) => {
     setError(""); setNotice(""); setSelectedId(id); setDetails(null); setMemories([]); setCertificates({});
@@ -139,9 +140,9 @@ export default function TaxpayerWorkspace({ isLevel1, initialTaxpayerId, showCre
       {!details && <div className="taxpayer-panel"><h2>جزئیات مؤدی</h2>
         <p className="identity-muted">برای مشاهده اطلاعات، یک مؤدی را از فهرست انتخاب کنید.</p></div>}
       {details && <>
-        {customerId && <InvoiceParticipantForm key={details.id} customerId={customerId} subjectId={details.id} role="seller" personKind={details.kind} />}
+        {showTaxpayerList && customerId && <InvoiceParticipantForm key={details.id} customerId={customerId} subjectId={details.id} role="seller" personKind={details.kind} />}
         <div className="taxpayer-sections-grid">
-        <article className="taxpayer-panel">
+        {showTaxpayerList && <article className="taxpayer-panel">
           <div className="taxpayer-section-heading"><h2>{details.displayName}</h2>
             <button type="button" className="identity-secondary" onClick={() => void show(details.id)}>بازخوانی جزئیات</button></div>
           <dl className="taxpayer-facts"><div><dt>نوع</dt><dd>{details.kind === 1 ? "حقیقی" : "حقوقی"}</dd></div>
@@ -155,9 +156,10 @@ export default function TaxpayerWorkspace({ isLevel1, initialTaxpayerId, showCre
             <button type="submit" className="identity-primary" disabled={busy || editName.trim() === details.displayName}>ذخیره نام</button>
           </form>}
           <p className="field-hint">ویرایش نام به معنای تغییر شناسه رسمی، مالکیت مؤدی یا حافظه مالیاتی نیست.</p>
-        </article>
-        {<article className="taxpayer-panel">
-          <h2>حافظه‌های مالیاتی</h2>
+        </article>}
+        <details name="fiscal-sections" className="fiscal-section">
+          <summary>حافظه‌های مالیاتی</summary>
+          <div className="fiscal-section-content">
           {memories.length === 0 ? <p className="identity-muted">هنوز حافظه‌ای ثبت نشده است.</p> :
             <ul className="taxpayer-memory-list">{memories.map(m => <li key={m.id}>
               <div><strong dir="ltr">{m.memoryIdentifier}</strong>
@@ -183,8 +185,10 @@ export default function TaxpayerWorkspace({ isLevel1, initialTaxpayerId, showCre
             <p className="field-hint">تأیید اتصال واقعی، تعویض حافظه و ورود کلید خصوصی در مراحل آتی فعال می‌شود.</p>
           </form>}
           <p className="taxpayer-warning">تست واقعی ارتباط با سازمان مالیاتی و تأیید توکن هنوز فعال نیست؛ هیچ وضعیت «اتصال موفق» به‌صورت نمایشی ساخته نمی‌شود.</p>
-        </article>}
-        <article className="taxpayer-panel taxpayer-token-panel">
+        </div></details>
+        <details name="fiscal-sections" className="fiscal-section">
+          <summary>اتصال به سامانه مؤدیان — کلید/توکن</summary>
+          <div className="fiscal-section-content taxpayer-token-panel">
           <div className="taxpayer-section-heading"><h2>اتصال و کلید/توکن</h2><span className="planned">در گام‌های بعدی</span></div>
           <p className="field-hint">این بخش محل ورود کلید موجود، ساخت کلید جدید، ثبت public key و تست read-only اتصال خواهد بود.</p>
           <div className="taxpayer-token-status"><strong>وضعیت اتصال</strong><span>هنوز بررسی نشده</span></div>
@@ -194,7 +198,7 @@ export default function TaxpayerWorkspace({ isLevel1, initialTaxpayerId, showCre
             <button type="button" className="identity-secondary" disabled>تست اتصال</button>
           </div>
           <p className="field-hint">کلید خصوصی در این صفحه نمایش داده نمی‌شود و اتصال واقعی تا تکمیل گام‌های ۲۰ تا ۲۲ فعال نخواهد شد.</p>
-        </article>
+        </div></details>
         </div>
       </>}
       {isLevel1 && showCreateForm && <article className="taxpayer-panel">
@@ -220,3 +224,4 @@ export default function TaxpayerWorkspace({ isLevel1, initialTaxpayerId, showCre
     </section>
   </div>;
 }
+
