@@ -13,6 +13,7 @@ using ArginTaxPayer.Infrastructure.Persistence.Taxpayers;
 using ArginTaxPayer.Infrastructure.Persistence.Identity;
 using ArginTaxPayer.Api.Observability;
 using ArginTaxPayer.Application;
+using ArginTaxPayer.Application.Signing;
 using ArginTaxPayer.Infrastructure;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using System.Text.Json;
@@ -41,6 +42,8 @@ if (identityDevelopmentEnabled)
 {
     builder.Services.AddPhase09KeyImport(builder.Configuration);
     builder.Services.AddPhase09KeyGeneration(builder.Configuration);
+    // Unsupported until a source-pinned official authority adapter has been security-reviewed.
+    builder.Services.AddScoped<ISigningReadOnlyConnectionTest, UnavailableSigningReadOnlyConnectionTest>();
     builder.Services.AddScoped<EfSigningOperationRepository>();
     builder.Services.AddRateLimiter(options =>
     {
@@ -150,6 +153,7 @@ if (app.Environment.IsDevelopment())
         app.MapTaxpayerDevelopmentEndpoints();
         app.MapSigningImportEndpoints();
         app.MapSigningGenerationEndpoints();
+        app.MapSigningConnectionEndpoints();
         app.MapPartyDevelopmentEndpoints();
         app.MapFiscalParticipantDirectoryEndpoints();
         app.MapInvoiceParticipantEndpoints();
