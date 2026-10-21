@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 09: Cryptographic Keys and Digital Signing
 
-**Status:** Steps01,03,04,05,06 and07 explicitly owner-approved; Step02 design accepted for continuation. Step08 source delivered for build/test; Step09 has not started. Prior build/live-provider and official portal-format evidence gaps remain explicit.
+**Status:** Steps01,03,04,05,06,07 and08 owner-approved; Step09 source delivered for build/test, with runtime evidence pending. Step10 has not started. Prior build/live-provider and official portal-format evidence gaps remain explicit.
 **Documentation language:** English. This edition replaces the Persian master document without changing the agreed scope or step order.
 **Last reviewed:** 2026-10-21.
 **Repository:** HekmatBeigverdi/ArginTaxPayer.
@@ -248,8 +248,8 @@ Provider references inspected in Step 02:
 | 05 | Envelope protection and vault provider | Tamper/AAD/missing-KEK denial; no private bytes in business DB | Owner-approved2026-10-21; prior provider execution gates retained |
 | 06 | Key generation and public artifact | Fixed local profile; public-only artifact; official portal encoding remains blocked | Owner-approved2026-10-21; prior evidence limits retained |
 | 07 | Existing private-key import | Bounded valid formats; malformed/weak input denied; no plaintext temp/log | Owner-approved2026-10-21; execution evidence pending |
-| 08 | Private/public match and fingerprint | Canonical public match and challenge; registration not inferred | Source delivered; build/runtime pending |
-| 09 | Offline legacy signing and SDK compatibility | Exact encoding/normalization fixtures; no live authority request | Not started |
+| 08 | Private/public match and fingerprint | Canonical public match and challenge; registration not inferred | Owner-approved 2026-10-21; runtime evidence pending |
+| 09 | Offline legacy signing and SDK compatibility | Exact encoding/normalization fixtures; no live authority request | Source delivered 2026-10-21; build/runtime pending |
 | 10 | Application signing and immutable snapshot | Trusted snapshot/hash/key version; no Sent/dispatch mutation | Not started |
 | 11 | Key lifecycle and local rotation | Compromised/revoked denial; atomic selection and race behavior | Not started |
 | 12 | Backup, recovery and KEK rotation | Synthetic restore, resumable rewrap, failure without KEK, runbook | Not started |
@@ -907,6 +907,36 @@ zsh scripts/dev-status.zsh
 python3 scripts/phase09_step08_verify.py --postgres
 ```
 
-The helper prompts for test DB credentials, hardcodes loopback15432/argintaxpayer_test, checks actual current_database(), applies no migration and calls no real Vault or tax authority. Its default mode does not need a database. Matching result never establishes portal registration. Step09 has not started.
+The helper prompts for test DB credentials, hardcodes loopback15432/argintaxpayer_test, checks actual current_database(), applies no migration and calls no real Vault or tax authority. Its default mode does not need a database. Matching result never establishes portal registration. Step09 proceeded after owner approval of Step08 and adds no migration/model/snapshot, API/UI wiring or fiscal-memory activation.
 
-**Current acceptance:** Step08 source delivered for build/test and owner review; executable/provider evidence remains pending. No migration/model/snapshot, API/UI wiring or fiscal-memory activation changed.
+
+## 16. Step09 — Offline legacy signing and SDK compatibility
+
+**Scope:** implement a local-only signing engine from the exact supplied SDK source `TaxCollectData.SDK` 0.0.30. The inspected source archive SHA-256 is recorded in Section2; the source files and hashes are the evidence for this compatibility profile. The separate 0.0.34 binary is not proven equivalent. This work does not infer official tax-authority acceptance or authorize live submission.
+
+### Behavior implemented
+
+- `LegacyPayloadNormalizer` reproduces both source profiles: default object DTO signing uses Newtonsoft.Json 13.0.1 and directly flattens the `JObject.FromObject` token tree (matching the inspected 0.0.30 project dependency and conversion contract without a JSON round-trip); the separate byte-snapshot overload follows the SDK's `NormalizeJson`/`JObject.Parse` path. Both apply sorted dotted keys, `E0` array paths, unescaped `#` null/empty markers, `##` literal-hash escaping and transfer-header rules. Explicit `v1` uses the SDK's System.Text.Json camel-case/string-enum settings and ordered direct header concatenation. It supports content and transfer normalization, enforces an 8 MiB bound and returns normalized bytes in disposable `SensitiveBytes`.
+- `LegacyOfflineSigningEngine` imports canonical PKCS#8 RSA private material, checks full input consumption, approved key strength and the derived SPKI against the stored public key, then signs UTF-8 normalized bytes with SHA-256/RSA PKCS#1 v1.5 and returns ordinary Base64 plus a generic profile identifier. Private material is not logged, returned, persisted or sent to a provider.
+- `OfflineSigningRegistration` adds the internal engine only when `SigningKeyOfflineSigning:Enabled=true` is explicitly set by a future host. No current API/BFF registers or calls it. The engine performs no network I/O.
+- Added21 focused no-database tests:14 normalization/serialization cases,6 crypto/integrity cases and1 default-registration isolation case. Python verifier tests enforce exactly21 passed with zero skips and remove inherited offline-signing enablement from the test environment.
+
+### Execution and decision record
+
+- TDD C# execution was attempted, but this environment has no `dotnet` executable. Therefore these C# tests have not been compiled, discovered or run; no C# RED/GREEN or runtime pass is claimed. The added Python verifier safety test exercises exact-count and skip rejection.
+- Normalization consumes the exact request JSON produced at the source-compatible boundary; callers must not parse and reserialize arbitrary payload snapshots between serialization and signing. Simple-mode non-ASCII JSON escaping follows `System.Text.Json` defaults, matching the reviewed SDK options.
+- No migration exists or is needed. No migration, database, key provider, live authority, UI/API endpoint or production enablement is involved.
+- Compatibility is established against inspected 0.0.30 source behavior only. Parity with binary 0.0.34 and external service acceptance remain unverified.
+
+From a clean macOS checkout, run the local safety gate (no database tunnel is required):
+
+```bash
+git fetch origin
+git switch phase/09-cryptographic-keys-signing
+git pull --ff-only
+python3 scripts/phase09_step09_verify.py
+```
+
+The helper runs the Python verifier tests and the focused C# gate in an isolated environment. It never applies migrations or connects to PostgreSQL, Vault or the tax authority.
+
+**Current acceptance:** Step09 source delivered for build/test; runtime verification remains pending because `dotnet` is unavailable here. No migration/model/snapshot or API/UI integration was added. Step10 has not started.

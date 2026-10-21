@@ -84,7 +84,8 @@ def parse_connection(text):
 def pure_environment():
     env = {k:v for k,v in os.environ.items()
            if not k.lower().startswith(('connectionstrings__', 'signingkeyprotection__',
-                                        'signingkeygeneration__', 'signingkeyimport__', 'signingkeymatching__', 'phase09_vault_'))
+                                        'signingkeygeneration__', 'signingkeyimport__', 'signingkeymatching__',
+                                        'signingkeyofflinesigning__', 'phase09_vault_'))
            and not k.startswith('PG')}
     env['RUN_ARGINTAXPAYER_PG_INTEGRATION'] = '0'
     env['RUN_ARGINTAXPAYER_VAULT_INTEGRATION'] = '0'
@@ -209,6 +210,11 @@ def dotnet_tests(env, test_filter=None):
             'FullyQualifiedName~Phase09SigningImportPostgresTests': 5,
             'FullyQualifiedName~Phase09SigningGenerationPostgresTests|FullyQualifiedName~Phase09SigningImportPostgresTests': 10,
         }
+        if test_filter == 'FullyQualifiedName~Phase09OfflineSigning':
+            expected = {'total': 21, 'executed': 21, 'passed': 21, 'failed': 0, 'notExecuted': 0}
+            if any(sum(int(c.get(key, -1)) for c in counts) != value
+                   for key, value in expected.items()):
+                raise SafeError('Step09 requires exactly twenty-one passed offline signing tests with zero skips.')
         if env.get('RUN_ARGINTAXPAYER_PG_INTEGRATION') == '1' and test_filter in journal_filters:
             number = journal_filters[test_filter]
             expected = {'total': number, 'executed': number, 'passed': number, 'failed': 0, 'notExecuted': 0}

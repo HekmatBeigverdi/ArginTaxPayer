@@ -58,12 +58,35 @@ class VerifierTests(unittest.TestCase):
                 self.assertNotIn('secret-canary', str(error.exception))
 
     def test_pure_environment_removes_inherited_db_and_live_provider(self):
-        with patch.dict(os.environ, {'RUN_ARGINTAXPAYER_PG_INTEGRATION': '1', 'ConnectionStrings__ArginTaxPayerDb':'prod', 'PGDATABASE':'prod'}):
+        with patch.dict(os.environ, {'RUN_ARGINTAXPAYER_PG_INTEGRATION': '1', 'ConnectionStrings__ArginTaxPayerDb':'prod', 'PGDATABASE':'prod', 'SigningKeyOfflineSigning__Enabled':'true'}):
             env = self.v.pure_environment()
         self.assertNotIn('ConnectionStrings__ArginTaxPayerDb', env)
         self.assertNotIn('PGDATABASE', env)
         self.assertEqual(env['RUN_ARGINTAXPAYER_PG_INTEGRATION'], '0')
         self.assertEqual(env['Ghasedak__EnableLiveSending'], 'false')
+        self.assertNotIn('SigningKeyOfflineSigning__Enabled', env)
+
+    def test_offline_signing_gate_requires_exact_twenty_one_passes_without_skips(self):
+        selector = 'FullyQualifiedName~Phase09OfflineSigning'
+        for total, executed, passed, failed, skipped in (
+                (21, 21, 21, 0, 0), (21, 20, 20, 0, 1), (20, 20, 20, 0, 0),
+                (21, 21, 20, 1, 0)):
+            with self.subTest(total=total, executed=executed, passed=passed, failed=failed, skipped=skipped):
+                def run(args, env=None, capture=False):
+                    if '--list-tests' in args:
+                        return '    ArginTaxPayer.Tests.Phase09OfflineSigningNormalizerTests.Test'
+                    if '--results-directory' in args:
+                        folder = Path(args[args.index('--results-directory') + 1])
+                        (folder / 'phase09.trx').write_text(
+                            f'<TestRun><Counters total="{total}" executed="{executed}" passed="{passed}" '
+                            f'failed="{failed}" notExecuted="{skipped}" /></TestRun>')
+                    return ''
+                with patch.object(self.v, 'run', side_effect=run):
+                    if (total, executed, passed, failed, skipped) == (21, 21, 21, 0, 0):
+                        self.v.dotnet_tests({'RUN_ARGINTAXPAYER_PG_INTEGRATION': '0'}, selector)
+                    else:
+                        with self.assertRaises(self.v.SafeError):
+                            self.v.dotnet_tests({'RUN_ARGINTAXPAYER_PG_INTEGRATION': '0'}, selector)
 
     def test_empty_discovery_is_not_success(self):
         for listing in ('No test matches', 'The following Tests are available:\n'):
