@@ -80,7 +80,7 @@ internal sealed class LegacyTaxAuthorityConnection(
                 tokenField.ValueKind != JsonValueKind.String ||
                 tokenField.GetString() is not { Length: > 16 and < 16384 } token ||
                 !TryProperty(tokenData, "expiresIn", out var expiry) ||
-                !expiry.TryGetInt64(out var lifetime) || lifetime <= 0)
+                expiry.ValueKind != JsonValueKind.Number || !expiry.TryGetInt64(out var lifetime) || lifetime <= 0)
                 return Outcome(SigningConnectionTestStatus.Indeterminate);
 
             using var fiscalResponse = await SendAsync(FiscalUri, "GET_FISCAL_INFORMATION", fiscalId,
@@ -122,7 +122,7 @@ internal sealed class LegacyTaxAuthorityConnection(
             return false;
         if (!TryProperty(root, "result", out var result) ||
             !TryProperty(result, "packetType", out var packetType) ||
-            packetType.GetString() != expectedType ||
+            packetType.ValueKind != JsonValueKind.String || packetType.GetString() != expectedType ||
             !TryProperty(result, "data", out data) || data.ValueKind == JsonValueKind.Null)
             return false;
         return true;
@@ -147,7 +147,7 @@ internal sealed class LegacyTaxAuthorityConnection(
         var signature = new LegacyOfflineSigningEngine().SignObject(privateKey, expectedSpki, packet,
             LegacySigningPurpose.Transfer, signHeaders).SignatureBase64;
         using var request = new HttpRequestMessage(HttpMethod.Post, destination) {
-            Content = JsonContent.Create(new { Signature = signature, SignatureKeyId = (string?)null, Packet = packet },
+            Content = JsonContent.Create(new { Signature = signature, SignatureKeyId = (string?)null, Packet = new { packet.Uid, packet.PacketType, packet.Retry, packet.Data, packet.EncryptionKeyId, packet.SymmetricKey, packet.Iv, packet.FiscalId, packet.DataSignature, SignatureKeyId = (string?)null } },
                 options: JsonOptions)
         };
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
@@ -173,6 +173,6 @@ internal sealed class LegacyTaxAuthorityConnection(
         return await JsonDocument.ParseAsync(bounded, new JsonDocumentOptions { MaxDepth = 16 }, ct);
     }
 
-    private sealed class AuthorityRejectedException : Exception;
-    private sealed class AuthorityUnavailableException : Exception;
+    private sealed class AuthorityRejectedException : Exception { }
+    private sealed class AuthorityUnavailableException : Exception { }
 }
