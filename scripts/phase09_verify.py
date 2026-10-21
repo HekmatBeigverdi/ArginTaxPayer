@@ -164,11 +164,11 @@ def preflight():
         raise SafeError('Working tree must be clean before verification; commit intended changes first.')
     doc = (ROOT / 'docs/phases/phase-09.md').read_text()
     section = doc.split('## 5.')[1].split('## 6.')[0]
-    if re.findall(r'^\| (\d{2}) \|', section, re.M) != [f'{i:02}' for i in range(1,19)]:
-        raise SafeError('Expected the approved ordered 18-step plan.')
+    if re.findall(r'^\| (\d{2}) \|', section, re.M) != [f'{i:02}' for i in range(1,27)]:
+        raise SafeError('Expected the approved ordered 26-step plan.')
     print('Commit: ' + sha)
     print('Branch: ' + run(['git', 'branch', '--show-current'], capture=True).strip())
-    print('Preflight: baseline ancestry, clean checkout and 18-step plan confirmed.')
+    print('Preflight: baseline ancestry, clean checkout and 26-step plan confirmed.')
     return sha
 
 
