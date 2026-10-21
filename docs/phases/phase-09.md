@@ -265,8 +265,8 @@ Provider references inspected in Step 02:
 | 18 | Temporary taxpayer capacity and onboarding foundation | All users may define taxpayers before plan enforcement; capacity hook is fail-closed when configured | Source delivered 2026-10-21; runtime pending |
 | 19 | Segmented taxpayer and token UI | Compact exclusive accordions, invoice modal shell and independent loading | Owner-approved 2026-10-21 |
 | 20 | Existing-key/token onboarding | Secure TXT private-key import, public match, memory ID and custody | Delivered; operator acceptance pending |
-| 21 | New key/token onboarding | Generate private/public artifacts, public download and controlled private handoff | Implemented; owner acceptance pending |
-| 22 | Read-only taxpayer connection test | Official SDK/endpoint authentication without invoice dispatch | Not started |
+| 21 | New key/token onboarding | Generate private/public artifacts, public download and controlled private handoff | Owner-approved 2026-10-22 |
+| 22 | Read-only taxpayer connection test | Official SDK/endpoint authentication without invoice dispatch | In progress: fail-closed result boundary and policy tests committed; no live adapter yet |
 | 23 | Single-memory change request | User request, reason, revision and plan-aware second-memory denial | Not started |
 | 24 | Level1 approval and token recreation | One-time approval/rejection, expiry, audit and safe replacement | Not started |
 | 25 | Integrated onboarding acceptance | Legacy/new user, plan capacity, scope, race, leak and connection cases | Not started |
@@ -1252,3 +1252,24 @@ UI acceptance: use the owning account with a fresh login; inspect missing-provid
 Focused source tests cover ZIP key matching, fingerprint integrity, handoff disposal, first-generation/replay separation, API request guards, BFF no-store streaming and UI consent/readiness/download behavior. Full Phase09 and macOS operator verification must be recorded after the configured Vault/database environment is exercised.
 
 **Current acceptance:** Owner-approved 2026-10-22. Configured-Vault end-to-end download was accepted for Step21. No migration was executed.
+
+## 29. Step22 — Read-only authority connection test (work in progress, NOT accepted)
+
+**Owner decision:** Step21 was explicitly approved in chat. Step22 has started on a separate working branch; there is no claim of completion or successful live authentication.
+
+### Implemented in this branch
+- Application-level fixed public status codes, UTC result, and distinct authentication / registration / activation flags.
+- Fail-closed default when an officially verified authentication profile is not wired.
+- C# policy tests for HTTP errors, false-positive avoidance, UTC timestamps, fixed safe codes and unavailable-adapter behavior.
+- No request to the tax authority, no invoice dispatch, no token/private-key export, no migration, no existing production endpoint modification.
+
+### Remaining mandatory acceptance gates
+1. Identify and pin the exact officially approved version, source page, authentication request/response, cryptographic wire profile, host and endpoint for the selected *legacy* key-based account. New certificate/JWS flow must not be silently substituted.
+2. Bind the runtime adapter to authenticated owner/fiscal-memory scope and locally selected ready key; use authorized Vault custody and the existing audit/sign admission ordering.
+3. Add fixed-host TLS-verified HTTP client with strict timeout, cancellation and response limits; require verifiable token response semantics rather than treating HTTP 200 as authentication success.
+4. Add authenticated loopback API plus same-origin CSRF-checked BFF, safe redaction, rate limiting, no-store, structured responses and tests for other-tenant/admin denial.
+5. Implement compact RTL per-memory UI with isolated loading and safe Persian status output.
+6. Run .NET and web builds/tests, security/negative-path fixtures and controlled synthetic-provider integration. Live test requires operator-approved officially supported credentials and destination.
+7. Preserve existing schema. A migration has not been proposed or applied.
+
+**Evidence limitation:** This assistant has connector access to repository files but not an executable checkout or the user's macOS/Vault/test database. No build or test run of these newly added sources was executed; existing user-reported 219 passed / 22 skipped predates this change. The new tests are added, NOT passed. No owner approval has been given for Step22.
