@@ -39,7 +39,7 @@ internal static class LegacyPayloadNormalizer
             return mode switch
             {
                 LegacySigningMode.ObjectV030 => SerializeObjectPayload(payload),
-                LegacySigningMode.SimpleV1V030 => JsonSerializer.SerializeToUtf8Bytes(payload, payload.GetType(), SimpleV1Options),
+                LegacySigningMode.SimpleV1V030 => System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(payload, payload.GetType(), SimpleV1Options),
                 _ => throw new LegacySigningInputException()
             };
         }

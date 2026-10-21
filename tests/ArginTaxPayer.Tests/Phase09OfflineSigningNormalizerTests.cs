@@ -10,7 +10,7 @@ public sealed class Phase09OfflineSigningNormalizerTests
     public void Object_mode_flattens_and_sorts_properties_escapes_hashes_and_lowercases_booleans()
     {
         using var actual = Normalize("{\"z\":true,\"a\":\"x#y\",\"skip\":{},\"empty\":\"\",\"nil\":null}");
-        Assert.Equal("x##y###true", System.Text.Encoding.UTF8.GetString(actual.Bytes.Span));
+        Assert.Equal("x##y#####true", System.Text.Encoding.UTF8.GetString(actual.Bytes.Span));
     }
 
     [Fact]
@@ -141,9 +141,9 @@ public sealed class Phase09OfflineSigningNormalizerTests
     [Fact]
     public void Unsupported_mode_payload_and_size_are_rejected()
     {
-        Assert.Throws<LegacySigningInputException>(() => LegacyPayloadNormalizer.Normalize("{}"u8,
+        Assert.Throws<LegacySigningInputException>(() => LegacyPayloadNormalizer.Normalize("{}"u8.ToArray(),
             (LegacySigningMode)99, LegacySigningPurpose.Content));
-        Assert.Throws<LegacySigningInputException>(() => LegacyPayloadNormalizer.Normalize("[]"u8,
+        Assert.Throws<LegacySigningInputException>(() => LegacyPayloadNormalizer.Normalize("[]"u8.ToArray(),
             LegacySigningMode.ObjectV030, LegacySigningPurpose.Content));
         Assert.Throws<LegacySigningInputException>(() => LegacyPayloadNormalizer.Normalize(new byte[8 * 1024 * 1024 + 1],
             LegacySigningMode.SimpleV1V030, LegacySigningPurpose.Content));

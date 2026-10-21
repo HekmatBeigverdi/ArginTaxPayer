@@ -9,10 +9,11 @@ namespace ArginTaxPayer.Tests;
 public sealed class Phase09OfflineSigningCryptoTests
 {
     [Theory]
-    [InlineData(LegacySigningMode.ObjectV030)]
-    [InlineData(LegacySigningMode.SimpleV1V030)]
-    public void Offline_signature_is_sha256_pkcs1_v15_utf8_and_ordinary_base64(LegacySigningMode mode)
+    [InlineData((int)LegacySigningMode.ObjectV030)]
+    [InlineData((int)LegacySigningMode.SimpleV1V030)]
+    public void Offline_signature_is_sha256_pkcs1_v15_utf8_and_ordinary_base64(int modeValue)
     {
+        var mode = (LegacySigningMode)modeValue;
         using var rsa = RSA.Create(2048);
         using var material = SensitiveBytes.TakeOwnership(rsa.ExportPkcs8PrivateKey());
         var fixture = new { Value = "محتوای آزمون#" };
