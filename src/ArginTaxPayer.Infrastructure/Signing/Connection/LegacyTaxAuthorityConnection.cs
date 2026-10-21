@@ -22,9 +22,10 @@ internal sealed class LegacyTaxAuthorityConnection(
     EfSigningOperationRepository authorization,
     ProtectedKeyEnvelopeStore custody,
     KeyEnvelopeProtector protector,
-    HttpClient http) : ISigningReadOnlyConnectionTest
+    HttpClient http) : ISigningReadOnlyConnectionTest, IDisposable
 {
     internal const string BaseUrl = "https://tp.tax.gov.ir/req/api/";
+    public void Dispose() => http.Dispose();
     private static readonly Uri TokenUri = new(BaseUrl + "self-tsp/sync/GET_TOKEN");
     private static readonly Uri FiscalUri = new(BaseUrl + "self-tsp/sync/GET_FISCAL_INFORMATION");
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
@@ -79,6 +80,7 @@ internal sealed class LegacyTaxAuthorityConnection(
                 !TryProperty(tokenData, "token", out var tokenField) ||
                 tokenField.ValueKind != JsonValueKind.String ||
                 tokenField.GetString() is not { Length: > 16 and < 16384 } token ||
+                token.Any(ch => ch < 33 || ch > 126) ||
                 !TryProperty(tokenData, "expiresIn", out var expiry) ||
                 expiry.ValueKind != JsonValueKind.Number || !expiry.TryGetInt64(out var lifetime) || lifetime <= 0)
                 return Outcome(SigningConnectionTestStatus.Indeterminate);
@@ -118,7 +120,7 @@ internal sealed class LegacyTaxAuthorityConnection(
         data = default;
         var root = response.RootElement;
         if (TryProperty(root, "errors", out var errors) &&
-            errors.ValueKind == JsonValueKind.Array && errors.GetArrayLength() != 0)
+            (errors.ValueKind != JsonValueKind.Array || errors.GetArrayLength() != 0))
             return false;
         if (!TryProperty(root, "result", out var result) ||
             !TryProperty(result, "packetType", out var packetType) ||
@@ -170,7 +172,11 @@ internal sealed class LegacyTaxAuthorityConnection(
             bounded.Write(buffer, 0, n);
         }
         bounded.Position = 0;
-        return await JsonDocument.ParseAsync(bounded, new JsonDocumentOptions { MaxDepth = 16 }, ct);
+        try { return await JsonDocument.ParseAsync(bounded, new JsonDocumentOptions { MaxDepth = 16 }, ct); }
+        finally {
+            CryptographicOperations.ZeroMemory(buffer);
+            CryptographicOperations.ZeroMemory(bounded.GetBuffer().AsSpan(0, (int)bounded.Length));
+        }
     }
 
     private sealed class AuthorityRejectedException : Exception { }
