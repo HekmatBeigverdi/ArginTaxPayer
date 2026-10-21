@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 09: Cryptographic Keys and Digital Signing
 
-**Status:** Steps01,03,04 and05 explicitly owner-approved; Step02 design accepted for continuation. Step06 local source implementation is delivered for build/test; Step07 has not started. Prior build/live-provider evidence gaps remain explicit.
+**Status:** Steps01,03,04,05 and06 explicitly owner-approved; Step02 design accepted for continuation. Step07 source is delivered; build/runtime acceptance is pending; Step08 has not started. Prior build/live-provider and official portal-format evidence gaps remain explicit.
 **Documentation language:** English. This edition replaces the Persian master document without changing the agreed scope or step order.
 **Last reviewed:** 2026-10-21.
 **Repository:** HekmatBeigverdi/ArginTaxPayer.
@@ -8,7 +8,7 @@
 **Previous release:** `phase-08-v1.0.0`.
 **Phase branch:** `phase/09-cryptographic-keys-signing`.
 **Fixed step count:** 18. Changing the count, order, or agreed scope requires explicit owner approval.
-**Current source baseline:** `408e8942b2b27ac2eaf5a4718d2afdd1e061a7fe`.
+**Current source baseline:** `3e869745cb3603ad113b9bb27ffe35a270bb02cd`.
 **Goal:** Secure generation/import, public-key handling, protected custody, and offline digital signing for the key-based path without an independent signing certificate.
 **Execution:** Deliver one step at a time, update this document, provide macOS checks, and wait for explicit approval before continuing. No database migration may be applied without separate owner approval.
 
@@ -246,8 +246,8 @@ Provider references inspected in Step 02:
 | 03 | Data model and additive migration proposal | Model/migration delivered; operator applied migration on isolated test DB | Owner-approved 2026-10-20 |
 | 04 | Operation persistence, audit and idempotency | Atomic journal/consent/audit, replay, CAS and recovery states | Owner-approved 2026-10-21 |
 | 05 | Envelope protection and vault provider | Tamper/AAD/missing-KEK denial; no private bytes in business DB | Owner-approved2026-10-21; prior provider execution gates retained |
-| 06 | Key generation and public artifact | Fixed local profile; public-only artifact; official portal encoding remains blocked | Source delivered; execution/portal-format acceptance pending |
-| 07 | Existing private-key import | Bounded valid formats; malformed/weak input denied; no plaintext temp/log | Not started |
+| 06 | Key generation and public artifact | Fixed local profile; public-only artifact; official portal encoding remains blocked | Owner-approved2026-10-21; prior evidence limits retained |
+| 07 | Existing private-key import | Bounded valid formats; malformed/weak input denied; no plaintext temp/log | Source delivered; build/runtime pending |
 | 08 | Private/public match and fingerprint | Canonical public match and challenge; registration not inferred | Not started |
 | 09 | Offline legacy signing and SDK compatibility | Exact encoding/normalization fixtures; no live authority request | Not started |
 | 10 | Application signing and immutable snapshot | Trusted snapshot/hash/key version; no Sent/dispatch mutation | Not started |
@@ -796,3 +796,57 @@ The helper securely prompts for test credentials, verifies actual current_databa
 Independent read-only review identified no concrete Critical, Important or Minor source finding. It checked claim ownership across EF retries, nonregenerating recovery, atomic metadata/audit completion, RSA/public-only material, opt-in DI and the Level1/MFA fixture. Compilation and C#/PostgreSQL execution were unavailable to both implementer and reviewer. The owner's previous JSON out-discard shadow fix was preserved.
 
 Rulings: initial generation deliberately stops after any durable key intent rather than allowing a new OperationId to bypass recovery/rotation; a crash before envelope persistence can require operator recovery and costs availability. Official portal encoding is unproven, so technical SPKI output remains explicitly unapproved for portal upload. No runtime security/compatibility success was inferred from source review. No minor review item is deferred.
+
+## 14. Step07 — Existing private-key import
+
+**Owner approval:** Step06 explicitly approved2026-10-21; no new runner transcript was supplied. Continue the existing Section3 design inline. Earlier runtime/Vault/portal-encoding gates remain unverified where stated.
+
+### Implementation plan and policy
+
+1. Application/Signing/SensitiveKeyInput.cs and SigningKeyImportContracts.cs: bounded owned byte/character buffers, explicit transfer/disposal, redacted string and forbidden JSON serialization. Accept PKCS8 DER/PEM and encrypted PKCS8 DER/PEM only; no public-only/certificate/PKCS1 input, CSR, private export or API/UI wiring.
+2. Infrastructure/Signing/Import/Pkcs8SigningKeyParser.cs and Pbes2ImportPolicy.cs: strict single PEM block or complete DER, RSA2048/e65537, canonical protected output and a local mathematical sign/verify check. Encrypted import permits PBES2/PBKDF2-HMAC-SHA256/AES256-CBC with salt8..64, IV16, optional keyLength32, iterations1..600000 and no nested/trailing data. Limits are product input policy, not a claimed tax-authority PBE requirement. Password maximum1024 chars; encoded input maximum64KiB; canonical private DER maximum16KiB. Bound KDF cost before .NET PBKDF2/AES-CBC decryption; validate the decrypted buffer with the same strict, complete DER policy before RSA import.
+3. Add owner-authorized import orchestration. Authorize/fresh-login before expensive parsing; derive the public fingerprint server-side before Step04 reservation. Share the Step06 CAS-claim and atomic sealing implementation parameterized by Generate/Import; no secret hash in DB. Retried requests with different public fingerprints conflict; unknown results reconcile the same operation/key. Existing key/history blocks uncontrolled replacement.
+4. Add synthetic parser/workflow and opt-in PostgreSQL tests, exact no-skip verifier gate and one macOS helper. No migration/model/snapshot or automatic live provider call. Run available safety checks and record missing .NET execution honestly; review the shared-generation regression surface.
+
+Review focus: private/password logging/serialization/disposal on all exits; hostile DER/PEM and KDF resource limits; changed-key replays; owner/admin/session/scope authorization; shared generation behavior and same-key recovery without overwriting Vault history. Step08 public-key comparison and official portal verification are not implemented by this step.
+
+### Implementation and verification evidence
+
+SensitiveKeyInput copies bounded source bytes and password characters into owned buffers, denies JSON read/write and redacts ToString. ImportAsync takes ownership and disposes it even for metadata/authorization denial, cancellation, parser/provider failure and replay; caller-owned original buffers remain the caller's responsibility. Parser-owned PEM characters, decoded/decrypted DER, derived encryption keys, canonical private copies and handles are cleared/disposed. Complete managed-memory/TLS/host isolation is not promised. No input/password/private-key hash or raw exception is sent to the operation journal.
+
+AuthorizeImportAsync resolves the owner from the current authenticated session and requires fresh login before any expensive native key parse/decryption. Validated canonical RSA material yields only the server-derived public fingerprint used by the existing Import reservation digest. Import reuses Step06's claim/sealing engine with operation kind2 and origin2; generation remains kind1. The shared commit verifies the import receipt's public fingerprint against the original operation digest. Only the durable claim winner stages material. Replays probe the same key identity; no envelope does not authorize overwriting or restaging. Password/encoding changes with the same validated public key replay; a different public key conflicts. No factory generates a replacement key in this path.
+
+No certificate/CSR, portal registration claim, key selection, fiscal-memory activation or uncontrolled rotation was added. PublicMatch staysNotCompared and PortalState staysUnverified: the local mathematical self-test is not the Step08 comparison with user-provided/registered public material. Existing public-only artifact and deployment/provider gates remain unchanged. Explicit future custody-host registration requires SigningKeyImport:Enabled plus SigningKeyProtection:Enabled; missing settings return Unavailable and still dispose the input. Api/BFF do not call it.
+
+Added22 no-DB C# cases (17 parser/input and5 orchestration/DI), five opt-in PostgreSQL import cases, and one Python safety-test method with subcases for exact5 import and10 combined generation/import results. Tests cover format parity, wrong password/algorithm/strength, extra/multiple/prefixed PEM, KDF cap before decryption, zeroing/nonserialization, owner denial before parsing, same/different-key replay, unknown acknowledgements, cancellation and disabled registration; PostgreSQL covers atomic six-event audit, kind/origin binding, concurrency, stale/revoked sessions and fresh-owner recovery. DB tests use synthetic custody only, retain append-only fixture histories, and never migrate or call a real Vault.
+
+Available verification:14 Python safety tests passed. New no-skip count checks failed before the gate was added. Dotnet focused execution was attempted and returned command not found, so C# build/discovery/execution and PostgreSQL PASS remain unclaimed. Source-derived expectations are104 no-DB Phase09 cases,16 PostgreSQL skips plus1 real-Vault skip in default mode. Combined DB mode must execute the five existing generation and five new import tests with zero skips, preserving the shared engine's regression gate.
+
+From a clean macOS checkout:
+
+```bash
+git fetch origin
+git switch phase/09-cryptographic-keys-signing
+git pull --ff-only
+python3 scripts/phase09_step07_verify.py
+```
+
+For the10 real PostgreSQL journal tests using synthetic custody and the established test tunnel:
+
+```bash
+zsh scripts/dev-up.zsh
+zsh scripts/dev-status.zsh
+python3 scripts/phase09_step07_verify.py --postgres
+```
+
+The helper securely prompts for the test DB credentials and confirms actual current_database()=argintaxpayer_test. Exact combined TRX count10 and no skips are mandatory. It applies no migration and uses no real taxpayer key. Step05's separate real-Vault deployment gate is still required before actual custody enablement.
+
+Official API references reviewed2026-10-21: Microsoft Learn Rfc2898DeriveBytes.Pbkdf2, SymmetricAlgorithm.DecryptCbc, PemEncoding.TryFind, AsnReader/TryReadInt32 (net9.0). These support the implementation APIs, not an Iranian portal-format claim.
+
+**Current acceptance:** Step07 source delivered for build/test and owner review, with executable/provider evidence still pending. No Migration/model/snapshot or API/UI change. Step08 has not started.
+
+### Independent source review
+
+One Important policy gap was identified: encrypted PKCS8 used a BER-capable native importer without proving strict DER for its decrypted contents. The implementation now uses bounded .NET PBKDF2/AES-CBC, validates the complete decrypted DER with the shared plaintext validator, and clears the derived key and plaintext in finally. Two added regression cases target encrypted inner trailing data and nonminimal BER length. They are ADDED, NOT EXECUTED; no C# RED/GREEN evidence is claimed. No other concrete source finding was identified in authorization, disposal, API accessibility or shared kind/origin/digest handling. No minor review item is deferred.
+
+Preserved the owner commit3e869745 email-normalization fix in Step06 and applied the same normalization to the new import fixture.

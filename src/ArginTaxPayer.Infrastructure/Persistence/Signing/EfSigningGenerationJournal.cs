@@ -36,8 +36,13 @@ public sealed partial class EfSigningOperationRepository : ISigningGenerationJou
             result.Operation?.State ?? default);
     }
 
-    async Task<GenerationAdmission> ISigningGenerationJournal.ClaimGenerationAsync(string? bearer,
-        GenerationReservation reservation, Guid operationId, CancellationToken ct)
+    Task<GenerationAdmission> ISigningGenerationJournal.ClaimGenerationAsync(string? bearer,
+        GenerationReservation reservation, Guid operationId, CancellationToken ct) =>
+        ClaimKeyOperationAsync(bearer, reservation, operationId, SigningOperationKind.Generate, null, ct);
+
+    private async Task<GenerationAdmission> ClaimKeyOperationAsync(string? bearer,
+        GenerationReservation reservation, Guid operationId, SigningOperationKind kind,
+        string? expectedFingerprint, CancellationToken ct)
     {
         if (!Valid(reservation.Scope, operationId) || reservation.OperationRecordId == Guid.Empty)
             return new(SigningGenerationStatus.Invalid);
@@ -51,8 +56,8 @@ public sealed partial class EfSigningOperationRepository : ISigningGenerationJou
             var op = await Scoped(reservation.Scope, operationId).SingleOrDefaultAsync(ct);
             if (op is null || op.Id != reservation.OperationRecordId)
                 return new(SigningPersistenceStatus.NotFound);
-            if (op.ActorUserId != actor || op.OperationKind != 1 || op.ProfileId != SigningOperationPolicy.LegacyProfile ||
-                op.MetadataDigestSha256 != RequestDigest(reservation.Scope, SigningOperationKind.Generate, op.ProfileId, null))
+            if (op.ActorUserId != actor || op.OperationKind != (short)kind || op.ProfileId != SigningOperationPolicy.LegacyProfile ||
+                op.MetadataDigestSha256 != RequestDigest(reservation.Scope, kind, op.ProfileId, expectedFingerprint))
                 return new(SigningPersistenceStatus.Conflict);
             if (await RecentLoginAsync(bearer, actor, now, ct) is null)
                 return new(SigningPersistenceStatus.Forbidden);
@@ -61,7 +66,7 @@ public sealed partial class EfSigningOperationRepository : ISigningGenerationJou
             if (existing is not null)
             {
                 if (existing.CustomerUserId != op.CustomerUserId || existing.TaxpayerId != op.TaxpayerId ||
-                    existing.FiscalMemoryId != op.FiscalMemoryId || existing.Origin != 1 ||
+                    existing.FiscalMemoryId != op.FiscalMemoryId || existing.Origin != (short)kind ||
                     existing.ProfileId != op.ProfileId || existing.LifecycleState is not (1 or 2) ||
                     op.State is not (2 or 3 or 5))
                     return new(SigningPersistenceStatus.Conflict);
@@ -78,7 +83,7 @@ public sealed partial class EfSigningOperationRepository : ISigningGenerationJou
             {
                 Id = Guid.NewGuid(), CustomerUserId = op.CustomerUserId, TaxpayerId = op.TaxpayerId,
                 FiscalMemoryId = op.FiscalMemoryId, OriginOperationRecordId = op.Id,
-                Origin = 1, VersionNumber = 1, ProfileId = op.ProfileId, LifecycleState = 1,
+                Origin = (short)kind, VersionNumber = 1, ProfileId = op.ProfileId, LifecycleState = 1,
                 PortalState = 1, PublicMatch = 1, Revision = 1, CreatedAtUtc = now, UpdatedAtUtc = now
             };
             db.SigningKeyVersions.Add(key);
@@ -87,8 +92,8 @@ public sealed partial class EfSigningOperationRepository : ISigningGenerationJou
             op.SafeErrorCode = "PROVIDER_OUTCOME_UNKNOWN";
             op.Revision++;
             op.UpdatedAtUtc = now < op.UpdatedAtUtc ? op.UpdatedAtUtc : now;
-            SigningOperationAudit.Stage(db, op, actor, "generation_claimed", op.UpdatedAtUtc);
-            StageKeyAudit(op, key, actor, "key_generation_intent", now);
+            SigningOperationAudit.Stage(db, op, actor, kind == SigningOperationKind.Generate ? "generation_claimed" : "import_claimed", op.UpdatedAtUtc);
+            StageKeyAudit(op, key, actor, kind == SigningOperationKind.Generate ? "key_generation_intent" : "key_import_intent", now);
             allocated = new(op.CustomerUserId, op.TaxpayerId, op.FiscalMemoryId, key.Id, op.Id);
             owns = true;
             return new(SigningPersistenceStatus.Created,
@@ -98,8 +103,12 @@ public sealed partial class EfSigningOperationRepository : ISigningGenerationJou
             owns && result.Status == SigningPersistenceStatus.Created);
     }
 
-    async Task<SigningKeyGenerationResult> ISigningGenerationJournal.CompleteGenerationAsync(string? bearer,
-        Guid operationId, SealedGeneratedKey receipt, CancellationToken ct)
+    Task<SigningKeyGenerationResult> ISigningGenerationJournal.CompleteGenerationAsync(string? bearer,
+        Guid operationId, SealedGeneratedKey receipt, CancellationToken ct) =>
+        CompleteKeyOperationAsync(bearer, operationId, receipt, SigningOperationKind.Generate, ct);
+
+    private async Task<SigningKeyGenerationResult> CompleteKeyOperationAsync(string? bearer,
+        Guid operationId, SealedGeneratedKey receipt, SigningOperationKind kind, CancellationToken ct)
     {
         var id = receipt.Identity;
         var scope = new SigningScope(id.CustomerUserId, id.TaxpayerId, id.FiscalMemoryId);
@@ -120,9 +129,9 @@ public sealed partial class EfSigningOperationRepository : ISigningGenerationJou
                 k.FiscalMemoryId == id.FiscalMemoryId && k.OriginOperationRecordId == id.OperationRecordId, ct);
             if (op is null || key is null || op.Id != id.OperationRecordId)
                 return new(SigningPersistenceStatus.NotFound);
-            if (op.ActorUserId != actor || op.OperationKind != 1 || key.Origin != 1 ||
+            if (op.ActorUserId != actor || op.OperationKind != (short)kind || key.Origin != (short)kind ||
                 op.ProfileId != SigningOperationPolicy.LegacyProfile || key.ProfileId != op.ProfileId ||
-                op.MetadataDigestSha256 != RequestDigest(scope, SigningOperationKind.Generate, op.ProfileId, null))
+                op.MetadataDigestSha256 != RequestDigest(scope, kind, op.ProfileId, kind == SigningOperationKind.Import ? receipt.PublicFingerprintSha256 : null))
                 return new(SigningPersistenceStatus.Conflict);
             keyRevision = key.Revision;
             var locator = "vault://" + id.StoragePath();
@@ -154,8 +163,8 @@ public sealed partial class EfSigningOperationRepository : ISigningGenerationJou
             op.SafeErrorCode = null;
             op.Revision++;
             op.UpdatedAtUtc = now < op.UpdatedAtUtc ? op.UpdatedAtUtc : now;
-            StageKeyAudit(op, key, actor, "key_generation_sealed", key.UpdatedAtUtc);
-            SigningOperationAudit.Stage(db, op, actor, "generation_committed", op.UpdatedAtUtc);
+            StageKeyAudit(op, key, actor, kind == SigningOperationKind.Generate ? "key_generation_sealed" : "key_import_sealed", key.UpdatedAtUtc);
+            SigningOperationAudit.Stage(db, op, actor, kind == SigningOperationKind.Generate ? "generation_committed" : "import_committed", op.UpdatedAtUtc);
             return new(SigningPersistenceStatus.Updated,
                 new(op.Id, op.OperationId, SigningOperationState.Committed, op.Revision, key.Id, key.PublicFingerprintSha256));
         }, ct);
