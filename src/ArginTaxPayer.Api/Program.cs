@@ -17,6 +17,7 @@ using ArginTaxPayer.Infrastructure;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using System.Text.Json;
 using ArginTaxPayer.Infrastructure.Signing.Import;
+using ArginTaxPayer.Infrastructure.Signing.Generation;
 using ArginTaxPayer.Infrastructure.Persistence.Signing;
 using System.Threading.RateLimiting;
 using System.Security.Cryptography;
@@ -39,6 +40,7 @@ builder.Services.AddOpenApi();
 if (identityDevelopmentEnabled)
 {
     builder.Services.AddPhase09KeyImport(builder.Configuration);
+    builder.Services.AddPhase09KeyGeneration(builder.Configuration);
     builder.Services.AddScoped<EfSigningOperationRepository>();
     builder.Services.AddRateLimiter(options =>
     {
@@ -147,6 +149,7 @@ if (app.Environment.IsDevelopment())
         app.MapSoftwareUserProfileEndpoints();
         app.MapTaxpayerDevelopmentEndpoints();
         app.MapSigningImportEndpoints();
+        app.MapSigningGenerationEndpoints();
         app.MapPartyDevelopmentEndpoints();
         app.MapFiscalParticipantDirectoryEndpoints();
         app.MapInvoiceParticipantEndpoints();

@@ -28,18 +28,24 @@ public static class SigningKeyGenerationRegistration
         services.AddScoped<IGeneratedKeyCustody>(sp => new VaultGeneratedKeyCustody(
             sp.GetRequiredService<ProtectedKeyEnvelopeStore>(), sp.GetRequiredService<KeyEnvelopeProtector>(),
             sp.GetRequiredService<VaultHttpTransport>(), sp.GetRequiredService<VaultProtectionOptions>()));
-        services.AddScoped<ISigningKeyGenerationService>(sp => new SigningKeyGenerationService(
+        services.AddScoped<SigningKeyGenerationService>(sp => new SigningKeyGenerationService(
             sp.GetRequiredService<ISigningGenerationJournal>(), sp.GetRequiredService<IGeneratedKeyCustody>(),
             sp.GetRequiredService<IGeneratedKeyFactory>()));
+        services.AddScoped<ISigningKeyGenerationService>(sp => sp.GetRequiredService<SigningKeyGenerationService>());
+        services.AddScoped<ISigningKeyInitialHandoffService>(sp => sp.GetRequiredService<SigningKeyGenerationService>());
         return services;
     }
 
-    private sealed class UnavailableGenerationService : ISigningKeyGenerationService
+    private sealed class UnavailableGenerationService : ISigningKeyGenerationService, ISigningKeyInitialHandoffService
     {
         public Task<SigningKeyGenerationResult> GenerateAsync(string? bearer, GenerateSigningKeyRequest request,
             CancellationToken ct = default) => Task.FromResult(new SigningKeyGenerationResult(SigningGenerationStatus.Unavailable));
         public Task<SigningKeyGenerationResult> ReadPublicAsync(string? bearer, Guid taxpayerId, Guid fiscalMemoryId,
             Guid keyVersionId, CancellationToken ct = default) =>
             Task.FromResult(new SigningKeyGenerationResult(SigningGenerationStatus.Unavailable));
+        public Task<SigningKeyGenerationHandoff> GenerateWithInitialHandoffAsync(string? bearer,
+            GenerateSigningKeyRequest request, CancellationToken ct = default) =>
+            Task.FromResult(new SigningKeyGenerationHandoff(
+                new SigningKeyGenerationResult(SigningGenerationStatus.Unavailable), null));
     }
 }
