@@ -19,6 +19,7 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 using System.Text.Json;
 using ArginTaxPayer.Infrastructure.Signing.Import;
 using ArginTaxPayer.Infrastructure.Signing.Generation;
+using ArginTaxPayer.Infrastructure.Signing.Connection;
 using ArginTaxPayer.Infrastructure.Persistence.Signing;
 using System.Threading.RateLimiting;
 using System.Security.Cryptography;
@@ -42,8 +43,12 @@ if (identityDevelopmentEnabled)
 {
     builder.Services.AddPhase09KeyImport(builder.Configuration);
     builder.Services.AddPhase09KeyGeneration(builder.Configuration);
-    // Unsupported until a source-pinned official authority adapter has been security-reviewed.
-    builder.Services.AddScoped<ISigningReadOnlyConnectionTest, UnavailableSigningReadOnlyConnectionTest>();
+    // Pin a single TLS-validated legacy authority origin; never follow redirects or forward cookies.
+    builder.Services.AddHttpClient("phase09-authority", client =>
+        client.Timeout = TimeSpan.FromSeconds(18))
+        .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+        { AllowAutoRedirect = false, UseCookies = false });
+    builder.Services.AddPhase09AuthorityConnection(builder.Configuration);
     builder.Services.AddScoped<EfSigningOperationRepository>();
     builder.Services.AddRateLimiter(options =>
     {
