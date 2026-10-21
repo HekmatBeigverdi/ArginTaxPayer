@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 09: Cryptographic Keys and Digital Signing
 
-**Status:** Steps01,03,04,05,06,07,08 and09 owner-approved; Steps10,11 and12 source delivered for build/test, with runtime evidence pending. Step13 has not started. Prior build/live-provider and official portal-format evidence gaps remain explicit.
+**Status:** Steps01,03,04,05,06,07,08 and09 owner-approved; Steps10,11,12 and13 source delivered for build/test, with runtime evidence pending. Step14 has not started. Prior build/live-provider and official portal-format evidence gaps remain explicit.
 **Documentation language:** English. This edition replaces the Persian master document without changing the agreed scope or step order.
 **Last reviewed:** 2026-10-21.
 **Repository:** HekmatBeigverdi/ArginTaxPayer.
@@ -253,7 +253,7 @@ Provider references inspected in Step 02:
 | 10 | Application signing and immutable snapshot | Trusted snapshot/hash/key version; no Sent/dispatch mutation | Source delivered 2026-10-21; build/runtime pending |
 | 11 | Key lifecycle and local rotation | Compromised/revoked denial; atomic selection and race behavior | Source delivered 2026-10-21; build/runtime pending |
 | 12 | Backup, recovery and KEK rotation | Synthetic restore, resumable rewrap, failure without KEK, runbook | Source delivered 2026-10-21; build/runtime pending |
-| 13 | Controlled change review | Reason, scope, revision, expiry and one-time approval; no annual bypass | Not started |
+| 13 | Controlled change review | Reason, scope, revision, expiry and one-time approval; no annual bypass | Source delivered 2026-10-21; build/runtime pending |
 | 14 | Secure API/BFF | HTTP authorization, CSRF, limits, no-store; no private-read/export/sign oracle | Not started |
 | 15 | Persian RTL key-management UI | Owner generate/import, public download/status/history, compact accessible UX | Not started |
 | 16 | Security/authorization/concurrency/regression | Real isolated HTTP/PG cases, transfer/session races, leak capture, Phases06–08 | Not started |
@@ -1020,3 +1020,22 @@ python3 scripts/phase09_step12_verify.py
 No database tunnel is required for this local gate and no migration is applied. Step13 has not started.
 
 **Current acceptance:** Step12 source delivered for build/test; runtime verification remains pending.
+
+## 20. Step13 — Controlled change review
+
+Step13 adds a pure review policy and future-host service for key changes. Requests are bound to customer, taxpayer, fiscal memory, current key version and expected revision. Approval requires a distinct reviewer, a non-empty bounded decision reason, expires after 24 hours, and can be consumed only once. Pending, approved, rejected, consumed and expired transitions are explicit; annual fiscal-memory reset is not a review kind and receives no bypass through this service.
+
+The local gate adds ten no-database cases covering actor separation, one-time approval, 24-hour expiry, rejection, pending/consumed/expired denial, scope and revision requirements, reason validation and annual-reset exclusion. No migration, model or snapshot change was added. Database CAS wiring, authenticated host integration and runtime execution remain pending because `dotnet` is unavailable in the authoring environment.
+
+From a clean macOS checkout:
+
+```bash
+git fetch origin
+git switch phase/09-cryptographic-keys-signing
+git pull --ff-only
+python3 scripts/phase09_step13_verify.py
+```
+
+No database tunnel is required for this local gate and no migration is applied. Step14 has not started.
+
+**Current acceptance:** Step13 source delivered for build/test; runtime verification remains pending.

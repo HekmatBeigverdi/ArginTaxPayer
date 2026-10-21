@@ -145,6 +145,18 @@ class VerifierTests(unittest.TestCase):
                     with self.assertRaises(self.v.SafeError):
                         self.v.dotnet_tests({'RUN_ARGINTAXPAYER_PG_INTEGRATION': '0'}, selector)
 
+    def test_review_gate_requires_exact_ten_passes(self):
+        selector = 'FullyQualifiedName~Phase09SigningChangeReview'
+        def run(args, env=None, capture=False):
+            if '--list-tests' in args:
+                return '    ArginTaxPayer.Tests.Phase09SigningChangeReviewTests.Test'
+            if '--results-directory' in args:
+                folder = Path(args[args.index('--results-directory') + 1])
+                (folder / 'phase09.trx').write_text('<TestRun><Counters total="10" executed="10" passed="10" failed="0" notExecuted="0" /></TestRun>')
+            return ''
+        with patch.object(self.v, 'run', side_effect=run):
+            self.v.dotnet_tests({'RUN_ARGINTAXPAYER_PG_INTEGRATION': '0'}, selector)
+
     def test_empty_discovery_is_not_success(self):
         for listing in ('No test matches', 'The following Tests are available:\n'):
             with self.assertRaises(self.v.SafeError):
