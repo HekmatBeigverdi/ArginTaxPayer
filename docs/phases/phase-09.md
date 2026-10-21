@@ -266,7 +266,7 @@ Provider references inspected in Step 02:
 | 19 | Segmented taxpayer and token UI | Compact exclusive accordions, invoice modal shell and independent loading | Owner-approved 2026-10-21 |
 | 20 | Existing-key/token onboarding | Secure TXT private-key import, public match, memory ID and custody | Delivered; operator acceptance pending |
 | 21 | New key/token onboarding | Generate private/public artifacts, public download and controlled private handoff | Owner-approved 2026-10-22 |
-| 22 | Read-only taxpayer connection test | Official SDK/endpoint authentication without invoice dispatch | In progress: fail-closed result boundary and policy tests committed; no live adapter yet |
+| 22 | Read-only taxpayer connection test | Official SDK/endpoint authentication without invoice dispatch | In progress: scoped API, same-origin BFF and Persian RTL UI delivered; official live adapter awaits source-backed protocol validation |
 | 23 | Single-memory change request | User request, reason, revision and plan-aware second-memory denial | Not started |
 | 24 | Level1 approval and token recreation | One-time approval/rejection, expiry, audit and safe replacement | Not started |
 | 25 | Integrated onboarding acceptance | Legacy/new user, plan capacity, scope, race, leak and connection cases | Not started |
@@ -1273,3 +1273,15 @@ Focused source tests cover ZIP key matching, fingerprint integrity, handoff disp
 7. Preserve existing schema. A migration has not been proposed or applied.
 
 **Evidence limitation:** This assistant has connector access to repository files but not an executable checkout or the user's macOS/Vault/test database. No build or test run of these newly added sources was executed; existing user-reported 219 passed / 22 skipped predates this change. The new tests are added, NOT passed. No owner approval has been given for Step22.
+
+### Step22 subsequent implementation — 2026-10-22
+
+Committed on `work/phase09-step22-readonly-connection` (draft PR #10):
+- `src/ArginTaxPayer.Api/Taxpayers/SigningConnectionEndpoints.cs`: loopback-only bearer preflight with owner-scoped journal lookup, key readiness and sanitized response projection.
+- `src/ArginTaxPayer.Api/Program.cs`: opt-in Development registration and fail-closed authority adapter.
+- `apps/web/app/api/signing/[taxpayerId]/[memoryId]/connection-test/route.ts`: same-origin POST, cookie-authenticated upstream request, bounded empty body, no-store and fixed result allowlist. No caller-chosen endpoint or credential.
+- `apps/web/app/taxpayers/signing-connection-test.tsx`: compact RTL UI with independent loading and honest distinction among authenticated, unsupported and uncertain outcomes.
+- `apps/web/app/taxpayers/taxpayer-workspace.tsx`: replace disabled placeholder with the connection-test component.
+- `apps/web/tests/phase09-step22-connection-ui.test.mjs`: structural UI/BFF tests. Tests and the new C# policy tests are committed but **not executed** in this connector environment.
+
+**Protocol hold:** Existing source evidence preserves the legacy SDK 0.0.30 and newer certificate/JWS generation as distinct. The legacy guide describes signed GET_TOKEN; this is not sufficient to assert live host, current availability, exact request signing wire bytes and confirmed valid authority token semantics as of 2026-10-22. Therefore the injected implementation remains `UnavailableSigningReadOnlyConnectionTest`: no fabricated success, no live request and no invoice dispatch. For live acceptance review the exact pinned official document/version and source-matching authentication fixtures, then replace this adapter and independently test TLS, timeout, credentials, token validation, owner authorization, Vault scope and replay safety. **Step22 is not complete or owner-approved.** No migration or production feature was changed.
