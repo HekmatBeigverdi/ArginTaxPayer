@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 09: Cryptographic Keys and Digital Signing
 
-**Status:** Steps01,03,04,05,06,07 and08 owner-approved; Step09 source delivered for build/test, with runtime evidence pending. Step10 has not started. Prior build/live-provider and official portal-format evidence gaps remain explicit.
+**Status:** Steps01,03,04,05,06,07,08 and09 owner-approved; Step10 source delivered for build/test, with runtime evidence pending. Step11 has not started. Prior build/live-provider and official portal-format evidence gaps remain explicit.
 **Documentation language:** English. This edition replaces the Persian master document without changing the agreed scope or step order.
 **Last reviewed:** 2026-10-21.
 **Repository:** HekmatBeigverdi/ArginTaxPayer.
@@ -8,7 +8,7 @@
 **Previous release:** `phase-08-v1.0.0`.
 **Phase branch:** `phase/09-cryptographic-keys-signing`.
 **Fixed step count:** 18. Changing the count, order, or agreed scope requires explicit owner approval.
-**Current source baseline:** `1a431b1fd231f9b6f8a8218267ff164232c6ee2a`.
+**Current source baseline:** `7f746d6904f977bff044c889a01bd0f9394c757a`.
 **Goal:** Secure generation/import, public-key handling, protected custody, and offline digital signing for the key-based path without an independent signing certificate.
 **Execution:** Deliver one step at a time, update this document, provide macOS checks, and wait for explicit approval before continuing. No database migration may be applied without separate owner approval.
 
@@ -250,7 +250,7 @@ Provider references inspected in Step 02:
 | 07 | Existing private-key import | Bounded valid formats; malformed/weak input denied; no plaintext temp/log | Owner-approved2026-10-21; execution evidence pending |
 | 08 | Private/public match and fingerprint | Canonical public match and challenge; registration not inferred | Owner-approved 2026-10-21; runtime evidence pending |
 | 09 | Offline legacy signing and SDK compatibility | Exact encoding/normalization fixtures; no live authority request | Source delivered 2026-10-21; build/runtime pending |
-| 10 | Application signing and immutable snapshot | Trusted snapshot/hash/key version; no Sent/dispatch mutation | Not started |
+| 10 | Application signing and immutable snapshot | Trusted snapshot/hash/key version; no Sent/dispatch mutation | Source delivered 2026-10-21; build/runtime pending |
 | 11 | Key lifecycle and local rotation | Compromised/revoked denial; atomic selection and race behavior | Not started |
 | 12 | Backup, recovery and KEK rotation | Synthetic restore, resumable rewrap, failure without KEK, runbook | Not started |
 | 13 | Controlled change review | Reason, scope, revision, expiry and one-time approval; no annual bypass | Not started |
@@ -939,4 +939,34 @@ python3 scripts/phase09_step09_verify.py
 
 The helper runs the Python verifier tests and the focused C# gate in an isolated environment. It never applies migrations or connects to PostgreSQL, Vault or the tax authority.
 
-**Current acceptance:** Step09 source delivered for build/test; runtime verification remains pending because `dotnet` is unavailable here. No migration/model/snapshot or API/UI integration was added. Step10 has not started.
+**Current acceptance:** Step09 source delivered for build/test; runtime verification remains pending because `dotnet` is unavailable here. No migration/model/snapshot or API/UI integration was added. Step10 is now delivered for build/test.
+
+## 17. Step10 — Application signing and immutable snapshot
+
+**Owner approval:** Step09 was approved before this implementation. Step10 adds no migration, model, snapshot update, API/BFF endpoint or tax-authority request.
+
+### Scope and implementation
+
+- `AuthorizedSigningRequest` is an internal request containing invoice scope, immutable invoice revision, immutable key revision, profile and expected snapshot hash. It does not accept arbitrary caller bytes.
+- `TrustedInvoiceSnapshot` is loaded from an authenticated, scope-aware source. The service verifies ownership identifiers, both revisions, the pinned profile, object-shaped JSON, an 8 MiB bound and the lowercase SHA-256 hash before touching custody.
+- `IInvoiceSigningAudit.BeginAsync` must durably record signing intent before `IInvoiceSigningCustody.UnwrapAsync` is called. Completion is recorded before any signature is returned. A failed completion never releases the signature.
+- The custody boundary returns disposable `SensitiveBytes`; the service passes it only to the legacy offline RSA signer. No private material, password, envelope, vault locator or generic `Sign(bytes)` endpoint is returned.
+- The signature uses the Step09 source-pinned object profile and returns Base64, snapshot hash, key version and profile. `IsFiscalSubmissionAuthorized` remains false. The service performs no network or authority dispatch.
+- Registration is future-host-only and requires both `SigningKeyOfflineSigning:Enabled=true` and `SigningKeyProtection:Enabled=true`; current API/BFF composition does not register it.
+
+### Verification record
+
+Added four focused no-database C# cases covering invalid request short-circuit, snapshot hash/revision integrity, intent-before-custody ordering, and completion-failure redaction. The Python verifier adds an exact four-test no-skip gate. C# compilation/discovery/runtime remains pending where `dotnet` is unavailable; the Python verifier tests remain executable safety checks.
+
+From a clean macOS checkout:
+
+```bash
+git fetch origin
+git switch phase/09-cryptographic-keys-signing
+git pull --ff-only
+python3 scripts/phase09_step10_verify.py
+```
+
+The command does not require the AutoSSH PostgreSQL tunnel and never applies a migration. Step11 has not started.
+
+**Current acceptance:** Step10 source delivered for build/test; runtime verification remains pending because `dotnet` is unavailable in the authoring environment. No migration/model/snapshot or API/UI integration was added.

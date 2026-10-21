@@ -88,6 +88,25 @@ class VerifierTests(unittest.TestCase):
                         with self.assertRaises(self.v.SafeError):
                             self.v.dotnet_tests({'RUN_ARGINTAXPAYER_PG_INTEGRATION': '0'}, selector)
 
+    def test_invoice_snapshot_signing_gate_requires_exact_four_passes(self):
+        selector = 'FullyQualifiedName~Phase09InvoiceSnapshotSigning'
+        for total, executed, passed, failed, skipped in ((4, 4, 4, 0, 0), (4, 3, 3, 0, 1), (3, 3, 3, 0, 0)):
+            def run(args, env=None, capture=False):
+                if '--list-tests' in args:
+                    return '    ArginTaxPayer.Tests.Phase09InvoiceSnapshotSigningTests.Test'
+                if '--results-directory' in args:
+                    folder = Path(args[args.index('--results-directory') + 1])
+                    (folder / 'phase09.trx').write_text(
+                        f'<TestRun><Counters total="{total}" executed="{executed}" passed="{passed}" '
+                        f'failed="{failed}" notExecuted="{skipped}" /></TestRun>')
+                return ''
+            with patch.object(self.v, 'run', side_effect=run):
+                if (total, executed, passed, failed, skipped) == (4, 4, 4, 0, 0):
+                    self.v.dotnet_tests({'RUN_ARGINTAXPAYER_PG_INTEGRATION': '0'}, selector)
+                else:
+                    with self.assertRaises(self.v.SafeError):
+                        self.v.dotnet_tests({'RUN_ARGINTAXPAYER_PG_INTEGRATION': '0'}, selector)
+
     def test_empty_discovery_is_not_success(self):
         for listing in ('No test matches', 'The following Tests are available:\n'):
             with self.assertRaises(self.v.SafeError):
