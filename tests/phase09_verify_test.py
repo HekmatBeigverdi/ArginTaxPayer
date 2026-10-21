@@ -71,6 +71,32 @@ class VerifierTests(unittest.TestCase):
                 self.v.require_discovered_tests(listing)
         self.v.require_discovered_tests('The following Tests are available:\n    ArginTaxPayer.Tests.SomeTest\n')
 
+    def test_pure_run_disables_inherited_live_vault_configuration(self):
+        with patch.dict(os.environ, {
+            'RUN_ARGINTAXPAYER_VAULT_INTEGRATION': '1',
+            'PHASE09_VAULT_ADDRESS': 'https://production.invalid',
+            'SigningKeyProtection__Enabled': 'true',
+        }):
+            env = self.v.pure_environment()
+        self.assertEqual(env.get('RUN_ARGINTAXPAYER_VAULT_INTEGRATION'), '0')
+        self.assertNotIn('PHASE09_VAULT_ADDRESS', env)
+        self.assertNotIn('SigningKeyProtection__Enabled', env)
+
+    def test_vault_guard_accepts_only_isolated_tls_endpoint_and_token_file_path(self):
+        valid = {'PHASE09_VAULT_ADDRESS': 'https://localhost:18200/',
+                 'PHASE09_VAULT_TOKEN_FILE': '/private/agent-token'}
+        for address in ('http://localhost:18200/', 'https://production.invalid:18200/',
+                        'https://localhost:8200/', 'https://u:p@localhost:18200/',
+                        'https://localhost:18200/prefix', 'https://localhost:18200/?x=1'):
+            with patch.dict(os.environ, dict(valid, PHASE09_VAULT_ADDRESS=address)):
+                with self.assertRaises(self.v.SafeError):
+                    self.v.guard_vault()
+        with patch.dict(os.environ, valid):
+            env = self.v.guard_vault()
+        self.assertEqual(env['RUN_ARGINTAXPAYER_VAULT_INTEGRATION'], '1')
+        self.assertEqual(env['PHASE09_VAULT_ADDRESS'], valid['PHASE09_VAULT_ADDRESS'])
+        self.assertEqual(env['RUN_ARGINTAXPAYER_PG_INTEGRATION'], '0')
+
     def test_step04_pg_run_requires_all_six_passed_without_skips(self):
         # Simulate only the external dotnet process; exercise the real TRX gate.
         for total, executed, passed, failed, skipped in (
@@ -97,6 +123,26 @@ class VerifierTests(unittest.TestCase):
                         with self.assertRaises(self.v.SafeError):
                             self.v.dotnet_tests(env, 'FullyQualifiedName~Phase09SigningOperationPostgresTests')
 
+    def test_vault_run_refuses_skipped_or_unexpected_test_count(self):
+        for total, executed, passed, skipped in ((1, 1, 1, 0), (1, 0, 0, 1), (2, 2, 2, 0)):
+            with self.subTest(total=total, executed=executed):
+                def run(args, env=None, capture=False):
+                    if '--list-tests' in args:
+                        return '    ArginTaxPayer.Tests.Phase09SigningVaultIntegrationTests.Test'
+                    if '--results-directory' in args:
+                        folder = Path(args[args.index('--results-directory') + 1])
+                        (folder / 'phase09.trx').write_text(
+                            f'<TestRun><Counters total="{total}" executed="{executed}" passed="{passed}" '
+                            f'failed="0" notExecuted="{skipped}" /></TestRun>')
+                    return ''
+                with patch.object(self.v, 'run', side_effect=run):
+                    if (total, executed, passed, skipped) == (1, 1, 1, 0):
+                        self.v.dotnet_tests({'RUN_ARGINTAXPAYER_VAULT_INTEGRATION': '1'},
+                                            'FullyQualifiedName~Phase09SigningVaultIntegrationTests')
+                    else:
+                        with self.assertRaises(self.v.SafeError):
+                            self.v.dotnet_tests({'RUN_ARGINTAXPAYER_VAULT_INTEGRATION': '1'},
+                                                'FullyQualifiedName~Phase09SigningVaultIntegrationTests')
+
 if __name__ == '__main__':
     unittest.main()
-

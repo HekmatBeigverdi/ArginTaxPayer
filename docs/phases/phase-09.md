@@ -1,14 +1,14 @@
 # ArginTaxPayer — Phase 09: Cryptographic Keys and Digital Signing
 
-**Status:** Steps 01 and 03 explicitly owner-approved; Step 02 design accepted for continuation. The Phase09 migration was applied by the owner to argintaxpayer_test. Step 04 source implementation is delivered for executable verification and owner review; Step 05 has not started.
+**Status:** Steps 01, 03 and 04 explicitly owner-approved; Step 02 design accepted for continuation. The Phase09 migration was applied by the owner to argintaxpayer_test. Step 05 source implementation is delivered; executable build/provider acceptance is pending. Step 06 has not started.
 **Documentation language:** English. This edition replaces the Persian master document without changing the agreed scope or step order.
-**Last reviewed:** 2026-10-20.
+**Last reviewed:** 2026-10-21.
 **Repository:** HekmatBeigverdi/ArginTaxPayer.
 **Base branch/commit:** main / `b8f307ed06041d902aed9d8432d3b082e1cd714a`.
 **Previous release:** `phase-08-v1.0.0`.
 **Phase branch:** `phase/09-cryptographic-keys-signing`.
 **Fixed step count:** 18. Changing the count, order, or agreed scope requires explicit owner approval.
-**Current source baseline:** `08b25892e89d79ae6524777929db723e2a634225`.
+**Current source baseline:** `20d71c18c35b4ca31492834be85aae89b52177bf`.
 **Goal:** Secure generation/import, public-key handling, protected custody, and offline digital signing for the key-based path without an independent signing certificate.
 **Execution:** Deliver one step at a time, update this document, provide macOS checks, and wait for explicit approval before continuing. No database migration may be applied without separate owner approval.
 
@@ -244,8 +244,8 @@ Provider references inspected in Step 02:
 | 01 | Baseline and legacy-source audit | Seven source hashes; exact offline profile; differences/security findings recorded | Owner-approved 2026-10-20 |
 | 02 | Architecture, custody and authorization contracts | Consent, protected provider design, lifecycle and default-deny access | Design accepted for continuation; runtime checks not rerun |
 | 03 | Data model and additive migration proposal | Model/migration delivered; operator applied migration on isolated test DB | Owner-approved 2026-10-20 |
-| 04 | Operation persistence, audit and idempotency | Atomic journal/consent/audit, replay, CAS and recovery states | Source delivered; execution and owner review pending |
-| 05 | Envelope protection and vault provider | Tamper/AAD/missing-KEK denial; no private bytes in business DB | Not started |
+| 04 | Operation persistence, audit and idempotency | Atomic journal/consent/audit, replay, CAS and recovery states | Owner-approved 2026-10-21 |
+| 05 | Envelope protection and vault provider | Tamper/AAD/missing-KEK denial; no private bytes in business DB | Source delivered; build/provider acceptance pending |
 | 06 | Key generation and public artifact | Official profile; no certificate/CSR/private response; portal encoding verified | Not started |
 | 07 | Existing private-key import | Bounded valid formats; malformed/weak input denied; no plaintext temp/log | Not started |
 | 08 | Private/public match and fingerprint | Canonical public match and challenge; registration not inferred | Not started |
@@ -559,7 +559,7 @@ Status: operator-reported migration application successful. This is not independ
 
 **Owner approval:** The owner explicitly approved Step03 and requested Step04 on 2026-10-20. Earlier Step03 pending text is historical evidence, not the current signoff. The existing migration was operator-reported applied to argintaxpayer_test; this step adds no migration/schema change.
 **Source baseline:** `8b4abd9b35725984b66748eab7696c898919328a`.
-**Status:** Implementation delivered for testing. No successful build, unit-test run, PostgreSQL run or authenticated runtime check is claimed by the assistant; the execution environment returned unavailable again. Step05 has not started.
+**Status:** Owner-approved2026-10-21. Earlier execution limitations remain historical evidence; owner approval does not supply new runner output. Step05 is tracked in Section12.
 
 ### Delivered implementation
 
@@ -661,3 +661,74 @@ Reviewed the committed operation repository, PostgreSQL fixtures and operator he
 Fixed an acceptance gap in the verifier: the exact Step04 integration filter now requires TRX totals of six total/executed/passed and zero failed/notExecuted. Previously a partly skipped run could satisfy the generic non-empty execution check. A regression test reproduced rejection failures for partial, skipped, failed and unexpected-count reports before the fix; all nine Python safety tests pass after the fix. These use synthetic TRX reports and do not prove the six database tests passed.
 
 No schema or migration changes. Step04 remains ready for executable verification and owner review; Step05 has not started. Run `python3 tests/phase09_verify_test.py` and then the existing `python3 scripts/phase09_step04_verify.py` after dev-up/dev-status. Required evidence remains 32 focused no-DB tests and six real PostgreSQL tests without skips.
+
+## 12. Step 05 — Envelope protection and Vault provider
+
+**Owner approval:** Step04 explicitly approved on 2026-10-21. No additional runner output was supplied with that approval; preserve prior execution limits.
+**Design authority:** Section3 custody/protection design and approved step05 scope. Implementation is inline. No endpoint, schema change, Vault installation or real-secret transfer is authorized by this delivery.
+
+### Implementation plan and file boundaries
+
+1. `Signing/Protection/KeyProtectionContracts.cs`: non-secret scope binding, redacted envelope/error types and disposable buffer; provider/store boundaries contain no business DTO or secret logging.
+2. `KeyEnvelopeProtector.cs`: .NET AES-256-GCM, new32-byte DEK and12-byte nonce per encryption,16-byte tag and canonical scope/key AAD; reject tamper/swap/unknown formats and zero owned buffers.
+3. `VaultHttpTransport.cs` and `VaultKeyProtectionProvider.cs`: direct .NET HTTP client, TLS validation, redirects/retries disabled, bounded responses, fixed paths, rotating Agent token file, health/version and non-root/expiring-token admission, Transit DEK protection and KVv2 CAS create/rewrap. No third-party client package is introduced.
+4. `ProtectedKeyEnvelopeStore.cs`: stable DB-operation/key identity, read-before-create reconciliation and create-only CAS; uncertain write returns recovery-required, never overwrite or silently generate another key. Rewrap uses expected KV version and retains encrypted key bytes.
+5. `Phase09SigningKeyProtectionTests.cs` and `Phase09SigningVaultAdapterTests.cs`: synthetic crypto and HTTP-contract tests first; then focused verifier and existing Python safety tests. Live TLS/ACL/provider persistence is a separate explicit deployment acceptance gate.
+
+Review focus: cross-scope AAD swaps; failed unwrap/tamper never yielding plaintext; unknown write outcomes/concurrent CAS; redirect/body/token leakage; missing configuration/KEK/version pin. Test doubles exist only in the test assembly.
+
+### Provider contract and deployment gates
+
+Pinned source-review baseline: Vault Community2.2.0; protocol `/v1` with Transit AES256-GCM96, derived=true and convergent_encryption=false; KVv2. No third-party .NET Vault client dependency. Version pinning is compatibility admission, not a security certification or completed installation; re-review advisories/server artifacts before deployment. The adapter refuses a different live version, sealed/uninitialized Vault, root/unexpected policy names, short token TTL, exportable/backup/deletable protection keys and insecure endpoints. Workload policies must be named `argin-signing` (optional default only); policy-name checking does not prove the effective ACL contents.
+
+The derived Transit context is Base64 of the canonical local AAD plus `|OperationRecordId`; it is supplied to encrypt/decrypt/rewrap consistently. This uses the documented derived-key context contract instead of assuming rewrap supports an undocumented associated_data parameter. Local envelope AAD remains exactly the four UUIDs specified in Section3. Stable storage path is keys/customer/taxpayer/memory/operation/key using UUID N format. No caller URL or opaque arbitrary vault path is accepted.
+
+`AddPhase09KeyProtection` is an explicit registration extension for the future custody host; Api/BFF do not call it in this step. Missing/disabled settings register only unavailable implementations. Enabled configuration requires HTTPS origin, validated mount/key segments, an absolute protected Agent token file, and ServerVersion=2.2.0. No environment KEK, MFA key, private-key export or plaintext fallback exists. Caller-owned PKCS8 buffers must be disposed/cleared by the later generate/import boundary. The protector enforces size/envelope integrity; it deliberately does not replace the Step06/07 PKCS8 parsing and strength rules.
+
+The coordinator reads before CAS create, authenticates existing material before matching a replay, and never overwrites a winning envelope. Uncertain durable writes surface RecoveryRequired; recovery only probes and authenticates the stable identity. A missing probe is not authorization to generate another key. Later Step06/07 orchestration must reserve/advance the Step04 DB journal before external work and atomically seal public metadata/audit before signing admission. No provider call runs inside EF retries. Rewrap authenticates the existing envelope, changes wrapped DEK metadata only and writes with the exact expected KV version. No key history is deleted.
+
+Secrets: owned DEKs, plaintext output buffers, serialized request bytes and raw response buffers are cleared. Disposed handles/buffers reject reuse. Managed/runtime/TLS/header/JSON buffers and host compromise remain residual risks; complete memory erasure or process isolation is not claimed. Agent sink directories must be owned by the workload account with restricted parent-directory access; the adapter rejects symlink sinks and group/other Unix file permissions and rereads the sink each request. Windows Agent sink ACLs require operator verification. External diagnostics, crash dumps and tracing on the eventual custody host must not capture request bodies/headers.
+
+A reviewed test workload policy is included at `deploy/vault/phase09-test-workload.hcl`. It is not applied automatically. An operator must provision a separate TLS test Vault with trusted local certificate, derived nonexportable Transit key, KVv2 with CAS required, the exact restricted policy and an Agent-managed expiring token; show denied key-export/delete/admin capability evidence before enabling real custody. Vault server installation/unseal/Agent auth, TLS chain/hostname checks, ACL enforcement, restart persistence and restore remain NOT EXECUTED acceptance gates. Step12 owns full restore exercises.
+
+Official references checked2026-10-21:
+- https://developer.hashicorp.com/vault/api-docs/secret/transit — derived context, encrypt/decrypt/rewrap contracts and key metadata.
+- https://developer.hashicorp.com/vault/api-docs/secret/kv/kv-v2 — CAS=0 creation and exact-version replacement.
+- https://developer.hashicorp.com/vault/api-docs/system/health — initialized/sealed/version admission.
+- https://releases.hashicorp.com/vault/2.2.0/ — versioned binaries and signed checksum files exist; no binary was downloaded or verified by this delivery.
+
+### Verification and operator commands
+
+Added40 no-network C# test cases across crypto, staging, configuration and HTTP-adapter fixtures, plus one explicitly skipped-by-default real-Vault test. C# test discovery/execution is NOT verified: dotnet --info and attempted dotnet test returned command not found. No .NET compiler, PostgreSQL, Docker or Vault is available here. Synthetic HTTP fixtures test the adapter contract only; they do not prove TLS, ACL, Transit or KV compatibility in a running Vault.
+
+Python safety suite:12 tests passed, including inherited live-Vault suppression and isolated-endpoint admission. The new suppression regression failed before the fix. Shell syntax and Python parsing passed. No PostgreSQL connection, migration or real key was used.
+
+From a clean macOS checkout:
+
+```bash
+git fetch origin
+git switch phase/09-cryptographic-keys-signing
+git pull --ff-only
+python3 scripts/phase09_step05_verify.py
+```
+
+No dev-up/database is required for the default command. It runs Python safety tests and all Phase09 signing no-DB checks. New no-network coverage adds40 cases to the previous32 (expected72 executed if discovery matches source); six PG tests and one Vault test are expected skips in this mode. Treat actual TRX counts as evidence, not a preobserved result.
+
+Only after separately provisioning the isolated TLS test Vault and Agent sink:
+
+```bash
+export PHASE09_VAULT_ADDRESS='https://localhost:18200/'
+export PHASE09_VAULT_TOKEN_FILE='/absolute/private/path/to/agent-token'
+python3 scripts/phase09_step05_verify.py --vault
+```
+
+This opt-in accepts only loopback HTTPS port18200 and hardcodes mounts argin-transit-test/argin-signing-test and key signing-test-kek. It never installs/migrates/configures Vault. The single real provider test must pass with zero skips; it creates synthetic encrypted RSA fixtures and retains their history. Its TRX gate rejects partial/empty/skipped success. Production mounts/credentials do not belong in this command.
+
+**Current acceptance:** source implementation ready for build/test and owner review; runtime/provider acceptance pending. No Step06 work started, no migration created/applied, and no production key custody enabled.
+
+
+### Review ledger
+
+Implementation rulings: preserve the previously approved design and one phase document; keep the provider unwired from Api/BFF until custody-host deployment checks pass; use documented derived Transit context for all three wrapping operations. Cost of an incorrect version/API assumption is failed provider admission, so runtime custody stays disabled until the live gate passes.
+
+An independent source reviewer found no Critical/Important implementation defect. Two test-coverage gaps were regraded as required security-acceptance coverage and addressed in source: forged envelope identity headers now exercise cryptographic binding, and synthetic cancellation/malformed-success/unknown-length oversize responses require RecoveryRequired and no retry. Rewrap output is authenticated against the original key before CAS persistence. Those C# regressions remain unexecuted because dotnet is absent; no RED/GREEN evidence is claimed. No remaining minor review finding is deferred.

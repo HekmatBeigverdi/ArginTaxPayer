@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import xml.etree.ElementTree as ET
+from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 BASE = 'b8f307ed06041d902aed9d8432d3b082e1cd714a'
@@ -82,9 +83,31 @@ def parse_connection(text):
 
 def pure_environment():
     env = {k:v for k,v in os.environ.items()
-           if not k.lower().startswith('connectionstrings__') and not k.startswith('PG')}
+           if not k.lower().startswith(('connectionstrings__', 'signingkeyprotection__', 'phase09_vault_'))
+           and not k.startswith('PG')}
     env['RUN_ARGINTAXPAYER_PG_INTEGRATION'] = '0'
+    env['RUN_ARGINTAXPAYER_VAULT_INTEGRATION'] = '0'
     env['Ghasedak__EnableLiveSending'] = 'false'
+    return env
+
+
+def guard_vault():
+    address = os.environ.get('PHASE09_VAULT_ADDRESS', '')
+    token_file = os.environ.get('PHASE09_VAULT_TOKEN_FILE', '')
+    try:
+        uri = urlsplit(address)
+        valid = (uri.scheme == 'https' and uri.hostname in ('localhost', '127.0.0.1', '::1')
+                 and uri.port == 18200 and not uri.username and not uri.password
+                 and uri.path in ('', '/') and not uri.query and not uri.fragment
+                 and Path(token_file).is_absolute())
+    except ValueError:
+        valid = False
+    if not valid:
+        raise SafeError('Vault tests require loopback HTTPS port18200 and an absolute Agent token file path.')
+    env = pure_environment()
+    env.update(PHASE09_VAULT_ADDRESS=address, PHASE09_VAULT_TOKEN_FILE=token_file,
+               RUN_ARGINTAXPAYER_VAULT_INTEGRATION='1')
+    print('Vault gate: isolated test endpoint only; .NET verifies TLS/version/token/key before secret use.')
     return env
 
 
@@ -168,6 +191,12 @@ def dotnet_tests(env, test_filter=None):
             if any(sum(int(c.get(key, -1)) for c in counts) != value
                    for key, value in expected.items()):
                 raise SafeError('Step04 requires exactly six passed PostgreSQL tests with zero skips.')
+        if (env.get('RUN_ARGINTAXPAYER_VAULT_INTEGRATION') == '1' and
+                test_filter == 'FullyQualifiedName~Phase09SigningVaultIntegrationTests'):
+            expected = {'total': 1, 'executed': 1, 'passed': 1, 'failed': 0, 'notExecuted': 0}
+            if any(sum(int(c.get(key, -1)) for c in counts) != value
+                   for key, value in expected.items()):
+                raise SafeError('Step05 requires its real Vault test passed with zero skips.')
         for c in counts:
             print('TRX: total={total}, executed={executed}, passed={passed}, failed={failed}, notExecuted={notExecuted}'.format(
                 **{k:c.get(k,'0') for k in ('total','executed','passed','failed','notExecuted')}))
@@ -175,14 +204,21 @@ def dotnet_tests(env, test_filter=None):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('mode', choices=['preflight','pure','focused','integration','full'])
+    parser.add_argument('mode', choices=['preflight','pure','focused','integration','full','vault'])
     parser.add_argument('--filter', dest='test_filter')
     args = parser.parse_args()
     if args.mode == 'focused' and not args.test_filter:
         raise SafeError('focused requires --filter with an existing test class.')
+    if args.mode == 'vault':
+        exact = 'FullyQualifiedName~Phase09SigningVaultIntegrationTests'
+        if args.test_filter and args.test_filter != exact:
+            raise SafeError('vault mode permits only the synthetic Step05 Vault integration test.')
+        args.test_filter = exact
     before = preflight()
     if args.mode in ('integration','full'):
         env = guard_database()  # Must happen before build or tests.
+    elif args.mode == 'vault':
+        env = guard_vault()
     else:
         env = pure_environment()
         print('PostgreSQL integration DISABLED; opt-in early-return tests do not prove DB acceptance.')
@@ -204,4 +240,3 @@ if __name__ == '__main__':
     except SafeError as error:
         print('ERROR: ' + str(error), file=sys.stderr)
         sys.exit(2)
-
