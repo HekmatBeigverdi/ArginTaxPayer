@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 09: Cryptographic Keys and Digital Signing
 
-**Status:** Steps01,03,04,05,06,07,08 and09 owner-approved; Steps10,11,12 and13 source delivered for build/test, with runtime evidence pending. Step14 has not started. Prior build/live-provider and official portal-format evidence gaps remain explicit.
+**Status:** Steps01,03,04,05,06,07,08 and09 owner-approved; Steps10,11,12,13 and14 source delivered for build/test, with runtime evidence pending. Step15 has not started. Prior build/live-provider and official portal-format evidence gaps remain explicit.
 **Documentation language:** English. This edition replaces the Persian master document without changing the agreed scope or step order.
 **Last reviewed:** 2026-10-21.
 **Repository:** HekmatBeigverdi/ArginTaxPayer.
@@ -254,7 +254,7 @@ Provider references inspected in Step 02:
 | 11 | Key lifecycle and local rotation | Compromised/revoked denial; atomic selection and race behavior | Source delivered 2026-10-21; build/runtime pending |
 | 12 | Backup, recovery and KEK rotation | Synthetic restore, resumable rewrap, failure without KEK, runbook | Source delivered 2026-10-21; build/runtime pending |
 | 13 | Controlled change review | Reason, scope, revision, expiry and one-time approval; no annual bypass | Source delivered 2026-10-21; build/runtime pending |
-| 14 | Secure API/BFF | HTTP authorization, CSRF, limits, no-store; no private-read/export/sign oracle | Not started |
+| 14 | Secure API/BFF | HTTP authorization, CSRF, limits, no-store; no private-read/export/sign oracle | Source delivered 2026-10-21; build/runtime pending |
 | 15 | Persian RTL key-management UI | Owner generate/import, public download/status/history, compact accessible UX | Not started |
 | 16 | Security/authorization/concurrency/regression | Real isolated HTTP/PG cases, transfer/session races, leak capture, Phases06–08 | Not started |
 | 17 | macOS and Ubuntu acceptance | Identical SHA, clean trees, independent build/test/browser/restore evidence | Not started |
@@ -1039,3 +1039,22 @@ python3 scripts/phase09_step13_verify.py
 No database tunnel is required for this local gate and no migration is applied. Step14 has not started.
 
 **Current acceptance:** Step13 source delivered for build/test; runtime verification remains pending.
+
+## 21. Step14 — Secure API/BFF contract
+
+Step14 adds a host-neutral HTTP security policy for future signing endpoints. It requires authentication and server-resolved scope, applies a bounded request size and per-window rate limit, requires JSON and CSRF validation for mutating requests, and marks every response `no-store`. Requests for private material or a generic signing oracle are rejected before any custody operation. The policy is not wired into the current API/BFF or exposed as a public endpoint in this step.
+
+The local gate adds ten no-database cases covering authentication, scope, CSRF, content type, request size, rate limit, private-material denial, signing-oracle denial, no-store and invalid input. No migration, model or snapshot change was added. Real middleware integration and authenticated HTTP/PG execution remain Step16/17 acceptance work.
+
+From a clean macOS checkout:
+
+```bash
+git fetch origin
+git switch phase/09-cryptographic-keys-signing
+git pull --ff-only
+python3 scripts/phase09_step14_verify.py
+```
+
+No database tunnel is required for this local gate and no migration is applied. Step15 has not started.
+
+**Current acceptance:** Step14 source delivered for build/test; runtime verification remains pending.
