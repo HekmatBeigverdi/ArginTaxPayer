@@ -161,6 +161,13 @@ def dotnet_tests(env, test_filter=None):
                   if node.tag.rsplit('}',1)[-1] == 'Counters']
         if not counts or sum(int(c.get('executed',0)) for c in counts) == 0:
             raise SafeError('No executed tests in TRX; refusing empty success.')
+        if (env.get('RUN_ARGINTAXPAYER_PG_INTEGRATION') == '1' and
+                test_filter == 'FullyQualifiedName~Phase09SigningOperationPostgresTests'):
+            expected = {'total': 6, 'executed': 6, 'passed': 6,
+                        'failed': 0, 'notExecuted': 0}
+            if any(sum(int(c.get(key, -1)) for c in counts) != value
+                   for key, value in expected.items()):
+                raise SafeError('Step04 requires exactly six passed PostgreSQL tests with zero skips.')
         for c in counts:
             print('TRX: total={total}, executed={executed}, passed={passed}, failed={failed}, notExecuted={notExecuted}'.format(
                 **{k:c.get(k,'0') for k in ('total','executed','passed','failed','notExecuted')}))
@@ -197,3 +204,4 @@ if __name__ == '__main__':
     except SafeError as error:
         print('ERROR: ' + str(error), file=sys.stderr)
         sys.exit(2)
+

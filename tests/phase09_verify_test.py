@@ -71,5 +71,32 @@ class VerifierTests(unittest.TestCase):
                 self.v.require_discovered_tests(listing)
         self.v.require_discovered_tests('The following Tests are available:\n    ArginTaxPayer.Tests.SomeTest\n')
 
+    def test_step04_pg_run_requires_all_six_passed_without_skips(self):
+        # Simulate only the external dotnet process; exercise the real TRX gate.
+        for total, executed, passed, failed, skipped in (
+            (6, 6, 6, 0, 0), (6, 5, 5, 0, 1), (5, 5, 5, 0, 0),
+            (6, 6, 5, 1, 0), (7, 7, 7, 0, 0),
+        ):
+            with self.subTest(total=total, executed=executed, passed=passed):
+                def run(args, env=None, capture=False):
+                    if '--list-tests' in args:
+                        return '    ArginTaxPayer.Tests.Phase09SigningOperationPostgresTests.Test'
+                    if '--results-directory' in args:
+                        folder = Path(args[args.index('--results-directory') + 1])
+                        (folder / 'phase09.trx').write_text(
+                            '<TestRun xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">'
+                            f'<ResultSummary><Counters total="{total}" executed="{executed}" '
+                            f'passed="{passed}" failed="{failed}" notExecuted="{skipped}" />'
+                            '</ResultSummary></TestRun>')
+                    return ''
+                env = {'RUN_ARGINTAXPAYER_PG_INTEGRATION': '1'}
+                with patch.object(self.v, 'run', side_effect=run):
+                    if (total, executed, passed, failed, skipped) == (6, 6, 6, 0, 0):
+                        self.v.dotnet_tests(env, 'FullyQualifiedName~Phase09SigningOperationPostgresTests')
+                    else:
+                        with self.assertRaises(self.v.SafeError):
+                            self.v.dotnet_tests(env, 'FullyQualifiedName~Phase09SigningOperationPostgresTests')
+
 if __name__ == '__main__':
     unittest.main()
+

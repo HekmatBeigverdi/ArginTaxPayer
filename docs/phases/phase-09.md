@@ -652,4 +652,12 @@ zsh scripts/dev-status.zsh
 python3 scripts/phase09_step04_verify.py
 ```
 
-It runs focused model/policy/validation checks first, then prompts for the test DB user/password and runs the five guarded PG tests. Passwords are not stored or printed. Expected no-DB focused result: 32 executed tests and six explicit PG skips; final PG run: six executed, zero skipped. Exact runner counts are evidence to capture, not assistant-observed PASS results.
+It runs focused model/policy/validation checks first, then prompts for the test DB user/password and runs the six guarded PG tests. Passwords are not stored or printed. Expected no-DB focused result: 32 executed tests and six explicit PG skips; final PG run: six executed, zero skipped. Exact runner counts are evidence to capture, not assistant-observed PASS results.
+
+### Step04 recheck — 2026-10-21
+
+Reviewed the committed operation repository, PostgreSQL fixtures and operator helper at `35e7b89a1fae9fd16ffa0821eed07d33b3c656d7`. The runtime is now available for Python, but dotnet, psql and Docker are absent; C# compilation and PostgreSQL execution remain unverified.
+
+Fixed an acceptance gap in the verifier: the exact Step04 integration filter now requires TRX totals of six total/executed/passed and zero failed/notExecuted. Previously a partly skipped run could satisfy the generic non-empty execution check. A regression test reproduced rejection failures for partial, skipped, failed and unexpected-count reports before the fix; all nine Python safety tests pass after the fix. These use synthetic TRX reports and do not prove the six database tests passed.
+
+No schema or migration changes. Step04 remains ready for executable verification and owner review; Step05 has not started. Run `python3 tests/phase09_verify_test.py` and then the existing `python3 scripts/phase09_step04_verify.py` after dev-up/dev-status. Required evidence remains 32 focused no-DB tests and six real PostgreSQL tests without skips.
