@@ -1251,4 +1251,4 @@ UI acceptance: use the owning account with a fresh login; inspect missing-provid
 
 Focused source tests cover ZIP key matching, fingerprint integrity, handoff disposal, first-generation/replay separation, API request guards, BFF no-store streaming and UI consent/readiness/download behavior. Full Phase09 and macOS operator verification must be recorded after the configured Vault/database environment is exercised.
 
-**Current acceptance:** Source implementation delivered; owner must still confirm the configured-Vault end-to-end download and approve final Step21 acceptance. No migration was executed.
+**Current acceptance:** Owner-approved 2026-10-22. Configured-Vault end-to-end download was accepted for Step21. No migration was executed.
