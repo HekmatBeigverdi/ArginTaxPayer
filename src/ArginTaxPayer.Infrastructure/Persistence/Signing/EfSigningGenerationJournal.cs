@@ -118,7 +118,7 @@ public sealed partial class EfSigningOperationRepository : ISigningGenerationJou
         catch (KeyProtectionException) { return new(SigningGenerationStatus.IntegrityFailure); }
         if (RsaSigningKeyMaterial.Fingerprint(receipt.PublicSpkiDer) != receipt.PublicFingerprintSha256 ||
             receipt.ProtectionKeyVersion is not { Length: > 0 and <= 64 } ||
-            !Regex.IsMatch(receipt.ProtectionKeyVersion, "^vault:v[1-9][0-9]*$", RegexOptions.CultureInvariant))
+            !Regex.IsMatch(receipt.ProtectionKeyVersion, "^(?:vault:v[1-9][0-9]*|db:v1)$", RegexOptions.CultureInvariant))
             return new(SigningGenerationStatus.IntegrityFailure);
         long keyRevision = 0;
         var result = await WriteAsync(bearer, scope, operationId, async (actor, now) =>
@@ -134,7 +134,7 @@ public sealed partial class EfSigningOperationRepository : ISigningGenerationJou
                 op.MetadataDigestSha256 != RequestDigest(scope, kind, op.ProfileId, kind == SigningOperationKind.Import ? receipt.PublicFingerprintSha256 : null))
                 return new(SigningPersistenceStatus.Conflict);
             keyRevision = key.Revision;
-            var locator = "vault://" + id.StoragePath();
+            var locator = (receipt.ProtectionKeyVersion == "db:v1" ? "db://" : "vault://") + id.StoragePath();
             if (op.State == 3 && key.LifecycleState == 2)
             {
                 if (key.PublicFingerprintSha256 != receipt.PublicFingerprintSha256 ||
