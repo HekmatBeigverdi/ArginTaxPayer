@@ -169,6 +169,31 @@ public sealed class Phase09SigningKeyGenerationTests
     }
 
     [Fact]
+    public async Task Uncommitted_generation_recovers_initial_zip_once_without_generating_again()
+    {
+        var journal = new Journal();
+        var custody = new Custody { LoseAcknowledgement = true, RecoverHandoff = true };
+        var factory = new Factory();
+        var service = new SigningKeyGenerationService(journal, custody, factory);
+        var request = Request();
+        using var interrupted = await service.GenerateWithInitialHandoffAsync("token", request);
+        Assert.Null(interrupted.Handoff);
+        Assert.Equal(SigningGenerationStatus.RecoveryRequired, interrupted.Result.Status);
+        using var recovered = await service.GenerateWithInitialHandoffAsync("token", request);
+        Assert.Equal(SigningGenerationStatus.Created, recovered.Result.Status);
+        Assert.NotNull(recovered.Handoff);
+        using var zip = new ZipArchive(new MemoryStream(SigningKeyDownloadPackage.Create(recovered.Handoff!)));
+        using var privateKey = RSA.Create();
+        privateKey.ImportFromPem(ReadEntry(zip, "private.key"));
+        Assert.Equal(custody.Stored!.PublicFingerprintSha256,
+            RsaSigningKeyMaterial.Fingerprint(privateKey.ExportSubjectPublicKeyInfo()));
+        using var replay = await service.GenerateWithInitialHandoffAsync("token", request);
+        Assert.Null(replay.Handoff);
+        Assert.Equal(1, factory.Calls);
+        Assert.Equal(1, custody.Stages);
+    }
+
+    [Fact]
     public async Task Unavailable_provider_does_not_claim_or_generate()
     {
         var journal = new Journal();
@@ -245,6 +270,8 @@ public sealed class Phase09SigningKeyGenerationTests
         public int Stages;
         public int ReadinessCalls;
         public bool LoseAcknowledgement;
+        public bool RecoverHandoff;
+        private byte[]? recoveryMaterial;
         public bool Unavailable;
         public Func<Task>? AfterStage;
         public SealedGeneratedKey? Stored;
@@ -257,6 +284,7 @@ public sealed class Phase09SigningKeyGenerationTests
         public async Task<SealedGeneratedKey> StageAsync(KeyProtectionIdentity id, GeneratedRsaKey key, CancellationToken ct)
         {
             Stages++;
+            if (RecoverHandoff) recoveryMaterial = key.PrivateMaterial.Bytes.ToArray();
             Stored = new(id, key.PublicSpkiDer, key.PublicFingerprintSha256, "vault:v1");
             if (AfterStage is not null) await AfterStage();
             if (LoseAcknowledgement) throw new KeyProtectionException(KeyProtectionFailure.RecoveryRequired);
@@ -264,5 +292,12 @@ public sealed class Phase09SigningKeyGenerationTests
         }
         public Task<SealedGeneratedKey?> RecoverAsync(KeyProtectionIdentity id, CancellationToken ct) =>
             Task.FromResult(Stored);
+        public Task<GeneratedKeyHandoff?> RecoverInitialHandoffAsync(KeyProtectionIdentity id, CancellationToken ct)
+        {
+            if (recoveryMaterial is null || Stored is null) return Task.FromResult<GeneratedKeyHandoff?>(null);
+            var material = recoveryMaterial;
+            recoveryMaterial = null;
+            return Task.FromResult<GeneratedKeyHandoff?>(GeneratedKeyHandoff.Create(material, Stored.PublicSpkiDer));
+        }
     }
 }

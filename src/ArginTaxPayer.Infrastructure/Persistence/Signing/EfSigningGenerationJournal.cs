@@ -229,12 +229,23 @@ public sealed partial class EfSigningOperationRepository : ISigningGenerationJou
                     x.FiscalMemoryId == id.FiscalMemoryId &&
                     x.CustomerUserId == id.CustomerUserId && x.TaxpayerId == id.TaxpayerId, ct);
                 if (selection is null)
+                {
                     db.SigningKeySelections.Add(new SigningKeySelection
                     {
                         FiscalMemoryId = id.FiscalMemoryId, CustomerUserId = id.CustomerUserId,
                         TaxpayerId = id.TaxpayerId, KeyVersionId = key.Id,
                         Revision = 1, SelectedAtUtc = now, SelectedByUserId = actor
                     });
+                    db.SigningAuditEvents.Add(new SigningAuditEvent
+                    {
+                        Id = Guid.NewGuid(), CustomerUserId = id.CustomerUserId,
+                        TaxpayerId = id.TaxpayerId, FiscalMemoryId = id.FiscalMemoryId,
+                        OperationRecordId = op.Id, ActorUserId = actor, SubjectKind = 3,
+                        SubjectId = id.FiscalMemoryId, Revision = 1,
+                        ActionCode = "key_selection_created", OutcomeCode = "Selected",
+                        PublicFingerprintSha256 = key.PublicFingerprintSha256, OccurredAtUtc = now
+                    });
+                }
                 else
                 {
                     if (selection.KeyVersionId is not null && selection.KeyVersionId != previous.Id)
@@ -243,6 +254,15 @@ public sealed partial class EfSigningOperationRepository : ISigningGenerationJou
                     selection.Revision++;
                     selection.SelectedAtUtc = now;
                     selection.SelectedByUserId = actor;
+                    db.SigningAuditEvents.Add(new SigningAuditEvent
+                    {
+                        Id = Guid.NewGuid(), CustomerUserId = id.CustomerUserId,
+                        TaxpayerId = id.TaxpayerId, FiscalMemoryId = id.FiscalMemoryId,
+                        OperationRecordId = op.Id, ActorUserId = actor, SubjectKind = 3,
+                        SubjectId = id.FiscalMemoryId, Revision = selection.Revision,
+                        ActionCode = "key_selection_updated", OutcomeCode = "Selected",
+                        PublicFingerprintSha256 = key.PublicFingerprintSha256, OccurredAtUtc = now
+                    });
                 }
             }
             op.State = 3;

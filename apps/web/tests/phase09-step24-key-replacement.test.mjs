@@ -20,6 +20,8 @@ test("key finalization consumes approval and selects new key in the same journal
   assert.match(journal,/previous\.LifecycleState = 3/);
   assert.match(journal,/selection\.KeyVersionId = key\.Id/);
   assert.match(journal,/db\.SigningKeySelections\.Add/);
+  assert.match(journal,/SubjectKind = 3/);
+  assert.match(journal,/SubjectId = id\.FiscalMemoryId/);
   assert.match(journal,/change_approval_consumed/);
   assert.doesNotMatch(journal,/DbSigningKeyEnvelopes\.Remove/);
 });

@@ -44,6 +44,7 @@ async function proxy(req: NextRequest, context: Context, method: 'GET' | 'POST')
     if (method === 'GET') return response(200, {
       storageReady: data.storageReady === true, configured: data.configured === true, generationConfigured: data.generationConfigured === true, freshLogin: data.freshLogin === true,
       operationId: typeof data.operationId === 'string' && uuid.test(data.operationId) ? data.operationId : null,
+      generationOperationId: typeof data.generationOperationId === 'string' && uuid.test(data.generationOperationId) ? data.generationOperationId : null,
       hasKey: data.hasKey === true, recoveryAvailable: data.recoveryAvailable === true, replacementApproved: data.replacementApproved === true, fingerprintSha256: fingerprint(data.fingerprintSha256),
       lifecycleState: Number.isInteger(data.lifecycleState) ? data.lifecycleState : null, portalVerified: false
     });

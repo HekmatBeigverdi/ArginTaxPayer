@@ -85,4 +85,6 @@ internal interface IGeneratedKeyCustody
     Task EnsureReadyAsync(CancellationToken ct);
     Task<SealedGeneratedKey> StageAsync(KeyProtectionIdentity id, GeneratedRsaKey key, CancellationToken ct);
     Task<SealedGeneratedKey?> RecoverAsync(KeyProtectionIdentity id, CancellationToken ct);
+    Task<GeneratedKeyHandoff?> RecoverInitialHandoffAsync(KeyProtectionIdentity id, CancellationToken ct)
+        => Task.FromResult<GeneratedKeyHandoff?>(null);
 }

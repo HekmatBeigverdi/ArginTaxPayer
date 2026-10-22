@@ -49,13 +49,20 @@ internal sealed class SigningKeyGenerationService(ISigningGenerationJournal jour
                     handoff = GeneratedKeyHandoff.Create(key.PrivateMaterial.Bytes.ToArray(), key.PublicSpkiDer);
                 receipt = await custody.StageAsync(id, key, ct);
             }
-            else receipt = await custody.RecoverAsync(id, ct);
+            else
+            {
+                receipt = await custody.RecoverAsync(id, ct);
+                if (includeInitialHandoff && receipt is not null)
+                    handoff = await custody.RecoverInitialHandoffAsync(id, ct);
+            }
             if (receipt is null) return new(new(SigningGenerationStatus.RecoveryRequired), null);
             if (receipt.Identity != id) return new(new(SigningGenerationStatus.IntegrityFailure), null);
             var result = await journal.CompleteGenerationAsync(bearer, request.OperationId, receipt, ct);
-            var effective = !admission.OwnsClaim && result.Status == SigningGenerationStatus.Created
+            var effective = !admission.OwnsClaim && handoff is null && result.Status == SigningGenerationStatus.Created
                 ? result with { Status = SigningGenerationStatus.Replayed } : result;
-            if (effective.Status != SigningGenerationStatus.Created || !admission.OwnsClaim)
+            // Only the transaction that first commits may release an initial handoff.
+            // Concurrent recovery and committed-operation replay never release it again.
+            if (result.Status != SigningGenerationStatus.Created)
             {
                 handoff?.Dispose();
                 handoff = null;

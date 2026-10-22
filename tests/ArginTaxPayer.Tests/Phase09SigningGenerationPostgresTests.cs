@@ -88,6 +88,61 @@ public sealed class Phase09SigningGenerationPostgresTests
         new((ISigningGenerationJournal)new EfSigningOperationRepository(db), custody, factory);
 
     [Phase09PostgresFact]
+    public async Task Approved_replacement_resumes_pending_generation_and_consumes_approval_with_selection_audit()
+    {
+        var f = await CreateFixtureAsync();
+        var reviewer = await CreateFixtureAsync();
+        await using var db = new ArginTaxPayerDbContext(f.Options);
+        var custody = new Phase09SigningKeyGenerationTests.Custody { RecoverHandoff = true };
+        var factory = new Phase09SigningKeyGenerationTests.Factory();
+        var service = Service(db, custody, factory);
+        Assert.Equal(SigningGenerationStatus.Created, (await service.GenerateAsync(f.Token, Request(f))).Status);
+        var prior = await db.SigningKeyVersions.SingleAsync(k => k.FiscalMemoryId == f.Scope.FiscalMemoryId);
+        var now = DateTime.UtcNow;
+        var approval = new SigningChangeRequest
+        {
+            Id = Guid.NewGuid(), CustomerUserId = f.Scope.CustomerUserId,
+            TaxpayerId = f.Scope.TaxpayerId, FiscalMemoryId = f.Scope.FiscalMemoryId,
+            CurrentKeyVersionId = prior.Id, ExpectedKeyRevision = prior.Revision,
+            Kind = 3, State = 2, ReasonCode = "technical_issue", Explanation = "Synthetic replacement test",
+            RequestedByUserId = f.Scope.CustomerUserId, RequestedAtUtc = now,
+            ReviewedByUserId = reviewer.Scope.CustomerUserId, ReviewedAtUtc = now,
+            DecisionReason = "Synthetic approval", ExpiresAtUtc = now.AddHours(24), Revision = 1
+        };
+        db.SigningChangeRequests.Add(approval);
+        db.SigningAuditEvents.Add(new SigningAuditEvent
+        {
+            Id = Guid.NewGuid(), CustomerUserId = f.Scope.CustomerUserId,
+            TaxpayerId = f.Scope.TaxpayerId, FiscalMemoryId = f.Scope.FiscalMemoryId,
+            OperationRecordId = prior.OriginOperationRecordId, ActorUserId = reviewer.Scope.CustomerUserId,
+            SubjectKind = 4, SubjectId = approval.Id, Revision = 1,
+            ActionCode = "synthetic_approval", OutcomeCode = "Approved", OccurredAtUtc = now
+        });
+        await db.SaveChangesAsync();
+        custody.LoseAcknowledgement = true;
+        var replacement = Request(f);
+        using var interrupted = await service.GenerateWithInitialHandoffAsync(f.Token, replacement);
+        Assert.Equal(SigningGenerationStatus.RecoveryRequired, interrupted.Result.Status);
+        var state = await new EfSigningOperationRepository(db).ReadImportOnboardingAsync(f.Token,
+            f.Scope.TaxpayerId, f.Scope.FiscalMemoryId);
+        Assert.True(state.ReplacementApproved);
+        Assert.Equal(replacement.OperationId, state.GenerationOperationId);
+        Assert.Null(state.OperationId);
+        using var recovered = await service.GenerateWithInitialHandoffAsync(f.Token, replacement);
+        Assert.Equal(SigningGenerationStatus.Created, recovered.Result.Status);
+        Assert.NotNull(recovered.Handoff);
+        Assert.Equal(2, factory.Calls);
+        db.ChangeTracker.Clear();
+        Assert.Equal(4, (await db.SigningChangeRequests.SingleAsync(r => r.Id == approval.Id)).State);
+        var selected = await db.SigningKeySelections.SingleAsync(s => s.FiscalMemoryId == f.Scope.FiscalMemoryId);
+        Assert.Equal(recovered.Result.PublicKey!.KeyVersionId, selected.KeyVersionId);
+        Assert.True(await db.SigningAuditEvents.AnyAsync(e => e.SubjectKind == 3 &&
+            e.SubjectId == selected.FiscalMemoryId && e.Revision == selected.Revision));
+        using var replay = await service.GenerateWithInitialHandoffAsync(f.Token, replacement);
+        Assert.Null(replay.Handoff);
+    }
+
+    [Phase09PostgresFact]
     public async Task Initial_generation_seals_with_atomic_audit_and_public_replay_without_selection()
     {
         var f = await CreateFixtureAsync();

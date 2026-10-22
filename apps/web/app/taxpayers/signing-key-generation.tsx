@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import OperationMessageBox from "./operation-message-box";
 
 type Memory = { id: string; memoryIdentifier: string; status: number };
-type State = { storageReady: boolean; configured: boolean; generationConfigured: boolean; freshLogin: boolean; hasKey: boolean; replacementApproved: boolean; fingerprintSha256: string | null };
+type State = { storageReady: boolean; configured: boolean; generationConfigured: boolean; freshLogin: boolean; operationId: string | null; hasKey: boolean; replacementApproved: boolean; fingerprintSha256: string | null };
 
 export default function SigningKeyGeneration({ taxpayerId, memories, loadingMemories, hideMemorySelector = false, onCompleted }:
   { taxpayerId: string; memories: Memory[]; loadingMemories: boolean; hideMemorySelector?: boolean; onCompleted?: () => void }) {
@@ -16,6 +16,8 @@ export default function SigningKeyGeneration({ taxpayerId, memories, loadingMemo
   const [loadingState, setLoadingState] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const operation = useRef("");
+  const [refreshVersion, setRefreshVersion] = useState(0);
 
   useEffect(() => {
     if (!memoryId) return;
@@ -26,11 +28,11 @@ export default function SigningKeyGeneration({ taxpayerId, memories, loadingMemo
     }).then(async response => {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "وضعیت کلید قابل دریافت نیست.");
-      if (active) setState(data);
+      if (active) { setState(data); operation.current = data.generationOperationId || crypto.randomUUID(); }
     }).catch(ex => { if (active) setError(ex instanceof Error ? ex.message : "خطا در دریافت وضعیت کلید."); })
       .finally(() => { if (active) setLoadingState(false); });
     return () => { active = false; };
-  }, [taxpayerId, memoryId]);
+  }, [taxpayerId, memoryId, refreshVersion]);
 
   async function generate() {
     if (busy || !state?.storageReady || !state?.generationConfigured || !state.freshLogin || !consent || !memoryId ||
@@ -40,7 +42,7 @@ export default function SigningKeyGeneration({ taxpayerId, memories, loadingMemo
       const response = await fetch(`/api/signing/${taxpayerId}/${memoryId}/generate`, {
         method: "POST", cache: "no-store", credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ operationId: crypto.randomUUID(), consentVersion: "server-custody-v1", acceptServerCustody: true }),
+        body: JSON.stringify({ operationId: operation.current || crypto.randomUUID(), consentVersion: "server-custody-v1", acceptServerCustody: true }),
         signal: AbortSignal.timeout(35000)
       });
       const type = response.headers.get("content-type") || "";
@@ -84,6 +86,8 @@ export default function SigningKeyGeneration({ taxpayerId, memories, loadingMemo
   if (loadingMemories) return <p className="field-hint">در حال دریافت حافظه مالیاتی…</p>;
   if (!memoryId) return <p className="field-hint">ابتدا کد حافظه مالیاتی را ثبت کنید.</p>;
   return <div className="signing-key-generation" aria-busy={busy}>
+    <button type="button" className="identity-secondary" disabled={busy || loadingState}
+      onClick={() => setRefreshVersion(value => value + 1)}>بازخوانی مجوز و وضعیت ساخت</button>
     {!hideMemorySelector && <label>حافظه مالیاتی
       <select value={memoryId} disabled={busy} onChange={event => setSelected(event.target.value)}>
         {memories.map(item => <option key={item.id} value={item.id}>{item.memoryIdentifier}</option>)}

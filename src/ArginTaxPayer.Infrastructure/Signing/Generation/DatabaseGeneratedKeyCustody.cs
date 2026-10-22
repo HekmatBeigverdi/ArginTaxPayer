@@ -32,6 +32,14 @@ internal sealed class DatabaseGeneratedKeyCustody(ProtectedKeyEnvelopeStore stor
         return stored is null ? null : await ReceiptAsync(id, stored, ct);
     }
 
+    public async Task<GeneratedKeyHandoff?> RecoverInitialHandoffAsync(KeyProtectionIdentity id, CancellationToken ct)
+    {
+        var stored = await store.RecoverAsync(id, ct);
+        if (stored is null) return null;
+        using var material = await protector.UnprotectAsync(id, stored.Envelope, ct);
+        return GeneratedKeyHandoff.Create(material.Bytes.ToArray(), RsaSigningKeyMaterial.DerivePublic(material.Bytes));
+    }
+
     private async Task<SealedGeneratedKey> ReceiptAsync(KeyProtectionIdentity id, StoredKeyEnvelope stored,
         CancellationToken ct)
     {

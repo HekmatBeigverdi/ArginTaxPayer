@@ -89,8 +89,11 @@ export default function SigningChangeRequestPanel({ taxpayerId, memoryId }: {
     </div>
     {error && <OperationMessageBox key={error} kind="error" title="خطای درخواست تغییر">{error}</OperationMessageBox>}
     {notice && <OperationMessageBox key={notice} kind="success" title="درخواست ثبت شد">{notice}</OperationMessageBox>}
-    {pending && <OperationMessageBox kind="warning" title="درخواست باز موجود است">
-      درخواست قبلی هنوز در انتظار بررسی یا مصرف مجوز است؛ ایجاد درخواست تکراری مجاز نیست.
+    {items.some(x => x.state === 1) && <OperationMessageBox kind="warning" title="درخواست در انتظار بررسی است">
+      درخواست شما منتظر بررسی مدیر سطح ۱ است.
+    </OperationMessageBox>}
+    {items.some(x => x.state === 2) && <OperationMessageBox kind="info" title="درخواست تأیید شده است">
+      نیازی به درخواست دوباره نیست. برای ادامه، تب «ساخت کلید جدید» را باز کنید و با ورود تازه، ساخت و دانلود را انجام دهید. مجوز تأییدشده ۲۴ ساعت اعتبار دارد و در فهرست انتظار مدیر نمایش داده نمی‌شود.
     </OperationMessageBox>}
     <form className="signing-change-form" onSubmit={submit}>
       <label>نوع درخواست<select value={kind} disabled={busy || pending} onChange={e => setKind(Number(e.target.value))}>
