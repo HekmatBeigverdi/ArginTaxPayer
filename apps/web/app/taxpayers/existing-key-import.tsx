@@ -98,7 +98,7 @@ export default function ExistingKeyImport({ taxpayerId, memories, loadingMemorie
     {notice && <p role="status" className="party-success">{notice}</p>}
     {state?.fingerprintSha256 && <p className="field-hint">اثر انگشت کلید عمومی (SHA-256): <bdi dir="ltr">{state.fingerprintSha256}</bdi></p>}
     {sealed ? <p className="field-hint">کلید این حافظه ثبت شده است. تعریف کلید جایگزین به تأیید درخواست تغییر نیاز دارد.</p> : state && !loading && <>
-      {!state.configured && <p role="status" className="field-hint">نگهداری امن کلید هنوز توسط مدیر سامانه تنظیم نشده است؛ ورود کلید پس از آماده‌سازی فعال می‌شود.</p>}
+      {!state.configured && <p role="status" className="field-hint">API در حال اجرا قابلیت ورود کلید را غیرفعال گزارش می‌کند. تنظیمات SigningKeyProtection و SigningKeyImport را در فرایند API بررسی و سرویس را مجدداً راه‌اندازی کنید. سلامت دیتابیس به معنی فعال‌بودن Vault نیست.</p>}
       {!state.freshLogin && <p className="field-hint">برای ورود کلید دوباره وارد حساب شوید و ظرف پنج دقیقه اقدام کنید.</p>}
       <form onSubmit={submit} autoComplete="off">
         <p className="field-hint">متن فایل TXT کلید خصوصی قبلی را وارد کنید. قالب قابل قبول RSA 2048 و PKCS#8 با عنوان PRIVATE KEY یا ENCRYPTED PRIVATE KEY است. RSA PRIVATE KEY پشتیبانی نمی‌شود.</p>
