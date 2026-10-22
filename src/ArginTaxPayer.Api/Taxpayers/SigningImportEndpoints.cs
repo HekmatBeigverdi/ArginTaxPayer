@@ -28,7 +28,7 @@ public static class SigningImportEndpoints
             {
                 var state = await journal.ReadImportOnboardingAsync(Bearer(http), taxpayerId, memoryId, ct);
                 if (state.Status != SigningGenerationStatus.Replayed) return Failure(state.Status);
-                return Results.Ok(new { configured = Configured(config), state.FreshLogin,
+                return Results.Ok(new { configured = Configured(config), generationConfigured = config["SigningKeyGeneration:Enabled"] == "true" && config["SigningKeyProtection:Enabled"] == "true", state.FreshLogin,
                     state.OperationId, state.HasKey, state.FingerprintSha256, state.LifecycleState,
                     portalVerified = false });
             }
