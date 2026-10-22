@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-const cs = p => readFileSync(new URL("../../"+p,import.meta.url),"utf8");
+const cs = p => readFileSync(new URL("../../../"+p,import.meta.url),"utf8");
 const ts = p => readFileSync(new URL("../"+p,import.meta.url),"utf8");
 
 test("key claim admits replacement only with an unconsumed 24h approval tied to prior revision",()=>{

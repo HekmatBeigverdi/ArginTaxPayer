@@ -10,7 +10,7 @@ test("Level1-only approvals route is linked only for Level1",()=>{
  assert.match(page,/AdminSigningReviewWorkspace/);
 });
 test("admin decisions are role-and-MFA authorized on server and idempotency-gated",()=>{
- const service=readFileSync(new URL("../../src/ArginTaxPayer.Infrastructure/Signing/Review/EfSigningAdminReviewWorkflow.cs",import.meta.url),"utf8");
+ const service=readFileSync(new URL("../../../src/ArginTaxPayer.Infrastructure/Signing/Review/EfSigningAdminReviewWorkflow.cs",import.meta.url),"utf8");
  assert.match(service,/IdentityRoleNames.Level1/);
  assert.match(service,/EnabledAtUtc != null/);
  assert.match(service,/req.RequestedByUserId == admin/);
@@ -19,10 +19,10 @@ test("admin decisions are role-and-MFA authorized on server and idempotency-gate
  assert.match(service,/BeginTransactionAsync\(IsolationLevel.Serializable/);
  assert.match(service,/AddHours\(24\)/);
  assert.match(service,/SigningAuditEvents.Add/);
- assert.doesNotMatch(service,/PrivateMaterial|ExportPkcs8|RemoveRange|\.LifecycleState\s*=(?!=)/);
+ assert.doesNotMatch(service,/PrivateMaterial|ExportPkcs8|RemoveRange/);
 });
 test("approval BFF prevents cross origin posts and does not expose credentials",()=>{
- const api=readFileSync(new URL("../../src/ArginTaxPayer.Api/Taxpayers/SigningAdminReviewEndpoints.cs",import.meta.url),"utf8");
+ const api=readFileSync(new URL("../../../src/ArginTaxPayer.Api/Taxpayers/SigningAdminReviewEndpoints.cs",import.meta.url),"utf8");
  const post=source("app/api/admin/signing-change-requests/[requestId]/decision/route.ts");
  const list=source("app/api/admin/signing-change-requests/route.ts");
  assert.match(api,/IsLoopbackAddress/);
@@ -33,7 +33,7 @@ test("approval BFF prevents cross origin posts and does not expose credentials",
 });
 
 test("approved suspension is applied once and preserves the encrypted key",()=>{
- const service=readFileSync(new URL("../../src/ArginTaxPayer.Infrastructure/Signing/Review/EfSigningAdminReviewWorkflow.cs",import.meta.url),"utf8");
+ const service=readFileSync(new URL("../../../src/ArginTaxPayer.Infrastructure/Signing/Review/EfSigningAdminReviewWorkflow.cs",import.meta.url),"utf8");
  assert.match(service,/immediateSuspension = decision.Approve && req.Kind == 1/);
  assert.match(service,/req.ConsumedByOperationRecordId = key.OriginOperationRecordId/);
  assert.match(service,/key.LifecycleState = 4/);
@@ -43,8 +43,8 @@ test("approved suspension is applied once and preserves the encrypted key",()=>{
 });
 
 test("compromise approval suspends compromised key before owner stages replacement",()=>{
- const service=readFileSync(new URL("../../src/ArginTaxPayer.Infrastructure/Signing/Review/EfSigningAdminReviewWorkflow.cs",import.meta.url),"utf8");
- const journal=readFileSync(new URL("../../src/ArginTaxPayer.Infrastructure/Persistence/Signing/EfSigningGenerationJournal.cs",import.meta.url),"utf8");
+ const service=readFileSync(new URL("../../../src/ArginTaxPayer.Infrastructure/Signing/Review/EfSigningAdminReviewWorkflow.cs",import.meta.url),"utf8");
+ const journal=readFileSync(new URL("../../../src/ArginTaxPayer.Infrastructure/Persistence/Signing/EfSigningGenerationJournal.cs",import.meta.url),"utf8");
  assert.match(service,/decision.Approve && req.Kind == 2/);
  assert.match(service,/req.ExpectedKeyRevision = key.Revision/);
  assert.match(service,/compromised_key_suspended/);
