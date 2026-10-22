@@ -45,7 +45,7 @@ export default function SigningKeyGeneration({ taxpayerId, memories, loadingMemo
       if (!response.ok) {
         const data = await response.json().catch(() => null);
         const explanations: Record<string, string> = {
-          custody_unavailable: "Vault در دسترس نیست یا فعال نشده است.",
+          custody_unavailable: "نگهداری امن کلید در دسترس نیست.",
           reauthentication_required: "برای ساخت کلید مجدداً وارد حساب شوید.",
           unauthorized: "نشست ورود معتبر نیست.",
           forbidden: "دسترسی ساخت کلید فقط برای مالک مؤدی مجاز است.",
@@ -91,7 +91,7 @@ export default function SigningKeyGeneration({ taxpayerId, memories, loadingMemo
     {state?.fingerprintSha256 && <p className="field-hint">اثر انگشت کلید عمومی فعلی: <bdi dir="ltr">{state.fingerprintSha256}</bdi></p>}
     {loadingState && <p role="status" className="field-hint">در حال بررسی تنظیمات ساخت کلید…</p>}
     {!loadingState && state && !state.generationConfigured &&
-      <p role="status" className="field-hint">ساخت کلید در API فعال نیست. تنظیمات SigningKeyGeneration__Enabled و SigningKeyProtection__Enabled را در محیط توسعه بررسی کنید.</p>}
+      <p role="status" className="field-hint">ساخت کلید در API آماده نیست. حالت Database، کلید اصلی رمزگذاری و Migration نگهداری کلید را بررسی کنید.</p>}
     {state && !state.freshLogin && <p className="field-hint">برای تولید کلید دوباره احراز هویت کنید.</p>}
     <label className="signing-custody-consent"><input type="checkbox" checked={consent} disabled={busy}
       onChange={event => setConsent(event.target.checked)} />رضایت می‌دهم کلید جدید تولید و نسخه اولیه خصوصی آن فقط یک‌بار دانلود شود.</label>
