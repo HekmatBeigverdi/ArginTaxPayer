@@ -20,6 +20,7 @@ using System.Text.Json;
 using ArginTaxPayer.Infrastructure.Signing.Import;
 using ArginTaxPayer.Infrastructure.Signing.Generation;
 using ArginTaxPayer.Infrastructure.Signing.Connection;
+using ArginTaxPayer.Infrastructure.Signing.Review;
 using ArginTaxPayer.Infrastructure.Persistence.Signing;
 using System.Threading.RateLimiting;
 using System.Security.Cryptography;
@@ -50,6 +51,7 @@ if (identityDevelopmentEnabled)
         { AllowAutoRedirect = false, UseCookies = false });
     builder.Services.AddPhase09AuthorityConnection(builder.Configuration);
     builder.Services.AddScoped<EfSigningOperationRepository>();
+    builder.Services.AddScoped<ISigningChangeRequestSubmission, EfSigningChangeRequestSubmission>();
     builder.Services.AddRateLimiter(options =>
     {
         options.RejectionStatusCode = 429;
@@ -166,6 +168,7 @@ if (app.Environment.IsDevelopment())
         app.MapSigningImportRecoveryEndpoints();
         app.MapSigningGenerationEndpoints();
         app.MapSigningConnectionEndpoints();
+        app.MapSigningChangeRequestEndpoints();
         app.MapPartyDevelopmentEndpoints();
         app.MapFiscalParticipantDirectoryEndpoints();
         app.MapInvoiceParticipantEndpoints();
