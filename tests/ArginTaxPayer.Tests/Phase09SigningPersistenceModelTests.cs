@@ -12,6 +12,8 @@ namespace ArginTaxPayer.Tests;
 public sealed class Phase09SigningPersistenceModelTests
 {
     private const string MigrationId = "20261020181500_AddPhase09SigningMetadata";
+    private const string DatabaseCustodyConstraintMigrationId =
+        "20261022150000_AllowDatabaseSigningCustodyReference";
     private static ArginTaxPayerDbContext CreateContext() =>
         new(new DbContextOptionsBuilder<ArginTaxPayerDbContext>()
             .UseNpgsql("Host=127.0.0.1;Database=argintaxpayer_test;Username=unused;Password=unused").Options);
@@ -115,6 +117,23 @@ public sealed class Phase09SigningPersistenceModelTests
     {
         using var db = CreateContext();
         Assert.False(db.Database.HasPendingModelChanges());
+    }
+
+    [Fact]
+    public void Custody_reference_constraint_accepts_database_and_vault_locators()
+    {
+        using var db = CreateContext();
+        var entity = db.GetService<IDesignTimeModel>().Model.FindEntityType(typeof(SigningKeyVersion))!;
+        var constraint = entity.GetCheckConstraints().Single(c => c.Name == "ck_p09_key_5");
+
+        Assert.Contains("(vault|db)", constraint.Sql);
+        Assert.Contains(DatabaseCustodyConstraintMigrationId, db.Database.GetMigrations());
+
+        var script = db.GetService<IMigrator>().GenerateScript(
+            "20261022140000_AddEncryptedDatabaseSigningCustody",
+            DatabaseCustodyConstraintMigrationId);
+        Assert.Contains("DROP CONSTRAINT IF EXISTS ck_p09_key_5", script);
+        Assert.Contains("^(vault|db)://", script);
     }
 
     [Fact]

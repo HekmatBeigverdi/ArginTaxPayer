@@ -97,7 +97,7 @@ internal static class SigningModelConfiguration
                 t.HasCheckConstraint("ck_p09_key_2", "version_number > 0");
                 t.HasCheckConstraint("ck_p09_key_3", "public_fingerprint_sha256 ~ '^[0-9a-f]{64}$'");
                 t.HasCheckConstraint("ck_p09_key_4", "octet_length(public_spki_der) BETWEEN 1 AND 4096");
-                t.HasCheckConstraint("ck_p09_key_5", "custody_reference ~ '^vault://[A-Za-z0-9/_-]{1,248}$'");
+                t.HasCheckConstraint("ck_p09_key_5", "custody_reference ~ '^(vault|db)://[A-Za-z0-9/_-]{1,248}$'");
                 t.HasCheckConstraint("ck_p09_key_6", "lifecycle_state BETWEEN 1 AND 5");
                 t.HasCheckConstraint("ck_p09_key_7", "portal_state IN (1,2)");
                 t.HasCheckConstraint("ck_p09_key_8", "public_match IN (1,2,3)");

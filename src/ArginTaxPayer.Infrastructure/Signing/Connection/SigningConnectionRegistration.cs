@@ -27,7 +27,8 @@ public static class SigningConnectionRegistration
             sp.GetRequiredService<EfSigningOperationRepository>(),
             sp.GetRequiredService<ProtectedKeyEnvelopeStore>(),
             sp.GetRequiredService<KeyEnvelopeProtector>(),
-            sp.GetRequiredService<IHttpClientFactory>().CreateClient("phase09-authority")));
+            sp.GetRequiredService<IHttpClientFactory>().CreateClient("phase09-authority"),
+            sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<LegacyTaxAuthorityConnection>>()));
         return services;
     }
 }

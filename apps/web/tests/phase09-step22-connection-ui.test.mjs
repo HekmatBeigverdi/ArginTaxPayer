@@ -11,13 +11,22 @@ test('connection checks origin, session and avoids cache', () => {
   assert.match(route, /ACCESS_COOKIE/);
   assert.match(route, /no-store/);
 });
+test('connection accepts an empty POST body without mistaking the request stream for payload', () => {
+  assert.match(route, /getReader\(\)/);
+  assert.match(route, /reader\.read\(\)/);
+  assert.match(route, /bodyBytes > 0/);
+  assert.doesNotMatch(route, /if \(req\.body\) return fail\(413/);
+});
 test('connection result only exposes known public metadata', () => {
   assert.match(route, /authenticationConfirmed/);
   assert.match(route, /portalRegistrationConfirmed: false/);
   assert.match(route, /fiscalMemoryActivationConfirmed: false/);
+  assert.match(route, /fiscalInformation: authenticated \? fiscalInformation : null/);
 });
 test('taxpayer workspace exposes read-only connection test', () => {
   assert.match(ui, /تست اتصال/);
   assert.match(ui, /UnsupportedProfile/);
+  assert.match(ui, /اتصال موفق است؛ اطلاعات حافظه مالیاتی دریافت شد/);
+  assert.match(ui, /economicCode/);
   assert.match(workspace, /SigningConnectionTest/);
 });

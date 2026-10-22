@@ -2,7 +2,9 @@
 import { useEffect, useState } from "react";
 
 type Memory = { id: string; memoryIdentifier: string };
-type Result = { status: string; testedAtUtc: string };
+type Result = { status: string; testedAtUtc: string; fiscalInformation?: {
+  nameTrade: string; fiscalStatus: string; economicCode: string; nationalId: string
+} | null };
 const labels: Record<string, string> = {
   Authenticated: "احراز هویت موفق است؛ ثبت کلید و فعال بودن حافظه تأیید نشده است.",
   AuthenticationRejected: "احراز هویت رد شد.",
@@ -51,7 +53,15 @@ export default function SigningConnectionTest({ taxpayerId, memories, loadingMem
       <button type="button" className="identity-secondary" disabled={busy}
         onClick={() => void testConnection()}>{busy ? "در حال بررسی…" : "تست اتصال"}</button></>}
     {error && <p role="alert" className="party-error">{error}</p>}
-    {result && <p role="status">{labels[result.status]} — {new Date(result.testedAtUtc).toLocaleString("fa-IR")}</p>}
+    {result && <p role="status">{result.status === "Authenticated" && result.fiscalInformation
+      ? "اتصال موفق است؛ اطلاعات حافظه مالیاتی دریافت شد."
+      : labels[result.status]} — {new Date(result.testedAtUtc).toLocaleString("fa-IR")}</p>}
+    {result?.status === "Authenticated" && result.fiscalInformation && <dl className="field-hint">
+      <div><dt>نام تجاری</dt><dd>{result.fiscalInformation.nameTrade}</dd></div>
+      <div><dt>وضعیت حافظه</dt><dd>{result.fiscalInformation.fiscalStatus}</dd></div>
+      <div><dt>کد اقتصادی</dt><dd>{result.fiscalInformation.economicCode}</dd></div>
+      <div><dt>شناسه ملی</dt><dd>{result.fiscalInformation.nationalId}</dd></div>
+    </dl>}
     <p className="field-hint">این آزمون صورتحساب ارسال نمی‌کند و تأیید حافظه نیست.</p>
   </section>;
 }

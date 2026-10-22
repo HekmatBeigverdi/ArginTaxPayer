@@ -29,8 +29,8 @@ test("API recovery is limited to loopback and authenticated owner", () => {
 });
 
 test("recovery reports safe stage without secret-bearing details", () => {
-  const service = readFileSync(new URL("../../src/ArginTaxPayer.Infrastructure/Signing/Import/DatabaseSigningImportRecovery.cs", import.meta.url), "utf8");
-  const api = readFileSync(new URL("../../src/ArginTaxPayer.Api/Taxpayers/SigningImportRecoveryEndpoints.cs", import.meta.url), "utf8");
+  const service = readFileSync(new URL("../../../src/ArginTaxPayer.Infrastructure/Signing/Import/DatabaseSigningImportRecovery.cs", import.meta.url), "utf8");
+  const api = readFileSync(new URL("../../../src/ArginTaxPayer.Api/Taxpayers/SigningImportRecoveryEndpoints.cs", import.meta.url), "utf8");
   const bff = read("app/api/signing/[taxpayerId]/[memoryId]/recover-import/route.ts");
   assert.match(service, /"envelope_format"/);
   assert.match(service, /"decrypt"/);

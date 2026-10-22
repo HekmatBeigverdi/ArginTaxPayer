@@ -16,6 +16,21 @@ const fail = (status: number, error: string) => NextResponse.json({ error }, {
   status, headers: { 'Cache-Control': 'no-store', Pragma: 'no-cache' }
 });
 
+async function hasRequestBody(req: NextRequest): Promise<boolean> {
+  const declaredLength = req.headers.get('content-length');
+  if (declaredLength !== null && (!/^\d+$/.test(declaredLength) || Number(declaredLength) > 0))
+    return true;
+  if (!req.body) return false;
+  const reader = req.body.getReader();
+  try {
+    const first = await reader.read();
+    const bodyBytes = first.done ? 0 : first.value?.byteLength ?? 0;
+    return bodyBytes > 0;
+  } finally {
+    await reader.cancel().catch(() => undefined);
+  }
+}
+
 export const dynamic = 'force-dynamic';
 export async function POST(req: NextRequest, ctx: Context) {
   if (!identityUiEnabled()) return fail(404, 'unavailable');
@@ -26,9 +41,7 @@ export async function POST(req: NextRequest, ctx: Context) {
   const bearer = req.cookies.get(ACCESS_COOKIE)?.value;
   if (!bearer) return fail(401, 'unauthorized');
   // No client-supplied endpoint, profile, signing bytes or secrets are accepted.
-  if (req.headers.get('content-length') && req.headers.get('content-length') !== '0')
-    return fail(413, 'request_too_large');
-  if (req.body) return fail(413, 'request_too_large');
+  if (await hasRequestBody(req)) return fail(413, 'request_too_large');
   try {
     const upstream = await fetch(identityApiOrigin() +
       `/api/dev/signing/${taxpayerId}/${memoryId}/connection-test`, {
@@ -48,14 +61,22 @@ export async function POST(req: NextRequest, ctx: Context) {
     // Fail closed: do not trust externally supplied success flags.
     const authenticated = data.status === 'Authenticated' &&
       data.safeCode === 'authority_authenticated' && data.authenticationConfirmed === true;
+    const fiscalInformation = data.fiscalInformation;
+    const hasFiscalInformation = fiscalInformation &&
+      typeof fiscalInformation.nameTrade === 'string' &&
+      typeof fiscalInformation.fiscalStatus === 'string' &&
+      typeof fiscalInformation.economicCode === 'string' &&
+      typeof fiscalInformation.nationalId === 'string';
     if ((data.status === 'Authenticated') !== authenticated ||
-        (data.status !== 'Authenticated' && data.authenticationConfirmed === true)) {
+        (data.status !== 'Authenticated' && data.authenticationConfirmed === true) ||
+        (authenticated && !hasFiscalInformation)) {
       return fail(502, 'invalid_response');
     }
     return NextResponse.json({
       status: data.status, safeCode: data.safeCode, testedAtUtc: data.testedAtUtc,
       authenticationConfirmed: authenticated,
-      portalRegistrationConfirmed: false, fiscalMemoryActivationConfirmed: false
+      portalRegistrationConfirmed: false, fiscalMemoryActivationConfirmed: false,
+      fiscalInformation: authenticated ? fiscalInformation : null
     }, { status: 200, headers: { 'Cache-Control': 'no-store', Pragma: 'no-cache' } });
   } catch {
     return fail(503, 'service_unavailable');

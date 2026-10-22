@@ -2523,7 +2523,7 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("ck_p09_key_4", "octet_length(public_spki_der) BETWEEN 1 AND 4096");
 
-                            t.HasCheckConstraint("ck_p09_key_5", "custody_reference ~ '^vault://[A-Za-z0-9/_-]{1,248}$'");
+                            t.HasCheckConstraint("ck_p09_key_5", "custody_reference ~ '^(vault|db)://[A-Za-z0-9/_-]{1,248}$'");
 
                             t.HasCheckConstraint("ck_p09_key_6", "lifecycle_state BETWEEN 1 AND 5");
 

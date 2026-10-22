@@ -24,7 +24,8 @@ public sealed record SigningConnectionTestResult(
     string SafeCode,
     bool AuthenticationConfirmed,
     bool PortalRegistrationConfirmed = false,
-    bool FiscalMemoryActivationConfirmed = false)
+    bool FiscalMemoryActivationConfirmed = false,
+    FiscalInformationSnapshot? FiscalInformation = null)
 {
     public static SigningConnectionTestResult Create(
         SigningConnectionTestStatus status, DateTime testedAtUtc)
@@ -35,6 +36,12 @@ public sealed record SigningConnectionTestResult(
             status == SigningConnectionTestStatus.Authenticated);
     }
 }
+
+public sealed record FiscalInformationSnapshot(
+    string NameTrade,
+    string FiscalStatus,
+    string EconomicCode,
+    string NationalId);
 
 /// <summary>
 /// No generic signing or token-returning operation: the authenticated identity, fiscal

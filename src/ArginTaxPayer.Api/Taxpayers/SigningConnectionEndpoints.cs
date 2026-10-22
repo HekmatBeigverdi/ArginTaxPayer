@@ -54,7 +54,8 @@ public static class SigningConnectionEndpoints
                 result.TestedAtUtc,
                 result.AuthenticationConfirmed,
                 result.PortalRegistrationConfirmed,
-                result.FiscalMemoryActivationConfirmed
+                result.FiscalMemoryActivationConfirmed,
+                fiscalInformation = result.FiscalInformation
             }, statusCode: 200);
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)

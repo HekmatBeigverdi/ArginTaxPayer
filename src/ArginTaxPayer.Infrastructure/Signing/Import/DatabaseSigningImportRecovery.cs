@@ -23,7 +23,8 @@ internal sealed class DatabaseSigningImportRecovery(
         var ownerId = await db.TaxpayerProfiles.AsNoTracking()
             .Where(p => p.Id == taxpayerId).Select(p => p.CustomerUserId)
             .SingleOrDefaultAsync(ct);
-        if (ownerId is null || ownerId == Guid.Empty) return SigningGenerationStatus.NotFound;
+        if (ownerId is null || ownerId == Guid.Empty)
+            return new(SigningGenerationStatus.NotFound, "owner_not_found");
         var owner = ownerId.Value;
 
         var candidate = await (
