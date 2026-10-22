@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 type Kind = "success" | "error" | "warning" | "info";
 type Props = {
   kind: Kind;
   title: string;
-  children: React.ReactNode;
+  children: ReactNode;
   detail?: string;
   dismissible?: boolean;
 };
