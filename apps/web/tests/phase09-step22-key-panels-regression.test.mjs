@@ -23,3 +23,11 @@ test("connection status API projects generation readiness without exposing secre
   assert.match(bff, /generationConfigured: data\.generationConfigured === true/);
   assert.match(api, /generationConfigured/);
 });
+
+test("Development API advertises effective signing flags for safe local diagnostics", () => {
+  const api = readFileSync(new URL("../../src/ArginTaxPayer.Api/Program.cs", import.meta.url), "utf8");
+  assert.match(api, /signingKeyProtectionEnabled = app.Configuration.GetValue<bool>/);
+  assert.match(api, /signingKeyImportEnabled = app.Configuration.GetValue<bool>/);
+  assert.match(api, /signingKeyGenerationEnabled = app.Configuration.GetValue<bool>/);
+  assert.match(api, /signingConnectionTestEnabled = app.Configuration.GetValue<bool>/);
+});
