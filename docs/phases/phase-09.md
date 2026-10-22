@@ -1357,3 +1357,11 @@ Owner-operated SQL proved exactly one pending imported key: signing_operations (
 **Operator acceptance:** Run focused .NET tests and `node --test apps/web/tests/phase09-step22-import-recovery.test.mjs`, typecheck/build; restart local API/Web with existing `dev-down.zsh` / `dev-up.zsh`. Log out/in again if outside five-minute fresh-login window. In the owner taxpayer -> same fiscal-memory -> Existing Key Import, click **بازیابی و نهایی‌سازی کلید ذخیره‌شده**. If recovery succeeds, confirm operation state 3, key lifecycle state 2, and `db:v1` metadata, and run live read-only connection test. No migration, SQL state updates, private-key reupload, key rotations, or test DB resets are required. If recovery fails, retain originals and report safe status only.
 
 **Verification state:** Code committed but no local runtime/.NET test or actual encrypted private-key decryption executed in this assistant session. Step22 remains open pending operator acceptance.
+
+### Step22 diagnostic recovery patch after operator verification (2026-10-22)
+
+Operator observed encrypted custody row still PRESENT, signing operation state=5, key lifecycle=1, protection_key_version=NULL; UI recovery returned generic integrity_failure. No data has been deleted, rotated or overwritten.
+
+Source review established generic integrity_failure can arise at multiple independent steps, not necessarily a bad master key. Owner-only recovery now explicitly separates envelope JSON/identity validation (envelope_format), AES-GCM key unwrap and payload authentication (decrypt), canonical RSA PKCS8 validation (pkcs8), provider version (provider_version), and signing journal finalization (journal). Only fixed safe stage codes cross the API/BFF allowlist; plaintext keys, ciphertext, AAD, credentials and exception messages remain server-side. The state remains unchanged on pre-journal failures. No DB migration is needed.
+
+Acceptance: user must pull and run build+web focused tests on macOS, restart, sign in as owner and click recovery ONCE; record stage code if not successful. Encrypted record and master key must be preserved. No live recovery result has been verified in this session.
