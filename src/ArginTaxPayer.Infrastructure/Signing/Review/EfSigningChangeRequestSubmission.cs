@@ -46,6 +46,10 @@ internal sealed class EfSigningChangeRequestSubmission(ArginTaxPayerDbContext db
         if (owner is null) return new(SigningChangeSubmissionStatus.Forbidden);
         try
         {
+            var strategy = db.Database.CreateExecutionStrategy();
+            return await strategy.ExecuteAsync(async () =>
+            {
+            db.ChangeTracker.Clear();
             await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
             var existing = await db.SigningChangeRequests.AsNoTracking().SingleOrDefaultAsync(r =>
                 r.Id == input.RequestId, ct);
@@ -89,6 +93,7 @@ internal sealed class EfSigningChangeRequestSubmission(ArginTaxPayerDbContext db
             await db.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);
             return new(SigningChangeSubmissionStatus.Created, View(record));
+            });
         }
         catch (DbUpdateException) { return new(SigningChangeSubmissionStatus.Conflict); }
         catch (Npgsql.PostgresException ex) when (ex.SqlState is "40001" or "23505")
