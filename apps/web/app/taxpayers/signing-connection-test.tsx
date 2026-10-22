@@ -61,7 +61,7 @@ export default function SigningConnectionTest({ taxpayerId, memories, loadingMem
       {result.status === "Authenticated" && result.fiscalInformation
         ? "احراز هویت و دریافت اطلاعات حافظه انجام شد."
         : labels[result.status]}
-    </OperationMessageBox>
+    </OperationMessageBox>}
     {result?.status === "Authenticated" && result.fiscalInformation && <dl className="signing-fiscal-info">
       <div><dt>نام تجاری</dt><dd>{result.fiscalInformation.nameTrade}</dd></div>
       <div><dt>وضعیت حافظه</dt><dd>{result.fiscalInformation.fiscalStatus}</dd></div>
