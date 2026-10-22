@@ -31,3 +31,13 @@ test("approval BFF prevents cross origin posts and does not expose credentials",
  assert.match(list,/ACCESS_COOKIE/);
  assert.match(post,/expectedRevision/);
 });
+
+test("approved suspension is applied once and preserves the encrypted key",()=>{
+ const service=readFileSync(new URL("../../src/ArginTaxPayer.Infrastructure/Signing/Review/EfSigningAdminReviewWorkflow.cs",import.meta.url),"utf8");
+ assert.match(service,/immediateSuspension = decision.Approve && req.Kind == 1/);
+ assert.match(service,/req.ConsumedByOperationRecordId = key.OriginOperationRecordId/);
+ assert.match(service,/key.LifecycleState = 4/);
+ assert.match(service,/change_request_suspension_applied/);
+ assert.match(service,/immediateSuspension \? req.Revision - 1 : req.Revision/);
+ assert.doesNotMatch(service,/Remove\(key\)|DeleteAsync|DeleteRange/);
+});
