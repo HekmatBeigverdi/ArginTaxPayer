@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import OperationMessageBox from "./operation-message-box";
 
 type Item = { id: string; kind: number; state: number; reasonCode: string; explanation: string;
@@ -57,7 +57,7 @@ export default function SigningChangeRequestPanel({ taxpayerId, memoryId }: {
     return () => { active = false; };
   }, [taxpayerId, memoryId, tick]);
 
-  async function submit(event: React.FormEvent<HTMLFormElement>) {
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy || !revision || explanation.trim().length < 10 || items.some(x => x.state === 1 || x.state === 2)) return;
     setBusy(true); setError(""); setNotice("");
@@ -67,7 +67,7 @@ export default function SigningChangeRequestPanel({ taxpayerId, memoryId }: {
         method: "POST", credentials: "same-origin", cache: "no-store",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ requestId, expectedKeyRevision: revision, kind, reasonCode,
-          explanation: explanation.trim() }), signal: AbortSignal.timeout(20000)
+          explanation: explanation.trim().replace(/\\s+/g, " ") }), signal: AbortSignal.timeout(20000)
       });
       const data = await res.json();
       if (!res.ok) throw new Error(errorMessages[data?.error] || "درخواست ثبت نشد.");
