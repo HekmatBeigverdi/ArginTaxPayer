@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import OperationMessageBox from "./operation-message-box";
 
 type Memory = { id: string; memoryIdentifier: string };
 type Result = { status: string; testedAtUtc: string; fiscalInformation?: {
@@ -52,11 +53,16 @@ export default function SigningConnectionTest({ taxpayerId, memories, loadingMem
       </select></label>
       <button type="button" className="identity-secondary" disabled={busy}
         onClick={() => void testConnection()}>{busy ? "در حال بررسی…" : "تست اتصال"}</button></>}
-    {error && <p role="alert" className="party-error">{error}</p>}
-    {result && <p role="status">{result.status === "Authenticated" && result.fiscalInformation
-      ? "اتصال موفق است؛ اطلاعات حافظه مالیاتی دریافت شد."
-      : labels[result.status]} — {new Date(result.testedAtUtc).toLocaleString("fa-IR")}</p>}
-    {result?.status === "Authenticated" && result.fiscalInformation && <dl className="field-hint">
+    {error && <OperationMessageBox key={error} kind="error" title="آزمون اتصال انجام نشد">{error}</OperationMessageBox>}
+    {result && <OperationMessageBox key={result.testedAtUtc + result.status}
+      kind={result.status === "Authenticated" ? "success" : result.status === "KeyNotReady" ? "warning" : "error"}
+      title={result.status === "Authenticated" ? "ارتباط با سامانه مؤدیان برقرار شد" : "نتیجه آزمون ارتباط"}
+      detail={Number.isNaN(Date.parse(result.testedAtUtc)) ? undefined : new Date(result.testedAtUtc).toLocaleString("fa-IR")}>
+      {result.status === "Authenticated" && result.fiscalInformation
+        ? "احراز هویت و دریافت اطلاعات حافظه انجام شد."
+        : labels[result.status]}
+    </OperationMessageBox>
+    {result?.status === "Authenticated" && result.fiscalInformation && <dl className="signing-fiscal-info">
       <div><dt>نام تجاری</dt><dd>{result.fiscalInformation.nameTrade}</dd></div>
       <div><dt>وضعیت حافظه</dt><dd>{result.fiscalInformation.fiscalStatus}</dd></div>
       <div><dt>کد اقتصادی</dt><dd>{result.fiscalInformation.economicCode}</dd></div>
