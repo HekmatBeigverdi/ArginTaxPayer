@@ -5,7 +5,8 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Signing;
 
 public sealed record SigningImportOnboardingState(SigningGenerationStatus Status,
     bool FreshLogin = false, Guid? OperationId = null, bool HasKey = false,
-    string? FingerprintSha256 = null, short? LifecycleState = null);
+    string? FingerprintSha256 = null, short? LifecycleState = null,
+    bool RecoveryAvailable = false);
 
 public sealed partial class EfSigningOperationRepository
 {
@@ -29,7 +30,13 @@ public sealed partial class EfSigningOperationRepository
                 o.FiscalMemoryId == memoryId && o.OperationKind == 2 &&
                 (originId == null || o.Id == originId))
             .OrderByDescending(o => o.CreatedAtUtc).FirstOrDefaultAsync(ct);
+        var recoveryAvailable = key is not null && key.LifecycleState == 1 &&
+            operation is { State: 5, OperationKind: 2, SafeErrorCode: "PROVIDER_OUTCOME_UNKNOWN" } &&
+            await db.DbSigningKeyEnvelopes.AsNoTracking().AnyAsync(e =>
+                e.KeyVersionId == key.Id && e.CustomerUserId == actor.Value &&
+                e.TaxpayerId == taxpayerId && e.FiscalMemoryId == memoryId &&
+                e.OriginOperationRecordId == operation.Id, ct);
         return new(SigningGenerationStatus.Replayed, fresh, operation?.OperationId,
-            key is not null, key?.PublicFingerprintSha256, key?.LifecycleState);
+            key is not null, key?.PublicFingerprintSha256, key?.LifecycleState, recoveryAvailable);
     }
 }
