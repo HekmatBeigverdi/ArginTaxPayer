@@ -1365,3 +1365,14 @@ Operator observed encrypted custody row still PRESENT, signing operation state=5
 Source review established generic integrity_failure can arise at multiple independent steps, not necessarily a bad master key. Owner-only recovery now explicitly separates envelope JSON/identity validation (envelope_format), AES-GCM key unwrap and payload authentication (decrypt), canonical RSA PKCS8 validation (pkcs8), provider version (provider_version), and signing journal finalization (journal). Only fixed safe stage codes cross the API/BFF allowlist; plaintext keys, ciphertext, AAD, credentials and exception messages remain server-side. The state remains unchanged on pre-journal failures. No DB migration is needed.
 
 Acceptance: user must pull and run build+web focused tests on macOS, restart, sign in as owner and click recovery ONCE; record stage code if not successful. Encrypted record and master key must be preserved. No live recovery result has been verified in this session.
+
+### Step22 taxpayer connection UI polish — approved 2026-10-22
+
+Owner reported key recovery resolved independently, then approved visual separation of existing/imported private keys versus generating a new key; this patch is presentation-only.
+
+- Replaced three stacked React workflows in taxpayer dossier with `TaxpayerConnectionPanel`: one shared fiscal-memory picker, concise readiness summary, two independent accessible tabs (`کلید خصوصی موجود`, `ساخت کلید جدید`), and a single read-only connection test below. No new signing endpoint, migration or vault dependency.
+- `OperationMessageBox` gives compact, dismissible RTL success/warning/error/info messages, explicit titles, accessible role and optional timestamp. Used by existing-key import/recovery, key generation and connection-test results. Successful authenticated authority response still explicitly does **not** prove portal registration.
+- Pass one selected fiscal-memory entry to every child so actions cannot silently use inconsistent fiscal IDs. Suppress duplicate memory selectors in this composite. Keep the original component behavior if used standalone.
+- Following successful import/recovery/key creation, refresh shared status without unmounting the message-bearing child, preserving user feedback. All existing crypto, owner authentication, fresh login, one-time ZIP download, scoped recovery, and status allowlists remain intact.
+- Added `phase09-connection-layout.test.mjs`, updated earlier workspace-location assertions in UI source tests.
+- Acceptance pending: `node --test apps/web/tests/phase09-connection-layout.test.mjs apps/web/tests/phase09-step19-taxpayer-sections.test.mjs apps/web/tests/phase09-step21-generation-ui.test.mjs apps/web/tests/phase09-step22-connection-ui.test.mjs`, web typecheck/build, manual macOS browser QA on active/no-key/recovery states. No local runtime was available in this assistant session; no PASS claimed.
