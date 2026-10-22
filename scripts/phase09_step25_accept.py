@@ -107,6 +107,8 @@ def main():
             report["gates"]["database_destination"] = "FAIL"
             report["failures"].append("database_destination")
         if env is not None:
+            record(report, "postgres_schema_readonly",
+                ["python3", "scripts/phase09_step25_db_check.py"], env)
             for name in PG_CLASSES:
                 record(report, "postgres_"+name,
                     ["python3","scripts/phase09_verify.py","integration",
