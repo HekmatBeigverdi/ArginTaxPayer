@@ -86,7 +86,7 @@ export default function TaxpayerConnectionPanel({ taxpayerId, memories, loadingM
       hidden={method !== "existing"} className="signing-method-panel">
       {method === "existing" && <>
         <p className="signing-method-intro">اگر قبلاً کلید خصوصی خود را دارید، همان کلید را ثبت کنید؛ نیازی به تولید جفت‌کلید جدید نیست.</p>
-        <ExistingKeyImport key={taxpayerId + ":" + memoryId + ":" + revision} taxpayerId={taxpayerId}
+        <ExistingKeyImport key={taxpayerId + ":" + memoryId} taxpayerId={taxpayerId}
           memories={chosen} loadingMemories={loadingMemories} onLoadingChange={onLoadingChange}
           hideMemorySelector onCompleted={refresh}/>
       </>}
@@ -95,13 +95,13 @@ export default function TaxpayerConnectionPanel({ taxpayerId, memories, loadingM
       hidden={method !== "generate"} className="signing-method-panel">
       {method === "generate" && <>
         <p className="signing-method-intro">اگر کلید ندارید، نرم‌افزار جفت‌کلید می‌سازد. فایل خصوصی فقط یک‌بار تحویل داده می‌شود؛ سپس کلید عمومی را در کارپوشه ثبت کنید.</p>
-        <SigningKeyGeneration key={taxpayerId + ":" + memoryId + ":" + revision} taxpayerId={taxpayerId}
+        <SigningKeyGeneration key={taxpayerId + ":" + memoryId} taxpayerId={taxpayerId}
           memories={chosen} loadingMemories={loadingMemories} hideMemorySelector onCompleted={refresh}/>
         <p className="signing-method-next">مراحل: ساخت کلید ← نگهداری فایل دانلودشده ← ثبت کلید عمومی در کارپوشه ← تست اتصال</p>
       </>}
     </div>
     <div className="signing-test-panel">
-      <SigningConnectionTest key={taxpayerId + ":" + memoryId + ":" + revision} taxpayerId={taxpayerId}
+      <SigningConnectionTest key={taxpayerId + ":" + memoryId} taxpayerId={taxpayerId}
         memories={chosen} loadingMemories={loadingMemories} hideMemorySelector/>
     </div>
   </div>;
