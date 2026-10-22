@@ -23,7 +23,7 @@ test("API recovery is limited to loopback and authenticated owner", () => {
   assert.match(service, /ReadImportOnboardingAsync/);
   assert.match(service, /state.FreshLogin/);
   assert.match(service, /PROVIDER_OUTCOME_UNKNOWN/);
-  assert.match(service, /custody.RecoverAsync/);
+  assert.match(service, /protector.UnprotectAsync/);
   assert.match(service, /CompleteImportAsync/);
   assert.doesNotMatch(service, /StageAsync|GenerateAsync|PrivatePem/);
 });
