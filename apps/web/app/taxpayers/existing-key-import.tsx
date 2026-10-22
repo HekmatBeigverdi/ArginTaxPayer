@@ -17,8 +17,8 @@ function message(code: string, status: number) {
   return 'سرویس نگهداری امن کلید در دسترس نیست یا نتیجه درخواست مشخص نشد. بازخوانی کنید؛ برای پیگیری، همان کلید را دوباره وارد کنید.';
 }
 
-export default function ExistingKeyImport({ taxpayerId, memories, loadingMemories, onLoadingChange }:
-  { taxpayerId: string; memories: Memory[]; loadingMemories: boolean; onLoadingChange?: (value: boolean) => void }) {
+export default function ExistingKeyImport({ taxpayerId, memories, loadingMemories, onLoadingChange, hideMemorySelector = false, onCompleted }:
+  { taxpayerId: string; memories: Memory[]; loadingMemories: boolean; onLoadingChange?: (value: boolean) => void; hideMemorySelector?: boolean; onCompleted?: () => void }) {
   const [selected, setSelected] = useState('');
   const memoryId = memories.some(m => m.id === selected) ? selected : memories[0]?.id ?? '';
   const endpoint = `/api/signing/${taxpayerId}/${memoryId}`;
@@ -91,6 +91,7 @@ export default function ExistingKeyImport({ taxpayerId, memories, loadingMemorie
           (stage ? " مرحله ناموفق: " + stage + "." : ""));
       }
       await reload();
+      onCompleted?.();
       setNotice("کلید خصوصی رمزگذاری‌شده قبلی با موفقیت بازیابی و ثبت آن نهایی شد. اکنون می‌توانید تست اتصال را اجرا کنید.");
     } catch (ex) {
       setError(ex instanceof Error ? ex.message : "بازیابی ناموفق بود.");
@@ -113,6 +114,7 @@ export default function ExistingKeyImport({ taxpayerId, memories, loadingMemorie
       setNotice('کلید با نگهداری رمزگذاری‌شده ثبت شد.' +
         (data.publicKeyCompared ? ' کلید عمومی ارائه‌شده نیز تطابق دارد.' : '') + ' اتصال به سامانه مؤدیان هنوز بررسی نشده است.');
       await reload();
+      onCompleted?.();
     } catch (ex) {
       setError(ex instanceof Error && ex.name !== 'TimeoutError' ? ex.message : message('', 503));
     } finally { payload = ''; clearSecrets(); setBusy(false); }
@@ -124,11 +126,11 @@ export default function ExistingKeyImport({ taxpayerId, memories, loadingMemorie
   const canImport = state?.configured === true && state.storageReady === true && state.freshLogin === true && !state.recoveryAvailable && !busy && !loading;
   return <div className="existing-key-import" aria-busy={loading || busy}>
     <div className="taxpayer-section-heading">
-      <label>حافظه مالیاتی
+      {!hideMemorySelector && <label>حافظه مالیاتی
         <select value={memoryId} disabled={busy || loading} onChange={e => setSelected(e.target.value)}>
           {memories.map(m => <option key={m.id} value={m.id}>{m.memoryIdentifier}</option>)}
         </select>
-      </label>
+      </label>}
       <button type="button" className="identity-secondary" disabled={loading || busy} onClick={() => void reload()}>بازخوانی وضعیت کلید</button>
     </div>
     {loading && <p role="status" className="field-hint">در حال دریافت وضعیت کلید…</p>}
