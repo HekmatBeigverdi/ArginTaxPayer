@@ -147,6 +147,12 @@ if (app.Environment.IsDevelopment())
                 app.Configuration["Ghasedak:TestRecipientMobile"], out _),
             otpPepperConfigured = (app.Configuration["Identity:OtpPepper"]?.Length ?? 0) >= 32,
             localOtpTestMode = app.Configuration["Identity:OtpDeliveryMode"] == "LocalFile",
+            // Flags are read from the RUNNING API process, not the shell .env file.
+            // Expose no hostnames, paths, Vault tokens, secrets, PEMs or credentials.
+            signingKeyProtectionEnabled = app.Configuration.GetValue<bool>("SigningKeyProtection:Enabled"),
+            signingKeyImportEnabled = app.Configuration.GetValue<bool>("SigningKeyImport:Enabled"),
+            signingKeyGenerationEnabled = app.Configuration.GetValue<bool>("SigningKeyGeneration:Enabled"),
+            signingConnectionTestEnabled = app.Configuration.GetValue<bool>("SigningConnectionTest:Enabled"),
             loopbackRecognized = true
         });
     }).ExcludeFromDescription();
