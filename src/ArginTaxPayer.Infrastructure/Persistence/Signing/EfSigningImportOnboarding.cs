@@ -6,7 +6,7 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Signing;
 public sealed record SigningImportOnboardingState(SigningGenerationStatus Status,
     bool FreshLogin = false, Guid? OperationId = null, bool HasKey = false,
     string? FingerprintSha256 = null, short? LifecycleState = null,
-    bool RecoveryAvailable = false);
+    bool RecoveryAvailable = false, bool ReplacementApproved = false);
 
 public sealed partial class EfSigningOperationRepository
 {
@@ -46,7 +46,15 @@ public sealed partial class EfSigningOperationRepository
                 e.KeyVersionId == key.Id && e.CustomerUserId == actor.Value &&
                 e.TaxpayerId == taxpayerId && e.FiscalMemoryId == memoryId &&
                 e.OriginOperationRecordId == operation.Id, ct);
+        var replacementApproved = key is { LifecycleState: 2 } &&
+            await db.SigningChangeRequests.AsNoTracking().AnyAsync(r =>
+                r.CustomerUserId == actor.Value && r.TaxpayerId == taxpayerId &&
+                r.FiscalMemoryId == memoryId && r.Kind == 3 && r.State == 2 &&
+                r.CurrentKeyVersionId == key.Id && r.ExpectedKeyRevision == key.Revision &&
+                r.ExpiresAtUtc > DateTime.UtcNow &&
+                r.ConsumedAtUtc == null && r.ConsumedByOperationRecordId == null, ct);
         return new(SigningGenerationStatus.Replayed, fresh, operation?.OperationId,
-            key is not null, key?.PublicFingerprintSha256, key?.LifecycleState, recoveryAvailable);
+            key is not null, key?.PublicFingerprintSha256, key?.LifecycleState,
+            recoveryAvailable, replacementApproved);
     }
 }
