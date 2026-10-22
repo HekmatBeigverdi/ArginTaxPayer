@@ -18,11 +18,7 @@ public sealed class EfSigningChangeRequestSubmission(ArginTaxPayerDbContext db,
 
     private async Task<Guid?> OwnerAsync(string? bearer, Guid taxpayerId, Guid memoryId, CancellationToken ct)
     {
-        var auth = await authorization.ReadImportOnboardingAsync(bearer, taxpayerId, memoryId, ct);
-        if (auth.Status != SigningGenerationStatus.Replayed) return null;
-        var owner = await db.TaxpayerProfiles.AsNoTracking()
-            .Where(p => p.Id == taxpayerId).Select(p => p.CustomerUserId).SingleOrDefaultAsync(ct);
-        return owner == Guid.Empty ? null : owner;
+        return await authorization.AuthorizeOwnerAsync(bearer, taxpayerId, memoryId, ct);
     }
 
     public async Task<IReadOnlyList<SigningChangeRequestView>?> ListAsync(string? bearer,
@@ -90,6 +86,14 @@ public sealed class EfSigningChangeRequestSubmission(ArginTaxPayerDbContext db,
                 RequestedAtUtc = DateTime.UtcNow, Revision = 1
             };
             db.SigningChangeRequests.Add(record);
+            db.SigningAuditEvents.Add(new SigningAuditEvent
+            {
+                Id = Guid.NewGuid(), CustomerUserId = owner.Value, TaxpayerId = taxpayerId,
+                FiscalMemoryId = memoryId, OperationRecordId = key.OriginOperationRecordId,
+                ActorUserId = owner.Value, SubjectKind = 4, SubjectId = record.Id,
+                Revision = record.Revision, ActionCode = "change_request_submitted",
+                OutcomeCode = "Pending", OccurredAtUtc = record.RequestedAtUtc
+            });
             await db.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);
             return new(SigningChangeSubmissionStatus.Created, View(record));

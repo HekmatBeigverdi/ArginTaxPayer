@@ -68,6 +68,5 @@ export default function SigningConnectionTest({ taxpayerId, memories, loadingMem
       <div><dt>کد اقتصادی</dt><dd>{result.fiscalInformation.economicCode}</dd></div>
       <div><dt>شناسه ملی</dt><dd>{result.fiscalInformation.nationalId}</dd></div>
     </dl>}
-    <p className="field-hint">این آزمون صورتحساب ارسال نمی‌کند و تأیید حافظه نیست.</p>
   </section>;
 }

@@ -10,6 +10,16 @@ public sealed record SigningImportOnboardingState(SigningGenerationStatus Status
 
 public sealed partial class EfSigningOperationRepository
 {
+    // Change requests need owner authorization, but do not depend on the import onboarding workflow.
+    public async Task<Guid?> AuthorizeOwnerAsync(string? bearer, Guid taxpayerId,
+        Guid memoryId, CancellationToken ct = default)
+    {
+        var actor = await identity.CurrentUserIdAsync(bearer, ct);
+        if (actor is null) return null;
+        var scope = new SigningScope(actor.Value, taxpayerId, memoryId);
+        return await AuthorizeAsync(bearer, scope, true, ct) is not null ? actor : null;
+    }
+
     // Owner-only, including for administrators: commercial scope is not custody permission.
     public async Task<SigningImportOnboardingState> ReadImportOnboardingAsync(string? bearer,
         Guid taxpayerId, Guid memoryId, CancellationToken ct = default)
