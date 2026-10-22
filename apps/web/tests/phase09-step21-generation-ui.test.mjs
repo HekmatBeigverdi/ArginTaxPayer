@@ -20,6 +20,6 @@ test('taxpayer workspace renders generation flow and leaves connection test defe
   assert.match(workspace, /TaxpayerConnectionPanel/);
   assert.match(panel, /SigningKeyGeneration/);
   assert.match(panel, /ساخت کلید جدید|SigningKeyGeneration/);
-  assert.match(workspace, /SigningConnectionTest/);
+  assert.match(panel, /SigningConnectionTest/);
   assert.match(connection, /تست اتصال/);
 });
