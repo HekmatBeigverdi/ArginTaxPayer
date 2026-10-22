@@ -83,6 +83,7 @@ export default function ExistingKeyImport({ taxpayerId, memories, loadingMemorie
   if (loadingMemories) return <p className="field-hint">در حال دریافت حافظه مالیاتی…</p>;
   if (!memoryId) return <p className="field-hint">ابتدا کد حافظه مالیاتی را در بخش «حافظه‌های مالیاتی» ثبت کنید.</p>;
   const sealed = state?.hasKey && state.lifecycleState !== 1;
+  const canImport = state?.configured === true && state.freshLogin === true && !busy && !loading;
   return <div className="existing-key-import" aria-busy={loading || busy}>
     <div className="taxpayer-section-heading">
       <label>حافظه مالیاتی
@@ -99,19 +100,19 @@ export default function ExistingKeyImport({ taxpayerId, memories, loadingMemorie
     {sealed ? <p className="field-hint">کلید این حافظه ثبت شده است. تعریف کلید جایگزین به تأیید درخواست تغییر نیاز دارد.</p> : state && !loading && <>
       {!state.configured && <p role="status" className="field-hint">نگهداری امن کلید هنوز توسط مدیر سامانه تنظیم نشده است؛ ورود کلید پس از آماده‌سازی فعال می‌شود.</p>}
       {!state.freshLogin && <p className="field-hint">برای ورود کلید دوباره وارد حساب شوید و ظرف پنج دقیقه اقدام کنید.</p>}
-      {state.configured && state.freshLogin && <form onSubmit={submit} autoComplete="off">
+      <form onSubmit={submit} autoComplete="off">
         <p className="field-hint">متن فایل TXT کلید خصوصی قبلی را وارد کنید. قالب قابل قبول RSA 2048 و PKCS#8 با عنوان PRIVATE KEY یا ENCRYPTED PRIVATE KEY است. RSA PRIVATE KEY پشتیبانی نمی‌شود.</p>
         <label>متن کلید خصوصی<textarea ref={privateKey} required maxLength={65536} rows={5} dir="ltr"
-          autoComplete="off" spellCheck={false} disabled={busy} /></label>
+          autoComplete="off" spellCheck={false} disabled={!canImport} /></label>
         <label>رمز فایل کلید (فقط برای کلید رمزدار)<input ref={password} type="password" maxLength={1024}
-          autoComplete="new-password" disabled={busy} /></label>
+          autoComplete="new-password" disabled={!canImport} /></label>
         <label>کلید عمومی قبلی برای تطبیق (اختیاری)<textarea ref={publicKey} maxLength={16384} rows={3}
-          dir="ltr" spellCheck={false} disabled={busy} /></label>
-        <label className="signing-custody-consent"><input type="checkbox" checked={consent} disabled={busy}
+          dir="ltr" spellCheck={false} disabled={!canImport} /></label>
+        <label className="signing-custody-consent"><input type="checkbox" checked={consent} disabled={!canImport}
           onChange={e => setConsent(e.target.checked)} />اجازه می‌دهم کلید خصوصی به‌صورت رمزگذاری‌شده در سامانه نگهداری شود.</label>
-        <button type="submit" className="identity-primary" disabled={busy || !consent}>
+        <button type="submit" className="identity-primary" disabled={!canImport || !consent}>
           {busy ? 'در حال ثبت کلید…' : 'ورود کلید موجود'}</button>
-      </form>}
+      </form>
     </>}
   </div>;
 }
