@@ -47,7 +47,7 @@ internal sealed class EfSigningChangeRequestSubmission(ArginTaxPayerDbContext db
         try
         {
             var strategy = db.Database.CreateExecutionStrategy();
-            return await strategy.ExecuteAsync(async () =>
+            return await strategy.ExecuteAsync<SigningChangeSubmission>(async () =>
             {
             db.ChangeTracker.Clear();
             await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
