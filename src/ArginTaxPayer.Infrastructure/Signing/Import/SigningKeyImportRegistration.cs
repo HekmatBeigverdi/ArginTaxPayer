@@ -41,7 +41,8 @@ public static class SigningKeyImportRegistration
             services.AddScoped<ISigningImportRecovery>(sp => new DatabaseSigningImportRecovery(
                 sp.GetRequiredService<ArginTaxPayerDbContext>(),
                 sp.GetRequiredService<EfSigningOperationRepository>(),
-                sp.GetRequiredService<IGeneratedKeyCustody>(),
+                sp.GetRequiredService<IProtectedKeyEnvelopeStore>(),
+                sp.GetRequiredService<KeyEnvelopeProtector>(),
                 sp.GetRequiredService<ISigningImportJournal>()));
         else
             services.AddScoped<ISigningImportRecovery>(_ => new UnavailableRecovery());
@@ -53,9 +54,9 @@ public static class SigningKeyImportRegistration
 
     private sealed class UnavailableRecovery : ISigningImportRecovery
     {
-        public Task<SigningGenerationStatus> RecoverAsync(string? bearer, Guid taxpayerId,
+        public Task<SigningImportRecoveryResult> RecoverAsync(string? bearer, Guid taxpayerId,
             Guid fiscalMemoryId, CancellationToken ct = default)
-            => Task.FromResult(SigningGenerationStatus.Unavailable);
+            => Task.FromResult(new SigningImportRecoveryResult(SigningGenerationStatus.Unavailable, "provider_disabled"));
     }
 
     private sealed class UnavailableImportService : ISigningKeyImportService
