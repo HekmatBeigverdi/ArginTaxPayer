@@ -7,7 +7,7 @@ const labels: Record<string, string> = {
   Authenticated: "احراز هویت موفق است؛ ثبت کلید و فعال بودن حافظه تأیید نشده است.",
   AuthenticationRejected: "احراز هویت رد شد.",
   KeyNotReady: "کلید آماده نیست.",
-  VaultUnavailable: "Vault در دسترس نیست.",
+  VaultUnavailable: "سرویس نگهداری امن کلید در دسترس نیست.",
   EndpointUnavailable: "سرویس مؤدیان در دسترس نیست.",
   TimedOut: "مهلت آزمون تمام شد.",
   UnsupportedProfile: "پروفایل رسمی اتصال هنوز فعال نیست؛ درخواست زنده‌ای ارسال نشده است.",
