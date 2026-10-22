@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 type Memory = { id: string; memoryIdentifier: string; status: number };
-type State = { configured: boolean; generationConfigured: boolean; freshLogin: boolean; fingerprintSha256: string | null };
+type State = { storageReady: boolean; configured: boolean; generationConfigured: boolean; freshLogin: boolean; fingerprintSha256: string | null };
 
 export default function SigningKeyGeneration({ taxpayerId, memories, loadingMemories }:
   { taxpayerId: string; memories: Memory[]; loadingMemories: boolean }) {
@@ -32,7 +32,7 @@ export default function SigningKeyGeneration({ taxpayerId, memories, loadingMemo
   }, [taxpayerId, memoryId]);
 
   async function generate() {
-    if (busy || !state?.generationConfigured || !state.freshLogin || !consent || !memoryId) return;
+    if (busy || !state?.storageReady || !state?.generationConfigured || !state.freshLogin || !consent || !memoryId) return;
     setBusy(true); setError(""); setNotice("");
     try {
       const response = await fetch(`/api/signing/${taxpayerId}/${memoryId}/generate`, {
@@ -89,13 +89,14 @@ export default function SigningKeyGeneration({ taxpayerId, memories, loadingMemo
     {error && <p role="alert" className="party-error">{error}</p>}
     {notice && <p role="status" className="party-success">{notice}</p>}
     {state?.fingerprintSha256 && <p className="field-hint">اثر انگشت کلید عمومی فعلی: <bdi dir="ltr">{state.fingerprintSha256}</bdi></p>}
+    {state?.generationConfigured && !state.storageReady && <p role="alert" className="party-error">جدول نگهداری رمزگذاری‌شده کلید در دیتابیس تست آماده نیست؛ وضعیت Migration گام ۲۲ را بررسی کنید.</p>}
     {loadingState && <p role="status" className="field-hint">در حال بررسی تنظیمات ساخت کلید…</p>}
     {!loadingState && state && !state.generationConfigured &&
       <p role="status" className="field-hint">ساخت کلید در API آماده نیست. حالت Database، کلید اصلی رمزگذاری و Migration نگهداری کلید را بررسی کنید.</p>}
     {state && !state.freshLogin && <p className="field-hint">برای تولید کلید دوباره احراز هویت کنید.</p>}
     <label className="signing-custody-consent"><input type="checkbox" checked={consent} disabled={busy}
       onChange={event => setConsent(event.target.checked)} />رضایت می‌دهم کلید جدید تولید و نسخه اولیه خصوصی آن فقط یک‌بار دانلود شود.</label>
-    <button type="button" className="identity-primary" disabled={loadingState || busy || !state?.generationConfigured || !state.freshLogin || !consent}
+    <button type="button" className="identity-primary" disabled={loadingState || busy || !state?.storageReady || !state?.generationConfigured || !state.freshLogin || !consent}
       onClick={() => void generate()}>{busy ? "در حال تولید و آماده‌سازی دانلود…" : "ساخت و دانلود کلید جدید"}</button>
     <p className="field-hint">کلید عمومی را در کارپوشه بارگذاری کنید؛ کد حافظه مالیاتی پس از ثبت توسط سامانه مالیات ارائه می‌شود. کلید خصوصی را فقط در نرم‌افزار مالی امن خود وارد کنید.</p>
   </div>;
