@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import OperationMessageBox from "./operation-message-box";
 
 type Memory = { id: string; memoryIdentifier: string; status: number };
 type State = { storageReady: boolean; configured: boolean; generationConfigured: boolean; freshLogin: boolean; fingerprintSha256: string | null };
@@ -86,8 +87,8 @@ export default function SigningKeyGeneration({ taxpayerId, memories, loadingMemo
         {memories.map(item => <option key={item.id} value={item.id}>{item.memoryIdentifier}</option>)}
       </select>
     </label>
-    {error && <p role="alert" className="party-error">{error}</p>}
-    {notice && <p role="status" className="party-success">{notice}</p>}
+    {error && <OperationMessageBox key={error} kind="error" title="عملیات ناموفق بود">{error}</OperationMessageBox>}
+    {notice && <OperationMessageBox key={notice} kind="success" title="عملیات انجام شد">{notice}</OperationMessageBox>}
     {state?.fingerprintSha256 && <p className="field-hint">اثر انگشت کلید عمومی فعلی: <bdi dir="ltr">{state.fingerprintSha256}</bdi></p>}
     {state?.generationConfigured && !state.storageReady && <p role="alert" className="party-error">جدول نگهداری رمزگذاری‌شده کلید در دیتابیس تست آماده نیست؛ وضعیت Migration گام ۲۲ را بررسی کنید.</p>}
     {loadingState && <p role="status" className="field-hint">در حال بررسی تنظیمات ساخت کلید…</p>}
