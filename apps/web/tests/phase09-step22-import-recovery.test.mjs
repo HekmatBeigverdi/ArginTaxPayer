@@ -15,8 +15,8 @@ test("recover imported key without client-side PKCS8 or password upload", () => 
 });
 
 test("API recovery is limited to loopback and authenticated owner", () => {
-  const api = readFileSync(new URL("../../src/ArginTaxPayer.Api/Taxpayers/SigningImportRecoveryEndpoints.cs", import.meta.url), "utf8");
-  const service = readFileSync(new URL("../../src/ArginTaxPayer.Infrastructure/Signing/Import/DatabaseSigningImportRecovery.cs", import.meta.url), "utf8");
+  const api = readFileSync(new URL("../../../src/ArginTaxPayer.Api/Taxpayers/SigningImportRecoveryEndpoints.cs", import.meta.url), "utf8");
+  const service = readFileSync(new URL("../../../src/ArginTaxPayer.Infrastructure/Signing/Import/DatabaseSigningImportRecovery.cs", import.meta.url), "utf8");
   assert.match(api, /IsLoopbackAddress/);
   assert.match(api, /RequireRateLimiting/);
   assert.match(api, /ISigningImportRecovery/);

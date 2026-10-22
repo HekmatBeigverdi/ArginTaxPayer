@@ -18,10 +18,11 @@ internal sealed class DatabaseSigningImportRecovery(
         var state = await journal.ReadImportOnboardingAsync(bearer, taxpayerId, fiscalMemoryId, ct);
         if (state.Status != SigningGenerationStatus.Replayed) return state.Status;
         if (!state.FreshLogin) return SigningGenerationStatus.Forbidden;
-        var owner = await db.TaxpayerProfiles.AsNoTracking()
+        var ownerId = await db.TaxpayerProfiles.AsNoTracking()
             .Where(p => p.Id == taxpayerId).Select(p => p.CustomerUserId)
             .SingleOrDefaultAsync(ct);
-        if (owner == Guid.Empty) return SigningGenerationStatus.NotFound;
+        if (ownerId is null || ownerId == Guid.Empty) return SigningGenerationStatus.NotFound;
+        var owner = ownerId.Value;
 
         var candidate = await (
             from op in db.SigningOperations.AsNoTracking()
