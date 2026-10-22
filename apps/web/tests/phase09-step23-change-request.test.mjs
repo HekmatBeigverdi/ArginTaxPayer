@@ -20,7 +20,7 @@ test("change requests do not approve, activate a second memory or alter keys", (
   assert.match(service, /memories\.Count != 1/);
   assert.match(service, /key\.Revision != input\.ExpectedKeyRevision/);
   assert.match(service, /State = 1/);
-  assert.doesNotMatch(service, /SigningKeyVersions\.Add|\.LifecycleState\s*=/);
+  assert.doesNotMatch(service, /SigningKeyVersions\.Add|\.LifecycleState\s*=(?!=)/);
   assert.doesNotMatch(ui, /privateKey|privatePem|tokenValue/i);
 });
 test("BFF validates origin, session, body and allowlists response", () => {
