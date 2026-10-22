@@ -19,6 +19,7 @@ public static class SigningKeyImportRegistration
             configuration["SigningKeyProtection:Enabled"] != "true")
         {
             services.AddScoped<ISigningKeyImportService>(_ => new UnavailableImportService());
+            services.AddScoped<ISigningImportRecovery>(_ => new UnavailableRecovery());
             return services;
         }
         services.AddPhase09KeyProtection(configuration);
@@ -42,10 +43,19 @@ public static class SigningKeyImportRegistration
                 sp.GetRequiredService<EfSigningOperationRepository>(),
                 sp.GetRequiredService<IGeneratedKeyCustody>(),
                 sp.GetRequiredService<ISigningImportJournal>()));
+        else
+            services.AddScoped<ISigningImportRecovery>(_ => new UnavailableRecovery());
         services.AddScoped<ISigningKeyImportService>(sp => new SigningKeyImportService(
             sp.GetRequiredService<ISigningImportJournal>(), sp.GetRequiredService<IGeneratedKeyCustody>(),
             sp.GetRequiredService<Pkcs8SigningKeyParser>()));
         return services;
+    }
+
+    private sealed class UnavailableRecovery : ISigningImportRecovery
+    {
+        public Task<SigningGenerationStatus> RecoverAsync(string? bearer, Guid taxpayerId,
+            Guid fiscalMemoryId, CancellationToken ct = default)
+            => Task.FromResult(SigningGenerationStatus.Unavailable);
     }
 
     private sealed class UnavailableImportService : ISigningKeyImportService
