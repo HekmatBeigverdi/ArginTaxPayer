@@ -52,6 +52,7 @@ if (identityDevelopmentEnabled)
     builder.Services.AddPhase09AuthorityConnection(builder.Configuration);
     builder.Services.AddScoped<EfSigningOperationRepository>();
     builder.Services.AddScoped<ISigningChangeRequestSubmission, EfSigningChangeRequestSubmission>();
+    builder.Services.AddScoped<ISigningAdminReviewWorkflow, EfSigningAdminReviewWorkflow>();
     builder.Services.AddRateLimiter(options =>
     {
         options.RejectionStatusCode = 429;
@@ -169,6 +170,7 @@ if (app.Environment.IsDevelopment())
         app.MapSigningGenerationEndpoints();
         app.MapSigningConnectionEndpoints();
         app.MapSigningChangeRequestEndpoints();
+        app.MapSigningAdminReviewEndpoints();
         app.MapPartyDevelopmentEndpoints();
         app.MapFiscalParticipantDirectoryEndpoints();
         app.MapInvoiceParticipantEndpoints();
