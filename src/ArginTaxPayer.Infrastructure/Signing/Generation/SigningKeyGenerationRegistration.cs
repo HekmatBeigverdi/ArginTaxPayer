@@ -25,9 +25,17 @@ public static class SigningKeyGenerationRegistration
         services.AddScoped<ISigningGenerationJournal>(sp =>
             new EfSigningOperationRepository(sp.GetRequiredService<ArginTaxPayerDbContext>()));
         services.AddSingleton<IGeneratedKeyFactory>(_ => new RsaGeneratedKeyFactory());
-        services.AddScoped<IGeneratedKeyCustody>(sp => new VaultGeneratedKeyCustody(
-            sp.GetRequiredService<ProtectedKeyEnvelopeStore>(), sp.GetRequiredService<KeyEnvelopeProtector>(),
-            sp.GetRequiredService<VaultHttpTransport>(), sp.GetRequiredService<VaultProtectionOptions>()));
+        services.AddScoped<IGeneratedKeyCustody>(sp =>
+            configuration["SigningKeyProtection:Provider"] == "Database"
+                ? new DatabaseGeneratedKeyCustody(
+                    sp.GetRequiredService<ProtectedKeyEnvelopeStore>(),
+                    sp.GetRequiredService<KeyEnvelopeProtector>(),
+                    sp.GetRequiredService<IProtectedKeyEnvelopeStore>())
+                : new VaultGeneratedKeyCustody(
+                    sp.GetRequiredService<ProtectedKeyEnvelopeStore>(),
+                    sp.GetRequiredService<KeyEnvelopeProtector>(),
+                    sp.GetRequiredService<VaultHttpTransport>(),
+                    sp.GetRequiredService<VaultProtectionOptions>()));
         services.AddScoped<SigningKeyGenerationService>(sp => new SigningKeyGenerationService(
             sp.GetRequiredService<ISigningGenerationJournal>(), sp.GetRequiredService<IGeneratedKeyCustody>(),
             sp.GetRequiredService<IGeneratedKeyFactory>()));
