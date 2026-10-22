@@ -46,7 +46,7 @@ public sealed partial class EfSigningOperationRepository
                 e.KeyVersionId == key.Id && e.CustomerUserId == actor.Value &&
                 e.TaxpayerId == taxpayerId && e.FiscalMemoryId == memoryId &&
                 e.OriginOperationRecordId == operation.Id, ct);
-        var replacementApproved = key is { LifecycleState: 2 } &&
+        var replacementApproved = key is { LifecycleState: 2 or 4 } &&
             await db.SigningChangeRequests.AsNoTracking().AnyAsync(r =>
                 r.CustomerUserId == actor.Value && r.TaxpayerId == taxpayerId &&
                 r.FiscalMemoryId == memoryId && r.Kind == 3 && r.State == 2 &&
