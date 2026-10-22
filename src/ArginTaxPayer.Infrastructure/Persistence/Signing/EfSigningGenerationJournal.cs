@@ -87,7 +87,7 @@ public sealed partial class EfSigningOperationRepository : ISigningGenerationJou
                     r.CustomerUserId == op.CustomerUserId && r.TaxpayerId == op.TaxpayerId &&
                     r.FiscalMemoryId == op.FiscalMemoryId &&
                     r.CurrentKeyVersionId == prior.Id && r.ExpectedKeyRevision == prior.Revision &&
-                    r.Kind == 3 && r.State == 2 && r.ExpiresAtUtc > now &&
+                    (r.Kind == 2 || r.Kind == 3) && r.State == 2 && r.ExpiresAtUtc > now &&
                     r.ConsumedAtUtc == null && r.ConsumedByOperationRecordId == null, ct);
                 if (!permission) return new(SigningPersistenceStatus.Conflict);
             }
@@ -180,7 +180,7 @@ public sealed partial class EfSigningOperationRepository : ISigningGenerationJou
                     r.FiscalMemoryId == id.FiscalMemoryId &&
                     r.CurrentKeyVersionId == previous.Id &&
                     r.ExpectedKeyRevision == previous.Revision &&
-                    r.Kind == 3 && r.State == 2 && r.ExpiresAtUtc > now &&
+                    (r.Kind == 2 || r.Kind == 3) && r.State == 2 && r.ExpiresAtUtc > now &&
                     r.ConsumedByOperationRecordId == null && r.ConsumedAtUtc == null, ct);
                 if (approval is null || key.VersionNumber != previous.VersionNumber + 1)
                     return new(SigningPersistenceStatus.Conflict);
