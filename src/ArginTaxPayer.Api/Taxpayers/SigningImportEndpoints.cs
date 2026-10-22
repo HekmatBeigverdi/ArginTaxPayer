@@ -51,7 +51,7 @@ public static class SigningImportEndpoints
                 }
                 else storageReady = true;
                 return Results.Ok(new { storageReady, configured = Configured(config), generationConfigured = config["SigningKeyGeneration:Enabled"] == "true" && ProtectionReady(config), state.FreshLogin,
-                    state.OperationId, state.HasKey, state.FingerprintSha256, state.LifecycleState,
+                    state.OperationId, state.HasKey, state.FingerprintSha256, state.LifecycleState, state.RecoveryAvailable,
                     portalVerified = false });
             }
             catch (Exception) { return Results.Json(new { error = "service_unavailable" }, statusCode: 503); }
