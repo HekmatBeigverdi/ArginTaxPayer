@@ -6,7 +6,7 @@ const ts = p => readFileSync(new URL("../"+p,import.meta.url),"utf8");
 
 test("key claim admits replacement only with an unconsumed 24h approval tied to prior revision",()=>{
   const journal=cs("src/ArginTaxPayer.Infrastructure/Persistence/Signing/EfSigningGenerationJournal.cs");
-  assert.match(journal,/r\.Kind == 3 && r\.State == 2 && r\.ExpiresAtUtc > now/);
+  assert.match(journal,/\(r\.Kind == 2 \|\| r\.Kind == 3\) && r\.State == 2 && r\.ExpiresAtUtc > now/);
   assert.match(journal,/r\.CurrentKeyVersionId == prior\.Id/);
   assert.match(journal,/r\.ExpectedKeyRevision == prior\.Revision/);
   assert.match(journal,/r\.ConsumedAtUtc == null/);
