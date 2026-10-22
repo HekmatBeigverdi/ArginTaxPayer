@@ -67,7 +67,7 @@ export default function SigningChangeRequestPanel({ taxpayerId, memoryId }: {
         method: "POST", credentials: "same-origin", cache: "no-store",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ requestId, expectedKeyRevision: revision, kind, reasonCode,
-          explanation: explanation.trim().replace(/\\s+/g, " ") }), signal: AbortSignal.timeout(20000)
+          explanation: explanation.trim().replace(/\s+/g, " ") }), signal: AbortSignal.timeout(20000)
       });
       const data = await res.json();
       if (!res.ok) throw new Error(errorMessages[data?.error] || "درخواست ثبت نشد.");
