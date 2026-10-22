@@ -12,7 +12,19 @@ public static class SigningImportEndpoints
 {
     public const int MaximumBodyBytes = 98304;
     private static bool Configured(IConfiguration config) =>
-        config["SigningKeyImport:Enabled"] == "true" && config["SigningKeyProtection:Enabled"] == "true";
+        config["SigningKeyImport:Enabled"] == "true" && ProtectionReady(config);
+
+    private static bool ProtectionReady(IConfiguration config)
+    {
+        if (config["SigningKeyProtection:Enabled"] != "true") return false;
+        if (config["SigningKeyProtection:Provider"] != "Database") return true;
+        var encoded = config["SigningKeyProtection:DatabaseMasterKey"];
+        if (string.IsNullOrWhiteSpace(encoded) || encoded.Length > 128) return false;
+        byte[]? key = null;
+        try { key = Convert.FromBase64String(encoded); return key.Length == 32; }
+        catch (FormatException) { return false; }
+        finally { if (key is not null) CryptographicOperations.ZeroMemory(key); }
+    }
 
     public static IEndpointRouteBuilder MapSigningImportEndpoints(this IEndpointRouteBuilder routes)
     {
@@ -28,7 +40,7 @@ public static class SigningImportEndpoints
             {
                 var state = await journal.ReadImportOnboardingAsync(Bearer(http), taxpayerId, memoryId, ct);
                 if (state.Status != SigningGenerationStatus.Replayed) return Failure(state.Status);
-                return Results.Ok(new { configured = Configured(config), generationConfigured = config["SigningKeyGeneration:Enabled"] == "true" && config["SigningKeyProtection:Enabled"] == "true", state.FreshLogin,
+                return Results.Ok(new { configured = Configured(config), generationConfigured = config["SigningKeyGeneration:Enabled"] == "true" && ProtectionReady(config), state.FreshLogin,
                     state.OperationId, state.HasKey, state.FingerprintSha256, state.LifecycleState,
                     portalVerified = false });
             }
