@@ -42,7 +42,7 @@ export default function AdminSigningReviewWorkspace() {
       const response=await fetch("/api/admin/signing-change-requests/"+item.id+"/decision",{
         method:"POST",cache:"no-store",credentials:"same-origin",
         headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({approve,expectedRevision:item.revision,decisionReason:reason[item.id].trim()}),
+        body:JSON.stringify({approve,expectedRevision:item.revision,decisionReason:reason[item.id].trim().replace(/\s+/g, " ")}),
         signal:AbortSignal.timeout(20000)
       });
       if(!response.ok)throw new Error(response.status===409 ?
