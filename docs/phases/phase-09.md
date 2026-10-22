@@ -266,8 +266,8 @@ Provider references inspected in Step 02:
 | 19 | Segmented taxpayer and token UI | Compact exclusive accordions, invoice modal shell and independent loading | Owner-approved 2026-10-21 |
 | 20 | Existing-key/token onboarding | Secure TXT private-key import, public match, memory ID and custody | Delivered; operator acceptance pending |
 | 21 | New key/token onboarding | Generate private/public artifacts, public download and controlled private handoff | Owner-approved 2026-10-22 |
-| 22 | Read-only taxpayer connection test | Official SDK/endpoint authentication without invoice dispatch | Live legacy adapter committed; macOS/Vault/authority acceptance pending |
-| 23 | Single-memory change request | User request, reason, revision and plan-aware second-memory denial | Not started |
+| 22 | Read-only taxpayer connection test | Official SDK/endpoint authentication without invoice dispatch | Owner-approved 2026-10-22 (including segmented connection UI); any missing live authority/cross-platform evidence remains recorded for Step25 |
+| 23 | Single-memory change request | User request, reason, revision and plan-aware second-memory denial | Request-only API/BFF/UI and tests committed 2026-10-22; operator build and QA pending |
 | 24 | Level1 approval and token recreation | One-time approval/rejection, expiry, audit and safe replacement | Not started |
 | 25 | Integrated onboarding acceptance | Legacy/new user, plan capacity, scope, race, leak and connection cases | Not started |
 | 26 | Closeout and conditional publication | All signoffs; separate permission for merge/tag/release | Not started |
@@ -1376,3 +1376,16 @@ Owner reported key recovery resolved independently, then approved visual separat
 - Following successful import/recovery/key creation, refresh shared status without unmounting the message-bearing child, preserving user feedback. All existing crypto, owner authentication, fresh login, one-time ZIP download, scoped recovery, and status allowlists remain intact.
 - Added `phase09-connection-layout.test.mjs`, updated earlier workspace-location assertions in UI source tests.
 - Acceptance pending: `node --test apps/web/tests/phase09-connection-layout.test.mjs apps/web/tests/phase09-step19-taxpayer-sections.test.mjs apps/web/tests/phase09-step21-generation-ui.test.mjs apps/web/tests/phase09-step22-connection-ui.test.mjs`, web typecheck/build, manual macOS browser QA on active/no-key/recovery states. No local runtime was available in this assistant session; no PASS claimed.
+
+### Step22 approval and Step23 delivery — 2026-10-22
+
+Owner explicitly approved the current connection/segmented UI step and requested completion of the next fixed roadmap step. Mark Step22 **owner-approved**, while preserving unverified live-tax-authority and cross-platform acceptance as Step25 evidence gates; approval is not an invented live test result.
+
+Step23 implements **request submission only** for an existing single fiscal memory/key. It deliberately does not approve, reject, consume, rotate, export, replace or activate any private key, and does not allocate a second memory. Components:
+- `SigningChangeSubmissionContracts` validates a nonsecret reason code, 10–1000 character explanation, change type (suspend, compromise, rotate), UUID idempotency key and expected key revision.
+- `EfSigningChangeRequestSubmission` requires the same authenticated taxpayer owner scope used by key import. It uses an EF serializable transaction, requires exactly the one previously registered fiscal memory, checks a locally ready key and expected revision, rejects an existing pending/approved request and stores a pending change request in the existing `signing_change_requests` schema. Conflicts leave prior key material untouched. Phase12 commercial plan entitlement is still authoritative future scope, so multi-memory changes fail closed rather than inventing privileges.
+- Development-only loopback API `GET/POST /api/dev/signing/{taxpayerId}/{memoryId}/change-requests`, with existing rate limiting; POST accepts reason/expectedRevision only and never a private key or invoice data.
+- Same-origin authenticated Next.js BFF projects only allowlisted status/metadata; new compact RTL `SigningChangeRequestPanel` appears below the connection test with request type, reason, description, pending state and per-memory history. No new schema migration required.
+- Added C# policy tests `Phase09Step23ChangeSubmissionTests` and web contract tests `phase09-step23-change-request.test.mjs`.
+
+**Local acceptance still required:** `dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --filter FullyQualifiedName~Phase09Step23`, `node --test apps/web/tests/phase09-step23-change-request.test.mjs`, full web test/typecheck/build. In the signed-in owner UI, submit a request for a ready key; verify it appears as pending, a duplicate request is blocked, and the old key and connection remain unchanged. Verify non-owner access is rejected, stale revisions conflict and additional-memory cases are blocked. No database or server was changed by the assistant; Step23 final operator signoff is pending. Step24 is the first approval/consumption/replacement step.
