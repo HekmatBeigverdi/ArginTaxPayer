@@ -48,7 +48,9 @@ export default function AdminSigningReviewWorkspace() {
       if(!response.ok)throw new Error(response.status===409 ?
         "درخواست یا نسخه کلید تغییر کرده است؛ بازخوانی کنید." :
         response.status===403?"مجوز سطح ۱ یا MFA معتبر نیست.":"ثبت تصمیم انجام نشد.");
-      setNotice(approve?"درخواست تأیید شد. اعتبار مجوز ۲۴ ساعت است؛ کلید فعلی هنوز جایگزین نشده است.":
+      setNotice(approve ? item.kind === 1 ?
+        "درخواست تأیید شد و کلید فعلی تعلیق گردید. کلید خصوصی حذف نشده است." :
+        "درخواست تأیید شد. اعتبار مجوز جایگزینی ۲۴ ساعت است؛ کلید فعلی هنوز جایگزین نشده است." :
         "درخواست با علت ثبت‌شده رد شد؛ کلید فعلی بدون تغییر باقی ماند.");
       setTick(x=>x+1);
     }catch(ex){setError(ex instanceof Error?ex.message:"خطای تصمیم");}
