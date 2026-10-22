@@ -77,7 +77,17 @@ export default function ExistingKeyImport({ taxpayerId, memories, loadingMemorie
           recovery_required: "عملیات هنوز نیازمند بررسی است؛ رکورد قبلی حذف نشده است.",
           custody_unavailable: "امکان خواندن کلید رمزگذاری‌شده فراهم نیست."
         };
-        throw new Error(messages[data?.error] || "بازیابی انجام نشد؛ اطلاعات کلید حفظ شده است.");
+        const stages: Record<string, string> = {
+          envelope_format: "ساختار رکورد رمزگذاری‌شده",
+          envelope_missing: "یافتن رکورد",
+          decrypt: "رمزگشایی با Master Key فعلی",
+          pkcs8: "اعتبارسنجی ساختار کلید RSA",
+          provider_version: "نسخه Provider",
+          journal: "ثبت نهایی عملیات در Journal"
+        };
+        const stage = typeof data?.stage === "string" ? stages[data.stage] : undefined;
+        throw new Error((messages[data?.error] || "بازیابی انجام نشد؛ اطلاعات کلید حفظ شده است.") +
+          (stage ? " مرحله ناموفق: " + stage + "." : ""));
       }
       await reload();
       setNotice("کلید خصوصی رمزگذاری‌شده قبلی با موفقیت بازیابی و ثبت آن نهایی شد. اکنون می‌توانید تست اتصال را اجرا کنید.");
