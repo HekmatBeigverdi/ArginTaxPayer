@@ -47,7 +47,8 @@ export default function ExistingKeyImport({ taxpayerId, memories, loadingMemorie
       if (!res.ok) throw new Error(message(data.error, res.status));
       if (current !== sequence.current) return;
       setState(data);
-      operation.current = data.operationId || operation.current || crypto.randomUUID();
+      operation.current = data.replacementApproved ? (operation.current || crypto.randomUUID()) :
+        data.operationId || operation.current || crypto.randomUUID();
     } catch (ex) {
       if (current === sequence.current) { setState(null); setError((ex as Error).message); }
     } finally {
