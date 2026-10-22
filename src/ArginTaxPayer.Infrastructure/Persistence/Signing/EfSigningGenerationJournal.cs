@@ -73,9 +73,26 @@ public sealed partial class EfSigningOperationRepository : ISigningGenerationJou
                 allocated = new(op.CustomerUserId, op.TaxpayerId, op.FiscalMemoryId, existing.Id, op.Id);
                 return new(SigningPersistenceStatus.Replayed, await ViewAsync(op, ct));
             }
-            if (op.State != 1 || await db.SigningKeyVersions.AnyAsync(
-                k => k.FiscalMemoryId == op.FiscalMemoryId, ct))
-                return new(SigningPersistenceStatus.Conflict); // Rotation/replacement is a later controlled use case.
+            if (op.State != 1) return new(SigningPersistenceStatus.Conflict);
+            var prior = await db.SigningKeyVersions.AsNoTracking().Where(k =>
+                k.CustomerUserId == op.CustomerUserId && k.TaxpayerId == op.TaxpayerId &&
+                k.FiscalMemoryId == op.FiscalMemoryId && k.LifecycleState == 2)
+                .OrderByDescending(k => k.VersionNumber).FirstOrDefaultAsync(ct);
+            if (await db.SigningKeyVersions.AnyAsync(k =>
+                k.FiscalMemoryId == op.FiscalMemoryId && k.LifecycleState == 1, ct))
+                return new(SigningPersistenceStatus.Conflict);
+            if (prior is not null)
+            {
+                var permission = await db.SigningChangeRequests.AsNoTracking().AnyAsync(r =>
+                    r.CustomerUserId == op.CustomerUserId && r.TaxpayerId == op.TaxpayerId &&
+                    r.FiscalMemoryId == op.FiscalMemoryId &&
+                    r.CurrentKeyVersionId == prior.Id && r.ExpectedKeyRevision == prior.Revision &&
+                    r.Kind == 3 && r.State == 2 && r.ExpiresAtUtc > now &&
+                    r.ConsumedAtUtc == null && r.ConsumedByOperationRecordId == null, ct);
+                if (!permission) return new(SigningPersistenceStatus.Conflict);
+            }
+            else if (await db.SigningKeyVersions.AnyAsync(k => k.FiscalMemoryId == op.FiscalMemoryId, ct))
+                return new(SigningPersistenceStatus.Conflict);
             if (!await db.SigningConsents.AnyAsync(c => c.OperationRecordId == op.Id &&
                 c.ActorUserId == actor && c.ConsentVersion == SigningOperationPolicy.ConsentVersion, ct))
                 return new(SigningPersistenceStatus.IntegrityFailure);
@@ -83,7 +100,7 @@ public sealed partial class EfSigningOperationRepository : ISigningGenerationJou
             {
                 Id = Guid.NewGuid(), CustomerUserId = op.CustomerUserId, TaxpayerId = op.TaxpayerId,
                 FiscalMemoryId = op.FiscalMemoryId, OriginOperationRecordId = op.Id,
-                Origin = (short)kind, VersionNumber = 1, ProfileId = op.ProfileId, LifecycleState = 1,
+                Origin = (short)kind, VersionNumber = (prior?.VersionNumber ?? 0) + 1, ProfileId = op.ProfileId, LifecycleState = 1,
                 PortalState = 1, PublicMatch = 1, Revision = 1, CreatedAtUtc = now, UpdatedAtUtc = now
             };
             db.SigningKeyVersions.Add(key);
@@ -149,6 +166,27 @@ public sealed partial class EfSigningOperationRepository : ISigningGenerationJou
             if (!await db.SigningConsents.AnyAsync(c => c.OperationRecordId == op.Id &&
                 c.ActorUserId == actor && c.ConsentVersion == SigningOperationPolicy.ConsentVersion, ct))
                 return new(SigningPersistenceStatus.IntegrityFailure);
+            // A replacement consumes exactly one still-live Level1 approval in this
+            // same journal transaction. Prior ciphertext and immutable audit remain intact.
+            var previous = await db.SigningKeyVersions.SingleOrDefaultAsync(k =>
+                k.CustomerUserId == id.CustomerUserId && k.TaxpayerId == id.TaxpayerId &&
+                k.FiscalMemoryId == id.FiscalMemoryId && k.LifecycleState == 2 &&
+                k.Id != id.KeyVersionId, ct);
+            SigningChangeRequest? approval = null;
+            if (previous is not null)
+            {
+                approval = await db.SigningChangeRequests.SingleOrDefaultAsync(r =>
+                    r.CustomerUserId == id.CustomerUserId && r.TaxpayerId == id.TaxpayerId &&
+                    r.FiscalMemoryId == id.FiscalMemoryId &&
+                    r.CurrentKeyVersionId == previous.Id &&
+                    r.ExpectedKeyRevision == previous.Revision &&
+                    r.Kind == 3 && r.State == 2 && r.ExpiresAtUtc > now &&
+                    r.ConsumedByOperationRecordId == null && r.ConsumedAtUtc == null, ct);
+                if (approval is null || key.VersionNumber != previous.VersionNumber + 1)
+                    return new(SigningPersistenceStatus.Conflict);
+            }
+            else if (key.VersionNumber != 1)
+                return new(SigningPersistenceStatus.Conflict);
             key.PublicSpkiDer = receipt.PublicSpkiDer.ToArray();
             key.PublicFingerprintSha256 = receipt.PublicFingerprintSha256;
             key.CustodyReference = locator;
@@ -159,6 +197,44 @@ public sealed partial class EfSigningOperationRepository : ISigningGenerationJou
             key.Revision++;
             keyRevision = key.Revision;
             key.UpdatedAtUtc = now < key.UpdatedAtUtc ? key.UpdatedAtUtc : now;
+            if (previous is not null && approval is not null)
+            {
+                previous.LifecycleState = 3; // historical/replaced: do not delete encrypted key
+                previous.Revision++;
+                previous.UpdatedAtUtc = now;
+                approval.State = 4;
+                approval.ConsumedAtUtc = now;
+                approval.ConsumedByOperationRecordId = op.Id;
+                approval.Revision++;
+                db.SigningAuditEvents.Add(new SigningAuditEvent
+                {
+                    Id = Guid.NewGuid(), CustomerUserId = id.CustomerUserId,
+                    TaxpayerId = id.TaxpayerId, FiscalMemoryId = id.FiscalMemoryId,
+                    OperationRecordId = op.Id, ActorUserId = actor, SubjectKind = 4,
+                    SubjectId = approval.Id, Revision = approval.Revision,
+                    ActionCode = "change_approval_consumed",
+                    OutcomeCode = "Consumed", OccurredAtUtc = now
+                });
+                var selection = await db.SigningKeySelections.SingleOrDefaultAsync(x =>
+                    x.FiscalMemoryId == id.FiscalMemoryId &&
+                    x.CustomerUserId == id.CustomerUserId && x.TaxpayerId == id.TaxpayerId, ct);
+                if (selection is null)
+                    db.SigningKeySelections.Add(new SigningKeySelection
+                    {
+                        FiscalMemoryId = id.FiscalMemoryId, CustomerUserId = id.CustomerUserId,
+                        TaxpayerId = id.TaxpayerId, KeyVersionId = key.Id,
+                        Revision = 1, SelectedAtUtc = now, SelectedByUserId = actor
+                    });
+                else
+                {
+                    if (selection.KeyVersionId is not null && selection.KeyVersionId != previous.Id)
+                        return new(SigningPersistenceStatus.Conflict);
+                    selection.KeyVersionId = key.Id;
+                    selection.Revision++;
+                    selection.SelectedAtUtc = now;
+                    selection.SelectedByUserId = actor;
+                }
+            }
             op.State = 3;
             op.SafeErrorCode = null;
             op.Revision++;
