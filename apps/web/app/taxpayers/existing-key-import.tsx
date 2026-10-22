@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
+import OperationMessageBox from "./operation-message-box";
 
 type Memory = { id: string; memoryIdentifier: string; status: number };
 type State = { storageReady: boolean; configured: boolean; freshLogin: boolean; operationId: string | null;
@@ -131,8 +132,8 @@ export default function ExistingKeyImport({ taxpayerId, memories, loadingMemorie
       <button type="button" className="identity-secondary" disabled={loading || busy} onClick={() => void reload()}>بازخوانی وضعیت کلید</button>
     </div>
     {loading && <p role="status" className="field-hint">در حال دریافت وضعیت کلید…</p>}
-    {error && <p role="alert" className="party-error">{error}</p>}
-    {notice && <p role="status" className="party-success">{notice}</p>}
+    {error && <OperationMessageBox key={error} kind="error" title="عملیات ناموفق بود">{error}</OperationMessageBox>}
+    {notice && <OperationMessageBox key={notice} kind="success" title="عملیات انجام شد">{notice}</OperationMessageBox>}
     {state?.fingerprintSha256 && <p className="field-hint">اثر انگشت کلید عمومی (SHA-256): <bdi dir="ltr">{state.fingerprintSha256}</bdi></p>}
     {state?.recoveryAvailable && <div role="status" className="field-hint">
       کلید خصوصی قبلاً به‌صورت رمزگذاری‌شده ذخیره شده اما ثبت آن نیمه‌تمام است. بدون واردکردن مجدد Private Key، همان عملیات را بازیابی کنید.
