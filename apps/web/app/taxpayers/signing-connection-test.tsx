@@ -17,8 +17,8 @@ const labels: Record<string, string> = {
   Indeterminate: "نتیجه نامشخص است.",
   NotAuthorized: "دسترسی مجاز نیست."
 };
-export default function SigningConnectionTest({ taxpayerId, memories, loadingMemories }:
- { taxpayerId: string; memories: Memory[]; loadingMemories: boolean }) {
+export default function SigningConnectionTest({ taxpayerId, memories, loadingMemories, hideMemorySelector = false }:
+ { taxpayerId: string; memories: Memory[]; loadingMemories: boolean; hideMemorySelector?: boolean }) {
   const [selected, setSelected] = useState("");
   const memoryId = memories.some(m => m.id === selected) ? selected : memories[0]?.id ?? "";
   const [result, setResult] = useState<Result | null>(null);
@@ -47,10 +47,10 @@ export default function SigningConnectionTest({ taxpayerId, memories, loadingMem
     <strong>آزمون ارتباط فقط‌خواندنی</strong>
     {loadingMemories ? <p className="field-hint">در حال دریافت حافظه‌ها…</p> :
       memories.length === 0 ? <p className="field-hint">ابتدا حافظه مالیاتی ثبت کنید.</p> :
-      <><label>حافظه مالیاتی<select value={memoryId} disabled={busy}
+      <>{!hideMemorySelector && <label>حافظه مالیاتی<select value={memoryId} disabled={busy}
         onChange={e => setSelected(e.target.value)}>
         {memories.map(m => <option key={m.id} value={m.id}>{m.memoryIdentifier}</option>)}
-      </select></label>
+      </select></label>}
       <button type="button" className="identity-secondary" disabled={busy}
         onClick={() => void testConnection()}>{busy ? "در حال بررسی…" : "تست اتصال"}</button></>}
     {error && <OperationMessageBox key={error} kind="error" title="آزمون اتصال انجام نشد">{error}</OperationMessageBox>}
