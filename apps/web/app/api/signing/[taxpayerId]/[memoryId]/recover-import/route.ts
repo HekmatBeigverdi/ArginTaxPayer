@@ -7,6 +7,8 @@ const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const allowedErrors = new Set(["unauthorized", "reauthentication_or_scope_required",
   "no_pending_import", "integrity_failure", "recovery_required", "custody_unavailable",
   "recovery_timeout", "service_unavailable"]);
+const allowedStages = new Set(["authorization", "fresh_login", "pending_record", "envelope_format",
+  "envelope_missing", "decrypt", "pkcs8", "provider_version", "journal", "provider_disabled"]);
 const result = (status: number, body: unknown) => NextResponse.json(body, {
   status, headers: { "Cache-Control": "no-store", Pragma: "no-cache" }
 });
@@ -29,7 +31,8 @@ export async function POST(req: NextRequest, context: Context) {
     });
     const body = await upstream.json().catch(() => null);
     if (!upstream.ok) return result([401, 403, 404, 409, 415, 429, 503, 504].includes(upstream.status)
-      ? upstream.status : 502, { error: allowedErrors.has(body?.error) ? body.error : "service_unavailable" });
+      ? upstream.status : 502, { error: allowedErrors.has(body?.error) ? body.error : "service_unavailable",
+        stage: allowedStages.has(body?.stage) ? body.stage : null });
     return result(200, { status: body?.status === "recovered" ? "recovered" : "indeterminate" });
   } catch { return result(503, { error: "service_unavailable" }); }
 }
