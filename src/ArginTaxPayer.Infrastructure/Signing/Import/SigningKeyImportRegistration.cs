@@ -36,6 +36,12 @@ public static class SigningKeyImportRegistration
                     sp.GetRequiredService<KeyEnvelopeProtector>(),
                     sp.GetRequiredService<VaultHttpTransport>(),
                     sp.GetRequiredService<VaultProtectionOptions>()));
+        if (configuration["SigningKeyProtection:Provider"] == "Database")
+            services.AddScoped<ISigningImportRecovery>(sp => new DatabaseSigningImportRecovery(
+                sp.GetRequiredService<ArginTaxPayerDbContext>(),
+                sp.GetRequiredService<EfSigningOperationRepository>(),
+                sp.GetRequiredService<IGeneratedKeyCustody>(),
+                sp.GetRequiredService<ISigningImportJournal>()));
         services.AddScoped<ISigningKeyImportService>(sp => new SigningKeyImportService(
             sp.GetRequiredService<ISigningImportJournal>(), sp.GetRequiredService<IGeneratedKeyCustody>(),
             sp.GetRequiredService<Pkcs8SigningKeyParser>()));
