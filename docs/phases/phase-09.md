@@ -267,8 +267,8 @@ Provider references inspected in Step 02:
 | 20 | Existing-key/token onboarding | Secure TXT private-key import, public match, memory ID and custody | Delivered; operator acceptance pending |
 | 21 | New key/token onboarding | Generate private/public artifacts, public download and controlled private handoff | Owner-approved 2026-10-22 |
 | 22 | Read-only taxpayer connection test | Official SDK/endpoint authentication without invoice dispatch | Owner-approved 2026-10-22 (including segmented connection UI); any missing live authority/cross-platform evidence remains recorded for Step25 |
-| 23 | Single-memory change request | User request, reason, revision and plan-aware second-memory denial | Request-only API/BFF/UI and tests committed 2026-10-22; operator build and QA pending |
-| 24 | Level1 approval and token recreation | One-time approval/rejection, expiry, audit and safe replacement | Not started |
+| 23 | Single-memory change request | User request, reason, revision and plan-aware second-memory denial | Owner-approved 2026-10-22; regression gates remain in Step25 |
+| 24 | Level1 approval and token recreation | One-time approval/rejection, expiry, audit and safe replacement | Level1 review API/console, revision CAS, MFA and 24h approval committed; safe replacement/consumption not yet implemented or tested |
 | 25 | Integrated onboarding acceptance | Legacy/new user, plan capacity, scope, race, leak and connection cases | Not started |
 | 26 | Closeout and conditional publication | All signoffs; separate permission for merge/tag/release | Not started |
 
@@ -1389,3 +1389,15 @@ Step23 implements **request submission only** for an existing single fiscal memo
 - Added C# policy tests `Phase09Step23ChangeSubmissionTests` and web contract tests `phase09-step23-change-request.test.mjs`.
 
 **Local acceptance still required:** `dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --filter FullyQualifiedName~Phase09Step23`, `node --test apps/web/tests/phase09-step23-change-request.test.mjs`, full web test/typecheck/build. In the signed-in owner UI, submit a request for a ready key; verify it appears as pending, a duplicate request is blocked, and the old key and connection remain unchanged. Verify non-owner access is rejected, stale revisions conflict and additional-memory cases are blocked. No database or server was changed by the assistant; Step23 final operator signoff is pending. Step24 is the first approval/consumption/replacement step.
+
+### Step23 acceptance and Step24 work — 2026-10-22
+
+Owner explicitly approved Step23. Step24 administrative review work was committed to `phase/09-cryptographic-keys-signing`:
+
+- `ISigningAdminReviewWorkflow` and `EfSigningAdminReviewWorkflow` expose Level1 role/MFA authenticated pending-requests list and serializable CAS decision. Rejects self-approval, stale request revision, changed current-key revision and inactive reviewer. Approval creates an expiring (24-hour) approved request; denial records a reason. No private key is read or mutated, and all decisions create revisioned `SigningAuditEvent` evidence.
+- Loopback Development API `/api/dev/admin/signing-change-requests` GET and `/{requestId}/decision` POST, both behind existing signing rate limits.
+- Same-origin BFF `/api/admin/signing-change-requests` GET and decision POST with authenticated cookie-to-bearer forwarding and restricted response projection.
+- Level1-only navigation entry `تأیید تغییر کلید` opens `/signing-approvals`. The page enforces role server-side, while privileged checks are independent in the API. UI shows pending owner/taxpayer/fiscal memory, full reason, 10+ character decision reason, and approve/reject buttons.
+- `phase09-step24-admin-review.test.mjs` added; real server Build, typecheck and database integration still unverified in this connector session.
+
+**Important incomplete scope**: Consuming approval exactly once and atomic staged replacement of the currently active private key (retaining old key, updating selection/version and allowing a fresh real authority token test) are NOT enabled by this change. Approval is metadata and expires after 24h; it does NOT recreate a taxpayer token. Do not close Step24 until that path is fully implemented, security-reviewed, and actually tested in macOS/Ubuntu. No migration or DB data mutation was performed by the assistant.
