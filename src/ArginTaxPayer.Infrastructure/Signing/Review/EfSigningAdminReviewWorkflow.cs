@@ -123,7 +123,7 @@ public sealed class EfSigningAdminReviewWorkflow(ArginTaxPayerDbContext db) : IS
                     Id = Guid.NewGuid(), CustomerUserId = req.CustomerUserId,
                     TaxpayerId = req.TaxpayerId, FiscalMemoryId = req.FiscalMemoryId,
                     OperationRecordId = key.OriginOperationRecordId, ActorUserId = admin.Value,
-                    SubjectKind = 4, SubjectId = req.Id, Revision = req.Revision,
+                    SubjectKind = 4, SubjectId = req.Id, Revision = immediateSuspension ? req.Revision - 1 : req.Revision,
                     ActionCode = decision.Approve ? "change_request_approved" : "change_request_rejected",
                     OutcomeCode = decision.Approve ? "Approved" : "Rejected",
                     PublicFingerprintSha256 = key.PublicFingerprintSha256, OccurredAtUtc = now
