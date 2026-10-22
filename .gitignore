@@ -27,3 +27,6 @@ obj/
 .vs/
 .idea/
 .DS_Store
+
+# Local phase 09 acceptance evidence (may contain host metadata)
+artifacts/phase09-step25-acceptance.json
