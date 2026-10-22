@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-const src = p => readFileSync(new URL("../../" + p, import.meta.url), "utf8");
+const src = p => readFileSync(new URL("../../../" + p, import.meta.url), "utf8");
 
 test("Existing and generated keys use the same custody and real test route, not a mock token", () => {
   const panel = src("apps/web/app/taxpayers/taxpayer-connection-panel.tsx");
