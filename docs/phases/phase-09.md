@@ -268,8 +268,8 @@ Provider references inspected in Step 02:
 | 21 | New key/token onboarding | Generate private/public artifacts, public download and controlled private handoff | Owner-approved 2026-10-22 |
 | 22 | Read-only taxpayer connection test | Official SDK/endpoint authentication without invoice dispatch | Owner-approved 2026-10-22 (including segmented connection UI); any missing live authority/cross-platform evidence remains recorded for Step25 |
 | 23 | Single-memory change request | User request, reason, revision and plan-aware second-memory denial | Owner-approved 2026-10-22; regression gates remain in Step25 |
-| 24 | Level1 approval and token recreation | One-time approval/rejection, expiry, audit and safe replacement | Level1 admin review, immediate suspension, 24h one-use replacement and atomic key version selection committed; owner macOS tests and actual authority re-auth pending |
-| 25 | Integrated onboarding acceptance | Legacy/new user, plan capacity, scope, race, leak and connection cases | Not started |
+| 24 | Level1 approval and token recreation | One-time approval/rejection, expiry, audit and safe replacement | Owner-approved 2026-10-23; cross-platform and live authority evidence carried into Step25 |
+| 25 | Integrated onboarding acceptance | Legacy/new user, plan capacity, scope, race, leak and connection cases | Automated cross-platform CI + guarded PostgreSQL acceptance + explicit operator checklist committed 2026-10-23; runtime and authority signoff pending |
 | 26 | Closeout and conditional publication | All signoffs; separate permission for merge/tag/release | Not started |
 
 ## 6. Implementation ownership and verification
@@ -1424,3 +1424,51 @@ Owner macOS verification BEFORE Step24 signoff:
 5. Source-only assertions cannot replace PostgreSQL/MFA/browser/live authority integration evidence. No test was run on the user's Mac or VPS by this connector session. No migration executed. No merge/tag/release authorized here.
 
 **Do not label Step24 operator-verified until these checks have actually succeeded.**
+
+## Step25 — Integrated onboarding acceptance (2026-10-23)
+
+**Owner accepted Step24 on 2026-10-23.** Step25 adds repeatable evidence-gathering and regression coverage, with strict distinction between offline tests and live/manual acceptance. Do NOT infer that a CI green build is proof of a real Iranian tax authority connection.
+
+### Artifacts
+- `scripts/phase09_step25_accept.py` runs `pure`, `database` or `audit`. It writes JSON evidence to `artifacts/phase09-step25-acceptance.json`; each manual item remains explicitly `NOT_VERIFIED` until a human completes it. No private PEM, DB password, auth token or Vault token may be logged/committed.
+- `scripts/phase09_step25_db_check.py` enforces a read-only `argintaxpayer_test` database and validates the Phase09 signing schema, encrypted-key custody schema, applied migrations and review consumption constraint. Connection is restricted to a validated localhost/SSH-tunnel target; it is not a data-changing migration.
+- `apps/web/tests/phase09-step25-acceptance.test.mjs` covers real GET_TOKEN path, existing/new key UI contracts, same-origin/MFA gates, single-memory denial, version-bound time-limited approval, one-time consumption and encrypted PostgreSQL private-key storage.
+- `.github/workflows/phase-09-acceptance.yml` runs the complete offline acceptance runner separately on `ubuntu-24.04` and `macos-15` on each phase-branch push or pull request. Artifacts give per-platform status. These CI jobs **do not** call authority endpoints or use an actual private key or database.
+
+### Operator verification — explicit gating and evidence
+
+**A. Non-destructive macOS offline checks (always required):**
+```bash
+cd ~/projects/ArginTaxPayer
+git switch phase/09-cryptographic-keys-signing
+git pull --ff-only origin phase/09-cryptographic-keys-signing
+python3 scripts/phase09_step25_accept.py pure
+```
+Require six PASS gates and no FAIL, and compare `git rev-parse HEAD` with the latest SHA in the approval record. All tests must actually execute; skipped database tests do not prove PostgreSQL behavior.
+
+**B. PostgreSQL integration on *test only* (explicitly opt in):**
+Verify the long-lived AutoSSH tunnel `127.0.0.1:15432 -> 127.0.0.1:5432` is available and the test database credentials are loaded into the environment. The verifier refuses any non-`argintaxpayer_test` DB and refuses nonloopback DB destinations.
+```bash
+# Load the existing private test DSN into ConnectionStrings__ArginTaxPayerDb
+# without showing it in terminal history or chat. Do NOT show .env files.
+python3 scripts/phase09_step25_accept.py database
+```
+The runner checks the required migrated tables in READ ONLY mode and runs isolated PostgreSQL journal tests. Such tests create disposable synthetic fixtures within the explicitly approved TEST database; they are not safe for production. Require results for all four PostgreSQL classes. If `psql` or test credentials are missing the gate fails, not silently skips.
+
+**C. Actual UI/role/memory browser acceptance (manual, no real data in reports):**
+1. Existing-user route: customer account with an already-registered real key -> owner login -> choose exact taxpayer/memory -> import only when authorized -> confirm `db:v1` encrypted record and read-only GET_TOKEN success. No plaintext PEM/token in response/log/DB.
+2. New-user route: customer -> create taxpayer, single fiscal memory -> generate key and one-time ZIP delivery -> securely record new public key in actual portal -> successful authenticated GET_TOKEN & GET_FISCAL_INFORMATION for that exact memory. Merely downloading ZIP does not prove external portal registration.
+3. Identity isolation: Level2 only their scoped customers; second customer cannot view first customer's key, request history, signed token, or approval. Level1 has request review authority; Level2 cannot approve. MFA not configured/expired -> review denied. Same requester must not approve own request.
+4. Entitlement: single annual taxpayer/memory remains locked after successful connection; attempts to add or switch a second memory without authoritative plan entitlement are denied; invoice-count entitlement never implicitly upgrades annual single-taxpayer capacity. Verify with future Phase12 authoritative subscription layer where relevant and mark NOT_VERIFIED if not yet implemented.
+5. Rotation: current key active -> owner submits change request -> distinct Level1 approves -> owner reauthenticates -> stage *different* key -> new key selected, prior ciphertext preserved, old key marked history and audit stored -> approval consumed. Repeat request with same approval must conflict. Cross-memory/tenant approval must conflict. Check stale revision, expiry >=24h, concurrent staging race and network timeout.
+6. Compromise/suspend: confirmed compromise immediately disables previous key; approval still allows guarded replacement. Approved suspension disables key without erasing ciphertext; subsequent GET_TOKEN must not authenticate using it.
+7. Recovery: interruption between encrypted envelope persistence and journal commit -> owner-scoped recovery using same operation identity must not create a second key or destroy previous one. Wrong master key must fail closed and must not be rotated automatically. Backup and restore of test encrypted envelope + separately escrowed master key must be verified before production.
+8. UI/UX: two method tabs, shared memory selector, Persian operation message boxes, progress and explicit errors, no secret material in browser logs; visibility and refresh behavior stable on macOS Safari/Chrome and Ubuntu browser.
+9. Cross-platform: macOS and Ubuntu use identical commit SHA; compare build, .NET tests, npm tests/typecheck/build and server readiness independently.
+
+**D. Accept/reject Step25:**
+- PASS only after *both platform offline gates*, explicit test-DB integration, and all relevant actual/manual authority/security gates are evidenced with redacted operation identifiers and date.
+- BLOCKED when the tax authority is unavailable or no authorized real fiscal memory is available. Do not simulate a success token.
+- Step26 merge/tag/release is separate and requires explicit owner permission; Step25 does not trigger publication.
+
+**Current evidence:** GitHub source/CI/verifier committed. User macOS, Ubuntu VPS, PG synthetic integration, actual authority results and any browser scenarios have NOT been observed by this assistant. Thus Step25 operator acceptance is pending.
