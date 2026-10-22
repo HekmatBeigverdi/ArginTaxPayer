@@ -42,7 +42,9 @@ async function proxy(req: NextRequest, ctx: Context, method: "GET" | "POST") {
         return reply(413, { error: "request_too_large" });
       const raw = await req.text();
       if (raw.length > 2048) return reply(413, { error: "request_too_large" });
-      const parsed = JSON.parse(raw);
+      let parsed: any;
+      try { parsed = JSON.parse(raw); }
+      catch { return reply(400, { error: "invalid_request" }); }
       if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed) ||
           !uuid.test(parsed.requestId) || !Number.isSafeInteger(parsed.expectedKeyRevision) ||
           parsed.expectedKeyRevision < 1 || ![1, 2, 3].includes(parsed.kind) ||
