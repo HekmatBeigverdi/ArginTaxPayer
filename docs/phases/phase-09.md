@@ -1322,3 +1322,28 @@ The actual old SDK source ZIP was not available as a retrievable raw archive to 
 5. Negative tests: nonowner denied; suspended/missing key prevented; unavailable Vault; invalid/rejected authority authentication; timeout; ensure no invoice dispatch and no secrets in browser/server logs.
 6. If authority rejects the first request, inspect safe result and use request metadata locally to reconcile exact serialization with the source-pinned SDK, without overriding TLS validation.
 7. Mark Step22 owner-approved ONLY after operator reports actual live successes or explicitly accepts the remaining environmental limitations.
+
+## Step22 temporary encrypted PostgreSQL custody — owner direction 2026-10-22
+
+**Owner changed the custody requirement:** do NOT require a running Vault for development completion. Persist protected PKCS#8 only as an AES-256-GCM envelope in PostgreSQL; keep Vault architecture optional for a separately approved future migration. **NEVER persist unencrypted private material.**
+
+### Implementation delivered (NOT yet run against the user's database)
+- `SigningKeyProtection__Provider=Database` chooses a provider-independent implementation without creating/starting Vault. Existing Vault provider is retained when explicitly selected.
+- `DatabaseKeyProtectionProvider` uses AES-256-GCM with a persistent random 256-bit master key held only in the gitignored local environment variable `SigningKeyProtection__DatabaseMasterKey`. The database receives only wrapped DEK and encrypted PKCS#8. The AES AAD includes owner, taxpayer, fiscal memory, key version and originating operation. The master key must NEVER be written to DB, logs, Git or backups distributed with the DB.
+- `DatabaseProtectedKeyEnvelopeStore` uses scope-bound, versioned SQL CAS and immutable key-version identity. `DatabaseGeneratedKeyCustody` implements the existing import, generate, recover and signature custody contracts without changing UX or invoicing.
+- Existing signing metadata receives `db://` custody reference and `db:v1` wrapping version for new local records. Existing `vault://` key records are NOT silently moved or overwritten.
+- Additive manual migration `20261022140000_AddEncryptedDatabaseSigningCustody` creates the dedicated `signing_private_key_envelopes` table in `argintaxpayer_test` only. It is committed but **NOT APPLIED**. The model snapshot is updated. The existing Phase09 migration is prerequisite; owner approval for any actual migration is separate.
+- `python3 scripts/phase09-use-db-custody.py` updates gitignored `.env.dev.local`, creates a 32-byte master key only if missing, preserves an existing valid key and prints no secret. It does not run a migration, restart services, reset identities or contact a tax authority.
+- Tests `Phase09DatabaseCustodyEncryptionTests` cover roundtrip, tenant binding, a different master key and malformed/missing master key. These are **ADDED, NOT EXECUTED** until macOS runs dotnet.
+
+### Operational gates (operator)
+1. Confirm current test database is `argintaxpayer_test`, review safe backup, grant migration approval before executing it; do not use a production database. No migration has been executed by the assistant.
+2. Run `python3 scripts/phase09-use-db-custody.py`, securely back up the resulting DatabaseMasterKey separately from PostgreSQL backups. Loss of this key makes all encrypted private keys irrecoverable; never regenerate the master key for an existing table.
+3. Apply only `20261022140000_AddEncryptedDatabaseSigningCustody` after confirming that the earlier Phase09 signing metadata migration is present. Use the standard dotnet EF command with explicit test DB connection string and operator approval; inspect generated SQL and backup first.
+4. Restart the existing macOS development environment, authenticate as the exact owning user, then test imported existing PKCS8 and newly generated ZIP once only; verify private-key handoff cannot replay. Run actual signed `GET_TOKEN` then `GET_FISCAL_INFORMATION` for both authorized fiscal memories.
+5. Run focused and full C# tests, web tests/typecheck/build and no-DB script verifiers. Assert other users cannot access the stored records and ensure no plaintext key appears in DB logs, telemetry or API payloads. The current connector session cannot execute dotnet, so no PASS is claimed.
+
+### Later planned Database → Vault migration
+Preserve per-key immutable owner/memory/operation IDs and `db://` locator. A dedicated audited migration service must (a) verify database-encrypted records with the retained master key, (b) decrypt only in server protected memory, (c) stage and authenticate matching encrypted material under Vault Transit + KV v2 for the SAME immutable key identity, (d) CAS-update the custody locator/metadata after verification, (e) retain backup and recovery on interruption, and only then (f) securely retire the old ciphertext and decommission the development master key after all verification. It must never overwrite a different key or silently rotate the key pair. **Such migration has not yet been implemented or run.**
+
+**Acceptance state:** Developer implementation committed; local PostgreSQL migration approval, .NET Build/tests, encrypted storage verification and live tax authority success remain unverified. Step22 is NOT closed yet.
