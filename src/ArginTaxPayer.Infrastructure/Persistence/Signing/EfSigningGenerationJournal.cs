@@ -202,6 +202,16 @@ public sealed partial class EfSigningOperationRepository : ISigningGenerationJou
                 previous.LifecycleState = 3; // historical/replaced: do not delete encrypted key
                 previous.Revision++;
                 previous.UpdatedAtUtc = now;
+                db.SigningAuditEvents.Add(new SigningAuditEvent
+                {
+                    Id = Guid.NewGuid(), CustomerUserId = id.CustomerUserId,
+                    TaxpayerId = id.TaxpayerId, FiscalMemoryId = id.FiscalMemoryId,
+                    OperationRecordId = op.Id, ActorUserId = actor, SubjectKind = 2,
+                    SubjectId = previous.Id, Revision = previous.Revision,
+                    ActionCode = "key_replaced", OutcomeCode = "Replaced",
+                    PublicFingerprintSha256 = previous.PublicFingerprintSha256,
+                    OccurredAtUtc = now
+                });
                 approval.State = 4;
                 approval.ConsumedAtUtc = now;
                 approval.ConsumedByOperationRecordId = op.Id;
