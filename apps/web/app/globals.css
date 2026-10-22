@@ -776,3 +776,18 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 .signing-fiscal-info dt{color:#587275;font-size:11px}
 .signing-fiscal-info dd{font-size:12px;font-weight:650;margin:3px 0 0;overflow-wrap:anywhere}
 @media(max-width:640px){.signing-status-bar{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.signing-status-bar label{grid-column:1/-1}.signing-fiscal-info{grid-template-columns:1fr}.signing-method-panel{padding:10px}}
+
+/* Phase09 Step23: request-only key change workflow, restrained and mobile-friendly. */
+.signing-change-requests{display:grid;gap:10px;padding:12px;border:1px solid #dce8e6;border-radius:10px;background:#fbfefd}
+.signing-change-requests .signing-panel-heading h3{font-size:13px;margin:0}
+.signing-change-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px 12px}
+.signing-change-form label{display:grid;gap:5px;font-weight:600;font-size:12px;min-width:0}
+.signing-change-form select,.signing-change-form textarea{font:inherit;width:100%;min-width:0;border:1px solid #bfcfd0;border-radius:7px;padding:7px 9px;background:var(--surface,#fff)}
+.signing-change-form textarea{resize:vertical;font-size:12px;line-height:1.8}
+.signing-change-form__reason{grid-column:1/-1}
+.signing-change-form__actions{grid-column:1/-1;display:flex;gap:10px;justify-content:space-between;align-items:center;flex-wrap:wrap;font-size:11px;color:#61757c}
+.signing-change-history{display:grid;gap:8px;border-top:1px solid #e2e9e9;padding-top:10px;font-size:12px}
+.signing-change-history ul{list-style:none;margin:0;padding:0;display:grid;gap:5px}
+.signing-change-history li{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;background:#f1f7f5;padding:8px 10px;border-radius:6px}
+.signing-change-history time{font-size:10px;color:#5c7478}
+@media(max-width:600px){.signing-change-form{grid-template-columns:minmax(0,1fr)}}
