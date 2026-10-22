@@ -268,7 +268,7 @@ Provider references inspected in Step 02:
 | 21 | New key/token onboarding | Generate private/public artifacts, public download and controlled private handoff | Owner-approved 2026-10-22 |
 | 22 | Read-only taxpayer connection test | Official SDK/endpoint authentication without invoice dispatch | Owner-approved 2026-10-22 (including segmented connection UI); any missing live authority/cross-platform evidence remains recorded for Step25 |
 | 23 | Single-memory change request | User request, reason, revision and plan-aware second-memory denial | Owner-approved 2026-10-22; regression gates remain in Step25 |
-| 24 | Level1 approval and token recreation | One-time approval/rejection, expiry, audit and safe replacement | Level1 review API/console, revision CAS, MFA and 24h approval committed; safe replacement/consumption not yet implemented or tested |
+| 24 | Level1 approval and token recreation | One-time approval/rejection, expiry, audit and safe replacement | Level1 admin review, immediate suspension, 24h one-use replacement and atomic key version selection committed; owner macOS tests and actual authority re-auth pending |
 | 25 | Integrated onboarding acceptance | Legacy/new user, plan capacity, scope, race, leak and connection cases | Not started |
 | 26 | Closeout and conditional publication | All signoffs; separate permission for merge/tag/release | Not started |
 
@@ -1401,3 +1401,13 @@ Owner explicitly approved Step23. Step24 administrative review work was committe
 - `phase09-step24-admin-review.test.mjs` added; real server Build, typecheck and database integration still unverified in this connector session.
 
 **Important incomplete scope**: Consuming approval exactly once and atomic staged replacement of the currently active private key (retaining old key, updating selection/version and allowing a fresh real authority token test) are NOT enabled by this change. Approval is metadata and expires after 24h; it does NOT recreate a taxpayer token. Do not close Step24 until that path is fully implemented, security-reviewed, and actually tested in macOS/Ubuntu. No migration or DB data mutation was performed by the assistant.
+
+### Step24 implementation extension — approved rotation consumption and suspension, 2026-10-22
+
+The initial Step24 review-only patch has been extended. An approved **Rotate (3)** or **Compromise (2)** change, still within the 24-hour window and bound to exact active key version/revision, allows the owner to create/import a replacement through the existing guarded signing workflow. The existing EF journal rejects all other second-key claims, stages a strictly subsequent immutable key version and on successful seal checks the unconsumed approval again, consumes it, marks prior key historical (lifecycle 3), switches the memory key selection and writes separate key/approval audit events in the **same** journal transaction. Private key envelopes are retained. Any expired, stale, already consumed or wrong-scope approval fails without replacement.
+
+For **Suspend (1)**, Level1 approval atomically moves the current key to suspended lifecycle (4) and marks the request consumed in the same serializable transaction, preserving old encrypted material. Double-action audit uses distinct subject revisions. A suspended key no longer qualifies for connection-ready state.
+
+The Next.js BFF projects the owner-only `replacementApproved` flag; existing-key and generation UIs only unlock replacement with this flag, while fresh-login and custody prerequisites remain mandatory. New import attempts use a fresh idempotency identifier instead of the prior committed operation; normal retries preserve that identifier. The operator must register the NEW public key with the authority before assuming a new GET_TOKEN will succeed. Successful authority authentication is **not simulated**. Token recreation is accomplished via the existing read-only GET_TOKEN connection test for the newly selected signing key, not by storing a reusable token in the business database.
+
+Added/updated `phase09-step24-admin-review.test.mjs`, `phase09-step24-key-replacement.test.mjs`. Operator acceptance pending: focused/full .NET and web tests, real PostgreSQL serialized admin decisions, approved imported/generated replacement, double-consumption, 24h expiry, wrong owner/MFA failure, prior-key preservation, and actual authority reauthentication. **No database migration, merge, tag, release or live test was performed in this assistant session.** Step24 is implemented but final signoff requires operator evidence.
