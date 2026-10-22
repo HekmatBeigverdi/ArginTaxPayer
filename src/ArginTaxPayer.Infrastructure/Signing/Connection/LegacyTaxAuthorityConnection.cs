@@ -44,14 +44,15 @@ internal sealed class LegacyTaxAuthorityConnection(
                 return Outcome(SigningConnectionTestStatus.KeyNotReady);
 
             // Authorization is checked before any query resolving the Vault key locator.
-            var owner = await db.TaxpayerProfiles.AsNoTracking()
+            var ownerId = await db.TaxpayerProfiles.AsNoTracking()
                 .Where(x => x.Id == taxpayerId).Select(x => x.CustomerUserId).SingleOrDefaultAsync(ct);
             var fiscalId = await db.FiscalMemories.AsNoTracking()
                 .Where(x => x.Id == fiscalMemoryId && x.TaxpayerId == taxpayerId)
                 .Select(x => x.MemoryIdentifier).SingleOrDefaultAsync(ct);
-            if (owner == Guid.Empty || string.IsNullOrWhiteSpace(fiscalId) || fiscalId.Length > 64 ||
+            if (ownerId is null || ownerId == Guid.Empty || string.IsNullOrWhiteSpace(fiscalId) || fiscalId.Length > 64 ||
                 fiscalId.Any(x => !char.IsAsciiLetterOrDigit(x)))
                 return Outcome(SigningConnectionTestStatus.KeyNotReady);
+            var owner = ownerId.Value;
 
             var selection = await db.SigningKeySelections.AsNoTracking()
                 .Where(x => x.FiscalMemoryId == fiscalMemoryId && x.CustomerUserId == owner &&
