@@ -163,6 +163,7 @@ if (app.Environment.IsDevelopment())
         app.MapSoftwareUserProfileEndpoints();
         app.MapTaxpayerDevelopmentEndpoints();
         app.MapSigningImportEndpoints();
+        app.MapSigningImportRecoveryEndpoints();
         app.MapSigningGenerationEndpoints();
         app.MapSigningConnectionEndpoints();
         app.MapPartyDevelopmentEndpoints();
