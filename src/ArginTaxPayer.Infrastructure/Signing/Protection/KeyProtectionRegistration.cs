@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using ArginTaxPayer.Infrastructure.Persistence;
 
 namespace ArginTaxPayer.Infrastructure.Signing.Protection;
 
@@ -17,7 +18,15 @@ public static class KeyProtectionRegistration
             services.AddSingleton<IKeyProtectionProvider>(_ => new UnavailableKeyProtectionProvider());
             services.AddSingleton<IProtectedKeyEnvelopeStore>(_ => new UnavailableEnvelopeStore());
         }
-        else
+        else if (section["Provider"] == "Database")
+        {
+            // Scoped EF storage; master key supplied independently of DB and never persisted there.
+            services.AddSingleton<IKeyProtectionProvider>(sp =>
+                new DatabaseKeyProtectionProvider(configuration));
+            services.AddScoped<IProtectedKeyEnvelopeStore>(sp =>
+                new DatabaseProtectedKeyEnvelopeStore(sp.GetRequiredService<ArginTaxPayerDbContext>()));
+        }
+        else if (section["Provider"] is null or "Vault")
         {
             if (!Uri.TryCreate(section["Address"], UriKind.Absolute, out var address))
                 throw new KeyProtectionException(KeyProtectionFailure.Unavailable);
@@ -33,8 +42,9 @@ public static class KeyProtectionRegistration
             services.AddSingleton<IProtectedKeyEnvelopeStore>(sp => new VaultProtectedKeyEnvelopeStore(
                 sp.GetRequiredService<VaultHttpTransport>(), options));
         }
-        services.AddSingleton<KeyEnvelopeProtector>(sp => new(sp.GetRequiredService<IKeyProtectionProvider>()));
-        services.AddSingleton<ProtectedKeyEnvelopeStore>(sp => new(
+        else throw new KeyProtectionException(KeyProtectionFailure.Unavailable);
+        services.AddScoped<KeyEnvelopeProtector>(sp => new(sp.GetRequiredService<IKeyProtectionProvider>()));
+        services.AddScoped<ProtectedKeyEnvelopeStore>(sp => new(
             sp.GetRequiredService<KeyEnvelopeProtector>(), sp.GetRequiredService<IProtectedKeyEnvelopeStore>()));
         return services;
     }
