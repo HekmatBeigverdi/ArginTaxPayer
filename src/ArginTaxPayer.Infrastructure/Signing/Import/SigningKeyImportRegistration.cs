@@ -30,7 +30,7 @@ public static class SigningKeyImportRegistration
                 ? new DatabaseGeneratedKeyCustody(
                     sp.GetRequiredService<ProtectedKeyEnvelopeStore>(),
                     sp.GetRequiredService<KeyEnvelopeProtector>(),
-                    sp.GetRequiredService<IProtectedKeyEnvelopeStore>())
+                    sp.GetRequiredService<ArginTaxPayerDbContext>())
                 : new VaultGeneratedKeyCustody(
                     sp.GetRequiredService<ProtectedKeyEnvelopeStore>(),
                     sp.GetRequiredService<KeyEnvelopeProtector>(),
