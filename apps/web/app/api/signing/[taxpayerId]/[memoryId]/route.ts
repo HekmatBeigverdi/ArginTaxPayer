@@ -44,7 +44,7 @@ async function proxy(req: NextRequest, context: Context, method: 'GET' | 'POST')
     if (method === 'GET') return response(200, {
       storageReady: data.storageReady === true, configured: data.configured === true, generationConfigured: data.generationConfigured === true, freshLogin: data.freshLogin === true,
       operationId: typeof data.operationId === 'string' && uuid.test(data.operationId) ? data.operationId : null,
-      hasKey: data.hasKey === true, fingerprintSha256: fingerprint(data.fingerprintSha256),
+      hasKey: data.hasKey === true, recoveryAvailable: data.recoveryAvailable === true, fingerprintSha256: fingerprint(data.fingerprintSha256),
       lifecycleState: Number.isInteger(data.lifecycleState) ? data.lifecycleState : null, portalVerified: false
     });
     const key = data.publicKey;
