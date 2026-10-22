@@ -25,9 +25,17 @@ public static class SigningKeyImportRegistration
         services.AddScoped<ISigningImportJournal>(sp =>
             new EfSigningOperationRepository(sp.GetRequiredService<ArginTaxPayerDbContext>()));
         services.AddSingleton<Pkcs8SigningKeyParser>(_ => new());
-        services.AddScoped<IGeneratedKeyCustody>(sp => new VaultGeneratedKeyCustody(
-            sp.GetRequiredService<ProtectedKeyEnvelopeStore>(), sp.GetRequiredService<KeyEnvelopeProtector>(),
-            sp.GetRequiredService<VaultHttpTransport>(), sp.GetRequiredService<VaultProtectionOptions>()));
+        services.AddScoped<IGeneratedKeyCustody>(sp =>
+            configuration["SigningKeyProtection:Provider"] == "Database"
+                ? new DatabaseGeneratedKeyCustody(
+                    sp.GetRequiredService<ProtectedKeyEnvelopeStore>(),
+                    sp.GetRequiredService<KeyEnvelopeProtector>(),
+                    sp.GetRequiredService<IProtectedKeyEnvelopeStore>())
+                : new VaultGeneratedKeyCustody(
+                    sp.GetRequiredService<ProtectedKeyEnvelopeStore>(),
+                    sp.GetRequiredService<KeyEnvelopeProtector>(),
+                    sp.GetRequiredService<VaultHttpTransport>(),
+                    sp.GetRequiredService<VaultProtectionOptions>()));
         services.AddScoped<ISigningKeyImportService>(sp => new SigningKeyImportService(
             sp.GetRequiredService<ISigningImportJournal>(), sp.GetRequiredService<IGeneratedKeyCustody>(),
             sp.GetRequiredService<Pkcs8SigningKeyParser>()));
