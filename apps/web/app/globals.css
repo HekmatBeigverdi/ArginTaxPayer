@@ -791,3 +791,21 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 .signing-change-history li{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;background:#f1f7f5;padding:8px 10px;border-radius:6px}
 .signing-change-history time{font-size:10px;color:#5c7478}
 @media(max-width:600px){.signing-change-form{grid-template-columns:minmax(0,1fr)}}
+
+/* Phase09 Step24 - administrator signing change request decisions. */
+.signing-admin-review{display:grid;gap:12px}
+.signing-admin-review__list{display:grid;gap:10px}
+.signing-admin-review__item{padding:12px;border:1px solid #dce8e6;border-radius:10px;background:var(--surface,#fff);display:grid;gap:10px}
+.signing-admin-review__head{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;align-items:center}
+.signing-admin-review__head strong{font-size:13px;color:#23574d}
+.signing-admin-review__head span{font-size:11px;color:#87621f;background:#fff5dc;border:1px solid #ecd8a8;border-radius:12px;padding:3px 10px}
+.signing-admin-review__item dl{margin:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.signing-admin-review__item dl>div{display:grid;gap:3px;background:#f3f8f6;padding:8px 10px;border-radius:7px}
+.signing-admin-review__item dt{font-size:10px;color:#607d78}
+.signing-admin-review__item dd{font-size:12px;margin:0;overflow-wrap:anywhere}
+.signing-admin-review__explanation{margin:0;font-size:12px;line-height:1.9;white-space:pre-wrap;overflow-wrap:anywhere}
+.signing-admin-review__decision{display:grid;gap:9px;background:#f6faf9;border:1px solid #dbe8e3;padding:10px;border-radius:8px}
+.signing-admin-review__decision label{display:grid;gap:6px;font-size:12px}
+.signing-admin-review__decision textarea{border:1px solid #becfcb;border-radius:7px;padding:8px;font:inherit;font-size:12px;resize:vertical}
+.signing-admin-review__actions{display:flex;gap:8px;flex-wrap:wrap}
+@media(max-width:640px){.signing-admin-review__item dl{grid-template-columns:1fr}}
