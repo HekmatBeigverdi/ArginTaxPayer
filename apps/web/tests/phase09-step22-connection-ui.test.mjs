@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 const route = readFileSync(new URL('../app/api/signing/[taxpayerId]/[memoryId]/connection-test/route.ts', import.meta.url), 'utf8');
 const ui = readFileSync(new URL('../app/taxpayers/signing-connection-test.tsx', import.meta.url), 'utf8');
 const workspace = readFileSync(new URL('../app/taxpayers/taxpayer-workspace.tsx', import.meta.url), 'utf8');
+const panel = readFileSync(new URL('../app/taxpayers/taxpayer-connection-panel.tsx', import.meta.url), 'utf8');
 
 test('connection checks origin, session and avoids cache', () => {
   assert.match(route, /isSameLocalOrigin/);
@@ -26,7 +27,8 @@ test('connection result only exposes known public metadata', () => {
 test('taxpayer workspace exposes read-only connection test', () => {
   assert.match(ui, /تست اتصال/);
   assert.match(ui, /UnsupportedProfile/);
-  assert.match(ui, /اتصال موفق است؛ اطلاعات حافظه مالیاتی دریافت شد/);
+  assert.match(ui, /احراز هویت و دریافت اطلاعات حافظه انجام شد/);
   assert.match(ui, /economicCode/);
-  assert.match(workspace, /SigningConnectionTest/);
+  assert.match(workspace, /TaxpayerConnectionPanel/);
+  assert.match(panel, /SigningConnectionTest/);
 });
