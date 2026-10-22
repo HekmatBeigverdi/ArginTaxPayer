@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 
 type Memory = { id: string; memoryIdentifier: string; status: number };
 type State = { storageReady: boolean; configured: boolean; freshLogin: boolean; operationId: string | null;
-  hasKey: boolean; fingerprintSha256: string | null; lifecycleState: number | null };
+  hasKey: boolean; recoveryAvailable: boolean; fingerprintSha256: string | null; lifecycleState: number | null };
 function message(code: string, status: number) {
   if (code === 'reauthentication_required') return 'برای ورود کلید، دوباره وارد حساب شوید و ظرف پنج دقیقه اقدام کنید.';
   if (status === 401) return 'نشست ورود منقضی شده است؛ دوباره وارد شوید.';
@@ -59,6 +59,33 @@ export default function ExistingKeyImport({ taxpayerId, memories, loadingMemorie
     return () => { sequence.current++; clearSecrets(); };
   }, [reload, clearSecrets]);
 
+  async function recoverPendingImport() {
+    if (!state?.recoveryAvailable || !state.freshLogin || busy || loading) return;
+    setBusy(true); setError(""); setNotice("");
+    clearSecrets();
+    try {
+      const res = await fetch(endpoint + "/recover-import", {
+        method: "POST", credentials: "same-origin", cache: "no-store",
+        signal: AbortSignal.timeout(35000)
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || data?.status !== "recovered") {
+        const messages: Record<string, string> = {
+          reauthentication_or_scope_required: "برای بازیابی، با حساب مالک مؤدی دوباره وارد شوید.",
+          no_pending_import: "عملیات معلق قابل بازیابی یافت نشد؛ وضعیت را بازخوانی کنید.",
+          integrity_failure: "اعتبارسنجی کلید ذخیره‌شده ناموفق بود؛ عملیات تغییری نکرد.",
+          recovery_required: "عملیات هنوز نیازمند بررسی است؛ رکورد قبلی حذف نشده است.",
+          custody_unavailable: "امکان خواندن کلید رمزگذاری‌شده فراهم نیست."
+        };
+        throw new Error(messages[data?.error] || "بازیابی انجام نشد؛ اطلاعات کلید حفظ شده است.");
+      }
+      await reload();
+      setNotice("کلید خصوصی رمزگذاری‌شده قبلی با موفقیت بازیابی و ثبت آن نهایی شد. اکنون می‌توانید تست اتصال را اجرا کنید.");
+    } catch (ex) {
+      setError(ex instanceof Error ? ex.message : "بازیابی ناموفق بود.");
+    } finally { setBusy(false); }
+  }
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy || loading || !state?.configured || !state.freshLogin || !consent) return;
@@ -83,7 +110,7 @@ export default function ExistingKeyImport({ taxpayerId, memories, loadingMemorie
   if (loadingMemories) return <p className="field-hint">در حال دریافت حافظه مالیاتی…</p>;
   if (!memoryId) return <p className="field-hint">ابتدا کد حافظه مالیاتی را در بخش «حافظه‌های مالیاتی» ثبت کنید.</p>;
   const sealed = state?.hasKey && state.lifecycleState !== 1;
-  const canImport = state?.configured === true && state.storageReady === true && state.freshLogin === true && !busy && !loading;
+  const canImport = state?.configured === true && state.storageReady === true && state.freshLogin === true && !state.recoveryAvailable && !busy && !loading;
   return <div className="existing-key-import" aria-busy={loading || busy}>
     <div className="taxpayer-section-heading">
       <label>حافظه مالیاتی
@@ -97,6 +124,11 @@ export default function ExistingKeyImport({ taxpayerId, memories, loadingMemorie
     {error && <p role="alert" className="party-error">{error}</p>}
     {notice && <p role="status" className="party-success">{notice}</p>}
     {state?.fingerprintSha256 && <p className="field-hint">اثر انگشت کلید عمومی (SHA-256): <bdi dir="ltr">{state.fingerprintSha256}</bdi></p>}
+    {state?.recoveryAvailable && <div role="status" className="field-hint">
+      کلید خصوصی قبلاً به‌صورت رمزگذاری‌شده ذخیره شده اما ثبت آن نیمه‌تمام است. بدون واردکردن مجدد Private Key، همان عملیات را بازیابی کنید.
+      <button type="button" className="identity-secondary" disabled={busy || loading || !state.freshLogin}
+        onClick={() => void recoverPendingImport()}>{busy ? "در حال بازیابی…" : "بازیابی و نهایی‌سازی کلید ذخیره‌شده"}</button>
+    </div>}
     {sealed ? <p className="field-hint">کلید این حافظه ثبت شده است. تعریف کلید جایگزین به تأیید درخواست تغییر نیاز دارد.</p> : state && !loading && <>
       {state.configured && !state.storageReady && <p role="alert" className="party-error">جدول نگهداری رمزگذاری‌شده کلید آماده نیست. Migration گام ۲۲ را روی دیتابیس تست بررسی کنید؛ تا زمان رفع مشکل، کلید خصوصی ارسال نمی‌شود.</p>}
       {!state.configured && <p role="status" className="field-hint">API در حال اجرا قابلیت ورود کلید را غیرفعال گزارش می‌کند. تنظیمات Provider=Database و MasterKey را در API بررسی و سرویس را مجدداً راه‌اندازی کنید. سلامت دیتابیس به معنی فعال‌بودن Vault نیست.</p>}
