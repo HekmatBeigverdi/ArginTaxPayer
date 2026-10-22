@@ -4,20 +4,22 @@ using ArginTaxPayer.Infrastructure.Persistence.Signing;
 using ArginTaxPayer.Infrastructure.Signing.Generation;
 using ArginTaxPayer.Infrastructure.Signing.Protection;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Cryptography;
 
 namespace ArginTaxPayer.Infrastructure.Signing.Import;
 
 /// <summary>Recover a previously saved encrypted import without retransmitting key material.</summary>
 internal sealed class DatabaseSigningImportRecovery(
     ArginTaxPayerDbContext db, EfSigningOperationRepository journal,
-    IGeneratedKeyCustody custody, ISigningImportJournal importJournal) : ISigningImportRecovery
+    IProtectedKeyEnvelopeStore envelopes, KeyEnvelopeProtector protector,
+    ISigningImportJournal importJournal) : ISigningImportRecovery
 {
-    public async Task<SigningGenerationStatus> RecoverAsync(string? bearer, Guid taxpayerId,
+    public async Task<SigningImportRecoveryResult> RecoverAsync(string? bearer, Guid taxpayerId,
         Guid fiscalMemoryId, CancellationToken ct = default)
     {
         var state = await journal.ReadImportOnboardingAsync(bearer, taxpayerId, fiscalMemoryId, ct);
-        if (state.Status != SigningGenerationStatus.Replayed) return state.Status;
-        if (!state.FreshLogin) return SigningGenerationStatus.Forbidden;
+        if (state.Status != SigningGenerationStatus.Replayed) return new(state.Status, "authorization");
+        if (!state.FreshLogin) return new(SigningGenerationStatus.Forbidden, "fresh_login");
         var ownerId = await db.TaxpayerProfiles.AsNoTracking()
             .Where(p => p.Id == taxpayerId).Select(p => p.CustomerUserId)
             .SingleOrDefaultAsync(ct);
@@ -40,24 +42,41 @@ internal sealed class DatabaseSigningImportRecovery(
                 envelope.OriginOperationRecordId == op.Id
             select new { op.OperationId, op.Id, KeyVersionId = key.Id }).SingleOrDefaultAsync(ct);
 
-        if (candidate is null) return SigningGenerationStatus.NotFound;
+        if (candidate is null) return new(SigningGenerationStatus.NotFound, "pending_record");
         var keyIdentity = new KeyProtectionIdentity(owner, taxpayerId, fiscalMemoryId,
             candidate.KeyVersionId, candidate.Id);
-        try
-        {
-            await custody.EnsureReadyAsync(ct);
-            var receipt = await custody.RecoverAsync(keyIdentity, ct);
-            if (receipt is null) return SigningGenerationStatus.RecoveryRequired;
-            if (receipt.ProtectionKeyVersion != DatabaseKeyProtectionProvider.KeyVersion)
-                return SigningGenerationStatus.IntegrityFailure;
-            // Journal checks original consent, actor, operation digest, lifecycle and login.
-            var done = await importJournal.CompleteImportAsync(bearer, candidate.OperationId, receipt, ct);
-            return done.Status;
-        }
+        // Expose only which check failed, never the envelope, PKCS8, token or exception text.
+        StoredKeyEnvelope? stored;
+        try { stored = await envelopes.FindAsync(keyIdentity, ct); }
+        catch (KeyProtectionException) { return new(SigningGenerationStatus.IntegrityFailure, "envelope_format"); }
+        if (stored is null) return new(SigningGenerationStatus.RecoveryRequired, "envelope_missing");
+
+        SensitiveBytes privateKey;
+        try { privateKey = await protector.UnprotectAsync(keyIdentity, stored.Envelope, ct); }
         catch (KeyProtectionException ex)
         {
-            return ex.Failure == KeyProtectionFailure.Unavailable
-                ? SigningGenerationStatus.Unavailable : SigningGenerationStatus.RecoveryRequired;
+            return new(ex.Failure == KeyProtectionFailure.Unavailable
+                ? SigningGenerationStatus.Unavailable : SigningGenerationStatus.IntegrityFailure, "decrypt");
+        }
+        using (privateKey)
+        {
+            byte[] publicDer;
+            try { publicDer = RsaSigningKeyMaterial.DerivePublic(privateKey.Bytes); }
+            catch (KeyProtectionException) { return new(SigningGenerationStatus.IntegrityFailure, "pkcs8"); }
+            try
+            {
+                var receipt = new SealedGeneratedKey(keyIdentity, publicDer,
+                    RsaSigningKeyMaterial.Fingerprint(publicDer), stored.Envelope.ProtectionKeyVersion);
+                if (receipt.ProtectionKeyVersion != DatabaseKeyProtectionProvider.KeyVersion)
+                    return new(SigningGenerationStatus.IntegrityFailure, "provider_version");
+
+                var done = await importJournal.CompleteImportAsync(bearer, candidate.OperationId, receipt, ct);
+                return new(done.Status, done.Status is SigningGenerationStatus.Created or
+                    SigningGenerationStatus.Replayed ? "complete" : "journal");
+            }
+            catch (KeyProtectionException)
+            { return new(SigningGenerationStatus.IntegrityFailure, "journal"); }
+            finally { CryptographicOperations.ZeroMemory(publicDer); }
         }
     }
 }
