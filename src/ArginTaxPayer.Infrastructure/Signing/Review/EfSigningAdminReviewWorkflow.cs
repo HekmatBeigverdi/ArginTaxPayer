@@ -87,6 +87,24 @@ public sealed class EfSigningAdminReviewWorkflow(ArginTaxPayerDbContext db) : IS
                 req.DecisionReason = decision.DecisionReason.Trim();
                 req.Revision++;
 
+                // Compromised credentials must stop authenticating immediately while
+                // a bounded, one-use replacement approval remains available.
+                if (decision.Approve && req.Kind == 2)
+                {
+                    key.LifecycleState = 4;
+                    key.Revision++;
+                    key.UpdatedAtUtc = now;
+                    req.ExpectedKeyRevision = key.Revision;
+                    db.SigningAuditEvents.Add(new SigningAuditEvent
+                    {
+                        Id = Guid.NewGuid(), CustomerUserId = req.CustomerUserId,
+                        TaxpayerId = req.TaxpayerId, FiscalMemoryId = req.FiscalMemoryId,
+                        OperationRecordId = key.OriginOperationRecordId, ActorUserId = admin.Value,
+                        SubjectKind = 2, SubjectId = key.Id, Revision = key.Revision,
+                        ActionCode = "compromised_key_suspended", OutcomeCode = "Suspended",
+                        PublicFingerprintSha256 = key.PublicFingerprintSha256, OccurredAtUtc = now
+                    });
+                }
                 // Suspension is approved and immediately applied atomically; the
                 // historical ciphertext is never erased. Replacement and compromise
                 // approval remain time-limited until the owner seals a new key.
