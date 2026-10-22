@@ -76,10 +76,10 @@ export default function TaxpayerConnectionPanel({ taxpayerId, memories, loadingM
 
     <div className="signing-method-tabs" role="tablist" aria-label="انتخاب روش کلید">
       <button type="button" id="signing-existing-tab" role="tab" aria-selected={method === "existing"}
-        aria-controls="signing-existing-panel" tabIndex={method === "existing" ? 0 : -1}
+        aria-controls="signing-existing-panel"
         onClick={() => setMethod("existing")}>کلید خصوصی موجود</button>
       <button type="button" id="signing-generate-tab" role="tab" aria-selected={method === "generate"}
-        aria-controls="signing-generate-panel" tabIndex={method === "generate" ? 0 : -1}
+        aria-controls="signing-generate-panel"
         onClick={() => setMethod("generate")}>ساخت کلید جدید</button>
     </div>
     <div id="signing-existing-panel" role="tabpanel" aria-labelledby="signing-existing-tab"
