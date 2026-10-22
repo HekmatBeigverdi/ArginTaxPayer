@@ -22,6 +22,35 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Signing.DbSigningKeyEnvelope", b =>
+                {
+                    b.Property<Guid>("KeyVersionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("key_version_id");
+                    b.Property<Guid>("CustomerUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("customer_user_id");
+                    b.Property<Guid>("TaxpayerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("taxpayer_id");
+                    b.Property<Guid>("FiscalMemoryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("fiscal_memory_id");
+                    b.Property<Guid>("OriginOperationRecordId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("origin_operation_record_id");
+                    b.Property<string>("EnvelopeJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("envelope_json");
+                    b.Property<int>("Version")
+                        .HasColumnType("integer")
+                        .HasColumnName("version");
+                    b.HasKey("KeyVersionId");
+                    b.ToTable("signing_private_key_envelopes");
+                });
+
+
             modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Catalog.CatalogItemUnitConversion", b =>
                 {
                     b.Property<Guid>("Id")
