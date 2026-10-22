@@ -87,7 +87,8 @@ export default function TaxpayerConnectionPanel({ taxpayerId, memories, loadingM
       {method === "existing" && <>
         <p className="signing-method-intro">اگر قبلاً کلید خصوصی خود را دارید، همان کلید را ثبت کنید؛ نیازی به تولید جفت‌کلید جدید نیست.</p>
         <ExistingKeyImport key={taxpayerId + ":" + memoryId + ":" + revision} taxpayerId={taxpayerId}
-          memories={chosen} loadingMemories={loadingMemories} onLoadingChange={onLoadingChange}/>
+          memories={chosen} loadingMemories={loadingMemories} onLoadingChange={onLoadingChange}
+          hideMemorySelector onCompleted={refresh}/>
       </>}
     </div>
     <div id="signing-generate-panel" role="tabpanel" aria-labelledby="signing-generate-tab"
@@ -95,13 +96,13 @@ export default function TaxpayerConnectionPanel({ taxpayerId, memories, loadingM
       {method === "generate" && <>
         <p className="signing-method-intro">اگر کلید ندارید، نرم‌افزار جفت‌کلید می‌سازد. فایل خصوصی فقط یک‌بار تحویل داده می‌شود؛ سپس کلید عمومی را در کارپوشه ثبت کنید.</p>
         <SigningKeyGeneration key={taxpayerId + ":" + memoryId + ":" + revision} taxpayerId={taxpayerId}
-          memories={chosen} loadingMemories={loadingMemories}/>
+          memories={chosen} loadingMemories={loadingMemories} hideMemorySelector onCompleted={refresh}/>
         <p className="signing-method-next">مراحل: ساخت کلید ← نگهداری فایل دانلودشده ← ثبت کلید عمومی در کارپوشه ← تست اتصال</p>
       </>}
     </div>
     <div className="signing-test-panel">
       <SigningConnectionTest key={taxpayerId + ":" + memoryId + ":" + revision} taxpayerId={taxpayerId}
-        memories={chosen} loadingMemories={loadingMemories}/>
+        memories={chosen} loadingMemories={loadingMemories} hideMemorySelector/>
     </div>
   </div>;
 }
