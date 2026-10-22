@@ -1,0 +1,25 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+
+const read = path => readFileSync(new URL("../" + path, import.meta.url), "utf8");
+
+test("existing key input remains visible when custody is not configured", () => {
+  const ui = read("app/taxpayers/existing-key-import.tsx");
+  assert.match(ui, /<form onSubmit=\{submit\}/);
+  assert.doesNotMatch(ui, /state\.configured && state\.freshLogin && <form/);
+  assert.match(ui, /disabled=\{!canImport\}/);
+  assert.match(ui, /متن کلید خصوصی/);
+});
+test("generation has independent readiness and preserves browser download URL", () => {
+  const ui = read("app/taxpayers/signing-key-generation.tsx");
+  assert.match(ui, /generationConfigured/);
+  assert.match(ui, /document\.body\.appendChild\(link\)/);
+  assert.match(ui, /setTimeout\(\(\) => URL\.revokeObjectURL\(url\)/);
+});
+test("connection status API projects generation readiness without exposing secrets", () => {
+  const bff = read("app/api/signing/[taxpayerId]/[memoryId]/route.ts");
+  const api = readFileSync(new URL("../../src/ArginTaxPayer.Api/Taxpayers/SigningImportEndpoints.cs", import.meta.url), "utf8");
+  assert.match(bff, /generationConfigured: data\.generationConfigured === true/);
+  assert.match(api, /generationConfigured/);
+});
