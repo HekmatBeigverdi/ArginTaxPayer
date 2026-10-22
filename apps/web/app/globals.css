@@ -738,3 +738,41 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 .existing-key-import bdi { overflow-wrap:anywhere; }
 @media (prefers-reduced-motion: reduce) { .fiscal-section-loading .argin-loader-spinner { animation:none; } }
 
+
+/* Phase09: compact, RTL, memory-scoped connection workspace (no stacked key forms). */
+.taxpayer-connection-workspace{display:grid;gap:12px;min-width:0;color:var(--argin-text,#24384a)}
+.signing-panel-heading{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px}
+.signing-panel-heading h2{font-size:16px;line-height:1.6;margin:0}
+.signing-panel-heading p{font-size:11px;color:#627989;margin:3px 0 0;line-height:1.8}
+.signing-panel-heading button{flex:none}
+.signing-status-bar{display:grid;grid-template-columns:minmax(180px,1.5fr) repeat(2,minmax(115px,1fr));gap:9px;padding:10px;background:#f3f8f7;border:1px solid #d7e6e4;border-radius:10px}
+.signing-status-bar label,.signing-status-bar>div{display:grid;align-content:center;gap:5px;min-width:0;font-size:11px;color:#526c76}
+.signing-status-bar strong{font-size:12px;color:#1e5554;overflow-wrap:anywhere}
+.signing-status-bar select{min-width:0;width:100%;max-width:260px}
+.signing-method-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;background:#e9f3f0;padding:5px;border-radius:10px}
+.signing-method-tabs button{border:1px solid transparent;border-radius:8px;background:transparent;color:#446b6a;padding:10px 12px;cursor:pointer;font:700 12px inherit;transition:background .15s,border-color .15s}
+.signing-method-tabs button[aria-selected="true"]{background:#fff;border-color:#b4d2ca;color:#146b52;box-shadow:0 2px 5px #264f4312}
+.signing-method-tabs button:focus-visible{outline:2px solid #167c65;outline-offset:2px}
+.signing-method-panel{border:1px solid #dce9e7;border-radius:10px;padding:12px;background:var(--surface,#fff);min-width:0}
+.signing-method-panel[hidden]{display:none}
+.signing-method-intro{font-size:12px;line-height:1.9;color:#4b6971;margin:0 0 12px}
+.signing-method-next{font-size:11px;color:#477064;background:#f3f9f6;padding:9px 11px;border-radius:7px;line-height:1.8}
+.signing-test-panel{border-top:1px solid #dce8e7;padding-top:12px}
+.taxpayer-connection-test{display:grid;gap:9px}
+.taxpayer-connection-test>strong{font-size:13px}
+.signing-message{display:flex;gap:10px;align-items:flex-start;padding:11px 12px;border-radius:9px;border:1px solid #ccdfe1;background:#f4f8f9;color:#234350;line-height:1.8;min-width:0}
+.signing-message--success{background:#eff9f3;border-color:#bfdfce;color:#215c40}
+.signing-message--warning{background:#fff9ed;border-color:#e8d4a7;color:#745a22}
+.signing-message--error{background:#fff4f3;border-color:#e7beb9;color:#8a3730}
+.signing-message__icon{width:23px;height:23px;flex:none;display:grid;place-items:center;border-radius:50%;border:1px solid currentColor;font-size:13px;font-weight:800}
+.signing-message__body{flex:1;min-width:0}
+.signing-message__title{display:block;font-size:12px;margin:0 0 2px}
+.signing-message__text{font-size:12px;overflow-wrap:anywhere}
+.signing-message__detail{display:block;font-size:10px;opacity:.8;margin-top:5px}
+.signing-message__close{border:0;background:transparent;color:inherit;opacity:.75;cursor:pointer;font-size:20px;line-height:1;padding:0 4px}
+.signing-message__close:focus-visible{outline:2px solid currentColor;border-radius:4px}
+.signing-fiscal-info{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:3px 0}
+.signing-fiscal-info>div{border:1px solid #dce8e7;border-radius:7px;padding:8px;min-width:0}
+.signing-fiscal-info dt{color:#587275;font-size:11px}
+.signing-fiscal-info dd{font-size:12px;font-weight:650;margin:3px 0 0;overflow-wrap:anywhere}
+@media(max-width:640px){.signing-status-bar{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.signing-status-bar label{grid-column:1/-1}.signing-fiscal-info{grid-template-columns:1fr}.signing-method-panel{padding:10px}}
