@@ -70,7 +70,11 @@ export default function SigningKeyGeneration({ taxpayerId, memories, loadingMemo
           ? "این عملیات قبلاً انجام شده و کلید خصوصی دوباره قابل دانلود نیست؛ برای دریافت بسته جدید عملیات تازه‌ای آغاز کنید."
           : "عملیات انجام شد، اما تحویل اولیه کلید خصوصی در این پاسخ موجود نیست.");
       }
-    } catch (ex) { setError(ex instanceof Error ? ex.message : "خطا در تولید کلید."); }
+    } catch (ex) {
+      setError(ex instanceof Error && (ex.name === "TimeoutError" || ex.name === "AbortError")
+        ? "زمان پاسخ ساخت کلید به پایان رسید. پیش از تلاش مجدد، وضعیت کلید را بازخوانی کنید تا کلید تکراری ساخته نشود."
+        : ex instanceof Error ? ex.message : "خطا در تولید کلید.");
+    }
     finally { setBusy(false); }
   }
 
