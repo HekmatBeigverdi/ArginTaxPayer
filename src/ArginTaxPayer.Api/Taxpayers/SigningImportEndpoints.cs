@@ -4,6 +4,8 @@ using System.Text.Json;
 using ArginTaxPayer.Application.Signing;
 using ArginTaxPayer.Domain.Signing;
 using ArginTaxPayer.Infrastructure.Persistence.Signing;
+using ArginTaxPayer.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 using ArginTaxPayer.Api.Identity;
 
 namespace ArginTaxPayer.Api.Taxpayers;
@@ -31,7 +33,7 @@ public static class SigningImportEndpoints
         var group = routes.MapGroup("/api/dev/signing/{taxpayerId:guid}/{memoryId:guid}")
             .ExcludeFromDescription().RequireRateLimiting("signing-import");
         group.MapGet("", async (Guid taxpayerId, Guid memoryId, HttpContext http,
-            EfSigningOperationRepository journal, IConfiguration config, CancellationToken ct) =>
+            EfSigningOperationRepository journal, IConfiguration config, ArginTaxPayerDbContext db, CancellationToken ct) =>
         {
             http.Response.Headers.CacheControl = "no-store";
             if (!IdentityDevelopmentEndpoints.IsLoopbackAddress(http.Connection.RemoteIpAddress))
@@ -40,7 +42,15 @@ public static class SigningImportEndpoints
             {
                 var state = await journal.ReadImportOnboardingAsync(Bearer(http), taxpayerId, memoryId, ct);
                 if (state.Status != SigningGenerationStatus.Replayed) return Failure(state.Status);
-                return Results.Ok(new { configured = Configured(config), generationConfigured = config["SigningKeyGeneration:Enabled"] == "true" && ProtectionReady(config), state.FreshLogin,
+                var storageReady = false;
+                if (config["SigningKeyProtection:Provider"] == "Database")
+                {
+                    try { await db.DbSigningKeyEnvelopes.AsNoTracking().Take(1).AnyAsync(ct); storageReady = true; }
+                    catch (OperationCanceledException) { throw; }
+                    catch (Exception) { storageReady = false; }
+                }
+                else storageReady = true;
+                return Results.Ok(new { storageReady, configured = Configured(config), generationConfigured = config["SigningKeyGeneration:Enabled"] == "true" && ProtectionReady(config), state.FreshLogin,
                     state.OperationId, state.HasKey, state.FingerprintSha256, state.LifecycleState,
                     portalVerified = false });
             }
