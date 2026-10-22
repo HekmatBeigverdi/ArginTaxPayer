@@ -31,3 +31,15 @@ test("Development API advertises effective signing flags for safe local diagnost
   assert.match(api, /signingKeyGenerationEnabled = app.Configuration.GetValue<bool>/);
   assert.match(api, /signingConnectionTestEnabled = app.Configuration.GetValue<bool>/);
 });
+
+test("custody schema readiness fails closed in both UI workflows", () => {
+  const api = readFileSync(new URL("../../src/ArginTaxPayer.Api/Taxpayers/SigningImportEndpoints.cs", import.meta.url), "utf8");
+  const bff = read("app/api/signing/[taxpayerId]/[memoryId]/route.ts");
+  const importUi = read("app/taxpayers/existing-key-import.tsx");
+  const generationUi = read("app/taxpayers/signing-key-generation.tsx");
+  assert.match(api, /var storageReady = false/);
+  assert.match(api, /DbSigningKeyEnvelopes/);
+  assert.match(bff, /storageReady: data.storageReady === true/);
+  assert.match(importUi, /state.storageReady === true/);
+  assert.match(generationUi, /!state?.storageReady/);
+});
