@@ -19,7 +19,7 @@ test("generation has independent readiness and preserves browser download URL", 
 });
 test("connection status API projects generation readiness without exposing secrets", () => {
   const bff = read("app/api/signing/[taxpayerId]/[memoryId]/route.ts");
-  const api = readFileSync(new URL("../../src/ArginTaxPayer.Api/Taxpayers/SigningImportEndpoints.cs", import.meta.url), "utf8");
+  const api = readFileSync(new URL("../../../src/ArginTaxPayer.Api/Taxpayers/SigningImportEndpoints.cs", import.meta.url), "utf8");
   assert.match(bff, /generationConfigured: data\.generationConfigured === true/);
   assert.match(api, /generationConfigured/);
 });
