@@ -6,8 +6,8 @@ import OperationMessageBox from "./operation-message-box";
 type Memory = { id: string; memoryIdentifier: string; status: number };
 type State = { storageReady: boolean; configured: boolean; generationConfigured: boolean; freshLogin: boolean; fingerprintSha256: string | null };
 
-export default function SigningKeyGeneration({ taxpayerId, memories, loadingMemories }:
-  { taxpayerId: string; memories: Memory[]; loadingMemories: boolean }) {
+export default function SigningKeyGeneration({ taxpayerId, memories, loadingMemories, hideMemorySelector = false, onCompleted }:
+  { taxpayerId: string; memories: Memory[]; loadingMemories: boolean; hideMemorySelector?: boolean; onCompleted?: () => void }) {
   const [selected, setSelected] = useState("");
   const memoryId = memories.some(item => item.id === selected) ? selected : memories[0]?.id ?? "";
   const [state, setState] = useState<State | null>(null);
@@ -64,6 +64,7 @@ export default function SigningKeyGeneration({ taxpayerId, memories, loadingMemo
         link.click();
         link.remove();
         window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+        onCompleted?.();
         setNotice(`کلیدها دانلود شدند. اثر انگشت: ${response.headers.get("x-signing-key-fingerprint") || "نامشخص"}`);
       } else {
         const data = await response.json();
@@ -82,11 +83,11 @@ export default function SigningKeyGeneration({ taxpayerId, memories, loadingMemo
   if (loadingMemories) return <p className="field-hint">در حال دریافت حافظه مالیاتی…</p>;
   if (!memoryId) return <p className="field-hint">ابتدا کد حافظه مالیاتی را ثبت کنید.</p>;
   return <div className="signing-key-generation" aria-busy={busy}>
-    <label>حافظه مالیاتی
+    {!hideMemorySelector && <label>حافظه مالیاتی
       <select value={memoryId} disabled={busy} onChange={event => setSelected(event.target.value)}>
         {memories.map(item => <option key={item.id} value={item.id}>{item.memoryIdentifier}</option>)}
       </select>
-    </label>
+    </label>}
     {error && <OperationMessageBox key={error} kind="error" title="عملیات ناموفق بود">{error}</OperationMessageBox>}
     {notice && <OperationMessageBox key={notice} kind="success" title="عملیات انجام شد">{notice}</OperationMessageBox>}
     {state?.fingerprintSha256 && <p className="field-hint">اثر انگشت کلید عمومی فعلی: <bdi dir="ltr">{state.fingerprintSha256}</bdi></p>}
