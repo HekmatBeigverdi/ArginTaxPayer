@@ -32,16 +32,16 @@ public static class SigningImportRecoveryEndpoints
         try
         {
             var outcome = await recovery.RecoverAsync(bearer, taxpayerId, memoryId, ct);
-            return outcome switch
+            return outcome.Status switch
             {
                 SigningGenerationStatus.Created or SigningGenerationStatus.Replayed =>
-                    Results.Json(new { status = "recovered" }),
+                    Results.Json(new { status = "recovered", stage = "complete" }),
                 SigningGenerationStatus.Unauthenticated => Results.Json(new { error = "unauthorized" }, statusCode: 401),
                 SigningGenerationStatus.Forbidden => Results.Json(new { error = "reauthentication_or_scope_required" }, statusCode: 403),
                 SigningGenerationStatus.NotFound => Results.Json(new { error = "no_pending_import" }, statusCode: 404),
-                SigningGenerationStatus.IntegrityFailure => Results.Json(new { error = "integrity_failure" }, statusCode: 409),
-                SigningGenerationStatus.RecoveryRequired => Results.Json(new { error = "recovery_required" }, statusCode: 409),
-                _ => Results.Json(new { error = "custody_unavailable" }, statusCode: 503)
+                SigningGenerationStatus.IntegrityFailure => Results.Json(new { error = "integrity_failure", stage = outcome.SafeStage }, statusCode: 409),
+                SigningGenerationStatus.RecoveryRequired => Results.Json(new { error = "recovery_required", stage = outcome.SafeStage }, statusCode: 409),
+                _ => Results.Json(new { error = "custody_unavailable", stage = outcome.SafeStage }, statusCode: 503)
             };
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
