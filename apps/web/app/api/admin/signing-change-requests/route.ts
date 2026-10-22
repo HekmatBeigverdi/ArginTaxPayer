@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ACCESS_COOKIE, identityApiOrigin, identityUiEnabled } from "../../../../../lib/identity";
-import { isSameLocalOrigin } from "../../../../../lib/identity-origin.mjs";
+import { ACCESS_COOKIE, identityApiOrigin, identityUiEnabled } from "../../../../lib/identity";
+import { isSameLocalOrigin } from "../../../../lib/identity-origin.mjs";
 
 const fail = (status: number, error: string) => NextResponse.json({ error }, {
   status, headers: { "Cache-Control": "no-store" }
