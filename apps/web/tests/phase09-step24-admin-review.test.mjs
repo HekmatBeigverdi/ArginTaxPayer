@@ -41,3 +41,13 @@ test("approved suspension is applied once and preserves the encrypted key",()=>{
  assert.match(service,/immediateSuspension \? req.Revision - 1 : req.Revision/);
  assert.doesNotMatch(service,/Remove\(key\)|DeleteAsync|DeleteRange/);
 });
+
+test("compromise approval suspends compromised key before owner stages replacement",()=>{
+ const service=readFileSync(new URL("../../src/ArginTaxPayer.Infrastructure/Signing/Review/EfSigningAdminReviewWorkflow.cs",import.meta.url),"utf8");
+ const journal=readFileSync(new URL("../../src/ArginTaxPayer.Infrastructure/Persistence/Signing/EfSigningGenerationJournal.cs",import.meta.url),"utf8");
+ assert.match(service,/decision.Approve && req.Kind == 2/);
+ assert.match(service,/req.ExpectedKeyRevision = key.Revision/);
+ assert.match(service,/compromised_key_suspended/);
+ assert.match(journal,/k.LifecycleState == 2 \|\| k.LifecycleState == 4/);
+ assert.match(journal,/r.ConsumedAtUtc == null/);
+});
