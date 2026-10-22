@@ -4,7 +4,7 @@ import OperationMessageBox from "./operation-message-box";
 
 type Memory = { id: string; memoryIdentifier: string; status: number };
 type State = { storageReady: boolean; configured: boolean; freshLogin: boolean; operationId: string | null;
-  hasKey: boolean; recoveryAvailable: boolean; fingerprintSha256: string | null; lifecycleState: number | null };
+  hasKey: boolean; recoveryAvailable: boolean; replacementApproved: boolean; fingerprintSha256: string | null; lifecycleState: number | null };
 function message(code: string, status: number) {
   if (code === 'reauthentication_required') return 'برای ورود کلید، دوباره وارد حساب شوید و ظرف پنج دقیقه اقدام کنید.';
   if (status === 401) return 'نشست ورود منقضی شده است؛ دوباره وارد شوید.';
@@ -122,7 +122,7 @@ export default function ExistingKeyImport({ taxpayerId, memories, loadingMemorie
 
   if (loadingMemories) return <p className="field-hint">در حال دریافت حافظه مالیاتی…</p>;
   if (!memoryId) return <p className="field-hint">ابتدا کد حافظه مالیاتی را در بخش «حافظه‌های مالیاتی» ثبت کنید.</p>;
-  const sealed = state?.hasKey && state.lifecycleState !== 1;
+  const sealed = state?.hasKey && state.lifecycleState !== 1 && !state.replacementApproved;
   const canImport = state?.configured === true && state.storageReady === true && state.freshLogin === true && !state.recoveryAvailable && !busy && !loading;
   return <div className="existing-key-import" aria-busy={loading || busy}>
     <div className="taxpayer-section-heading">
@@ -137,6 +137,11 @@ export default function ExistingKeyImport({ taxpayerId, memories, loadingMemorie
     {error && <OperationMessageBox key={error} kind="error" title="عملیات ناموفق بود">{error}</OperationMessageBox>}
     {notice && <OperationMessageBox key={notice} kind="success" title="عملیات انجام شد">{notice}</OperationMessageBox>}
     {state?.fingerprintSha256 && <p className="field-hint">اثر انگشت کلید عمومی (SHA-256): <bdi dir="ltr">{state.fingerprintSha256}</bdi></p>}
+    {state?.replacementApproved && <OperationMessageBox kind="warning"
+      title="مجوز جایگزینی کلید فعال است">
+      مدیر سطح ۱ جایگزینی کلید را تأیید کرده است. پس از ورود مجدد، می‌توانید کلید جدید را ثبت کنید.
+      این مجوز فقط یک‌بار مصرف می‌شود و حداکثر ۲۴ ساعت اعتبار دارد.
+    </OperationMessageBox>}
     {state?.recoveryAvailable && <div role="status" className="field-hint">
       کلید خصوصی قبلاً به‌صورت رمزگذاری‌شده ذخیره شده اما ثبت آن نیمه‌تمام است. بدون واردکردن مجدد Private Key، همان عملیات را بازیابی کنید.
       <button type="button" className="identity-secondary" disabled={busy || loading || !state.freshLogin}
