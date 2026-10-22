@@ -4,9 +4,7 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import InvoiceParticipantForm from "../parties/invoice-participant-form";
 import SectionLoading from "../components/section-loading";
 import ConsoleLoader from "../components/console-loader";
-import ExistingKeyImport from "./existing-key-import";
-import SigningKeyGeneration from "./signing-key-generation";
-import SigningConnectionTest from "./signing-connection-test";
+import TaxpayerConnectionPanel from "./taxpayer-connection-panel";
 
 type Taxpayer = { id: string; kind: number; normalizedIdentifier: string; displayName: string; status: number; revision: number };
 type Memory = { id: string; taxpayerId: string; memoryIdentifier: string; status: number; revision: number };
@@ -202,12 +200,9 @@ export default function TaxpayerWorkspace({ isLevel1, initialTaxpayerId, showCre
         <details name="fiscal-sections" className="fiscal-section">
           <summary>اتصال به سامانه مؤدیان — کلید/توکن{importLoading && <SectionLoading />}</summary>
           <div className="fiscal-section-content taxpayer-token-panel">
-          <div className="taxpayer-section-heading"><h2>اتصال و کلید/توکن</h2></div>
-          <ExistingKeyImport key={initialTaxpayerId || selectedId} taxpayerId={initialTaxpayerId || selectedId}
-            memories={memories} loadingMemories={detailsLoading} onLoadingChange={setImportLoading}/>
-          <SigningKeyGeneration taxpayerId={initialTaxpayerId || selectedId} memories={memories}
-            loadingMemories={detailsLoading}/>
-          <SigningConnectionTest taxpayerId={initialTaxpayerId || selectedId} memories={memories} loadingMemories={detailsLoading}/>
+            <TaxpayerConnectionPanel key={initialTaxpayerId || selectedId}
+              taxpayerId={initialTaxpayerId || selectedId} memories={memories}
+              loadingMemories={detailsLoading} onLoadingChange={setImportLoading}/>
         </div></details>
         </div>
       </>}
