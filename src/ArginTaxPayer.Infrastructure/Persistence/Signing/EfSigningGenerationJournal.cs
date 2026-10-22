@@ -76,7 +76,7 @@ public sealed partial class EfSigningOperationRepository : ISigningGenerationJou
             if (op.State != 1) return new(SigningPersistenceStatus.Conflict);
             var prior = await db.SigningKeyVersions.AsNoTracking().Where(k =>
                 k.CustomerUserId == op.CustomerUserId && k.TaxpayerId == op.TaxpayerId &&
-                k.FiscalMemoryId == op.FiscalMemoryId && k.LifecycleState == 2)
+                k.FiscalMemoryId == op.FiscalMemoryId && (k.LifecycleState == 2 || k.LifecycleState == 4))
                 .OrderByDescending(k => k.VersionNumber).FirstOrDefaultAsync(ct);
             if (await db.SigningKeyVersions.AnyAsync(k =>
                 k.FiscalMemoryId == op.FiscalMemoryId && k.LifecycleState == 1, ct))
@@ -170,7 +170,7 @@ public sealed partial class EfSigningOperationRepository : ISigningGenerationJou
             // same journal transaction. Prior ciphertext and immutable audit remain intact.
             var previous = await db.SigningKeyVersions.SingleOrDefaultAsync(k =>
                 k.CustomerUserId == id.CustomerUserId && k.TaxpayerId == id.TaxpayerId &&
-                k.FiscalMemoryId == id.FiscalMemoryId && k.LifecycleState == 2 &&
+                k.FiscalMemoryId == id.FiscalMemoryId && (k.LifecycleState == 2 || k.LifecycleState == 4) &&
                 k.Id != id.KeyVersionId, ct);
             SigningChangeRequest? approval = null;
             if (previous is not null)
