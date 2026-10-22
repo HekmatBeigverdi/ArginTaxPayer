@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import OperationMessageBox from "./operation-message-box";
 
 type Memory = { id: string; memoryIdentifier: string; status: number };
-type State = { storageReady: boolean; configured: boolean; generationConfigured: boolean; freshLogin: boolean; fingerprintSha256: string | null };
+type State = { storageReady: boolean; configured: boolean; generationConfigured: boolean; freshLogin: boolean; hasKey: boolean; replacementApproved: boolean; fingerprintSha256: string | null };
 
 export default function SigningKeyGeneration({ taxpayerId, memories, loadingMemories, hideMemorySelector = false, onCompleted }:
   { taxpayerId: string; memories: Memory[]; loadingMemories: boolean; hideMemorySelector?: boolean; onCompleted?: () => void }) {
@@ -33,7 +33,8 @@ export default function SigningKeyGeneration({ taxpayerId, memories, loadingMemo
   }, [taxpayerId, memoryId]);
 
   async function generate() {
-    if (busy || !state?.storageReady || !state?.generationConfigured || !state.freshLogin || !consent || !memoryId) return;
+    if (busy || !state?.storageReady || !state?.generationConfigured || !state.freshLogin || !consent || !memoryId ||
+      state.hasKey && !state.replacementApproved) return;
     setBusy(true); setError(""); setNotice("");
     try {
       const response = await fetch(`/api/signing/${taxpayerId}/${memoryId}/generate`, {
@@ -91,6 +92,12 @@ export default function SigningKeyGeneration({ taxpayerId, memories, loadingMemo
     {error && <OperationMessageBox key={error} kind="error" title="عملیات ناموفق بود">{error}</OperationMessageBox>}
     {notice && <OperationMessageBox key={notice} kind="success" title="عملیات انجام شد">{notice}</OperationMessageBox>}
     {state?.fingerprintSha256 && <p className="field-hint">اثر انگشت کلید عمومی فعلی: <bdi dir="ltr">{state.fingerprintSha256}</bdi></p>}
+    {state?.hasKey && !state.replacementApproved && <OperationMessageBox kind="info" title="کلید فعال موجود است">
+      ایجاد کلید جایگزین فقط پس از ثبت درخواست و تأیید مدیر سطح ۱ ممکن است.
+    </OperationMessageBox>}
+    {state?.replacementApproved && <OperationMessageBox kind="warning" title="جایگزینی کلید تأیید شده است">
+      مجوز یک‌بارمصرف فعال است؛ ایجاد کلید جدید نسخه قبلی را حذف نمی‌کند. پس از ثبت Public Key جدید، اتصال را دوباره آزمایش کنید.
+    </OperationMessageBox>}
     {state?.generationConfigured && !state.storageReady && <p role="alert" className="party-error">جدول نگهداری رمزگذاری‌شده کلید در دیتابیس تست آماده نیست؛ وضعیت Migration گام ۲۲ را بررسی کنید.</p>}
     {loadingState && <p role="status" className="field-hint">در حال بررسی تنظیمات ساخت کلید…</p>}
     {!loadingState && state && !state.generationConfigured &&
@@ -98,7 +105,7 @@ export default function SigningKeyGeneration({ taxpayerId, memories, loadingMemo
     {state && !state.freshLogin && <p className="field-hint">برای تولید کلید دوباره احراز هویت کنید.</p>}
     <label className="signing-custody-consent"><input type="checkbox" checked={consent} disabled={busy}
       onChange={event => setConsent(event.target.checked)} />رضایت می‌دهم کلید جدید تولید و نسخه اولیه خصوصی آن فقط یک‌بار دانلود شود.</label>
-    <button type="button" className="identity-primary" disabled={loadingState || busy || !state?.storageReady || !state?.generationConfigured || !state.freshLogin || !consent}
+    <button type="button" className="identity-primary" disabled={loadingState || busy || !state?.storageReady || !state?.generationConfigured || !state.freshLogin || !consent || (state.hasKey && !state.replacementApproved)}
       onClick={() => void generate()}>{busy ? "در حال تولید و آماده‌سازی دانلود…" : "ساخت و دانلود کلید جدید"}</button>
     <p className="field-hint">کلید عمومی را در کارپوشه بارگذاری کنید؛ کد حافظه مالیاتی پس از ثبت توسط سامانه مالیات ارائه می‌شود. کلید خصوصی را فقط در نرم‌افزار مالی امن خود وارد کنید.</p>
   </div>;
