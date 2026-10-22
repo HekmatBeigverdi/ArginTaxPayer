@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 namespace ArginTaxPayer.Infrastructure.Signing.Review;
 
 /// <summary>Step23: request only. No approval, memory reassignment, key mutation or invoice dispatch.</summary>
-internal sealed class EfSigningChangeRequestSubmission(ArginTaxPayerDbContext db,
+public sealed class EfSigningChangeRequestSubmission(ArginTaxPayerDbContext db,
     EfSigningOperationRepository authorization) : ISigningChangeRequestSubmission
 {
     private static SigningChangeRequestView View(SigningChangeRequest r) =>
