@@ -5,6 +5,7 @@ import ExistingKeyImport from "./existing-key-import";
 import SigningKeyGeneration from "./signing-key-generation";
 import SigningConnectionTest from "./signing-connection-test";
 import OperationMessageBox from "./operation-message-box";
+import SigningChangeRequestPanel from "./signing-change-request-panel";
 
 type Memory = { id: string; taxpayerId: string; memoryIdentifier: string; status: number; revision: number };
 type KeyStatus = {
@@ -104,5 +105,6 @@ export default function TaxpayerConnectionPanel({ taxpayerId, memories, loadingM
       <SigningConnectionTest key={taxpayerId + ":" + memoryId} taxpayerId={taxpayerId}
         memories={chosen} loadingMemories={loadingMemories} hideMemorySelector/>
     </div>
+    {memoryId && <SigningChangeRequestPanel taxpayerId={taxpayerId} memoryId={memoryId}/>}
   </div>;
 }
