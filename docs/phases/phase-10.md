@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 10: Tax Authority Invoice Submission (Two-Pattern Delivery)
 
-**Status:** Steps 01–08 owner-approved; Step09 wire-signature metadata binding and negative regression test source committed, macOS execution and owner signoff pending. No invoice dispatch, signing activation or DB migration.  
+**Status:** Steps 01–09 owner-approved; Step10 safe transport/receipt contract and simulated unit tests committed; macOS acceptance pending. No live submission, signing activation or DB migration.  
 **Plan date:** 2026-10-23.  
 **Repository:** HekmatBeigverdi/ArginTaxPayer  
 **Base branch / inspected SHA:** `main` / `7112f03b7fe30ceea1aff7f04f587a1b0e939c92` (verify again at Step 01; Phase09 merge/release anchor `fde20594e733f96e032396f8e22e8781b14cac18`).  
@@ -1178,4 +1178,77 @@ No migration, real private-key operation, database tunnel, Tax Authority connect
 | Migration or live authority send | None |
 | Ubuntu | Step23 only |
 
-**Owner signoff requested** on the Step09 safety boundary. It does **not** assert actual Authority packet signing is operational. The next implementation must resolve byte-exact signing before enabling any actual sending.
+**Step09 owner decision (2026-10-23):** explicitly approved in chat. The exact-byte cryptographic signing blocker remains OPEN and was not waived; no macOS operator output accompanied approval. Step10 authorized for simulator and fail-closed transport only.
+
+## 19. Step 10 — Submission transport contracts and safe initial receipts (2026-10-23)
+
+**Status:** Source code and unit test scenarios committed. macOS execution, owner acceptance and real network integration remain **pending**. No authority request, actual submit endpoint, schema migration, deployment, Ubuntu VPS check or production packet signature has been performed.
+
+### Source inventory and strict phase boundary
+
+- Modern archived SDK version 2.0.32 `Clients/LowLevelTaxApi.cs` exposes `SendInvoicesAsync(List<PacketDto>)` and archived `BatchResponseModel` includes timestamp and returned result packets; **SDK method presence is not proof of the current legally applicable wire protocol, payload correctness or authority acceptance**.
+- Previous `Phase10WireSignatureBinding.Check` deliberately reports `MetadataMatchedButWireUnverified` and `IsWireSignatureVerified=false`. Its unresolved exact-wire-cryptographic-signature path is an explicit **hard gate** for live transport.
+- Step05 stores are design/pure contracts; the real atomic EF/PostgreSQL outbox/attempt/receipt tables and CAS admission have **not** yet been implemented or migrated. Network calls may not be made until durable reservation exists and passing a signing proof is possible. No fake "sent" event can bypass that gate.
+- Therefore Step10 implements transport/receipt **application contracts + simulated results**, without a live HTTP adapter. The actual production `SendInvoices` adapter must be completed only alongside the verified wire signature, safe persisted outbox and operator-authorized read-only/live protocol evidence. User-authorized first live invoice remains Step22.
+
+### Files committed
+
+- `src/ArginTaxPayer.Application/Invoices/Phase10SubmissionTransport.cs`
+  - `InvoiceSubmissionDispatchDescriptor`: immutable scoped metadata (operation/customer/taxpayer/fiscal memory/invoice revision/wire hash/idempotency/known endpoint code), not raw unsigned bytes or an authorization token.
+  - `IInvoiceSubmissionTransport` abstraction.
+  - `DisabledInvoiceSubmissionTransport`: default fail-closed endpoint-free implementation, returning `Indeterminate` with `invoice.dispatch.transport_disabled`. It does **not** contact authority.
+  - `SimulatedInvoiceSubmissionTransport`: explicitly constructed test-double with injected deterministic outcome; **not** registered as a production service.
+  - `InvoiceSubmissionTransportOutcome`, `InvoiceSubmissionReceipt`, `InvoiceSubmissionReceiptStatus` with `Acknowledged`, `ExplicitlyRejected`, `Indeterminate`.
+  - `InvoiceSubmissionReceiptPolicy.Parse`: validates scope, operation correlation, UTC timestamp, allowed endpoint code, strict safe message code, bounded reference. It never returns raw provider data or a fiscal acceptance assertion. `SuggestedEvent` maps a typed outcome to the Step04 dispatch state machine, **but applies no persisted transition** and authorizes no retry.
+- `tests/ArginTaxPayer.Tests/Phase10SubmissionTransportTests.cs`:
+  - Production-disabled path makes no external request and grants no receipt.
+  - Simulated initial acknowledgement has reference but `IsFiscalAccepted=false`.
+  - Ambiguous provider result maps to `OutcomeUnknown`, and blind retry from `Indeterminate` remains forbidden.
+  - Explicit definitive rejection maps to `DefinitiveFailure`.
+  - Wrong operation ID, omitted receipt reference, illegal reference on ambiguous outcome and unsafe provider values are rejected.
+  - Simulated cancellation does not invoke callback.
+- `docs/phases/phase-10.md`: this evidence and acceptance block. **No new dependency/package.**
+
+### Step10 receipt classification and safe state handoff
+
+| Transport classification | Evidence required later from official adapter | Suggested dispatch event | Fiscal acceptance |
+| --- | --- | --- | --- |
+| `Acknowledged` | Verified operation correlation, correct accepted provider packet type and bounded receipt/reference | `ReceiptReceived` → `Acknowledged` | **NOT established** |
+| `ExplicitlyRejected` | Unambiguous authoritative terminal response for same operation; no network ambiguity | `DefinitiveFailure` → `FailedTerminal` | **NOT established** |
+| `Indeterminate` | Timeout, disconnect, lost response, unsupported/malformed result or disabled adapter | `OutcomeUnknown` → `Indeterminate` | **Unknown; reconcile, no resend** |
+
+**Production adapter obligations not yet implemented:** strictly pinned Tax Authority host and TLS, timeouts, approved endpoint and protocol version, exact signed/encrypted packet object, provider request UID/ref matching, response-size limits, official error packet mapping, replay-safe retry with evidence, authorization, persistence of the initial attempt and receipt, no sensitive logging. A generic HTTP 200 or the presence of a response ID does not prove fiscal acceptance.
+
+**Limit of the initial parser:** `InvoiceSubmissionReceiptPolicy.Parse` consumes a **trusted classified outcome**; it does not parse arbitrary raw official JSON, verify provider cryptographic proof or independently validate a final tax receipt. The source path that constructs an `Acknowledged` outcome must be reviewed and tightly trusted in later steps. Never surface the simulation control in production.
+
+### Integration gates after Step10
+
+1. Step09 pending: implement authentic source-bound cryptographic signature verification over **exact officially required packet bytes** rather than the persisted business JSON; no simulated/dummy Base64 is permitted in production.
+2. Step05/11 pending: apply owner-reviewed additive EF/PostgreSQL dispatch-operation/outbox/attempt/receipt migration to **test database only** after explicit approval, with durable CAS and uniqueness.
+3. Step10/13 pending: protocol-specific response parser must validate batch correlation, reference/UID semantics and terminal-vs-indeterminate errors against the selected official endpoint.
+4. Step07 pending: source-verified full field matrix, VAT and contracting requirements, current effective legal dates and owner/memory/line snapshot binding must pass before real signing.
+5. Step20–22: run security/regression and conduct one **separately owner-authorized** legitimate live send on macOS; Step23 first Ubuntu full acceptance.
+
+### macOS-only acceptance commands
+
+```bash
+cd ~/projects/ArginTaxPayer
+git status --short
+git fetch origin --prune
+git switch phase/10-invoice-submission
+git pull --ff-only origin phase/10-invoice-submission
+git rev-parse HEAD
+
+dotnet restore ArginTaxPayer.sln
+dotnet build ArginTaxPayer.sln --no-restore
+
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --no-restore \
+  --filter "FullyQualifiedName~Phase10SubmissionTransportTests|FullyQualifiedName~Phase10WireSignatureBindingTests|FullyQualifiedName~Phase10DispatchContractsTests"
+
+dotnet test ArginTaxPayer.sln --no-build
+git status --short
+```
+
+No Next.js service, database tunnel, SQL migration, real authority bearer or Ubuntu VPS test is required. **Ubuntu remains Step23 only.**
+
+**Acceptance claim:** Step10 delivers safe, testable mock transport and initial-receipt processing contracts; it does **not** deliver a functioning real Tax Authority network sender. Completion of this step shall not be presented as an end-to-end successful dispatch. Step11 remains blocked until operator macOS tests and explicit owner signoff.
