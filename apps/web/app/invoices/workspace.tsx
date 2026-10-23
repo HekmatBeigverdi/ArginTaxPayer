@@ -7,6 +7,7 @@ import { PersianTimePicker } from "../components/persian-time-picker";
 import SearchableCatalogPicker from "./searchable-catalog-picker";
 import InvoiceValidationPanel from "./invoice-validation-panel";
 import InvoiceHistoryPanel from "./invoice-history-panel";
+import InvoiceDispatchPanel from "./invoice-dispatch-panel";
 import InvoiceImportPanel, {type ImportValues} from "./invoice-import-panel";
 import BulkInvoiceImportPanel from "./bulk-invoice-import-panel";
 import {invoicePreview} from "./invoice-financial-preview.mjs";
@@ -576,7 +577,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
             <td>{item.kind === "workspace" ? <button type="button" className="console-row-action"
               onClick={() => void editDraft(item)}>ویرایش و ادامه</button> :
               <button type="button" className="console-row-action"
-                onClick={() => setDetail(item)}>مشاهده</button>}</td>
+                onClick={() => setDetail(item)}>مشاهده و وضعیت ارسال</button>}</td>
           </tr>)}</tbody>
       </table>
     </div>
@@ -613,6 +614,8 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
           <dt>نسخه</dt><dd>{detail.revision}</dd>
         </dl>
         <p className="field-hint">این وضعیت به معنی تأیید سازمان امور مالیاتی نیست.</p>
+        <InvoiceDispatchPanel key={detail.id} invoiceId={detail.id} taxpayerId={detail.taxpayerId}
+          isWorkspace={detail.kind === "workspace"}/>
       </div>
     </div>}
 
