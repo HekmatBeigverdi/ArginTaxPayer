@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 10: Tax Authority Invoice Submission (Two-Pattern Delivery)
 
-**Status:** Steps 01–02 owner-approved; Step 03 architecture design recorded, owner/macOS acceptance pending. No runtime invoice connector activated.  
+**Status:** Steps 01–03 owner-approved; Step 04 pure dispatch state/error contracts and unit-test source committed, macOS verification and owner approval pending. No runtime invoice connector activated.  
 **Plan date:** 2026-10-23.  
 **Repository:** HekmatBeigverdi/ArginTaxPayer  
 **Base branch / inspected SHA:** `main` / `7112f03b7fe30ceea1aff7f04f587a1b0e939c92` (verify again at Step 01; Phase09 merge/release anchor `fde20594e733f96e032396f8e22e8781b14cac18`).  
@@ -669,4 +669,78 @@ No need to start Next.js or PostgreSQL just to approve this architecture-only st
 - **Source-grounded risks:** `IsSubmissionAuthorized=false` in existing registries intentionally denies accidental issuance; source matrix includes excluded patterns, so a separate restrictive allowlist is mandatory; the existing signing service does not confer submission authorization; the modern SDK's JWS/nonce stack is not inherently compatible with the legacy Phase09 key signature.
 - **Files modified:** `docs/phases/phase-10.md` only.
 - **Changes not made:** No app files, dependencies, package install, DB migration, PostgreSQL access, macOS/Ubuntu runtime, UI or API endpoint, tag, release or merge.
-- **Owner approval:** Step02 approved. Step03 awaiting explicit signoff and (optionally) macOS regression result evidence before proceeding to Step04.
+- **Owner approval:** Step02 and Step03 explicitly approved in chat (2026-10-23). Step03 operator test output was not attached to the approval message; do not claim independently verified PASS.
+
+## 13. Step 04 — Dispatch state machine and sanitized error contracts (2026-10-23)
+
+**Status:** Domain-only implementation and xUnit coverage committed; actual `dotnet` execution on macOS not run by this GitHub-only workflow. Owner acceptance pending. Step05 must not begin automatically.
+
+### Existing-state compatibility
+
+- `InvoiceLifecycleState` (`Draft`, `Validated`, `Finalized`) and `InvoiceReviewState` (`Draft`, `InReview`, `ChangesRequested`, `Approved`) remain unchanged. Neither local finalization nor workflow approval is Tax Authority acceptance.
+- `TaxAuthorityProcessingState` (`NotSubmitted`, `Pending`, `Accepted`, `Rejected`, `Unknown`) remains a **separate authority-state domain**; this step does **not** set `Accepted` on a submission acknowledgement.
+- Phase09 signing result `IsFiscalSubmissionAuthorized=false` remains unchanged.
+- The new `InvoiceDispatchState` tracks one attempt's technical delivery lifecycle only, not final authority validation.
+
+### Implemented immutable dispatch state transitions
+
+| From | Event | To | Constraint |
+| --- | --- | --- | --- |
+| Prepared | Sign | Signed | A valid server-owned signature is a later application-layer prerequisite |
+| Signed | Reserve | Reserved | A durable outbox claim is a later Step05/11 prerequisite |
+| Reserved | BeginSend | Sending | No untracked provider call |
+| Reserved | FailBeforeSend | RetryEligible | Proven no external send was made; still requires evidence before retry |
+| Sending | ReceiptReceived | Acknowledged | Only provider receipt, **not** fiscal acceptance |
+| Sending | OutcomeUnknown | Indeterminate | Timeout, ambiguous provider error or lost response; must reconcile |
+| Sending | DefinitiveFailure | FailedTerminal | Terminal only with trusted provider evidence, not guessed HTTP semantics |
+| Indeterminate | ReconcileReceipt | Acknowledged | Officially grounded matching receipt evidence required by later orchestrator |
+| Indeterminate | ReconcileNotReceived | RetryEligible | Verified absence of external commit required; mere lookup failure is insufficient |
+| RetryEligible | RetryFromEvidence | Reserved | Reclaim same operation with durable evidence checks |
+
+All other transitions, including `Indeterminate→Sending`, `Indeterminate→Reserved` without evidence, and `Acknowledged→Sending`, are denied. This pure transition policy never performs I/O, persistence, private-key reads, tax transmission or actual provider reconciliation; **an allowed pure transition is not proof that event evidence exists**.
+
+`InvoiceDispatchSnapshot` freezes `OperationId`, `CustomerUserId`, `TaxpayerId`, `FiscalMemoryId`, `InvoiceId`, `InvoiceRevision` and a 64-character SHA-256 payload fingerprint. Proposals return new immutable snapshots and validate exact expected dispatch revision. A future PostgreSQL CAS/unique constraint must enforce the same rule transactionally; in-memory revision comparison alone does not solve races.
+
+### Sanitized typed error contract
+
+`InvoiceDispatchFailureCode` covers access scope, unsupported pattern/signature, unverified rules, invalid invoice, stale revision, duplicate operation, signing/persistence outage, authority rejection/authentication, rate limit, timeout, malformed response and unknown result.
+
+`InvoiceDispatchError.FromCode()` returns only an internal category, stable localization key and operator-review flag. No raw provider error body, credential, signature, customer payload or exception string is exposed. **A category alone is not retry authorization**; unknown outcome requires authoritative reconciliation.
+
+### Test coverage added
+
+`tests/ArginTaxPayer.Tests/Phase10DispatchContractsTests.cs`:
+- Initial immutable identities, 64-hex validation and normalized hash.
+- Sequential preparation/sign/reservation/send/receipt; no implication of final fiscal acceptance.
+- Unknown outcome block, prohibited blind retry, reconciliation to receipt or evidence-based retry.
+- Definitive failure terminal, stale revision and source immutability.
+- Invalid identity, undefined events/states and safe typed errors.
+
+### Files/side effects
+
+- **New:** `src/ArginTaxPayer.Domain/Invoices/InvoiceDispatchContracts.cs`.
+- **New:** `tests/ArginTaxPayer.Tests/Phase10DispatchContractsTests.cs`.
+- **Updated:** `docs/phases/phase-10.md`.
+- **None:** Migration/SQL, infrastructure adapter, API endpoint, signing invocation, UI, live provider request, Ubuntu command, merge or release.
+
+### macOS acceptance commands
+
+```bash
+cd ~/projects/ArginTaxPayer
+git status --short
+git fetch origin --prune
+git switch phase/10-invoice-submission
+git pull --ff-only origin phase/10-invoice-submission
+git rev-parse HEAD
+
+dotnet restore ArginTaxPayer.sln
+dotnet build ArginTaxPayer.sln --no-restore
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --no-restore \
+  --filter "FullyQualifiedName~Phase10DispatchContractsTests|FullyQualifiedName~Phase07InvoiceLifecycleTests|FullyQualifiedName~Phase08InvoiceReviewContractsTests"
+dotnet test ArginTaxPayer.sln --no-build
+git status --short
+```
+
+Only macOS is required. Ubuntu acceptance remains **Step23 only**. No external authority request or DB access is required.
+
+**Step04 gate:** macOS build and unit suite PASS, no generated tracked files, owner explicit approval. The status remains pending until reported; source commits alone are not successful runtime tests.
