@@ -1,3 +1,5 @@
+using ArginTaxPayer.Application.Signing;
+using ArginTaxPayer.Infrastructure.Persistence.Signing;
 using ArginTaxPayer.Infrastructure.Persistence.Invoices;
 using ArginTaxPayer.Application.Abstractions.Persistence;
 using ArginTaxPayer.Application.Abstractions.Messaging;
@@ -64,6 +66,7 @@ public static class PersistenceRegistration
                 postgres.EnableRetryOnFailure(maxRetryCount: 3);
             }));
 
+        services.AddScoped<ISigningOperationRepository, EfSigningOperationRepository>();
         services.AddScoped<EfInvoiceAtomicWriter>();
         services.AddScoped<IUnitOfWork, EfUnitOfWork>();
         services.AddScoped<IOutboxWriter, EfOutboxWriter>();

@@ -13,9 +13,19 @@ using ArginTaxPayer.Infrastructure.Persistence.Taxpayers;
 using ArginTaxPayer.Infrastructure.Persistence.Identity;
 using ArginTaxPayer.Api.Observability;
 using ArginTaxPayer.Application;
+using ArginTaxPayer.Application.Signing;
 using ArginTaxPayer.Infrastructure;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using System.Text.Json;
+using ArginTaxPayer.Infrastructure.Signing.Import;
+using ArginTaxPayer.Infrastructure.Signing.Generation;
+using ArginTaxPayer.Infrastructure.Signing.Connection;
+using ArginTaxPayer.Infrastructure.Signing.Review;
+using ArginTaxPayer.Infrastructure.Persistence.Signing;
+using System.Threading.RateLimiting;
+using System.Security.Cryptography;
+using System.Text;
+using Microsoft.AspNetCore.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 var identityDevelopmentEnabled = builder.Environment.IsDevelopment() &&
@@ -32,6 +42,30 @@ builder.Services.AddArginTaxPayerPersistence(builder.Configuration, builder.Envi
 builder.Services.AddOpenApi();
 if (identityDevelopmentEnabled)
 {
+    builder.Services.AddPhase09KeyImport(builder.Configuration);
+    builder.Services.AddPhase09KeyGeneration(builder.Configuration);
+    // Pin a single TLS-validated legacy authority origin; never follow redirects or forward cookies.
+    builder.Services.AddHttpClient("phase09-authority", client =>
+        client.Timeout = TimeSpan.FromSeconds(18))
+        .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+        { AllowAutoRedirect = false, UseCookies = false });
+    builder.Services.AddPhase09AuthorityConnection(builder.Configuration);
+    builder.Services.AddScoped<EfSigningOperationRepository>();
+    builder.Services.AddScoped<ISigningChangeRequestSubmission, EfSigningChangeRequestSubmission>();
+    builder.Services.AddScoped<ISigningAdminReviewWorkflow, EfSigningAdminReviewWorkflow>();
+    builder.Services.AddRateLimiter(options =>
+    {
+        options.RejectionStatusCode = 429;
+        options.OnRejected = (context, _) =>
+        {
+            context.HttpContext.Response.Headers.CacheControl = "no-store";
+            return ValueTask.CompletedTask;
+        };
+        options.AddPolicy("signing-import", http => RateLimitPartition.GetFixedWindowLimiter(
+            Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
+                http.Request.Headers.Authorization.ToString()))), _ => new FixedWindowRateLimiterOptions
+            { PermitLimit = 12, Window = TimeSpan.FromMinutes(1), QueueLimit = 0, AutoReplenishment = true }));
+    });
     builder.Services.AddSingleton<IdentityProtectionService>();
     builder.Services.AddScoped<IdentityCredentialService>();
     builder.Services.AddScoped<IdentityAdministratorUserProvisioning>();
@@ -87,6 +121,7 @@ builder.Services.AddHealthChecks()
 
 var app = builder.Build();
 app.UseMiddleware<CorrelationIdMiddleware>();
+if (identityDevelopmentEnabled) app.UseRateLimiter();
 
 // Never expose the API contract endpoint in Production by default.
 if (app.Environment.IsDevelopment())
@@ -115,6 +150,12 @@ if (app.Environment.IsDevelopment())
                 app.Configuration["Ghasedak:TestRecipientMobile"], out _),
             otpPepperConfigured = (app.Configuration["Identity:OtpPepper"]?.Length ?? 0) >= 32,
             localOtpTestMode = app.Configuration["Identity:OtpDeliveryMode"] == "LocalFile",
+            // Flags are read from the RUNNING API process, not the shell .env file.
+            // Expose no hostnames, paths, Vault tokens, secrets, PEMs or credentials.
+            signingKeyProtectionEnabled = app.Configuration.GetValue<bool>("SigningKeyProtection:Enabled"),
+            signingKeyImportEnabled = app.Configuration.GetValue<bool>("SigningKeyImport:Enabled"),
+            signingKeyGenerationEnabled = app.Configuration.GetValue<bool>("SigningKeyGeneration:Enabled"),
+            signingConnectionTestEnabled = app.Configuration.GetValue<bool>("SigningConnectionTest:Enabled"),
             loopbackRecognized = true
         });
     }).ExcludeFromDescription();
@@ -124,6 +165,12 @@ if (app.Environment.IsDevelopment())
         app.MapIdentityDevelopmentEndpoints();
         app.MapSoftwareUserProfileEndpoints();
         app.MapTaxpayerDevelopmentEndpoints();
+        app.MapSigningImportEndpoints();
+        app.MapSigningImportRecoveryEndpoints();
+        app.MapSigningGenerationEndpoints();
+        app.MapSigningConnectionEndpoints();
+        app.MapSigningChangeRequestEndpoints();
+        app.MapSigningAdminReviewEndpoints();
         app.MapPartyDevelopmentEndpoints();
         app.MapFiscalParticipantDirectoryEndpoints();
         app.MapInvoiceParticipantEndpoints();

@@ -1,0 +1,63 @@
+name: Phase 09 Step 25 Cross-Platform Acceptance
+
+on:
+  push:
+    branches: [phase/09-cryptographic-keys-signing]
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'apps/web/**'
+      - 'scripts/phase09_step25_accept.py'
+      - '.github/workflows/phase-09-acceptance.yml'
+  pull_request:
+    branches: [main, phase/09-cryptographic-keys-signing]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase09-step25-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cross-platform:
+    name: Phase09 offline acceptance / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15]
+    env:
+      DOTNET_NOLOGO: "true"
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      NEXT_TELEMETRY_DISABLED: "1"
+      RUN_ARGINTAXPAYER_PG_INTEGRATION: "0"
+      RUN_ARGINTAXPAYER_VAULT_INTEGRATION: "0"
+      Ghasedak__EnableLiveSending: "false"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install .NET SDK pinned by global.json
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Install exact frontend dependency versions
+        run: npm --prefix apps/web ci --no-audit --no-fund
+      - name: Run Step25 offline acceptance
+        run: python3 scripts/phase09_step25_accept.py pure
+      - name: Upload status evidence (not a live authority acceptance)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase09-step25-${{ matrix.os }}
+          path: artifacts/phase09-step25-acceptance.json
+          if-no-files-found: warn
+          retention-days: 14

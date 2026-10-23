@@ -119,6 +119,7 @@
 :root,body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif}
 
 .party-onboarding{background:#edf7f8;border:1px solid #cfe6e7;border-radius:12px;padding:15px 17px;margin:12px 0 22px;line-height:1.9}.party-onboarding p{color:#586d7e;font-size:13px;margin:6px 0 10px}.party-taxpayer-preview{margin:20px 0;border-top:1px solid #e5eaf1;padding-top:15px}.party-taxpayer-preview ul{padding-right:20px;color:#556d80;font-size:13px}
+.taxpayer-sections-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;align-items:start}.taxpayer-sections-grid>.taxpayer-panel{margin-bottom:0}.taxpayer-token-panel{border-color:#cfe6e7;background:linear-gradient(145deg,#fff,#f4fbfb)}.taxpayer-token-status{display:flex;justify-content:space-between;gap:10px;padding:11px 13px;margin:15px 0;border:1px solid #e0ecef;border-radius:9px;background:#f8fbfc;font-size:13px}.taxpayer-token-status span{color:#8a6b2b}.taxpayer-token-actions{display:flex;gap:8px;flex-wrap:wrap}.taxpayer-token-actions button:disabled{opacity:.6;cursor:not-allowed}@media(max-width:900px){.taxpayer-sections-grid{grid-template-columns:1fr}}
 
 /* Shared ArginTaxPayer design tokens and compact ERP tables */
 :root{--argin-primary:#177f81;--argin-dark:#10283f;--argin-surface:#fff;--argin-page:#f3f6fa;--argin-line:#dae6ed;--argin-text:#20344b;--argin-muted:#64788c}
@@ -147,6 +148,7 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 .console-page .users-table tbody tr:hover,.console-table tbody tr:hover{background:#f2f9f9}
 .console-page .users-table :is(button,a),.console-row-action{font:inherit;font-size:12px;white-space:nowrap;padding:5px 9px;border-radius:7px;border:1px solid #c9dee9;background:#f4fafb;color:#205c71;cursor:pointer}
 .console-directory{background:white;border:1px solid var(--argin-line);border-radius:16px;padding:17px 19px;min-width:0;box-shadow:0 5px 25px #19364f06}
+.key-management-page{direction:rtl}.key-status-badge,.key-selected{display:inline-flex;align-items:center;border-radius:99px;background:#e6f4f1;color:#176d69;padding:5px 10px;font-size:11px;font-weight:700}.key-safety-note{display:flex;flex-direction:column;gap:5px;background:#fff9ed;border:1px solid #f0dfb7;border-right:4px solid #c58d36;border-radius:12px;padding:14px 16px;margin-bottom:18px;color:#72571f;font-size:13px;line-height:1.8}.key-safety-note span{font-size:12px;color:#806d43}.key-management-grid{display:grid;grid-template-columns:minmax(280px,.85fr) minmax(0,1.5fr);gap:18px}.key-panel{background:#fff;border:1px solid var(--argin-line);border-radius:16px;padding:19px;min-width:0}.key-panel-heading{display:flex;justify-content:space-between;gap:14px;margin-bottom:16px}.key-panel-heading h2{font-size:17px;margin:0 0 6px}.key-panel-heading p{font-size:12px;color:var(--argin-muted);margin:0}.key-facts{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0}.key-facts>div{background:#f7fafb;border:1px solid #e6eef1;border-radius:9px;padding:10px;min-width:0}.key-facts dt{font-size:11px;color:var(--argin-muted)}.key-facts dd{margin:5px 0 0;font-size:13px;font-weight:700;overflow-wrap:anywhere}.key-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}.key-actions button{font:inherit;font-size:12px;border:1px solid #cddde3;background:#f4f8f9;color:#53707d;border-radius:8px;padding:8px 10px;cursor:not-allowed;opacity:.7}.key-disabled-help{font-size:11px;line-height:1.8;color:var(--argin-muted);margin:13px 0 0}.key-table-wrap{overflow-x:auto}.key-table{min-width:560px}.key-table td:first-child{white-space:normal}.key-table td strong{display:block}.key-selected{margin-top:4px;padding:2px 7px;font-size:10px}.key-management-page .console-page-heading{margin-bottom:16px}@media(max-width:900px){.key-management-grid{grid-template-columns:1fr}}@media(max-width:560px){.key-panel{padding:15px}.key-facts{grid-template-columns:1fr}.key-management-page .console-page-heading{align-items:flex-start;flex-direction:column}}
 .console-directory-actions{display:flex;justify-content:flex-start;gap:9px;flex-wrap:wrap;padding-bottom:16px;border-bottom:1px solid var(--argin-line)}
 .console-directory-actions button{font:inherit;font-size:13px;padding:9px 13px;border-radius:9px;cursor:pointer}
 .console-directory-filters{display:grid;grid-template-columns:180px 180px minmax(220px,1fr);gap:14px;padding:17px 0;align-items:end}
@@ -703,3 +705,107 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
   white-space:normal;
 }
 .invoice-register__loading { z-index:5; display:flex; }
+.argin-modal-close{border-radius:10px!important;font-size:18px!important;line-height:1;display:grid;place-items:center}.argin-modal-close:hover{background:#eaf5f5;border-color:#8fc4c7}.argin-modal-close:focus-visible{outline:3px solid #24a5a3;outline-offset:2px}
+.taxpayer-workspace-single{display:block}.taxpayer-workspace-single>.taxpayer-main{min-width:0}.taxpayer-workspace-single .taxpayer-panel{padding:15px}.taxpayer-workspace-single .taxpayer-facts{margin-bottom:14px}
+
+/* Taxpayer dossiers share the invoice dialog shell and exclusive accordion. */
+.fiscal-dialog { width:min(1020px,100%); }
+.fiscal-dialog-body { padding:12px 16px; }
+.fiscal-section { margin:0 0 8px; border:1px solid var(--argin-line); border-radius:8px; background:white; }
+.fiscal-section > summary { cursor:pointer; padding:10px 12px; font-size:13px; font-weight:700; color:#205c60; background:#f0f7f6; border-radius:8px; }
+.fiscal-section > summary:focus-visible { outline:2px solid var(--argin-primary); outline-offset:2px; }
+.fiscal-section-content { padding:12px; max-height:52dvh; overflow:auto; }
+.fiscal-dialog .taxpayer-workspace-single, .fiscal-dialog .taxpayer-sections-grid { display:block; }
+.fiscal-dialog .argin-memory-step { margin:0; padding:0; border:0; }
+.fiscal-dialog .invoice-participant { margin:0; }
+.fiscal-dialog .invoice-fields { gap:8px 12px; }
+.fiscal-dialog input, .fiscal-dialog select { min-height:32px; padding:5px 8px; font-size:12px; }
+.fiscal-dialog .identity-primary, .fiscal-dialog .identity-secondary { padding:6px 10px; font-size:12px; min-height:32px; }
+.fiscal-dialog .invoice-fields .identity-primary { min-height:32px; margin:4px 0; }
+.fiscal-dialog .taxpayer-facts { margin:0; gap:8px; }
+.fiscal-dialog .taxpayer-facts > div { padding:8px; }
+.fiscal-dialog .console-directory-actions { padding-bottom:8px; margin-bottom:8px; gap:6px; }
+.fiscal-dialog .field-hint { font-size:11px; line-height:1.7; }
+
+
+.fiscal-section-loading { display:inline-flex; align-items:center; gap:6px; margin-inline-start:12px; font-size:11px; font-weight:400; color:#526d70; vertical-align:middle; }
+.fiscal-section-loading .argin-loader-spinner { width:14px; height:14px; border-width:2px; flex:none; }
+.existing-key-import form { display:grid; gap:8px; }
+.existing-key-import label { display:grid; gap:4px; font-size:12px; }
+.existing-key-import textarea { width:100%; resize:vertical; font:12px monospace; padding:7px; border:1px solid var(--argin-line); border-radius:6px; }
+.existing-key-import .signing-custody-consent { display:flex; align-items:center; gap:6px; }
+.existing-key-import .signing-custody-consent input { width:16px; min-height:16px; }
+.existing-key-import bdi { overflow-wrap:anywhere; }
+@media (prefers-reduced-motion: reduce) { .fiscal-section-loading .argin-loader-spinner { animation:none; } }
+
+
+/* Phase09: compact, RTL, memory-scoped connection workspace (no stacked key forms). */
+.taxpayer-connection-workspace{display:grid;gap:12px;min-width:0;color:var(--argin-text,#24384a)}
+.signing-panel-heading{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px}
+.signing-panel-heading h2{font-size:16px;line-height:1.6;margin:0}
+.signing-panel-heading p{font-size:11px;color:#627989;margin:3px 0 0;line-height:1.8}
+.signing-panel-heading button{flex:none}
+.signing-status-bar{display:grid;grid-template-columns:minmax(180px,1.5fr) repeat(2,minmax(115px,1fr));gap:9px;padding:10px;background:#f3f8f7;border:1px solid #d7e6e4;border-radius:10px}
+.signing-status-bar label,.signing-status-bar>div{display:grid;align-content:center;gap:5px;min-width:0;font-size:11px;color:#526c76}
+.signing-status-bar strong{font-size:12px;color:#1e5554;overflow-wrap:anywhere}
+.signing-status-bar select{min-width:0;width:100%;max-width:260px}
+.signing-method-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;background:#e9f3f0;padding:5px;border-radius:10px}
+.signing-method-tabs button{border:1px solid transparent;border-radius:8px;background:transparent;color:#446b6a;padding:10px 12px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700;transition:background .15s,border-color .15s}
+.signing-method-tabs button[aria-selected="true"]{background:#fff;border-color:#b4d2ca;color:#146b52;box-shadow:0 2px 5px #264f4312}
+.signing-method-tabs button:focus-visible{outline:2px solid #167c65;outline-offset:2px}
+.signing-method-panel{border:1px solid #dce9e7;border-radius:10px;padding:12px;background:var(--surface,#fff);min-width:0}
+.signing-method-panel[hidden]{display:none}
+.signing-method-intro{font-size:12px;line-height:1.9;color:#4b6971;margin:0 0 12px}
+.signing-method-next{font-size:11px;color:#477064;background:#f3f9f6;padding:9px 11px;border-radius:7px;line-height:1.8}
+.signing-test-panel{border-top:1px solid #dce8e7;padding-top:12px}
+.taxpayer-connection-test{display:grid;gap:9px}
+.taxpayer-connection-test>strong{font-size:13px}
+.signing-message{display:flex;gap:10px;align-items:flex-start;padding:11px 12px;border-radius:9px;border:1px solid #ccdfe1;background:#f4f8f9;color:#234350;line-height:1.8;min-width:0}
+.signing-message--success{background:#eff9f3;border-color:#bfdfce;color:#215c40}
+.signing-message--warning{background:#fff9ed;border-color:#e8d4a7;color:#745a22}
+.signing-message--error{background:#fff4f3;border-color:#e7beb9;color:#8a3730}
+.signing-message__icon{width:23px;height:23px;flex:none;display:grid;place-items:center;border-radius:50%;border:1px solid currentColor;font-size:13px;font-weight:800}
+.signing-message__body{flex:1;min-width:0}
+.signing-message__title{display:block;font-size:12px;margin:0 0 2px}
+.signing-message__text{font-size:12px;overflow-wrap:anywhere}
+.signing-message__detail{display:block;font-size:10px;opacity:.8;margin-top:5px}
+.signing-message__close{border:0;background:transparent;color:inherit;opacity:.75;cursor:pointer;font-size:20px;line-height:1;padding:0 4px}
+.signing-message__close:focus-visible{outline:2px solid currentColor;border-radius:4px}
+.signing-fiscal-info{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:3px 0}
+.signing-fiscal-info>div{border:1px solid #dce8e7;border-radius:7px;padding:8px;min-width:0}
+.signing-fiscal-info dt{color:#587275;font-size:11px}
+.signing-fiscal-info dd{font-size:12px;font-weight:650;margin:3px 0 0;overflow-wrap:anywhere}
+@media(max-width:640px){.signing-status-bar{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.signing-status-bar label{grid-column:1/-1}.signing-fiscal-info{grid-template-columns:1fr}.signing-method-panel{padding:10px}}
+
+/* Phase09 Step23: request-only key change workflow, restrained and mobile-friendly. */
+.signing-change-requests{display:grid;gap:10px;padding:12px;border:1px solid #dce8e6;border-radius:10px;background:#fbfefd}
+.signing-change-requests .signing-panel-heading h3{font-size:13px;margin:0}
+.signing-change-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px 12px}
+.signing-change-form label{display:grid;gap:5px;font-weight:600;font-size:12px;min-width:0}
+.signing-change-form select,.signing-change-form textarea{font:inherit;width:100%;min-width:0;border:1px solid #bfcfd0;border-radius:7px;padding:7px 9px;background:var(--surface,#fff)}
+.signing-change-form textarea{resize:vertical;font-size:12px;line-height:1.8}
+.signing-change-form__reason{grid-column:1/-1}
+.signing-change-form__actions{grid-column:1/-1;display:flex;gap:10px;justify-content:space-between;align-items:center;flex-wrap:wrap;font-size:11px;color:#61757c}
+.signing-change-history{display:grid;gap:8px;border-top:1px solid #e2e9e9;padding-top:10px;font-size:12px}
+.signing-change-history ul{list-style:none;margin:0;padding:0;display:grid;gap:5px}
+.signing-change-history li{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;background:#f1f7f5;padding:8px 10px;border-radius:6px}
+.signing-change-history time{font-size:10px;color:#5c7478}
+@media(max-width:600px){.signing-change-form{grid-template-columns:minmax(0,1fr)}}
+
+/* Phase09 Step24 - administrator signing change request decisions. */
+.signing-admin-review{display:grid;gap:12px}
+.signing-admin-review__list{display:grid;gap:10px}
+.signing-admin-review__item{padding:12px;border:1px solid #dce8e6;border-radius:10px;background:var(--surface,#fff);display:grid;gap:10px}
+.signing-admin-review__head{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;align-items:center}
+.signing-admin-review__head strong{font-size:13px;color:#23574d}
+.signing-admin-review__head span{font-size:11px;color:#87621f;background:#fff5dc;border:1px solid #ecd8a8;border-radius:12px;padding:3px 10px}
+.signing-admin-review__item dl{margin:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.signing-admin-review__item dl>div{display:grid;gap:3px;background:#f3f8f6;padding:8px 10px;border-radius:7px}
+.signing-admin-review__item dt{font-size:10px;color:#607d78}
+.signing-admin-review__item dd{font-size:12px;margin:0;overflow-wrap:anywhere}
+.signing-admin-review__explanation{margin:0;font-size:12px;line-height:1.9;white-space:pre-wrap;overflow-wrap:anywhere}
+.signing-admin-review__decision{display:grid;gap:9px;background:#f6faf9;border:1px solid #dbe8e3;padding:10px;border-radius:8px}
+.signing-admin-review__decision label{display:grid;gap:6px;font-size:12px}
+.signing-admin-review__decision textarea{border:1px solid #becfcb;border-radius:7px;padding:8px;font:inherit;font-size:12px;resize:vertical}
+.signing-admin-review__actions{display:flex;gap:8px;flex-wrap:wrap}
+@media(max-width:640px){.signing-admin-review__item dl{grid-template-columns:1fr}}

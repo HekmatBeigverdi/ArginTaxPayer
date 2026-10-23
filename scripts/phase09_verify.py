@@ -1,0 +1,296 @@
+"""Cross-platform phase verifier. Never applies migrations or starts services."""
+import argparse
+import os
+from pathlib import Path
+import re
+import subprocess
+import sys
+import tempfile
+import xml.etree.ElementTree as ET
+from urllib.parse import urlsplit
+
+ROOT = Path(__file__).resolve().parents[1]
+BASE = 'b8f307ed06041d902aed9d8432d3b082e1cd714a'
+
+class SafeError(Exception):
+    """An operator-safe message that contains no configuration values."""
+
+
+def parse_connection(text):
+    # Strict Npgsql key/value subset. Reject unsupported settings rather than
+    # silently letting psql validate a different destination than the test runner.
+    aliases = {'host':'host', 'server':'host', 'port':'port', 'database':'database',
+               'initial catalog':'database', 'username':'username', 'user id':'username',
+               'password':'password', 'ssl mode':'sslmode', 'timeout':'timeout'}
+    values = {}
+    pos = 0
+    while pos < len(text):
+        if text[pos:].strip(' ;\t\r\n') == '':
+            break
+        match = re.match(r'\s*([^=;]+)\s*=\s*', text[pos:])
+        if not match:
+            raise SafeError('Invalid test connection format.')
+        key = aliases.get(match[1].strip().lower())
+        if key is None or key in values:
+            raise SafeError('Unsupported or duplicate test connection option.')
+        pos += match.end()
+        if pos < len(text) and text[pos] in ('"', "'"):
+            quote = text[pos]
+            pos += 1
+            out = []
+            while True:
+                if pos >= len(text):
+                    raise SafeError('Invalid quoted connection value.')
+                char = text[pos]
+                pos += 1
+                if char == quote:
+                    if pos < len(text) and text[pos] == quote:
+                        out.append(quote)
+                        pos += 1
+                    else:
+                        break
+                else:
+                    out.append(char)
+            value = ''.join(out)
+            while pos < len(text) and text[pos].isspace():
+                pos += 1
+            if pos < len(text) and text[pos] != ';':
+                raise SafeError('Invalid quoted connection separator.')
+        else:
+            end = text.find(';', pos)
+            if end == -1:
+                end = len(text)
+            value = text[pos:end].strip()
+            pos = end
+        values[key] = value
+        if pos < len(text):
+            pos += 1
+    if values.get('database') != 'argintaxpayer_test':
+        raise SafeError('Refusing database other than argintaxpayer_test.')
+    if values.get('host') not in ('127.0.0.1', 'localhost', '::1'):
+        raise SafeError('Use a loopback PostgreSQL endpoint or approved local tunnel.')
+    if not values.get('username') or not values.get('password'):
+        raise SafeError('Explicit test database username/password required.')
+    port = values.setdefault('port', '5432')
+    if not port.isascii() or not port.isdigit() or not 1 <= int(port) <= 65535:
+        raise SafeError('Invalid test database port.')
+    mode = values.setdefault('sslmode', 'Prefer').lower().replace(' ', '-')
+    if mode not in ('disable', 'allow', 'prefer', 'require', 'verify-ca', 'verify-full'):
+        raise SafeError('Unsupported SSL mode.')
+    values['sslmode'] = mode
+    return values
+
+
+def pure_environment():
+    env = {k:v for k,v in os.environ.items()
+           if not k.lower().startswith(('connectionstrings__', 'signingkeyprotection__',
+                                        'signingkeygeneration__', 'signingkeyimport__', 'signingkeymatching__',
+                                        'signingkeyofflinesigning__', 'phase09_vault_'))
+           and not k.startswith('PG')}
+    env['RUN_ARGINTAXPAYER_PG_INTEGRATION'] = '0'
+    env['RUN_ARGINTAXPAYER_VAULT_INTEGRATION'] = '0'
+    env['Ghasedak__EnableLiveSending'] = 'false'
+    return env
+
+
+def guard_vault():
+    address = os.environ.get('PHASE09_VAULT_ADDRESS', '')
+    token_file = os.environ.get('PHASE09_VAULT_TOKEN_FILE', '')
+    try:
+        uri = urlsplit(address)
+        valid = (uri.scheme == 'https' and uri.hostname in ('localhost', '127.0.0.1', '::1')
+                 and uri.port == 18200 and not uri.username and not uri.password
+                 and uri.path in ('', '/') and not uri.query and not uri.fragment
+                 and Path(token_file).is_absolute())
+    except ValueError:
+        valid = False
+    if not valid:
+        raise SafeError('Vault tests require loopback HTTPS port18200 and an absolute Agent token file path.')
+    env = pure_environment()
+    env.update(PHASE09_VAULT_ADDRESS=address, PHASE09_VAULT_TOKEN_FILE=token_file,
+               RUN_ARGINTAXPAYER_VAULT_INTEGRATION='1')
+    print('Vault gate: isolated test endpoint only; .NET verifies TLS/version/token/key before secret use.')
+    return env
+
+
+def guard_database():
+    connection = os.environ.get('ConnectionStrings__ArginTaxPayerDb', '')
+    values = parse_connection(connection)
+    env = pure_environment()
+    pg = {'PGHOST':values['host'], 'PGPORT':values['port'],
+          'PGDATABASE':values['database'], 'PGUSER':values['username'],
+          'PGPASSWORD':values['password'], 'PGSSLMODE':values['sslmode'],
+          'PGCONNECT_TIMEOUT':'10', 'PGPASSFILE':os.devnull}
+    env.update(pg)
+    try:
+        result = subprocess.run(['psql', '-X', '-w', '-A', '-t', '-q', '-v', 'ON_ERROR_STOP=1',
+                                 '-c', 'SELECT current_database();'], env=env,
+                                capture_output=True, text=True, timeout=15)
+    except (OSError, subprocess.TimeoutExpired):
+        raise SafeError('Test database guard unavailable; check psql and private test configuration.') from None
+    if result.returncode or result.stdout.strip() != 'argintaxpayer_test':
+        raise SafeError('Actual database guard failed; no integration tests started.')
+    # psql variables are not passed to the .NET runner; it gets only the checked
+    # Npgsql string, not an alternative PG environment.
+    env = pure_environment()
+    env['ConnectionStrings__ArginTaxPayerDb'] = connection
+    env['RUN_ARGINTAXPAYER_PG_INTEGRATION'] = '1'
+    print('Database guard: argintaxpayer_test confirmed (read-only query).')
+    return env
+
+
+def require_discovered_tests(listing):
+    if not re.search(r'^\s+ArginTaxPayer\.Tests\.', listing, re.M):
+        raise SafeError('No matching .NET tests discovered; refusing empty success.')
+
+
+def run(args, env=None, capture=False):
+    try:
+        result = subprocess.run(args, cwd=ROOT, env=env, text=True,
+                                stdout=subprocess.PIPE if capture else None,
+                                stderr=subprocess.PIPE if capture else None)
+    except OSError:
+        raise SafeError('Required command unavailable: ' + args[0]) from None
+    if result.returncode:
+        # Never echo captured database/provider/configuration errors.
+        raise SafeError('Verification command failed: ' + args[0])
+    return result.stdout if capture else ''
+
+
+def preflight():
+    sha = run(['git', 'rev-parse', 'HEAD'], capture=True).strip()
+    run(['git', 'merge-base', '--is-ancestor', BASE, 'HEAD'])
+    if run(['git', 'status', '--porcelain'], capture=True).strip():
+        raise SafeError('Working tree must be clean before verification; commit intended changes first.')
+    doc = (ROOT / 'docs/phases/phase-09.md').read_text()
+    section = doc.split('## 5.')[1].split('## 6.')[0]
+    if re.findall(r'^\| (\d{2}) \|', section, re.M) != [f'{i:02}' for i in range(1,27)]:
+        raise SafeError('Expected the approved ordered 26-step plan.')
+    print('Commit: ' + sha)
+    print('Branch: ' + run(['git', 'branch', '--show-current'], capture=True).strip())
+    print('Preflight: baseline ancestry, clean checkout and 26-step plan confirmed.')
+    return sha
+
+
+def dotnet_tests(env, test_filter=None):
+    run(['dotnet', 'restore', 'ArginTaxPayer.sln'], env)
+    run(['dotnet', 'build', 'ArginTaxPayer.sln', '-c', 'Release', '--no-restore'], env)
+    args = ['dotnet', 'test', 'ArginTaxPayer.sln', '-c', 'Release', '--no-build']
+    if test_filter:
+        args += ['--filter', test_filter]
+    require_discovered_tests(run(args + ['--list-tests'], env, capture=True))
+    with tempfile.TemporaryDirectory(prefix='argin-phase09-results-') as results:
+        run(args + ['--logger', 'trx;LogFileName=phase09.trx', '--results-directory', results], env)
+        reports = list(Path(results).rglob('*.trx'))
+        counts = [node.attrib for report in reports for node in ET.parse(report).iter()
+                  if node.tag.rsplit('}',1)[-1] == 'Counters']
+        if not counts or sum(int(c.get('executed',0)) for c in counts) == 0:
+            raise SafeError('No executed tests in TRX; refusing empty success.')
+        if (env.get('RUN_ARGINTAXPAYER_PG_INTEGRATION') == '1' and
+                test_filter == 'FullyQualifiedName~Phase09SigningOperationPostgresTests'):
+            expected = {'total': 6, 'executed': 6, 'passed': 6,
+                        'failed': 0, 'notExecuted': 0}
+            if any(sum(int(c.get(key, -1)) for c in counts) != value
+                   for key, value in expected.items()):
+                raise SafeError('Step04 requires exactly six passed PostgreSQL tests with zero skips.')
+        if (env.get('RUN_ARGINTAXPAYER_VAULT_INTEGRATION') == '1' and
+                test_filter == 'FullyQualifiedName~Phase09SigningVaultIntegrationTests'):
+            expected = {'total': 1, 'executed': 1, 'passed': 1, 'failed': 0, 'notExecuted': 0}
+            if any(sum(int(c.get(key, -1)) for c in counts) != value
+                   for key, value in expected.items()):
+                raise SafeError('Step05 requires its real Vault test passed with zero skips.')
+        if (env.get('RUN_ARGINTAXPAYER_PG_INTEGRATION') == '1' and
+                test_filter == 'FullyQualifiedName~Phase09SigningGenerationPostgresTests'):
+            expected = {'total': 5, 'executed': 5, 'passed': 5, 'failed': 0, 'notExecuted': 0}
+            if any(sum(int(c.get(key, -1)) for c in counts) != value
+                   for key, value in expected.items()):
+                raise SafeError('Step06 requires exactly five PostgreSQL tests passed with zero skips.')
+        journal_filters = {
+            'FullyQualifiedName~Phase09SigningMatchPostgresTests': 5,
+            'FullyQualifiedName~Phase09SigningImportPostgresTests': 5,
+            'FullyQualifiedName~Phase09SigningGenerationPostgresTests|FullyQualifiedName~Phase09SigningImportPostgresTests': 10,
+        }
+        if test_filter == 'FullyQualifiedName~Phase09OfflineSigning':
+            expected = {'total': 21, 'executed': 21, 'passed': 21, 'failed': 0, 'notExecuted': 0}
+            if any(sum(int(c.get(key, -1)) for c in counts) != value
+                   for key, value in expected.items()):
+                raise SafeError('Step09 requires exactly twenty-one passed offline signing tests with zero skips.')
+        if test_filter == 'FullyQualifiedName~Phase09InvoiceSnapshotSigning':
+            expected = {'total': 4, 'executed': 4, 'passed': 4, 'failed': 0, 'notExecuted': 0}
+            if any(sum(int(c.get(key, -1)) for c in counts) != value
+                   for key, value in expected.items()):
+                raise SafeError('Step10 requires exactly four passed invoice snapshot signing tests with zero skips.')
+        if test_filter == 'FullyQualifiedName~Phase09SigningKeyLifecycle':
+            expected = {'total': 10, 'executed': 10, 'passed': 10, 'failed': 0, 'notExecuted': 0}
+            if any(sum(int(c.get(key, -1)) for c in counts) != value
+                   for key, value in expected.items()):
+                raise SafeError('Step11 requires exactly ten passed lifecycle tests with zero skips.')
+        if test_filter == 'FullyQualifiedName~Phase09SigningRecovery':
+            expected = {'total': 8, 'executed': 8, 'passed': 8, 'failed': 0, 'notExecuted': 0}
+            if any(sum(int(c.get(key, -1)) for c in counts) != value
+                   for key, value in expected.items()):
+                raise SafeError('Step12 requires exactly eight passed recovery tests with zero skips.')
+        if test_filter == 'FullyQualifiedName~Phase09SigningChangeReview':
+            expected = {'total': 10, 'executed': 10, 'passed': 10, 'failed': 0, 'notExecuted': 0}
+            if any(sum(int(c.get(key, -1)) for c in counts) != value
+                   for key, value in expected.items()):
+                raise SafeError('Step13 requires exactly ten passed review tests with zero skips.')
+        if test_filter == 'FullyQualifiedName~Phase09SigningHttpSecurity':
+            expected = {'total': 10, 'executed': 10, 'passed': 10, 'failed': 0, 'notExecuted': 0}
+            if any(sum(int(c.get(key, -1)) for c in counts) != value
+                   for key, value in expected.items()):
+                raise SafeError('Step14 requires exactly ten passed HTTP security tests with zero skips.')
+        if test_filter == 'FullyQualifiedName~Phase09SecurityRegression':
+            expected = {'total': 10, 'executed': 10, 'passed': 10, 'failed': 0, 'notExecuted': 0}
+            if any(sum(int(c.get(key, -1)) for c in counts) != value
+                   for key, value in expected.items()):
+                raise SafeError('Step16 requires exactly ten passed security regression tests with zero skips.')
+        if env.get('RUN_ARGINTAXPAYER_PG_INTEGRATION') == '1' and test_filter in journal_filters:
+            number = journal_filters[test_filter]
+            expected = {'total': number, 'executed': number, 'passed': number, 'failed': 0, 'notExecuted': 0}
+            if any(sum(int(c.get(key, -1)) for c in counts) != value
+                   for key, value in expected.items()):
+                raise SafeError('All selected PostgreSQL journal tests must pass with the exact count and zero skips.')
+        for c in counts:
+            print('TRX: total={total}, executed={executed}, passed={passed}, failed={failed}, notExecuted={notExecuted}'.format(
+                **{k:c.get(k,'0') for k in ('total','executed','passed','failed','notExecuted')}))
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('mode', choices=['preflight','pure','focused','integration','full','vault'])
+    parser.add_argument('--filter', dest='test_filter')
+    args = parser.parse_args()
+    if args.mode == 'focused' and not args.test_filter:
+        raise SafeError('focused requires --filter with an existing test class.')
+    if args.mode == 'vault':
+        exact = 'FullyQualifiedName~Phase09SigningVaultIntegrationTests'
+        if args.test_filter and args.test_filter != exact:
+            raise SafeError('vault mode permits only the synthetic Step05 Vault integration test.')
+        args.test_filter = exact
+    before = preflight()
+    if args.mode in ('integration','full'):
+        env = guard_database()  # Must happen before build or tests.
+    elif args.mode == 'vault':
+        env = guard_vault()
+    else:
+        env = pure_environment()
+        print('PostgreSQL integration DISABLED; opt-in early-return tests do not prove DB acceptance.')
+    if args.mode != 'preflight':
+        dotnet_tests(env, args.test_filter)
+    if args.mode in ('pure','full'):
+        run(['npm','--prefix','apps/web','ci','--no-audit','--no-fund'], env)
+        run(['npm','--prefix','apps/web','test'], env)
+        run(['npm','--prefix','apps/web','run','typecheck'], env)
+        run(['npm','--prefix','apps/web','run','build'], env)
+    after = preflight()
+    if before != after:
+        raise SafeError('Commit changed during verification.')
+    print('Verification finished. Browser, live authority, restore and owner approval are separate.')
+
+if __name__ == '__main__':
+    try:
+        main()
+    except SafeError as error:
+        print('ERROR: ' + str(error), file=sys.stderr)
+        sys.exit(2)

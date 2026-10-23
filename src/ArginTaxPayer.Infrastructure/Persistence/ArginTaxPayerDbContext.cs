@@ -1,3 +1,4 @@
+using ArginTaxPayer.Infrastructure.Persistence.Signing;
 using ArginTaxPayer.Infrastructure.Persistence.Invoices;
 using ArginTaxPayer.Infrastructure.Persistence.Outbox;
 using ArginTaxPayer.Infrastructure.Persistence.Idempotency;
@@ -17,6 +18,13 @@ namespace ArginTaxPayer.Infrastructure.Persistence;
 public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbContext> options)
     : DbContext(options)
 {
+    public DbSet<DbSigningKeyEnvelope> DbSigningKeyEnvelopes => Set<DbSigningKeyEnvelope>();
+    public DbSet<SigningOperation> SigningOperations => Set<SigningOperation>();
+    public DbSet<SigningConsent> SigningConsents => Set<SigningConsent>();
+    public DbSet<SigningKeyVersion> SigningKeyVersions => Set<SigningKeyVersion>();
+    public DbSet<SigningKeySelection> SigningKeySelections => Set<SigningKeySelection>();
+    public DbSet<SigningChangeRequest> SigningChangeRequests => Set<SigningChangeRequest>();
+    public DbSet<SigningAuditEvent> SigningAuditEvents => Set<SigningAuditEvent>();
     public DbSet<InvoiceHumanReference> InvoiceHumanReferences => Set<InvoiceHumanReference>();
     public DbSet<StoredInvoiceReviewRequest> InvoiceReviewRequests => Set<StoredInvoiceReviewRequest>();
     public DbSet<StoredInvoiceReview> InvoiceReviews => Set<StoredInvoiceReview>();
@@ -63,6 +71,18 @@ public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbConte
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        var dbEnvelope = modelBuilder.Entity<DbSigningKeyEnvelope>();
+        dbEnvelope.ToTable("signing_private_key_envelopes");
+        dbEnvelope.HasKey(x => x.KeyVersionId);
+        dbEnvelope.Property(x => x.KeyVersionId).HasColumnName("key_version_id");
+        dbEnvelope.Property(x => x.CustomerUserId).HasColumnName("customer_user_id");
+        dbEnvelope.Property(x => x.TaxpayerId).HasColumnName("taxpayer_id");
+        dbEnvelope.Property(x => x.FiscalMemoryId).HasColumnName("fiscal_memory_id");
+        dbEnvelope.Property(x => x.OriginOperationRecordId).HasColumnName("origin_operation_record_id");
+        dbEnvelope.Property(x => x.EnvelopeJson).HasColumnName("envelope_json").HasColumnType("text").IsRequired();
+        dbEnvelope.Property(x => x.Version).HasColumnName("version");
+
+        SigningModelConfiguration.Configure(modelBuilder);
         modelBuilder.HasDbFunction(typeof(InvoiceJsonFields).GetMethod(nameof(InvoiceJsonFields.Text))!)
             .HasName("jsonb_extract_path_text").IsBuiltIn();
         base.OnModelCreating(modelBuilder);
