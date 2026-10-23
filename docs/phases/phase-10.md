@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 10: Tax Authority Invoice Submission (Two-Pattern Delivery)
 
-**Status:** Steps 01–03 owner-approved; Step 04 pure dispatch state/error contracts and unit-test source committed, macOS verification and owner approval pending. No runtime invoice connector activated.  
+**Status:** Steps 01–04 owner-approved; Step 05 storage/outbox design and pure admission contracts committed; macOS verification and owner review pending. No runtime connector, EF schema registration or DB migration applied.  
 **Plan date:** 2026-10-23.  
 **Repository:** HekmatBeigverdi/ArginTaxPayer  
 **Base branch / inspected SHA:** `main` / `7112f03b7fe30ceea1aff7f04f587a1b0e939c92` (verify again at Step 01; Phase09 merge/release anchor `fde20594e733f96e032396f8e22e8781b14cac18`).  
@@ -743,4 +743,151 @@ git status --short
 
 Only macOS is required. Ubuntu acceptance remains **Step23 only**. No external authority request or DB access is required.
 
-**Step04 gate:** macOS build and unit suite PASS, no generated tracked files, owner explicit approval. The status remains pending until reported; source commits alone are not successful runtime tests.
+**Step04 owner decision:** explicitly approved in chat on 2026-10-23. Operator output was not attached to the approval turn, so runtime results are not independently claimed. Step05 authorized.
+
+## 14. Step 05 — Durable dispatch outbox and PostgreSQL persistence proposal (2026-10-23)
+
+**Status:** Design and proposed SQL recorded, pure domain admission/replay guards and xUnit cases committed. **No EF model registration, migration class, applied schema, DB connection, runtime worker, live send or Ubuntu check.** Explicit owner review is needed before writing/using a real migration in the following steps.
+
+### 14.1 Existing tables audited and deliberate non-reuse
+
+Existing repository sources reviewed:
+- `Persistence/Invoices/InvoiceStorageEntities.cs` + `InvoicePersistenceModelConfiguration.cs`: `invoice_documents`, `invoice_document_revisions` (immutable historical snapshots), `invoice_operations` (internal subject/ref-slot reservations) and `invoice_reservation_cursors`.
+- `Migrations/20261017010000_AddInvoicePersistenceAndOperationClaims.cs` creates those tables and an immutability trigger for invoice revision history. **Do not use `invoice_operations` as an authority transmission log**: it represents a different lifecycle/idempotency namespace.
+- `Migrations/20261011120000_AddOutboxMessages.cs`: generic `outbox_messages` stores event `payload_json` as text and a processed timestamp. Do **not** place signed invoices, tokens or raw authority payloads in that generic outbox.
+- `Migrations/20261011180000_AddIdempotencyReservations.cs`: generic taxpayer/operation/key uniqueness, but no frozen invoice revision, fiscal memory, canonical payload hash or secure authority receipt.
+- `ArginTaxPayerDbContext.cs` references these existing sets. Current model snapshot and running DB migration history must be reviewed before introducing new mappings.
+
+**Decision:** preserve pre-existing tables untouched and propose **dedicated Phase10 tables** `invoice_dispatch_operations`, `invoice_dispatch_attempts`, `invoice_dispatch_receipts`; the first table doubles as a narrow pending-outbox/dispatch lease source without storing sensitive wire payload. There must be **no generic outbox event containing raw tax JSON**.
+
+### 14.2 Proposed relational boundaries and invariants
+
+| Relation | Cardinality | Data classification / invariant |
+| --- | --- | --- |
+| `invoice_dispatch_operations` | 1 row per logical submit operation | Customer/taxpayer/memory+invoice/revision, idempotency key, official rule+mapper+signature profile versions, immutable payload SHA256, state/CAS revision; owner-scoped |
+| `invoice_dispatch_attempts` | 0..N per operation | Immutable timestamped network attempt facts, sanitized result/error code, selected endpoint **identifier** (not arbitrary URL), provider correlation, attempt sequence; **never** bearer/raw packet/private key |
+| `invoice_dispatch_receipts` | 0..N per operation | Append-only acknowledgement/reconciliation evidence, receipt identifier and provider reference, bounded redacted metadata, observation UTC; no claim of final Tax Authority acceptance |
+| Existing `invoice_document_revisions` | referenced immutable source | Version-pinned local business snapshot; never updated by dispatch |
+| Existing `signing_key_versions` / fiscal memory | selected server-side | Key/profile selection checked at execution; no secret key data copied into dispatch tables |
+
+**Required uniqueness:**
+- `UNIQUE(customer_user_id,taxpayer_id,idempotency_key)`: same scope/key with a different payload/memory/invoice/revision = **409 conflict**, same identity = replay existing state.
+- `UNIQUE(customer_user_id,taxpayer_id,fiscal_memory_id,invoice_id,invoice_revision)` or an equally strong issuance reservation and explicit new-authorized-attempt policy. This prevents different idempotency keys from sending the same immutable invoice revision in parallel. Reference/operation lineage must be considered before permitting any new revision resend.
+- FK `(customer_user_id,taxpayer_id,invoice_id)` → `invoice_documents` existing scoped alternate key; validate active customer ownership and matching fiscal memory in application *again* at dispatch.
+- Unique `(operation_id,attempt_number)` and scoped immutable receipt/attempt identities; receipts with duplicated returned references must be reviewed rather than silently overwritten.
+- `operation revision` `>0`, SHA-256 lowercase 64-hex; idempotency key 1..128 constrained at API/application, bounded provider identifier, UTC-only timestamps, no mutable historical business snapshot.
+
+**Atomicity:** In a **short PostgreSQL transaction**, authorize the scope, compare expected invoice revision/frozen hash, insert-or-observe the unique operation and commit reservation. Only after commit may a worker claim and send. A lease-expired `Sending` row becomes `Indeterminate` for reconciliation, **never** directly resent. If DB commit fails, no external send. Provider/network calls never occur while holding a DB transaction. Durable attempts and transitions are serialized with CAS revision and append-only audit.
+
+**Security/RLS:** every repository query and uniqueness domain is scoped to current authenticated owner/tenant and taxpayer; a DB-scoped FK alone does not establish live membership or role authorization. Consider PostgreSQL RLS as defense in depth, not as a replacement for application authentication. No payload, token, private key, raw response body, secrets or sensitive headers in outbox/attempts/receipts/logs. Use safe codes and cryptographic fingerprints only.
+
+### 14.3 Proposed PostgreSQL DDL for operator **review only**
+
+**Do not copy into production or run as an executable migration.** This SQL is an architectural proposal and requires an EF Core migration/model-snapshot alignment, a fully non-destructive rollback policy, FK verification against actual `fiscal_memories` columns, and operator approval before implementation. SQL shown with `CREATE TABLE` is *not applied*.
+
+```sql
+-- PROPOSAL ONLY. DO NOT EXECUTE.
+CREATE TABLE invoice_dispatch_operations (
+    id uuid PRIMARY KEY,
+    customer_user_id uuid NOT NULL,
+    taxpayer_id uuid NOT NULL,
+    fiscal_memory_id uuid NOT NULL,
+    invoice_id uuid NOT NULL,
+    invoice_revision bigint NOT NULL CHECK (invoice_revision > 0),
+    idempotency_key varchar(128) NOT NULL CHECK (length(idempotency_key) > 0),
+    payload_sha256 char(64) NOT NULL CHECK (payload_sha256 ~ '^[0-9a-f]{64}$'),
+    rule_set_edition varchar(128) NOT NULL,
+    mapper_version varchar(64) NOT NULL,
+    signing_profile varchar(128) NOT NULL,
+    invoice_type integer NOT NULL,
+    pattern_code integer NOT NULL,
+    subject integer NOT NULL CHECK (subject IN (1,2,3,4)),
+    state integer NOT NULL CHECK (state BETWEEN 1 AND 8),
+    state_revision bigint NOT NULL CHECK (state_revision > 0),
+    created_at_utc timestamptz NOT NULL,
+    updated_at_utc timestamptz NOT NULL,
+    claimed_until_utc timestamptz NULL,
+    CONSTRAINT fk_dispatch_invoice_scope
+      FOREIGN KEY (customer_user_id,taxpayer_id,invoice_id)
+      REFERENCES invoice_documents(customer_user_id,taxpayer_id,id) ON DELETE RESTRICT,
+    CONSTRAINT fk_dispatch_customer FOREIGN KEY (customer_user_id)
+      REFERENCES identity_users(id) ON DELETE RESTRICT,
+    CONSTRAINT fk_dispatch_taxpayer FOREIGN KEY (taxpayer_id)
+      REFERENCES taxpayer_profiles(id) ON DELETE RESTRICT
+    -- Add correct fiscal-memory FK only after inspecting actual model keys.
+);
+CREATE UNIQUE INDEX ux_dispatch_scope_idempotency
+  ON invoice_dispatch_operations(customer_user_id,taxpayer_id,idempotency_key);
+CREATE UNIQUE INDEX ux_dispatch_scope_invoice_revision
+  ON invoice_dispatch_operations(customer_user_id,taxpayer_id,fiscal_memory_id,invoice_id,invoice_revision);
+CREATE INDEX ix_dispatch_pending_claim
+  ON invoice_dispatch_operations(state,claimed_until_utc,created_at_utc)
+  WHERE state IN (3,4,6,7);
+
+CREATE TABLE invoice_dispatch_attempts (
+    id uuid PRIMARY KEY,
+    operation_id uuid NOT NULL REFERENCES invoice_dispatch_operations(id) ON DELETE RESTRICT,
+    attempt_number integer NOT NULL CHECK (attempt_number > 0),
+    endpoint_code varchar(80) NOT NULL,
+    started_at_utc timestamptz NOT NULL,
+    completed_at_utc timestamptz NULL,
+    result_code varchar(100) NULL,
+    provider_trace_id varchar(128) NULL,
+    UNIQUE(operation_id,attempt_number)
+);
+CREATE INDEX ix_dispatch_attempts_operation
+  ON invoice_dispatch_attempts(operation_id,attempt_number);
+
+CREATE TABLE invoice_dispatch_receipts (
+    id uuid PRIMARY KEY,
+    operation_id uuid NOT NULL REFERENCES invoice_dispatch_operations(id) ON DELETE RESTRICT,
+    attempt_id uuid NULL REFERENCES invoice_dispatch_attempts(id) ON DELETE RESTRICT,
+    receipt_kind integer NOT NULL CHECK (receipt_kind IN (1,2)),
+    authority_reference varchar(256) NULL,
+    authority_uid varchar(256) NULL,
+    observed_at_utc timestamptz NOT NULL,
+    evidence_sha256 char(64) NOT NULL CHECK (evidence_sha256 ~ '^[0-9a-f]{64}$')
+);
+CREATE INDEX ix_dispatch_receipts_operation
+  ON invoice_dispatch_receipts(operation_id,observed_at_utc);
+-- Later migration: DB-level UPDATE/DELETE guards on attempts/receipts;
+-- if mutable request-state exists, use append-only state events or CAS transitions.
+```
+
+**SQL review limitations to resolve before an EF migration:** `invoice_type`/`pattern_code` cannot be non-null for an outbound cancellation's omitted fields unless explicitly designated as **internal classification** columns (they are, in this proposal). FKs on the fiscal memory and receipt attempt→operation cross-check need verification and strengthening; a receipt's optional attempt ID must belong to the **same** operation (later composite FK). The table set above is a DDL sketch, **not** a complete production migration or SQL acceptance proof. Append-only receipt/attempt trigger policy and backup restore/rollback safety require implementation and verification, not merely documentation.
+
+### 14.4 Pure code and tests added (no schema mutation)
+
+- `src/ArginTaxPayer.Domain/Invoices/InvoiceDispatchPersistenceContracts.cs` freezes the scoped `InvoiceDispatchAdmission` key and `CompareReplay` decision (`ReplaySameOperation`, `ConflictingPayload`, `DifferentKeyOrScope`). Requires valid UUIDs, positive invoice revision, 64-hex payload digest and safe 1..128 printable ASCII idempotency key. Hash is canonicalized to lowercase.
+- `InvoiceDispatchStoragePolicy` is a **fail-closed planning rule**: only `Reserved` is directly claimable; `Sending` and `Indeterminate` require external reconciliation; attempts are not deletable. Real lease claims, CAS, ownership and provider evidence require PostgreSQL transactions later.
+- `tests/ArginTaxPayer.Tests/Phase10DispatchPersistenceContractsTests.cs` checks exact same-operation replay, changed payload/memory conflict, cross-tenant separation, malformed idempotency keys and no blind worker redrive.
+
+**Important distinction:** these tests are pure in-memory contract tests. They **do not** verify PostgreSQL constraints, concurrent transactions, WAL/outbox restart, immutability triggers, or live authority behavior. Those are mandatory in Steps11–14 and Step20, on an expressly authorized test DB.
+
+### 14.5 Owner approval gates and future implementation
+
+1. **This Step05:** approve schema *design and SQL review only*, plus pure contract tests. No migration execution is requested.
+2. **Before EF migration implementation/application:** explicit owner approval of concrete migration SQL, data preservation and rollback plan; verify `current_database() = 'argintaxpayer_test'`, never production.
+3. **Step11:** implement atomically persisted reservation and unique indexes, same tenant+key replays, conflicting payload 409, concurrent multi-worker admission, then authorized test DB validation.
+4. **Step12–14:** crash/network fault, evidence-driven recovery and durable status history; append-only immutability DB triggers and safe logging.
+5. **Step23:** first Ubuntu checks, same final SHA as macOS; no Ubuntu now.
+
+### 14.6 macOS-only Step05 verification commands
+
+```bash
+cd ~/projects/ArginTaxPayer
+git status --short
+git fetch origin --prune
+git switch phase/10-invoice-submission
+git pull --ff-only origin phase/10-invoice-submission
+git rev-parse HEAD
+
+dotnet restore ArginTaxPayer.sln
+dotnet build ArginTaxPayer.sln --no-restore
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --no-restore \
+  --filter "FullyQualifiedName~Phase10DispatchPersistenceContractsTests|FullyQualifiedName~Phase10DispatchContractsTests|FullyQualifiedName~Phase07InvoiceLifecycleTests"
+dotnet test ArginTaxPayer.sln --no-build
+git status --short
+```
+
+**Acceptance:** contracts compile, targeted tests and full solution regression pass on macOS, the document records the schema proposal/limitations and no DB changes or unexpected Git file modifications occur. Operator results and explicit owner signoff are still required; GitHub code review is not a build.
