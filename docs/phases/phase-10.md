@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 10: Tax Authority Invoice Submission (Two-Pattern Delivery)
 
-**Status:** Steps 01–15 owner-approved. Step16 authenticated scoped development API, read-only PostgreSQL status and disabled BFF send contract committed; macOS acceptance pending. No live invoice send, no DB migration. Ubuntu remains Step23.  
+**Status:** Steps 01–16 owner-approved. Step17 compact RTL invoice dispatch status panel, disabled send/inquiry controls and regression tests committed; macOS UI acceptance pending. No live invoice send, no DB migration. Ubuntu remains Step23.  
 **Plan date:** 2026-10-23.  
 **Repository:** HekmatBeigverdi/ArginTaxPayer  
 **Base branch / inspected SHA:** `main` / `7112f03b7fe30ceea1aff7f04f587a1b0e939c92` (verify again at Step 01; Phase09 merge/release anchor `fde20594e733f96e032396f8e22e8781b14cac18`).  
@@ -1665,3 +1665,57 @@ If manually testing authenticated HTTP session, first `zsh scripts/dev-status.zs
 ### Acceptance limitations and follow-on
 
 Step16 is a **fail-closed API/BFF integration scaffold**, not complete invoice dispatch. Before claiming an end-to-end sandbox capability, require authenticated per-tenant sender authorization, audit, vetted official sandbox endpoint, correct wire-byte signing and protected key custody, safe persisted outbox worker, bounded authenticated responses, unique packet correlation, official inquiry/final validation and manual sandbox work-folder evidence. A real transport cannot be activated silently by a browser flag. Step17 begins only after explicit owner acceptance.
+
+## 26. Step 17 — Compact RTL invoice dispatch user interface (2026-10-24)
+
+**Owner approval:** Step16 expressly approved by operator in chat, with no attached independent macOS build/browser evidence. Step17 sources committed and operator testing pending. No actual Tax Authority or Sandbox request, no server-side configuration changes, no PostgreSQL migration, no Ubuntu VPS testing, no production send and no tag/release.
+
+### Implemented UI
+
+- **New:** `apps/web/app/invoices/invoice-dispatch-panel.tsx`. A compact Persian RTL component placed **inside the existing invoice details modal**. No redundant full-screen page or multi-page scrolling. Displays server-returned dispatch status, explicit `Mock` label, Sandbox disabled, authority inquiry disabled, and fiscal acceptance false. Refresh control is the only active operation: a scoped `GET /api/invoice-dispatch/{taxpayerId}/{invoiceId}`, `credentials:same-origin`, `cache:no-store`, cancellation on modal unmount and loading/error/empty states.
+- Hard-disabled `ارسال صورتحساب` and `استعلام از سازمان` buttons (HTML `disabled`), with explanatory titles. It makes **no POST requests**, signs nothing, and cannot activate Sandbox from client input. The backend Step16 rejects the send route with HTTP 503 regardless.
+- Recognizes persisted status names from Step04; `Acknowledged` displayed as **initial receipt**, not legal acceptance; `Indeterminate` requires inquiry and manual investigation; `NotPrepared` does not claim an issued invoice.
+- Rejects malformed status payload and anything other than server-confirmed `Mock`, `submissionEnabled:false`, `inquiryEnabled:false`, `fiscalAccepted:false`. No response fields with sensitive credentials or raw financial JSON are rendered.
+- Existing editable workspace rows stay on their previous edit flow; dispatch panel appears only for the selected finalized invoice details. No migration.
+- **Updated:** `apps/web/app/invoices/workspace.tsx`: imports panel and renders it inside the preexisting details modal; action label reflects status visibility.
+- **Updated:** `apps/web/app/globals.css`: compact responsive green-theme layout, small form controls, neutral/teal boundaries, accessible RTL and mobile single-column.
+- **New:** `apps/web/tests/phase10-step17-dispatch-ui.test.mjs`: source-level regression for read-only BFF, server-controlled flags, disabled actions and panel integration. These are **structural assertions**, not browser interaction or actual API acceptance.
+- **Updated:** canonical `docs/phases/phase-10.md`.
+
+### Strict limits and remaining work
+
+1. This is **Step17 presentation/read** only: no signed fiscal packet transport, mock send trigger, status mutation, inquiry adapter, journal audit, provider acceptance or persistent timeline. Step18 will address richer operation/receipt/timeline details.
+2. Server's status from Step16 stays `Mock`, and GET requires current identity session and current taxpayer/invoice ownership. Browser controls do not authorize submission.
+3. Real Sandbox UI enablement is contingent on official verified 2026 availability, isolated sandbox memory+key, current endpoint and inquiry documentation, Step09 byte-exact signing proof, Step07 rules, durable attempt pre-network sequence, Step11 real concurrency tests and explicit owner acceptance of the test procedure. There is no fallback to Production.
+4. The generic user-facing sender label `ارسال صورتحساب` is intentionally disabled for every user; do not interpret green-themed presentation as live readiness.
+5. Validating the optional editable workspace uses its prior wizard; no new direct issuance path is added.
+
+### macOS acceptance: no database migration
+
+```bash
+cd ~/projects/ArginTaxPayer
+git status --short
+git fetch origin --prune
+git switch phase/10-invoice-submission
+git pull --ff-only origin phase/10-invoice-submission
+git rev-parse HEAD
+
+dotnet restore ArginTaxPayer.sln
+dotnet build ArginTaxPayer.sln --no-restore
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --no-restore \
+ --filter "FullyQualifiedName~Phase10DispatchLineagePolicyTests|FullyQualifiedName~Phase10InquiryReconciliationTests"
+cd apps/web
+node --test tests/phase10-step16-dispatch-gate.test.mjs tests/phase10-step17-dispatch-ui.test.mjs
+npm run typecheck
+npm run build
+cd ../..
+git status --short
+
+zsh scripts/dev-status.zsh
+# Start only if stopped:
+# zsh scripts/dev-up.zsh
+```
+
+**Manual operator browser acceptance:** Open `http://127.0.0.1:3000/invoices` while authenticated; select an existing finalized invoice and open its details. Confirm compact RTL panel, `محیط Mock` label, current state loading and refresh, hard-disabled send and inquiry controls, no unexpected HTTP POST requests, proper signed-out/other-owner failures, and no disruption to the legacy invoice wizard. A workspace not yet issued is not a real Tax Authority invoice and should not show legal acceptance.
+
+**Status:** Implementation committed; macOS typecheck/build, tests and authenticated manual UI remain unverified until operator supplies output. Step18 must wait for owner signoff.
