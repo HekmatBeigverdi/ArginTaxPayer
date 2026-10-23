@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 10: Tax Authority Invoice Submission (Two-Pattern Delivery)
 
-**Status:** Steps 01–10 owner-approved. Step11 guarded additive test-db migration, transactional admission repository and tests committed; macOS/build/database operator acceptance pending. No migration executed, no live submission, Ubuntu deferred to Step23.  
+**Status:** Steps 01–11 owner-approved by operator. Step12 retry/fault policy, scoped transactional CAS repository and unit tests committed; macOS acceptance pending. No actual invoice send. Ubuntu deferred to Step23.  
 **Plan date:** 2026-10-23.  
 **Repository:** HekmatBeigverdi/ArginTaxPayer  
 **Base branch / inspected SHA:** `main` / `7112f03b7fe30ceea1aff7f04f587a1b0e939c92` (verify again at Step 01; Phase09 merge/release anchor `fde20594e733f96e032396f8e22e8781b14cac18`).  
@@ -1380,3 +1380,67 @@ The owner provided read-only `psql` evidence:
 **Persistent standard:** `docs/dev/database-migration-runbook.md`, reusable `scripts/phase10-step11-migration.zsh`. On Mac first run `zsh scripts/dev-status.zsh`; if stopped, existing `zsh scripts/dev-up.zsh` brings up AutoSSH/API/web and runs test-DB readiness. Do not create duplicate manual AutoSSH sessions. Because script-executed exports do not propagate to the parent shell, run **`set -a; source .env.dev.local; set +a`** in the operator's own terminal before subsequent `dotnet ef` commands. `.env.dev.local` is gitignored; never commit secrets. The script verifies port 15432, DB name and migration history, takes a backup, generates offline SQL and requires an explicit `APPLY` prompt after review. No irreversible migration action was executed by this source commit.
 
 **Pending operator steps:** pull latest branch on macOS, build/targeted unit tests, inspect generated review SQL, get separate approval to apply, then validate live PostgreSQL constraints/idempotency with parallel test transactions. Ubuntu VPS operating-system acceptance remains Phase10 Step23 only.
+
+## 21. Step 12 — Durable, fail-closed retry and network-fault safety (2026-10-23)
+
+**Owner decision:** Step11 explicitly approved in chat after operator stated DB table setup was successful. Detailed migration history, PG concurrency race, build logs and count of source-level tests were not attached here; do **not** claim independently witnessed DB race PASS. Migration is believed applied to isolated `argintaxpayer_test` per operator but not verified in this session. No schema changes are required in Step12.
+
+### Delivered source
+
+- **Added** `src/ArginTaxPayer.Application/Invoices/Phase10RetrySafetyPolicy.cs`: explicit `InvoiceTransportFailureKind` for provably pre-network vs timeout/connection loss/unknown result; `InvoiceRetryDecision`, `InvoiceRetryDisposition` and `Phase10RetrySafetyPolicy.Classify`. The policy never schedules an automatic send (`MayAutomaticallyResend=false`), returns only safe message keys, and prevents incorrect lifecycle transitions.
+- **Added** `src/ArginTaxPayer.Infrastructure/Persistence/Invoices/InvoiceDispatchFaultRepository.cs`: a PostgreSQL `UPDATE...WHERE operation_id AND customer_user_id AND taxpayer_id AND state AND state_revision RETURNING state_revision` CAS operation in a short `READ COMMITTED` transaction. Writes are limited to `argintaxpayer_test`; no signing, packet transport, receipt modification, retry scheduler, or HTTP. Both wrong-scope and stale worker revisions fail without advancing state.
+- **Added** `tests/ArginTaxPayer.Tests/Phase10RetrySafetyTests.cs`: pre-network failure, timeout, connection reset, 429/503 uncertainty, malformed provider response, interrupted worker, inconsistent Reserved timeout, terminal/unknown states, invalid event/revision, no automatic resend.
+- No EF migration, new table, API endpoint, worker activation or Ubuntu operation. The canonical development DB procedure remains `docs/dev/database-migration-runbook.md`. Use `zsh scripts/dev-status.zsh`, then existing `zsh scripts/dev-up.zsh` only if needed. For DB commands run `set -a; source .env.dev.local; set +a` in the same Mac terminal. Never instruct a parallel manual AutoSSH process.
+
+### Fault matrix
+
+| Durable current state | Proven failure evidence | Local policy proposal | Permitted follow-up |
+| --- | --- | --- | --- |
+| `Reserved` | Failure verifiably before any attempt to invoke network client | `FailBeforeSend` → `RetryEligible` | New network attempt **still requires** new authorized worker claim and signed packet proof; no automatic retry |
+| `Sending` | Timeout, connection reset, 429, 5xx, malformed or missing response, process interruption | `OutcomeUnknown` → `Indeterminate` | **Reconciliation only**. No resend until official evidence proves no receipt, handled later |
+| `Reserved` | Local state says no send yet, but worker reports timeout/possible network attempt | No transition; conflict/investigation | Investigate durable evidence; do not misclassify as definitely unsent |
+| `Indeterminate` | Any local fault, timeout or expired lease | No new send or state change | Authority reconciliation Step14 |
+| `Acknowledged`, `FailedTerminal` | Any | No retry | Terminal handling, not automatic re-delivery |
+| `Prepared`, `Signed`, `RetryEligible` | General fault without independently proven cause | No transition | Follow scoped admission/workflow and official evidence |
+
+**Security principle:** an HTTP status alone (including 408, 429 and 503), elapsed timeout, expired lease, application crash or a locally issued `CancellationToken` never proves non-delivery. The policy assumes the caller truthfully classified `BeforeNetworkAttempt`; this condition MUST be derived from a trusted worker execution boundary with durable evidence, not customer text. A reserved operation must be persisted as `Sending` before any authority-side network I/O. The Step12 repository is an internal method for authorized workers only. It does **not independently authenticate bearer/user/tenant permissions** and must never be exposed as an API accepting caller GUIDs.
+
+### Known blockers and follow-up
+
+1. **No live transport:** `DisabledInvoiceSubmissionTransport` remains; Step09 exact-byte signing/crypto verification still unimplemented. Never enable actual send based on these tests.
+2. **No durable claim/attempt lifecycle yet:** Step11 DB has schema, but no fully implemented atomic `Signed→Reserved→Sending` claim with attempt insertion before network. The CAS fault repository handles only two transitions; full worker, attempt timestamps, append-only evidence and lease ownership must be integrated and race-tested before any send.
+3. **No online reconciliation:** `Indeterminate` is sticky until Step14 obtains authoritative evidence. Do not implement retry using a grace period alone.
+4. **No production database approval:** scoped guard intentionally restricts writes to `argintaxpayer_test`; production migration planning requires distinct security review.
+5. **Current official sandbox status is not verified:** `sandboxrc.tax.gov.ir` historically advertised. Keep Mock/Sandbox/Production separation and avoid test invoices on Production.
+
+### macOS acceptance commands
+
+```bash
+cd ~/projects/ArginTaxPayer
+git status --short
+git fetch origin --prune
+git switch phase/10-invoice-submission
+git pull --ff-only origin phase/10-invoice-submission
+git rev-parse HEAD
+
+dotnet restore ArginTaxPayer.sln
+dotnet build ArginTaxPayer.sln --no-restore
+
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --no-restore \
+ --filter "FullyQualifiedName~Phase10RetrySafetyTests|FullyQualifiedName~Phase10DispatchContractsTests|FullyQualifiedName~Phase10SubmissionTransportTests|FullyQualifiedName~Phase10DispatchDatabaseContractsTests"
+
+dotnet test ArginTaxPayer.sln --no-build
+git status --short
+```
+
+Optional **read-only** PostgreSQL inspection (no migration needed for Step12) after existing Mac helper is running:
+
+```zsh
+zsh scripts/dev-status.zsh
+set -a
+source .env.dev.local
+set +a
+# Use the existing test-only psql connection settings; never print the credential.
+```
+
+**Step12 acceptance scope:** pure fail-closed fault classification plus narrow scoped versioned state updates committed to source. Unit tests require operator execution; real PostgreSQL concurrent CAS race and true worker-before-network proof remain mandatory end-to-end gates. An accepted Step12 is NOT authorization for real invoice transmission. Step13 starts only after explicit owner acceptance.
