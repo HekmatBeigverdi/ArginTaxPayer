@@ -51,6 +51,7 @@ public static class Phase10AuthorityBatchResponseParser
                 CommentHandling = JsonCommentHandling.Disallow
             });
             var root = doc.RootElement;
+            if (HasDuplicateNames(root)) return Unknown();
             if (root.ValueKind != JsonValueKind.Object ||
                 !TryUnique(root, "result", out var packets) ||
                 packets.ValueKind != JsonValueKind.Array ||
@@ -60,6 +61,7 @@ public static class Phase10AuthorityBatchResponseParser
                  (errors.ValueKind != JsonValueKind.Array || errors.GetArrayLength() != 0)))
                 return Unknown();
             var packet = packets[0];
+            if (HasDuplicateNames(packet)) return Unknown();
             if (packet.ValueKind != JsonValueKind.Object ||
                 !TryUnique(packet, "uid", out var uid) ||
                 !TryUnique(packet, "packetType", out var type) ||
@@ -94,7 +96,7 @@ public static class Phase10AuthorityBatchResponseParser
 
     // Duplicate or case-varied aliases are rejected instead of depending on
     // serializer last-property-wins behavior.
-    private static bool TryUnique(JsonElement element, string field, out JsonElement value)
+    private static bool HasDuplicateNames(JsonElement obj)\n    {\n        if (obj.ValueKind != JsonValueKind.Object) return false;\n        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);\n        foreach (var prop in obj.EnumerateObject())\n            if (!names.Add(prop.Name)) return true;\n        return false;\n    }\n\n    private static bool TryUnique(JsonElement element, string field, out JsonElement value)
     {
         value = default;
         if (element.ValueKind != JsonValueKind.Object) return false;
