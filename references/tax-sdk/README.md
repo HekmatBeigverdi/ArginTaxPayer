@@ -25,12 +25,11 @@ The modern source project declares `TargetFramework=netstandard2.0` and `Version
 
 The legacy source for version **0.0.30** and NuGet binary **0.0.34** were already recorded separately in Phase 09; **do not assume those versions are behaviorally identical**.
 
-## Public online reference
+## Source priority and authoritative validation
 
-- NuGet Gallery: https://www.nuget.org/packages/TaxCollectData.Library
-- Project evidence: `docs/phases/phase-09.md`; upcoming `docs/phases/phase-10.md`.
-
-**Version warning:** As checked on 2026-10-23, the NuGet Gallery package page displays **0.0.4** (last updated November 17, 2022), not the locally supplied **0.0.34**, and not modern **2.0.32**. The public package page is a useful supplementary identifier and dependency reference, but **must not be used to assert that these three versions have matching contents or originate from the same publication**. Verify package identity, publisher, hashes and protocol behavior independently. Do not install an unpinned package simply because the package ID matches.
+1. **Primary SDK evidence:** repository-local files under `references/tax-sdk/` (extracted source, `.zip`, and `.nupkg`). Inspect and hash these before considering any external copy.
+2. **Normative authority:** applicable official Tax Authority documents determine whether an implementation and transmission format are valid; discrepancies must be resolved before live submission.
+3. Do not silently replace repository-local artifacts with an externally downloaded NuGet package. Any new external dependency needs explicit review and approval.
 
 ## Relevant modern-source entry points
 
