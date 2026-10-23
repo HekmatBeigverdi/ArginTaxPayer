@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 10: Tax Authority Invoice Submission (Two-Pattern Delivery)
 
-**Status:** Steps 01–14 owner-approved. Step15 subject-lineage and reference-claim guard with unit tests committed; macOS acceptance pending. No live invoice sending, no DB migration. Ubuntu remains Step23.  
+**Status:** Steps 01–15 owner-approved. Step16 authenticated scoped development API, read-only PostgreSQL status and disabled BFF send contract committed; macOS acceptance pending. No live invoice send, no DB migration. Ubuntu remains Step23.  
 **Plan date:** 2026-10-23.  
 **Repository:** HekmatBeigverdi/ArginTaxPayer  
 **Base branch / inspected SHA:** `main` / `7112f03b7fe30ceea1aff7f04f587a1b0e939c92` (verify again at Step 01; Phase09 merge/release anchor `fde20594e733f96e032396f8e22e8781b14cac18`).  
@@ -1605,3 +1605,63 @@ git status --short
 **No DB migration or tunnel startup is required** by this pure domain Step15. When any future step requires DB, reuse the established `zsh scripts/dev-status.zsh`, `zsh scripts/dev-up.zsh` and shell-local `set -a; source .env.dev.local; set +a` per the canonical runbook. Ubuntu VPS OS acceptance stays Step23.
 
 **Step15 acceptance:** approves the fail-closed predecessor/claim policy and test source, not live authorization, persisted race-proof claims, official subject-chain completeness or successful Sandbox transmission. Step16 begins after explicit owner approval.
+
+## 25. Step 16 — Scoped Application/API/BFF dispatch gateway (2026-10-24)
+
+**Owner decision:** Step15 approved in chat. This step creates a **read-only** invoice dispatch lookup and authenticated disabled-send API/BFF surfaces; it does not claim that live Tax Authority submission/inquiry or actual end-to-end dispatch is operational. Code committed; macOS build and operator acceptance are outstanding. No migration, network send, signing activation, Ubuntu work, release or merge.
+
+### Reuse of project security architecture
+
+- Existing `TaxpayerScopeService.ResolveAsync(bearer)` verifies current authenticated identity, active role and MFA where applicable, and `ScopedQuery(actorId, level1)` filters by CURRENT owner/partner relationships; the taxpayer ID in the path is never authorization evidence.
+- Invoice ownership is separately enforced by `InvoiceDocuments.AsNoTracking().AnyAsync` matching invoice ID, taxpayer ID, and server-derived customer user ID. The dispatch store read additionally pins `customer_user_id`, `taxpayer_id`, `invoice_id`, so an unrelated tenant's operation is never returned.
+- Same Development/loopback guard as Phase07 invoice endpoints; no new production endpoints or HTTP clients.
+- BFF uses cookie-held session bearer, `identityApiOrigin()`, same-local-origin protection on POST, UUID path validation, request no-store and a bounded allowlisted JSON response. The browser never chooses a provider URL, fiscal memory or signed packet.
+
+### Added and changed files
+
+- **New** `src/ArginTaxPayer.Infrastructure/Persistence/Invoices/Phase10InvoiceDispatchReadService.cs`: `Phase10InvoiceDispatchReadService.GetAsync` authenticates server-side, verifies live scope, checks invoice ownership, then uses parameterized read-only SQL on `invoice_dispatch_operations`. Returns only safe state, operation ID, revision and UTC update time; never hashes, provider bodies, tokens or raw invoice JSON. Environment label is currently **Mock**, `SubmissionEnabled=false`, `InquiryEnabled=false` and `FiscalAccepted=false`. An invoice with no dispatch operation shows `NotPrepared`.
+- **New** `src/ArginTaxPayer.Api/Invoices/Phase10InvoiceDispatchDevelopmentEndpoints.cs`: `GET /api/dev/taxpayers/{taxpayerId}/invoices/{invoiceId}/dispatch/status` and `POST .../dispatch/send`. Both loopback-only and scoped. `POST` is a **hard disabled** operation which returns HTTP 503 with safe code `invoice_dispatch_not_enabled` only after authentication, taxpayer and invoice scope succeed; it cannot call a real transport.
+- **Updated** `src/ArginTaxPayer.Api/Program.cs`: registers the scoped read service and maps endpoints **only** inside `identityDevelopmentEnabled`. No background worker or authority network registration.
+- **New** `apps/web/app/api/invoice-dispatch/[taxpayerId]/[invoiceId]/route.ts`: `GET` status and `POST` permanently disabled send proxy, with session validation, origin checks and allowlisted response. No arbitrary API proxy route and no user-supplied upstream URL.
+- **New** `apps/web/tests/phase10-step16-dispatch-gate.test.mjs`: source-level regression guards covering route registration, scoped filters, disabled transport and BFF. These are structural tests; manual authenticated browser and real DB tests remain separately necessary.
+- **Updated** this single canonical phase document.
+
+### Browser-facing behavior
+
+| Request | Scope | Current result |
+| --- | --- | --- |
+| `GET /api/invoice-dispatch/{taxpayerId}/{invoiceId}` | Auth cookie, authorized active taxpayer + owned invoice | Mock only, latest stored dispatch state or `NotPrepared`; `submissionEnabled:false`, `inquiryEnabled:false`, `fiscalAccepted:false` |
+| `POST /api/invoice-dispatch/{taxpayerId}/{invoiceId}` | Same auth, origin and tenant/invoice checks | HTTP 503 `invoice_dispatch_not_enabled`, NO network send |
+| `GET /api/dev/taxpayers/.../dispatch/status` | Development, loopback and bearer authorization | Same safe read-only operation view |
+| `POST /api/dev/taxpayers/.../dispatch/send` | Development, loopback and bearer authorization | HTTP 503 only, no actual sending |
+| Missing/wrong tenant/invoice | Authenticated scope prevents cross-tenant enumeration | 404 (or 401/403 for invalid access) |
+
+**Known limitations:** only most recent operation view, not yet historical timeline or receipts. No real authority inquiry, receipt verification, packet signing, CAS claim-then-Sending attempt or provider transport. Sandbox credentials, official live endpoint and legitimate fiscal memory are unverified. Remaining prior Step07/09 and Step11–14 operational blockers must be cleared before enabling a sandbox test send. Step17–19 will build a compact status/operation UI with unambiguous Mock/Sandbox labels and a disabled send control unless the server has verified configuration. A mere UI label cannot authorize dispatch.
+
+### Acceptance tests: macOS only
+
+```bash
+cd ~/projects/ArginTaxPayer
+git status --short
+git fetch origin --prune
+git switch phase/10-invoice-submission
+git pull --ff-only origin phase/10-invoice-submission
+git rev-parse HEAD
+dotnet restore ArginTaxPayer.sln
+dotnet build ArginTaxPayer.sln --no-restore
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --no-restore \
+ --filter "FullyQualifiedName~Phase10DispatchLineagePolicyTests|FullyQualifiedName~Phase10InquiryReconciliationTests|FullyQualifiedName~Phase10RetrySafetyTests"
+dotnet test ArginTaxPayer.sln --no-build
+cd apps/web
+node --test tests/phase10-step16-dispatch-gate.test.mjs
+npm run typecheck
+npm run build
+cd ../..
+git status --short
+```
+
+If manually testing authenticated HTTP session, first `zsh scripts/dev-status.zsh`, then `zsh scripts/dev-up.zsh` only if services are stopped. Current shell DB env for any needed DB checks: `set -a; source .env.dev.local; set +a`. No new migration in Step16. Ubuntu OS acceptance remains Step23.
+
+### Acceptance limitations and follow-on
+
+Step16 is a **fail-closed API/BFF integration scaffold**, not complete invoice dispatch. Before claiming an end-to-end sandbox capability, require authenticated per-tenant sender authorization, audit, vetted official sandbox endpoint, correct wire-byte signing and protected key custody, safe persisted outbox worker, bounded authenticated responses, unique packet correlation, official inquiry/final validation and manual sandbox work-folder evidence. A real transport cannot be activated silently by a browser flag. Step17 begins only after explicit owner acceptance.
