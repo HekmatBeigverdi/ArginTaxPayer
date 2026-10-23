@@ -1368,3 +1368,15 @@ Do not run the SQL yet. Check `dotnet ef migrations list` and ensure prior Phase
 | Ubuntu | Step23 only |
 
 **Owner acceptance of Step11** confirms source and reviewed test-only migration plan; it does **not** mean a migration was applied or that live sending is safe. Step12 may proceed with these explicit DB/execution blockers carried forward, but no provider packet may be sent while they remain.
+
+### Step11 follow-up — canonical repeatable macOS migration runbook (2026-10-23)
+
+The owner provided read-only `psql` evidence:
+- `SELECT current_database(),current_user` returned **`argintaxpayer_test`**, **`argintaxpayer`** through the macOS development tunnel.
+- `"__EFMigrationsHistory"` is case-sensitive: **`"MigrationId"`**, not `migration_id`.
+- Latest installed entry: `20261022150000_AllowDatabaseSigningCustodyReference`; Step11 `20261023190000_AddPhase10InvoiceDispatchOutbox` not yet installed.
+- This is **not** evidence of any database schema change or migration execution.
+
+**Persistent standard:** `docs/dev/database-migration-runbook.md`, reusable `scripts/phase10-step11-migration.zsh`. On Mac first run `zsh scripts/dev-status.zsh`; if stopped, existing `zsh scripts/dev-up.zsh` brings up AutoSSH/API/web and runs test-DB readiness. Do not create duplicate manual AutoSSH sessions. Because script-executed exports do not propagate to the parent shell, run **`set -a; source .env.dev.local; set +a`** in the operator's own terminal before subsequent `dotnet ef` commands. `.env.dev.local` is gitignored; never commit secrets. The script verifies port 15432, DB name and migration history, takes a backup, generates offline SQL and requires an explicit `APPLY` prompt after review. No irreversible migration action was executed by this source commit.
+
+**Pending operator steps:** pull latest branch on macOS, build/targeted unit tests, inspect generated review SQL, get separate approval to apply, then validate live PostgreSQL constraints/idempotency with parallel test transactions. Ubuntu VPS operating-system acceptance remains Phase10 Step23 only.
