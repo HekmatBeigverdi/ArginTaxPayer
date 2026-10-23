@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 10: Tax Authority Invoice Submission (Two-Pattern Delivery)
 
-**Status:** Step 01 owner-approved (reported); Step 02 source/SDK analysis documented, macOS operator verification pending; no functional implementation started.  
+**Status:** Steps 01–02 owner-approved; Step 03 architecture design recorded, owner/macOS acceptance pending. No runtime invoice connector activated.  
 **Plan date:** 2026-10-23.  
 **Repository:** HekmatBeigverdi/ArginTaxPayer  
 **Base branch / inspected SHA:** `main` / `7112f03b7fe30ceea1aff7f04f587a1b0e939c92` (verify again at Step 01; Phase09 merge/release anchor `fde20594e733f96e032396f8e22e8781b14cac18`).  
@@ -491,7 +491,7 @@ Proposed deterministic synthetic fixtures, to be created in implementation steps
 ### 11.8 Step01 acceptance and Step02 verification status
 
 - Step01: **owner approved** in chat 2026-10-23; no macOS output attached to that approval, so do not claim that its commands succeeded.
-- Step02: GitHub source, DTO and official provenance review performed; documented matrix and test case design above. No application code, operational tests, database migrations, official send, deployment, merge or release performed.
+- Step02: **owner-approved 2026-10-23**. GitHub source, DTO and official provenance review performed; documented matrix and test case design above. No application code, operational tests, database migrations, official send, deployment, merge or release performed. Exact macOS output was not included in the acceptance turn; do not fabricate it.
 - Operator macOS checks before owner accepts Step02:
   1. `git rev-parse HEAD` matches the Step02 document commit; `git status --short` clean.
   2. `shasum -a 256` over local ZIP/NUPKG files; compare original Phase09 evidence hashes **only when filenames/artifacts match**.
@@ -499,4 +499,174 @@ Proposed deterministic synthetic fixtures, to be created in implementation steps
   4. Targeted `dotnet test` on Phase07 patterns/rules and Phase09 signing test classes; `dotnet build` for regression.
   5. No Ubuntu, DB migration or live authority operation.
 
-**Step02 approval is independent; Step03 must not start automatically.**
+**Step02 owner decision:** Approved by owner in chat on 2026-10-23, authorizing Step03. No claim of passing tests without attached operator output.
+
+## 12. Step 03 — Connector architecture, security boundaries and extensible pattern contracts (2026-10-23)
+
+**Status:** Detailed architecture and extension contract documented. No runtime service, schema, migration, UI, package installation or live authority call in this architecture step. **Owner acceptance and macOS regression review pending.**
+
+### 12.1 Decisions locked for Phase10
+
+**Decision P10-ADR-001 — Reuse the existing invoice source of truth.** `InvoiceAggregate` (`src/ArginTaxPayer.Domain/Invoices/InvoiceAggregate.cs`) is the customer-owned invoice domain. `InvoicePatternMatrix`, `OfficialV79InvoicePatternMatrix`, `OfficialV79TypePatternRuleFactory` and `InvoiceRuleSetRegistry` already hold official classification/provenance/read-only validity rules. Do not duplicate these as separate mutable tax engine, recreate invoice tables by pattern, or allow an SDK DTO to own business state. The dispatch layer reads a server-authorized immutable invoice revision and builds a distinct wire snapshot.
+
+**Decision P10-ADR-002 — Independent eligibility gates.** A documented legal combination is **not** a feature switch, and a feature switch is **not** proof of legal applicability. Authorize submission only when all independent gates pass: authenticated server-resolved ownership; taxpayer↔active fiscal-memory and Phase09 key version match; approved/immutable invoice revision; legal type+pattern+subject combination; Phase10 explicitly allowed pattern; effective-dated source and complete required-field evidence; eligible official seller/buyer/catalog/VAT; correct wire/signature profile and authorized endpoint; durable dispatch admission/idempotency. Any unknown results in a typed denial, not a fallback.
+
+**Decision P10-ADR-003 — Narrow enabled set.** The initial Phase10 allowlist contains precisely `(First, 1)`, `(Second, 1)` and `(First, 4)` as **candidates** to become send-enabled after explicit regulatory applicability/field coverage gates. `(Second,4)`, Type3 and all other combinations are denied irrespective of general domain catalogue membership. Whether a particular referring operation is enabled depends on the separate official subject/operation policy. Only Pattern1 (ordinary goods/services) and Pattern4 (contracting) belong to this phase.
+
+**Decision P10-ADR-004 — Three independent concerns: pattern policy, mapper, transport.** No pattern-specific logic enters the networking/signing/retry engine. A future pattern can supply a source-pinned definition, field and subject policy, deterministic DTO mapper, test fixtures and UI metadata without modifying dispatch state transitions or idempotency.
+
+**Decision P10-ADR-005 — Shared submission context, tenant isolation and auditable records.** All operations are scoped by authenticated `CustomerUserId`, `TaxpayerId`, `FiscalMemoryId`, invoice ID and revision, with ownership resolved from the database at command execution, never from browser-provided IDs alone. Level1/Level2 role and partner assignment are checked against current policy; reading/report access is not signing permission. The server—not user JSON—selects key version, custody, signing profile and allowed endpoint.
+
+**Decision P10-ADR-006 — Immutable wire preparation.** Mapping produces canonical UTF-8 JSON from an immutable, official-rule-verified invoice snapshot, pinned to `RuleSetEdition`, `MapperVersion`, pattern/type/subject and source documents. Signature and encrypted packets derive from exactly these bytes. Store safe hashes and identifiers before the external request. On any mismatch or stale revision, deny and require a new deliberate operation.
+
+**Decision P10-ADR-007 — Audit and result separation.** The internal workflow status, transport dispatch status and official response/acceptance status are separate. An HTTP 200 or reference receipt never automatically marks a fiscal invoice accepted. Uncertain response forbids blind resend. Durable outbox/idempotency and narrow reconciliation are designed in Steps04–05/11–14; complete periodic inquiry remains Phase11.
+
+**Decision P10-ADR-008 — No runtime SDK dependency by default.** The bundled SDKs under `references/tax-sdk/` are version-pinned comparative evidence, not a DI-registered shared singleton or a production NuGet dependency. Build native, audited scoped adapters only when protocol evidence is validated. A legacy RSA/base64 signature and a modern certificate/JWS+encryption packet must never be interchanged implicitly. No online package fallback.
+
+### 12.2 Required bounded component contracts (design-only, names illustrative)
+
+| Layer / responsibility | Proposed abstraction | Inputs / responsibilities | Hard constraints |
+| --- | --- | --- | --- |
+| Domain | Existing `InvoiceAggregate`, `InvoiceSubjectSelection`, `InvoicePatternMatrix`, `InvoiceRuleSetRegistry` | Immutable invoice snapshots, versioned legal rule evidence | No SDK or HTTP coupling; never grants dispatch permission alone |
+| Application | `IInvoiceDispatchAuthorization` | Authenticated actor/session and current scoped invoice/memory/role/key status | Deny impersonation, former partner and read-only privilege escalation |
+| Application | `IInvoicePatternDefinitionProvider` | Exact `Type, Pattern, RuleSetEdition`, issue UTC and subject | Immutable catalogue, no default-to-latest or wildcard fallback |
+| Application | `IInvoiceSubmissionEligibility` | Tenant authorization + approved revision + verified field coverage + allowlist | All gates must pass, stable localized denial codes |
+| Application | `IInvoicePayloadMapper` strategy | Immutable invoice, full Phase06 source snapshots, official version and pattern definition | Deterministic `Header/Body/Payments/Extension` wire DTO; no new tax computations from user input |
+| Application | `IInvoicePacketPreparation` | Server-selected immutable payload bytes and signed intent | Snapshot/hash pinning, no raw private-key return |
+| Application | `IInvoiceDispatchOrchestrator` | Authorized dispatch command with idempotency key | One operation per pinned revision and taxpayer/memory identity; audit-before-send |
+| Infrastructure | `IInvoiceSigningProfileAdapter` | Authorized signing request through Phase09 `IDigitalSigningService` | Never expose Sign(anyBytes); no process-global signer or cross-tenant credential caching |
+| Infrastructure | `ITaxAuthorityTransport` | Approved endpoint/profile and already prepared secured packet | TLS verification, timeouts, no unchecked redirection or arbitrary URL |
+| Infrastructure | `IDispatchOperationStore` | Transaction-scoped attempt, result, reference and trace IDs | Durable uniqueness/CAS/outbox; Stage05 migration is separately owner-gated |
+| API/BFF | `InvoiceSubmissionEndpoints` | Authenticated prepare/submit/receipt/history operations | CSRF, rate limits, no-store, no raw provider errors |
+| Web UI | Pattern-aware view model | Field schema and backend decisions | RTL compact sectional modals; server-side validation authoritative |
+
+**Dependency rule:** `Web/UI → API/BFF → Application → Domain`; Infrastructure implements application ports. No Domain reference to SDK/HTTP/EF/Next.js. No browser access to signing keys or Tax Authority credentials.
+
+### 12.3 Immutable pattern definition contract
+
+Use an internal **composite identity**:
+
+`PatternKey = (ElectronicInvoiceType, PatternCode, RuleSetEdition)`
+
+Submission eligibility additionally requires a **rule effective date**, source trust level, supported `InvoiceSubject`, approved requiredness completeness and explicit Phase10 allowlist. Include a stable `MapperVersion` in prepared packets. A future rule revision creates a new definition; past invoices remain pinned to their original version.
+
+Each `InvoicePatternDefinition` must contain:
+
+- **Official provenance:** document ID/version/table/page, effective UTC range and applicable issuer/business context; no automatic floating to newest rule.
+- **Fields:** official JSON field name and path; relevant invoice type/subject; `Required | Conditional | Optional | Forbidden`; machine-readable predicate for conditional cases; type/scale/max length/allowed values; Persian title/help text; server validation key; omit/null serialization semantics. A C# nullable field **does not mean optional by law**.
+- **Operations:** explicit per-pattern+type+subject validity for original, correction, cancellation, sales return and reference obligations; no deletion of transmitted tax invoices.
+- **Presentation:** section name/order, control kind, searchable entity picker, date type and conditional visibility. Presentation is a projection of domain metadata, not its authority.
+- **Evidence and tests:** official rule source, golden JSON samples and negative fixtures, effective-date regression, subject/reference tests and serialization byte stability.
+
+For Phase10 the concrete mapper strategies are conceptually:
+- `GeneralSaleType1Mapper` for `(First,1)`.
+- `GeneralSaleType2Mapper` for `(Second,1)`, avoiding Type1 buyer/payment field assumptions.
+- `ContractingType1Mapper` for `(First,4)`; requires official `crn` from a validated registered contract source (not free-form contract note).
+- Shared `ReferenceSubjectProjection` for correction/cancellation/return; subject 3 cancellation may require **omitting outbound `inty` and `inp`** while preserving internal type/pattern classification.
+
+**Never** create `mapDefault()` that serializes an unknown pattern as general sale.
+
+### 12.4 Proposed submission pipeline and failure gates
+
+```text
+Authenticated customer action (or explicitly authorized delegated operation)
+    |
+    v
+Current owner + taxpayer + fiscal memory + role + key scope resolution
+    | (deny when ambiguous)
+    v
+Existing InvoiceAggregate/revision + Phase08 approved workflow snapshot
+    |
+    v
+PatternKey + Phase10 enablement + official effective rules + subject eligibility
+    | (unsupported, unverified, absent fields => deny)
+    v
+Requiredness and numeric/catalog/VAT validation [server-side]
+    |
+    v
+Pattern-specific DTO mapper (no IO, deterministic) -> immutable UTF-8 snapshot/hash
+    |
+    v
+Authorized Phase09 signing request + version-pinned wire profile
+    | (signature mismatch, no trusted key => deny)
+    v
+Durable dispatch reservation/outbox + idempotency identity
+    |
+    v
+Official authority transport (strict TLS and endpoint allowlist)
+    |
+    +-- explicit accepted receipt -> persist reference and attempt
+    +-- explicit terminal error -> persist safe code and evidence
+    +-- timeout/unknown -> persist indeterminate, reconcile before any retry
+```
+
+Ordering of the durable reservation relative to signing and transport must be finalized with transactional invariants in Steps04–05/09–11. **No external request occurs until an unambiguous durable operation identity exists**; an external request itself must never be inside a database transaction held open over network I/O.
+
+### 12.5 Tenant, actor and secrecy matrix
+
+| Actor/operation | Own authorized taxpayer | Other customer taxpayer | Level2 former/foreign owner | Level1/Level2 reporting |
+| --- | --- | --- | --- | --- |
+| Preview permitted invoice fields | According to verified active membership | Deny | Deny | Scoped read where policy allows |
+| Initiate signing/submission | Explicit dedicated permission + active memory/key | Deny | Deny | No blanket privilege from administrative role |
+| Read status/receipt/audit | Scoped | Deny | Deny | Only scoped, redacted support views |
+| Reconcile uncertain attempt | Owner or separately authorized operator | Deny | Deny | Explicit reviewed support path, full audit |
+| Read/export private keys or authority token | Never | Never | Never | Never |
+
+Auth session, MFA freshness, current partner assignment and taxable party ownership are checked server-side for each command. A user's supplied taxpayer/memory GUID or a role claim alone proves nothing. External provider errors are normalized without raw bodies, sensitive headers, signatures or private material.
+
+### 12.6 Later implementation plan and decision gates
+
+| Step | Required realization of Step03 design |
+| --- | --- |
+| 04 | Dispatch+authority state machines, typed denials and transitions |
+| 05 | Outbox/idempotency schema proposal and migration review; no unapproved application |
+| 06 | Actual pattern DTO strategies and golden output JSON for 1/1, 2/1, 1/4 |
+| 07 | Comprehensive source-verified field presence, fiscal sums, catalog and immutable approval gates |
+| 08–09 | Authenticate existing fiscal memory; safely integrate existing Phase09 custody/signing profile |
+| 10–15 | Transport, durable idempotency, receipts, uncertainty and allowed referencing subjects |
+| 16–19 | Scoped API/BFF and metadata-derived Persian RTL forms/status/recovery |
+| 20–22 | macOS integration/regression and owner-authorized controlled live invoice test |
+| **23** | **Only Ubuntu VPS verification phase; compare exact macOS SHA and retest any platform fixes** |
+| 24 | Explicit owner-controlled merge/tag/release |
+
+### 12.7 Step03 architecture acceptance cases (static design review)
+
+1. **Pattern catalogue vs submit eligibility:** `OfficialV79InvoicePatternMatrix.Create().Evaluate(...)` may report document compatibility, but its `VerifiedForSubmission=false` must prevent an issuance decision. The already existing `RuleSetLookup.IsSubmissionAuthorized=false` and `SigningResult.IsFiscalSubmissionAuthorized=false` remain intact.
+2. **Unapproved pattern:** Type1 Pattern3, Type2 Pattern3, Type2 Pattern4, Type3 and every unsupported new pattern are denied at the phase allowlist, with no fallback.
+3. **Incomplete contract:** Type1 Pattern4 absent `crn` denied; Type1 Pattern1 carrying unrelated contract data denied; invalid `irtaxid` and subject references denied.
+4. **Legacy and modern wire modes:** no JWS/certificate auto-upgrade or legacy RSA signature reuse in the wrong protocol; mismatched signer and fiscal memory deny.
+5. **Privilege:** copied invoice ID, customer ID, or old Level2 delegation cannot authorize another taxpayer's signing.
+6. **Immutability:** same invoice revision and rule edition replay map to identical bytes; any revision, mapper change or frozen payload hash change requires new intentional preparation.
+7. **Provider timeout:** indeterminate operation cannot be blindly resent; no claim of accepted invoice based only on HTTP 200.
+8. **Future extension:** adding a test-only `(First, 5)` or a new official pattern version affects only policy, mapper, rule fixtures and field/UI metadata after explicit owner release; it does not require another invoice aggregate, HTTP client, signing engine or dispatch store.
+
+**Design signoff remains distinct from executable compliance.** No runtime code/tests were created in this step; test commands below run preexisting regressions on macOS. Later steps must implement and automate all listed acceptance cases.
+
+### 12.8 macOS operator review and verification
+
+From a clean checkout of `phase/10-invoice-submission`:
+
+```bash
+git status --short
+git fetch origin --prune
+git switch phase/10-invoice-submission
+git pull --ff-only origin phase/10-invoice-submission
+git rev-parse HEAD
+
+dotnet restore ArginTaxPayer.sln
+dotnet build ArginTaxPayer.sln --no-restore
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --no-restore \
+  --filter "FullyQualifiedName~Phase07OfficialV79Tests|FullyQualifiedName~Phase07TypePatternRulesTests|FullyQualifiedName~Phase07InvoicePatternsTests|FullyQualifiedName~Phase09InvoiceSnapshotSigningTests|FullyQualifiedName~Phase09SigningOperationPolicyTests"
+dotnet test ArginTaxPayer.sln --no-build
+git status --short
+```
+
+No need to start Next.js or PostgreSQL just to approve this architecture-only step. Do not execute Ubuntu commands or live Tax Authority requests; Ubuntu first becomes mandatory in Step23.
+
+### 12.9 Step03 evidence
+
+- **Reviewed paths:** `src/ArginTaxPayer.Domain/Invoices/InvoiceAggregate.cs`, `InvoicePatternMatrix.cs`, `InvoiceRuleSetRegistry.cs`, `InvoiceTypePatternRules.cs`; `src/ArginTaxPayer.Application/Signing/DigitalSigningContracts.cs`, `SigningOperationContracts.cs`, `SigningConnectionTestContracts.cs`; authoritative Phase07/08/09 and Phase10 documentation.
+- **Source-grounded risks:** `IsSubmissionAuthorized=false` in existing registries intentionally denies accidental issuance; source matrix includes excluded patterns, so a separate restrictive allowlist is mandatory; the existing signing service does not confer submission authorization; the modern SDK's JWS/nonce stack is not inherently compatible with the legacy Phase09 key signature.
+- **Files modified:** `docs/phases/phase-10.md` only.
+- **Changes not made:** No app files, dependencies, package install, DB migration, PostgreSQL access, macOS/Ubuntu runtime, UI or API endpoint, tag, release or merge.
+- **Owner approval:** Step02 approved. Step03 awaiting explicit signoff and (optionally) macOS regression result evidence before proceeding to Step04.
