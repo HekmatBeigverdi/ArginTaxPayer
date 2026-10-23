@@ -40,7 +40,7 @@ Foreign exchange, gold/jewelry/platinum, utility bills, air tickets, export and 
 
 **Phase09 qualified exceptions:** original Phase09 release records live Tax Authority authentication evidence as unverified, PostgreSQL operational audit evidence incomplete, protected backup/restore unverified and selected manual security tests pending. Owner later reports an actual successful taxpayer connection/token test; document both statements and reconcile with verifiable evidence at Step01/08, not claim either result was independently proven. Phase08 bulk-import QA and cross-platform same-SHA parity remain independent regression debt.
 
-**Source references:** `docs/roadmap/18-phases.md`, `docs/phases/phase-07.md` (if present), `docs/phases/phase-08.md`, `docs/phases/phase-09.md`, `references/tax-sdk/`, and official Tax Authority specifications only. README/archive sample contents may be stale; treat all imported code as untrusted.
+**Source references:** `docs/roadmap/18-phases.md`, `docs/phases/phase-07-invoice-domain-rule-engine.md`, `docs/phases/phase-08.md`, `docs/phases/phase-09.md`, `references/tax-sdk/`, and official Tax Authority specifications only. README/archive sample contents may be stale; treat all imported code as untrusted.
 
 ## 3. Delivery/operational safeguards
 
@@ -343,3 +343,55 @@ Owner-approved Step24 is necessary before merge into `main`, tag `phase-10-v1.0.
 | 2026-10-23 | Two-pattern scope directed by owner; fixed 24-step plan written | Planning-only branch; no runtime changes | Scope approved; implementation steps not yet approved |
 
 Every step completion must add: modified paths, migration SQL status, macOS test commands/outcomes, Ubuntu parity where applicable, official endpoint activity, missing evidence, exact commit SHA and owner acceptance before next step.
+
+## 10. Step 01 — Baseline & scope freeze: source inspection record (2026-10-23)
+
+**Status:** Documentation/source-inspection complete; macOS operator acceptance **pending**. No claim of local build, database execution or external Tax Authority transaction. Step02 remains blocked until explicit owner approval of Step01.
+
+### Exact read-only evidence
+
+- Verified GitHub `main` at `7112f03b7fe30ceea1aff7f04f587a1b0e939c92` on 2026-10-23. Prior Phase09 release merge anchor was `fde20594e733f96e032396f8e22e8781b14cac18`; the later main tip includes checked-in SDK archives. Verify the precise Git merge-base and ancestry again at operator checkout rather than assuming that the phase branch is at an obsolete SHA.
+- The Phase10 branch before this evidence update was `5673da3861e318810feb93167ae57ffb5857af9e`, created from the inspected main tip. Fixed 24-step plan and the restricted two-pattern delivery scope are documented above.
+- Phase09 GitHub Release `phase-09-v1.0.0` exists, published 2026-10-23. Its release text qualifies live authority authentication, complete PostgreSQL audit evidence, protected backup/restore and selected manual security scenarios. User reported successful authenticated taxpayer connection in Phase09; retain as an operator assertion until reproducible evidence is attached. No live submission has been performed in this planning step.
+- Read `docs/roadmap/18-phases.md`, `docs/phases/phase-07-invoice-domain-rule-engine.md`, `docs/phases/phase-08.md`, and `docs/phases/phase-09.md`. **Correction to the plan's generic reference:** Phase07 authoritative document is `phase-07-invoice-domain-rule-engine.md`, not `phase-07.md`. Scope boundary retained: Phase10 dispatch/references; Phase11 comprehensive asynchronous inquiry; Phase12 entitlements/financial settlement.
+- Existing domain rules at `src/ArginTaxPayer.Domain/Invoices/InvoicePatternMatrix.cs` already classify source/edition/time-bound type-pattern combinations and reject unverified submission. `InvoiceRuleSetRegistry.cs` already pins validity and has `IsSubmissionAuthorized => false` on the inspected lookup contract: **do not treat a read-only matrix match as dispatch authority**.
+- Existing correction, cancellation and return rule files reside in `src/ArginTaxPayer.Domain/Invoices/`. Reuse them, with official per-pattern operation verification, instead of duplicating the legal reference chain.
+- Phase08 code includes `apps/web/app/invoices/workspace.tsx`, invoice list/review features and Development-only endpoints `src/ArginTaxPayer.Api/Invoices/InvoiceDraftDevelopmentEndpoints.cs` and `InvoiceReviewDevelopmentEndpoints.cs`. Phase10 production submission endpoints must be separate, explicitly authorized contracts; do not repurpose Development routes as public commands.
+- Phase09 code includes `src/ArginTaxPayer.Application/Signing/` custody and signing contracts, associated persistence migrations, and `scripts/phase09-verify.sh`. The latter explicitly states it runs no migration, deployment or authority request.
+- Latest inventoried existing migration filenames include `20261020181500_AddPhase09SigningMetadata.cs`, `20261022140000_AddEncryptedDatabaseSigningCustody.cs` and `20261022150000_AllowDatabaseSigningCustodyReference.cs`; Phase08 invoice migrations include `20261019080000_AddInvoiceReviewWorkflowPersistence.cs` and `20261019090000_AddInvoiceReviewIdempotency.cs`. **Applied migrations on the current test PostgreSQL database remain unverified**. No schema operation authorized or executed.
+- `global.json`: .NET SDK `9.0.202` with latestPatch. `apps/web/package.json`: Next `15.5.27`, React `19.1.7`, scripts `test`, `typecheck`, `build`.
+- Primary archived SDKs exist at `references/tax-sdk/legacy-0.0.34/` (`.nupkg` + `.zip`) and `references/tax-sdk/modern-2.0.32/` (ZIP + extracted C# source). Repository tree inspection confirmed the extracted modern code exposes invoice packet, submission, inquiry and JWS components. **Archive checksum verification was not executed in GitHub-only inspection**; do that safely on macOS at Step02. No online NuGet reference or dependency required.
+- `references/tax-sdk/README.md` was separately authored and revised on branch `docs/tax-sdk-reference-readme`, commit `af81bb30d7df275bb6c1f88616c963ad7c6ef119`. It is **not present** on the current Phase10 branch. Do not silently merge that branch; request a separate decision or cherry-pick only after review.
+- `.gitignore` already excludes `.next/`, `.next-dev/`, `next-env.d.ts`, common secrets and local Phase09 acceptance JSON. Operator must confirm `git status --short` is clean and distinguish ignored from historically tracked generated files.
+
+### Scoped workstream freeze
+
+- **Enabled:** general sales of goods/services (verified `inp=1` eligible types), contracting (verified `inp=4` type1), with each pattern's officially required/conditional fields, original and legally permitted correction/cancellation/sales return.
+- **Excluded:** foreign exchange, gold, bills, air travel, export, and other special patterns; complete Phase11 inquiry and Phase12 commercial finance.
+- **Future-proofing:** versioned schema/field matrix, strategy mapper/validator, shared transport/signing/idempotency/audit, UI metadata, no fallback of unsupported type/pattern to general sales.
+- **Authority approval:** no real invoice send without separate owner authorization; an HTTP acknowledgment is not final fiscal acceptance. No production schema modifications, deployment, merge, tag or release.
+
+### Step01 operator acceptance (not yet independently executed)
+
+1. On macOS, fetch and switch to `phase/10-invoice-submission` with a clean worktree (do not discard local changes). Verify `git rev-parse HEAD`, `git merge-base main HEAD`, GitHub tag and working tree status.
+2. Run `dotnet --version`, `dotnet restore ArginTaxPayer.sln`, `dotnet build ArginTaxPayer.sln --no-restore`, and `dotnet test ArginTaxPayer.sln --no-build`; record errors and exact summary. For web: `cd apps/web && npm ci && npm test && npm run typecheck && npm run build`. These are build/verification only, not live authority operations.
+3. Check `zsh scripts/dev-status.zsh` only if a status view is desired; no service startup or DB migration is required for Step01.
+4. At a subsequent Ubuntu acceptance checkpoint, fetch **the same Step01 commit SHA**, verify exact match and perform independent build/tests; never mix macOS and Ubuntu evidence from different SHAs.
+5. Audit `git status --short` after tests; generated/local files must remain untracked/ignored. Record any failures rather than assuming success.
+
+### Implementation/evidence checklist
+
+| Item | Evidence | Status |
+| --- | --- | --- |
+| GitHub main, phase branch and Phase09 release | GitHub read-only inspection | Verified |
+| Roadmap and Phase07/08/09 boundaries | Repository Markdown inspection | Verified |
+| Existing invoice pattern and reference rules | Repository C# source inspection | Verified |
+| SDK sources and archives | Repository tree inventory | Verified presence, binary integrity pending |
+| Migration filenames / model inventory | Repository tree | Inventoried, database application unverified |
+| Design and 24-step freeze | This document | Documented |
+| macOS .NET/Node build and tests | Operator commands above | Pending |
+| Ubuntu same-SHA verification | Future acceptance gate | Not performed |
+| Live Tax Authority request | Explicitly excluded in Step01 | Not performed |
+| Owner Step01 acceptance | Await operator report | Pending |
+
+**Step01 signoff gate:** owner reviews macOS results and this evidence register. Only after explicit signoff begin Step02 official document/SDK traceability. Add the operator's exact tested SHA, outcomes, and any new exceptions to this same document.
