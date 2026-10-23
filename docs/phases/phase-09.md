@@ -1,8 +1,8 @@
 # ArginTaxPayer — Phase 09: Cryptographic Keys and Digital Signing
 
-**Status:** Steps18–19 owner-approved, including invoice-style accordions and per-section loading. Step20 existing-key onboarding is delivered for operator acceptance. Steps21–26 remain pending. Earlier cross-platform/Vault/authority evidence gaps are not implied closed by UI approval.
+**Status:** Steps 01–25 owner-approved by 2026-10-23; Step26 release closeout. MacOS/Ubuntu offline CI passed. Manual live authority, PostgreSQL operator evidence and backup/restore remain separately qualified; approval does not imply they passed.
 **Documentation language:** English. This edition replaces the Persian master document without changing the agreed scope or step order.
-**Last reviewed:** 2026-10-21.
+**Last reviewed:** 2026-10-23.
 **Repository:** HekmatBeigverdi/ArginTaxPayer.
 **Base branch/commit:** main / `b8f307ed06041d902aed9d8432d3b082e1cd714a`.
 **Previous release:** `phase-08-v1.0.0`.
@@ -269,8 +269,8 @@ Provider references inspected in Step 02:
 | 22 | Read-only taxpayer connection test | Official SDK/endpoint authentication without invoice dispatch | Owner-approved 2026-10-22 (including segmented connection UI); any missing live authority/cross-platform evidence remains recorded for Step25 |
 | 23 | Single-memory change request | User request, reason, revision and plan-aware second-memory denial | Owner-approved 2026-10-22; regression gates remain in Step25 |
 | 24 | Level1 approval and token recreation | One-time approval/rejection, expiry, audit and safe replacement | Owner-approved 2026-10-23; cross-platform and live authority evidence carried into Step25 |
-| 25 | Integrated onboarding acceptance | Legacy/new user, plan capacity, scope, race, leak and connection cases | Automated cross-platform CI + guarded PostgreSQL acceptance + explicit operator checklist committed 2026-10-23; runtime and authority signoff pending |
-| 26 | Closeout and conditional publication | All signoffs; separate permission for merge/tag/release | Not started |
+| 25 | Integrated onboarding acceptance | Legacy/new user, plan capacity, scope, race, leak and connection cases | Owner-approved 2026-10-23; macOS/Ubuntu GitHub Actions offline gates PASS; user supplied local pure six PASS; manual/live gates remain unverified |
+| 26 | Closeout and conditional publication | All signoffs; separate permission for merge/tag/release | Final reconciliation and conditional merge publication 2026-10-23; see closure exceptions below |
 
 ## 6. Implementation ownership and verification
 
@@ -1472,3 +1472,17 @@ The runner checks the required migrated tables in READ ONLY mode and runs isolat
 - Step26 merge/tag/release is separate and requires explicit owner permission; Step25 does not trigger publication.
 
 **Current evidence:** GitHub source/CI/verifier committed. User macOS, Ubuntu VPS, PG synthetic integration, actual authority results and any browser scenarios have NOT been observed by this assistant. Thus Step25 operator acceptance is pending.
+
+## Step26 — Final handover / release exception register (2026-10-23)
+
+Owner accepted Step25 and requested completion of final Step26 on 2026-10-23. Verified evidence from GitHub Actions run 39863585962: **macos-15 SUCCESS**, **ubuntu-24.04 SUCCESS** for `736389cd3e9b02afd94b3e17808033055632e851`. Current phase branch before closeout: `6ba5cebd82497c17da150ea4a8253c6ccbecc82f` (only later tracked change: .gitignore Python cache ignore). User supplied `pure` JSON for `6ba5ceb` with six PASS and zero failures. User supplied `database` run showing PostgreSQL guard and schema PASS but four journal suites initially blocked by a dirty working tree (`scripts/__pycache__` then `.gitignore`); user subsequently accepted the step, but no successful rerun of those four PostgreSQL tests was supplied. We must not convert missing evidence into PASS.
+
+### Release assessment
+
+**Source and offline CI: PASS.** More than 200 branch commits are based on Phase08 main (no main-side divergence at preflight). Scope includes protected database key custody, generation/import with owner consent, read-only GET_TOKEN, 24-hour Level1 approvals and one-time replacement, metadata audit, role boundaries and compact Persian UI. The branch must be merged via a GitHub PR guarded by exact expected head SHA.
+
+**Release exceptions (unverified, require operational follow-up):** real authorized authority GET_TOKEN and GET_FISCAL_INFORMATION after portal registration; Level1 MFA approval/rejection/expiry, Level2 wrong tenant, real concurrency/duplicate consume, plan enforcement integration pending Phase12, restore of test encrypted key envelope with separately backed-up master key, and evidence of same SHA smoke on production-like macOS and Ubuntu hosts. User Step25 approval represents operator signoff on the phase delivery despite these recorded qualification gaps, not laboratory proof.
+
+**Operational safety:** Do not perform automatic migrations or overwrite current encrypted taxpayer key material. No production tokens, PEM, database passwords or environmental secrets should appear in CI artifacts, PR or release notes. Digital invoice dispatch remains Phase10. Preserve rollback path to Phase08 tag and backup of custody/master-key material before any live cutover. Do not run destructive cleanup commands. The release is source publication, not production deployment.
+
+**Tag target:** `phase-09-v1.0.0` on the final merged main commit, after verifying identical source, tests and release notes. Do not retarget an existing tag. If repository connector does not support tag or GitHub Release creation, operator must perform the documented `gh` commands and verify the new objects; do not claim publication before then.
