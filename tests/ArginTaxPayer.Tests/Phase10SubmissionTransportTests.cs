@@ -82,6 +82,16 @@ public sealed class Phase10SubmissionTransportTests
     }
 
     [Fact]
+    public void Malformed_wire_hash_is_denied()
+    {
+        var d = Descriptor() with { WireSha256 = "not-a-sha256" };
+
+        Assert.Throws<ArgumentException>(() => InvoiceSubmissionReceiptPolicy.Parse(d,
+            new(d.OperationId, InvoiceSubmissionReceiptStatus.Indeterminate,
+                null, "invoice.dispatch.outcome_unknown", At)));
+    }
+
+    [Fact]
     public void Raw_response_and_untrusted_safe_code_cannot_cross_boundary()
     {
         var d = Descriptor();

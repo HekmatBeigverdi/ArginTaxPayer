@@ -1,4 +1,3 @@
-using System.Collections.ObjectModel;
 using ArginTaxPayer.Domain.Invoices;
 
 namespace ArginTaxPayer.Application.Invoices;
@@ -66,6 +65,9 @@ public sealed class DisabledInvoiceSubmissionTransport : IInvoiceSubmissionTrans
 /// </summary>
 public static class InvoiceSubmissionReceiptPolicy
 {
+    private static bool IsSha256(string? value) => value is { Length: 64 } &&
+        value.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f' or >= 'A' and <= 'F');
+
     public static InvoiceSubmissionReceipt Parse(
         InvoiceSubmissionDispatchDescriptor descriptor,
         InvoiceSubmissionTransportOutcome outcome)
@@ -75,7 +77,7 @@ public static class InvoiceSubmissionReceiptPolicy
         if (descriptor.OperationId == Guid.Empty || descriptor.InvoiceId == Guid.Empty ||
             descriptor.CustomerUserId == Guid.Empty || descriptor.TaxpayerId == Guid.Empty ||
             descriptor.FiscalMemoryId == Guid.Empty || descriptor.InvoiceRevision < 1 ||
-            !InvoiceValidationReceipt.IsSha256(descriptor.WireSha256) ||
+            !IsSha256(descriptor.WireSha256) ||
             string.IsNullOrWhiteSpace(descriptor.IdempotencyKey) ||
             descriptor.IdempotencyKey.Length > 128 ||
             descriptor.EndpointCode != "tax-authority-submit" ||
