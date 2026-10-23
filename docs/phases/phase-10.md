@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 10: Tax Authority Invoice Submission (Two-Pattern Delivery)
 
-**Status:** Steps 01–13 owner-approved. Step14 strict read-only inquiry reconciliation contract and negative tests committed; macOS acceptance pending. No live invoice sending, no DB migration. Ubuntu remains Step23.  
+**Status:** Steps 01–14 owner-approved. Step15 subject-lineage and reference-claim guard with unit tests committed; macOS acceptance pending. No live invoice sending, no DB migration. Ubuntu remains Step23.  
 **Plan date:** 2026-10-23.  
 **Repository:** HekmatBeigverdi/ArginTaxPayer  
 **Base branch / inspected SHA:** `main` / `7112f03b7fe30ceea1aff7f04f587a1b0e939c92` (verify again at Step 01; Phase09 merge/release anchor `fde20594e733f96e032396f8e22e8781b14cac18`).  
@@ -1554,3 +1554,54 @@ git status --short
 ```
 
 **Step14 owner acceptance** approves only the fail-closed typed inquiry and correlation boundary, not completed online inquiry. Step15 follows only after owner acceptance; official sandbox status and end-to-end UI proof remain open.
+
+## 24. Step 15 — Original, correction, cancellation and sales-return submission lineage (2026-10-24)
+
+**Owner acceptance:** Step14 explicitly approved in chat. No independent macOS build or runtime proof provided with the approval; Step15 source and unit tests are committed, awaiting operator tests and owner signoff. No HTTP transport, authority send, schema migration, Ubuntu login or production configuration change performed.
+
+### Reused Phase07/08 source and constraints
+
+- `InvoiceSubject` / `InvoiceSubjectSelection` from `src/ArginTaxPayer.Domain/Invoices/InvoiceSubjects.cs`: original `ins=1`, correction `2`, cancellation `3`, sales return `4`; non-original requires fiscal `ReferenceTaxId` and may carry `LocalInvoiceId`.
+- `OfficialV79InvoiceSubjectPolicy.Allows` implements the known referenced edition's subject/pattern exclusions; this is **not** live legal-validity proof.
+- `InvoiceOperationRegistry` already defines per-scope reference-slot conflict policy: correction/return exclusive slot; cancellation separate exclusive slot. It is pure and not a distributed lock. Persisted unique-claim checks must be performed atomically later.
+- `Phase10InvoiceWireMapper` projects `irtaxid` but does not itself resolve authority acceptance or legal predecessor history. Step07 and Step09 official wire/signing blockers remain open.
+
+### Step15 delivered code
+
+- **New** `src/ArginTaxPayer.Domain/Invoices/Phase10DispatchLineagePolicy.cs`: `InvoiceDispatchLineageContext`, `InvoiceDispatchPredecessorEvidence`, `InvoiceDispatchReferenceClaim`, `InvoiceDispatchLineageCode`, and `Phase10DispatchLineagePolicy.Check`.
+- Original candidate is allowed only without a predecessor; it is still only an **eligible candidate** and `IsFiscalSubmissionAuthorized=false` invariably.
+- Correction, cancellation and return require a server-resolved predecessor with exact fiscal reference tax ID, optional exact local predecessor ID, matching customer, taxpayer and fiscal memory; denies self reference, nonexistent predecessor, unverified authority acceptance, canceled/superseded predecessor and mismatched type/pattern.
+- A competing **active** scoped claim is rejected for the same exclusive reference slot. Correction and return share one; cancellation uses a separate one. Only authoritative persisted evidence may mark a prior claim inactive, never a timeout, empty inquiry, browser flag or incomplete receipt.
+- **New** `tests/ArginTaxPayer.Tests/Phase10DispatchLineagePolicyTests.cs`: original eligibility, three non-original subjects, missing/unaccepted predecessors, cross-tenant/memory/tax identifier, inactive/type mismatch, exclusive slots, self reference and V7.9 unsupported sale-return pattern.
+- Does not create a new mutation endpoint, database FK/index, authorization bypass, stored reference update or worker. This is a protective policy to be integrated into authenticated application service in Steps16–20.
+
+### Known bounds / mandatory later verification
+
+1. `InvoiceDispatchPredecessorEvidence.IsAuthorityAcceptanceVerified` is provided by a **trusted server-side, verified and persisted external inquiry outcome**; the Step14 parser intentionally does not grant authority acceptance from arbitrary `SUCCESS` text. Until that proof exists, non-original live sends remain blocked.
+2. Legitimate correction/return/cancellation chains can have edition-, subject-, state-, and amount-specific rules. The implementation conservatively denies inactive predecessors and requires matching type/pattern; any more permissive behavior requires cited official evidence and regression coverage before activation. It does not itself prove legally correct revision lineage or eligible returned quantities.
+3. Scope/reference claim checking in an in-memory list is not a database concurrency barrier. Apply the existing Phase08 claim uniqueness + CAS under one transaction before any send. Different hosts must not race through this pure policy.
+4. External identifiers must originate from the finalized immutable invoice and authority, never directly from browser requests. Only signed, source-verified approved snapshots may enter live wire pipeline once Step07/09 blockers are resolved.
+5. No migration required for Step15; changing durable claim indexes would require a separately reviewed migration, backup and explicit approval under `docs/dev/database-migration-runbook.md`.
+6. Sandbox UI/send remains deferred to Steps16–22 and subject to verified current endpoint, isolated sandbox keys, full wire signature and authority inquiry; do not silently route sandbox to Production.
+
+### macOS-only acceptance commands
+
+```bash
+cd ~/projects/ArginTaxPayer
+git status --short
+git fetch origin --prune
+git switch phase/10-invoice-submission
+git pull --ff-only origin phase/10-invoice-submission
+git rev-parse HEAD
+
+dotnet restore ArginTaxPayer.sln
+dotnet build ArginTaxPayer.sln --no-restore
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --no-restore \
+  --filter "FullyQualifiedName~Phase10DispatchLineagePolicyTests|FullyQualifiedName~Phase07InvoiceSubjectsTests|FullyQualifiedName~Phase10DispatchPreflightTests|FullyQualifiedName~Phase10InvoiceWireMapperTests"
+dotnet test ArginTaxPayer.sln --no-build
+git status --short
+```
+
+**No DB migration or tunnel startup is required** by this pure domain Step15. When any future step requires DB, reuse the established `zsh scripts/dev-status.zsh`, `zsh scripts/dev-up.zsh` and shell-local `set -a; source .env.dev.local; set +a` per the canonical runbook. Ubuntu VPS OS acceptance stays Step23.
+
+**Step15 acceptance:** approves the fail-closed predecessor/claim policy and test source, not live authorization, persisted race-proof claims, official subject-chain completeness or successful Sandbox transmission. Step16 begins after explicit owner approval.
