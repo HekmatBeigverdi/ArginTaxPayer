@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 10: Tax Authority Invoice Submission (Two-Pattern Delivery)
 
-**Status:** Steps 01–12 owner-approved. Step13 conservative response parser, safe handoff and regression tests committed; macOS acceptance pending. No live invoice send. Ubuntu deferred to Step23.  
+**Status:** Steps 01–13 owner-approved. Step14 strict read-only inquiry reconciliation contract and negative tests committed; macOS acceptance pending. No live invoice sending, no DB migration. Ubuntu remains Step23.  
 **Plan date:** 2026-10-23.  
 **Repository:** HekmatBeigverdi/ArginTaxPayer  
 **Base branch / inspected SHA:** `main` / `7112f03b7fe30ceea1aff7f04f587a1b0e939c92` (verify again at Step 01; Phase09 merge/release anchor `fde20594e733f96e032396f8e22e8781b14cac18`).  
@@ -1498,3 +1498,59 @@ git status --short
 No Migration in Step13, no additional AutoSSH startup: use `zsh scripts/dev-status.zsh` then `zsh scripts/dev-up.zsh` only when live dev services are actually needed. PostgreSQL environment runbook is `docs/dev/database-migration-runbook.md`; no Ubuntu OS tests until Step23.
 
 **Step13 acceptance is approval of fail-closed first-response interpretation only** and cannot waive pending verified signing, legal field validation, authority inquiry and safe sandbox/production separation.
+
+## 23. Step 14 — Scoped inquiry reconciliation for uncertain dispatch (2026-10-23)
+
+**Approval:** Step13 expressly accepted by owner in chat; no macOS build logs were supplied with acceptance. Step14 has committed code and synthetic tests, awaiting macOS owner acceptance. No actual authority inquiry, HTTP send, schema migration, Ubuntu deployment or end-to-end receipt test was performed.
+
+### SDK examination
+
+Source references from archived modern TaxCollectData SDK 2.0.32:
+- `Dto/InquiryByUidDto.cs` accepts `UidList` and `FiscalId`, optionally start/end times.
+- `Dto/InquiryByReferenceNumberDto.cs` accepts `ReferenceNumbers`, optionally a date window.
+- `Models/InquiryResultModel.cs` and `src/Application/DTOs/InquiryResultDto.cs` include `ReferenceNumber`, `Uid`, `Status`, `PacketType`, `FiscalId`, `Data`, `Sign`.
+- `src/Application/Services/InquiryService.cs` exposes `InquiryByUidAsync` and `InquiryByReferenceIdAsync`.
+- Archived SDK RequestStatus enums do not even enumerate the same states: one source lists SUCCESS/FAILED/TIMEOUT and another SUCCESS/FAILED/PENDING. Therefore these string values cannot be given unverified live semantics or final-acceptance authority.
+
+### Implemented Step14 read-only application contract
+
+- **New:** `src/ArginTaxPayer.Application/Invoices/Phase10InquiryReconciliation.cs`.
+  - `InvoiceReconciliationIdentity`: current server-resolved operation/owner/taxpayer/memory plus exact expected packet UID, packet type, fiscal identifier and optional known authority reference.
+  - `Phase10InquiryReconciliation.Evaluate`: bounded JSON array read, exactly one response, required UID/type/fiscal ID/reference/status fields, strict identity correlation, duplicate-field rejection and fail-closed handling of malformed JSON. No arbitrary status text leaks to UI.
+  - `InvoiceReconciliationOutcome`: `CorrelatedPendingReview`, `NoConclusiveResult`, `ConflictingEvidence`. All decisions have `IsFiscalAccepted=false`, `ProvesNotDelivered=false`, `MayAutomaticallyResend=false`, `IsFiscalSubmissionAuthorized=false`.
+  - A missing/empty inquiry result remains **inconclusive**, never evidence of non-delivery; a mismatched UID/fiscal ID/reference is a conflict and demands investigation. Returned `SUCCESS`/`FAILED`/`PENDING` status strings are correlation data only pending verified official status semantics.
+  - `IInvoiceAuthorityInquiry` is internal application boundary for an authorized, environment-pinned read-only inquiry adapter to be built later. `DisabledInvoiceAuthorityInquiry` always returns a safe unconfigured status and never contacts the network.
+- **New:** `tests/ArginTaxPayer.Tests/Phase10InquiryReconciliationTests.cs`: exact synthetic matching, missing/invalid/null response, differing owner memory-derived fiscal ID, different UID/packet type/reference, duplicate JSON properties, multi-result ambiguity, status strings with non-authority meaning, default disabled adapter and cancellation.
+- No DI registration for a real inquiry adapter; no API endpoint and no operational reconciliation worker. The Step11 `invoice_dispatch_receipts` table exists as evidence schema but this step does not insert rows or transition durable states based on provider JSON. **This is not a live operational reconciliation implementation.**
+
+### Critical dependencies and closure requirements
+
+1. Current, official specification of inquiry endpoint, signed request, environment-specific URL and response status codes must be verified before real use; the SDK archival model alone is insufficient to assume legal acceptance or non-delivery.
+2. Reconciliation operations must be authenticated and scoped server-side to customer, taxpayer, active fiscal memory, exact packet UID and signing key profile; selection by browser GUID alone is forbidden.
+3. Need append-only persistence of sanitized inquiry attempt/evidence, source time, correlation and verified final outcome (under Step11 constraints); do not fabricate final statuses.
+4. Need durable atomic CAS state update after verified inquiry; `Indeterminate` cannot be made `RetryEligible` merely because a query returns an empty list.
+5. Step09 exact-byte crypto signature and Step07 complete official payload rules must be remedied; production transport stays disabled. Do not claim Step14 establishes a working end-to-end provider integration.
+6. Environment selection must remain separate: Mock vs verified current Sandbox vs Production, with distinct fiscal-memory/credential scopes. For UI Steps16–19, an explicitly labeled Sandbox control can be surfaced only after trusted endpoint/account verification; visual demo may use clearly labeled Mock.
+7. For eventual acceptance, submit one separately authorized test invoice in sandbox (if available), save initial receipt, inquire by matching UID/reference and verify in sandbox work folder where available. None of these real calls occurred in Step14.
+
+### No DB migration and no Ubuntu test in Step14
+
+Use the existing canonical macOS runbook `docs/dev/database-migration-runbook.md`; use `zsh scripts/dev-status.zsh` and only if required `zsh scripts/dev-up.zsh`. No duplicate manual AutoSSH tunnel. If later running DB commands within same Mac terminal: `set -a; source .env.dev.local; set +a`. No schema changes required for this pure contract step.
+
+```bash
+cd ~/projects/ArginTaxPayer
+git status --short
+git fetch origin --prune
+git switch phase/10-invoice-submission
+git pull --ff-only origin phase/10-invoice-submission
+git rev-parse HEAD
+
+dotnet restore ArginTaxPayer.sln
+dotnet build ArginTaxPayer.sln --no-restore
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --no-restore \
+  --filter "FullyQualifiedName~Phase10InquiryReconciliationTests|FullyQualifiedName~Phase10AuthorityBatchResponseParserTests|FullyQualifiedName~Phase10RetrySafetyTests|FullyQualifiedName~Phase10DispatchContractsTests"
+dotnet test ArginTaxPayer.sln --no-build
+git status --short
+```
+
+**Step14 owner acceptance** approves only the fail-closed typed inquiry and correlation boundary, not completed online inquiry. Step15 follows only after owner acceptance; official sandbox status and end-to-end UI proof remain open.
