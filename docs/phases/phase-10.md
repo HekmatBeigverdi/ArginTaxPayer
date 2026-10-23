@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 10: Tax Authority Invoice Submission (Two-Pattern Delivery)
 
-**Status:** Steps 01–09 owner-approved; Step10 safe transport/receipt contract and simulated unit tests committed; macOS acceptance pending. No live submission, signing activation or DB migration.  
+**Status:** Steps 01–10 owner-approved. Step11 guarded additive test-db migration, transactional admission repository and tests committed; macOS/build/database operator acceptance pending. No migration executed, no live submission, Ubuntu deferred to Step23.  
 **Plan date:** 2026-10-23.  
 **Repository:** HekmatBeigverdi/ArginTaxPayer  
 **Base branch / inspected SHA:** `main` / `7112f03b7fe30ceea1aff7f04f587a1b0e939c92` (verify again at Step 01; Phase09 merge/release anchor `fde20594e733f96e032396f8e22e8781b14cac18`).  
@@ -1251,4 +1251,120 @@ git status --short
 
 No Next.js service, database tunnel, SQL migration, real authority bearer or Ubuntu VPS test is required. **Ubuntu remains Step23 only.**
 
-**Acceptance claim:** Step10 delivers safe, testable mock transport and initial-receipt processing contracts; it does **not** deliver a functioning real Tax Authority network sender. Completion of this step shall not be presented as an end-to-end successful dispatch. Step11 remains blocked until operator macOS tests and explicit owner signoff.
+**Acceptance claim:** Step10 delivers safe, testable mock transport and initial-receipt processing contracts; it does **not** deliver a functioning real Tax Authority network sender. Completion of this step shall not be presented as an end-to-end successful dispatch. **Step10 owner decision:** explicitly approved in chat 2026-10-23 and Step11 authorized. Runtime operator outputs were not attached; no independently verified PASS asserted.
+
+## 20. Step 11 — Actual test-db outbox schema and atomic idempotency admission (2026-10-23)
+
+**Status:** Code, additive migration source, protected transactional repository and static regression tests committed. **Migration has NOT been applied** to any database. PostgreSQL integration/concurrency and macOS runtime results must be supplied by operator. Owner signoff pending. No actual invoices, HTTP submit, production database, Ubuntu login/verification, merge or release.
+
+### Source audit / preservation strategy
+
+Previously installed PostgreSQL structures remain unchanged: `invoice_documents` and `invoice_document_revisions`, internal `invoice_operations`, `outbox_messages` and `idempotency_reservations`. The new Phase10 dispatch namespace is distinct. Existing tax invoice business revision records retain their historical immutability trigger. Migration is guarded by `current_database() = 'argintaxpayer_test'` and fails on other DB names; **no automatic migration** is run at API startup.
+
+### Implemented migration (not applied)
+
+**New:** `src/ArginTaxPayer.Infrastructure/Persistence/Migrations/20261023190000_AddPhase10InvoiceDispatchOutbox.cs`.
+
+- Adds `invoice_dispatch_operations`, `invoice_dispatch_attempts`, `invoice_dispatch_receipts`; does not drop/alter preexisting invoice/user tables.
+- Enforces unique `(customer_user_id,taxpayer_id,idempotency_key)` and `(customer_user_id,taxpayer_id,fiscal_memory_id,invoice_id,invoice_revision)`. Distinct idempotency keys cannot reserve the same invoice revision/memory twice.
+- FK to scoped `invoice_documents`, existing `identity_users`, `taxpayer_profiles` and `fiscal_memories`; the exact taxpayer→fiscal memory association must be reverified transactionally by the caller (the simple fiscal-memory FK alone cannot prove it).
+- State and positive-revision constraints, SHA256 syntax checks and constrained reference fields. Append-only database triggers prevent `UPDATE/DELETE` on attempt and receipt evidence; `Down` throws to block accidental destructive rollback.
+- Stores only safe metadata: hash, rule/mapper profile ID, operation/attempt/receipt and bounded reference. No raw private key, signed packet, bearer, authority response body, encryption key or customer financial JSON is persisted in the dispatch store.
+- Schema intentionally introduced using raw SQL migration and accessed through explicit transactional commands, without tracking the new tables as EF entities or modifying the large EF ModelSnapshot. This is deliberate; **future switch to tracked entities requires correctly regenerated snapshot and verified model parity**. No migration was generated/applied automatically.
+
+### Implemented admission repository (not connected to production submission)
+
+**New:** `src/ArginTaxPayer.Infrastructure/Persistence/Invoices/InvoiceDispatchAdmissionRepository.cs`.
+
+- Explicit database-name guard `argintaxpayer_test` at transaction start.
+- Short `READ COMMITTED` transaction; `INSERT...SELECT` requires the existing scoped invoice, exact revision and `state=Finalized(3)`. `ON CONFLICT DO NOTHING RETURNING id` enforces database uniqueness and synchronizes competing writers.
+- On conflict, `SELECT ... FOR UPDATE` of the same tenant+taxpayer+key: exact matching frozen memory/invoice/revision/hash/rule/mapper/sign profile → `Replayed`, otherwise `Conflict`. A second idempotency key claiming the same invoice revision is conflict, never a fresh send.
+- Domain `InvoiceDispatchAdmission` from Step05 validates idempotency key format and normalized hash. The repository requires separately authenticated server-side authorization, current membership, active matching fiscal memory, signing key, approved review and full legal-preflight; **none** can be inferred from its metadata-only request. Do not register as a public endpoint or permit browser-issued raw arguments.
+- No external I/O to Tax Authority; no signing, token, invoice transport, outbox worker or retry scheduler is wired. `Created` means reserved **only**, never sent.
+- Outcomes: `Created`, `Replayed`, `Conflict`. DB exceptions propagate rather than being misrepresented as success.
+- This is an admission capability, not yet the full provider attempt/CAS/reconciliation persistence workflow. Leases, restarts, attempt append, safe receipt ingestion and multi-worker recovery are Steps12–14.
+
+**Known concurrent-scope gaps before actual send:** protect reference lineage, case-sensitive idempotency key namespace, correct fiscal-memory-to-taxpayer relationship, Phase08 review approval, rule evidence and lease owner with signed immutable packet. Concurrency behavior must be tested on a real isolated PostgreSQL database with two independent connections and same/different keys. Current unit tests do NOT prove this.
+
+### Unit tests / source evidence
+
+**New:** `tests/ArginTaxPayer.Tests/Phase10DispatchDatabaseContractsTests.cs` verifies the migration's test-DB guard, SQL additive tables, uniqueness indexes, append-only evidence triggers, non-destructive `Down` and pure replay/conflict domain behavior. This is **source-level verification**, not an applied PostgreSQL migration or transaction race test.
+
+### Sandbox discovery (historical vs current)
+
+An announcement attributed to Iran's Tax Authority and widely republished circa 1402 identifies `sandboxrc.tax.gov.ir` as an experimental tax workspace for registering a **separate sandbox fiscal memory ID** and sending test invoices; experimental data may be periodically deleted. References:
+- `https://itanalyze.com/نسخه-جدید-سامانه-مودیان-بروزرسانی-شد/`
+- `https://www.karandishpooya.ir/index.php/world-news/1205-اطلاعیه‌ی-سازمان-امور-مالیاتی-کشور؛-نسخه‌ی-جدید-سامانه‌ی-مودیان-بروزرسانی-شد`
+
+**2026 status not verified:** an attempted external read of the sandbox host was unavailable via browser lookup; do not infer it was retired or operational, and do not invent a live API path. Add an explicit `Mock | Sandbox | Production` environment separation in later connector configuration. No sharing private keys, fiscal memory IDs, taxpayer credentials or authority-endpoint routing across environments without review. Only after an authorized sandbox account, authoritative current base URL/API edition and safe TLS/certificate behavior are verified should test sends be enabled. Sandbox use is a safer alternative to a first production test where access is proven, but is **not itself** production end-to-end acceptance.
+
+### macOS source/build tests (no DB writes)
+
+```bash
+cd ~/projects/ArginTaxPayer
+git status --short
+git fetch origin --prune
+git switch phase/10-invoice-submission
+git pull --ff-only origin phase/10-invoice-submission
+git rev-parse HEAD
+
+dotnet restore ArginTaxPayer.sln
+dotnet build ArginTaxPayer.sln --no-restore
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --no-restore \
+ --filter "FullyQualifiedName~Phase10DispatchDatabaseContractsTests|FullyQualifiedName~Phase10DispatchPersistenceContractsTests|FullyQualifiedName~Phase10DispatchContractsTests|FullyQualifiedName~Phase10SubmissionTransportTests"
+dotnet test ArginTaxPayer.sln --no-build
+git status --short
+```
+
+### Operator-controlled PostgreSQL migration workflow (DO NOT RUN UNTIL APPROVED)
+
+**No SSH login to Ubuntu needed.** Mac-side `autossh` tunnel from established project standard connects to VPS PostgreSQL on `127.0.0.1:15432`. The first three steps are **read-only**; do not paste passwords or connection strings into chat.
+
+1. Start established AutoSSH tunnel in a separate Terminal (while VPN is not required if direct SSH works):
+```bash
+AUTOSSH_GATETIME=0 autossh -M 0 -N \
+ -o ServerAliveInterval=15 -o ServerAliveCountMax=3 \
+ -o ConnectTimeout=10 -o ExitOnForwardFailure=yes \
+ -L 127.0.0.1:15432:127.0.0.1:5432 \
+ argindev@85.133.244.156
+```
+2. Another Terminal, set test-only connection environment **interactively and privately**. Prefer `read -s` or an existing private env file; example:
+```bash
+cd ~/projects/ArginTaxPayer
+export ConnectionStrings__ArginTaxPayerDb='Host=127.0.0.1;Port=15432;Database=argintaxpayer_test;Username=argintaxpayer;Password=<READ_FROM_YOUR_PRIVATE_ENV>'
+```
+Replace placeholder locally; never commit. Connection is accepted **only** when `Database=argintaxpayer_test`. No blank/default/production name.
+3. Read-only DB identity/history check before *any* migration:
+```bash
+psql "host=127.0.0.1 port=15432 dbname=argintaxpayer_test user=argintaxpayer sslmode=prefer" -X -v ON_ERROR_STOP=1 -c "SELECT current_database(),current_user,inet_server_addr(),inet_server_port();"
+psql "host=127.0.0.1 port=15432 dbname=argintaxpayer_test user=argintaxpayer sslmode=prefer" -X -v ON_ERROR_STOP=1 -c 'SELECT migration_id FROM "__EFMigrationsHistory" ORDER BY migration_id DESC LIMIT 8;'
+```
+4. After **owner separate approval of generated SQL and safe backup/snapshot**, prepare an offline SQL script on macOS using the installed version of `dotnet-ef`:
+```bash
+dotnet ef migrations script 20261022150000_AllowDatabaseSigningCustodyReference 20261023190000_AddPhase10InvoiceDispatchOutbox \
+ --project src/ArginTaxPayer.Infrastructure \
+ --startup-project src/ArginTaxPayer.Api \
+ --context ArginTaxPayerDbContext \
+ --output /tmp/phase10-step11-review.sql
+```
+Do not run the SQL yet. Check `dotnet ef migrations list` and ensure prior Phase09 migration is actually in the target database first. A script starting at the prior migration is only valid if that migration is applied. Inspect the SQL for correct database name, table names, constraints, duplicate operations, and any unwanted `DROP/ALTER` on existing tables.
+5. For **approved** isolated test DB only, apply the reviewed migration using `dotnet ef database update 20261023190000_AddPhase10InvoiceDispatchOutbox` with same project/startup/context and with verified environment above. Take DB backup first. Verify migration history and `to_regclass('public.invoice_dispatch_operations')`, `to_regclass('public.invoice_dispatch_attempts')`, `to_regclass('public.invoice_dispatch_receipts')`.
+6. If unexpected schema mismatches, stop. **Never** use `database drop`, `migrations remove`, `database update 0`, blanket `DROP`, or a destructive rollback. `Down` deliberately prohibits dropping dispatch evidence.
+
+**Important:** At present these are operator instructions for later approval, not a request to execute this migration now. Postgres build/integration tests and migration acceptance are pending. Additional macOS test-DB scripts will be given after operator confirms actual migration history. Ubuntu VPS code acceptance remains Step23; remote database access through the established local tunnel is separate from Ubuntu server OS tests.
+
+### Step11 acceptance and next gate
+
+| Gate | Status |
+| --- | --- |
+| Additive guarded migration source | Committed, not executed |
+| SQL unique keys and scope/FK constraints | Written, not verified live |
+| Transactional insert and replay/conflict | Implemented, no live DB execution |
+| Immutable receipts/attempts | DB trigger definitions written, not applied |
+| macOS .NET build and tests | Await operator |
+| Postgres DB identity/backup/SQL review | Await owner approval and operator |
+| Real two-client concurrency/idempotency race | Not executed; blocker for live sends |
+| Live signer, actual transport, legal field readiness | Existing hard blockers |
+| Ubuntu | Step23 only |
+
+**Owner acceptance of Step11** confirms source and reviewed test-only migration plan; it does **not** mean a migration was applied or that live sending is safe. Step12 may proceed with these explicit DB/execution blockers carried forward, but no provider packet may be sent while they remain.
