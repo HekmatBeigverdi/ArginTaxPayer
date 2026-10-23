@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 10: Tax Authority Invoice Submission (Two-Pattern Delivery)
 
-**Status:** Steps 01–04 owner-approved; Step 05 storage/outbox design and pure admission contracts committed; macOS verification and owner review pending. No runtime connector, EF schema registration or DB migration applied.  
+**Status:** Steps 01–05 owner-approved. Step06 restricted two-pattern JSON mapper/test source committed; macOS tests and owner acceptance pending. No production submission connector or DB migration applied.  
 **Plan date:** 2026-10-23.  
 **Repository:** HekmatBeigverdi/ArginTaxPayer  
 **Base branch / inspected SHA:** `main` / `7112f03b7fe30ceea1aff7f04f587a1b0e939c92` (verify again at Step 01; Phase09 merge/release anchor `fde20594e733f96e032396f8e22e8781b14cac18`).  
@@ -890,4 +890,74 @@ dotnet test ArginTaxPayer.sln --no-build
 git status --short
 ```
 
-**Acceptance:** contracts compile, targeted tests and full solution regression pass on macOS, the document records the schema proposal/limitations and no DB changes or unexpected Git file modifications occur. Operator results and explicit owner signoff are still required; GitHub code review is not a build.
+**Step05 owner decision (2026-10-23):** explicitly approved in chat; separate macOS test logs were not supplied with the approval. No runtime/database evidence is fabricated. Step06 authorized.
+
+## 15. Step 06 — Deterministic two-pattern invoice wire projection (2026-10-23)
+
+**Status:** Restricted source code and xUnit test fixtures committed. **No successful local compile/test claim yet**, no production-authorized payload, no signing/transport/DB migration and no Ubuntu work. Step07 remains blocked until macOS tests and explicit owner acceptance.
+
+### 15.1 Scope and explicit security limitations
+
+**Supported candidate projections:** ordinary goods/services `(Type1, inp=1)` and `(Type2, inp=1)`, plus contracting `(Type1, inp=4)`. These are **candidate JSON projections only**; they are not permitted to send until Step07 proves complete official rules, effective dates, participants, reference lineage, settlement, VAT/classification and authorization. Out-of-scope patterns are rejected.
+
+**Existing domain reuse:** `InvoiceTypePattern`, `ElectronicInvoiceType`, `InvoiceSubject`, `OfficialV79InvoiceSubjectPolicy`, `OfficialV79InvoicePatternMatrix.Edition`, `InvoiceValidationReceipt.IsSha256`, existing Phase06 product/catalog metadata and Phase07 invoice/financial aggregates. A server-side application adapter (future Step07/16) must read a trusted `InvoiceAggregate` revision and verified Phase06 immutable line snapshots before constructing `InvoiceWireInput`. **Never accept `InvoiceWireInput` directly as an arbitrary client JSON API command.**
+
+**Source:** Phase07 record of owner-provided `RC_IITP.IS V7.9`, tables 3–4, 8–11, 15–20, 29–32, 40–44; local modern SDK `Dto/HeaderDto.cs`, `BodyItemDto.cs`, `InvoiceDto.cs`, `PaymentItemDto.cs` as **shape examples**, not regulatory proof. The original PDF was not re-opened for this step and current applicability is not independently confirmed.
+
+### 15.2 Files and contracts
+
+- Added `src/ArginTaxPayer.Domain/Invoices/Phase10InvoiceWireMapper.cs`.
+- Added `tests/ArginTaxPayer.Tests/Phase10InvoiceWireMapperTests.cs`.
+- Domain-only `InvoiceWireInput`, `InvoiceWireLine`, `InvoiceWirePayment`, `InvoiceWireProjection`, `Phase10InvoiceWireMapper.Project`; `JsonSerializer` deterministically emits a lowercase `header/body/payments/extension` envelope with official short names.
+- `InvoiceWireProjection.IsSubmissionAuthorized=false` by construction; result includes frozen rule-set and mapper version. No direct SDK runtime/package dependency.
+- Contract number `crn` is mandatory for contracting (1..12 ASCII digits as previous Phase07 implementation), forbidden on ordinary sale. No free-form substitute is accepted.
+- `irtaxid` appears on correction/cancellation/return and is absent on original. `inty` and `inp` are **omitted** on cancellation, preserved in the internal `Classification`; cancellation line projection remains a source-specific rule requiring Step07 full review.
+- Header and line totals checked for equality, VAT must be explicit; 13-digit `sstid`, decimal quantities and title/unit codes are projected from trusted source values. `tprdis`, `tdis`, `tadis`, `tvam`, `tbill` and `prdis`, `dis`, `adis`, `vra`, `vam`, `tsstam` map directly without recomputing hidden totals.
+- **Fail-closed deliberate omissions:** transactional payment details and `setm` rejected until verified; type2 buyer field variants, active fiscal memory/seller identity, legal VAT effective-date rules and specialized subject body requirements are **not yet certified**. Empty `payments/extension` is a projection placeholder, not an assertion that empty arrays are legal under all combinations. This pure mapper is **not production usable** yet.
+- Precise JSON serializer setting omits null values; no raw private keys, tokens, signatures or network endpoints inside projected DTO.
+
+### 15.3 Source-based field-and-operation matrix
+
+| Pattern | Core wire fields | Special fields | Subject/reference | Status |
+| --- | --- | --- | --- | --- |
+| Type1 / ordinary 1 | `taxid/indatim/ins/inty/inp/tins`, common monetary totals, `body` product/price/VAT | `crn` forbidden | Original, referring subjects `irtaxid` | JSON candidate only |
+| Type2 / ordinary 1 | Common identity and amount projection | Buyer/settlement-specific attributes require Step07 verification | Same reference rules if officially valid | JSON candidate only, partial type2 field compliance |
+| Type1 / contracting 4 | Common identity and amount projection | `crn` required, sourced from registered seller contract | Referring subjects require `irtaxid`; type/pattern omitted on cancellation | JSON candidate only, contractual condition verification pending |
+| Out-of-scope combinations | None | None | No default fallback | Denied |
+
+### 15.4 Focused tests added
+
+`Phase10InvoiceWireMapperTests` covers both ordinary invoice types, contracting ID presence, deterministic output, official short JSON field names, header/body total mismatches, reference and cancellation omissions, rejected unapproved patterns, missing/forbidden contract number, settlement/payment not-yet-verified denials, and deliberately false submission authority.
+
+**Important limitation:** these are *source-written* unit fixtures, not published independently certified golden JSON samples. A future Step07 acceptance gate must cross-check byte-for-byte with approved official examples and add precise negative field-requirement fixtures; do not call this source code officially compliant based on these fixtures.
+
+### 15.5 macOS acceptance
+
+```bash
+cd ~/projects/ArginTaxPayer
+git status --short
+git fetch origin --prune
+git switch phase/10-invoice-submission
+git pull --ff-only origin phase/10-invoice-submission
+git rev-parse HEAD
+
+dotnet restore ArginTaxPayer.sln
+dotnet build ArginTaxPayer.sln --no-restore
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --no-restore \
+  --filter "FullyQualifiedName~Phase10InvoiceWireMapperTests|FullyQualifiedName~Phase10DispatchPersistenceContractsTests|FullyQualifiedName~Phase07OfficialV79Tests"
+dotnet test ArginTaxPayer.sln --no-build
+git status --short
+```
+
+No macOS local test execution has been performed in this GitHub-only change. If the operator reports an error, correct code on the same phase branch and regenerate a new SHA before approving. **Ubuntu checks remain exclusively Step23.**
+
+### 15.6 Step07 handoff blockers
+
+1. Verify official **full** field-requiredness matrix (Type1/Type2, original/referenced, contracting), correct dates of force, and official sample JSON encoding.
+2. Implement authenticated `InvoiceAggregate`-to-`InvoiceWireInput` extraction (not browser-controlled); require persisted snapshot, role/MFA/tenant scope, memory/key association and approved workflow revision.
+3. Verify buyer/seller official participant IDs and business validity, and source-valid goods/service/unit/VAT mapping. Reject unresolved tax classifications.
+4. Implement conditional settlement and payment contracts and full legal references; eliminate placeholder unsupported operations or explicitly block those combinations. Do not guess seller or payment values.
+5. Confirm header totals include all legally applicable fees/taxes; compare official truncation behavior and exact per-field numeric widths.
+6. Verify whether empty `payments/extension` values should be **omitted** rather than emitted as arrays, and whether envelope casing is correct for the negotiated endpoint before any send. Keep compatibility separated for legacy vs modern SDK protocols.
+
+**Step06 approval only authorizes progression to Step07, not production use of this mapper.**
