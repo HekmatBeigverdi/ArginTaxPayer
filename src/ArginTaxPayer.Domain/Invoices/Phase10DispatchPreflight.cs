@@ -159,10 +159,21 @@ public static class Phase10DispatchPreflight
                 != InvoicePatternDecision.AllowedByReferencedEdition)
             Add(InvoicePreflightCode.UnverifiedLegalApplicability);
 
-        // Existing RuleSetRegistry.CheckEvidenceReadiness needs a richer context.
-        // This design does not manufacture it: the current V7.9 registry is not
-        // independently certified as comprehensive/effective for sending.
-        Add(InvoicePreflightCode.IncompleteRuleCoverage);
+        // Registry provenance and effective-dated coverage are separate from
+        // the type/pattern catalogue. Both must be independently reviewed.
+        // These flags allow local snapshot preparation, NOT fiscal dispatch.
+        if (context.IssueDateUtc.Kind != DateTimeKind.Utc ||
+            string.IsNullOrWhiteSpace(context.RuleSetEdition))
+            Add(InvoicePreflightCode.IncompleteRuleCoverage);
+        else
+        {
+            var rule = ruleSets.Resolve(OfficialV79RuleSet.Scope,
+                context.RuleSetEdition, context.IssueDateUtc, requireVerifiedDate: true);
+            if (rule.Status != RuleSetLookupStatus.SelectedWithEvidence ||
+                rule.Bundle is null || !rule.Bundle.CoverageReviewed ||
+                rule.Bundle.CoveredRuleKeys.Count == 0)
+                Add(InvoicePreflightCode.IncompleteRuleCoverage);
+        }
 
         if (findings.Count > 0)
             return new(null, Array.AsReadOnly(findings.DistinctBy(x => x.Code).ToArray()));
