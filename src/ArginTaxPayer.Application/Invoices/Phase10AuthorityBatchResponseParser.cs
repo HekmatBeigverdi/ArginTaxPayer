@@ -39,7 +39,7 @@ public static class Phase10AuthorityBatchResponseParser
                 "invoice.dispatch.response_indeterminate");
         if (string.IsNullOrWhiteSpace(json) || json.Length > 262144 ||
             !IsOpaqueId(expectedPacketUid, 128) ||
-            !IsOpaqueId(expectedPacketType, 80))
+            !IsPacketType(expectedPacketType, 80))
             return Unknown();
 
         try
@@ -96,7 +96,16 @@ public static class Phase10AuthorityBatchResponseParser
 
     // Duplicate or case-varied aliases are rejected instead of depending on
     // serializer last-property-wins behavior.
-    private static bool HasDuplicateNames(JsonElement obj)\n    {\n        if (obj.ValueKind != JsonValueKind.Object) return false;\n        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);\n        foreach (var prop in obj.EnumerateObject())\n            if (!names.Add(prop.Name)) return true;\n        return false;\n    }\n\n    private static bool TryUnique(JsonElement element, string field, out JsonElement value)
+    private static bool HasDuplicateNames(JsonElement obj)
+    {
+        if (obj.ValueKind != JsonValueKind.Object) return false;
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var prop in obj.EnumerateObject())
+            if (!names.Add(prop.Name)) return true;
+        return false;
+    }
+
+    private static bool TryUnique(JsonElement element, string field, out JsonElement value)
     {
         value = default;
         if (element.ValueKind != JsonValueKind.Object) return false;
@@ -115,4 +124,9 @@ public static class Phase10AuthorityBatchResponseParser
         value is { Length: > 0 } && value.Length <= max &&
         value.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'z' or
             >= 'A' and <= 'Z' or '-' or '_');
+
+    private static bool IsPacketType(string? value, int max) =>
+        value is { Length: > 0 } && value.Length <= max &&
+        value.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'z' or
+            >= 'A' and <= 'Z' or '-' or '_' or '.');
 }
