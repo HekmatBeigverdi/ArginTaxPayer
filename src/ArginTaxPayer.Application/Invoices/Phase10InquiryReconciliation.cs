@@ -51,7 +51,7 @@ public static class Phase10InquiryReconciliation
             expected.TaxpayerId == Guid.Empty ||
             expected.FiscalMemoryId == Guid.Empty ||
             !Opaque(expected.PacketUid, 128) ||
-            !Opaque(expected.PacketType, 80) ||
+            !PacketTypeValid(expected.PacketType) ||
             !Opaque(expected.FiscalIdentifier, 64) ||
             (expected.AuthorityReference is not null &&
              !Opaque(expected.AuthorityReference, 128)) ||
@@ -74,7 +74,7 @@ public static class Phase10InquiryReconciliation
                 !ReadString(item, "fiscalId", out var fiscalId) ||
                 !ReadString(item, "referenceNumber", out var reference) ||
                 !ReadString(item, "status", out var status) ||
-                !Opaque(uid, 128) || !Opaque(type, 80) ||
+                !Opaque(uid, 128) || !PacketTypeValid(type) ||
                 !Opaque(fiscalId, 64) || !Opaque(reference, 128) ||
                 string.IsNullOrWhiteSpace(status) || status.Length > 80)
                 return Unknown();
@@ -114,6 +114,11 @@ public static class Phase10InquiryReconciliation
             if (!seen.Add(property.Name)) return true;
         return false;
     }
+
+    private static bool PacketTypeValid(string? value) =>
+        value is { Length: > 0 and <= 80 } &&
+        value.All(c => c is >= 'A' and <= 'Z' or >= 'a' and <= 'z' or
+            >= '0' and <= '9' or '_' or '-' or '.');
 
     private static bool Opaque(string? text, int max) =>
         text is { Length: > 0 } && text.Length <= max &&
