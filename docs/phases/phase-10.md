@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 10: Tax Authority Invoice Submission (Two-Pattern Delivery)
 
-**Status:** Steps 01–05 owner-approved. Step06 restricted two-pattern JSON mapper/test source committed; macOS tests and owner acceptance pending. No production submission connector or DB migration applied.  
+**Status:** Steps 01–06 owner-approved; Step07 fail-closed preflight and immutable candidate snapshot implementation/test source committed; macOS acceptance and owner signoff pending. No production dispatch or DB migration.  
 **Plan date:** 2026-10-23.  
 **Repository:** HekmatBeigverdi/ArginTaxPayer  
 **Base branch / inspected SHA:** `main` / `7112f03b7fe30ceea1aff7f04f587a1b0e939c92` (verify again at Step 01; Phase09 merge/release anchor `fde20594e733f96e032396f8e22e8781b14cac18`).  
@@ -960,4 +960,90 @@ No macOS local test execution has been performed in this GitHub-only change. If 
 5. Confirm header totals include all legally applicable fees/taxes; compare official truncation behavior and exact per-field numeric widths.
 6. Verify whether empty `payments/extension` values should be **omitted** rather than emitted as arrays, and whether envelope casing is correct for the negotiated endpoint before any send. Keep compatibility separated for legacy vs modern SDK protocols.
 
-**Step06 approval only authorizes progression to Step07, not production use of this mapper.**
+**Step06 owner decision:** explicitly approved in chat, 2026-10-23. Test outputs were not attached to approval; no independent PASS claim. The owner authorized Step07, not production use of this mapper.
+
+## 16. Step 07 — Source-gated preflight and immutable signing-candidate snapshot (2026-10-23)
+
+**Status:** Source implementation and xUnit tests committed to Phase10 branch; **no operator/macOS execution evidence**, no EF change, database migration, web feature, signature request or authority HTTP call. Owner acceptance pending.
+
+### 16.1 Exact delivered source
+
+- **New** `src/ArginTaxPayer.Domain/Invoices/Phase10DispatchPreflight.cs`: `InvoiceDispatchPreflightContext`, typed `InvoicePreflightCode`, `InvoiceDispatchPreflightFinding`, `InvoiceDispatchPreparedSnapshot`, `InvoiceDispatchPreflightResult`, `Phase10DispatchPreflight.Evaluate`.
+- **New** `tests/ArginTaxPayer.Tests/Phase10DispatchPreflightTests.cs`: focused unit tests for approval/state, rule provenance, type/date/subject/line-count mismatch, unsupported settlement and malformed financial totals, SHA256 and defensive copy.
+- Reuses Phase07 `InvoiceLifecycleState.Finalized`, Phase08 `InvoiceReviewState.Approved`, Phase07 `InvoicePatternRegistry` and `InvoiceRuleSetRegistry`, Phase06/07 prepared JSON source from Step06. No unrelated phase tables changed.
+- `InvoiceDispatchPreparedSnapshot` pins customer, taxpayer, fiscal memory, invoice ID/revision, business snapshot SHA256, official rule edition, mapper version, internal type/pattern and subject, frozen UTF-8 bytes plus computed SHA256 of exact wire bytes. A caller receives only a **defensive copy**, not an internally mutable byte array.
+- `IsFiscalSubmissionAuthorized=false` on both result and prepared snapshot. Source verification/fixture success **cannot** grant signing, storage or authority dispatch permission.
+
+### 16.2 Fail-closed checks before candidate preparation
+
+| Gate | Logic | Failure code |
+| --- | --- | --- |
+| Scoped invoice identity and immutable revision/hash | Nonempty customer/taxpayer/memory/invoice GUID; invoice revision >0, SHA256 format, validated line IDs | `invalid_context`, `missing_fiscal_memory` |
+| Existing workflow | `Finalized` + `Approved`; these are independent statuses and never fiscal acceptance | `invoice_not_finalized`, `review_not_approved` |
+| Rule provenance and currency | Pinned V7.9 edition; both officially evidenced type/pattern effective windows and registry source date/coverage required; no "newest" fallback | `rule_edition_mismatch`, `unverified_legal_applicability`, `incomplete_rule_coverage` |
+| Pattern/type/subject | Exact equality of local classification and Step06 DTO; exact subject and `irtaxid` relationship | `invoice_type_mismatch`, `invoice_subject_mismatch`, `invalid_reference` |
+| Issue timestamp | Outbound Unix milliseconds equals immutable UTC issue date; invalid timestamp fails | `invoice_date_mismatch` |
+| Item ownership shape | Count of official projected lines matches frozen local line IDs; duplicate/empty IDs rejected | `invalid_line_snapshot` |
+| Preliminary fiscal amounts, contract, references | Existing Step06 restricted Mapper performs its structural `crn`, product code, total, VAT, type2 and referring-subject shape checks | `invalid_payload` |
+| Safe errors | Structured `InvoicePreflightFinding` returns fixed message keys; never provider raw text | N/A |
+
+**Important design distinction:** `InvoiceRuleSetRegistry.Resolve(... requireVerifiedDate:true)` and `CoverageReviewed` are necessary gates for *candidate preparation*, **not independently sufficient proof of complete legal compliance**. Current `OfficialV79InvoicePatternMatrix` has `VerifiedForSubmission=false`; it will normally cause fail-closed preflight until actual official effective dates/editions are reviewed and introduced. Tests may use synthetic *verified* fixtures but must never be treated as Tax Authority certification.
+
+### 16.3 Limitations and mandatory downstream integration gates
+
+1. **Not wired to trusted EF entities yet.** The current function accepts an immutable-looking `InvoiceDispatchPreflightContext` and `InvoiceWireInput` from a caller. Merely passing GUIDs/hash/approval states does not prove database ownership, issuer identity, physical fiscal memory registration, or actual persisted snapshot hash. Future trusted application service must fetch and lock/verify `StoredInvoice` + `StoredInvoiceRevision` + Phase08 approval + Phase09 memory/key before generating this input. No public API may accept arbitrary caller-supplied preflight context as authorization.
+2. **Only preliminary line cross-check.** Item count/IDs, no duplicate IDs and the Step06 DTO math checks are implemented, but they do not yet bind each projected official `sstid`, source unit, VAT category, price and line amount to each exact immutable Phase06 `InvoiceLineSnapshot`. Required before signing and live dispatch.
+3. **Official field completeness is not yet proven.** Phase10 two-pattern matrix still has unresolved Type2 buyer conditions, payment/settlement `setm` and payment elements, contracting validation against a registered contract, reference-chain authority state and special cancellation/return field presence. The Step06 mapper deliberately denies unknown settlement/payment inputs and omits or placeholders some fields. Resolve official mandatory fields prior to any production send, with source-cited golden/negative fixtures; never force through a permissive switch.
+4. **No automatic signed state.** The digest and defensive-byte buffer are preparatory only. Phase09 `AuthorizedSigningRequest` requires independent authenticated session, owner-authorized key, same source snapshot hash and current revisions. Signed wire bytes must match this exact hash; Step09 owns this binding.
+5. **No fiscal readiness from a green UI preview.** At most present candidate validation findings; never present an accepted state or a working 'send' action until all independent gates and transport persistence are implemented.
+6. **No real enforcement of idempotency here.** Step05 proposed durable unique scope/transaction schema; Step11 delivers actual persisted claims/CAS/outbox. No duplicate network send until those mechanisms exist.
+7. **Missing official citation verification** remains an explicit release blocker. Prior Phase07 document references V7.9 (Tir 1405) but this Step07 did not re-open original PDF; current amendments and exact effective dates require independent official verification.
+
+**Consequence:** Step07 creates a **reviewable cryptographically pinned candidate**, *not* a regulator-ready invoice sender. Work remains in the next steps; "completed Step07" must not be reported as complete end-to-end authority field validation.
+
+### 16.4 Focused automated unit test cases
+
+`Phase10DispatchPreflightTests` records:
+- Synthetic pinned registry+pattern with source-verified effective date can create a frozen candidate while retaining `IsFiscalSubmissionAuthorized=false`.
+- Altering a copied wire buffer does not mutate the held candidate; SHA256 verifies the canonical UTF-8 bytes.
+- Actual unverified source-date/coverage indicators reject preparation.
+- Draft or unapproved invoice, mismatched subject/date and missing memory reject preparation.
+- Missing line snapshot and edition mismatch reject preparation.
+- Unsupported settlement/payment and changed financial totals reject preparation with safe typed errors.
+
+Unit fixtures are **synthetic local evidence** and are not official compliance proof. No real-key, payer, Tax Authority or PostgreSQL integration.
+
+### 16.5 macOS-only operator test
+
+```bash
+cd ~/projects/ArginTaxPayer
+git status --short
+git fetch origin --prune
+git switch phase/10-invoice-submission
+git pull --ff-only origin phase/10-invoice-submission
+git rev-parse HEAD
+
+dotnet restore ArginTaxPayer.sln
+dotnet build ArginTaxPayer.sln --no-restore
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --no-restore \
+  --filter "FullyQualifiedName~Phase10DispatchPreflightTests|FullyQualifiedName~Phase10InvoiceWireMapperTests|FullyQualifiedName~Phase10DispatchContractsTests"
+dotnet test ArginTaxPayer.sln --no-build
+git status --short
+```
+
+No Next.js startup, PostgreSQL tunnel or Ubuntu VPS test required at Step07; Ubuntu remains exclusively Step23.
+
+### 16.6 Step07 acceptance
+
+| Acceptance criterion | Status |
+| --- | --- |
+| Fail-closed candidate preparation and typed safe reasons | Implemented in source; execution pending |
+| Frozen scoped identity, revision, rule/mapper versions and exact wire SHA256 | Implemented; tests written |
+| Source-date/edition/coverage gates | Implemented as necessary gates, actual official evidence incomplete |
+| Source-authenticated EF invoice/line/VAT/registered contract binding | **Not implemented; mandatory before signing/send** |
+| Complete legally conditional Type2/contracting/subject/payment field matrix | **Not implemented; tracked blocking integration** |
+| DB migrations, live API, production enablement | None |
+| macOS test execution | Pending operator |
+| Ubuntu | Step23 only |
+
+**Owner approval required** before Step08. A Step07 acceptance is approval of this fail-closed preparatory boundary, not a claim that all fiscal invoices are ready for live transmission.
