@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 10: Tax Authority Invoice Submission (Two-Pattern Delivery)
 
-**Status:** Steps 01–11 owner-approved by operator. Step12 retry/fault policy, scoped transactional CAS repository and unit tests committed; macOS acceptance pending. No actual invoice send. Ubuntu deferred to Step23.  
+**Status:** Steps 01–12 owner-approved. Step13 conservative response parser, safe handoff and regression tests committed; macOS acceptance pending. No live invoice send. Ubuntu deferred to Step23.  
 **Plan date:** 2026-10-23.  
 **Repository:** HekmatBeigverdi/ArginTaxPayer  
 **Base branch / inspected SHA:** `main` / `7112f03b7fe30ceea1aff7f04f587a1b0e939c92` (verify again at Step 01; Phase09 merge/release anchor `fde20594e733f96e032396f8e22e8781b14cac18`).  
@@ -1444,3 +1444,57 @@ set +a
 ```
 
 **Step12 acceptance scope:** pure fail-closed fault classification plus narrow scoped versioned state updates committed to source. Unit tests require operator execution; real PostgreSQL concurrent CAS race and true worker-before-network proof remain mandatory end-to-end gates. An accepted Step12 is NOT authorization for real invoice transmission. Step13 starts only after explicit owner acceptance.
+
+## 22. Step 13 — Strict initial acknowledgement vs uncertain authority responses (2026-10-23)
+
+**Owner acceptance:** Step12 explicitly approved in chat on 2026-10-23; no raw operator macOS test output accompanied approval. Step13 source is committed but not executed on macOS; independent build/test acceptance pending. No new DB migration, no HTTP request, no live Tax Authority invoice sender and no Ubuntu test.
+
+### SDK response evidence and implementation
+
+Inspected archived modern TaxCollectData SDK 2.0.32:
+- `TaxCollectData.Library/Models/BatchResponseModel.cs` contains `Timestamp` and `Result: List<ResponsePacketModel>`.
+- `ResponsePacketModel.cs` contains `Uid`, `PacketType`, `ReferenceNumber`, `Data`.
+- Mirrored application DTOs `BatchResponseDto.cs` and `ResponsePacketDto.cs` expose the same fields.
+
+Added:
+- `src/ArginTaxPayer.Application/Invoices/Phase10AuthorityBatchResponseParser.cs`: bounded JSON document (262144 chars, max depth 16), exactly one response packet; case-insensitive duplicate property rejection; strict expected packet UID and packet type; limited safe reference characters and maximum length; reject root/packet provider error arrays, missing/null/extra batch entries and unrecognized output. A valid *initial* reference maps only to `InitialReceipt`; all unknown errors and malformed responses become `Indeterminate` with fixed `invoice.dispatch.response_indeterminate`. **No heuristic terminal rejection** from HTTP 4xx/5xx, arbitrary `status` strings or `SUCCESS` text.
+- `src/ArginTaxPayer.Application/Invoices/Phase10AuthorityResponseHandoff.cs`: safe conversion to Step10 `InvoiceSubmissionTransportOutcome`. A correlated reference maps to `Acknowledged`; all others remain `Indeterminate`; no raw response, packet, bearer, private key, signature, provider body or unreviewed error message crosses the application boundary.
+- `tests/ArginTaxPayer.Tests/Phase10AuthorityBatchResponseParserTests.cs`: valid matching receipt, wrong UID/type, malformed JSON, missing response, zero/duplicate/multiple packets, spoofed error, empty receipt, fake `SUCCESS` and unsafe input checks. Synthetic fixture only.
+
+**Hard separation:** An initial `referenceNumber` is not the authority's final successful validation; final status must be queried with the official inquiry API, matched to the same taxpayer/memory/invoice and confirmed by sufficient official response evidence. `IsFiscalAccepted=false` and `MayAutomaticallyRetry=false` remain unconditional. No operation can transition to actual accepted invoice status based on the Step13 parser. Step14 will introduce conservative reconciliation contract, not automatic resend.
+
+**Remaining production blockers:** (a) full source-verified current official response/error and inquiry schema, (b) packet/UID correlation when transport uses other packet types or multiple invoices, (c) verified canonical wire-byte signature from Step09, (d) durable claim/attempt write before HTTP and source-bound EF invoice from Step07, (e) production vs sandbox endpoint and fiscal memory isolation, (f) evidence-based final authority acceptance after inquiry, (g) live sandbox status. No code registered as live adapter or public endpoint.
+
+### Sandbox/UI plan (within fixed 24 steps)
+
+Historical Tax Authority announcement circa 1402 says `https://sandboxrc.tax.gov.ir` provided **test fiscal-memory IDs and a sandbox work folder** for sending experimental invoices, and states that test data is periodically cleared. This was corroborated by contemporary republished agency announcement:
+`https://www.karandishpooya.ir/index.php/world-news/1205-اطلاعیه‌ی-سازمان-امور-مالیاتی-کشور؛-نسخه‌ی-جدید-سامانه‌ی-مودیان-بروزرسانی-شد`;
+`https://itanalyze.com/نسخه-جدید-سامانه-مودیان-بروزرسانی-شد/`.
+**Current availability and exact SDK/API host/route (2026) unverified.** Do not invent a modern sandbox endpoint URL or equate browser work folder with programmatic query support.
+
+- Step14: safe query/reconciliation/status mapping, synthetic integration scenarios; no unconditional production sends.
+- Steps16–19: scoped API/BFF and compact UI with **explicit environment label** `Mock / Sandbox / Production`, distinct fiscal memories and controls; sandbox-only invoice send button is gated on current official endpoint documentation, true signed-byte crypto, verified field completeness, durable outbox + explicit operator authorization.
+- Steps20–22: macOS operator-controlled live sandbox acceptance if the official sandbox host, API route, test fiscal memory, test key, separate work folder and availability are actually verified. Check sending via UI and confirm status via authority inquiry plus **manual check of the sandbox test work folder**. An initial reference is not enough; do not claim success merely from HTTP200.
+- Step23: Ubuntu same-SHA final integration verification as the separately scheduled step. Step24 final merge/tag/release after owner signoff.
+- Never route sandbox invoices to `tp.tax.gov.ir` (production). Environment selection must be server-side allowlisted, not user-supplied URLs. If Sandbox is discontinued/unreachable, block real test send and present a clear non-fiscal Mock mode; do not silently fall back to production.
+
+### macOS acceptance checks
+
+```bash
+cd ~/projects/ArginTaxPayer
+git status --short
+git fetch origin --prune
+git switch phase/10-invoice-submission
+git pull --ff-only origin phase/10-invoice-submission
+git rev-parse HEAD
+dotnet restore ArginTaxPayer.sln
+dotnet build ArginTaxPayer.sln --no-restore
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --no-restore \
+ --filter "FullyQualifiedName~Phase10AuthorityBatchResponseParserTests|FullyQualifiedName~Phase10SubmissionTransportTests|FullyQualifiedName~Phase10RetrySafetyTests"
+dotnet test ArginTaxPayer.sln --no-build
+git status --short
+```
+
+No Migration in Step13, no additional AutoSSH startup: use `zsh scripts/dev-status.zsh` then `zsh scripts/dev-up.zsh` only when live dev services are actually needed. PostgreSQL environment runbook is `docs/dev/database-migration-runbook.md`; no Ubuntu OS tests until Step23.
+
+**Step13 acceptance is approval of fail-closed first-response interpretation only** and cannot waive pending verified signing, legal field validation, authority inquiry and safe sandbox/production separation.
