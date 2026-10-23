@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 10: Tax Authority Invoice Submission (Two-Pattern Delivery)
 
-**Status:** Steps 01–07 owner-approved. Step08 read-only Phase09 authority authentication bridge, DI wiring and unit tests committed; macOS runtime acceptance and owner signoff pending. No invoice dispatch or DB migration.  
+**Status:** Steps 01–08 owner-approved; Step09 wire-signature metadata binding and negative regression test source committed, macOS execution and owner signoff pending. No invoice dispatch, signing activation or DB migration.  
 **Plan date:** 2026-10-23.  
 **Repository:** HekmatBeigverdi/ArginTaxPayer  
 **Base branch / inspected SHA:** `main` / `7112f03b7fe30ceea1aff7f04f587a1b0e939c92` (verify again at Step 01; Phase09 merge/release anchor `fde20594e733f96e032396f8e22e8781b14cac18`).  
@@ -1107,4 +1107,75 @@ No Next.js startup, PostgreSQL migration, real bearer/session, external call, ma
 | DB schema/migration, external invoice request | None |
 | Ubuntu verification | Deferred to Step23 as owner directed |
 
-**Step08 owner acceptance** confirms safe reuse of the existing read-only authentication boundary; it does not assert that live invoice transmission, full field validation or authority acceptance works. Start Step09 only after explicit owner signoff.
+**Step08 owner decision (2026-10-23):** owner expressly approved Step08 and authorized Step09. No macOS output accompanied the approval; runtime PASS is not independently claimed. Read-only authentication success is not live invoice transmission, verified official field compliance or authority acceptance.
+
+## 18. Step 09 — Strict signing identity, packet-byte hash binding and fail-closed security guard (2026-10-23)
+
+**Status:** Source code and unit fixtures committed on `phase/10-invoice-submission`; macOS operator build/tests pending, owner signoff pending. No SDK runtime dependency, authority request, schema migration, public endpoint, new signing DI service or Ubuntu test. **This step does not claim the Phase09 signing service is yet capable of cryptographically signing the exact Phase10 packet bytes.** See the mandatory blocking integration requirement below.
+
+### 18.1 Critical discovery: the Phase09 signer signs different source bytes
+
+Inspected `src/ArginTaxPayer.Infrastructure/Signing/InvoiceSnapshot/InvoiceSnapshotSigningService.cs`, `InvoiceSnapshotSigningContracts.cs`, `InvoiceSnapshotSigningRegistration.cs` and `src/ArginTaxPayer.Application/Signing/DigitalSigningContracts.cs`.
+
+The existing `IDigitalSigningService.SignAsync` resolves **a trusted persisted `TrustedInvoiceSnapshot.SnapshotJson`** through `ITrustedInvoiceSnapshotSource`. It verifies SHA256 on that stored JSON, creates a durable signing intent, unwraps the selected protected key, and signs `Encoding.UTF8.GetBytes(snapshot.SnapshotJson)` with `LegacySigningMode.ObjectV030` / `LegacySigningPurpose.Content`. It returns signature metadata and `IsFiscalSubmissionAuthorized=false` without exposing private material.
+
+The Phase10 Step06–07 `InvoiceDispatchPreparedSnapshot` computes a **different digest for the exact projected Tax Authority JSON bytes**. A signature over stored *business* SnapshotJson **cannot simply be attached** to the Phase10 official wire packet. Matching GUIDs, an invoice revision or a response `Signed` alone are not proof that the correct outbound bytes were signed. This is a blocking issue, not something to hide via a successful unit test.
+
+### 18.2 Delivered Step09 code
+
+- **Added:** `src/ArginTaxPayer.Application/Invoices/Phase10WireSignatureBinding.cs` with `InvoiceWireSigningIntent`, `InvoiceWireSignatureBindingStatus`, `InvoiceWireSignatureBindingResult` and `Phase10WireSignatureBinding.Check`.
+- **Added:** `tests/ArginTaxPayer.Tests/Phase10WireSignatureBindingTests.cs`.
+- This read-only binding checks: matching owner/customer/taxpayer/memory/invoice/revision; server-pinned expected key ID/revision; signing profile agreement; exact 64-hex wire hash recomputed from a **copy** of canonical UTF-8 bytes; equality with both `AuthorizedSigningRequest.SnapshotSha256` and `SigningResult.SnapshotSha256`; `DigitalSigningStatus.Signed`; and safe, bounded Base64 signature-envelope format.
+- All failure codes are fixed safe keys: scope, key, profile, hash, malformed signature or signing failure. No raw provider response or signature contents are returned.
+- **Crucial:** A fully matching metadata result is `MetadataMatchedButWireUnverified`. `IsWireSignatureVerified=false`, `IsFiscalSubmissionAuthorized=false` unconditionally. It **cannot be used** as the actual dispatcher admission/signed-state authorization.
+- The test for positive-looking metadata deliberately uses a syntactically valid but **cryptographically meaningless** test signature and asserts it is **not** verified. Negative tests cover wrong business-snapshot hash, cross-tenant/revision, key/profile mismatch, invalid envelope and rejected signing status.
+
+### 18.3 Mandatory signing integration before live invoices
+
+Before `InvoiceDispatchState.Signed` may be entered or a signed packet may be sent, the implementation must establish an **authorized, trusted-source, byte-exact wire-signing path**, with all of:
+
+1. Server-side load of the finalized approved invoice revision and official pattern payload; the server—not browser-supplied input—selects taxpayer, active fiscal memory, key version and signing profile.
+2. Freeze the exact canonical bytes that the official SDK/protocol signs (including required envelope, packet headers, nonce, compression/encryption order, if relevant), and persist the unambiguous approved intent/packet identity before private-key access. Do not assume an arbitrary JSON body signature is equivalent to the SDK wire signature.
+3. Reuse Phase09 protected custody and signer **only after** profile/algorithm reconciliation: the current `ObjectV030` signing mode may canonicalize input differently than a raw UTF-8 SHA256 signature. Compare algorithm and official authority fixtures, including PacketType and request header signatures. No unapproved modern certificate/JWS substitution.
+4. Cryptographically verify the produced signature against the **exact documented signing input** using the pinned public SPKI and expected algorithm, compare key identity and payload hashes in constant time, and preserve typed signed-evidence state. An invalid signature, stale revision or failed audit must deny.
+5. Integrate the signed-evidence boundary with a DB-backed dispatched operation, outbox CAS and safe provider response handling in later Steps10–11. **Never convert metadata-only agreement into signed/authorized status.**
+6. No signer operation may reveal key material or offer generic arbitrary `Sign(bytes)` through public HTTP.
+
+**Step09 acceptance is partial by design:** it delivers the safe matching/denial contract and identifies the existing signer byte-domain mismatch. The byte-exact crypto integration remains an explicit **blocking dependency** for Steps10 and 22; record it as unresolved and do not say live-signing is complete just because the metadata tests pass. Owner may approve the protective contract but that does not waive the requirement.
+
+### 18.4 macOS-only operator acceptance
+
+```bash
+cd ~/projects/ArginTaxPayer
+git status --short
+git fetch origin --prune
+git switch phase/10-invoice-submission
+git pull --ff-only origin phase/10-invoice-submission
+git rev-parse HEAD
+
+dotnet restore ArginTaxPayer.sln
+dotnet build ArginTaxPayer.sln --no-restore
+
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --no-restore \
+  --filter "FullyQualifiedName~Phase10WireSignatureBindingTests|FullyQualifiedName~Phase09InvoiceSnapshotSigningTests|FullyQualifiedName~Phase09OfflineSigningCryptoTests|FullyQualifiedName~Phase10DispatchPreflightTests"
+
+dotnet test ArginTaxPayer.sln --no-build
+git status --short
+```
+
+No migration, real private-key operation, database tunnel, Tax Authority connection or Ubuntu test is required. Ubuntu remains **Step23 only**. Record exact commit SHA, test outcomes and any regression failures; no unverified PASS claims.
+
+### 18.5 Acceptance checklist
+
+| Criterion | Result |
+| --- | --- |
+| Examine Phase09 actual signed-byte source, immutable key identity and audit | Reviewed |
+| Phase10 exact prepared wire SHA256 and signer metadata matching | Added, tests written |
+| Reject mismatched owner/taxpayer/memory/revision/key/profile/hash and malformed envelope | Added, tests written |
+| Confirm crypto signature over exact outbound packet canonical bytes | **NOT IMPLEMENTED; hard send blocker** |
+| Persist durable sign intent and enforce full scope in live DB | Existing Phase09 only; Phase10 integration still pending |
+| Build/tests on macOS | Await operator |
+| Migration or live authority send | None |
+| Ubuntu | Step23 only |
+
+**Owner signoff requested** on the Step09 safety boundary. It does **not** assert actual Authority packet signing is operational. The next implementation must resolve byte-exact signing before enabling any actual sending.
