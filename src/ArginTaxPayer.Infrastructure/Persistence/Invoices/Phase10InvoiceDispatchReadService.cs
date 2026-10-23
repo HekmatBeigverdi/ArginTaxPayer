@@ -71,11 +71,11 @@ LIMIT 1
             if (!await reader.ReadAsync(ct))
                 return new(InvoiceApiDecision.Success);
             var state = reader.GetInt32(2);
-            var name = Enum.IsDefined(typeof(ArginTaxPayer.Domain.Invoices.InvoiceDispatchState),state)
+            var stateName = Enum.IsDefined(typeof(ArginTaxPayer.Domain.Invoices.InvoiceDispatchState),state)
                 ? ((ArginTaxPayer.Domain.Invoices.InvoiceDispatchState)state).ToString()
                 : "Unrecognized";
             return new(InvoiceApiDecision.Success, new(
-                reader.GetGuid(0),invoiceId,reader.GetInt64(1),name,reader.GetInt64(3),
+                reader.GetGuid(0),invoiceId,reader.GetInt64(1),stateName,reader.GetInt64(3),
                 reader.GetDateTime(4),"Mock",false,false,false));
         }
         finally

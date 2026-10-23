@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ACCESS_COOKIE, identityApiOrigin, identityUiEnabled } from "../../../../lib/identity";
-import { isSameLocalOrigin } from "../../../../lib/identity-origin.mjs";
+import { ACCESS_COOKIE, identityApiOrigin, identityUiEnabled } from "../../../../../lib/identity";
+import { isSameLocalOrigin } from "../../../../../lib/identity-origin.mjs";
 
 export const dynamic = "force-dynamic";
 type Context = { params: Promise<{ taxpayerId: string; invoiceId: string }> };
