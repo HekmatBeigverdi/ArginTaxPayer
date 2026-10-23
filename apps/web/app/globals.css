@@ -809,3 +809,21 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 .signing-admin-review__decision textarea{border:1px solid #becfcb;border-radius:7px;padding:8px;font:inherit;font-size:12px;resize:vertical}
 .signing-admin-review__actions{display:flex;gap:8px;flex-wrap:wrap}
 @media(max-width:640px){.signing-admin-review__item dl{grid-template-columns:1fr}}
+
+
+/* Phase10 Step17 — compact RTL invoice dispatch panel, existing Argin green theme. */
+.invoice-dispatch-ui{border:1px solid #cfdfd9;border-radius:10px;background:#f8fbfa;padding:12px;margin-top:12px;display:grid;gap:10px;min-width:0}
+.invoice-dispatch-ui__head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.invoice-dispatch-ui__head h3{font-size:14px;color:#20574b;margin:0 0 3px}
+.invoice-dispatch-ui__head p,.invoice-dispatch-ui__hint{font-size:11px;line-height:1.85;color:#5c756e;margin:0}
+.invoice-dispatch-ui__env{flex-shrink:0;font-size:10px;background:#e4f1ec;border:1px solid #bcd7cc;color:#20594b;border-radius:20px;padding:4px 9px;font-weight:700}
+.invoice-dispatch-ui__grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.invoice-dispatch-ui__grid>div{display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px;border:1px solid #e0eae5;border-radius:7px;padding:7px 9px;background:#fff;font-size:11px}
+.invoice-dispatch-ui__grid span,.invoice-dispatch-ui__state span{color:#58716a}
+.invoice-dispatch-ui__grid strong,.invoice-dispatch-ui__state strong{font-size:11px;color:#254f44}
+.invoice-dispatch-ui__state{display:flex;justify-content:space-between;align-items:center;gap:8px;border:1px solid #d5e5dd;background:#eaf5f0;border-radius:7px;padding:9px;font-size:11px}
+.invoice-dispatch-ui__actions{display:flex;flex-wrap:wrap;gap:7px;align-items:center}
+.invoice-dispatch-ui__actions button{min-height:32px!important;padding:5px 11px!important;font-size:11px!important;width:auto!important;margin:0!important}
+.invoice-dispatch-ui__actions button:disabled{opacity:.54;cursor:not-allowed}
+.invoice-dispatch-ui__hint{border-top:1px solid #dfebe4;padding-top:8px}
+@media(max-width:520px){.invoice-dispatch-ui__grid{grid-template-columns:1fr}.invoice-dispatch-ui__actions button{flex:1 1 140px}}
