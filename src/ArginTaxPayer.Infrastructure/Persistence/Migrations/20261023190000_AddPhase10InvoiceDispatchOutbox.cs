@@ -33,7 +33,7 @@ CREATE TABLE invoice_dispatch_operations (
  id uuid PRIMARY KEY,
  customer_user_id uuid NOT NULL REFERENCES identity_users(id) ON DELETE RESTRICT,
  taxpayer_id uuid NOT NULL REFERENCES taxpayer_profiles(id) ON DELETE RESTRICT,
- fiscal_memory_id uuid NOT NULL,
+ fiscal_memory_id uuid NOT NULL REFERENCES fiscal_memories(id) ON DELETE RESTRICT,
  invoice_id uuid NOT NULL,
  invoice_revision bigint NOT NULL,
  idempotency_key varchar(128) NOT NULL,
