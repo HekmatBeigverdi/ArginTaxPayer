@@ -2,10 +2,12 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-const api = readFileSync("src/ArginTaxPayer.Api/Invoices/Phase10InvoiceDispatchDevelopmentEndpoints.cs", "utf8");
-const service = readFileSync("src/ArginTaxPayer.Infrastructure/Persistence/Invoices/Phase10InvoiceDispatchReadService.cs", "utf8");
-const bff = readFileSync("apps/web/app/api/invoice-dispatch/[taxpayerId]/[invoiceId]/route.ts", "utf8");
-const startup = readFileSync("src/ArginTaxPayer.Api/Program.cs", "utf8");
+const root = new URL("../../../", import.meta.url);
+const read = path => readFileSync(new URL(path, root), "utf8");
+const api = read("src/ArginTaxPayer.Api/Invoices/Phase10InvoiceDispatchDevelopmentEndpoints.cs");
+const service = read("src/ArginTaxPayer.Infrastructure/Persistence/Invoices/Phase10InvoiceDispatchReadService.cs");
+const bff = read("apps/web/app/api/invoice-dispatch/[taxpayerId]/[invoiceId]/route.ts");
+const startup = read("src/ArginTaxPayer.Api/Program.cs");
 
 test("Step16 API never registers operational authority transport", () => {
   assert.match(api, /MapGet\("\/status"/);
