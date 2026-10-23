@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 10: Tax Authority Invoice Submission (Two-Pattern Delivery)
 
-**Status:** Steps 01–06 owner-approved; Step07 fail-closed preflight and immutable candidate snapshot implementation/test source committed; macOS acceptance and owner signoff pending. No production dispatch or DB migration.  
+**Status:** Steps 01–07 owner-approved. Step08 read-only Phase09 authority authentication bridge, DI wiring and unit tests committed; macOS runtime acceptance and owner signoff pending. No invoice dispatch or DB migration.  
 **Plan date:** 2026-10-23.  
 **Repository:** HekmatBeigverdi/ArginTaxPayer  
 **Base branch / inspected SHA:** `main` / `7112f03b7fe30ceea1aff7f04f587a1b0e939c92` (verify again at Step 01; Phase09 merge/release anchor `fde20594e733f96e032396f8e22e8781b14cac18`).  
@@ -1046,4 +1046,65 @@ No Next.js startup, PostgreSQL tunnel or Ubuntu VPS test required at Step07; Ubu
 | macOS test execution | Pending operator |
 | Ubuntu | Step23 only |
 
-**Owner approval required** before Step08. A Step07 acceptance is approval of this fail-closed preparatory boundary, not a claim that all fiscal invoices are ready for live transmission.
+**Step07 owner decision (2026-10-23):** explicitly approved in chat; no macOS test output provided with that decision, so no independent PASS claim. Approved Step07 establishes only the fail-closed preparatory boundary, not complete fiscal compliance, signing permission or live dispatch. Step08 authorized.
+
+## 17. Step 08 — Scoped Tax Authority authentication reuse (2026-10-23)
+
+**Status:** Implementation and tests committed. Operator macOS build and unit tests **not executed** in GitHub-only workflow. Await explicit owner signoff. No database migration, Tax Authority request, invoice transmission, service deployment or Ubuntu VPS operation performed.
+
+### Scope and source inventory
+
+Phase09 already implements actual scoped certificate-free key-based SELF_TSP authentication in `src/ArginTaxPayer.Infrastructure/Signing/Connection/LegacyTaxAuthorityConnection.cs` and its `SigningConnectionRegistration.cs`. Its existing read-only adapter obtains a token using the selected protected key and calls `GET_FISCAL_INFORMATION`; the result is classified based on actual expected structured data, **not** on HTTP 200 alone. The key is sourced via `EfSigningOperationRepository` authorization, `ProtectedKeyEnvelopeStore`, `KeyEnvelopeProtector`, the taxpayer and fiscal memory identity and the selected key version. Legacy authority HTTPS base URL is pinned to `https://tp.tax.gov.ir/req/api/`; no insecure TLS bypass. The current endpoint `src/ArginTaxPayer.Api/Taxpayers/SigningConnectionEndpoints.cs` is deliberately Development/loopback only and is **not** promoted into a production invoice-send endpoint.
+
+Phase09 source `SigningConnectionTestContracts.cs` explicitly distinguishes `Authenticated`, `AuthenticationRejected`, `NotAuthorized`, `KeyNotReady`, `VaultUnavailable`, `EndpointUnavailable`, `TimedOut`, `UnsupportedProfile` and `Indeterminate`, returning safe codes and bounded fiscal information. Authentication confirmation is neither activation/portal registration nor an authorization to transmit invoices.
+
+### Delivered Phase10 integration boundary
+
+- **Added** `src/ArginTaxPayer.Application/Invoices/Phase10AuthorityAuthentication.cs`: `IInvoiceAuthorityAuthentication`, `Phase09InvoiceAuthorityAuthentication`, bounded `InvoiceAuthorityAuthenticationStatus` and redacted `InvoiceAuthorityAuthenticationResult`. Validates nonempty auth and taxpayer/memory GUIDs locally, reuses `ISigningReadOnlyConnectionTest.TestAsync` with original caller token, and maps only safe status/date. Fails closed on unknown statuses. It never returns access token, packet, signature, private key, arbitrary provider response or error body.
+- **Changed** `src/ArginTaxPayer.Infrastructure/Signing/Connection/SigningConnectionRegistration.cs`: register `IInvoiceAuthorityAuthentication` as a scoped bridge next to the existing Phase09 read-only service. Existing explicit Phase09 configuration remains the authoritative enablement gate: when disabled, the already registered `UnavailableSigningReadOnlyConnectionTest` returns `UnsupportedProfile`; registration does not turn on any provider operation.
+- **Added** `tests/ArginTaxPayer.Tests/Phase10AuthorityAuthenticationTests.cs`: synthetic read-only provider, success separated from send permission, every classified failure, missing credentials/scope, unknown enum, pre-canceled token and no unintended provider calls.
+
+**No new HTTP endpoint or UI control**, no `SendInvoices` call, no token persistence and no source changes to Phase09's protected key-handling/signing code. This integration intentionally avoids a duplicate token flow and preserves the prior certificate-free method.
+
+### Required security and acceptance invariants
+
+1. The application layer must resolve and authorize current owner/customer/partner permission and selected taxpayer+memory from authenticated session. The Phase09 provider independently repeats its own scoped authorization. A browser-selected GUID is never sufficient.
+2. An `Authenticated` response proves the configured read-only Phase09 flow succeeded under the criteria of that provider; `IsFiscalSubmissionAuthorized=false` and `IsFiscalInvoiceAccepted=false` remain hard-coded. Final readiness additionally needs Step07 official rules, Step09 signing intent, Step11 durable dedupe and Step10 outbound packet/response contract.
+3. No unsupported modern SDK certificate/JWS path is auto-enabled. Where a configured taxpayer's cryptographic profile is unsupported, the status is `UnsupportedProfile` rather than insecure fallback or fabricated success.
+4. Runtime failures remain scoped and typed. No token, private-key material, full provider response, trace payload or sensitive header may enter DTO/logs. TLS pinning is to official host through existing Phase09 fixed URL and default trusted TLS validation.
+5. Phase09's existing read-only TestAsync is already capable of contacting the real authority when it is explicitly enabled and a valid authenticated caller invokes it. **This Step08 did not invoke it** or gain proof of a current operational session. The user's previously reported connection success is not treated as a newly reproduced test result.
+6. Live read-only authentication may be exercised by the operator only with explicit permission and safe environment checks; Phase10 Step22 remains the controlled live **invoice** send gate, not implied by Step08 approval.
+
+### macOS-only verification, no database migration
+
+```bash
+cd ~/projects/ArginTaxPayer
+git status --short
+git fetch origin --prune
+git switch phase/10-invoice-submission
+git pull --ff-only origin phase/10-invoice-submission
+git rev-parse HEAD
+
+dotnet restore ArginTaxPayer.sln
+dotnet build ArginTaxPayer.sln --no-restore
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --no-restore \
+  --filter "FullyQualifiedName~Phase10AuthorityAuthenticationTests|FullyQualifiedName~Phase09LegacyAuthorityConnectionTests|FullyQualifiedName~Phase09ConnectionResultPolicyTests|FullyQualifiedName~Phase10DispatchPreflightTests"
+dotnet test ArginTaxPayer.sln --no-build
+git status --short
+```
+
+No Next.js startup, PostgreSQL migration, real bearer/session, external call, macOS local process startup or Ubuntu VPS test is required for acceptance of this bounded integration step. **Ubuntu checks remain exclusively Step23**.
+
+### Step08 acceptance and Step09 dependencies
+
+| Acceptance item | Current evidence |
+| --- | --- |
+| Existing Phase09 identity/custody/read-only adapter reused | Source reviewed and DI registration added |
+| Redacted, typed auth bridge with no send permission | Implementation committed |
+| Unknown and non-success statuses fail closed | Unit tests committed; macOS execution pending |
+| Real authority connection to named taxpayer | Not rerun; no current evidence attached |
+| Official live submission wire compatibility | Not proven; Step09/10 gate |
+| DB schema/migration, external invoice request | None |
+| Ubuntu verification | Deferred to Step23 as owner directed |
+
+**Step08 owner acceptance** confirms safe reuse of the existing read-only authentication boundary; it does not assert that live invoice transmission, full field validation or authority acceptance works. Start Step09 only after explicit owner signoff.
