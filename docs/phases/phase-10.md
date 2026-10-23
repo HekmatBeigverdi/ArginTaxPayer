@@ -1,12 +1,13 @@
 # ArginTaxPayer — Phase 10: Tax Authority Invoice Submission (Two-Pattern Delivery)
 
-**Status:** Planned and documented; implementation not started; owner step-by-step approval required.  
+**Status:** Step 01 owner-approved (reported); Step 02 source/SDK analysis documented, macOS operator verification pending; no functional implementation started.  
 **Plan date:** 2026-10-23.  
 **Repository:** HekmatBeigverdi/ArginTaxPayer  
 **Base branch / inspected SHA:** `main` / `7112f03b7fe30ceea1aff7f04f587a1b0e939c92` (verify again at Step 01; Phase09 merge/release anchor `fde20594e733f96e032396f8e22e8781b14cac18`).  
 **Phase branch:** `phase/10-invoice-submission`  
 **Prior release:** `phase-09-v1.0.0`  
 **Fixed step count:** **24**. Do not renumber/extend without separate owner-approved scope amendment.  
+**Execution scheduling:** macOS tests during implementation; Ubuntu VPS review and same-SHA acceptance occur only in Step 23 (penultimate step), with closeout in Step 24. Step22 is macOS-controlled live authority acceptance, not Ubuntu.  
 **Primary objective:** Secure, auditable electronic invoice dispatch to the Tax Authority for exactly two patterns using Phase 07/08 invoice and Phase 09 key custody infrastructure, with one owner-authorized live invoice submission evidenced before phase acceptance.
 
 ## 1. Approved scope — deliberately narrow but extensible
@@ -62,7 +63,7 @@ Foreign exchange, gold/jewelry/platinum, utility bills, air tickets, export and 
 | Transport foundation | 05–09 | Migration reviewed and signing/auth contract tested |
 | Dispatch engine | 10–15 | Submission, no duplicate, response/recovery and legal lineage tested |
 | Operational UI | 16–19 | Two-pattern compact UI and scoped submission lifecycle |
-| Quality + real authority | 20–23 | macOS/Ubuntu same SHA, guarded live submission, regression/security and future-pattern dry run |
+| Quality + real authority | 20–23 | macOS-controlled live submission, then Ubuntu same-SHA verification specifically in Step23, regression/security and future-pattern dry run |
 | Closeout | 24 | Explicit owner publication authorization |
 
 ## 5. Fixed 24-step implementation matrix
@@ -90,8 +91,8 @@ Foreign exchange, gold/jewelry/platinum, utility bills, air tickets, export and 
 | 19 | Error recovery and permitted follow-up UI | 14–18 | Double-click, stale view, uncertain outcome and denial E2E tests. | Not started |
 | 20 | Security, regression and reference verification | 01–19 | Unit/integration/web/security tests; explicit negative evidence and unresolved exceptions. | Not started |
 | 21 | macOS operator acceptance | 20; migration approval if needed | Record exact SHA, command/result, current_database and secrets safe-handling checks. | Not started |
-| 22 | Ubuntu same-SHA and controlled live invoice acceptance | 21; live-send approval; legitimate invoice data | Cross-platform build/test, live API response and immutable receipt proof; report inconclusive outcomes honestly. | Not started |
-| 23 | Final scope/quality and extensibility audit | 20–22 | Extension dry-run with synthetic unsupported pattern (must fail closed), no production side effects; manual security checklist. | Not started |
+| 22 | macOS controlled live invoice acceptance | 21; live-send approval; legitimate invoice data | macOS live API response and immutable receipt proof; report inconclusive outcomes honestly. | Not started |
+| 23 | Ubuntu same-SHA acceptance and final extensibility audit | 20–22 | Ubuntu same-SHA build, tests, authenticated smoke only when safe, plus synthetic unsupported-pattern dry-run (must fail closed) and manual security checklist. | Not started |
 | 24 | Owner-gated closeout and publication | 23 + explicit owner approval | Verify GitHub SHA/tag/release, branch cleanliness, evidence and exceptions; no automatic deployment. | Not started |
 
 ## 6. Full per-step delivery contracts
@@ -285,22 +286,22 @@ Foreign exchange, gold/jewelry/platinum, utility bills, air tickets, export and 
 - **Deliverable:** Signed macOS acceptance record and reproducible logs.
 - **Execution status:** Not started. Await owner approval and previous step signoff.
 
-### Step 22 — Ubuntu same-SHA and controlled live invoice acceptance
+### Step 22 — macOS controlled live invoice acceptance
 
-- **Goal / change scope:** Verify same SHA on Ubuntu; with owner permission and properly authorized real taxpayer (e.g., Negin) submit one valid invoice, capture reference and independently distinguish acceptance from submission.
+- **Goal / change scope:** On macOS, with owner permission and properly authorized real taxpayer (e.g., Negin), submit one legitimate valid invoice, capture reference and distinguish acknowledgment from acceptance.
 - **Dependencies / prerequisites:** 21; live-send approval; legitimate invoice data.
-- **Acceptance criteria:** Cross-platform build/test, live API response and immutable receipt proof; report inconclusive outcomes honestly.
+- **Acceptance criteria:** macOS live API response and immutable receipt proof; report inconclusive outcomes honestly.
 - **Tests / evidence:** Record exact command, environment, SHA, objective results, failures, skipped tests and security assertions. Independent operator output and environment/SHA parity required.
-- **Deliverable:** Ubuntu and live authority acceptance evidence or explicitly documented blocker.
+- **Deliverable:** macOS controlled live-authority acceptance evidence or explicitly documented blocker.
 - **Execution status:** Not started. Await owner approval and previous step signoff.
 
-### Step 23 — Final scope/quality and extensibility audit
+### Step 23 — Ubuntu same-SHA acceptance and final extensibility audit
 
-- **Goal / change scope:** Review field/type/operation matrix, documentation, security debt and proof that adding next pattern only adds rules/mapper/UI metadata plus fixtures.
+- **Goal / change scope:** First perform independent Ubuntu VPS build, tests and security checks on the exact macOS-tested SHA; then review field/type/operation matrix, documentation, security debt and future-pattern extensibility.
 - **Dependencies / prerequisites:** 20–22.
-- **Acceptance criteria:** Extension dry-run with synthetic unsupported pattern (must fail closed), no production side effects; manual security checklist.
+- **Acceptance criteria:** Ubuntu same-SHA build, tests, authenticated smoke only when safe, plus synthetic unsupported-pattern dry-run (must fail closed) and manual security checklist.
 - **Tests / evidence:** Record exact command, environment, SHA, objective results, failures, skipped tests and security assertions. Focused domain, HTTP, persistence and/or UI fixtures covering authorized success, negative cases, concurrency and regression as applicable.
-- **Deliverable:** Closeout readiness and future-pattern implementation guide.
+- **Deliverable:** Ubuntu acceptance evidence, closeout readiness and future-pattern implementation guide.
 - **Execution status:** Not started. Await owner approval and previous step signoff.
 
 ### Step 24 — Owner-gated closeout and publication
@@ -376,7 +377,7 @@ Every step completion must add: modified paths, migration SQL status, macOS test
 1. On macOS, fetch and switch to `phase/10-invoice-submission` with a clean worktree (do not discard local changes). Verify `git rev-parse HEAD`, `git merge-base main HEAD`, GitHub tag and working tree status.
 2. Run `dotnet --version`, `dotnet restore ArginTaxPayer.sln`, `dotnet build ArginTaxPayer.sln --no-restore`, and `dotnet test ArginTaxPayer.sln --no-build`; record errors and exact summary. For web: `cd apps/web && npm ci && npm test && npm run typecheck && npm run build`. These are build/verification only, not live authority operations.
 3. Check `zsh scripts/dev-status.zsh` only if a status view is desired; no service startup or DB migration is required for Step01.
-4. At a subsequent Ubuntu acceptance checkpoint, fetch **the same Step01 commit SHA**, verify exact match and perform independent build/tests; never mix macOS and Ubuntu evidence from different SHAs.
+4. Defer **all Ubuntu execution** until Step23: there compare against the final macOS-tested source SHA; no Ubuntu server checks in Steps01–22.
 5. Audit `git status --short` after tests; generated/local files must remain untracked/ignored. Record any failures rather than assuming success.
 
 ### Implementation/evidence checklist
@@ -390,8 +391,112 @@ Every step completion must add: modified paths, migration SQL status, macOS test
 | Migration filenames / model inventory | Repository tree | Inventoried, database application unverified |
 | Design and 24-step freeze | This document | Documented |
 | macOS .NET/Node build and tests | Operator commands above | Pending |
-| Ubuntu same-SHA verification | Future acceptance gate | Not performed |
+| Ubuntu same-SHA verification | Step23 only | Not performed |
 | Live Tax Authority request | Explicitly excluded in Step01 | Not performed |
 | Owner Step01 acceptance | Await operator report | Pending |
 
-**Step01 signoff gate:** owner reviews macOS results and this evidence register. Only after explicit signoff begin Step02 official document/SDK traceability. Add the operator's exact tested SHA, outcomes, and any new exceptions to this same document.
+**Step01 owner decision (2026-10-23):** Owner explicitly approved Step01 in chat. Actual macOS execution outputs were not supplied in the approval message and therefore remain unverified evidence, not asserted PASS. Step02 is authorized; its own signoff must be separate. Only after explicit signoff begin Step02 official document/SDK traceability. Add the operator's exact tested SHA, outcomes, and any new exceptions to this same document.
+
+## 11. Step 02 — Official specification and archived SDK comparative matrix (2026-10-23)
+
+**Status:** Source review and design/fixture contract completed on repository branch; **no app code, tests, live calls or database changes**. Await macOS operator read-only/hash/tests and owner acceptance. Step03 is blocked.
+
+### 11.1 Authority/source precedence and inspection boundaries
+
+1. **Normative:** Owner-provided Iranian Tax Authority issuance specification `RC_IITP.IS V7.9` (Tir 1405; 116-page PDF), as inventoried and table/page-cited in the authoritative Phase07 document `docs/phases/phase-07-invoice-domain-rule-engine.md`. This source PDF itself was **not accessible for page-by-page reinspection in this GitHub-only step**, so table/page claims below are transcribed from Phase07 evidence and remain independently verifiable. Exact applicability/effective dates and newer amendments are **unresolved submission gates**, not inferred from publication month.
+2. **Primary implementation evidence:** checked-in `references/tax-sdk/legacy-0.0.34/TaxCollectData.Library.0.0.34.nupkg` and `.zip` and extracted `references/tax-sdk/modern-2.0.32/tax-collect-data-sdk-dotnet-tax-collect-data-sdk-2.0.32/` plus accompanying ZIP. Their presence verified; binary ZIP/NUPKG contents and fresh SHA256 hashes **not independently extracted or calculated during this GitHub step**. NuGet online URL is intentionally excluded.
+3. **Prior security evidence:** `docs/phases/phase-09.md` archives SHA256 evidence and compares legacy 0.0.30 source vs 0.0.34 binary, modern 2.0.32 source and package, legacy RSA PKCS#1 v1.5 signature vs certificate/JWS path. Hashes recorded in Phase09 are **historical evidence, not new verification**.
+4. Secondary web-accessible copies of issuance instructions indicate ordinary-sale pattern 1 and contracting pattern 4 and registered contract identifier, but **are not substituted for the provided V7.9 authority original**. No unverified remote NuGet source or live endpoints are part of this step.
+
+**Key scope correction:** Phase07 cites **Type1 Pattern1, Type2 Pattern1 and Type1 Pattern4** as the eligible type/pattern candidates within Phase10's two pattern families. V7.9's overall table contains many additional patterns; these are documented only for future addition and **must remain disabled**. Type3 has no regular Type1/Type2 pattern and is not a supported Phase10 transmission type. Cancellation's external type/pattern presence is a subject-specific exception; classification remains internal.
+
+### 11.2 Official type/pattern/subject matrix (Phase07 V7.9 table evidence)
+
+| Classification/subject | Source | Phase10 decision / fixture |
+| --- | --- | --- |
+| Type1, `inp=1` general goods/services | V7.9 Tables1 p14, 9 p31 | ENABLED after effective-rule review; `type1-general-original.json` golden baseline |
+| Type2, `inp=1` general sale | V7.9 Tables1 p14, 9 p31 | IN SCOPE, conditionally enabled after type2-specific buyer/settlement validation; `type2-general-original.json` |
+| Type1, `inp=4` contracting | V7.9 Tables1 p14, 9 p31, 11 pp33–35 | ENABLED only after verified seller contract registration ID (`crn`) and contracting-specific field checks; `type1-contract-original.json` |
+| Type2, `inp=4` contracting | V7.9 Table9 p31 (not listed) | DENY: `unsupported-pattern-type` fixture |
+| Subjects original 1, correction 2, cancellation 3, sales-return 4 | V7.9 section5 pp15–18, Table10 p32 | Explicit source-grounded allowed operation check for **each** enabled type/pattern |
+| `irtaxid` references | V7.9 Table8 p30; Table10 p32 | REQUIRED for correction/cancellation/return, FORBIDDEN on original; verify referenced-invoice existence/status and authorized lineage before sending |
+| Cancellation external `inty`/`inp` | V7.9 Table10 p32, Phase07 Step09 | Omit from outbound cancellation payload, preserve typed pattern classification internally; negative fixture forbids accidental inclusion |
+| Seller registration contract ID `crn` | V7.9 Table11 pp33–35 | Conditional/required for contracting original; reject unrelated `crn` on ordinary original; verify business-valid registration ID with authority before live send |
+| Non-enabled special patterns | V7.9 Tables1/9, Phase10 owner scope | DENY by explicit phase feature policy even if domain's historical legal matrix describes them |
+
+No item in this table is a license to submit until the official document's **effective date and current amendments**, other conditional validations, and signing wire profile are verified.
+
+### 11.3 Required/conditional field contract for the two patterns
+
+This is a **source-traceability schema**, not an assertion that every named field is legally mandatory. Classify each individual field as Required, Conditional, Optional or Forbidden by specific V7.9 table row in the implementation-stage detailed mapping; an SDK C# nullable type is not legal requiredness.
+
+| Segment | Candidate official JSON fields evidenced by archived 2.0.32 DTO | Grounded validation and source | Future golden fixture gate |
+| --- | --- | --- | --- |
+| Common identity/header | `taxid`, `indatim`, `indati2m`, `ins`, `inty`, `inp`, `inno` | V7.9 Table3 p24, Table4 pp25–26; correct unique tax ID, time and rules; outbound `inty/inp` depend on subject | Reject malformed/time-invalid ID, mismatched memory, forbidden cancellation fields |
+| Parties and purchaser | `tins`, `tob`, `tinb`, `bid`, `bpc`, `sbc`, `bbc` | Phase07 V7.9 conditional buyer/person/branch tables (Table11 pp33–35); distinguish Type1 vs Type2; check full official table per field | Two types with appropriate conditional buyer fields; no fabricated buyer |
+| Subject and contracting | `irtaxid`, `crn` | V7.9 Tables8,10,11; contract registration ID is not a local contract note; references link immutable prior invoices | Subject original/referring and contract ID presence/format/ownership |
+| Totals and settlement | `setm`, `tprdis`, `tdis`, `tadis`, `tvam`, `todam`, `tbill` | V7.9 Tables15–20 pp39–42 and settlement-specific rules; aggregate exactly from immutable line snapshots | Whole-rial totals, appropriate type/subject settlement, invalid reconciliation blocked |
+| Line catalog and prices | `sstid`, `sstt`, `mu`, `am`, `fee`, `prdis`, `dis`, `adis`, `vra`, `vam`, `tsstam` | V7.9 Tables29–32 pp50–52 and Tables40–44 pp58–63; `sstid` exactly 13 ASCII digits; `sstt` optional max400, `mu` fiscally optional but local catalog resolution required; `am` positive max18 integer/8 fractional digits | Unit/reference snapshot validity, numeric precision, tax classification, line/header reconciliation |
+| Payments | `Payments[]` with `pdt`, `pmt`, `pv`, `iinn`, `acn`, `trmn`, `trn` etc. | SDK `Dto/PaymentItemDto.cs` shows field **shape only**; official cash/credit/terms and applicability need table-by-table confirmation | Missing permitted/required settlement elements, no invented payment transaction |
+| Data container | `Header`, `Body[]`, `Payments[]`, `Extension[]` | SDK `Dto/InvoiceDto.cs` is serializer evidence; verify required/omitted/null behavior against official wire edition | Exact canonical serialized bytes and prohibited field omission |
+
+**Critical prior regression rule:** Phase07 Step10 documents V7.9 general truncation requirements; never reuse draft-only `InvoiceRoundingPolicy` midpoint choices for fiscal submission without implementing verified source-grounded truncation. Unit/catalog and VAT classification may be unresolved, which **blocks send rather than defaulting VAT to zero**.
+
+### 11.4 SDK wire/auth comparison and source paths
+
+All below refer to extracted `references/tax-sdk/modern-2.0.32/tax-collect-data-sdk-dotnet-tax-collect-data-sdk-2.0.32/TaxCollectData.Library/` unless labeled legacy.
+
+| Topic | Inspected exact path | Finding / Phase10 design gate |
+| --- | --- | --- |
+| Invoice DTO | `Dto/HeaderDto.cs`, `Dto/BodyItemDto.cs`, `Dto/InvoiceDto.cs`, `Dto/PaymentItemDto.cs` | Names and structural types found, including `crn`, `irtaxid` and `inp`; does not prove field requiredness or current API acceptance |
+| Submission / response | `Clients/TaxApi.cs`, `Clients/LowLevelTaxApi.cs` | `SendInvoicesAsync` exists; maps UID/reference/TaxId; validate partial/reordered/duplicate results and preserve unknown outcomes |
+| Packet sequence | `Providers/PacketProvider.cs` | `CreateInvoicePacket` invokes signing **then** encryption middleware; exact signature canonicalization/padding/serialized bytes must be fixture-pinned |
+| Nonce auth | `Clients/RestSharpHttpClient.cs` | Requests nonce then creates signed token/Authorization; avoid raw response-body error leakage and token logging |
+| Modern signature | `Cryptography/JwsSignatory.cs` | JWT/JWS RS256 with `x5c`, `sigT`, `typ`, `crit`, `cty` headers; separate certificate-backed wire path, **not equivalent to legacy simple RSA/Base64** |
+| Modern URL construction | `Properties/DefaultUrlProperties.cs` | Version marker `v2`; uses `Path.Combine` to form URL, **not safe to adopt blindly across macOS/Windows/Linux**. Use reviewed URI combination and fixed allowed destinations |
+| Old SDK evidence | `docs/phases/phase-09.md` source profile `legacy-key-source-0.0.30-rsa-sha256-pkcs1-base64` | Offline documented: RSA-SHA256 PKCS#1 v1.5, UTF8 canonicalization and ordinary Base64; **0.0.34 NuGet binary parity unverified** |
+| Signing ownership | Phase09 `Application/Signing` and custody contracts | Reuse owner-scoped server custody and authorize signing on immutable invoice hash. Never migrate to JWS/certificates implicitly |
+| Dependencies | Modern `TaxCollectData.Library.csproj` | `netstandard2.0`, SDK `2.0.32` and third-party package dependencies observed; not added to the app or executed |
+
+**Version decision:** No live protocol selected by Step02. Carry two explicitly separated candidate adapters (`legacy-key` and `modern-certificate-JWS`) in comparative design only. The Phase09 existing owner-approved key-based profile is favored for reuse if live authority support is verified. If V7.9/current authority wire rules require a certificate not available to the taxpayer, stop and request owner decision, do not auto-enable insecure bypasses.
+
+### 11.5 Golden fixture and negative-test catalogue (specification only)
+
+Proposed deterministic synthetic fixtures, to be created in implementation steps only (no new test files in Step02):
+
+- `type1-general-original.json`, `type2-general-original.json`, `type1-contract-original.json`.
+- `type1-general-correction.json`, `type1-general-cancellation.json`, `type1-general-sales-return.json`.
+- `type2-general-correction.json`, `type2-general-cancellation.json`, `type2-general-sales-return.json` **only where confirmed legal**.
+- `type1-contract-correction.json`, `type1-contract-cancellation.json`, `type1-contract-sales-return.json` **only where confirmed legal**.
+- `deny-type2-contract.json`, `deny-other-pattern.json`, `deny-no-crn.json`, `deny-no-irtaxid.json`, `deny-original-with-irtaxid.json`, `deny-cancellation-with-inty-inp.json`, `deny-invalid-taxid-or-line-id.json`, `deny-unresolved-vat.json`, `deny-unverified-effective-date.json`, `deny-unknown-wire-signature.json`.
+- Canonical signature fixtures must be compared byte-for-byte with approved versioned official evidence and fixed clock/nonce. Synthetic keys only; no real tokens, private keys, actual taxpayers, API calls or identifiers.
+
+### 11.6 Implementation blockers and explicit handoffs
+
+| Blocker / unknown | Current evidence | Resolution owner |
+| --- | --- | --- |
+| Current applicable V7.9 amendments and effective dates | Phase07 archived document/table references; original PDF not re-opened during Step02 | Step03 admission design + Step06/07 final rule gate; official verification mandatory before live enable |
+| Missing per-field official table row/condition for all header/payment/contract specifics | SDK DTO inspection plus Phase07 subset | Step06 mapper and Step07 preflight must complete exhaustive two-pattern table row matrix |
+| New archive SHA256, old 0.0.34 ZIP vs NUPKG parity | Presence verified, bytes not independently unpacked | Step02 macOS operator inspection and Step03 version architecture |
+| Legacy key-based endpoint compatibility | Phase09 offline key profile and reported connection; no independently verified live dispatch | Step08 authenticated read-only live evidence and Step09 signing profile |
+| Migration applicability / live DB proof | Files inventoried, no real DB history inspected | Step05 review, owner-approved test migration; macOS only until Step23 |
+| Reference/subject-specific requiredness and permissible operations | V7.9 tables as transcribed by Phase07 | Step15 per-pattern/per-operation legal fixtures |
+| Official packet encryption/canonicalization and error responses | Modern code signing/encrypt pipeline inspected; legacy parity outstanding | Steps08–10 transport contract fixtures |
+| Phase08 bulk import QA and Phase09 backup/restore/audit evidence | Explicit prior release exception | Step20 regression/security and Step23 Ubuntu final review |
+
+### 11.7 Revised platform schedule — owner decision (2026-10-23)
+
+**Owner explicitly directed Ubuntu testing only at the penultimate step.** This supersedes every earlier Gate A–D mention of Ubuntu in Steps01–22. Do not run `bash scripts/ubuntu-dev.sh verify`, server tests, VPS deployments or Ubuntu service checks before **Step23** unless owner separately changes the plan. Step22 remains **macOS-controlled owner-authorized live authority submission**. Step23 performs the first Ubuntu full independent build, tests, validated test DB and same-SHA parity checks. Step24 handles owner-gated closeout and release. If Step23 discovers a platform bug, fix on the phase branch and **retest the identical corrected SHA on macOS and Ubuntu within Step23** before closure; never accept mismatched SHA.
+
+### 11.8 Step01 acceptance and Step02 verification status
+
+- Step01: **owner approved** in chat 2026-10-23; no macOS output attached to that approval, so do not claim that its commands succeeded.
+- Step02: GitHub source, DTO and official provenance review performed; documented matrix and test case design above. No application code, operational tests, database migrations, official send, deployment, merge or release performed.
+- Operator macOS checks before owner accepts Step02:
+  1. `git rev-parse HEAD` matches the Step02 document commit; `git status --short` clean.
+  2. `shasum -a 256` over local ZIP/NUPKG files; compare original Phase09 evidence hashes **only when filenames/artifacts match**.
+  3. `unzip -l` (read-only) archives; flag binary-only vs source and suspicious samples; never execute archives.
+  4. Targeted `dotnet test` on Phase07 patterns/rules and Phase09 signing test classes; `dotnet build` for regression.
+  5. No Ubuntu, DB migration or live authority operation.
+
+**Step02 approval is independent; Step03 must not start automatically.**
