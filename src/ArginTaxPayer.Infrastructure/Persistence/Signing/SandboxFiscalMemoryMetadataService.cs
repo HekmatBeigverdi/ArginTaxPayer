@@ -207,6 +207,69 @@ RETURNING revision
         }
     }
 
+
+    /// <summary>
+    /// Offline RSA challenge sign+verify against registered Sandbox public key.
+    /// Never contacts tax authority and never returns the private key.
+    /// </summary>
+    public async Task<SandboxMemoryResult> SelfTestAsync(
+        string? bearer, Guid taxpayerId, CancellationToken ct=default)
+    {
+        var authorized=await AuthorizeAsync(bearer,taxpayerId,ct);
+        if(authorized.Code!=200)return new(authorized.Code,"sandbox_scope_denied");
+        var protector=services.GetService<KeyEnvelopeProtector>();
+        if(protector is null)return new(503,"sandbox_key_protection_unavailable");
+        var conn=db.Database.GetDbConnection();
+        var opened=conn.State!=ConnectionState.Open;
+        if(opened)await conn.OpenAsync(ct);
+        try {
+            await using var cmd=conn.CreateCommand();
+            cmd.CommandText="""
+SELECT id,public_spki_der,private_envelope_json,signing_key_version_id,origin_operation_id
+FROM sandbox_fiscal_memories
+WHERE customer_user_id=@owner AND taxpayer_id=@taxpayer
+""";
+            Add(cmd,"owner",authorized.Owner);Add(cmd,"taxpayer",taxpayerId);
+            await using var reader=await cmd.ExecuteReaderAsync(ct);
+            if(!await reader.ReadAsync(ct)||reader.IsDBNull(2))
+                return new(409,"sandbox_private_key_not_ready");
+            var memoryId=reader.GetGuid(0);
+            var publicSpki=(byte[])reader.GetValue(1);
+            var envelopeJson=reader.GetString(2);
+            var keyId=reader.GetGuid(3);var operationId=reader.GetGuid(4);
+            var identity=new KeyProtectionIdentity(authorized.Owner,taxpayerId,
+                memoryId,keyId,operationId,Sandbox:true);
+            ProtectedKeyEnvelope? envelope;
+            try {envelope=JsonSerializer.Deserialize<ProtectedKeyEnvelope>(envelopeJson);}
+            catch(JsonException){return new(503,"sandbox_key_integrity_failure");}
+            if(envelope is null)return new(503,"sandbox_key_integrity_failure");
+            using var secret=await protector.UnprotectAsync(identity,envelope,ct);
+            using var privateRsa=RSA.Create();
+            privateRsa.ImportPkcs8PrivateKey(secret.Bytes.Span,out var consumed);
+            if(consumed!=secret.Bytes.Length)return new(503,"sandbox_key_integrity_failure");
+            using var publicRsa=RSA.Create();
+            publicRsa.ImportSubjectPublicKeyInfo(publicSpki,out var read);
+            if(read!=publicSpki.Length)return new(503,"sandbox_key_integrity_failure");
+            var challenge=RandomNumberGenerator.GetBytes(32);
+            byte[]? signature=null;
+            try {
+                signature=privateRsa.SignData(challenge,HashAlgorithmName.SHA256,
+                    RSASignaturePadding.Pkcs1);
+                return publicRsa.VerifyData(challenge,signature,HashAlgorithmName.SHA256,
+                    RSASignaturePadding.Pkcs1)
+                    ?new(200,"sandbox_offline_key_self_test_passed")
+                    :new(503,"sandbox_key_integrity_failure");
+            }finally {
+                CryptographicOperations.ZeroMemory(challenge);
+                if(signature is not null)CryptographicOperations.ZeroMemory(signature);
+            }
+        }catch(KeyProtectionException){
+            return new(503,"sandbox_key_protection_unavailable");
+        }catch(CryptographicException){
+            return new(503,"sandbox_key_integrity_failure");
+        }finally{if(opened)await conn.CloseAsync();}
+    }
+
     private static async Task<object?> ScalarDatabaseAsync(
         System.Data.Common.DbConnection connection,
         System.Data.Common.DbTransaction transaction, CancellationToken ct)
