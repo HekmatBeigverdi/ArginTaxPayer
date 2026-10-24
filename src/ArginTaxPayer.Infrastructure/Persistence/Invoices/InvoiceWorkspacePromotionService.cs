@@ -5,6 +5,7 @@ using System.Text.Json;
 using ArginTaxPayer.Domain.Invoices;
 using ArginTaxPayer.Infrastructure.Persistence.Taxpayers;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Npgsql;
 
 namespace ArginTaxPayer.Infrastructure.Persistence.Invoices;
@@ -61,7 +62,7 @@ public sealed class InvoiceWorkspacePromotionService(
                 var input=JsonSerializer.Deserialize<SaveInvoiceEntryRequest>(
                     draft.DraftJson);
                 if(input is null||input.TaxpayerId!=draft.TaxpayerId||
-                    input.Id is not null||input.BuyerPartyId is null||
+                    input.BuyerPartyId is null||
                     input.Lines is not {Length: > 0 and <= 150} ||
                     input.FiscalMemoryId.HasValue == input.SandboxFiscalMemoryId.HasValue ||
                     input.Type!=1 || input.Pattern is not (1 or 4) ||
@@ -142,14 +143,6 @@ AND private_envelope_json IS NOT NULL)
                     InvoiceId=draft.Id,CustomerUserId=draft.CustomerUserId,
                     TaxpayerId=draft.TaxpayerId,Revision=1,SnapshotJson=canonical,
                     SnapshotSha256=hash,CapturedAtUtc=now
-                });
-                // Mark history but never delete or rewrite the original draft.
-                db.InvoiceEntryWorkspaceRevisions.Add(new InvoiceEntryWorkspaceRevision{
-                    WorkspaceId=draft.Id,CustomerUserId=draft.CustomerUserId,
-                    TaxpayerId=draft.TaxpayerId,Revision=draft.Revision,
-                    ActorUserId=actor.ActorId,Action="snapshot",
-                    Reason="ثبت نسخه ثابت داخلی، بدون مجوز ارسال مالیاتی",
-                    SnapshotJson=draft.DraftJson,OccurredAtUtc=now
                 });
                 await db.SaveChangesAsync(ct);
                 await tx.CommitAsync(ct);
