@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 10: Tax Authority Invoice Submission (Two-Pattern Delivery)
 
-**Status:** Steps 01–16 owner-approved. Step17 compact RTL invoice dispatch status panel, disabled send/inquiry controls and regression tests committed; macOS UI acceptance pending. No live invoice send, no DB migration. Ubuntu remains Step23.  
+**Owner acceptance update (2026-10-24):** Step18 approved by owner; Step19 recovery/follow-up code committed, macOS acceptance pending. The fixed 24-step roadmap titles are authoritative. The previous assistant incorrectly described Step19 as draft finalization; actual Step19 is error recovery and permitted follow-up UI. Invoice working-draft promotion/fiscal finalization remains a blocking integration gap; Step19 does not enable dispatch.\n\n**Status:** Steps 01–16 owner-approved. Step17 compact RTL invoice dispatch status panel, disabled send/inquiry controls and regression tests committed; macOS UI acceptance pending. No live invoice send, no DB migration. Ubuntu remains Step23.  
 **Plan date:** 2026-10-23.  
 **Repository:** HekmatBeigverdi/ArginTaxPayer  
 **Base branch / inspected SHA:** `main` / `7112f03b7fe30ceea1aff7f04f587a1b0e939c92` (verify again at Step 01; Phase09 merge/release anchor `fde20594e733f96e032396f8e22e8781b14cac18`).  
@@ -2060,3 +2060,40 @@ zsh scripts/dev-status.zsh
 
 
 **Final BFF regression fix:** `apps/web/app/api/invoices/[...segments]/route.ts` previously rejected `sandboxFiscalMemoryId` during POST workspace validation even if backend/UI supported it. Added this distinct allowlisted field, UUID format check and dual-environment exclusion (`fiscalMemoryId` + `sandboxFiscalMemoryId` cannot both be supplied). Extended `phase10-invoice-sandbox-official-id-readiness.test.mjs` accordingly. All GitHub commits are source-level, **not** a successful macOS .NET/Node test report.
+
+
+## Step18 approval and Step19 recovery/follow-up implementation — 2026-10-24
+
+**Operator decision:** owner explicitly approved Step18 and asked to implement next step. Step18 accepted at operator level, but independent macOS test outcomes were not provided; do not label unperformed tests passed.
+
+**Roadmap correction:** the fixed Step19 title is **"Error recovery and permitted follow-up UI"**, not "draft finalization". A prior message erroneously described it as fiscal finalization. This entry corrects that interpretation without silently renumbering the approved 24-step matrix. The existing working-draft-to-immutable-InvoiceDocument promotion remains a separately tracked end-to-end blocker of final dispatch; it is not made valid by clearing form warnings.
+
+**Step19 source work:**
+- `src/ArginTaxPayer.Application/Invoices/Phase10InvoiceRecoveryAdvice.cs`: pure deterministic policy for a persisted dispatch state. `Sending/Reserved/Indeterminate` -> **reconcile before retry**; `RetryEligible` -> **manual review** (NOT permission to resend); `Acknowledged` -> receipt is NOT fiscal acceptance; `FailedTerminal` -> no further send; unknown -> fail closed. Even for `NotPrepared/Prepared/Signed`, no sending is authorized. Workspaces -> finish draft rather than dispatch. Every result sets `MaySend=false`, `MayRetry=false`, `MayInquire=false`, `IsFiscalAccepted=false`.
+- `Phase10InvoiceDispatchHistoryService.cs`: adds read-only recovery action and safe code to already authenticated/scoped latest-operation projection; existing strict tenant/taxpayer/invoice checks and bounded attempts/receipts remain.
+- `apps/web/app/api/invoice-dispatch/[taxpayerId]/[invoiceId]/history/route.ts`: reads and allowlists recovery classification; rejects any response that attempts to enable resend or inquiry; uses no-store and has no mutation method.
+- `apps/web/app/invoices/invoice-dispatch-history-panel.tsx`: compact RTL status-specific instruction next to timeline; refresh disabled while loading to prevent double-click flood; no POST, no retries or live inquiry, explicit actionable human-readable distinctions.
+- `tests/ArginTaxPayer.Tests/Phase10Step19RecoveryAdviceTests.cs` and `apps/web/tests/phase10-step19-recovery-followup.test.mjs`: unknown/error/duplicate no-send regression tests, pure policy and structural UI tests.
+
+**Safety boundary:** This is **UI-visible recovery advice**, not an executable retry scheduler. Authority inquiry is not enabled; error recovery cannot be claimed fully operational until the end-to-end signed invoice creation/send pipeline and documented inquiry API are tested. Outbox data and prior receipts are never rewritten by Step19.
+
+**Acceptance tests to run on Mac**:
+```bash
+cd ~/projects/ArginTaxPayer
+git status --short
+git pull --ff-only origin phase/10-invoice-submission
+dotnet restore ArginTaxPayer.sln
+dotnet build ArginTaxPayer.sln --no-restore
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --no-restore \
+ --filter "FullyQualifiedName~Phase10Step19RecoveryAdviceTests"
+cd apps/web
+node --test tests/phase10-step18-dispatch-history.test.mjs tests/phase10-step19-recovery-followup.test.mjs
+npm run typecheck
+npm run build
+cd ..
+zsh scripts/dev-status.zsh
+```
+
+**Manual browser acceptance:** With authenticated authorized invoice document, inspect timeline and recovery advice for no operation / statuses and refresh. Stale/unauthorized endpoints must not leak other tenant state; refresh never sends requests to authority. Attempt rapid repeated clicks; no POST/send. On workspace draft, the unavailable dispatch history remains unavailable rather than pretending a final invoice exists. Verify both original Production and separate Sandbox keys remain unchanged. No migrations. No tag, merge, release or Ubuntu Step23 execution.
+
+**Status:** Step18 approved by owner. Step19 code submitted, tests/macOS/browser acceptance pending; next step not owner-approved.
