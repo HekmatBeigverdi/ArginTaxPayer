@@ -24,7 +24,7 @@ type Invoice = {
   customerUserId: string;
   taxpayerId: string;
   revision: number;
-  kind?: "workspace";
+  kind?: "workspace" | "internalSnapshot";
   lastCompletedStep?: number;
   state: string;
   subject: string;
