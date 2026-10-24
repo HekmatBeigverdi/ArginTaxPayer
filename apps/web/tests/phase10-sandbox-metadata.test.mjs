@@ -9,6 +9,7 @@ const bff=readFileSync("app/api/sandbox-memory/[taxpayerId]/route.ts","utf8");
 const ui=readFileSync("app/taxpayers/sandbox-fiscal-memory-panel.tsx","utf8");
 const custody=readFileSync("app/api/sandbox-memory/[taxpayerId]/private-key/route.ts","utf8");
 const identity=readFileSync("../../src/ArginTaxPayer.Infrastructure/Signing/Protection/KeyProtectionContracts.cs","utf8");
+const offline=readFileSync("app/api/sandbox-memory/[taxpayerId]/key-self-test/route.ts","utf8");
 
 test("sandbox metadata is additive test-only and never writes Production key tables",()=>{
   assert.match(migration,/current_database\(\) <> 'argintaxpayer_test'/);
@@ -63,4 +64,15 @@ test("private key transit is session authenticated with no secret response",()=>
   assert.match(ui,/privateKeyPem:pem/);
   assert.match(api,/MapPost\("\/private-key"/);
   assert.doesNotMatch(api,/GET_TOKEN|HttpClient/);
+});
+
+test("sandbox offline key verification does not authenticate with authority",()=>{
+  assert.match(api,/MapPost\("\/key-self-test"/);
+  assert.match(store,/SelfTestAsync/);
+  assert.match(store,/protector.UnprotectAsync\(identity,envelope,ct\)/);
+  assert.match(store,/privateRsa.SignData/);
+  assert.match(store,/publicRsa.VerifyData/);
+  assert.match(offline,/authorityAuthenticated:false/);
+  assert.match(ui,/تست صحت کلید ذخیره‌شده \(آفلاین\)/);
+  assert.doesNotMatch(offline,/tp\.tax\.gov\.ir|GET_TOKEN|HttpClient/);
 });
