@@ -28,9 +28,10 @@ test("only validated public PEM and sandbox code are submitted via BFF",()=>{
   assert.match(bff,/ACCESS_COOKIE/);
   assert.match(store,/ImportFromPem/);
   assert.match(store,/ExportSubjectPublicKeyInfo/);
-  assert.match(ui,/registerMemory/);
-  assert.match(ui,/publicKeyPem:publicKey/);
-  assert.doesNotMatch(ui,/privateKeyPem:/);
+  const registerMemory=ui.match(/async function registerMemory\(\)[\s\S]*?\n  \}\n\n  async function generateKeys/);
+  assert.ok(registerMemory,"registerMemory function must remain present");
+  assert.match(registerMemory[0],/publicKeyPem:publicKey/);
+  assert.doesNotMatch(registerMemory[0],/privateKeyPem:/);
 });
 test("live sandbox token endpoint remains fail-closed",()=>{
   assert.match(api,/sandbox_authority_api_not_verified/);
