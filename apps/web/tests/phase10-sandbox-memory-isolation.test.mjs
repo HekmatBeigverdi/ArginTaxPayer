@@ -27,8 +27,9 @@ test("sandbox generates independent browser RSA keypair without loading producti
 test("sandbox cannot silently connect to actual production token endpoint",()=>{
   assert.match(sandbox,/تست اتصال Sandbox/);
   assert.match(sandbox,/disabled title="آدرس رسمی API/);
-  assert.match(sandbox,/disabled title="نگهداری مستقل Sandbox/);
-  assert.doesNotMatch(sandbox,/fetch\(/);
+  assert.match(sandbox,/registerMemory/);
+  assert.match(sandbox,/\/api\/sandbox-memory\//);
+  assert.doesNotMatch(sandbox,/\/api\/signing\//);
   assert.match(production,/https:\/\/tp\.tax\.gov\.ir\/req\/api\//);
   assert.match(scopes,/AllowsFallback/);
   assert.match(scopes,/fallback\) => false/);
