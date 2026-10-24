@@ -3,7 +3,6 @@
 import {useEffect,useState} from "react";
 import OperationMessageBox from "./operation-message-box";
 
-type KeyFiles = {publicPem:string;privatePem:string};
 function toPem(bytes:ArrayBuffer,label:string):string {
   const chars=Array.from(new Uint8Array(bytes),v=>String.fromCharCode(v)).join("");
   const encoded=btoa(chars).match(/.{1,64}/g)?.join("\n") ?? "";
@@ -19,10 +18,9 @@ function download(name:string,contents:string) {
 
 /**
  * Standalone Sandbox onboarding UI. Does NOT reuse existing production key,
- * memory identifier or real connection-test endpoint. Generated key is only
- * delivered to operator; private PEM is not posted or logged. Until isolated
- * server custody and the official Sandbox API origin are installed, neither
- * identifier registration nor connection test may claim success.
+ * memory identifier or real connection-test endpoint. Generated key is first delivered to the operator. Optional private PEM
+ * import is scoped to Sandbox and encrypted server-side. Live connection
+ * stays blocked until the official Sandbox API profile is verified.
  */
 export default function SandboxFiscalMemoryPanel({taxpayerId}:{taxpayerId:string}) {
   const [identifier,setIdentifier]=useState("");
@@ -142,7 +140,7 @@ export default function SandboxFiscalMemoryPanel({taxpayerId}:{taxpayerId:string
     <div className="sandbox-memory-panel__steps">
       <section>
         <strong>۱. تولید جفت‌کلید آزمایشی</strong>
-        <p>کلید در مرورگر فعلی ساخته می‌شود و در قالب دو فایل PEM تحویل داده می‌شود. این نسخه هنوز کلید خصوصی را در سرور ذخیره نمی‌کند؛ فایل را در محلی امن نگه دارید.</p>
+        <p>کلید در مرورگر فعلی ساخته می‌شود و در قالب دو فایل PEM تحویل داده می‌شود. برای نگهداری سمت سرور، فایل خصوصی را پس از ثبت شناسه از بخش ۴ وارد کنید. فایل اولیه را در محلی امن نگه دارید.</p>
         <label className="sandbox-memory-panel__consent">
           <input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)}
             disabled={generating}/>
@@ -185,7 +183,7 @@ export default function SandboxFiscalMemoryPanel({taxpayerId}:{taxpayerId:string
         {identifier&&!validIdentifier&&<p role="status">قالب شناسه را بررسی کنید.</p>}
         {reading&&<p role="status">در حال بارگذاری اطلاعات Sandbox…</p>}
         {registered&&<p role="status">شناسه آزمایشی ثبت شده است. اثر انگشت کلید عمومی: <bdi dir="ltr">{registered.publicFingerprintSha256}</bdi></p>}
-        <p className="field-hint">ثبت فقط شامل شناسه آزمایشی و Public Key است؛ Private Key در سرور ذخیره نمی‌شود. پس از ثبت، تغییر کلید نیازمند فرایند کنترل‌شده جداگانه است.</p>
+        <p className="field-hint">در این مرحله فقط شناسه آزمایشی و Public Key ثبت می‌شود. سپس می‌توانید کلید خصوصی را جداگانه و رمزگذاری‌شده ذخیره کنید. تغییر کلید نیازمند فرایند کنترل‌شده است.</p>
         <button type="button" className="identity-secondary"
           disabled={!generated||!validIdentifier||!!registered||saving||reading}
           onClick={()=>void registerMemory()}>
@@ -208,8 +206,8 @@ export default function SandboxFiscalMemoryPanel({taxpayerId}:{taxpayerId:string
       </section>
       <section>
         <strong>۵. تست اتصال Sandbox</strong>
-        <p>این دکمه نباید درخواست را به <bdi dir="ltr">tp.tax.gov.ir</bdi> ارسال کند. تا تأیید آدرس API اختصاصی Sandbox و نگهداری امن کلید، اتصال غیرفعال است.</p>
-        <button type="button" className="identity-primary" disabled title="آدرس رسمی API سندباکس و نگهداری امن کلید باید تأیید شود">
+        <p>این دکمه نباید درخواست را به <bdi dir="ltr">tp.tax.gov.ir</bdi> ارسال کند. تا تأیید آدرس API اختصاصی Sandbox و آزمون ایمن آن، اتصال غیرفعال است.</p>
+        <button type="button" className="identity-primary" disabled title="آدرس رسمی API سندباکس هنوز تأیید نشده است">
           تست اتصال Sandbox
         </button>
       </section>
