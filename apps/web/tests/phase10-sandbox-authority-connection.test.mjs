@@ -8,7 +8,7 @@ const bff=readFileSync("app/api/sandbox-memory/[taxpayerId]/connection-test/rout
 const ui=readFileSync("app/taxpayers/sandbox-fiscal-memory-panel.tsx","utf8");
 const startup=readFileSync("../../src/ArginTaxPayer.Api/Program.cs","utf8");
 test("Sandbox signed probe uses two read-only authority operations on opt-in isolated origin",()=>{
-  assert.match(probe,/SandboxConnectionTest:OfficialApiVerified/);
+  assert.match(probe,/SandboxConnectionTest:OperatorApprovedExperimentalApi/);
   assert.match(probe,/SandboxConnectionTest:Enabled/);
   assert.match(probe,/sandboxrc\.tax\.gov\.ir/);
   assert.match(probe,/uri\.Host != "sandboxrc\.tax\.gov\.ir"/);
