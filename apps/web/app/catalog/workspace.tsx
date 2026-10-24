@@ -239,7 +239,7 @@ export default function CatalogWorkspace({ actorId }: { actorId: string }) {
         </label>
         <button type="button" className="identity-secondary" disabled={loading} onClick={()=>void load()}>بازخوانی</button>
       </div>
-      {kind !== "official" && <p className="catalog-help">نمایش و ثبت فقط برای حساب انتخاب‌شده: <strong>{customerLabel}</strong>. دسترسی توسط سرور و مالکیت تجاری کنترل می‌شود.</p>}
+      {kind !== "official" && <p className="catalog-help">نمایش و ثبت فقط برای حساب انتخاب‌شده: <strong>{customerLabel}</strong>. «کد داخلی» برای مدیریت کالا در ArginTaxPayer است. برای صورتحساب مؤدیان، پس از ثبت کالا در جدول روی «نگاشت» کلیک کنید و شناسه رسمی ۱۳ رقمی را از مرجع فعال انتخاب کنید. دسترسی توسط سرور و مالکیت تجاری کنترل می‌شود.</p>}
     </section>
     {error && <p className="form-error" role="alert">{error}</p>}
     {info && <p className="catalog-message" role="status">{info}</p>}
@@ -254,7 +254,7 @@ export default function CatalogWorkspace({ actorId }: { actorId: string }) {
         </header>
         <div className="catalog-editor-body">
           <form onSubmit={save} className="catalog-form">
-            <label>کد داخلی
+            <label>کد داخلی (صرفاً شناسه داخل نرم‌افزار؛ کد رسمی ۱۳ رقمی نیست)
               <input required maxLength={100} dir="ltr" value={code} onChange={e=>setCode(e.target.value)}/></label>
             <label>عنوان
               <input required minLength={2} maxLength={256} value={title} onChange={e=>setTitle(e.target.value)}/></label>
@@ -306,7 +306,7 @@ export default function CatalogWorkspace({ actorId }: { actorId: string }) {
     {selected && kind !== "official" && <section className="catalog-card">
       <div className="catalog-bar"><h2>نگاشت شناسه رسمی برای {selected.title}</h2>
         <button type="button" onClick={()=>setSelected(null)}>بستن</button></div>
-      <p className="catalog-help">فقط شناسه رسمی تأییدشده و فعال را انتخاب کنید. برای تغییر نگاشت، بازه قبلی ابتدا باید بسته شود.</p>
+      <p className="catalog-help">شناسه رسمی ۱۳ رقمی کالا یا خدمت (sstid) از فهرست شناسه‌های رسمی واردشده و تأییدشده انتخاب می‌شود. این شناسه با کد داخلی کالا فرق دارد؛ برای ثبت در صورتحساب لازم است یک نگاشت معتبر در تاریخ صدور فاکتور وجود داشته باشد. اگر نتیجه‌ای نیست، ابتدا مرجع رسمی کالا و خدمات را از منبع معتبر وارد و فعال کنید. برای تغییر نگاشت، بازه قبلی ابتدا باید بسته شود.</p>
       <div className="catalog-filters">
         <label>جست‌وجوی شناسه رسمی <input value={officialCode} onChange={e=>setOfficialCode(e.target.value)} /></label>
         <button type="button" onClick={()=>void findOfficial()}>جست‌وجو</button>
