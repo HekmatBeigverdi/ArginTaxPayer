@@ -41,6 +41,17 @@ public sealed class InvoiceWorkspacePromotionService(
             return await db.Database.CreateExecutionStrategy().ExecuteAsync(async()=>{
                 await using var tx=await db.Database.BeginTransactionAsync(
                     IsolationLevel.Serializable,ct);
+                // Lock source row to serialize preparation against concurrent saves.
+                var connection=db.Database.GetDbConnection();
+                await using(var lockCommand=connection.CreateCommand()) {
+                    lockCommand.Transaction=db.Database.CurrentTransaction!.GetDbTransaction();
+                    lockCommand.CommandText="SELECT id FROM invoice_entry_workspaces WHERE id=@id FOR UPDATE";
+                    var parameter=lockCommand.CreateParameter();
+                    parameter.ParameterName="id";parameter.Value=workspaceId;
+                    lockCommand.Parameters.Add(parameter);
+                    if(await lockCommand.ExecuteScalarAsync(ct) is null)
+                        return new InvoiceWorkspacePromotionResult(InvoiceApiDecision.NotFound);
+                }
                 var draft=await db.InvoiceEntryWorkspaces.AsNoTracking()
                     .Where(w=>w.Id==workspaceId && accessible.Contains(w.TaxpayerId))
                     .SingleOrDefaultAsync(ct);
@@ -66,6 +77,7 @@ public sealed class InvoiceWorkspacePromotionService(
                     input.Lines is not {Length: > 0 and <= 150} ||
                     input.FiscalMemoryId.HasValue == input.SandboxFiscalMemoryId.HasValue ||
                     input.Type!=1 || input.Pattern is not (1 or 4) ||
+                    (input.Pattern==4 && string.IsNullOrWhiteSpace(input.ContractNumber)) ||
                     input.Lines.Any(x=>x.CatalogItemId is null ||
                         x.OfficialIdentifierSnapshot is not {Length:13} ||
                         !x.OfficialIdentifierSnapshot.All(char.IsAsciiDigit) ||
