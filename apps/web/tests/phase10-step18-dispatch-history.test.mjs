@@ -1,0 +1,40 @@
+import {test} from "node:test";
+import assert from "node:assert/strict";
+import {readFileSync} from "node:fs";
+const backend=readFileSync("../../src/ArginTaxPayer.Infrastructure/Persistence/Invoices/Phase10InvoiceDispatchHistoryService.cs","utf8");
+const api=readFileSync("../../src/ArginTaxPayer.Api/Invoices/Phase10InvoiceDispatchDevelopmentEndpoints.cs","utf8");
+const bff=readFileSync("app/api/invoice-dispatch/[taxpayerId]/[invoiceId]/history/route.ts","utf8");
+const ui=readFileSync("app/invoices/invoice-dispatch-history-panel.tsx","utf8");
+const workspace=readFileSync("app/invoices/workspace.tsx","utf8");
+const startup=readFileSync("../../src/ArginTaxPayer.Api/Program.cs","utf8");
+test("history service verifies owner, taxpayer and invoice before scoped evidence reads",()=>{
+  assert.match(backend,/scope\.ResolveAsync/);
+  assert.match(backend,/scope\.ScopedQuery/);
+  assert.match(backend,/db\.InvoiceDocuments\.AsNoTracking/);
+  assert.match(backend,/customer_user_id=@owner AND taxpayer_id=@taxpayer AND invoice_id=@invoice/);
+  assert.match(backend,/WHERE operation_id=@operation/);
+  assert.match(backend,/LIMIT 30/);
+  assert.doesNotMatch(backend,/POST|HttpClient|SendAsync|private_envelope_json/);
+});
+test("history never claims signed preview, fiscal accepted or live sending",()=>{
+  assert.match(backend,/new\("Mock",false,false,false/);
+  assert.match(backend,/Signed packet bytes are deliberately not read/);
+  assert.match(api,/MapGet\("\/history"/);
+  assert.match(startup,/AddScoped<Phase10InvoiceDispatchHistoryService>/);
+  assert.match(bff,/signedPreviewAvailable:false/);
+  assert.match(bff,/fiscalAccepted:false/);
+  assert.match(bff,/submissionEnabled:false/);
+  assert.match(bff,/ACCESS_COOKIE/);
+  assert.doesNotMatch(bff,/export async function POST/);
+});
+test("UI shows loader, attempts, receipts, opt-in but cannot submit",()=>{
+  assert.match(ui,/role="status" aria-busy="true"/);
+  assert.match(ui,/data\.attempts\.map/);
+  assert.match(ui,/data\.receipts\.map/);
+  assert.match(ui,/const \[consent,setConsent\]/);
+  assert.match(ui,/تأیید و ارسال صورتحساب/);
+  assert.match(ui,/className="identity-primary" disabled/);
+  assert.doesNotMatch(ui,/method:"POST"/);
+  assert.match(ui,/Signed|بسته امضاشده/);
+  assert.match(workspace,/InvoiceDispatchHistoryPanel/);
+});
