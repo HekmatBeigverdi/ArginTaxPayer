@@ -11,6 +11,8 @@ function target(segments: string[], method: "GET" | "POST"): string | null {
       return "/api/dev/invoice-workspaces/bulk";
     if (segments.length === 1 && (method === "GET" || method === "POST"))
       return "/api/dev/invoice-workspaces";
+    if (segments.length===3 && segments[2]==="prepare" && method==="POST" && uuid.test(segments[1]))
+      return "/api/dev/invoice-workspaces/"+segments[1]+"/prepare";
     if (segments.length === 3 && method === "GET" && uuid.test(segments[1]) &&
         segments[2] === "history") return "/api/dev/invoice-workspaces/"+segments[1]+"/history";
     if (segments.length === 3 && method === "GET" && uuid.test(segments[1]) &&
@@ -80,6 +82,10 @@ async function proxy(request: NextRequest, context: Context, method: "GET" | "PO
                 draft.id!=null || draft.expectedRevision!==0 || draft.lastCompletedStep!==2;
             }))
           return error(400,"invalid_bulk_manifest");
+      } else if (segments[0] === "workspaces" && segments.length===3 && segments[2]==="prepare") {
+        if(Object.keys(data).length!==1 || typeof data.expectedRevision!=="number" ||
+          !Number.isSafeInteger(data.expectedRevision)||data.expectedRevision<1)
+          return error(400,"invalid_snapshot_revision");
       } else if (segments[0] === "workspaces") {
         const permitted = ["id","taxpayerId","expectedRevision","lastCompletedStep",
           "issueDateUtc","buyerPartyId","type","pattern","lines",
