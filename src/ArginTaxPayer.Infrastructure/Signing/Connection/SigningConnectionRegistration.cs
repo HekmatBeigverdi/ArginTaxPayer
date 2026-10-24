@@ -11,6 +11,15 @@ namespace ArginTaxPayer.Infrastructure.Signing.Connection;
 
 public static class SigningConnectionRegistration
 {
+    public static IServiceCollection AddPhase10SandboxConnection(this IServiceCollection services)
+    {
+        services.AddScoped<SandboxAuthorityTokenProbe>();
+        return services;
+    }
+
+    public static bool SandboxConnectionConfigured(IConfiguration config) =>
+        SandboxAuthorityTokenProbe.TryResolveBaseUrl(config, out _);
+
     public static IServiceCollection AddPhase09AuthorityConnection(
         this IServiceCollection services, IConfiguration config)
     {
