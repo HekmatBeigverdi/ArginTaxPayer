@@ -41,7 +41,8 @@ public sealed record InvoiceWorkspaceHistoryResult(InvoiceApiDecision Decision,
 
 public sealed record InvoiceEntryLine(Guid? CatalogItemId, string Description,
     decimal Quantity, decimal UnitPriceRial, decimal DiscountPerUnitRial, decimal? VatRatePercent,
-    Guid? UnitId = null, string? CatalogCodeSnapshot = null);
+    Guid? UnitId = null, string? CatalogCodeSnapshot = null,
+    string? OfficialIdentifierSnapshot = null);
 public enum InvoiceDraftSettlementMethod { Unknown = 0, Cash = 1, Credit = 2, CashAndCredit = 3 }
 
 public sealed record InvoiceDraftFinancialSummary(decimal GrossRial, decimal DiscountRial,
@@ -308,10 +309,26 @@ SELECT EXISTS(
             .Select(l => l.CatalogItemId!.Value).Distinct().ToArray();
         var catalogItems = await db.CustomerCatalogItems.AsNoTracking()
             .Where(c => productIds.Contains(c.Id) && c.CustomerUserId == access.Item2)
-            .Select(c => new { c.Id, c.InternalCode, c.BaseUnitId, c.Status })
+            .Select(c => new { c.Id, c.InternalCode, c.BaseUnitId, c.Status, c.Kind })
             .ToDictionaryAsync(c => c.Id, ct);
         if (productIds.Any(id => !catalogItems.ContainsKey(id)))
             return new(InvoiceApiDecision.Invalid);
+        // Freeze a server-derived 13-digit official identifier candidate
+        // separately from the product's internal code. This is catalog
+        // metadata, NOT governmental authorization to submit an invoice.
+        var validOfficialMappings = await db.CatalogOfficialMappings.AsNoTracking()
+            .Where(m => productIds.Contains(m.ItemId) &&
+                m.EffectiveFromUtc<=input.IssueDateUtc &&
+                (m.EffectiveToUtc==null || m.EffectiveToUtc>input.IssueDateUtc))
+            .Join(db.OfficialGoodsServiceEntries.AsNoTracking(),
+                m=>m.OfficialEntryId,e=>e.Id,(m,e)=>new{m.ItemId,e.Code,e.Kind,
+                    e.VerificationStatus,e.ReleaseId})
+            .Where(x=>x.VerificationStatus==2 && x.Code.Length==13 &&
+                db.CatalogReferenceReleases.Any(r=>r.Id==x.ReleaseId&&r.State==3))
+            .ToArrayAsync(ct);
+        var officialByItem=validOfficialMappings
+            .GroupBy(x=>x.ItemId)
+            .ToDictionary(g=>g.Key,g=>g.ToArray());
         var original = input.Id is { } existingId
             ? await db.InvoiceEntryWorkspaces.AsNoTracking()
                 .Where(w => w.Id == existingId && w.CustomerUserId == access.Item2)
@@ -324,7 +341,8 @@ SELECT EXISTS(
         {
             if (line.CatalogItemId is not { } itemId)
             {
-                if (line.UnitId is not null || line.CatalogCodeSnapshot is not null)
+                if (line.UnitId is not null || line.CatalogCodeSnapshot is not null ||
+                    line.OfficialIdentifierSnapshot is not null)
                     return new(InvoiceApiDecision.Invalid);
                 canonicalLines.Add(line);
                 continue;
@@ -340,9 +358,16 @@ SELECT EXISTS(
             var code = previous?.CatalogCodeSnapshot ?? item.InternalCode;
             if (line.UnitId is { } requestedUnit && requestedUnit != unit)
                 return new(InvoiceApiDecision.Invalid);
+            var officialCandidates=officialByItem.GetValueOrDefault(itemId) ?? [];
+            var matched=officialCandidates.Where(x=>item.Kind is 1 or 2
+                ? x.Kind==1 : x.Kind==2).Select(x=>x.Code).Distinct().ToArray();
+            // Never accept a caller-provided official code or silently treat
+            // an ambiguous mapping as one verified code.
+            var officialCode=matched.Length==1?matched[0]:null;
             canonicalLines.Add(line with {
                 UnitId = unit,
-                CatalogCodeSnapshot = code
+                CatalogCodeSnapshot = code,
+                OfficialIdentifierSnapshot = officialCode
             });
         }
 
