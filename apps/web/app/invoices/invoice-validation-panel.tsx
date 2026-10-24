@@ -4,7 +4,9 @@ import { useEffect, useState } from "react";
 
 type Finding = { key:string; severity:"error"|"warning"; fieldPath:string; message:string };
 type Evaluation = { draftId:string; revision:number; edition:string;
-  isSubmissionAuthorized:boolean; findings:Finding[] };
+  isSubmissionAuthorized:boolean; findings:Finding[];
+  formHasBlockingErrors?:boolean;
+  selectedEnvironment?:"Sandbox"|"Production"|"Unselected" };
 type Ref = { id:string; subject:string; state:string; issueDateUtc:string;
   revision:number; fiscalIdentifierVerified:boolean; fiscalIdentifier:string|null };
 const subjectNames = [
@@ -76,6 +78,8 @@ export default function InvoiceValidationPanel({
     {report && <div className="invoice-validation__findings">
       <div className="invoice-validation__summary">
         <strong>ویرایش {report.revision} · قواعد {report.edition}</strong>
+        <small>حافظه انتخابی: {report.selectedEnvironment==="Sandbox"?"Sandbox (آزمایشی)":
+          report.selectedEnvironment==="Production"?"Production (واقعی)":"انتخاب نشده"}</small>
         <span>{issues.filter(f=>f.severity==="error").length} خطا ·
           {" "}{issues.filter(f=>f.severity==="warning").length} هشدار</span>
       </div>
@@ -87,7 +91,7 @@ export default function InvoiceValidationPanel({
           <code dir="ltr">{f.fieldPath}</code>
         </li>)}</ul>}
       <p className="invoice-validation__warning">
-        <strong>وضعیت: پیش‌نویس داخلی، نه صورتحساب قطعی قابل ارسال.</strong>
+        <strong>{report.formHasBlockingErrors?"فرم دارای خطای تکمیل است":"فرم برای پیش‌بررسی داخلی بررسی شد؛ هنوز قطعی و قابل ارسال نیست"}.</strong>
         <span> حتی اگر خطای فرم صفر باشد، صدور قطعی مستلزم شناسه رسمی ۱۳ رقمی تمام اقلام، حافظه معتبر در محیط انتخابی، تولید شناسه یکتای مالیاتی صورتحساب، اعتبارسنجی قواعد معتبر و آماده‌سازی بسته امضاشده است. امکان ارسال Sandbox با تست اتصال حافظه به‌تنهایی ایجاد نمی‌شود.</span>
       </p>
     </div>}
