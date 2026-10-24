@@ -13,39 +13,164 @@ import InvoiceImportPanel, {type ImportValues} from "./invoice-import-panel";
 import BulkInvoiceImportPanel from "./bulk-invoice-import-panel";
 import {invoicePreview} from "./invoice-financial-preview.mjs";
 
-type Taxpayer = { id: string; displayName: string; status: number };
-type Invoice = { id: string; customerUserId: string; taxpayerId: string; revision: number;
-  kind?: "workspace"; lastCompletedStep?: number;
-  state: string; subject: string; issueDateUtc: string; updatedAtUtc: string;
+type Taxpayer = {
+  id: string;
+  displayName: string;
+  status: number;
+};
+
+type Invoice = {
+  id: string;
+  customerUserId: string;
+  taxpayerId: string;
+  revision: number;
+  kind?: "workspace";
+  lastCompletedStep?: number;
+  state: string;
+  subject: string;
+  issueDateUtc: string;
+  updatedAtUtc: string;
   reviewState?: "WorkingDraft" | "Draft" | "InReview" | "ChangesRequested" | "Approved";
-  systemCode?: string; sellerName?: string | null; buyerName?: string | null };
-type CatalogItem = { id: string; title: string; internalCode?: string; baseUnitId?: string };
-type HeaderOptions = {taxpayer:{id:string;displayName:string;normalizedIdentifier:string};
-  memories:{id:string;memoryIdentifier:string;status:number}[];
-  sandboxMemories?:{id:string;memoryIdentifier:string;environment:"Sandbox"}[]};
-type FormMetadata = { edition: string; verifiedForSubmission: boolean;
-  entries: {type:number;pattern:number|null;requiredFields:string[]}[] };
+  systemCode?: string;
+  sellerName?: string | null;
+  buyerName?: string | null;
+};
+
+type CatalogItem = {
+  id: string;
+  title: string;
+  internalCode?: string;
+  officialCode?: string | null;
+  baseUnitId?: string;
+};
+
+type HeaderOptions = {
+  taxpayer: {
+    id: string;
+    displayName: string;
+    normalizedIdentifier: string;
+  };
+  memories: { id: string; memoryIdentifier: string; status: number }[];
+  sandboxMemories?: {
+    id: string;
+    memoryIdentifier: string;
+    environment: "Sandbox";
+  }[];
+};
+
+type FormMetadata = {
+  edition: string;
+  verifiedForSubmission: boolean;
+  entries: { type: number; pattern: number | null; requiredFields: string[] }[];
+};
 type CatalogPage = { items: CatalogItem[] };
-type Account = { customerUserId: string; companyName?: string | null; personName?: string | null };
-type FiscalEntry = { id: string; customerUserId: string; type: "buyer" | "taxpayer"; displayName: string; identifier: string; status: number };
+type Account = {
+  customerUserId: string;
+  companyName?: string | null;
+  personName?: string | null;
+};
+
+type FiscalEntry = {
+  id: string;
+  customerUserId: string;
+  type: "buyer" | "taxpayer";
+  displayName: string;
+  identifier: string;
+  status: number;
+};
+
 type FiscalPage = { items: FiscalEntry[]; total: number };
-type Row = { key: number; productId: string; unitId?: string; catalogCodeSnapshot?: string; officialIdentifierSnapshot?: string; name: string; quantity: string;
-  unitPrice: string; discount: string; vatRate: string };
+
+type Row = {
+  key: number;
+  productId: string;
+  unitId?: string;
+  catalogCodeSnapshot?: string;
+  officialIdentifierSnapshot?: string;
+  name: string;
+  quantity: string;
+  unitPrice: string;
+  discount: string;
+  vatRate: string;
+};
+
 type Step = 0 | 1 | 2;
-type SavedEntryLine = { catalogItemId: string | null; unitId?: string | null; catalogCodeSnapshot?: string | null; officialIdentifierSnapshot?: string | null; description: string; quantity: number;
-  unitPriceRial: number; discountPerUnitRial: number; vatRatePercent: number | null };
-type SavedEntry = { id: string; customerUserId: string; taxpayerId: string;
-  revision: number; lastCompletedStep: number; issueDateUtc: string; updatedAtUtc: string;
-  buyerPartyId: string | null; buyerDisplayName?: string | null;
-  type: number; pattern: number; lines: SavedEntryLine[];
-  invoiceDescription?: string | null; settlementMethod?: number;
-  cashAmountRial?: number | null; creditAmountRial?: number | null;
-  contractNumber?: string|null;serviceBillId?: string|null;flightType?: number|null;
-  goldConstructionFeeRial?: number|null;goldSellerProfitRial?: number|null;
-  goldCommissionRial?: number|null;goldTotalFeeProfitRial?: number|null;
-  fiscalMemoryId?: string|null; sandboxFiscalMemoryId?:string|null; };
+
+type SavedEntryLine = {
+  catalogItemId: string | null;
+  unitId?: string | null;
+  catalogCodeSnapshot?: string | null;
+  officialIdentifierSnapshot?: string | null;
+  description: string;
+  quantity: number;
+  unitPriceRial: number;
+  discountPerUnitRial: number;
+  vatRatePercent: number | null;
+};
+
+type SavedEntry = {
+  id: string;
+  customerUserId: string;
+  taxpayerId: string;
+  revision: number;
+  lastCompletedStep: number;
+  issueDateUtc: string;
+  updatedAtUtc: string;
+  buyerPartyId: string | null;
+  buyerDisplayName?: string | null;
+  type: number;
+  pattern: number;
+  lines: SavedEntryLine[];
+  invoiceDescription?: string | null;
+  settlementMethod?: number;
+  cashAmountRial?: number | null;
+  creditAmountRial?: number | null;
+  contractNumber?: string | null;
+  serviceBillId?: string | null;
+  flightType?: number | null;
+  goldConstructionFeeRial?: number | null;
+  goldSellerProfitRial?: number | null;
+  goldCommissionRial?: number | null;
+  goldTotalFeeProfitRial?: number | null;
+  fiscalMemoryId?: string | null;
+  sandboxFiscalMemoryId?: string | null;
+};
+
 const headings = ["سربرگ صورتحساب", "اقلام صورتحساب", "مرور نهایی و تسویه"] as const;
 type Settlement = 0 | 1 | 2 | 3;
+
+const PATTERN_LABELS: Record<number, string> = {
+  1: "فروش",
+  2: "فروش ارز",
+  3: "طلا و جواهر",
+  4: "پیمانکاری",
+  5: "قبوض خدماتی",
+  6: "بلیت هواپیما",
+  7: "صادرات",
+  8: "بارنامه",
+  9: "فرآورده‌های نفتی",
+  11: "بورس کالا",
+  13: "خدمات بیمه‌ای",
+  14: "فروش زنجیره"
+};
+
+const FIELD_LABELS: Record<string, string> = {
+  contractNumber: "شماره قرارداد",
+  serviceBillId: "شناسه قبض خدماتی",
+  flightType: "نوع پرواز",
+  goldConstructionFeeRial: "اجرت ساخت (ریال)",
+  goldSellerProfitRial: "سود فروشنده (ریال)",
+  goldCommissionRial: "حق‌العمل (ریال)",
+  goldTotalFeeProfitRial: "جمع اجرت و سود و حق‌العمل (ریال)"
+};
+
+const GOLD_FIELDS = [
+  "goldConstructionFeeRial",
+  "goldSellerProfitRial",
+  "goldCommissionRial",
+  "goldTotalFeeProfitRial"
+] as const;
+
 const errorCodes: Record<number, string> = {
   400: "ورودی پیش‌نویس معتبر نیست.", 401: "نشست منقضی شده است؛ دوباره وارد شوید.",
   403: "برای این پرونده دسترسی ندارید.", 404: "مؤدی یا صورتحساب یافت نشد.",
@@ -67,43 +192,47 @@ const amount = (value: string) => {
 const fmt = (value: number) => value.toLocaleString("fa-IR", { maximumFractionDigits: 2 });
 
 export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: string; isAdmin: boolean}) {
+  // List and filtering state.
   const [taxpayers, setTaxpayers] = useState<Taxpayer[]>([]);
   const [taxpayerId, setTaxpayerId] = useState("");
+  const [filterCustomer, setFilterCustomer] = useState("");
+  const [filterTaxpayer, setFilterTaxpayer] = useState("");
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [loading, setLoading] = useState(true);
+  const requestSeq = useRef(0);
+  const [search, setSearch] = useState("");
+  const [searchHelpOpen, setSearchHelpOpen] = useState(false);
+  const [reviewFilter, setReviewFilter] = useState("");
+  const [listPage, setListPage] = useState(1);
+  const listPageSize = 50;
+
+  // Modal and draft lifecycle state.
+  const [modal, setModal] = useState(false);
+  const [editing, setEditing] = useState<SavedEntry | null>(null);
+  const [step, setStep] = useState<Step>(0);
+  const [savedSnapshot,setSavedSnapshot] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const dialog = useRef<HTMLDivElement>(null);
+  const openButton = useRef<HTMLButtonElement>(null);
+  const [importOpen,setImportOpen] = useState(false);
+  const [bulkOpen,setBulkOpen] = useState(false);
+
+  // Header, buyer, and invoice form state.
+  const [headerCustomer, setHeaderCustomer] = useState(isAdmin ? "" : actorId);
   const [memoryId,setMemoryId] = useState("");
   const [headerOptions,setHeaderOptions] = useState<HeaderOptions|null>(null);
   const [headerLoading,setHeaderLoading] = useState(false);
   const [headerError,setHeaderError] = useState("");
-  const [filterCustomer, setFilterCustomer] = useState("");
-  const [filterTaxpayer, setFilterTaxpayer] = useState("");
-  const [headerCustomer, setHeaderCustomer] = useState(isAdmin ? "" : actorId);
   const [buyerId, setBuyerId] = useState("");
   const [buyerQuery, setBuyerQuery] = useState("");
   const [buyers, setBuyers] = useState<FiscalEntry[]>([]);
   const [buyerLoading, setBuyerLoading] = useState(false);
   const [buyerOpen, setBuyerOpen] = useState(false);
   const [buyerActive, setBuyerActive] = useState(0);
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [loading, setLoading] = useState(true);
-  const requestSeq = useRef(0);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
-  const [search, setSearch] = useState("");
-  const [searchHelpOpen, setSearchHelpOpen] = useState(false);
-  const [reviewFilter, setReviewFilter] = useState("");
-  const [listPage, setListPage] = useState(1);
-  const listPageSize = 50;
-  const [modal, setModal] = useState(false);
-  const [importOpen,setImportOpen] = useState(false);
-  const [bulkOpen,setBulkOpen] = useState(false);
-  const [editing, setEditing] = useState<SavedEntry | null>(null);
-  const [step, setStep] = useState<Step>(0);
-  const [savedSnapshot,setSavedSnapshot] = useState<string | null>(null);
-  const dialog = useRef<HTMLDivElement>(null);
-  const openButton = useRef<HTMLButtonElement>(null);
   const [date, setDate] = useState(todayUtc);
   const [hour, setHour] = useState("12:00");
-
   const [formMetadata, setFormMetadata] = useState<FormMetadata | null>(null);
   const [formMetadataError, setFormMetadataError] = useState("");
   const [conditionalFields,setConditionalFields] = useState<Record<string,string>>({});
@@ -250,7 +379,15 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
     setCatalogBusy(true);
     const query = new URLSearchParams({page:"1",pageSize:"20",query:catalogQuery});
     getJson<CatalogPage>("/api/catalog/customers/" + headerCustomer + "/" + kind + "?" + query)
-      .then(data => { if (live) setCatalog(data.items ?? []); })
+      .then(data => { if (live) {
+        const items = data.items ?? [];
+        setCatalog(items);
+        const byId = new Map(items.map(item => [item.id, item]));
+        setRows(current => current.map(row => {
+          const item = byId.get(row.productId);
+          return item ? {...row, officialIdentifierSnapshot: item.officialCode ?? undefined} : row;
+        }));
+      } })
       .catch(() => { if (live) setCatalog([]); })
       .finally(() => { if (live) setCatalogBusy(false); });
     return () => { live = false; };
@@ -317,7 +454,12 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
       setTaxpayerId(saved.taxpayerId);
       setDate(saved.issueDateUtc.slice(0,10));
       setHour(saved.issueDateUtc.slice(11,16));
-      setMemoryId(saved.sandboxFiscalMemoryId ? "sandbox:"+saved.sandboxFiscalMemoryId : saved.fiscalMemoryId ?? "");
+      // Preserve the regular memory value for older drafts, then override it
+      // only when the draft explicitly points at a Sandbox memory.
+      setMemoryId(saved.fiscalMemoryId ?? "");
+      if (saved.sandboxFiscalMemoryId) {
+        setMemoryId("sandbox:"+saved.sandboxFiscalMemoryId);
+      }
       setBuyerId(saved.buyerPartyId ?? "");
       setBuyerQuery(saved.buyerDisplayName ?? "");
       setBuyerOpen(false);
@@ -396,6 +538,8 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
       taxpayerId, expectedRevision:editing?.revision ?? 0,
       lastCompletedStep:persistedStep, issueDateUtc:issued.toISOString(),
       buyerPartyId:buyerId || null,
+      // Production memories use the regular field (fiscalMemoryId:memoryId || null);
+      // Sandbox memories must stay isolated from that foreign-key field.
       fiscalMemoryId:memoryId&&!memoryId.startsWith("sandbox:")?memoryId:null,
       sandboxFiscalMemoryId:memoryId.startsWith("sandbox:")?memoryId.slice(8):null,
       type:invoiceType,pattern,
@@ -442,6 +586,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
     setRows(current => current.concat({
       key: nextKey.current, productId: item?.id ?? "",
       unitId:item?.baseUnitId,catalogCodeSnapshot:item?.internalCode,
+      officialIdentifierSnapshot:item?.officialCode ?? undefined,
       name: item?.title ?? "",
       quantity:"1", unitPrice:"0", discount:"0", vatRate:"0"
     }));
@@ -743,16 +888,12 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
               <select id="invoice-pattern" disabled={!formMetadata || busy} value={pattern}
                 onChange={e => setPattern(Number(e.target.value))}>
                 {(formMetadata?.entries.filter(p=>p.type===invoiceType && p.pattern!==null) ?? []).map(p =>
-                  <option key={p.pattern} value={p.pattern!}>{({1:"فروش",2:"فروش ارز",3:"طلا و جواهر",4:"پیمانکاری",5:"قبوض خدماتی",6:"بلیت هواپیما",7:"صادرات",8:"بارنامه",9:"فرآورده‌های نفتی",11:"بورس کالا",13:"خدمات بیمه‌ای",14:"فروش زنجیره"} as Record<number,string>)[p.pattern!] ?? ("الگوی "+p.pattern)}</option>)}
+                  <option key={p.pattern} value={p.pattern!}>{PATTERN_LABELS[p.pattern!] ?? ("الگوی "+p.pattern)}</option>)}
               </select>
-              {(formMetadata?.entries.find(p=>p.type===invoiceType && p.pattern===pattern)?.requiredFields ?? []).flatMap(field =>
-                field==="goldFields" ? ["goldConstructionFeeRial","goldSellerProfitRial","goldCommissionRial","goldTotalFeeProfitRial"] : [field]
-              ).map(field => <div key={field} className="invoice-register__conditional-field">
-                <label htmlFor={"invoice-conditional-"+field}>{({
-                  contractNumber:"شماره قرارداد",serviceBillId:"شناسه قبض خدماتی",flightType:"نوع پرواز",
-                  goldConstructionFeeRial:"اجرت ساخت (ریال)",goldSellerProfitRial:"سود فروشنده (ریال)",
-                  goldCommissionRial:"حق‌العمل (ریال)",goldTotalFeeProfitRial:"جمع اجرت و سود و حق‌العمل (ریال)"
-                } as Record<string,string>)[field]}</label>
+              {(formMetadata?.entries.find(p => p.type === invoiceType && p.pattern === pattern)?.requiredFields ?? [])
+                .flatMap(field => field === "goldFields" ? GOLD_FIELDS : [field])
+                .map(field => <div key={field} className="invoice-register__conditional-field">
+                <label htmlFor={"invoice-conditional-"+field}>{FIELD_LABELS[field]}</label>
                 {field==="flightType" ?
                   <select id={"invoice-conditional-"+field} value={conditionalFields[field] ?? ""}
                     onChange={e=>setConditionalFields(old=>({...old,[field]:e.target.value}))}>
@@ -797,11 +938,17 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
                   <tbody>{rows.length===0?<tr><td colSpan={7}>هنوز ردیفی اضافه نشده است.</td></tr>:
                     rows.map((row,index)=><tr key={row.key}>
                       <td>{index+1}</td>
-                      <td><input aria-label={"شرح ردیف "+(index+1)} title={row.productId?("کد داخلی: "+(row.catalogCodeSnapshot||"—") + " | شناسه رسمی: "+(row.officialIdentifierSnapshot||"ثبت نشده")):""}
+                      <td className="invoice-register__description-cell"><input aria-label={"شرح ردیف "+(index+1)} title={row.productId?("کد داخلی: "+(row.catalogCodeSnapshot||"—") + " | شناسه رسمی: "+(row.officialIdentifierSnapshot||"ثبت نشده")):""}
                         style={{width:"100%",minWidth:0}} value={row.name} maxLength={256}
                         onChange={e=>updateRow(row.key,{name:e.target.value})}/>
-                         {row.officialIdentifierSnapshot?<small className="field-hint" dir="ltr">sstid: {row.officialIdentifierSnapshot}</small>:
-                         <small className="field-hint">شناسه رسمی ۱۳ رقمی هنوز در این ردیف تأیید نشده است.</small>}</td>
+                        {row.officialIdentifierSnapshot ?
+                          <small className="invoice-register__sstid-status invoice-register__sstid-status--ready" dir="ltr">
+                            <span>sstid:</span><bdi>{row.officialIdentifierSnapshot}</bdi>
+                          </small> :
+                          <small className="invoice-register__sstid-status invoice-register__sstid-status--missing" role="status">
+                            شناسه رسمی ثبت نشده
+                          </small>}
+                      </td>
                       <td><input aria-label={"مقدار ردیف "+(index+1)} style={{width:"100%",minWidth:0}} dir="ltr" type="number" min="0.00000001" step="any"
                         value={row.quantity} onChange={e=>updateRow(row.key,{quantity:e.target.value})}/></td>
                       <td><input aria-label={"قیمت واحد ردیف "+(index+1)} style={{width:"100%",minWidth:0}} dir="ltr" type="number" min="0" step="any"

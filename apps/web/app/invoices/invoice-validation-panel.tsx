@@ -2,127 +2,343 @@
 
 import { useEffect, useState } from "react";
 
-type Finding = { key:string; severity:"error"|"warning"; fieldPath:string; message:string };
-type Evaluation = { draftId:string; revision:number; edition:string;
-  isSubmissionAuthorized:boolean; findings:Finding[];
-  formHasBlockingErrors?:boolean;
-  selectedEnvironment?:"Sandbox"|"Production"|"Unselected" };
-type Ref = { id:string; subject:string; state:string; issueDateUtc:string;
-  revision:number; fiscalIdentifierVerified:boolean; fiscalIdentifier:string|null };
-const subjectNames = [
-  {value:"Original",label:"اصلی"},
-  {value:"Correction",label:"اصلاحی"},
-  {value:"Cancellation",label:"ابطالی"},
-  {value:"SalesReturn",label:"برگشت از فروش"}
-] as const;
+type Finding = {
+  key: string;
+  severity: "error" | "warning";
+  fieldPath: string;
+  message: string;
+};
 
-async function readJson<T>(url:string):Promise<T> {
-  const result=await fetch(url,{cache:"no-store",credentials:"same-origin"});
-  if(!result.ok) throw new Error(result.status===401?
-    "نشست کاربری منقضی شده است." : result.status===404?
-    "پیش‌نویس یا مرجع در محدوده دسترسی شما یافت نشد." :
-    "دریافت وضعیت اعتبارسنجی ممکن نشد.");
-  return result.json() as Promise<T>;
+type Evaluation = {
+  draftId: string;
+  revision: number;
+  edition: string;
+  isSubmissionAuthorized: boolean;
+  findings: Finding[];
+  formHasBlockingErrors?: boolean;
+  selectedEnvironment?: "Sandbox" | "Production" | "Unselected";
+};
+
+type Reference = {
+  id: string;
+  subject: string;
+  state: string;
+  issueDateUtc: string;
+  revision: number;
+  fiscalIdentifierVerified: boolean;
+  fiscalIdentifier: string | null;
+};
+
+type Subject = "Original" | "Correction" | "Cancellation" | "SalesReturn";
+
+type PanelProps = {
+  draftId: string;
+  taxpayerId: string;
+  revision: number;
+  dirty: boolean;
+  onSave: () => Promise<boolean>;
+};
+
+const SUBJECT_OPTIONS: ReadonlyArray<{ value: Subject; label: string }> = [
+  { value: "Original", label: "اصلی" },
+  { value: "Correction", label: "اصلاحی" },
+  { value: "Cancellation", label: "ابطالی" },
+  { value: "SalesReturn", label: "برگشت از فروش" },
+];
+
+async function readJson<T>(url: string): Promise<T> {
+  const response = await fetch(url, {
+    cache: "no-store",
+    credentials: "same-origin",
+  });
+
+  if (!response.ok) {
+    const message = response.status === 401
+      ? "نشست کاربری منقضی شده است."
+      : response.status === 404
+        ? "پیش‌نویس یا مرجع در محدوده دسترسی شما یافت نشد."
+        : "دریافت وضعیت اعتبارسنجی ممکن نشد.";
+    throw new Error(message);
+  }
+
+  return response.json() as Promise<T>;
+}
+
+function environmentLabel(environment: Evaluation["selectedEnvironment"]): string {
+  if (environment === "Sandbox") return "Sandbox (آزمایشی)";
+  if (environment === "Production") return "Production (واقعی)";
+  return "انتخاب نشده";
+}
+
+function FindingSummary({ report, findings }: { report: Evaluation; findings: Finding[] }) {
+  const errorCount = findings.filter(finding => finding.severity === "error").length;
+  const warningCount = findings.filter(finding => finding.severity === "warning").length;
+
+  return (
+    <div className="invoice-validation__summary">
+      <strong>ویرایش {report.revision} · قواعد {report.edition}</strong>
+      <small>حافظه انتخابی: {environmentLabel(report.selectedEnvironment)}</small>
+      <span>{errorCount} خطا · {warningCount} هشدار</span>
+    </div>
+  );
+}
+
+function FindingList({ findings }: { findings: Finding[] }) {
+  if (findings.length === 0) {
+    return <p>در این پیش‌بررسی خطایی پیدا نشد؛ تأیید رسمی نیست.</p>;
+  }
+
+  return (
+    <ul>
+      {findings.map((finding, index) => (
+        <li
+          key={`${finding.key}-${index}`}
+          className={`invoice-validation__${finding.severity}`}
+        >
+          <strong>{finding.severity === "error" ? "خطا" : "هشدار"}</strong>
+          <span>{finding.message}</span>
+          <code dir="ltr">{finding.fieldPath}</code>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function ValidationWarning({ report }: { report: Evaluation }) {
+  const heading = report.formHasBlockingErrors
+    ? "فرم دارای خطای تکمیل است"
+    : "فرم برای پیش‌بررسی داخلی بررسی شد؛ هنوز قطعی و قابل ارسال نیست";
+
+  return (
+    <p className="invoice-validation__warning">
+      <strong>{heading}.</strong>
+      <span>
+        {" حتی اگر خطای فرم صفر باشد، صدور قطعی مستلزم شناسه رسمی ۱۳ رقمی تمام اقلام، "}
+        {"حافظه معتبر در محیط انتخابی، تولید شناسه یکتای مالیاتی صورتحساب، "}
+        {"اعتبارسنجی قواعد معتبر و آماده‌سازی بسته امضاشده است. امکان ارسال Sandbox با "}
+        {"تست اتصال حافظه به‌تنهایی ایجاد نمی‌شود."}
+      </span>
+    </p>
+  );
+}
+
+function ValidationReport({ report }: { report: Evaluation }) {
+  const findings = report.findings ?? [];
+
+  return (
+    <div className="invoice-validation__findings">
+      <FindingSummary report={report} findings={findings} />
+      <FindingList findings={findings} />
+      <ValidationWarning report={report} />
+    </div>
+  );
+}
+
+function ReferenceHistory({ references }: { references: Reference[] }) {
+  if (references.length === 0) return null;
+
+  return (
+    <div className="invoice-validation__history">
+      <strong>سوابق داخلی همین مؤدی ({references.length} رکورد)</strong>
+      <ul>
+        {references.map(reference => (
+          <li key={reference.id}>
+            <bdi dir="ltr">{reference.id.slice(0, 8)}…</bdi>
+            <span>
+              {reference.subject} · {reference.state} · نسخه {reference.revision}
+            </span>
+            <small>شناسه مالیاتی رسمی: تأیید نشده</small>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function ReferenceSection({
+  subject,
+  references,
+  selectedReference,
+  onSubjectChange,
+  onReferenceChange,
+}: {
+  subject: Subject;
+  references: Reference[];
+  selectedReference: string;
+  onSubjectChange: (value: Subject) => void;
+  onReferenceChange: (value: string) => void;
+}) {
+  const hasReferenceSubject = subject !== "Original";
+
+  return (
+    <div className="invoice-validation__reference">
+      <label htmlFor="invoice-reference-subject">
+        موضوع صورتحساب برای بررسی ارجاع
+      </label>
+      <select
+        id="invoice-reference-subject"
+        value={subject}
+        onChange={event => onSubjectChange(event.target.value as Subject)}
+      >
+        {SUBJECT_OPTIONS.map(option => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+
+      {hasReferenceSubject && (
+        <>
+          <label htmlFor="invoice-reference-candidate">
+            صورتحساب مرتبط (فقط سابقه داخلی)
+          </label>
+          <select
+            id="invoice-reference-candidate"
+            value={selectedReference}
+            onChange={event => onReferenceChange(event.target.value)}
+          >
+            <option value="">مرجع تأییدشده‌ای در دسترس نیست</option>
+            {references.map(reference => (
+              <option key={reference.id} value={reference.id} disabled>
+                {reference.id.slice(0, 8)} · {reference.subject} · {reference.state}
+              </option>
+            ))}
+          </select>
+          <p className="invoice-validation__warning">
+            مرجع فقط با شناسه مالیاتی معتبر، سابقه ثبت رسمی و بررسی زنجیره قابل انتخاب است.
+            رکوردهای محلی فعلی چنین شواهدی ندارند و عمداً غیرفعال‌اند.
+          </p>
+          <ReferenceHistory references={references} />
+        </>
+      )}
+    </div>
+  );
 }
 
 export default function InvoiceValidationPanel({
-  draftId,taxpayerId,revision,dirty,onSave
-}:{draftId:string;taxpayerId:string;revision:number;dirty:boolean;onSave:()=>Promise<boolean>}) {
-  const [report,setReport]=useState<Evaluation|null>(null);
-  const [references,setReferences]=useState<Ref[]>([]);
-  const [subject,setSubject]=useState("Original");
-  const [selectedRef,setSelectedRef]=useState("");
-  const [loading,setLoading]=useState(false);
-  const [checkingAfterSave,setCheckingAfterSave]=useState(false);
-  const [error,setError]=useState("");
+  draftId,
+  taxpayerId,
+  revision,
+  dirty,
+  onSave,
+}: PanelProps) {
+  const [report, setReport] = useState<Evaluation | null>(null);
+  const [references, setReferences] = useState<Reference[]>([]);
+  const [subject, setSubject] = useState<Subject>("Original");
+  const [selectedReference, setSelectedReference] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [checkingAfterSave, setCheckingAfterSave] = useState(false);
+  const [error, setError] = useState("");
+
   async function refresh() {
-    if(dirty) {setError("ابتدا تغییرات فرم را ذخیره کنید.");return;}
-    setLoading(true);setError("");
+    if (dirty) {
+      setError("ابتدا تغییرات فرم را ذخیره کنید.");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+
     try {
-      const [checks,source]=await Promise.all([
-        readJson<Evaluation>("/api/invoices/workspaces/"+draftId+"/validation"),
-        readJson<Ref[]>("/api/invoices/references/"+taxpayerId)
+      const [checks, source] = await Promise.all([
+        readJson<Evaluation>(`/api/invoices/workspaces/${draftId}/validation`),
+        readJson<Reference[]>(`/api/invoices/references/${taxpayerId}`),
       ]);
-      if(checks.revision!==revision) {
-        setReport(null);setError("نسخه پیش‌نویس تغییر کرده است؛ آن را مجدداً باز کنید.");return;
+
+      // A report from another draft revision is stale and cannot be shown.
+      if (checks.revision !== revision) { // revision!==revision
+        setReport(null);
+        setError("نسخه پیش‌نویس تغییر کرده است؛ آن را مجدداً باز کنید.");
+        return;
       }
-      setReport(checks);setReferences(source);
-    }catch(e){setError((e as Error).message);}
-    finally{setLoading(false);}
+
+      setReport(checks);
+      setReferences(source);
+    } catch (cause) {
+      setError((cause as Error).message);
+    } finally {
+      setLoading(false);
+    }
   }
-  useEffect(()=>{
-    setReport(null);setReferences([]);setSubject("Original");setSelectedRef("");
-  },[draftId,revision,taxpayerId]);
-  useEffect(()=>{
-    if(checkingAfterSave && !dirty){setCheckingAfterSave(false);void refresh();}
-  },[revision,dirty,checkingAfterSave]);
-  const issues=report?.findings ?? [];
-  return <section className="invoice-validation" aria-labelledby="invoice-validation-title">
-    <div className="invoice-validation__heading">
-      <div><h3 id="invoice-validation-title">پیش‌بررسی و سوابق ارجاع</h3>
-        <p>این بررسی برای تکمیل فرم است؛ مجوز ارسال مالیاتی صادر نمی‌کند.</p></div>
-      <button type="button" className="identity-secondary"
-        disabled={loading||checkingAfterSave} onClick={()=>{
-          if(dirty){setCheckingAfterSave(true);void onSave().then(saved=>{
-            if(!saved){setCheckingAfterSave(false);setError("ذخیره تغییرات انجام نشد؛ خطای نمایش‌داده‌شده در فرم را بررسی کنید.");}
-          }).catch(e=>{setCheckingAfterSave(false);setError((e as Error).message);});}
-          else void refresh();
-        }}>
-        {loading||checkingAfterSave?"در حال ذخیره/بررسی…":dirty?"ذخیره تغییرات و بررسی":"بررسی پیش‌نویس ذخیره‌شده"}
-      </button>
-    </div>
-    {dirty && <p role="status" className="invoice-validation__warning">
-      فرم از آخرین نسخه ذخیره‌شده تغییر کرده است؛ ابتدا ذخیره کنید.
-    </p>}
-    {error && <p role="alert" className="form-error">{error}</p>}
-    {report && <div className="invoice-validation__findings">
-      <div className="invoice-validation__summary">
-        <strong>ویرایش {report.revision} · قواعد {report.edition}</strong>
-        <small>حافظه انتخابی: {report.selectedEnvironment==="Sandbox"?"Sandbox (آزمایشی)":
-          report.selectedEnvironment==="Production"?"Production (واقعی)":"انتخاب نشده"}</small>
-        <span>{issues.filter(f=>f.severity==="error").length} خطا ·
-          {" "}{issues.filter(f=>f.severity==="warning").length} هشدار</span>
+
+  function reviewDraft() {
+    if (!dirty) {
+      void refresh();
+      return;
+    }
+
+    setCheckingAfterSave(true);
+    void onSave().then(saved => {
+        // if(!saved), keep the review result closed and show the form error.
+        if (!saved) {
+          setCheckingAfterSave(false);
+          setError("ذخیره تغییرات انجام نشد؛ خطای نمایش‌داده‌شده در فرم را بررسی کنید.");
+        }
+      })
+      .catch(cause => {
+        setCheckingAfterSave(false);
+        setError((cause as Error).message);
+    });
+  }
+
+  function selectSubject(value: Subject) {
+    setSubject(value);
+    setSelectedReference("");
+  }
+
+  useEffect(() => {
+    setReport(null);
+    setReferences([]);
+    setSubject("Original");
+    setSelectedReference("");
+  }, [draftId, revision, taxpayerId]);
+
+  useEffect(() => {
+    if (checkingAfterSave && !dirty) {
+      setCheckingAfterSave(false);
+      void refresh();
+    }
+  }, [revision, dirty, checkingAfterSave]);
+
+  const busy = loading || checkingAfterSave;
+  const buttonLabel = busy
+    ? "در حال ذخیره/بررسی…"
+    : dirty
+      ? "ذخیره تغییرات و بررسی"
+      : "بررسی پیش‌نویس ذخیره‌شده";
+
+  return (
+    <section className="invoice-validation" aria-labelledby="invoice-validation-title">
+      <div className="invoice-validation__heading">
+        <div>
+          <h3 id="invoice-validation-title">پیش‌بررسی و سوابق ارجاع</h3>
+          <p>این بررسی برای تکمیل فرم است؛ مجوز ارسال مالیاتی صادر نمی‌کند.</p>
+        </div>
+        <button
+          type="button"
+          className="identity-secondary"
+          disabled={busy}
+          onClick={reviewDraft}
+        >
+          {buttonLabel}
+        </button>
       </div>
-      {issues.length===0 ? <p>در این پیش‌بررسی خطایی پیدا نشد؛ تأیید رسمی نیست.</p> :
-        <ul>{issues.map((f,i)=><li key={f.key+"-"+i}
-          className={"invoice-validation__"+f.severity}>
-          <strong>{f.severity==="error"?"خطا":"هشدار"}</strong>
-          <span>{f.message}</span>
-          <code dir="ltr">{f.fieldPath}</code>
-        </li>)}</ul>}
-      <p className="invoice-validation__warning">
-        <strong>{report.formHasBlockingErrors?"فرم دارای خطای تکمیل است":"فرم برای پیش‌بررسی داخلی بررسی شد؛ هنوز قطعی و قابل ارسال نیست"}.</strong>
-        <span> حتی اگر خطای فرم صفر باشد، صدور قطعی مستلزم شناسه رسمی ۱۳ رقمی تمام اقلام، حافظه معتبر در محیط انتخابی، تولید شناسه یکتای مالیاتی صورتحساب، اعتبارسنجی قواعد معتبر و آماده‌سازی بسته امضاشده است. امکان ارسال Sandbox با تست اتصال حافظه به‌تنهایی ایجاد نمی‌شود.</span>
-      </p>
-    </div>}
-    <div className="invoice-validation__reference">
-      <label htmlFor="invoice-reference-subject">موضوع صورتحساب برای بررسی ارجاع</label>
-      <select id="invoice-reference-subject" value={subject}
-        onChange={e=>{setSubject(e.target.value);setSelectedRef("");}}>
-        {subjectNames.map(x=><option key={x.value} value={x.value}>{x.label}</option>)}
-      </select>
-      {subject!=="Original" && <>
-        <label htmlFor="invoice-reference-candidate">صورتحساب مرتبط (فقط سابقه داخلی)</label>
-        <select id="invoice-reference-candidate" value={selectedRef}
-          onChange={e=>setSelectedRef(e.target.value)}>
-          <option value="">مرجع تأییدشده‌ای در دسترس نیست</option>
-          {references.map(r=><option key={r.id} value={r.id} disabled>
-            {r.id.slice(0,8)} · {r.subject} · {r.state}
-          </option>)}
-        </select>
-        <p className="invoice-validation__warning">
-          مرجع فقط با شناسه مالیاتی معتبر، سابقه ثبت رسمی و بررسی زنجیره قابل انتخاب است.
-          رکوردهای محلی فعلی چنین شواهدی ندارند و عمداً غیرفعال‌اند.
+
+      {dirty && (
+        <p role="status" className="invoice-validation__warning">
+          فرم از آخرین نسخه ذخیره‌شده تغییر کرده است؛ ابتدا ذخیره کنید.
         </p>
-        {references.length>0 && <div className="invoice-validation__history">
-          <strong>سوابق داخلی همین مؤدی ({references.length} رکورد)</strong>
-          <ul>{references.map(r=><li key={r.id}>
-            <bdi dir="ltr">{r.id.slice(0,8)}…</bdi>
-            <span>{r.subject} · {r.state} · نسخه {r.revision}</span>
-            <small>شناسه مالیاتی رسمی: تأیید نشده</small>
-          </li>)}</ul>
-        </div>}
-      </>}
-    </div>
-  </section>;
+      )}
+      {error && <p role="alert" className="form-error">{error}</p>}
+      {report && <ValidationReport report={report} />}
+
+      <ReferenceSection
+        subject={subject}
+        references={references}
+        selectedReference={selectedReference}
+        onSubjectChange={selectSubject}
+        onReferenceChange={setSelectedReference}
+      />
+    </section>
+  );
 }

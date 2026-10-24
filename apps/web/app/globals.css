@@ -367,6 +367,26 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 .console-catalog-page .catalog-grid-loading-host .argin-loader-overlay{position:absolute;inset:0;z-index:3;border-radius:8px;background:#ffffffdd}
 .console-catalog-page .catalog-filters select{width:100%;min-height:35px;border-radius:7px;border:1px solid #b9ccdd;background:#fff;color:#19324a;padding:6px 9px;font:inherit;font-size:12px}
 .console-catalog-page .catalog-editor-panel .catalog-modal-footer{justify-content:flex-start}
+.console-catalog-page .catalog-mapping-editor{background:#f8fcff}
+.console-catalog-page .catalog-mapping-form{grid-template-columns:1fr!important;gap:12px!important}
+.console-catalog-page .catalog-mapping-help{margin:0;line-height:1.8}
+.console-catalog-page .catalog-inline-field{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px;align-items:end}
+.console-catalog-page .catalog-inline-field button{white-space:nowrap}
+.console-catalog-page .catalog-official-results{display:grid;gap:6px;margin:0;padding:10px;border:1px solid #cbdbe5;border-radius:8px;min-width:0}
+.console-catalog-page .catalog-official-results legend{padding:0 5px;font-size:11px;font-weight:700;color:#315a73}
+.console-catalog-page .catalog-official-option{display:grid!important;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:8px;padding:8px;border:1px solid #dce7ee;border-radius:7px;background:#fff;cursor:pointer}
+.console-catalog-page .catalog-official-option:has(input:checked),.console-catalog-page .catalog-official-option.is-selected{border-color:#2b7794;background:#eaf6fb}
+.console-catalog-page .catalog-official-option input{width:auto!important;min-height:auto!important}
+.console-catalog-page .catalog-mapping-search-modal{position:fixed;inset:0;z-index:1400;display:grid;place-items:center;padding:18px;background:#17374d55}
+.console-catalog-page .catalog-mapping-search-dialog{width:min(620px,100%);max-height:min(80vh,680px);overflow:auto;padding:16px;border:1px solid #cbdbe5;border-radius:12px;background:#fff;box-shadow:0 18px 50px #17374d35}
+.console-catalog-page .catalog-mapping-search-dialog .catalog-inline-field{margin-bottom:12px}
+.console-catalog-page .catalog-mapping-search-dialog .catalog-official-results{display:grid;grid-template-columns:1fr;gap:6px}
+.console-catalog-page .catalog-mapping-search-dialog .catalog-official-option{width:100%;font:inherit;text-align:right}
+.console-catalog-page .catalog-mapping-history{border-top:1px solid #e0e8ef;margin-top:14px;padding-top:10px}
+.console-catalog-page .catalog-mapping-history h3{margin:0 0 8px;font-size:13px}
+.console-catalog-page .catalog-mapping-history .catalog-history{max-height:190px;overflow:auto}
+.console-catalog-page .catalog-mapping-history .catalog-history li{font-size:11px;padding:9px}
+.console-catalog-page .catalog-mapping-history .catalog-history button{margin-inline-start:8px;padding:4px 7px;font-size:10px}
 @media(max-width:1100px){.console-catalog-page .catalog-split-layout{grid-template-columns:1fr}}
 @media(max-width:530px){.console-catalog-page .catalog-editor-panel .catalog-form{grid-template-columns:1fr}.console-catalog-page .catalog-editor-panel .catalog-form label:has(.catalog-unit-combo){grid-column:auto}}
 /* Shared ArginAccounting PersianDatePicker component styling, locally scoped to catalog. */
@@ -396,14 +416,13 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 .console-catalog-page .catalog-editor-panel .catalog-form label:has(.catalog-unit-combo){grid-column:1/-1}
 .console-catalog-page .catalog-editor-panel .catalog-form .catalog-help,
 .console-catalog-page .catalog-editor-panel .catalog-modal-footer{grid-column:1/-1}
-.console-catalog-page .catalog-split-layout .catalog-table{min-width:0;width:100%;table-layout:fixed}
-.console-catalog-page .catalog-split-layout .catalog-table th:nth-child(1){width:15%}
-.console-catalog-page .catalog-split-layout .catalog-table th:nth-child(2){width:30%}
-.console-catalog-page .catalog-split-layout .catalog-table th:nth-child(3){width:17%}
-.console-catalog-page .catalog-split-layout .catalog-table th:nth-child(4){width:38%}
-.console-catalog-page .catalog-split-layout .catalog-table td{overflow-wrap:anywhere;word-break:normal}
-.console-catalog-page .catalog-split-layout .catalog-actions{gap:4px}
-.console-catalog-page .catalog-split-layout .catalog-actions button{padding:5px 7px}
+.console-catalog-page .catalog-split-layout .catalog-table{min-width:640px;width:100%;table-layout:auto}
+.console-catalog-page .catalog-split-layout .catalog-table th,
+.console-catalog-page .catalog-split-layout .catalog-table td{overflow-wrap:normal;word-break:normal;white-space:nowrap}
+.console-catalog-page .catalog-split-layout .catalog-table .catalog-title-cell{min-width:150px;white-space:normal;overflow-wrap:anywhere}
+.console-catalog-page .catalog-split-layout .catalog-table th:last-child{width:1%}
+.console-catalog-page .catalog-split-layout .catalog-actions{gap:4px;flex-wrap:nowrap}
+.console-catalog-page .catalog-split-layout .catalog-actions button{padding:5px 7px;flex-shrink:0;white-space:nowrap}
 .console-catalog-page .ui-persian-date__popover{top:auto;bottom:calc(100% + 7px);right:0;left:auto}
 @media(max-width:1100px){.console-catalog-page .catalog-split-layout{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:530px){.console-catalog-page .catalog-editor-panel .catalog-form{grid-template-columns:minmax(0,1fr)}}
@@ -564,6 +583,11 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 .console-page .invoice-register .console-table{font-size:12px;line-height:1.45;border-collapse:collapse;width:100%;white-space:nowrap}
 .console-page .invoice-register .console-table :is(th,td){padding:7px 10px;border-bottom:1px solid #e8edf1}
 .console-page .invoice-register .console-table th{background:#eef4f6;color:#476176;font-size:12px;font-weight:750}
+.console-page .invoice-register .console-table td.invoice-register__description-cell{white-space:normal;vertical-align:top;min-width:0}
+.console-page .invoice-register__sstid-status{display:flex;align-items:center;justify-content:flex-start;gap:5px;max-width:100%;margin-top:4px;padding:3px 6px;border-radius:5px;font-size:10px;line-height:1.4;white-space:normal;overflow-wrap:anywhere}
+.console-page .invoice-register__sstid-status--ready{color:#216147;background:#edf8f1;border:1px solid #c7e5d2}
+.console-page .invoice-register__sstid-status--ready span{font-weight:700;letter-spacing:.02em}
+.console-page .invoice-register__sstid-status--missing{color:#8a5b19;background:#fff8e9;border:1px solid #f0dcae}
 .console-page .invoice-register .console-row-action{padding:4px 9px;font:inherit;font-size:12px}
 .console-page .invoice-register .console-table-footer{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:0;padding:12px 3px 0;color:var(--argin-muted,#617487);font-size:12px;border:0;background:transparent}
 .console-page .invoice-register .console-table-footer>div{display:flex;align-items:center;gap:10px}
@@ -603,6 +627,7 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 .console-page .invoice-register__totals :is(dt,dd){padding:5px 0}
 .console-page .invoice-register__restriction{margin-top:9px;padding:9px 11px;font-size:11px}
 .invoice-register__catalog-picker{display:grid;grid-template-columns:110px minmax(0,1fr);align-items:center;gap:10px;max-width:780px;margin:9px 0}
+.invoice-register__catalog-picker>.field-hint{grid-column:1/-1;display:block;box-sizing:border-box;width:100%;margin:0;padding:6px 9px;border:1px solid #dbe7ef;border-radius:7px;background:#f7fafc;color:#617489;font-size:11px;line-height:1.7;white-space:normal;overflow-wrap:anywhere}
 .invoice-register__catalog-picker>label{font-size:12px;font-weight:600}
 .invoice-register__catalog-combo{position:relative;min-width:0}
 .invoice-register__catalog-combo input{display:block;width:100%;height:32px;min-height:32px;padding:5px 9px;border:1px solid #c5d4e0;border-radius:6px;font:inherit;font-size:12px;background:var(--surface,#fff);color:inherit}

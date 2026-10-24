@@ -21,6 +21,8 @@ test("internal product code and official 13-digit sstid remain distinct",()=>{
   assert.match(entry,/OfficialIdentifierSnapshot = officialCode/);
   assert.match(ui,/sstid:/);
   assert.match(ui,/شناسه رسمی ۱۳ رقمی/);
+  assert.match(ui,/invoice-register__sstid-status/);
+  assert.match(ui,/شناسه رسمی ثبت نشده/);
 });
 test("Sandbox selection is owner scoped and never passed as Production memory FK",()=>{
   assert.match(options,/FROM sandbox_fiscal_memories/);

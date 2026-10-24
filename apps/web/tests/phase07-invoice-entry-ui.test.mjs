@@ -143,6 +143,7 @@ test("shared console density applies within modal and rows", () => {
   assert.match(css, /\.console-page \.invoice-register__item/);
   assert.match(css, /\.console-page \.invoice-register__fields/);
   assert.match(css, /\.invoice-register__catalog-options/);
+  assert.match(css, /invoice-register__catalog-picker>\.field-hint\{grid-column:1\/-1/);
 });
 
 test("final stage has compact financial summary and saved invoice description", () => {

@@ -48,6 +48,19 @@ test("catalog UI guards revision and exposes mapping-history operations", () => 
   assert.match(source, /CatalogUnitCombobox/);
 });
 
+test("official mapping is an explicit editor with a save action", () => {
+  const source = read("app/catalog/workspace.tsx");
+  assert.match(source, /selectedOfficialId/);
+  assert.match(source, /onSubmit=\{saveMapping\}/);
+  assert.match(source, /ذخیره نگاشت/);
+  assert.match(source, /catalog-mapping-editor/);
+  assert.match(source, /officialCode\.length === 13/);
+  assert.match(source, /catalog-mapping-search-modal/);
+  assert.match(source, /officialEntryId: official\.id/);
+  assert.match(source, /\{ officialCode, effectiveFromUtc: date\.toISOString\(\) \}/);
+  assert.match(source, /result\.detail/);
+});
+
 test("RTL workspace has small-screen, keyboard and bidi safeguards", () => {
   const css = read("app/globals.css");
   assert.match(css, /\.console-catalog-page\{/);
