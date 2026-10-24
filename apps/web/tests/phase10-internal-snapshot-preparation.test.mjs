@@ -1,0 +1,53 @@
+import {test} from "node:test";
+import assert from "node:assert/strict";
+import {readFileSync} from "node:fs";
+const service=readFileSync("../../src/ArginTaxPayer.Infrastructure/Persistence/Invoices/InvoiceWorkspacePromotionService.cs","utf8");
+const entry=readFileSync("../../src/ArginTaxPayer.Infrastructure/Persistence/Invoices/InvoiceEntryWorkspaceService.cs","utf8");
+const api=readFileSync("../../src/ArginTaxPayer.Api/Invoices/InvoiceDraftDevelopmentEndpoints.cs","utf8");
+const bff=readFileSync("app/api/invoices/[...segments]/route.ts","utf8");
+const validation=readFileSync("app/invoices/invoice-validation-panel.tsx","utf8");
+const ui=readFileSync("app/invoices/workspace.tsx","utf8");
+const listing=readFileSync("../../src/ArginTaxPayer.Infrastructure/Persistence/Invoices/InvoiceDraftApplicationService.cs","utf8");
+const dispatch=readFileSync("../../src/ArginTaxPayer.Api/Invoices/Phase10InvoiceDispatchDevelopmentEndpoints.cs","utf8");
+
+test("snapshot promotion uses live session, scoped tenant, row lock, serializable transaction and CAS",()=>{
+  assert.match(service,/scope\.ResolveAsync\(bearer,ct\)/);
+  assert.match(service,/scope\.ScopedQuery\(actor\.ActorId,actor\.Level1\)/);
+  assert.match(service,/IsolationLevel\.Serializable/);
+  assert.match(service,/FOR UPDATE/);
+  assert.match(service,/draft\.Revision!=request\.ExpectedRevision/);
+  assert.match(service,/InvoiceDocuments\.AsNoTracking/);
+  assert.match(service,/sourceWorkspaceId=draft\.Id/);
+  assert.match(service,/sourceRevision=draft\.Revision/);
+  assert.match(service,/SHA256\.HashData/);
+  assert.match(service,/InvoiceDocumentRevisions\.Add/);
+  assert.match(service,/await tx\.CommitAsync/);
+});
+test("official item and memory evidence are rechecked in DB and never sent",()=>{
+  assert.match(service,/CatalogOfficialMappings\.AsNoTracking/);
+  assert.match(service,/CatalogReferenceReleases\.Any/);
+  assert.match(service,/CustomerCatalogItems\.AsNoTracking/);
+  assert.match(service,/FROM sandbox_fiscal_memories/);
+  assert.match(service,/private_envelope_json IS NOT NULL/);
+  assert.match(service,/FiscalMemoryId\.HasValue == input\.SandboxFiscalMemoryId\.HasValue/);
+  assert.match(service,/fiscalSubmissionAuthorized=false/);
+  assert.match(service,/signedPacketAvailable=false/);
+  assert.match(service,/State=InvoiceLifecycleState\.Draft/);
+  assert.doesNotMatch(service,/SendAsync\(|GET_TOKEN|SEND_INVOICE|HttpClient/);
+  assert.match(dispatch,/invoice_dispatch_not_enabled/);
+});
+test("the internal snapshot cannot be quietly overwritten, duplicated or misrepresented",()=>{
+  assert.match(entry,/Immutable internal invoice snapshot wins over editing/);
+  assert.match(entry,/InvoiceDocuments\.AsNoTracking\(\)\.AnyAsync/);
+  assert.match(service,/internal_snapshot_already_created/);
+  assert.match(listing,/!db\.InvoiceDocuments\.Any\(/);
+  assert.match(listing,/internalSnapshot/);
+  assert.match(ui,/نسخه ثابت داخلی \(بدون ارسال\)/);
+  assert.match(ui,/onPrepared=/);
+  assert.match(validation,/prepareInternalSnapshot/);
+  assert.match(validation,/report\.selectedEnvironment !== "Sandbox"/);
+  assert.match(validation,/fiscalSubmissionAuthorized!==false/);
+  assert.match(bff,/"prepare"/);
+  assert.match(bff,/invalid_snapshot_revision/);
+  assert.match(api,/InvoiceWorkspacePromotionService/);
+});
