@@ -85,13 +85,19 @@ async function proxy(request: NextRequest, context: Context, method: "GET" | "PO
           "issueDateUtc","buyerPartyId","type","pattern","lines",
           "invoiceDescription","settlementMethod","cashAmountRial","creditAmountRial",
           "contractNumber","serviceBillId","flightType","goldConstructionFeeRial",
-          "goldSellerProfitRial","goldCommissionRial","goldTotalFeeProfitRial","fiscalMemoryId"];
+          "goldSellerProfitRial","goldCommissionRial","goldTotalFeeProfitRial",
+          "fiscalMemoryId","sandboxFiscalMemoryId"];
         if (Object.keys(data).some(k=>!permitted.includes(k)) ||
             typeof data.taxpayerId !== "string" || !uuid.test(data.taxpayerId) ||
             typeof data.issueDateUtc !== "string" || !Array.isArray(data.lines) ||
             data.lines.length > 150 || typeof data.expectedRevision !== "number" ||
             typeof data.lastCompletedStep !== "number" ||
-            (data.id != null && (typeof data.id !== "string" || !uuid.test(data.id))))
+            (data.id != null && (typeof data.id !== "string" || !uuid.test(data.id))) ||
+            (data.fiscalMemoryId != null &&
+              (typeof data.fiscalMemoryId !== "string" || !uuid.test(data.fiscalMemoryId))) ||
+            (data.sandboxFiscalMemoryId != null &&
+              (typeof data.sandboxFiscalMemoryId !== "string" || !uuid.test(data.sandboxFiscalMemoryId))) ||
+            (data.fiscalMemoryId != null && data.sandboxFiscalMemoryId != null))
           return error(400,"unsupported_invoice_fields");
       } else if (Object.keys(data).some(k => !["issueDateUtc", "sellerDisplayName", "buyerDisplayName", "buyerPartyId"].includes(k)) ||
           typeof data.issueDateUtc !== "string" ||
