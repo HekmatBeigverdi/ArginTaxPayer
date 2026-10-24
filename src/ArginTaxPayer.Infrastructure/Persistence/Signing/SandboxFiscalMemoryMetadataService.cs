@@ -18,7 +18,7 @@ public sealed record SandboxMemoryResult(int StatusCode, string Error, SandboxMe
 /// Separate Sandbox public-key/identifier registration. Never reads, writes
 /// or replaces production fiscal_memories or production signing key rows.
 /// An untrusted browser-supplied PEM MUST be a valid 2048-bit RSA public key.
-/// There is deliberately no signing/private-key API until vault custody exists.
+/// Private PKCS8 import requires protected custody; no authority HTTP is enabled.
 /// </summary>
 public sealed class SandboxFiscalMemoryMetadataService(
     ArginTaxPayerDbContext db, TaxpayerScopeService scope, IServiceProvider services)
@@ -87,7 +87,7 @@ FROM sandbox_fiscal_memories WHERE taxpayer_id=@taxpayer AND customer_user_id=@o
                 cmd.CommandText="""
 INSERT INTO sandbox_fiscal_memories
 (id,customer_user_id,taxpayer_id,memory_identifier,public_spki_der,
- public_fingerprint_sha256,revision,created_at_utc,updated_at_utc)
+ public_fingerprint_sha256,signing_key_version_id,origin_operation_id,revision,created_at_utc,updated_at_utc)
 VALUES (@id,@owner,@taxpayer,@memory,@spki,@fingerprint,@keyid,@operationid,1,@now,@now)
 ON CONFLICT(customer_user_id,taxpayer_id) DO NOTHING
 RETURNING id
@@ -112,7 +112,7 @@ RETURNING id
 
     /// <summary>
     /// Encrypted private PKCS8 import after the public key and Sandbox memory
-    /// are registered. Idempotent only for the same key, rejects replacement.
+    /// are registered. One-time only; rejects replacement.
     /// Requires the existing Phase09 key protector to be explicitly configured.
     /// No provider API requests are issued.
     /// </summary>
