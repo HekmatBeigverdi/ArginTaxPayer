@@ -38,7 +38,38 @@ public static class InvoiceDraftDevelopmentEndpoints
                 .OrderBy(m => m.MemoryIdentifier)
                 .Select(m => new {m.Id,m.MemoryIdentifier,m.Status})
                 .ToArrayAsync(ct);
-            return Results.Ok(new { taxpayer, memories });
+            // Sandbox fiscal-memory selection is scoped to the exact seller/owner,
+            // kept separate from Production IDs and marked non-production.
+            var owner = await scope.ScopedQuery(actor.ActorId,actor.Level1)
+                .Where(p => p.Id == taxpayerId)
+                .Select(p => p.CustomerUserId).SingleOrDefaultAsync(ct);
+            var sandboxMemories = new List<object>();
+            if(owner is { } ownerId && ownerId!=Guid.Empty)
+            {
+                var conn=db.Database.GetDbConnection();
+                var opened=conn.State!=System.Data.ConnectionState.Open;
+                if(opened)await conn.OpenAsync(ct);
+                try
+                {
+                    await using var cmd=conn.CreateCommand();
+                    cmd.CommandText="""
+SELECT id,memory_identifier
+FROM sandbox_fiscal_memories
+WHERE taxpayer_id=@taxpayer AND customer_user_id=@owner
+ AND private_envelope_json IS NOT NULL
+ORDER BY memory_identifier
+""";
+                    var t=cmd.CreateParameter();t.ParameterName="taxpayer";t.Value=taxpayerId;
+                    cmd.Parameters.Add(t);
+                    var o=cmd.CreateParameter();o.ParameterName="owner";o.Value=ownerId;
+                    cmd.Parameters.Add(o);
+                    await using var reader=await cmd.ExecuteReaderAsync(ct);
+                    while(await reader.ReadAsync(ct))
+                        sandboxMemories.Add(new { id=reader.GetGuid(0),
+                            memoryIdentifier=reader.GetString(1),environment="Sandbox" });
+                } finally {if(opened)await conn.CloseAsync();}
+            }
+            return Results.Ok(new { taxpayer, memories, sandboxMemories });
         }).WithTags("Invoice Header Options (Development)");
 
         app.MapGet("/api/dev/invoices/form-metadata", async (
