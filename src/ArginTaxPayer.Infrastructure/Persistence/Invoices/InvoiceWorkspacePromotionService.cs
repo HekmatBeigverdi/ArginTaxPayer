@@ -57,6 +57,11 @@ public sealed class InvoiceWorkspacePromotionService(
                     .SingleOrDefaultAsync(ct);
                 if(draft is null)
                     return new InvoiceWorkspacePromotionResult(InvoiceApiDecision.NotFound);
+                var currentOwner=await scope.ScopedQuery(actor.ActorId,actor.Level1)
+                    .Where(t=>t.Id==draft.TaxpayerId)
+                    .Select(t=>t.CustomerUserId).SingleOrDefaultAsync(ct);
+                if(currentOwner!=draft.CustomerUserId || currentOwner is null)
+                    return new InvoiceWorkspacePromotionResult(InvoiceApiDecision.NotFound);
                 if(draft.Revision!=request.ExpectedRevision)
                     return new InvoiceWorkspacePromotionResult(InvoiceApiDecision.Conflict,
                         Code:"stale_workspace_revision");
