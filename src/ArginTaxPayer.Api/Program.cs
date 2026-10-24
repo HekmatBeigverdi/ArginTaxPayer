@@ -50,6 +50,11 @@ if (identityDevelopmentEnabled)
         .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
         { AllowAutoRedirect = false, UseCookies = false });
     builder.Services.AddPhase09AuthorityConnection(builder.Configuration);
+    builder.Services.AddHttpClient("phase10-sandbox-authority", client =>
+        client.Timeout = TimeSpan.FromSeconds(18))
+        .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+        { AllowAutoRedirect = false, UseCookies = false });
+    builder.Services.AddPhase10SandboxConnection();
     builder.Services.AddScoped<EfSigningOperationRepository>();
     builder.Services.AddScoped<ISigningChangeRequestSubmission, EfSigningChangeRequestSubmission>();
     builder.Services.AddScoped<ISigningAdminReviewWorkflow, EfSigningAdminReviewWorkflow>();
