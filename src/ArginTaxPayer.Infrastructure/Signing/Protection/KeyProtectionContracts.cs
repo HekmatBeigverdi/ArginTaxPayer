@@ -29,7 +29,9 @@ internal readonly record struct KeyProtectionIdentity(
     public string StoragePath()
     {
         Validate();
-        return $"keys/{(Sandbox ? "sandbox" : "production")}/{CustomerUserId:N}/{TaxpayerId:N}/{FiscalMemoryId:N}/{OperationRecordId:N}/{KeyVersionId:N}";
+        return Sandbox
+            ? $"keys/sandbox/{CustomerUserId:N}/{TaxpayerId:N}/{FiscalMemoryId:N}/{OperationRecordId:N}/{KeyVersionId:N}"
+            : $"keys/{CustomerUserId:N}/{TaxpayerId:N}/{FiscalMemoryId:N}/{OperationRecordId:N}/{KeyVersionId:N}";
     }
 }
 
