@@ -8,7 +8,8 @@ public sealed record InvoiceUiFinding(
     string Key, string Severity, string FieldPath, string Message);
 public sealed record InvoiceUiValidation(
     Guid DraftId, long Revision, string Edition,
-    bool IsSubmissionAuthorized, IReadOnlyList<InvoiceUiFinding> Findings);
+    bool IsSubmissionAuthorized, IReadOnlyList<InvoiceUiFinding> Findings,
+    bool FormHasBlockingErrors = false, string SelectedEnvironment = "Unselected");
 public sealed record InvoiceUiValidationResult(
     InvoiceApiDecision Decision, InvoiceUiValidation? Validation = null);
 public sealed record InvoiceUiReference(
@@ -97,13 +98,22 @@ public sealed class InvoiceValidationReferenceService(
             Add("invoice.settlement.unknown","footer.settlement",
                 "روش تسویه هنوز تعیین نشده است.",true);
 
+        if(draft.FiscalMemoryId is null && draft.SandboxFiscalMemoryId is null)
+            Add("invoice.memory.required_for_submission","header.fiscalMemory",
+                "حافظه مالیاتی صادرکننده انتخاب نشده است؛ برای آماده‌سازی ارسال، حافظه مخصوص محیط اصلی یا Sandbox را انتخاب کنید.",true);
+        if(draft.FiscalMemoryId is not null && draft.SandboxFiscalMemoryId is not null)
+            Add("invoice.memory.environment_conflict","header.fiscalMemory",
+                "حافظه اصلی و آزمایشی نباید همزمان به یک صورتحساب متصل باشند.");
         // V7.9 local catalogue edition is not proven effective/complete for
         // authority transmission. Even zero UI errors MUST remain fail-closed.
         Add("invoice.rules.not_approved","validation",
             "پیش‌بررسی داخلی انجام شد؛ اما شناسه مالیاتی صورتحساب، نسخه معتبر قواعد ارسال و بسته امضاشده هنوز برای صدور مالیاتی تأیید نشده‌اند. تأیید داخلی با پذیرش سازمان متفاوت است.",true);
         return new(InvoiceApiDecision.Success,
             new(draft.Id,draft.Revision,OfficialV79InvoicePatternMatrix.Edition,
-                false,findings.AsReadOnly()));
+                false,findings.AsReadOnly(),
+                findings.Any(f=>f.Severity=="error"),
+                draft.SandboxFiscalMemoryId is not null ? "Sandbox" :
+                draft.FiscalMemoryId is not null ? "Production" : "Unselected"));
     }
 
     public async Task<InvoiceUiReferenceResult> ListReferencesAsync(
