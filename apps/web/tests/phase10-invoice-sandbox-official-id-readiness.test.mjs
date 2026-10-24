@@ -6,6 +6,7 @@ const catalog=readFileSync("app/catalog/workspace.tsx","utf8");
 const entry=readFileSync("../../src/ArginTaxPayer.Infrastructure/Persistence/Invoices/InvoiceEntryWorkspaceService.cs","utf8");
 const ui=readFileSync("app/invoices/workspace.tsx","utf8");
 const options=readFileSync("../../src/ArginTaxPayer.Api/Invoices/InvoiceDraftDevelopmentEndpoints.cs","utf8");
+const invoiceBff=readFileSync("app/api/invoices/[...segments]/route.ts","utf8");
 const validation=readFileSync("../../src/ArginTaxPayer.Infrastructure/Persistence/Invoices/InvoiceValidationReferenceService.cs","utf8");
 const validationUi=readFileSync("app/invoices/invoice-validation-panel.tsx","utf8");
 const dispatch=readFileSync("../../src/ArginTaxPayer.Api/Invoices/Phase10InvoiceDispatchDevelopmentEndpoints.cs","utf8");
@@ -31,6 +32,9 @@ test("Sandbox selection is owner scoped and never passed as Production memory FK
   assert.match(ui,/value=\{"sandbox:"\+m\.id\}/);
   assert.match(ui,/sandboxFiscalMemoryId:memoryId\.startsWith\("sandbox:"\)/);
   assert.match(ui,/fiscalMemoryId:memoryId&&!memoryId\.startsWith\("sandbox:"\)/);
+  assert.match(invoiceBff,/"sandboxFiscalMemoryId"/);
+  assert.match(invoiceBff,/uuid\.test\(data\.sandboxFiscalMemoryId\)/);
+  assert.match(invoiceBff,/data\.fiscalMemoryId != null && data\.sandboxFiscalMemoryId != null/);
 });
 test("validation provides specific missing-code diagnostics but never grants invoice dispatch",()=>{
   assert.match(validation,/invoice\.line\.official_identifier_missing/);
