@@ -1916,3 +1916,49 @@ zsh scripts/phase10-sandbox-custody-repair.zsh
 **First run:** Do not type `APPLY`. Press Enter to leave DB unchanged, inspect `artifacts/sandbox-custody-repair-*.sql` and the backup path. After explicit reviewed SQL approval, rerun and type `APPLY`. Do not run the old `scripts/phase10-sandbox-migration.zsh` for this case. Never `DROP TABLE`, `migrations remove`, edit `__EFMigrationsHistory`, or redo a previously applied migration. No Ubuntu OS work before Step23.
 
 **No DB mutation performed by assistant:** All recorded success is source-level GitHub changes, not an operator execution result. Afterwards test application-specific encrypted-key import and offline signing. The live Sandbox authority connection remains blocked pending official API verification.
+
+
+### Sandbox real authority connection test — isolated, explicit opt-in (2026-10-24)
+
+**User request:** After successfully pairing Sandbox public/private keys and pushing recent UI fixes, provide the real sandbox equivalent of Phase09 signed fiscal-memory test. This implementation deliberately does **not** activate invoice sending.
+
+**Live source review:** The public Tax Authority announcement (republished in 2023) describes the Sandbox **portal** `https://sandboxrc.tax.gov.ir` as separate from Production `https://tp.tax.gov.ir`, allowing a test fiscal ID. It does **not** establish a CURRENT official 2026 Sandbox GET_TOKEN/GET_FISCAL_INFORMATION REST API URL/route. SDK v0.0.30 specifies Production `self-tsp/sync/GET_TOKEN` and `GET_FISCAL_INFORMATION`, but its applicability to Sandbox must be independently confirmed. Therefore **SandboxConnectionTest is OFF by default**. An operator must positively verify the official API endpoint before setting the opt-in switches; do not assume the work-folder URL hosts the API.
+
+**Implementation:**
+- `src/ArginTaxPayer.Infrastructure/Signing/Connection/SandboxAuthorityTokenProbe.cs`: read-only signed GET_TOKEN -> bearer-scoped GET_FISCAL_INFORMATION, using **the same SDK 0.0.30 packet signing normalization** as Phase09, but **only** the chosen Sandbox private key and public SPKI. No invoice transport. Serializes the correct SDK packet, enforces 18s timeout, bounded response 256KiB / max depth 16, never returns raw token or response body to client.
+- `SigningConnectionRegistration.AddPhase10SandboxConnection` and `Program.cs`: separate named `phase10-sandbox-authority` HttpClient, cookies disabled and redirects disabled. A pinned Origin guard: `SandboxConnectionTest:Enabled=true`, `SandboxConnectionTest:OfficialApiVerified=true`, and `SandboxConnectionTest:VerifiedApiBaseUrl` must ALL exist; HTTPS default port 443, **exact host** `sandboxrc.tax.gov.ir`, path `/req/api/`, no query/userinfo/fragment. This is a conservative allowlist, not proof the endpoint really exists. Production `tp.tax.gov.ir` and arbitrary URLs are never permitted, even on timeout/failure. If the actual official Sandbox API uses another hostname or packet profile, DO NOT override guard casually: verify official documentation and update the allowlist in a reviewed commit and tests instead.
+- `SandboxFiscalMemoryMetadataService.TestAuthorityAsync`: authorizes current user and selected taxpayer, reads **only** the `sandbox_fiscal_memories` table, locates AAD-bound encrypted PKCS8 with `Sandbox:true`, decrypts transiently in memory, uses signed Sandbox probe and returns status/fiscal info without key/token. No production key selection; no DB mutations.
+- `SandboxFiscalMemoryDevelopmentEndpoints.cs`: existing `POST /api/dev/taxpayers/{taxpayerId}/sandbox-memory/connection-test` now invokes the real opt-in adapter, with loopback, no Origin and empty-body guard; returns safe status codes and never claims portal activation.
+- `apps/web/app/api/sandbox-memory/[taxpayerId]/connection-test/route.ts`: cookie-backed, same-local-origin, no request body, bounded JSON, allowlisted statuses, no raw upstream response. `apps/web/app/taxpayers/sandbox-fiscal-memory-panel.tsx`: enables `تست اتصال واقعی Sandbox` only when encrypted custody is ready, displays token/fiscal-info result, distinguishes `Authenticated`, rejected, unavailable, unknown, timeout and explicitly unavailable profile. A 200+real token+valid fiscal response means **authentication only**, not legally accepted invoices or active memory.
+- `tests/ArginTaxPayer.Tests/Phase10SandboxAuthorityOriginTests.cs` and `apps/web/tests/phase10-sandbox-authority-connection.test.mjs`: strict endpoint rejection and no fallback structural regressions. Existing Sandbox tests adjusted for real opt-in button. Build and authenticated Sandbox tests remain operator-pending.
+
+**Only AFTER current official Sandbox API base URL & wire contract have been verified and approved**, set these values **outside source control**, on the LOCAL development server environment (never in Git):
+
+```text
+SandboxConnectionTest__Enabled=true
+SandboxConnectionTest__OfficialApiVerified=true
+SandboxConnectionTest__VerifiedApiBaseUrl=<CURRENT_VERIFIED_OFFICIAL_SANDBOX_API_BASE_URL>
+```
+
+The application deliberately rejects every URL except exact `https://sandboxrc.tax.gov.ir/req/api/`. **Do not assume or enter this candidate until official API verification.** If a verified current API URL differs, guard and tests must be amended from authenticated primary documentation. No secrets or fiscal tokens in environment values; key stays in separate Sandbox AES-GCM envelope.
+
+**macOS operator checks**:
+```bash
+cd ~/projects/ArginTaxPayer
+git status --short
+git fetch origin --prune
+git switch phase/10-invoice-submission
+git pull --ff-only origin phase/10-invoice-submission
+dotnet restore ArginTaxPayer.sln
+dotnet build ArginTaxPayer.sln --no-restore
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --no-restore \
+ --filter "FullyQualifiedName~Phase10SandboxAuthorityOriginTests|FullyQualifiedName~Phase10SandboxKeyIsolationTests|FullyQualifiedName~FiscalConnectionEnvironmentPolicyTests|FullyQualifiedName~Phase09LegacyAuthorityConnectionTests"
+dotnet test ArginTaxPayer.sln --no-build
+cd apps/web
+node --test tests/phase10-sandbox-authority-connection.test.mjs tests/phase10-sandbox-memory-isolation.test.mjs tests/phase10-sandbox-metadata.test.mjs
+npm run typecheck
+npm run build
+cd ../..
+git status --short
+```
+Check the Authenticated Sandbox UI state only with an explicitly approved isolated test account and verified official API route; otherwise a safe `Unavailable` is the correct behavior. No production token/network calls from Sandbox and no migration required. This implementation has not executed live Sandbox calls from GitHub tools or locally.
