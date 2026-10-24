@@ -1833,3 +1833,53 @@ zsh scripts/phase10-sandbox-migration.zsh
 #### Manual UI check
 
 After verified migration, open the existing taxpayer connection panel. Production should retain original token/test behavior; Sandbox tab should generate independent key files, allow public ID+public key registration, reload persistent metadata, and continue displaying Sandbox connection test disabled. Check browser Network: Sandbox operations must never hit production `GET_TOKEN`; no private PEM must appear in JSON/request bodies.
+
+
+### Sandbox follow-up: encrypted private custody and offline signing verification (2026-10-24)
+
+**Scope:** Owner requested completion of separate Sandbox memory + key workflow after the partial Sandbox metadata milestone. The following source work is now committed on `phase/10-invoice-submission`. No local builds, web browser, database migrations or live Tax Authority operations are claimed as passed. **This is not official live Sandbox token connectivity.**
+
+- Extended still-pending **additive, test-only** `20261024103000_AddSandboxFiscalMemoryMetadata.cs` *before migration application*: new nullable `private_envelope_json` (ciphertext / wrapped DEK JSON only), immutable `signing_key_version_id` and `origin_operation_id` identifiers. No plaintext private key columns, no writes to `fiscal_memories` or production signing entities. Rollback remains disallowed.
+- Extended existing Phase09 `KeyProtectionIdentity` with default `Sandbox=false` so *existing Production AES-GCM AAD remains byte-for-byte unchanged* (`argin:key:v1`); existing Vault production `StoragePath()` also unchanged. The explicit Sandbox profile binds its AAD to `argin:key:sandbox:v1` and uses a separate `keys/sandbox/...` namespace. This is cryptographic isolation, not just UI branding. `tests/ArginTaxPayer.Tests/Phase10SandboxKeyIsolationTests.cs` verifies both representations.
+- `SandboxFiscalMemoryMetadataService.ImportPrivateAsync`: accepts private PKCS8 PEM only after separately registered Sandbox ID and public SPKI, validates RSA 2048/65537, compares canonical SPKI in constant time to the existing Sandbox public key, creates one encrypted envelope with `KeyEnvelopeProtector.ProtectAsync`, persists via row-locked revision-CAS `UPDATE...WHERE private_envelope_json IS NULL` inside test-only PostgreSQL transaction, zeroes exported PKCS8 bytes, rejects key replacement/replays and never touches Production keys. Existing configuration must register Phase09 protection provider; if unconfigured, returns a safe unavailable result. The JSON bound private PEM exists transiently in memory while uploading; do not enable verbose request-body logs.
+- `SandboxFiscalMemoryMetadataService.SelfTestAsync`: decrypts the Sandbox envelope with Sandbox AAD, signs a randomly generated challenge using the stored RSA private key and verifies with the registered public key; only a boolean-safe result is returned. This is **offline key-health validation**, not authenticated Tax Authority connection, not memory activation and not invoice submission.
+- New development-only scoped API routes `POST /api/dev/taxpayers/{taxpayerId}/sandbox-memory/private-key` and `.../key-self-test`, accessible only on loopback with current role/taxpayer auth. They do not construct or invoke any authority URL or token HTTP transport.
+- New BFF `apps/web/app/api/sandbox-memory/[taxpayerId]/private-key/route.ts`, `.../key-self-test/route.ts`: cookie session and strict same-origin protection; only an exact small JSON private PEM import is permitted; sanitized success/failure JSON contains **no private key**, no request/provider trace. The existing scoped public metadata BFF now returns a safe `keyCustodyReady` boolean.
+- UI Sandbox tab now provides steps: create distinct public/private keypair, register public key into Sandbox portal, enter and persist sandbox fiscal memory identifier + public key, select saved Sandbox-only private PEM and store it encrypted, **test key pair offline**, then the separately labelled official authority connection test stays **disabled**. No client-selected URL or fallback to production. Test status does not assert fiscal acceptance.
+- Extended structural test `apps/web/tests/phase10-sandbox-metadata.test.mjs` and prior `phase10-sandbox-memory-isolation.test.mjs`; assertions guard encrypted-key scope, AAD separation, no Production URL in Sandbox endpoints and explicitly disabled live connection.
+- **Current blocking dependency**: could not verify a current Iranian Tax Authority *Sandbox API* host/route and signed token contract from official current sources. `sandboxrc.tax.gov.ir` is a historical **work-folder portal**, not sufficient proof of a token API host. The active Production `tp.tax.gov.ir/req/api/self-tsp/sync/GET_TOKEN` and `GET_FISCAL_INFORMATION` must **never** be called with Sandbox test credentials. Before enabling live Sandbox, require a pinned official test API origin, per-environment credential and memory validation, host allowlist, bounded/no-redirect TLS HTTP client, signed packet verification, isolated outbox, current tax SDK handshake tests and explicit owner approval. Current Step16 dispatch send and Sandbox online connection remain disabled.
+
+#### Acceptance commands
+
+```bash
+cd ~/projects/ArginTaxPayer
+git status --short
+git fetch origin --prune
+git switch phase/10-invoice-submission
+git pull --ff-only origin phase/10-invoice-submission
+git rev-parse HEAD
+dotnet restore ArginTaxPayer.sln
+dotnet build ArginTaxPayer.sln --no-restore
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --no-restore \
+ --filter "FullyQualifiedName~FiscalConnectionEnvironmentPolicyTests|FullyQualifiedName~Phase10SandboxKeyIsolationTests"
+dotnet test ArginTaxPayer.sln --no-build
+cd apps/web
+node --test tests/phase10-sandbox-memory-isolation.test.mjs tests/phase10-sandbox-metadata.test.mjs
+npm run typecheck
+npm run build
+cd ../..
+zsh scripts/dev-status.zsh
+```
+
+**Operator-only migration**, not executed here:
+```bash
+set -a
+source .env.dev.local
+set +a
+zsh scripts/phase10-sandbox-migration.zsh
+```
+Script checks exact test DB, dumps backup, generates migration SQL and asks for `APPLY`. First run: press Enter to cancel, share/read SQL and verify non-destructive behavior. Only after explicit SQL review may operator rerun and approve. No migration auto-applied by API/Workers.
+
+**Manual QA after migration:** Open taxpayer connection, Sandbox tab; generate keypair; upload *public* into Sandbox portal and obtain separate Sandbox code, register code+public via UI, upload same generated *private* key to dedicated secret route; confirm `keyCustodyReady`, offline challenge PASS; refresh; ensure old Production memory, key fingerprints and connection test remain identical. Wrong private key must fail 409 without overwriting. Try unauthorized user, different taxpayer and expired session; no secrets returned. Confirm live Sandbox connection test remains disabled and no HTTP to Production is made from Sandbox.
+
+**Open security/performance gates:** (1) enforce fresh reauthentication and audit on private PEM import before promoting past development; (2) bounded streaming/PII-safe logging and CSRF already performed at BFF, but direct API is restricted to local requests without Origin and requires bearer; (3) concurrent PostgreSQL replays and encrypted roundtrip integration tests not yet executed, (4) actual current official Sandbox token endpoint unknown, (5) enterprise/production migrations need their own reviewed process and operational support. No live Sandbox invoice transport permitted based on offline success.
