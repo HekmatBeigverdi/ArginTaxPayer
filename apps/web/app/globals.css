@@ -827,3 +827,24 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 .invoice-dispatch-ui__actions button:disabled{opacity:.54;cursor:not-allowed}
 .invoice-dispatch-ui__hint{border-top:1px solid #dfebe4;padding-top:8px}
 @media(max-width:520px){.invoice-dispatch-ui__grid{grid-template-columns:1fr}.invoice-dispatch-ui__actions button{flex:1 1 140px}}
+
+
+/* Separate Sandbox fiscal-memory onboarding - isolated from Production */
+.sandbox-memory-panel{display:grid;gap:12px;direction:rtl;border:1px solid #cee3d9;background:#f8fcfa;border-radius:10px;padding:12px;margin:10px 0}
+.sandbox-memory-panel__heading{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.sandbox-memory-panel__heading h3{font-size:14px;color:#21604c;margin:0 0 4px}
+.sandbox-memory-panel__heading p,.sandbox-memory-panel__steps p{font-size:11px;line-height:1.9;color:#536b62;margin:0 0 8px}
+.sandbox-memory-panel__heading>span{font-size:11px;color:#215b49;background:#dcefe6;border:1px solid #b4d5c6;border-radius:15px;padding:3px 8px}
+.sandbox-memory-panel__steps{display:grid;gap:8px}
+.sandbox-memory-panel__steps>section{background:#fff;border:1px solid #dceae3;border-radius:8px;padding:11px;display:grid;gap:8px}
+.sandbox-memory-panel__steps strong{font-size:12px;color:#245849}
+.sandbox-memory-panel__steps label{font-size:11px}
+.sandbox-memory-panel__steps input[type=text]{width:min(100%,360px);min-height:34px;background:#fff;border:1px solid #bad3c8;border-radius:7px;padding:6px 9px;font:inherit;font-size:12px}
+.sandbox-memory-panel__steps button{width:fit-content!important;min-height:33px!important;font-size:11px!important;padding:6px 12px!important;margin:0!important}
+.sandbox-memory-panel__steps button:disabled{opacity:.52;cursor:not-allowed}
+.sandbox-memory-panel__steps a{font-size:12px;color:#176d52;text-decoration:underline;width:fit-content}
+.sandbox-memory-panel__consent{display:flex;gap:7px;align-items:center;line-height:1.6}
+.sandbox-memory-panel__files{display:flex;gap:8px;flex-wrap:wrap;align-items:center;background:#eef7f1;border:1px solid #c9e3d4;border-radius:7px;padding:9px}
+.sandbox-memory-panel__files strong,.sandbox-memory-panel__files p{flex-basis:100%}
+.sandbox-memory-panel__warning{background:#fff9ec;border:1px solid #f0dfb9;border-radius:7px;color:#6e5734;padding:9px;font-size:11px;line-height:2;margin:0}
+@media(max-width:600px){.sandbox-memory-panel__heading{flex-direction:column}.sandbox-memory-panel__steps button{max-width:100%;width:100%!important}.sandbox-memory-panel__files button{width:100%!important}}
