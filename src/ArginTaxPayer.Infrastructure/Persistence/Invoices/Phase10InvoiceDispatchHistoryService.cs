@@ -17,7 +17,9 @@ public sealed record Phase10DispatchHistoryView(
     string Environment, bool SubmissionEnabled, bool FiscalAccepted,
     bool SignedPreviewAvailable, long? InvoiceRevision, string State,
     DateTime? LastUpdatedAtUtc,
-    Phase10DispatchAttemptView[] Attempts, Phase10DispatchReceiptView[] Receipts);
+    Phase10DispatchAttemptView[] Attempts, Phase10DispatchReceiptView[] Receipts,
+    string RecoveryAction = "ManualReview", string RecoveryCode = "invoice.recovery.unrecognized_stop",
+    bool MayRetry = false, bool MayInquire = false);
 public sealed record Phase10DispatchHistoryResult(
     InvoiceApiDecision Decision, Phase10DispatchHistoryView? Value = null);
 
@@ -111,8 +113,11 @@ ORDER BY observed_at_utc DESC,id DESC LIMIT 30
             }
             // Signed packet bytes are deliberately not read from DB or reconstructed.
             // Even a Signed state does not establish a previewable signed artifact.
+            var next=ArginTaxPayer.Application.Invoices.Phase10InvoiceRecoveryAdvice
+                .ForState(state,false);
             return new(InvoiceApiDecision.Success,new("Mock",false,false,false,
-                revision,state,updated,attempts.ToArray(),receipts.ToArray()));
+                revision,state,updated,attempts.ToArray(),receipts.ToArray(),
+                next.NextAction.ToString(),next.SafeCode,next.MayRetry,next.MayInquire));
         }finally{if(opened)await conn.CloseAsync();}
     }
 
