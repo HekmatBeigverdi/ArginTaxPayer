@@ -848,3 +848,24 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 .sandbox-memory-panel__files strong,.sandbox-memory-panel__files p{flex-basis:100%}
 .sandbox-memory-panel__warning{background:#fff9ec;border:1px solid #f0dfb9;border-radius:7px;color:#6e5734;padding:9px;font-size:11px;line-height:2;margin:0}
 @media(max-width:600px){.sandbox-memory-panel__heading{flex-direction:column}.sandbox-memory-panel__steps button{max-width:100%;width:100%!important}.sandbox-memory-panel__files button{width:100%!important}}
+
+
+/* Phase10 step18: compact, read-only invoice dispatch timeline */
+.invoice-dispatch-history{border:1px solid #d3e3d9;border-radius:9px;background:#f9fcfa;padding:11px;margin-top:10px;display:grid;gap:9px;direction:rtl;min-width:0}
+.invoice-dispatch-history__head{display:flex;align-items:start;justify-content:space-between;gap:8px}
+.invoice-dispatch-history__head h3{font-size:13px;margin:0 0 4px;color:#225b48}
+.invoice-dispatch-history__head p,.invoice-dispatch-history__preview p{font-size:11px;color:#64766d;line-height:1.8;margin:0}
+.invoice-dispatch-history__head button,.invoice-dispatch-history button{font-size:11px!important;padding:6px 9px!important;min-height:30px!important;width:auto!important;margin:0!important}
+.invoice-dispatch-history__facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.invoice-dispatch-history__facts>div{background:#fff;border:1px solid #e1e9e3;border-radius:7px;display:flex;align-items:center;flex-wrap:wrap;justify-content:space-between;gap:7px;padding:7px;font-size:11px}
+.invoice-dispatch-history__facts span{color:#637a6e}
+.invoice-dispatch-history__facts strong{font-size:11px;color:#285747}
+.invoice-dispatch-history h4{margin:3px 0 0;font-size:12px;color:#2b6350}
+.invoice-dispatch-history__preview,.invoice-dispatch-history__confirm>div{display:grid;gap:7px;background:white;border:1px solid #dce9e0;border-radius:7px;padding:9px;min-width:0;overflow-wrap:anywhere}
+.invoice-dispatch-history__loading{display:flex;align-items:center;gap:8px;padding:12px;font-size:11px;color:#4e685a}
+.invoice-dispatch-history__receipts{display:grid;gap:6px}
+.invoice-dispatch-history__receipts>div{display:flex;flex-wrap:wrap;gap:9px;background:#fff;border:1px solid #dce9e0;border-radius:7px;padding:8px;font-size:11px}
+.invoice-dispatch-history__confirm{display:grid;gap:8px}
+.invoice-dispatch-history__notice{font-size:11px;color:#785f36;background:#fff9e9;border:1px solid #e9dbbb;border-radius:7px;padding:8px;line-height:1.8;margin:0}
+.invoice-dispatch-history button:disabled{opacity:.56;cursor:not-allowed}
+@media(max-width:520px){.invoice-dispatch-history__facts{grid-template-columns:1fr}.invoice-dispatch-history__head{flex-wrap:wrap}}
