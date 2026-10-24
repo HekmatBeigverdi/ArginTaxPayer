@@ -358,6 +358,20 @@ export default function InvoiceValidationPanel({
       )}
       {error && <p role="alert" className="form-error">{error}</p>}
       {report && <ValidationReport report={report} />}
+      {report?.selectedEnvironment === "Sandbox" && (
+        <div className="invoice-validation__preparation">
+          <button type="button" className="identity-secondary"
+            disabled={dirty || busy || preparing || !onPrepared ||
+              report.revision!==revision || report.findings.some(f=>
+                f.severity==="error"||(f.severity==="warning"&&f.key!=="invoice.rules.not_approved"))}
+            onClick={()=>void prepareInternalSnapshot()}>
+            {preparing?"در حال ثبت نسخه ثابت…":"ثبت نسخه ثابت داخلی برای آماده‌سازی Sandbox"}
+          </button>
+          <p className="invoice-validation__warning">نسخه ثابت داخلی، ارسال مالیاتی نیست؛
+          شناسه مالیاتی و بسته امضاشده هنوز ایجاد نشده‌اند.</p>
+        </div>
+      )}
+
 
       <ReferenceSection
         subject={subject}
