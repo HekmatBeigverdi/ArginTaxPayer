@@ -91,6 +91,41 @@ public sealed class InvoiceWorkspacePromotionService(
                     return new InvoiceWorkspacePromotionResult(InvoiceApiDecision.Invalid,
                         Code:"invoice_not_ready_for_snapshot");
 
+
+                // Re-resolve each official 13-digit identifier from a trusted
+                // active catalogue release at the original issue date. Stored
+                // snapshots alone are not legal evidence of a current mapping.
+                var itemIds=input.Lines.Select(l=>l.CatalogItemId!.Value)
+                    .Distinct().ToArray();
+                var mapped=await db.CatalogOfficialMappings.AsNoTracking()
+                    .Where(m=>itemIds.Contains(m.ItemId) &&
+                        m.EffectiveFromUtc<=draft.IssueDateUtc &&
+                        (m.EffectiveToUtc==null || m.EffectiveToUtc>draft.IssueDateUtc))
+                    .Join(db.OfficialGoodsServiceEntries.AsNoTracking(),
+                        m=>m.OfficialEntryId,e=>e.Id,(m,e)=>new{
+                            m.ItemId,e.Code,e.VerificationStatus,e.Kind,e.ReleaseId
+                        })
+                    .Where(x=>x.VerificationStatus==2 && x.Code.Length==13 &&
+                        db.CatalogReferenceReleases.Any(r=>
+                            r.Id==x.ReleaseId&&r.State==3))
+                    .ToArrayAsync(ct);
+                var ownerItems=await db.CustomerCatalogItems.AsNoTracking()
+                    .Where(x=>itemIds.Contains(x.Id) && x.CustomerUserId==draft.CustomerUserId &&
+                        x.Status==1)
+                    .Select(x=>new{x.Id,x.Kind,x.BaseUnitId})
+                    .ToDictionaryAsync(x=>x.Id,ct);
+                if(ownerItems.Count!=itemIds.Length ||
+                    input.Lines.Any(line=>{
+                        if(!ownerItems.TryGetValue(line.CatalogItemId!.Value,out var item) ||
+                            item.BaseUnitId!=line.UnitId)return true;
+                        var candidates=mapped.Where(x=>x.ItemId==item.Id &&
+                            (item.Kind is 1 or 2 ? x.Kind==1 : x.Kind==2))
+                            .Select(x=>x.Code).Distinct().ToArray();
+                        return candidates.Length!=1 ||
+                            candidates[0]!=line.OfficialIdentifierSnapshot;
+                    }))
+                    return new(InvoiceApiDecision.Invalid,
+                        Code:"official_item_mapping_changed_or_invalid");
                 // Production tax memory must be owned by this seller; Sandbox
                 // memory must be an independent, key-ready row of same owner.
                 if(input.FiscalMemoryId is { } production){
