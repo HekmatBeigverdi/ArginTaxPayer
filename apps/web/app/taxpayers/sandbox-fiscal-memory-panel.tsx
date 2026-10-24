@@ -34,14 +34,46 @@ export default function SandboxFiscalMemoryPanel({taxpayerId}:{taxpayerId:string
   const [showPrivate,setShowPrivate]=useState(false);
   const [copied,setCopied]=useState(false);
   const [consent,setConsent]=useState(false);
+  const [registered,setRegistered]=useState<{memoryIdentifier:string;publicFingerprintSha256:string}|null>(null);
+  const [saving,setSaving]=useState(false);
+  const [reading,setReading]=useState(false);
 
   useEffect(()=>{
     setIdentifier("");setGenerated(false);setPublicKey("");setPrivateKey("");
-    setCopied(false);setConsent(false);setError("");
+    setCopied(false);setConsent(false);setError("");setRegistered(null);
+    const controller=new AbortController();
+    setReading(true);
+    void fetch("/api/sandbox-memory/"+encodeURIComponent(taxpayerId),{
+      credentials:"same-origin",cache:"no-store",signal:controller.signal
+    }).then(async r=>{if(!r.ok)throw new Error("وضعیت حافظه آزمایشی دریافت نشد.");return r.json();})
+      .then(value=>{if(!controller.signal.aborted && value.data){
+        setRegistered(value.data);setIdentifier(value.data.memoryIdentifier);
+      }}).catch(()=>{if(!controller.signal.aborted)setError("دریافت وضعیت حافظه Sandbox ناموفق بود.");})
+      .finally(()=>{if(!controller.signal.aborted)setReading(false);});
+    return ()=>controller.abort();
   },[taxpayerId]);
 
+  async function registerMemory(){
+    if(!generated||!validIdentifier||registered||saving||!publicKey)return;
+    setSaving(true);setError("");
+    try {
+      const response=await fetch("/api/sandbox-memory/"+encodeURIComponent(taxpayerId),{
+        method:"POST",credentials:"same-origin",cache:"no-store",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({memoryIdentifier:normalized,publicKeyPem:publicKey}),
+        signal:AbortSignal.timeout(18000)
+      });
+      if(!response.ok)throw new Error(response.status===409?
+        "برای این مؤدی حافظه آزمایشی ثبت شده است؛ بازخوانی کنید.":"ثبت شناسه آزمایشی انجام نشد.");
+      const value=await response.json();
+      if(value.environment!=="Sandbox"||!value.data)throw new Error("پاسخ ثبت Sandbox نامعتبر است.");
+      setRegistered(value.data);setIdentifier(value.data.memoryIdentifier);
+    }catch(e){setError(e instanceof Error?e.message:"ثبت شناسه ناموفق بود.");}
+    finally {setSaving(false);}
+  }
+
   async function generateKeys() {
-    if (!consent || generating) return;
+    if (!consent || generating || registered) return;
     setGenerating(true);setError("");
     try {
       if (!globalThis.crypto?.subtle) throw new Error("مرورگر از تولید امن کلید پشتیبانی نمی‌کند.");
@@ -84,7 +116,7 @@ export default function SandboxFiscalMemoryPanel({taxpayerId}:{taxpayerId:string
           تأیید می‌کنم این کلید فقط برای محیط آزمایشی ایجاد شود.
         </label>
         <button type="button" className="identity-primary"
-          disabled={!consent || generating} onClick={()=>void generateKeys()}>
+          disabled={!consent || generating || !!registered} onClick={()=>void generateKeys()}>
           {generating?"در حال ایجاد جفت‌کلید…":"ساخت و دانلود جفت‌کلید Sandbox"}
         </button>
         {generated&&<div className="sandbox-memory-panel__files">
@@ -118,9 +150,13 @@ export default function SandboxFiscalMemoryPanel({taxpayerId}:{taxpayerId:string
           autoComplete="off" maxLength={32} spellCheck={false} placeholder="شناسه آزمایشی"
           onChange={e=>setIdentifier(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,""))}/>
         {identifier&&!validIdentifier&&<p role="status">قالب شناسه را بررسی کنید.</p>}
-        <p className="field-hint">فعلاً فقط در فرم نگهداری می‌شود. تا آماده‌شدن ذخیره‌سازی مستقل و رمزگذاری‌شده Sandbox، امکان ثبت نهایی آن در پایگاه داده فعال نیست.</p>
-        <button type="button" className="identity-secondary" disabled title="نگهداری مستقل Sandbox هنوز در سرور پیاده‌سازی نشده">
-          ثبت شناسه در Sandbox
+        {reading&&<p role="status">در حال بارگذاری اطلاعات Sandbox…</p>}
+        {registered&&<p role="status">شناسه آزمایشی ثبت شده است. اثر انگشت کلید عمومی: <bdi dir="ltr">{registered.publicFingerprintSha256}</bdi></p>}
+        <p className="field-hint">ثبت فقط شامل شناسه آزمایشی و Public Key است؛ Private Key در سرور ذخیره نمی‌شود. پس از ثبت، تغییر کلید نیازمند فرایند کنترل‌شده جداگانه است.</p>
+        <button type="button" className="identity-secondary"
+          disabled={!generated||!validIdentifier||!!registered||saving||reading}
+          onClick={()=>void registerMemory()}>
+          {saving?"در حال ثبت…":registered?"ثبت شده":"ثبت شناسه و کلید عمومی Sandbox"}
         </button>
       </section>
       <section>
@@ -132,6 +168,6 @@ export default function SandboxFiscalMemoryPanel({taxpayerId}:{taxpayerId:string
       </section>
     </div>
     {error&&<OperationMessageBox kind="error" title="خطای تولید کلید">{error}</OperationMessageBox>}
-    <p className="sandbox-memory-panel__warning">این بخش در مرحله آماده‌سازی است: تولید و دانلود جفت‌کلید کار می‌کند؛ ثبت پایدار شناسه، نگهداری امن کلید و تست اتصال زنده هنوز فعال نشده‌اند. حافظه اصلی و کلید آن بدون تغییر باقی می‌مانند.</p>
+    <p className="sandbox-memory-panel__warning">این بخش در مرحله آماده‌سازی است: تولید کلید و ثبت مستقل شناسه و کلید عمومی انجام می‌شود؛ نگهداری رمزگذاری‌شده Private Key و تست اتصال زنده هنوز فعال نشده‌اند. حافظه اصلی بدون تغییر می‌ماند.</p>
   </section>;
 }
