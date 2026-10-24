@@ -29,10 +29,10 @@ type CatalogPage = { items: CatalogItem[] };
 type Account = { customerUserId: string; companyName?: string | null; personName?: string | null };
 type FiscalEntry = { id: string; customerUserId: string; type: "buyer" | "taxpayer"; displayName: string; identifier: string; status: number };
 type FiscalPage = { items: FiscalEntry[]; total: number };
-type Row = { key: number; productId: string; unitId?: string; catalogCodeSnapshot?: string; name: string; quantity: string;
+type Row = { key: number; productId: string; unitId?: string; catalogCodeSnapshot?: string; officialIdentifierSnapshot?: string; name: string; quantity: string;
   unitPrice: string; discount: string; vatRate: string };
 type Step = 0 | 1 | 2;
-type SavedEntryLine = { catalogItemId: string | null; unitId?: string | null; catalogCodeSnapshot?: string | null; description: string; quantity: number;
+type SavedEntryLine = { catalogItemId: string | null; unitId?: string | null; catalogCodeSnapshot?: string | null; officialIdentifierSnapshot?: string | null; description: string; quantity: number;
   unitPriceRial: number; discountPerUnitRial: number; vatRatePercent: number | null };
 type SavedEntry = { id: string; customerUserId: string; taxpayerId: string;
   revision: number; lastCompletedStep: number; issueDateUtc: string; updatedAtUtc: string;
@@ -331,6 +331,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
       setRows(saved.lines.map((line,index)=>({
         key:index+1,productId:line.catalogItemId ?? "",
         unitId:line.unitId ?? undefined,catalogCodeSnapshot:line.catalogCodeSnapshot ?? undefined,
+         officialIdentifierSnapshot:line.officialIdentifierSnapshot ?? undefined,
         name:line.description,quantity:String(line.quantity),
         unitPrice:String(line.unitPriceRial),discount:String(line.discountPerUnitRial),
         vatRate:String(line.vatRatePercent ?? "")
@@ -780,6 +781,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
                 <label htmlFor="invoice-catalog-search">انتخاب کالا / خدمت</label>
                 <SearchableCatalogPicker items={catalog} value={catalogQuery}
                   onQueryChange={setCatalogQuery} loading={catalogBusy} onChoose={addRow}/>
+                <small className="field-hint">کد داخلی کالای انتخابی با شناسه رسمی ۱۳ رقمی (sstid) متفاوت است. برای تخصیص شناسه معتبر، در «کالاها و خدمات» از گزینه «نگاشت» استفاده کنید. کد رسمی توسط سرور هنگام ذخیره صورتحساب از نگاشت فعال خوانده می‌شود.</small>
               </div>
               {importOpen && <InvoiceImportPanel disabled={busy} onImport={applyImportedRows}
                 onClose={()=>setImportOpen(false)}/>}
@@ -792,9 +794,11 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
                   <tbody>{rows.length===0?<tr><td colSpan={7}>هنوز ردیفی اضافه نشده است.</td></tr>:
                     rows.map((row,index)=><tr key={row.key}>
                       <td>{index+1}</td>
-                      <td><input aria-label={"شرح ردیف "+(index+1)} title={row.productId?("کد ثبت‌شده: "+(row.catalogCodeSnapshot||"—")):""}
+                      <td><input aria-label={"شرح ردیف "+(index+1)} title={row.productId?("کد داخلی: "+(row.catalogCodeSnapshot||"—") + " | شناسه رسمی: "+(row.officialIdentifierSnapshot||"ثبت نشده")):""}
                         style={{width:"100%",minWidth:0}} value={row.name} maxLength={256}
-                        onChange={e=>updateRow(row.key,{name:e.target.value})}/></td>
+                        onChange={e=>updateRow(row.key,{name:e.target.value})}/>
+                         {row.officialIdentifierSnapshot?<small className="field-hint" dir="ltr">sstid: {row.officialIdentifierSnapshot}</small>:
+                         <small className="field-hint">شناسه رسمی ۱۳ رقمی هنوز در این ردیف تأیید نشده است.</small>}</td>
                       <td><input aria-label={"مقدار ردیف "+(index+1)} style={{width:"100%",minWidth:0}} dir="ltr" type="number" min="0.00000001" step="any"
                         value={row.quantity} onChange={e=>updateRow(row.key,{quantity:e.target.value})}/></td>
                       <td><input aria-label={"قیمت واحد ردیف "+(index+1)} style={{width:"100%",minWidth:0}} dir="ltr" type="number" min="0" step="any"
