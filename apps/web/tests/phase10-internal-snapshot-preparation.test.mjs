@@ -38,6 +38,9 @@ test("official item and memory evidence are rechecked in DB and never sent",()=>
 });
 test("the internal snapshot cannot be quietly overwritten, duplicated or misrepresented",()=>{
   assert.match(entry,/Immutable internal invoice snapshot wins over editing/);
+  assert.match(entry,/Saving and promotion MUST lock this same row/);
+  assert.match(entry,/FOR UPDATE/);
+  assert.match(entry,/transaction\.GetDbTransaction\(\)/);
   assert.match(entry,/InvoiceDocuments\.AsNoTracking\(\)\.AnyAsync/);
   assert.match(service,/internal_snapshot_already_created/);
   assert.match(listing,/!db\.InvoiceDocuments\.Any\(/);
