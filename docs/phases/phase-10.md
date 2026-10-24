@@ -2057,3 +2057,6 @@ zsh scripts/dev-status.zsh
 **Manual:** use an owner-scoped taxpayer with a separately saved encrypted Sandbox key. Verify Sandbox appears alongside (not replacing) Production, draft saves/reloads same Sandbox UUID, official item displays the server-derived 13-digit sstid after save/reopen, missing mapping produces a per-item warning, 0 errors never enables real POST /send. Verify a second user's taxpayer or Sandbox memory is not selectable via guessed UUID. **No new migrations, no authority sending, no verified build results submitted yet.**
 
 **Status**: Addressed two missing UI/metadata pathways and improved validation diagnostics; finalization and Sandbox invoice submission remain explicitly incomplete and must not be represented as accepted or dispatched. Step18 remains operator-QA pending; Step19 not started by this change.
+
+
+**Final BFF regression fix:** `apps/web/app/api/invoices/[...segments]/route.ts` previously rejected `sandboxFiscalMemoryId` during POST workspace validation even if backend/UI supported it. Added this distinct allowlisted field, UUID format check and dual-environment exclusion (`fiscalMemoryId` + `sandboxFiscalMemoryId` cannot both be supplied). Extended `phase10-invoice-sandbox-official-id-readiness.test.mjs` accordingly. All GitHub commits are source-level, **not** a successful macOS .NET/Node test report.
