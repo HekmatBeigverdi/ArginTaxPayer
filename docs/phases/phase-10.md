@@ -2004,3 +2004,56 @@ zsh scripts/dev-status.zsh
 Authenticated manual UI: open an eligible finalized InvoiceDocument detail, verify metadata preview, no signed artifact disclosure, empty or populated bounded attempt and receipt history, localized RTL and mobile view; refresh and explicit checkbox; "تأیید و ارسال" remains disabled; no POST in browser network. Test unauthorized/different owner, expired session, no dispatch operation and server data read errors. If the only available invoices are draft workspaces, do not interpret empty history as a failed sending service.
 
 **Status:** Step18 code and documents committed; user macOS Build/Browser acceptance pending. Step19 remains awaiting explicit confirmation. No merge/tag/release.
+
+
+## Step18 owner QA: 13-digit sstid, Sandbox memory selection and draft finalization blockers (2026-10-24)
+
+**Owner issues identified during Step18 validation**:
+1. Product/service create form has only customer `InternalCode`, not directly a 13-digit official `sstid` identifier.
+2. Invoice seller fiscal-memory dropdown omits separately stored Sandbox memory, even after key pair has been registered and tested.
+3. Final wizard preflight displays `RC_IITP.IS_V7.9`, zero errors and `invoice.rules.not_approved` warning and offers no working finalize-and-dispatch action.
+
+**Root cause based on source inspection**:
+- Phase06 `CustomerCatalogItem.InternalCode` is a tenant-local code by design; `OfficialGoodsServiceEntry.Code` is a 13-digit Taxpayer System goods/service identifier, linked via effective-dated `CatalogOfficialMapping`. `TaxIdentifierMappingService` requires verified official entry, activated release and source audit. The product editor did not explain this; invoice item snapshot previously contained local code only.
+- Phase07 `InvoiceDraftDevelopmentEndpoints` `header-options` queried only `db.FiscalMemories` (Production) and `InvoiceEntryWorkspaceService.SaveAsync` validated only Production fiscal-memory IDs.
+- `InvoiceValidationReferenceService.ValidateAsync` hard-codes `invoice.rules.not_approved` and `IsSubmissionAuthorized=false` by design because form completeness does not establish authoritative submission readiness. `InvoiceEntryWorkspaceService` stores private working drafts in `invoice_entry_workspaces`; the internal review command operates on `InvoiceDocuments` instead. `Phase10InvoiceDispatchDevelopmentEndpoints.POST /send` remains disabled regardless of Sandbox token success. There is not yet a fully integrated promotion operation issuing an immutable fiscal invoice/document and signed transport payload.
+
+**Source changes committed now, pending local build/browser acceptance**:
+- `apps/web/app/catalog/workspace.tsx`: explicitly distinguishes internal item code from official 13-digit `sstid`; guides mapping of each customer item to an activated verified reference identifier.
+- `src/ArginTaxPayer.Infrastructure/Persistence/Invoices/InvoiceEntryWorkspaceService.cs`: adds `InvoiceEntryLine.OfficialIdentifierSnapshot` (additive JSON field), server-selects at most one active mapped verified 13-digit code for the customer item at invoice date and compatible Goods/Service kind; client-supplied official snapshots ignored/overwritten. This does **not** authorize a signed fiscal invoice or bypass full official handoff/validation. Adds nullable `SandboxFiscalMemoryId` on working draft request/view, mutually exclusive with Production `FiscalMemoryId`; checks separate owner+taxpayer+Sandbox-row identity and encrypted custody with parameterized SQL. No production memory may be interpreted as Sandbox. All are additive JSON fields, **no DB migration for Step18 fixes**.
+- `src/ArginTaxPayer.Api/Invoices/InvoiceDraftDevelopmentEndpoints.cs`: authorized `header-options` now returns separately named `sandboxMemories` only if scoped to exact seller/owner and the Sandbox private key envelope is present. The original Production `memories` array remains unchanged.
+- `apps/web/app/invoices/workspace.tsx`: Sandbox entries labeled in fiscal dropdown and persisted via `sandboxFiscalMemoryId` instead of Production `fiscalMemoryId`; existing drafts reload correct environment. UI shows per-line `sstid` from server-derived snapshot and notes missing official mapping, updated after save without falsely flagging an unchanged draft as modified.
+- `src/ArginTaxPayer.Infrastructure/Persistence/Invoices/InvoiceValidationReferenceService.cs`: actionable per-line warnings for missing item or missing/ambiguous verified 13-digit official mapping, missing memory for sending, mutual exclusion guard for Sandbox vs Production. Returns independent form-error flag and selected *draft* environment. Still always denies fiscal submission until authoritative preconditions are implemented; improves misleading generalized error language.
+- `apps/web/app/invoices/invoice-validation-panel.tsx`: environment identity displayed, distinguishes blocking form problems from readiness for legal sending; does not claim approval from a zero-error validation.
+- `apps/web/tests/phase10-invoice-sandbox-official-id-readiness.test.mjs`: source contract regression for isolation, 13-digit snapshot and disabled send.
+
+**Current owner-facing workflow**: Define product/service with arbitrary local code and official base unit. In catalog table press "نگاشت" to search and assign a verified 13-digit identifier with effective date; if official reference results are empty, review/import and activate a trusted source release instead of inventing 13-digit codes. In invoice header select Sandbox fiscal-memory entry for this taxpayer; fill buyer, item, amounts, VAT, settlement and save. Reopen draft and run validation; specific missing official IDs or memory will be listed. This is still a PRIVATE DRAFT, not a legally issued invoice. Internal invoice review state `Approved`, authority acceptance and readiness to submit are three distinct concepts.
+
+**Remaining mandatory engineering before "قطعی و آماده ارسال Sandbox" can be enabled**:
+1. Add an explicit, idempotent, authorization-checked draft-to-final immutable `InvoiceDocument` promotion operation with CAS on draft revision, current verified official mapping snapshots, issue date, required tax forms and final financials.
+2. Generate and validate fiscal invoice identifier and numbering under selected taxpayer + Sandbox memory with approved RC_IITP.IS edition and SDK semantics; do not generate a fictional legal fiscal ID.
+3. Build and verify source-matched tax authority `sstid`/unit/VAT invoice packet mapper and signed payload, persist its digest/evidence and show real signed preview prior to consent.
+4. Immutable environment-qualified dispatch reservation/outbox/idempotency. Dedicated Sandbox-only endpoint/credentials per operation, no production fallback; explicit confirmation+POST only after full server-side readiness, official SDK tests and owner opt-in.
+5. Inquiry/reconciliation and accepted/rejected state distinction. A provider ACK/token success must never be treated as fiscal acceptance; failed/timeout operations cannot be resent blindly.
+6. Verify all macOS .NET and Node tests, tenant/cross-user/authorization and migration parity, and run authenticated UI smoke. No code in this patch enables actual send.
+
+**Mac operator checks**:
+```bash
+cd ~/projects/ArginTaxPayer
+git status --short
+git fetch origin --prune
+git switch phase/10-invoice-submission
+git pull --ff-only origin phase/10-invoice-submission
+dotnet restore ArginTaxPayer.sln
+dotnet build ArginTaxPayer.sln --no-restore
+dotnet test ArginTaxPayer.sln --no-build
+cd apps/web
+node --test tests/phase10-invoice-sandbox-official-id-readiness.test.mjs
+npm run typecheck
+npm run build
+cd ..
+zsh scripts/dev-status.zsh
+```
+**Manual:** use an owner-scoped taxpayer with a separately saved encrypted Sandbox key. Verify Sandbox appears alongside (not replacing) Production, draft saves/reloads same Sandbox UUID, official item displays the server-derived 13-digit sstid after save/reopen, missing mapping produces a per-item warning, 0 errors never enables real POST /send. Verify a second user's taxpayer or Sandbox memory is not selectable via guessed UUID. **No new migrations, no authority sending, no verified build results submitted yet.**
+
+**Status**: Addressed two missing UI/metadata pathways and improved validation diagnostics; finalization and Sandbox invoice submission remain explicitly incomplete and must not be represented as accepted or dispatched. Step18 remains operator-QA pending; Step19 not started by this change.
