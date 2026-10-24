@@ -55,6 +55,15 @@ export async function GET(request:NextRequest,context:Context){
       return {kind:v.kind,observedAtUtc:date(v.observedAtUtc),
         hasAuthorityReference:v.hasAuthorityReference===true};
     });
+    const allowedRecovery=["CompleteDraft","AwaitPreparation","RefreshOnly",
+      "AwaitReconciliation","ManualReview","NoFurtherSend"];
+    const recoveryAction=typeof row.recoveryAction==="string"&&
+      allowedRecovery.includes(row.recoveryAction)?row.recoveryAction:"ManualReview";
+    const recoveryCode=typeof row.recoveryCode==="string"&&
+      /^invoice\\.recovery\\.[a-z_]{2,60}$/.test(row.recoveryCode)
+      ?row.recoveryCode:"invoice.recovery.unrecognized_stop";
+    if(row.mayRetry!==false||row.mayInquire!==false)
+      return fail(502,"invalid_recovery_policy");
     return NextResponse.json({
       environment:"Mock",submissionEnabled:false,fiscalAccepted:false,
       signedPreviewAvailable:false,
@@ -62,7 +71,7 @@ export async function GET(request:NextRequest,context:Context){
         Number.isSafeInteger(row.invoiceRevision)&&row.invoiceRevision>0?
         row.invoiceRevision:null,
       state:row.state,lastUpdatedAtUtc:date(row.lastUpdatedAtUtc),
-      attempts,receipts
+      attempts,receipts,recoveryAction,recoveryCode,mayRetry:false,mayInquire:false
     },{headers:{"Cache-Control":"no-store"}});
   }catch{return fail(502,"history_invalid_or_unavailable");}
 }
