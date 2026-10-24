@@ -36,7 +36,7 @@ test("live sandbox token endpoint remains fail-closed",()=>{
   assert.match(api,/authenticationConfirmed=false/);
   assert.match(api,/StatusCodes|statusCode:503/);
   assert.doesNotMatch(api,/GET_TOKEN|tp\.tax\.gov\.ir|HttpClient/);
-  assert.match(ui,/آدرس رسمی API سندباکس و نگهداری امن کلید/);
+  assert.match(ui,/آدرس رسمی API سندباکس هنوز تأیید نشده است/);
 });
 
 test("sandbox private key is encrypted with scoped independent AEAD identity",()=>{
