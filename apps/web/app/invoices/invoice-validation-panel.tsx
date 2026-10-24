@@ -87,7 +87,8 @@ export default function InvoiceValidationPanel({
           <code dir="ltr">{f.fieldPath}</code>
         </li>)}</ul>}
       <p className="invoice-validation__warning">
-        وضعیت ارسال رسمی: غیرمجاز تا تکمیل قواعد قانونی و تأیید شناسه مالیاتی.
+        <strong>وضعیت: پیش‌نویس داخلی، نه صورتحساب قطعی قابل ارسال.</strong>
+        <span> حتی اگر خطای فرم صفر باشد، صدور قطعی مستلزم شناسه رسمی ۱۳ رقمی تمام اقلام، حافظه معتبر در محیط انتخابی، تولید شناسه یکتای مالیاتی صورتحساب، اعتبارسنجی قواعد معتبر و آماده‌سازی بسته امضاشده است. امکان ارسال Sandbox با تست اتصال حافظه به‌تنهایی ایجاد نمی‌شود.</span>
       </p>
     </div>}
     <div className="invoice-validation__reference">
