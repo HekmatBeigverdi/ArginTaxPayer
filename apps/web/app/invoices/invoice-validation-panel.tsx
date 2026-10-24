@@ -303,6 +303,30 @@ export default function InvoiceValidationPanel({
     }
   }, [revision, dirty, checkingAfterSave]);
 
+
+  async function prepareInternalSnapshot() {
+    if (!report || dirty || preparing || !onPrepared || report.revision !== revision ||
+        report.selectedEnvironment !== "Sandbox" ||
+        report.findings.some(f => f.severity === "error" ||
+          (f.severity === "warning" && f.key !== "invoice.rules.not_approved"))) return;
+    setPreparing(true);setError("");
+    try {
+      const response = await fetch("/api/invoices/workspaces/"+draftId+"/prepare",{
+        method:"POST",credentials:"same-origin",cache:"no-store",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({expectedRevision:revision}),signal:AbortSignal.timeout(20000)
+      });
+      if (!response.ok) throw new Error(response.status===409 ?
+        "این نسخه قبلاً ثابت شده یا تغییر کرده است." : "ثبت نسخه ثابت داخلی رد شد.");
+      const result = await response.json();
+      if(result.internalSnapshotCreated!==true || result.fiscalSubmissionAuthorized!==false ||
+        result.signedPacketAvailable!==false || result.environmentSubmissionEnabled!==false)
+        throw new Error("پاسخ آماده‌سازی از نظر ایمنی معتبر نیست.");
+      onPrepared();
+    }catch(e){setError(e instanceof Error?e.message:"آماده‌سازی انجام نشد.");}
+    finally{setPreparing(false);}
+  }
+
   const busy = loading || checkingAfterSave;
   const buttonLabel = busy
     ? "در حال ذخیره/بررسی…"
