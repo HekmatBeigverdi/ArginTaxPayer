@@ -107,7 +107,8 @@ public sealed record SaveInvoiceEntryRequest(Guid? Id, Guid TaxpayerId, long Exp
     Guid? FiscalMemoryId = null, string? InternalReviewState = null,
     string? InternalReviewReason = null, Guid? SubmittedByUserId = null,
     Guid? ReviewedByUserId = null, DateTime? ReviewedAtUtc = null,
-    string? BulkImportKey = null, string? BulkFingerprint = null);
+    string? BulkImportKey = null, string? BulkFingerprint = null,
+    Guid? SandboxFiscalMemoryId = null);
 public sealed record InvoiceEntryView(Guid Id, Guid CustomerUserId, Guid TaxpayerId, long Revision,
     int LastCompletedStep, DateTime IssueDateUtc, DateTime UpdatedAtUtc,
     Guid? BuyerPartyId, int Type, int Pattern, InvoiceEntryLine[] Lines,
@@ -119,7 +120,8 @@ public sealed record InvoiceEntryView(Guid Id, Guid CustomerUserId, Guid Taxpaye
     decimal? GoldCommissionRial = null, decimal? GoldTotalFeeProfitRial = null,
     Guid? FiscalMemoryId = null, string? InternalReviewState = null,
     string? InternalReviewReason = null, Guid? SubmittedByUserId = null,
-    Guid? ReviewedByUserId = null, DateTime? ReviewedAtUtc = null);
+    Guid? ReviewedByUserId = null, DateTime? ReviewedAtUtc = null,
+    Guid? SandboxFiscalMemoryId = null);
 public sealed record InvoiceEntryResult(InvoiceApiDecision Decision, InvoiceEntryView? Draft = null,
     bool Replayed = false);
 
@@ -235,7 +237,7 @@ public sealed class InvoiceEntryWorkspaceService(
             value.GoldConstructionFeeRial,value.GoldSellerProfitRial,
             value.GoldCommissionRial,value.GoldTotalFeeProfitRial,value.FiscalMemoryId,
             value.InternalReviewState,value.InternalReviewReason,value.SubmittedByUserId,
-            value.ReviewedByUserId,value.ReviewedAtUtc);
+            value.ReviewedByUserId,value.ReviewedAtUtc,value.SandboxFiscalMemoryId);
     }
 
     public async Task<InvoiceEntryResult> SaveAsync(string? token,
@@ -245,6 +247,41 @@ public sealed class InvoiceEntryWorkspaceService(
             return new(InvoiceApiDecision.Invalid);
         var access = await Authorize(token,input.TaxpayerId,ct);
         if (access.Item1 != InvoiceApiDecision.Success) return new(access.Item1);
+        // The Sandbox memory is a separate credential identity and cannot be
+        // substituted for a production fiscal_memories FK.
+        if(input.FiscalMemoryId.HasValue && input.SandboxFiscalMemoryId.HasValue)
+            return new(InvoiceApiDecision.Invalid);
+        if(input.SandboxFiscalMemoryId is { } sandboxId)
+        {
+            if(sandboxId==Guid.Empty)return new(InvoiceApiDecision.Invalid);
+            var sandboxOwner=await db.TaxpayerProfiles.AsNoTracking()
+                .Where(x=>x.Id==input.TaxpayerId)
+                .Select(x=>x.CustomerUserId).SingleOrDefaultAsync(ct);
+            if(sandboxOwner is null || sandboxOwner.Value==Guid.Empty)
+                return new(InvoiceApiDecision.NotFound);
+            var dbConnection=db.Database.GetDbConnection();
+            var wasClosed=dbConnection.State!=System.Data.ConnectionState.Open;
+            if(wasClosed)await dbConnection.OpenAsync(ct);
+            try
+            {
+                await using var cmd=dbConnection.CreateCommand();
+                cmd.CommandText="""
+SELECT EXISTS(
+ SELECT 1 FROM sandbox_fiscal_memories
+ WHERE id=@sandbox AND taxpayer_id=@taxpayer AND customer_user_id=@owner
+ AND private_envelope_json IS NOT NULL
+)
+""";
+                void Param(string name,Guid value){
+                    var p=cmd.CreateParameter();p.ParameterName=name;p.Value=value;cmd.Parameters.Add(p);
+                }
+                Param("sandbox",sandboxId);Param("taxpayer",input.TaxpayerId);
+                Param("owner",sandboxOwner.Value);
+                if(await cmd.ExecuteScalarAsync(ct) is not true)
+                    return new(InvoiceApiDecision.Invalid);
+            }
+            finally { if(wasClosed)await dbConnection.CloseAsync(); }
+        }
         // Fiscal memory must belong to the selected, currently accessible seller.
         // It remains an optional draft reference until authoritative verification
         // and activation are available in later phases.
