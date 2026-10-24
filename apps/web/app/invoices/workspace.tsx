@@ -672,12 +672,19 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
                 {(headerOptions?.memories ?? []).map(m=><option key={m.id} value={m.id}>
                   {m.memoryIdentifier} — {m.status}
                 </option>)}
+                {(headerOptions?.sandboxMemories??[]).map(m=><option key={"sandbox:"+m.id} value={"sandbox:"+m.id}>
+                  {m.memoryIdentifier} — Sandbox (آزمایشی)
+                </option>)}
               </select>
+              {memoryId.startsWith("sandbox:")&&<small className="invoice-register__hint">
+                حافظه مالیاتی آزمایشی انتخاب شده است؛ این پیش‌نویس فقط برای مسیر Sandbox در نظر گرفته می‌شود.
+                انتخاب Sandbox به معنای آماده‌بودن ارسال صورتحساب نیست.
+              </small>}
               {headerLoading && <small role="status">در حال دریافت اطلاعات مؤدی و حافظه مالیاتی…</small>}
               {headerError && <small role="alert" className="form-error">{headerError}</small>}
               {headerOptions && <small className="invoice-register__hint">
                 شناسه ثبت‌شده مؤدی: <bdi dir="ltr">{headerOptions.taxpayer.normalizedIdentifier}</bdi>
-                {headerOptions.memories.length===0 ? " — حافظه مالیاتی ثبت نشده است." : ""}
+                {headerOptions.memories.length===0 && !headerOptions.sandboxMemories?.length ? " — حافظه مالیاتی ثبت نشده است." : ""}
               </small>}
               <label htmlFor="invoice-buyer-search">خریدار ثبت‌شده</label>
               <div className="invoice-register__buyer">
