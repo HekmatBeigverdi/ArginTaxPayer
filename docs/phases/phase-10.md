@@ -1719,3 +1719,52 @@ zsh scripts/dev-status.zsh
 **Manual operator browser acceptance:** Open `http://127.0.0.1:3000/invoices` while authenticated; select an existing finalized invoice and open its details. Confirm compact RTL panel, `محیط Mock` label, current state loading and refresh, hard-disabled send and inquiry controls, no unexpected HTTP POST requests, proper signed-out/other-owner failures, and no disruption to the legacy invoice wizard. A workspace not yet issued is not a real Tax Authority invoice and should not show legal acceptance.
 
 **Status:** Implementation committed; macOS typecheck/build, tests and authenticated manual UI remain unverified until operator supplies output. Step18 must wait for owner signoff.
+
+
+## 27. Owner request — independent Sandbox fiscal-memory tab (2026-10-24)
+
+**Context:** Owner requested Sandbox setup beside Production fiscal-memory settings: generate **new independent** keypair, obtain Sandbox fiscal-memory identifier, test Sandbox connection, and eventually select environment-dependent token/invoice transport, with Production continuing to use its existing legitimate token and key. Step17 is committed but not yet owner-approved. This is a new separately tracked *partial* feature, **not** completion of Sandbox credential custody / live connection; no additional step approval was inferred.
+
+### Evidence and safety boundary
+
+- Existing Phase09 `LegacyTaxAuthorityConnection.BaseUrl` is pinned to `https://tp.tax.gov.ir/req/api/`, with signed `GET_TOKEN` and `GET_FISCAL_INFORMATION` calls. Reusing it for Sandbox would send a Sandbox key/ID to Production; **forbidden**.
+- The published historical Tax Authority announcement points to `https://sandboxrc.tax.gov.ir` as a **test work-folder portal** and supports requesting a separate test fiscal memory. This does **not establish a current official Sandbox API token host**. No sandbox token host/route should be guessed by string-replacing `tp` with `sandboxrc`.
+- Any failover from Sandbox to Production (or vice versa) is prohibited, including authentication failure, timeout, connection loss, missing provider configuration and manual UI environment switch.
+- Production DB rows, key versions, import/generation journal, vault records, and token adapter are **unchanged**. Nothing is sent to the authority.
+
+### Code delivered now
+
+- `src/ArginTaxPayer.Domain/Taxpayers/FiscalConnectionEnvironmentPolicy.cs`: explicit `Production` / `Sandbox` enum and 5-tuple credential identity (owner/taxpayer/fiscal-memory/environment/signing key version). Pure matching and immutable no-fallback guard; readiness requires verified sandbox origin, isolated custody and Sandbox registration evidence.
+- `apps/web/app/taxpayers/taxpayer-connection-panel.tsx`: top-level environment tabs. The original key-import/generate/connection-test UI renders exclusively under `Production`. `Sandbox` has its own standalone panel; previously configured production memory is never automatically reused for sandbox.
+- `apps/web/app/taxpayers/sandbox-fiscal-memory-panel.tsx`: compact, RTL Sandbox onboarding UI. Browser WebCrypto builds independent RSA-2048 SHA-256 keypair and offers initial/again downloads of public SPKI PEM and private PKCS8 PEM (both files **unencrypted**, operator must secure them). The app does **not store or transmit** the private key, does not access production keys and does not claim an active Sandbox session. Linking to the historical Sandbox portal is informational. Fiscal memory ID field is **not persisted** and intentionally marked pending independent backend implementation. Both `Register Sandbox ID` and `Sandbox connection test` are disabled until a distinct server-side vault credential namespace, persistence migration and verified live Sandbox API are implemented.
+- `apps/web/app/globals.css`: compact green RTL responsive layout.
+- `apps/web/tests/phase10-sandbox-memory-isolation.test.mjs` and `tests/ArginTaxPayer.Tests/FiscalConnectionEnvironmentPolicyTests.cs`: source regression guards for no production endpoint from Sandbox component, tabs and isolation policy.
+
+### Unfinished functionality / next engineering tasks
+
+1. **Persistence and custody**: design a dedicated Sandbox fiscal-memory mapping with environment in unique keys, per-user/per-taxpayer authorization and secure encrypted key envelope storage; migration must be **additive**, reviewed, backed up and applied only on `argintaxpayer_test` after operator approval. Do not reuse the Production `fiscal_memories` record or Production key version ID. Browser-produced private key currently can only be downloaded; a secure, fresh-login-protected import or separate server-side key generation operation is still needed for automated Sandbox token signing.
+2. **Current official API**: verify Sandbox token and fiscal information URL/packet profile from authoritative documentation and/or an explicitly authorized test account. The work-folder address alone is not enough. Add server-pinned allowlisted distinct HttpClient and disallow redirects, caller-provided URLs and cookies; no fallback.
+3. **Sandbox test endpoint**: signed GET_TOKEN and GET_FISCAL_INFORMATION using **only Sandbox key+ID**; scope authorization, rate limit, no raw provider body, no persisted token or private key in logs. Confirm returned Sandbox fiscal identifier matches selected local record and display safe result.
+4. **Invoice Dispatch**: environment is pinned server-side at reservation time as immutable evidence in outbox, with distinct idempotency, receipts, inquiries and signing evidence; no client-controlled switching of in-flight operations. Sandbox/Production transport choice must be a server-side safe enum with all production-sending code behind operator release gates. Current Phase10 transport intentionally remains disabled.
+5. **Key format warning**: the browser example produces RSA-2048 PKCS8+SPKI, not a certified official successful pairing. SDK official signing correctness, key registration and actual current Sandbox compatibility still need independent testing.
+6. **QA**: validate no production key reads in Sandbox, tab switching state consistency, key generation and download, credentials isolation, 401/403 and cross-tenant, malformed test memory IDs, unknown endpoints, and no authority calls. No live Sandbox test or Ubuntu test executed yet.
+
+### macOS quick checks
+
+```bash
+cd ~/projects/ArginTaxPayer
+git status --short
+git pull --ff-only origin phase/10-invoice-submission
+dotnet restore ArginTaxPayer.sln
+dotnet build ArginTaxPayer.sln --no-restore
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --no-restore \
+ --filter "FullyQualifiedName~FiscalConnectionEnvironmentPolicyTests"
+cd apps/web
+node --test tests/phase10-sandbox-memory-isolation.test.mjs
+npm run typecheck
+npm run build
+cd ../..
+zsh scripts/dev-status.zsh
+```
+
+**Operator UI check:** Sign in, open taxpayer fiscal-memory/key tab; confirm Production works exactly as before, Sandbox tab generates completely new files only after consent, Sandbox ID is unpersisted, register/test cannot be clicked, and **no** network request goes to `tp.tax.gov.ir` while using Sandbox. No migration needed for the committed UI/policy; do not interpret this as completion of user's requested end-to-end workflow.
