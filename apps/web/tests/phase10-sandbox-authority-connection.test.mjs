@@ -35,6 +35,7 @@ test("BFF sanitizes status and UI does not claim authority acceptance on timeout
   assert.match(bff,/ACCESS_COOKIE/);
   assert.match(bff,/authenticationConfirmed/);
   assert.match(bff,/fiscalMemoryActivationConfirmed:false/);
+  assert.match(bff,/const uuid=\/\^\[0-9a-f\]\{8\}-\[0-9a-f\]\{4\}-\[0-9a-f\]\{4\}-\[0-9a-f\]\{4\}-\[0-9a-f\]\{12\}\$\/i;/);
   assert.match(ui,/testSandboxConnection/);
   assert.match(ui,/تست اتصال واقعی Sandbox/);
   assert.match(ui,/disabled=\{!custodyReady\|\|connectionBusy\}/);

@@ -64,9 +64,13 @@ public static class SandboxFiscalMemoryDevelopmentEndpoints
             {
                 var result=await service.TestAuthorityAsync(Bearer(http),taxpayerId,ct);
                 if(result.Result is null)
+                {
+                    var error=result.Error=="sandbox_authority_api_not_verified"
+                        ?"sandbox_authority_api_not_verified":result.Error;
                     return Results.Json(new{environment="Sandbox",status="Unavailable",
-                        error=result.Error,authenticationConfirmed=false},
+                        error,authenticationConfirmed=false},
                         statusCode:result.StatusCode);
+                }
                 return Results.Json(new{
                     environment="Sandbox",
                     status=result.Result.Status.ToString(),
