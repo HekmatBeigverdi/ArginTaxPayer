@@ -1768,3 +1768,68 @@ zsh scripts/dev-status.zsh
 ```
 
 **Operator UI check:** Sign in, open taxpayer fiscal-memory/key tab; confirm Production works exactly as before, Sandbox tab generates completely new files only after consent, Sandbox ID is unpersisted, register/test cannot be clicked, and **no** network request goes to `tp.tax.gov.ir` while using Sandbox. No migration needed for the committed UI/policy; do not interpret this as completion of user's requested end-to-end workflow.
+
+
+### Sandbox follow-up implementation: metadata registration (2026-10-24)
+
+This is a **partial feature completion** following owner request to complete the Sandbox tab. This is not Step17 owner acceptance and is not a working token test or invoice submission.
+
+**Research:** Archived public announcement (republished by ITAnalyze, 2023) says the Sandbox work-folder portal at `https://sandboxrc.tax.gov.ir` supports issuing a separate test fiscal-memory identifier and trial invoices. Official current (2026) **API** domain/path for `GET_TOKEN` and `GET_FISCAL_INFORMATION` was NOT authoritatively established. The historic portal domain is **not** proof of the API hostname; do not construct an API endpoint by string replacement. Modern/legacy SDKs have differing profiles, so the correct signed packet must be verified independently. No live authority connection attempted.
+
+**New additive migration** `20261024103000_AddSandboxFiscalMemoryMetadata.cs`:
+- SQL-only `sandbox_fiscal_memories` table on `argintaxpayer_test` only. Composite unique owner+taxpayer; FK to `identity_users` / `taxpayer_profiles`, revision, validated Sandbox identifier and RSA public SPKI DER + SHA256 fingerprint. No production-memory table changes, deletions or updates; `Down` refuses destructive rollback.
+- No secret private key in this table and no token stored in DB. Public key is public; a separate encrypted private-key custody implementation with environment-bound AAD is still required before real signed token test. Public-only registration intentionally does **not** claim key custody complete.
+
+**New server service** `src/ArginTaxPayer.Infrastructure/Persistence/Signing/SandboxFiscalMemoryMetadataService.cs`:
+- Re-evaluates live bearer authorization using `TaxpayerScopeService.ResolveAsync` and current `ScopedQuery`, verifies active taxpayer ownership, parameterized SQL, test database name; accepts exactly one Sandbox metadata registration for owner/taxpayer without overwriting existing data.
+- Parses supplied public PEM with .NET RSA cryptography, requires RSA-2048 with exponent 65537, derives canonical SPKI DER and SHA256 fingerprint on server. Browser's claim of a fingerprint is never authoritative. No private PEM or production key is accepted here.
+- Missing results are safe; no leaking account data or keys.
+
+**New API** `src/ArginTaxPayer.Api/Taxpayers/SandboxFiscalMemoryDevelopmentEndpoints.cs`, registered with DI under Development only:
+- `GET /api/dev/taxpayers/{taxpayerId}/sandbox-memory`: read safe independent Sandbox metadata, authenticated/scope-controlled, loopback only.
+- `POST /api/dev/taxpayers/{taxpayerId}/sandbox-memory`: register Sandbox ID/public PEM, rate limited, loopback only, rejects Origin and oversize body, never invokes authority.
+- `POST .../connection-test`: intentionally HTTP503 `sandbox_authority_api_not_verified` **after** owner/invoice scope check. NO live token call. Not routed through the BFF, so UI cannot mistakenly enable this until credentials and official API are ready.
+
+**New BFF** `apps/web/app/api/sandbox-memory/[taxpayerId]/route.ts`: cookie/bearer only, POST same-local-origin, accepts only `memoryIdentifier`+ `publicKeyPem`, no user-selected environment/URL, restricted response and no secret. UI `sandbox-fiscal-memory-panel.tsx` now reads existing registered metadata and offers `ثبت شناسه و کلید عمومی Sandbox` after generating keys and obtaining ID from portal. It continues to download unencrypted private PKCS8 PEM locally; file security is operator's responsibility. This PEM is not uploaded/stored and token signing is impossible at this stage. Once metadata exists, no rotation/new key is silently allowed (separate review required).
+
+**Tests** `apps/web/tests/phase10-sandbox-metadata.test.mjs`, updated `phase10-sandbox-memory-isolation.test.mjs`, existing `FiscalConnectionEnvironmentPolicyTests.cs`. Structural assertions only, not DB integration tests; operator macOS Build and route/DB checks pending.
+
+**Migration review** `scripts/phase10-sandbox-migration.zsh` sources the shell environment from the operator (must run `set -a; source .env.dev.local; set +a` first), verifies `127.0.0.1:15432/argintaxpayer_test`, migration head Step11 and absence of Sandbox table, takes `pg_dump -Fc` backup, generates target SQL, then prompts `APPLY` only on operator-approved SQL; does not touch Ubuntu OS or production. **Do not type APPLY until SQL reviewed.** Verify index and FK definitions; no destructive SQL.
+
+**Remaining blocker list and acceptance gate**:
+1. Independently pinned Sandbox signing-key custody with encryption at rest, AAD including environment `Sandbox`, protected retrieval and never exposing original private key after initial handoff. Existing Production custody cannot be reused implicitly.
+2. Official current Sandbox token/inquiry API origin and full request signature profile, with approved test-only memory and networking. Without this, live connection test MUST remain disabled; cannot honestly claim complete request.
+3. Safe server-side environment route binding at immutable invoice-outbox reservation time; current Step16 `Mock` status and disabled `POST send` must remain unchanged until official Sandbox testing is authorized and all source-signature blockers solved.
+4. Build/tests, database Migration SQL review, backup and operator apply, authenticated route QA (own taxpayer/other owner/expired token/replay), cross-machine race tests, actual private custody/encrypted persistence tests.
+5. Never share Sandbox private key in chat, commit, logs or screenshots; the browser-downloaded PEM is unencrypted, handle as secret. Once key changes, manual registration in Sandbox work-folder is needed.
+6. Do not call Sandbox test a live result merely because the user typed an ID. No fallback to `tp.tax.gov.ir`.
+
+#### macOS commands (before migration)
+
+```bash
+cd ~/projects/ArginTaxPayer
+git status --short
+git pull --ff-only origin phase/10-invoice-submission
+dotnet restore ArginTaxPayer.sln
+dotnet build ArginTaxPayer.sln --no-restore
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --no-restore \
+  --filter "FullyQualifiedName~FiscalConnectionEnvironmentPolicyTests"
+cd apps/web
+node --test tests/phase10-sandbox-memory-isolation.test.mjs tests/phase10-sandbox-metadata.test.mjs
+npm run typecheck
+npm run build
+cd ../..
+zsh scripts/dev-status.zsh
+# If tunnel and services are stopped:
+# zsh scripts/dev-up.zsh
+set -a
+source .env.dev.local
+set +a
+zsh scripts/phase10-sandbox-migration.zsh
+```
+
+**SQL review pause:** press Enter on the first execution, inspect generated `artifacts/sandbox-*.sql`, then rerun and type `APPLY` after review. No operator DB migration or live connection has been performed from this chat.
+
+#### Manual UI check
+
+After verified migration, open the existing taxpayer connection panel. Production should retain original token/test behavior; Sandbox tab should generate independent key files, allow public ID+public key registration, reload persistent metadata, and continue displaying Sandbox connection test disabled. Check browser Network: Sandbox operations must never hit production `GET_TOKEN`; no private PEM must appear in JSON/request bodies.
