@@ -45,7 +45,7 @@ test("the internal snapshot cannot be quietly overwritten, duplicated or misrepr
   assert.match(service,/internal_snapshot_already_created/);
   assert.match(listing,/!db\.InvoiceDocuments\.Any\(/);
   assert.match(listing,/internalSnapshot/);
-  assert.match(ui,/نسخه ثابت داخلی \(بدون ارسال\)/);
+  assert.match(validation,/نسخه ثابت داخلی، ارسال مالیاتی نیست/);
   assert.match(ui,/onPrepared=/);
   assert.match(validation,/prepareInternalSnapshot/);
   assert.match(validation,/report\.selectedEnvironment !== "Sandbox"/);
