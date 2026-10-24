@@ -5,6 +5,7 @@ using ArginTaxPayer.Domain.Invoices;
 using ArginTaxPayer.Infrastructure.Persistence.Parties;
 using ArginTaxPayer.Infrastructure.Persistence.Taxpayers;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace ArginTaxPayer.Infrastructure.Persistence.Invoices;
 
@@ -427,6 +428,28 @@ SELECT EXISTS(
             }
             else
             {
+
+                if (input.Id == Guid.Empty || input.ExpectedRevision < 1)
+                    return new InvoiceEntryResult(InvoiceApiDecision.Invalid);
+                // Saving and promotion MUST lock this same row before
+                // checking whether an immutable snapshot already exists.
+                await using(var lockCommand=db.Database.GetDbConnection().CreateCommand()){
+                    lockCommand.Transaction=transaction.GetDbTransaction();
+                    lockCommand.CommandText="""
+SELECT id FROM invoice_entry_workspaces
+WHERE id=@id AND customer_user_id=@owner AND taxpayer_id=@taxpayer
+FOR UPDATE
+""";
+                    foreach(var (name,value) in new[]{
+                        ("id",input.Id!.Value),("owner",access.Item2),
+                        ("taxpayer",input.TaxpayerId)
+                    }){
+                        var p=lockCommand.CreateParameter();
+                        p.ParameterName=name;p.Value=value;lockCommand.Parameters.Add(p);
+                    }
+                    if(await lockCommand.ExecuteScalarAsync(ct) is null)
+                        return new InvoiceEntryResult(InvoiceApiDecision.NotFound);
+                }
                 // Immutable internal invoice snapshot wins over editing.
                 // This check runs INSIDE the workspace update transaction.
                 if(await db.InvoiceDocuments.AsNoTracking().AnyAsync(d=>
