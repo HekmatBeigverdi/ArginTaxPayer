@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 10: Tax Authority Invoice Submission (Two-Pattern Delivery)
 
-**Owner acceptance update (2026-10-24):** Step18 and Step19 (including Sandbox internal snapshot bridge) explicitly approved by owner; Step20 security and regression gate source committed, macOS execution and owner acceptance pending. The fixed 24-step roadmap titles are authoritative. The previous assistant incorrectly described Step19 as draft finalization; actual Step19 is error recovery and permitted follow-up UI. Invoice working-draft promotion/fiscal finalization remains a blocking integration gap; Step19 does not enable dispatch.\n\n**Status:** Steps 01–16 owner-approved. Step17 compact RTL invoice dispatch status panel, disabled send/inquiry controls and regression tests committed; macOS UI acceptance pending. No live invoice send, no DB migration. Ubuntu remains Step23.  
+**Owner acceptance update (2026-10-24):** Step18, Step19 (including Sandbox internal snapshot bridge) and Step20 explicitly approved by owner. Step20 operator reported 7/7 macOS automated suites PASS and read-only PostgreSQL audit reached BEGIN/DO and printed row counts (2 invoices, 2 revisions, 0 dispatches/attempts/receipts, 1 Sandbox memory); full SQL output/restore test not supplied. Step21 operational acceptance tools committed; operator-run evidence and manual sign-off pending. The fixed 24-step roadmap titles are authoritative. The previous assistant incorrectly described Step19 as draft finalization; actual Step19 is error recovery and permitted follow-up UI. Invoice working-draft promotion/fiscal finalization remains a blocking integration gap; Step19 does not enable dispatch.\n\n**Status:** Steps 01–16 owner-approved. Step17 compact RTL invoice dispatch status panel, disabled send/inquiry controls and regression tests committed; macOS UI acceptance pending. No live invoice send, no DB migration. Ubuntu remains Step23.  
 **Plan date:** 2026-10-23.  
 **Repository:** HekmatBeigverdi/ArginTaxPayer  
 **Base branch / inspected SHA:** `main` / `7112f03b7fe30ceea1aff7f04f587a1b0e939c92` (verify again at Step 01; Phase09 merge/release anchor `fde20594e733f96e032396f8e22e8781b14cac18`).  
@@ -2196,3 +2196,56 @@ bash scripts/phase10-step20-db-audit.sh
 **Known unresolved blocker**: Neither `InvoiceWorkspacePromotionService` nor Phase10 dispatch currently creates a legally final invoice and a Sandbox-signed outbound packet. The local snapshot is intentionally `InvoiceLifecycleState.Draft`. No outgoing or Production invoice sending is authorized. Correct fiscal finalization/send wiring and current official SDK/rules must be completed before controlled live Step22 acceptance. Do not waive these controls based on a passing Step20 static gate.
 
 **Status:** Step19 OWNER APPROVED. Step20 code, regression/evidence tools and this matrix delivered for macOS/DB execution. **Step20 acceptance pending operator output**. Ubuntu verification remains deferred to Step23 by owner decision.
+
+
+## Step 21 — macOS operational acceptance and evidence capture (2026-10-24)
+
+**Step20 OWNER APPROVAL recorded:** Owner explicitly approved Step20 after independently reporting all seven gate stages PASS for macOS: dotnet restore, build, tests, web structural tests, web tests, typecheck and Next.js build. The Step20 PostgreSQL read-only audit reported `BEGIN`, `DO` and aggregate counts: `argintaxpayer_test`, 2 invoices, 2 stored revisions, 0 dispatch operations, 0 send attempts, 0 receipts, 1 Sandbox memory. No full ending `COMMIT` excerpt, authenticated browser negative test or isolated backup-restore rehearsal was provided. These remain transparent *evidence gaps*, not fabricated passes. Do not change Step20 owner approval retroactively.
+
+**Step21 scope from fixed 24-step roadmap:** macOS operator acceptance on the same exact Git SHA: services, local test database readiness, all tests/builds, authenticated tenant-level browser QA, safe handling of tokens/secret keys and reproducible evidence. Ubuntu work remains Step23. Step21 contains **no** automatic real taxpayer-system invoice sending; the eventual Step22 live acceptance remains blocked until fiscal ID/signing/Outbox pipeline is actually implemented, verified and separately owner-authorized.
+
+**Changes delivered**:
+- `scripts/phase10-step21-macos-acceptance.sh` runs only on macOS on `phase/10-invoice-submission` with a clean Git worktree. Captures HEAD SHA and UTC timestamp in a local private `artifacts/phase10-step21-<UTC>/` directory. Runs: local `dev-status.zsh`, full .NET build + tests, full Web tests/typecheck/build, environment-bound `phase10-step20-db-audit.sh` (read-only against `127.0.0.1:15432/argintaxpayer_test` only), and unauthenticated loopback API and Web readiness probes. All automatic outcomes recorded in `manifest.tsv`; command-level logs saved separately. Builds/health are not login/session tests. The runner does not create/delete/edit database tables, perform backup restore, send invoices, turn on provider dispatch, or print credential strings. It does not silently mark absent dependencies as pass.
+- `apps/web/tests/phase10-step21-macos-acceptance.test.mjs`: source-level enforcement of macOS-only clean SHA, read-only DB scope, no risky mutation command and outstanding manual sign-off markers.
+
+**Operator macOS instructions:**
+
+```bash
+cd ~/projects/ArginTaxPayer
+git status --short
+git fetch origin --prune
+git switch phase/10-invoice-submission
+git pull --ff-only origin phase/10-invoice-submission
+zsh scripts/dev-status.zsh
+# Start existing dev processes if stopped. Ensure AutoSSH 15432, API 15089, Web 3000 running.
+set -a
+source .env.dev.local
+set +a
+bash scripts/phase10-step21-macos-acceptance.sh
+```
+
+If dependencies absent, run `cd apps/web && npm ci && cd ../..` after reviewing lock file, then rerun. To inspect:
+```bash
+ls -dt artifacts/phase10-step21-* | head -1
+cat artifacts/phase10-step21-*/manifest.tsv
+```
+Review local logs before sharing; never share tokens, private keys, passwords, or database connection strings.
+
+**Manual acceptance matrix — operator must record PASS/FAIL/NOT_RUN and sanitized evidence:**
+
+| ID | Manual acceptance scenario | Required behavior |
+| --- | --- | --- |
+| M01 | Level1/Level2/customer authenticate in separate sessions | Only allowed taxpayers/invoices appear, current role/owner enforced |
+| M02 | Different user's taxpayer and guessed draft UUID | HTTP 403/404 (or scope-safe denial); no leaked buyer, invoice, fiscal-memory data |
+| M03 | Selected Sandbox memory and encrypted key, restart API | Sandbox key remains safe; key-self-test works; no Production credentials in browser |
+| M04 | Customer product with valid 13-digit official mapping; stale/ambiguous mapping | Valid item maps; missing/ambiguous code produces specific warning and blocks snapshot |
+| M05 | Eligible Sandbox invoice, 3-step save/preflight/prepare | One internal `Draft`-state immutable snapshot, stored hash and revision; NOT a legally finalized invoice |
+| M06 | Two browser tabs / stale revision / repeated prepare / rapid clicks | Exactly one internal document; replay same response only for same source revision, stale updates rejected |
+| M07 | Unsupported pattern and missing buyer or incorrect settlement | Hard server denial; no document or outbox side-effects |
+| M08 | Network panel during internal prepare | No Tax Authority invoice submission, no Production endpoint, no printed raw key/token |
+| M09 | Version evidence and DB append-only constraints | History displayed; existing records cannot be deleted/overwritten, SQL audit passes |
+| M10 | Backup-restore exercise in isolated disposable TEST database only | Archive validated, restoration strategy rehearsed without overwriting active data; otherwise NOT_RUN and explain debt |
+| M11 | Cross-machine dependency (Ubuntu) | Deferred by owner until Step23, NEVER mark as done at Step21 |
+| M12 | Current official rule edition / valid fiscal ID / signing packet | NOT IMPLEMENTED: recorded Step22 blocker, not a false PASS |
+
+**Acceptance rule**: Automatic macOS suite PASS does not imply the manual or real fiscal-send scenarios PASS. Do not claim Step21 complete unless all applicable manual scenarios are positively evidenced or consciously and explicitly accepted as documented exceptions by owner. As of this commit, Step21 tools are delivered and **operator acceptance pending**. There is no new migration, live invoice dispatch, Git merge, tag or release.
