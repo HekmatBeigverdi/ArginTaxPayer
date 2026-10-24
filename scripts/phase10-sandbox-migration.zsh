@@ -17,8 +17,23 @@ previous=20261023190000_AddPhase10InvoiceDispatchOutbox
 target=20261024103000_AddSandboxFiscalMemoryMetadata
 [[ "$(psql -X -At -v ON_ERROR_STOP=1 -c 'SELECT current_database()')" == 'argintaxpayer_test' ]] || exit 1
 head="$(psql -X -At -v ON_ERROR_STOP=1 -c 'SELECT "MigrationId" FROM "__EFMigrationsHistory" ORDER BY "MigrationId" DESC LIMIT 1')"
-[[ "$head" == "$previous" ]] || { echo "Unexpected migration head: $head"; exit 1; }
-[[ "$(psql -X -At -v ON_ERROR_STOP=1 -c "SELECT to_regclass('public.sandbox_fiscal_memories') IS NULL")" == 't' ]] || { echo 'Sandbox table already exists'; exit 1; }
+if [[ "$head" == "$target" ]]; then
+  echo "Migration already recorded in EF history; checking physical Sandbox schema read-only."
+  [[ "$(psql -X -At -v ON_ERROR_STOP=1 -c "SELECT to_regclass('public.sandbox_fiscal_memories') IS NOT NULL")" == 't' ]] || {
+    echo "SCHEMA DRIFT: Migration is recorded, but Sandbox table is missing. STOP."; exit 2;
+  }
+  columns="$(psql -X -At -v ON_ERROR_STOP=1 -c "SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='sandbox_fiscal_memories' ORDER BY column_name")"
+  for field in id customer_user_id taxpayer_id memory_identifier public_spki_der public_fingerprint_sha256 private_envelope_json signing_key_version_id origin_operation_id revision created_at_utc updated_at_utc; do
+    if ! print -r -- "$columns" | grep -Fxq -- "$field"; then
+      echo "SCHEMA DRIFT: Missing column: $field. STOP. Do not reset migration history."; exit 2;
+    fi
+  done
+  echo "PASS: expected Sandbox table and columns exist; nothing to migrate."
+  echo "No writes performed. For encrypted custody checks, run application tests separately."
+  exit 0
+fi
+[[ "$head" == "$previous" ]] || { echo "Unexpected migration head: $head. STOP without modifying DB."; exit 1; }
+[[ "$(psql -X -At -v ON_ERROR_STOP=1 -c "SELECT to_regclass('public.sandbox_fiscal_memories') IS NULL")" == 't' ]] || { echo 'Sandbox table already exists; stop without modifying DB'; exit 1; }
 mkdir -p artifacts
 stamp="$(date -u +%Y%m%dT%H%M%SZ)"
 backup="artifacts/sandbox-before-$stamp.dump"
