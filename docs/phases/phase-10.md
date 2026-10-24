@@ -1883,3 +1883,36 @@ Script checks exact test DB, dumps backup, generates migration SQL and asks for 
 **Manual QA after migration:** Open taxpayer connection, Sandbox tab; generate keypair; upload *public* into Sandbox portal and obtain separate Sandbox code, register code+public via UI, upload same generated *private* key to dedicated secret route; confirm `keyCustodyReady`, offline challenge PASS; refresh; ensure old Production memory, key fingerprints and connection test remain identical. Wrong private key must fail 409 without overwriting. Try unauthorized user, different taxpayer and expired session; no secrets returned. Confirm live Sandbox connection test remains disabled and no HTTP to Production is made from Sandbox.
 
 **Open security/performance gates:** (1) enforce fresh reauthentication and audit on private PEM import before promoting past development; (2) bounded streaming/PII-safe logging and CSRF already performed at BFF, but direct API is restricted to local requests without Origin and requires bearer; (3) concurrent PostgreSQL replays and encrypted roundtrip integration tests not yet executed, (4) actual current official Sandbox token endpoint unknown, (5) enterprise/production migrations need their own reviewed process and operational support. No live Sandbox invoice transport permitted based on offline success.
+
+
+### Sandbox encrypted custody schema drift: verified operator finding and forward-only repair (2026-10-24)
+
+**Operator evidence:** `__EFMigrationsHistory` has `20261024103000_AddSandboxFiscalMemoryMetadata` at head. Physical `sandbox_fiscal_memories` has precisely nine initial metadata columns: `id`, `customer_user_id`, `taxpayer_id`, `memory_identifier`, `public_spki_der`, `public_fingerprint_sha256`, `revision`, `created_at_utc`, `updated_at_utc`. It lacks `private_envelope_json`, `signing_key_version_id`, `origin_operation_id`. Operator's original script correctly stopped at `SCHEMA DRIFT: Missing column: private_envelope_json`. **Cause:** the already-applied historical migration C# was modified after being applied, so EF regards the migration as complete and will not replay its newly added SQL. This is a deployment drift, not a reason to delete data or rewrite history.
+
+**Repository remediation:**
+1. Restored `20261024103000_AddSandboxFiscalMemoryMetadata.cs` to exactly the original nine-column shape already applied, preserving migration ID.
+2. Added `20261024170000_AddSandboxEncryptedCustodyColumns.cs`: a new migration with an isolated test DB guard, a guard requiring the original Sandbox table and requiring all three custody columns be absent, then adds three columns **without dropping or overwriting existing metadata**. Existing rows receive freshly generated `signing_key_version_id` and `origin_operation_id` UUIDs; those UUID columns become NOT NULL; encrypted envelope remains NULL until explicit one-time encrypted import. Adds length constraint. The same flow works with zero Sandbox rows and for fresh schema built by sequential migrations. No Production memory or signing tables modified. `Down` refuses destructive rollback.
+3. Added `scripts/phase10-sandbox-custody-repair.zsh`: refuse any DB other than `127.0.0.1:15432/argintaxpayer_test`, check exact previous migration head/table/columns, stop on partial drift, report row count, take `pg_dump -Fc` and validate archive listing, build .NET, generate exact migration SQL, then require operator review and manually typed `APPLY`. On applying, recheck unchanged head and row count, execute only the new migration, and verify row count/column list/history. Does not change DB unless owner types `APPLY`.
+4. Added `apps/web/tests/phase10-sandbox-custody-repair.test.mjs` source regression checks for migration immutability, additive-only SQL and manual operator gate.
+
+**Operator macOS test:**
+```bash
+cd ~/projects/ArginTaxPayer
+git status --short
+git fetch origin --prune
+git switch phase/10-invoice-submission
+git pull --ff-only origin phase/10-invoice-submission
+dotnet restore ArginTaxPayer.sln
+dotnet build ArginTaxPayer.sln --no-restore
+cd apps/web
+node --test tests/phase10-sandbox-custody-repair.test.mjs
+cd ../..
+zsh scripts/dev-status.zsh
+set -a
+source .env.dev.local
+set +a
+zsh scripts/phase10-sandbox-custody-repair.zsh
+```
+**First run:** Do not type `APPLY`. Press Enter to leave DB unchanged, inspect `artifacts/sandbox-custody-repair-*.sql` and the backup path. After explicit reviewed SQL approval, rerun and type `APPLY`. Do not run the old `scripts/phase10-sandbox-migration.zsh` for this case. Never `DROP TABLE`, `migrations remove`, edit `__EFMigrationsHistory`, or redo a previously applied migration. No Ubuntu OS work before Step23.
+
+**No DB mutation performed by assistant:** All recorded success is source-level GitHub changes, not an operator execution result. Afterwards test application-specific encrypted-key import and offline signing. The live Sandbox authority connection remains blocked pending official API verification.
