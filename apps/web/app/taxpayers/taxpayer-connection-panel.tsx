@@ -6,6 +6,7 @@ import SigningKeyGeneration from "./signing-key-generation";
 import SigningConnectionTest from "./signing-connection-test";
 import OperationMessageBox from "./operation-message-box";
 import SigningChangeRequestPanel from "./signing-change-request-panel";
+import SandboxFiscalMemoryPanel from "./sandbox-fiscal-memory-panel";
 
 type Memory = { id: string; taxpayerId: string; memoryIdentifier: string; status: number; revision: number };
 type KeyStatus = {
@@ -19,6 +20,7 @@ export default function TaxpayerConnectionPanel({ taxpayerId, memories, loadingM
   onLoadingChange?: (value: boolean) => void;
 }) {
   const [method, setMethod] = useState<Method>("existing");
+  const [environment, setEnvironment] = useState<"production" | "sandbox">("production");
   const [selection, setSelection] = useState("");
   const memoryId = memories.some(m => m.id === selection) ? selection : memories[0]?.id ?? "";
   const currentMemory = memories.find(m => m.id === memoryId);
@@ -59,6 +61,18 @@ export default function TaxpayerConnectionPanel({ taxpayerId, memories, loadingM
         onClick={refresh}>بازخوانی وضعیت</button>
     </div>
 
+    <div className="signing-method-tabs" role="tablist" aria-label="انتخاب محیط حافظه مالیاتی">
+      <button type="button" role="tab" aria-selected={environment === "production"}
+        aria-controls="taxpayer-production-connection" id="taxpayer-production-tab"
+        onClick={()=>setEnvironment("production")}>حافظه اصلی (Production)</button>
+      <button type="button" role="tab" aria-selected={environment === "sandbox"}
+        aria-controls="taxpayer-sandbox-connection" id="taxpayer-sandbox-tab"
+        onClick={()=>setEnvironment("sandbox")}>حافظه آزمایشی (Sandbox)</button>
+    </div>
+    {environment === "sandbox" ? <div id="taxpayer-sandbox-connection" role="tabpanel"
+      aria-labelledby="taxpayer-sandbox-tab"><SandboxFiscalMemoryPanel taxpayerId={taxpayerId}/></div> :
+    <div id="taxpayer-production-connection" role="tabpanel"
+      aria-labelledby="taxpayer-production-tab">
     <div className="signing-status-bar">
       <label htmlFor="signing-memory-selector">حافظه مالیاتی
         <select id="signing-memory-selector" dir="ltr" disabled={reading || loadingMemories}
@@ -106,5 +120,6 @@ export default function TaxpayerConnectionPanel({ taxpayerId, memories, loadingM
         memories={chosen} loadingMemories={loadingMemories} hideMemorySelector/>
     </div>
     {memoryId && <SigningChangeRequestPanel taxpayerId={taxpayerId} memoryId={memoryId}/>}
+    </div>}
   </div>;
 }
