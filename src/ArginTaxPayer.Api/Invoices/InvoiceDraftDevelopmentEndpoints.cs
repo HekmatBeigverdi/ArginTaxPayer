@@ -211,6 +211,33 @@ ORDER BY memory_identifier
                 ? Results.Ok(result.Draft) : Error(result.Decision);
         }).WithTags("Resumable Invoice Drafts (Development)");
 
+        app.MapPost("/api/dev/invoice-workspaces/{id:guid}/prepare", async (
+            Guid id,[FromBody] InvoiceWorkspacePromotionRequest request,
+            HttpContext http,InvoiceWorkspacePromotionService service,
+            CancellationToken ct) =>
+        {
+            if(!Local(http))return Results.NotFound();
+            if(http.Request.Headers.ContainsKey("Origin"))return Results.StatusCode(403);
+            http.Response.Headers.CacheControl="no-store";
+            var result=await service.PromoteAsync(Token(http),id,request,ct);
+            return result.Decision switch {
+                InvoiceApiDecision.Success => Results.Ok(new{
+                    invoiceId=result.InvoiceId,
+                    sourceRevision=result.SourceRevision,
+                    internalSnapshotCreated=true,
+                    fiscalSubmissionAuthorized=false,
+                    signedPacketAvailable=false,
+                    environmentSubmissionEnabled=false,
+                    status=result.Code
+                }),
+                InvoiceApiDecision.Unauthenticated=>Results.Unauthorized(),
+                InvoiceApiDecision.Forbidden=>Results.StatusCode(403),
+                InvoiceApiDecision.NotFound=>Results.NotFound(),
+                InvoiceApiDecision.Conflict=>Results.Conflict(new{error=result.Code}),
+                _=>Results.BadRequest(new{error=result.Code})
+            };
+        }).WithTags("Internal Invoice Snapshot Preparation (Development)");
+
         app.MapGet("/api/dev/invoices", async (Guid? customerId, Guid? taxpayerId,
             int? page, int? pageSize, string? reviewState, string? search,
             HttpContext http, InvoiceDraftApplicationService service, CancellationToken ct) =>
