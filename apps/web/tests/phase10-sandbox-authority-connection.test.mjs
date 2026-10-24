@@ -1,0 +1,41 @@
+import {test} from "node:test";
+import assert from "node:assert/strict";
+import {readFileSync} from "node:fs";
+const probe=readFileSync("../../src/ArginTaxPayer.Infrastructure/Signing/Connection/SandboxAuthorityTokenProbe.cs","utf8");
+const service=readFileSync("../../src/ArginTaxPayer.Infrastructure/Persistence/Signing/SandboxFiscalMemoryMetadataService.cs","utf8");
+const api=readFileSync("../../src/ArginTaxPayer.Api/Taxpayers/SandboxFiscalMemoryDevelopmentEndpoints.cs","utf8");
+const bff=readFileSync("app/api/sandbox-memory/[taxpayerId]/connection-test/route.ts","utf8");
+const ui=readFileSync("app/taxpayers/sandbox-fiscal-memory-panel.tsx","utf8");
+const startup=readFileSync("../../src/ArginTaxPayer.Api/Program.cs","utf8");
+test("Sandbox signed probe uses two read-only authority operations on opt-in isolated origin",()=>{
+  assert.match(probe,/SandboxConnectionTest:OfficialApiVerified/);
+  assert.match(probe,/SandboxConnectionTest:Enabled/);
+  assert.match(probe,/sandboxrc\.tax\.gov\.ir/);
+  assert.match(probe,/uri\.Host != "sandboxrc\.tax\.gov\.ir"/);
+  assert.match(probe,/GET_TOKEN/);
+  assert.match(probe,/GET_FISCAL_INFORMATION/);
+  assert.match(probe,/LegacyOfflineSigningEngine\(\)\.SignObject/);
+  assert.match(probe,/AllowAutoRedirect|phase10-sandbox-authority/);
+  assert.doesNotMatch(probe,/https:\/\/tp\.tax\.gov\.ir/);
+  assert.doesNotMatch(probe,/INVOICE\.V01|SEND_INVOICE/);
+});
+test("Sandbox test uses only scoped encrypted Sandbox credential",()=>{
+  assert.match(service,/TestAuthorityAsync/);
+  assert.match(service,/scope\.ScopedQuery\(/);
+  assert.match(service,/FROM sandbox_fiscal_memories/);
+  assert.match(service,/Sandbox:true/);
+  assert.match(service,/protector\.UnprotectAsync\(identity,envelope,ct\)/);
+  assert.match(api,/service\.TestAuthorityAsync/);
+  assert.match(api,/authenticationConfirmed/);
+  assert.match(startup,/AddPhase10SandboxConnection/);
+  assert.match(startup,/AllowAutoRedirect = false, UseCookies = false/);
+});
+test("BFF sanitizes status and UI does not claim authority acceptance on timeout",()=>{
+  assert.match(bff,/isSameLocalOrigin/);
+  assert.match(bff,/ACCESS_COOKIE/);
+  assert.match(bff,/authenticationConfirmed/);
+  assert.match(bff,/fiscalMemoryActivationConfirmed:false/);
+  assert.match(ui,/testSandboxConnection/);
+  assert.match(ui,/تست اتصال واقعی Sandbox/);
+  assert.match(ui,/disabled=\{!custodyReady\|\|connectionBusy\}/);
+});
