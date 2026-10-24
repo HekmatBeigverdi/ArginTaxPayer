@@ -75,6 +75,8 @@ export default function SandboxFiscalMemoryPanel({taxpayerId}:{taxpayerId:string
   const [reading,setReading]=useState(false);
   const [selfTesting,setSelfTesting]=useState(false);
   const [selfTestPassed,setSelfTestPassed]=useState(false);
+  const [connectionBusy,setConnectionBusy]=useState(false);
+  const [connectionResult,setConnectionResult]=useState<{status:string;message:string;details?:string}|null>(null);
 
   useEffect(()=>{
     const savedPublicKey=readSandboxStorage(sandboxStorageKey(taxpayerId,"public-key"));
@@ -201,6 +203,49 @@ export default function SandboxFiscalMemoryPanel({taxpayerId}:{taxpayerId:string
     finally{setSelfTesting(false);}
   }
 
+
+  async function testSandboxConnection(){
+    if(!custodyReady||connectionBusy)return;
+    setConnectionBusy(true);setConnectionResult(null);setError("");
+    try{
+      const response=await fetch("/api/sandbox-memory/"+
+        encodeURIComponent(taxpayerId)+"/connection-test",{
+        method:"POST",credentials:"same-origin",cache:"no-store",
+        signal:AbortSignal.timeout(35000)
+      });
+      const value:unknown=await response.json();
+      if(!value||typeof value!=="object"||Array.isArray(value))
+        throw new Error("پاسخ آزمون اتصال نامعتبر است.");
+      const result=value as Record<string,unknown>;
+      if(result.environment!=="Sandbox")
+        throw new Error("محیط پاسخ اتصال Sandbox معتبر نیست.");
+      const status=typeof result.status==="string"?result.status:"Unavailable";
+      const codes:Record<string,string>={
+        Authenticated:"احراز هویت Sandbox و دریافت اطلاعات حافظه موفق بود؛ فعال‌سازی حافظه در کارپوشه تأیید نشده است.",
+        AuthenticationRejected:"احراز هویت در سرور Sandbox رد شد؛ شناسه و ثبت Public Key را بررسی کنید.",
+        EndpointUnavailable:"API آزمایشی در دسترس نیست یا پاسخ معتبر HTTP نداده است.",
+        TimedOut:"اتصال Sandbox با پایان مهلت مواجه شد.",
+        Indeterminate:"پاسخ Sandbox قطعی نبود؛ جزئیات اتصال باید بررسی شود.",
+        Unavailable:"آدرس رسمی API Sandbox در تنظیمات سرور تأیید یا فعال نشده است.",
+        KeyNotReady:"کلید خصوصی معتبر برای آزمون آماده نیست.",
+        UnsupportedProfile:"پروفایل اتصال Sandbox از سمت سرور فعال نشده است.",
+        NotAuthorized:"برای این مؤدی مجوز آزمون اتصال ندارید.",
+        VaultUnavailable:"نگهداری امن کلید در دسترس نیست."
+      };
+      if(!Object.prototype.hasOwnProperty.call(codes,status))
+        throw new Error("وضعیت ناشناخته از Sandbox دریافت شد.");
+      const authenticated=response.ok&&status==="Authenticated"&&result.authenticationConfirmed===true;
+      const info=result.fiscalInformation&&typeof result.fiscalInformation==="object"&&!Array.isArray(result.fiscalInformation)
+        ?result.fiscalInformation as Record<string,unknown>:null;
+      const detail=authenticated&&info?[
+        info.nameTrade,info.fiscalStatus,info.economicCode,info.nationalId
+      ].filter(v=>typeof v==="string").join(" | "):"";
+      setConnectionResult({status:authenticated?"Authenticated":status,
+        message:codes[status],details:detail});
+    }catch(e){setError(e instanceof Error?e.message:"اتصال Sandbox ناموفق بود.");}
+    finally{setConnectionBusy(false);}
+  }
+
   const normalized=identifier.trim().toUpperCase();
   const validIdentifier=/^[A-Z0-9]{6,32}$/.test(normalized);
   return <section className="sandbox-memory-panel" dir="rtl" aria-label="حافظه مالیاتی Sandbox">
@@ -298,14 +343,20 @@ export default function SandboxFiscalMemoryPanel({taxpayerId}:{taxpayerId:string
       </section>
       <section>
         <strong>۵. تست اتصال Sandbox</strong>
-        <p>این دکمه نباید درخواست را به <bdi dir="ltr">tp.tax.gov.ir</bdi> ارسال کند. تا تأیید آدرس API اختصاصی Sandbox و آزمون ایمن آن، اتصال غیرفعال است.</p>
-        <button type="button" className="identity-primary" disabled title="آدرس رسمی API سندباکس هنوز تأیید نشده است">
-          تست اتصال Sandbox
+        <p>درخواست واقعی صرفاً با کلید Sandbox و آدرس API آزمایشی تأییدشده در تنظیمات سرور ارسال می‌شود. اتصال به سرور اصلی <bdi dir="ltr">tp.tax.gov.ir</bdi> ممنوع است. در صورت نبود پیکربندی معتبر، سرور نتیجه «غیرفعال» برمی‌گرداند.</p>
+        <button type="button" className="identity-primary"
+          disabled={!custodyReady||connectionBusy} onClick={()=>void testSandboxConnection()}>
+          {connectionBusy?"در حال دریافت توکن و استعلام حافظه…":"تست اتصال واقعی Sandbox"}
         </button>
+        {connectionResult&&<div role="status" className="sandbox-memory-panel__warning">
+          <strong>{connectionResult.status==="Authenticated"?"اتصال Sandbox موفق":"نتیجه تست اتصال Sandbox"}</strong>
+          <p>{connectionResult.message}</p>
+          {connectionResult.details&&<p>{connectionResult.details}</p>}
+        </div>}
       </section>
     </div>
     {notice&&<OperationMessageBox key={notice} kind="success" title="ثبت Sandbox انجام شد">{notice}</OperationMessageBox>}
     {error&&<OperationMessageBox kind="error" title="خطای عملیات Sandbox">{error}</OperationMessageBox>}
-    <p className="sandbox-memory-panel__warning">این بخش در مرحله آماده‌سازی است: تولید کلید و ثبت مستقل شناسه و کلید عمومی انجام می‌شود؛ نگهداری رمزگذاری‌شده Private Key پس از ثبت شناسه فعال است؛ تست اتصال زنده تا تأیید API رسمی فعال نمی‌شود. حافظه اصلی بدون تغییر می‌ماند.</p>
+    <p className="sandbox-memory-panel__warning">این بخش در مرحله آماده‌سازی است: تولید کلید و ثبت مستقل شناسه و کلید عمومی انجام می‌شود؛ نگهداری رمزگذاری‌شده Private Key پس از ثبت شناسه فعال است؛ تست اتصال واقعی فقط با پیکربندی صریح و تأییدشده API Sandbox روی سرور قابل انجام است. حافظه اصلی بدون تغییر می‌ماند.</p>
   </section>;
 }
