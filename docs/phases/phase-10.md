@@ -2097,3 +2097,46 @@ zsh scripts/dev-status.zsh
 **Manual browser acceptance:** With authenticated authorized invoice document, inspect timeline and recovery advice for no operation / statuses and refresh. Stale/unauthorized endpoints must not leak other tenant state; refresh never sends requests to authority. Attempt rapid repeated clicks; no POST/send. On workspace draft, the unavailable dispatch history remains unavailable rather than pretending a final invoice exists. Verify both original Production and separate Sandbox keys remain unchanged. No migrations. No tag, merge, release or Ubuntu Step23 execution.
 
 **Status:** Step18 approved by owner. Step19 code submitted, tests/macOS/browser acceptance pending; next step not owner-approved.
+
+
+## Step19 follow-up — owner-requested internal freeze of a saved Sandbox draft (2026-10-24)
+
+**Owner authorization:** After Step18 acceptance and Step19 recovery UI implementation, the owner explicitly requested resolution of the disconnected "draft -> final invoice -> Sandbox send" workflow before Step20. The work in this section creates the *first* missing bridge: a retained, revision-bound, authenticated **immutable internal invoice snapshot**. This is not legal finalization or permission to send. The fixed Step19 title and 24-step roadmap remain unchanged. No new DB migration is introduced.
+
+### Implementation
+
+- `src/ArginTaxPayer.Infrastructure/Persistence/Invoices/InvoiceWorkspacePromotionService.cs`: `PromoteAsync` takes only the source workspace UUID and its expected revision. Revalidates current user session and customer/taxpayer scope. In a serializable PostgreSQL transaction, locks the source workspace row (`FOR UPDATE`), checks revision, confirms all three wizard steps are completed, supported type-1/pattern-1 or pattern-4 selection, required contracting identifier, buyer membership, positive quantity, completed financial settlement, exactly one Production **or** Sandbox memory, and (for Sandbox) an encrypted private-key envelope in the owner+taxpayer-scoped Sandbox table. Every selected product/service must resolve to **exactly one** 13-digit official identifier from a currently verified and activated official reference release for the invoice's issue date. Product ownership, active status, compatible Goods/Service category and base unit are checked again at preparation time (not trusted from the saved JSON). Caller-supplied fiscal readiness flags are never accepted.
+- A server-built canonical JSON snapshot includes source workspace ID+revision, source environment/memory, current validated item snapshots, contract/settlement/amounts and hard false flags for fiscal sending and signed-packet presence. It is SHA256-hashed and persisted as a `StoredInvoice` in the **internal Draft lifecycle**, plus append-only `StoredInvoiceRevision`, atomically; no external call occurs. Reuses source workspace UUID as stable document identity. Exact retries after a lost HTTP response return the prior result; changed revision/unrelated document conflicts and cannot silently overwrite it.
+- `InvoiceEntryWorkspaceService.SaveAsync` now refuses modifying an already-promoted workspace; `InvoiceDraftApplicationService.ListVisibleAsync` hides that source workspace from the unified listing and describes the promoted invoice `Kind=internalSnapshot`. No original data is deleted.
+- New dev-only loopback `POST /api/dev/invoice-workspaces/{id}/prepare` takes only expected revision and delegates to scoped service. BFF `POST /api/invoices/workspaces/{id}/prepare` uses existing cookie auth, exact JSON allowlist, same-local-origin and no-store protection. Safe response flags distinguish internal snapshot from fiscal issuance and have **no** legal/fiscal acceptance claim.
+- Last-step `InvoiceValidationPanel` shows `ثبت نسخه ثابت داخلی برای آماده‌سازی Sandbox` only after a saved, matching revision, Sandbox memory, zero form errors and no missing-code/memory/financial warnings. The known `invoice.rules.not_approved` is allowed for **internal** snapshot only; it is never overridden for **fiscal** sending. The button invokes one explicit action and returns to invoice list. The list/detail display **نسخه ثابت داخلی (بدون ارسال)**, separate from editable workspaces.
+- New `apps/web/tests/phase10-internal-snapshot-preparation.test.mjs` covers scope, fixed identity, transaction, immutable snapshot, code/memory constraints, BFF admission, no production fallback and still-disabled invoice sending. Actual macOS builds and authenticated integration tests have NOT been performed by this GitHub-only session.
+
+### Mandatory follow-up before "قطعی و آماده ارسال Sandbox"
+
+**CRITICAL:** The `InvoiceDocument` is intentionally in internal `Draft` lifecycle. The existing domain `InvoiceAggregate.FinalizeInternally` requires a trustworthy validated revision and approval receipt; no such receipt is legitimately available from the current UI-only `invoice.rules.not_approved` preflight. No tax ID, legal issue number, verified official mapper version, signed SDK invoice packet, persisted signing evidence or working outbound Sandbox invoice dispatch exists in this commit. DO NOT relabel this internal snapshot as `Finalized`/tax-authority-ready merely to enable a button. Missing required integration work is: verified current official invoice rule/mapping, fiscal-memory-bound tax invoice ID generator, server-side invoice payload mapping, correct Sandbox signature with protected Sandbox key, immutable environment-scoped Outbox reservation, signed packet persistence, operator-approved Sandbox-only POST/inquiry adapter, acknowledgment vs fiscal acceptance separation and uncertain-outcome reconciliation. Maintain provider and Production isolation throughout. This work must be implemented and accepted *before* Step22's controlled live invoice submission; Step20 security QA must not falsely claim full coverage of unbuilt operations.
+
+### macOS owner acceptance
+
+```bash
+cd ~/projects/ArginTaxPayer
+git status --short
+git fetch origin --prune
+git switch phase/10-invoice-submission
+git pull --ff-only origin phase/10-invoice-submission
+dotnet restore ArginTaxPayer.sln
+dotnet build ArginTaxPayer.sln --no-restore
+dotnet test ArginTaxPayer.sln --no-build
+cd apps/web
+node --test tests/phase10-internal-snapshot-preparation.test.mjs \
+  tests/phase10-invoice-sandbox-official-id-readiness.test.mjs \
+  tests/phase10-step19-recovery-followup.test.mjs
+npm run typecheck
+npm run build
+cd ..
+zsh scripts/dev-status.zsh
+```
+
+Manual QA: complete and save an eligible type-1 general-sales or contracting Sandbox invoice with actual buyer, official 13-digit item mapping, verified active reference and valid settlement. Press `بررسی پیش‌نویس ذخیره‌شده`, then `ثبت نسخه ثابت داخلی برای آماده‌سازی Sandbox`. Verify one invoice row appears as `نسخه ثابت داخلی (بدون ارسال)`, source workspace disappears from the editable list, refreshed/double-click retries do not create duplicates, source mutation yields conflict and a stale revision is rejected. Try a missing/unverified official code, closed effective mapping, inactive product, wrong unit, different owner's Sandbox memory, missing encrypted private key, unauthorized user and unsupported pattern: each must be denied without mutations. No invoice provider HTTP POST, no signed packet, no new migration, no real fiscal finalization. Excluded patterns remain denied. If anything fails, leave all sending disabled and report the exact safe error.
+
+**Status:** Internal snapshot source code committed. Pending operator Build, Node/.NET tests and browser verification. Step19 recovery UI remains pending owner confirmation; no Step20 acceptance, merge, tag or release.
