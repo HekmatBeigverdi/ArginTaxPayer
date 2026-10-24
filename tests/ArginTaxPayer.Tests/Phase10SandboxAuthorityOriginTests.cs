@@ -12,8 +12,8 @@ public sealed class Phase10SandboxAuthorityOriginTests
         var settings=new Dictionary<string,string?>
         {
             ["SandboxConnectionTest:Enabled"]=enabled?"true":"false",
-            ["SandboxConnectionTest:OfficialApiVerified"]=verified?"true":"false",
-            ["SandboxConnectionTest:VerifiedApiBaseUrl"]=origin
+            ["SandboxConnectionTest:OperatorApprovedExperimentalApi"]=verified?"true":"false",
+            ["SandboxConnectionTest:ApiBaseUrl"]=origin
         };
         return new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
     }
