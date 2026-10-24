@@ -37,6 +37,8 @@ test("validation provides specific missing-code diagnostics but never grants inv
   assert.match(validation,/invoice\.line\.official_catalog_missing/);
   assert.match(validation,/invoice\.rules\.not_approved/);
   assert.match(validation,/false,findings\.AsReadOnly\(\)/);
-  assert.match(validationUi,/پیش‌نویس داخلی، نه صورتحساب قطعی قابل ارسال/);
+  assert.match(validationUi,/هنوز قطعی و قابل ارسال نیست/);
+  assert.match(validationUi,/selectedEnvironment/);
+  assert.match(validation,/invoice.memory.required_for_submission/);
   assert.match(dispatch,/invoice_dispatch_not_enabled/);
 });
