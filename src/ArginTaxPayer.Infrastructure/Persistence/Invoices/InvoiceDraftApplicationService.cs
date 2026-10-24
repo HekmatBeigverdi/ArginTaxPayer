@@ -279,6 +279,7 @@ public sealed class InvoiceDraftApplicationService(
             .Select(r => new { r.SourceId, r.SourceKind, r.SystemCode }).ToArrayAsync(ct);
         var referenceCodes = referenceRows.ToDictionary(
             r => (r.SourceKind, r.SourceId), r => r.SystemCode);
+        var internalSnapshots = new HashSet<Guid>();
         var workspaceReviews = new Dictionary<Guid,string>();
         var buyers = new Dictionary<Guid, string?>();
         foreach (var row in rows)
@@ -290,6 +291,10 @@ public sealed class InvoiceDraftApplicationService(
             {
                 using var parsed = JsonDocument.Parse(json);
                 var root = parsed.RootElement;
+                if (row.Source == 0 && root.TryGetProperty("sourceWorkspaceId",out var sourceId) &&
+                    sourceId.ValueKind==JsonValueKind.String &&
+                    sourceId.TryGetGuid(out var parsedSourceId) && parsedSourceId==row.Id)
+                    internalSnapshots.Add(row.Id);
                 if (row.Source == 1 && root.TryGetProperty("InternalReviewState",out var review) &&
                     review.ValueKind == JsonValueKind.String)
                     workspaceReviews[row.Id] = review.GetString() ?? "Draft";
@@ -309,7 +314,8 @@ public sealed class InvoiceDraftApplicationService(
                 x.Source == 1 ? "Original" :
                     ((InvoiceSubject)x.SubjectValue!.Value).ToString(),
                 x.IssueDateUtc,x.UpdatedAtUtc,
-                x.Source == 1 ? "workspace" : null, x.Step,
+                x.Source == 1 ? "workspace" :
+                    internalSnapshots.Contains(x.Id) ? "internalSnapshot" : null, x.Step,
                 x.Source == 1 ? workspaceReviews.GetValueOrDefault(x.Id,"WorkingDraft") :
                     ((InvoiceReviewState)(x.Review ?? 1)).ToString(),
                 referenceCodes.GetValueOrDefault((x.Source == 1 ? "workspace" : "document", x.Id)),
