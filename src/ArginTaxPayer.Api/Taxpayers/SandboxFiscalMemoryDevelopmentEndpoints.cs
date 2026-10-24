@@ -31,6 +31,16 @@ public static class SandboxFiscalMemoryDevelopmentEndpoints
             var result=await service.RegisterAsync(Bearer(http),taxpayerId,request,ct);
             return Reply(result);
         });
+        group.MapPost("/private-key",async(Guid taxpayerId,
+            [FromBody] SandboxPrivateKeyImportRequest request,HttpContext http,
+            SandboxFiscalMemoryMetadataService service,CancellationToken ct)=>
+        {
+            if(!Local(http))return Results.NotFound();
+            if(http.Request.Headers.ContainsKey("Origin"))return Results.StatusCode(403);
+            if(http.Request.ContentLength is > 16000)return Results.StatusCode(413);
+            var result=await service.ImportPrivateAsync(Bearer(http),taxpayerId,request,ct);
+            return Reply(result);
+        });
         group.MapPost("/connection-test",async(Guid taxpayerId,HttpContext http,
             SandboxFiscalMemoryMetadataService service,CancellationToken ct)=>
         {
