@@ -1964,3 +1964,43 @@ git status --short
 Check the Authenticated Sandbox UI state only with an explicitly approved isolated test account and verified official API route; otherwise a safe `Unavailable` is the correct behavior. No production token/network calls from Sandbox and no migration required. This implementation has not executed live Sandbox calls from GitHub tools or locally.
 
 **Additional public evidence (2024 developer samples, not current official validation):** A B4X support thread includes a real sample calling `https://sandboxrc.tax.gov.ir/req/api/self-tsp/sync/GET_TOKEN`; a 2024 Java SDK example uses `https://sandboxrc.tax.gov.ir/req/api/self-tsp`; and a 2023 C# discussion uses `https://sandboxrc.tax.gov.ir/req/api/`. Sources: https://www.b4x.com/android/forum/threads/solved-convert-java-code-to-b4x-code.160190/ ; https://www.b4x.com/android/forum/threads/inline-java-erorr.160294/ ; https://csharpforums.net/threads/the-request-was-aborted-could-not-create-ssl-tls-secure-channel.9173/ . This supports an **operator-approved experimental** live test against the historical candidate API but does not prove 2026 availability. Configuration keys intentionally call it `OperatorApprovedExperimentalApi`, not official verification. No dynamic discovery, production fallback or untrusted arbitrary origin permitted.
+
+
+## 28. Step18 — submit confirmation, safe preview, immutable attempt/receipt timeline (2026-10-24)
+
+**Operator approval:** owner explicitly confirmed that the latest Sandbox signed connection test is working and requested close of the present work and implementation of next step. Record acceptance of the Sandbox token test at the operator level; no HTTP trace, request IDs or cross-platform test counts were provided. This is not approval to enable fiscal invoice submission, Production dispatch or unsolicited authority requests. Prior Step17 UI remains incorporated into Step18; no migration in Step18.
+
+**Canonical roadmap:** Step18 is "Submit, receipt and timeline UI": intentional submit confirmation, read-only signed preview, statuses/receipts and immutable attempt timeline. A signed packet preview cannot truthfully be offered while the dispatch pipeline has no persisted signed packet; the UI explicitly says so, and the submit button remains disabled. Thus Step18 implements the **safe read-only UI and confirmation presentation**; authoritative signed preview and actual submit confirmation-to-send are deferred behind their source-of-truth implementation and a later explicit operator acceptance.
+
+**Implementation:**
+- New `src/ArginTaxPayer.Infrastructure/Persistence/Invoices/Phase10InvoiceDispatchHistoryService.cs`: validate session, current actor scope, owner, exact taxpayer and actual invoice document. Only then read latest scoped dispatch operation and associated attempts and receipts from existing tables. Return at most 30 attempts and 30 receipt summaries. Never leak raw provider body, signature, token, full packet, payload digest, authority reference text or other tenants. Return `Mock`, `SubmissionEnabled=false`, `FiscalAccepted=false`, `SignedPreviewAvailable=false`. No server authority HTTP or database mutation.
+- Existing `Phase10InvoiceDispatchDevelopmentEndpoints.cs` adds loopback GET `/api/dev/taxpayers/{taxpayerId}/invoices/{invoiceId}/dispatch/history`; existing `POST /send` stays hard-disabled.
+- New `apps/web/app/api/invoice-dispatch/[taxpayerId]/[invoiceId]/history/route.ts`: cookie-authenticated only, no redirects, sanitizes and bounds status, dates, result codes and evidence type, no POST.
+- New `apps/web/app/invoices/invoice-dispatch-history-panel.tsx`: compact green RTL timeline inside invoice details. State loader, errors, missing records, present attempt/receipt lists, recorded revision/state/updated time, toggleable **metadata-only** preview (not falsely described as an actual signed packet), explicit intentional-confirmation checkbox and hard-disabled "تأیید و ارسال صورتحساب" action. Checking consent does nothing server-side.
+- `apps/web/app/invoices/workspace.tsx`: mounts panel next to existing Step17 status panel in existing details modal.
+- `apps/web/app/globals.css`: compact/mobile responsive styles; readable status labels and warning distinguishing initial receipt from fiscal acceptance.
+- `apps/web/tests/phase10-step18-dispatch-history.test.mjs`: read-only scope boundaries, sanitized BFF, loader/error paths, no client POST / no enabled send.
+
+**Safety and limits:** (1) Latest dispatch operation only; historical attempts/receipts within the operation bounded to 30 each. (2) A signed artifact/cryptographic preview does not yet exist in storage; never construct one from invoice metadata or claim it is accepted. (3) No sandbox/production dispatch activated; Sandbox signed credential **connection test** is independent of invoice dispatch. (4) No real legal/fiscal acceptance claim from `Acknowledged` or a reference field; references displayed only as boolean. (5) Existing draft/workspace editing stays unchanged; details require real `InvoiceDocuments`. (6) No new migration; existing Step11 dispatch tables are read-only. (7) Role/tenant acceptance, browser QA, macOS builds and unit suites must be operator-run and recorded, not asserted as passed here.
+
+**macOS verification**:
+```bash
+cd ~/projects/ArginTaxPayer
+git status --short
+git fetch origin --prune
+git switch phase/10-invoice-submission
+git pull --ff-only origin phase/10-invoice-submission
+git rev-parse HEAD
+dotnet restore ArginTaxPayer.sln
+dotnet build ArginTaxPayer.sln --no-restore
+dotnet test ArginTaxPayer.sln --no-build
+cd apps/web
+node --test tests/phase10-step17-dispatch-ui.test.mjs tests/phase10-step18-dispatch-history.test.mjs
+npm run typecheck
+npm run build
+cd ../..
+zsh scripts/dev-status.zsh
+```
+Authenticated manual UI: open an eligible finalized InvoiceDocument detail, verify metadata preview, no signed artifact disclosure, empty or populated bounded attempt and receipt history, localized RTL and mobile view; refresh and explicit checkbox; "تأیید و ارسال" remains disabled; no POST in browser network. Test unauthorized/different owner, expired session, no dispatch operation and server data read errors. If the only available invoices are draft workspaces, do not interpret empty history as a failed sending service.
+
+**Status:** Step18 code and documents committed; user macOS Build/Browser acceptance pending. Step19 remains awaiting explicit confirmation. No merge/tag/release.
