@@ -420,6 +420,8 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
         body:JSON.stringify(payload)
       });
       setEditing(saved);
+      setRows(current=>current.map((row,i)=>({...row,
+        officialIdentifierSnapshot:saved.lines[i]?.officialIdentifierSnapshot??undefined})));
       setSavedSnapshot(draftSnapshot);
       setNotice("پیش‌نویس با نسخه "+saved.revision+" ذخیره شد. برای ادامه از «ویرایش» استفاده کنید.");
       if(exit || navigateToBuyers) setModal(false);
@@ -469,7 +471,8 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
       cashPreview <= 0 || cashPreview >= calculated.total);
   const draftSnapshot = JSON.stringify({
     headerCustomer,taxpayerId,memoryId,buyerId,date,hour,invoiceType,pattern,
-    conditionalFields,rows,invoiceDescription,settlement,cashInput
+    conditionalFields,rows:rows.map(({officialIdentifierSnapshot:_official,...rest})=>rest),
+    invoiceDescription,settlement,cashInput
   });
   useEffect(() => {
     if (modal && savedSnapshot === null) setSavedSnapshot(draftSnapshot);
