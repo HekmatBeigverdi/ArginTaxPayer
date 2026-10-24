@@ -49,7 +49,7 @@ run dotnet-tests dotnet test ArginTaxPayer.sln --no-restore
 
 if [[ -d apps/web/node_modules ]]; then
   run web-structural bash -c 'cd apps/web && node --test tests/phase10-step20-security-gate.test.mjs tests/phase10-internal-snapshot-preparation.test.mjs tests/phase10-invoice-sandbox-official-id-readiness.test.mjs tests/phase10-step16-dispatch-gate.test.mjs tests/phase10-step17-dispatch-ui.test.mjs tests/phase10-step18-dispatch-history.test.mjs tests/phase10-step19-recovery-followup.test.mjs tests/phase10-sandbox-authority-connection.test.mjs tests/phase10-sandbox-memory-isolation.test.mjs tests/phase10-sandbox-metadata.test.mjs'
-  run web-tests bash -c 'cd apps/web && npm test -- --runInBand'
+  run web-tests bash -c 'cd apps/web && npm test'
   run web-typecheck bash -c 'cd apps/web && npm run typecheck'
   run web-build bash -c 'cd apps/web && npm run build'
 else
