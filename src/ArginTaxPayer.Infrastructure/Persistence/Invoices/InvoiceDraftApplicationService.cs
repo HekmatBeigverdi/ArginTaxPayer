@@ -198,7 +198,9 @@ public sealed class InvoiceDraftApplicationService(
                     .Select(v => (int?)v.State).FirstOrDefault()
             });
         var working = db.InvoiceEntryWorkspaces.AsNoTracking()
-            .Where(x => allowed.Contains(x.TaxpayerId))
+            .Where(x => allowed.Contains(x.TaxpayerId) &&
+                !db.InvoiceDocuments.Any(d => d.Id == x.Id &&
+                    d.TaxpayerId == x.TaxpayerId && d.CustomerUserId == x.CustomerUserId))
             .Select(x => new {
                 x.Id, x.CustomerUserId, x.TaxpayerId, x.Revision,
                 x.IssueDateUtc, x.UpdatedAtUtc,
