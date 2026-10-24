@@ -25,8 +25,8 @@ test("sandbox generates independent browser RSA keypair without loading producti
   assert.doesNotMatch(sandbox,/\/api\/signing\//);
 });
 test("sandbox cannot silently connect to actual production token endpoint",()=>{
-  assert.match(sandbox,/تست اتصال Sandbox/);
-  assert.match(sandbox,/disabled title="آدرس رسمی API/);
+  assert.match(sandbox,/تست اتصال واقعی Sandbox/);
+  assert.match(sandbox,/disabled=\{!custodyReady\|\|connectionBusy\}/);
   assert.match(sandbox,/registerMemory/);
   assert.match(sandbox,/\/api\/sandbox-memory\//);
   assert.doesNotMatch(sandbox,/\/api\/signing\//);
