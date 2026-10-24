@@ -4,13 +4,14 @@ import {isSameLocalOrigin} from "../../../../../lib/identity-origin.mjs";
 
 export const dynamic="force-dynamic";
 type Context={params:Promise<{taxpayerId:string}>};
-const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function fail(status:number,error:string){
   return NextResponse.json({error},{status,headers:{"Cache-Control":"no-store"}});
 }
 export async function POST(request:NextRequest,context:Context){
   if(!identityUiEnabled())return fail(404,"unavailable");
-  const {taxpayerId}=await context.params;
+  const {taxpayerId:rawTaxpayerId}=await context.params;
+  const taxpayerId=rawTaxpayerId.trim();
   if(!uuid.test(taxpayerId))return fail(404,"not_found");
   if(!isSameLocalOrigin(request.headers.get("origin"),request.headers.get("host"),
     request.nextUrl.protocol))return fail(403,"origin_not_allowed");

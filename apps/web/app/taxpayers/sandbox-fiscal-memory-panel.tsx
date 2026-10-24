@@ -9,11 +9,43 @@ function toPem(bytes:ArrayBuffer,label:string):string {
   return "-----BEGIN "+label+"-----\n"+encoded+"\n-----END "+label+"-----\n";
 }
 function download(name:string,contents:string) {
-  const url=URL.createObjectURL(new Blob([contents],{type:"application/x-pem-file"}));
+  const url="data:application/x-pem-file;charset=utf-8,"+encodeURIComponent(contents);
   const element=document.createElement("a");
   element.href=url;element.download=name;
   document.body.appendChild(element);element.click();element.remove();
-  window.setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+function sandboxStorageKey(taxpayerId:string,suffix:string) {
+  return "argin:sandbox:"+taxpayerId+":"+suffix;
+}
+function readSandboxStorage(key:string):string {
+  try{return sessionStorage.getItem(key)??"";}catch{return "";}
+}
+function writeSandboxStorage(key:string,value:string) {
+  try{sessionStorage.setItem(key,value);}catch{/* Storage may be disabled. */}
+}
+function removeSandboxStorage(key:string) {
+  try{sessionStorage.removeItem(key);}catch{/* Storage may be disabled. */}
+}
+function registrationError(status:number,value:unknown):string {
+  const code=value&&typeof value==="object"&&!Array.isArray(value)&&
+    typeof (value as Record<string,unknown>).error==="string"
+    ?(value as Record<string,string>).error:"";
+  switch(code){
+    case "invalid_sandbox_public_key":
+      return "Public Key معتبر نیست؛ همان فایل Public Key تولیدشده را استفاده کنید.";
+    case "invalid_sandbox_memory_input":
+      return "قالب شناسه حافظه معتبر نیست؛ فقط حروف انگلیسی و عدد، بین ۶ تا ۳۲ کاراکتر وارد کنید.";
+    case "sandbox_memory_already_registered":
+      return "برای این مؤدی قبلاً حافظه Sandbox ثبت شده است؛ اطلاعات آن را بازخوانی کنید.";
+    case "sandbox_test_database_required":
+      return "اتصال آزمایشی به دیتابیس Sandbox برقرار نیست.";
+    case "sandbox_scope_denied":
+      return "نشست شما منقضی شده یا به این مؤدی دسترسی ندارید؛ دوباره وارد شوید.";
+    case "api_unavailable":
+      return "سرویس Sandbox در دسترس نیست؛ وضعیت سرویس توسعه را بررسی کنید.";
+    default:
+      return status===409?"برای این مؤدی حافظه آزمایشی قبلاً ثبت شده است.":"ثبت شناسه آزمایشی انجام نشد؛ جزئیات پاسخ: "+(code||"خطای نامشخص");
+  }
 }
 
 /**
@@ -27,8 +59,11 @@ export default function SandboxFiscalMemoryPanel({taxpayerId}:{taxpayerId:string
   const [generated,setGenerated]=useState(false);
   const [generating,setGenerating]=useState(false);
   const [error,setError]=useState("");
+  const [notice,setNotice]=useState("");
   const [publicKey,setPublicKey]=useState("");
   const [privateKey,setPrivateKey]=useState("");
+  const [downloadablePrivateKey,setDownloadablePrivateKey]=useState("");
+  const [privateDownloadUrl,setPrivateDownloadUrl]=useState("");
   const [showPrivate,setShowPrivate]=useState(false);
   const [copied,setCopied]=useState(false);
   const [consent,setConsent]=useState(false);
@@ -42,8 +77,10 @@ export default function SandboxFiscalMemoryPanel({taxpayerId}:{taxpayerId:string
   const [selfTestPassed,setSelfTestPassed]=useState(false);
 
   useEffect(()=>{
-    setIdentifier("");setGenerated(false);setPublicKey("");setPrivateKey("");
-    setCopied(false);setConsent(false);setError("");setRegistered(null);
+    const savedPublicKey=readSandboxStorage(sandboxStorageKey(taxpayerId,"public-key"));
+    const savedIdentifier=readSandboxStorage(sandboxStorageKey(taxpayerId,"memory-id"));
+    setIdentifier(savedIdentifier);setGenerated(savedPublicKey.length>0);setPublicKey(savedPublicKey);setPrivateKey("");
+    setCopied(false);setConsent(false);setError("");setNotice("");setRegistered(null);setDownloadablePrivateKey("");
     setCustodyReady(false);setPrivateFile(null);
     const controller=new AbortController();
     setReading(true);
@@ -58,9 +95,34 @@ export default function SandboxFiscalMemoryPanel({taxpayerId}:{taxpayerId:string
     return ()=>controller.abort();
   },[taxpayerId]);
 
+  useEffect(()=>{
+    if(!downloadablePrivateKey){setPrivateDownloadUrl("");return;}
+    const url="data:application/x-pem-file;charset=utf-8,"+encodeURIComponent(downloadablePrivateKey);
+    setPrivateDownloadUrl(url);
+  },[downloadablePrivateKey]);
+
+  async function storePrivateKeyPem(pem:string){
+    if(!pem.startsWith("-----BEGIN PRIVATE KEY-----")||pem.length>11999)
+      throw new Error("فایل Private Key معتبر نیست.");
+    const response=await fetch("/api/sandbox-memory/"+
+      encodeURIComponent(taxpayerId)+"/private-key",{
+      method:"POST",credentials:"same-origin",cache:"no-store",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({privateKeyPem:pem}),signal:AbortSignal.timeout(25000)
+    });
+    if(!response.ok)throw new Error(response.status===409?
+      "این کلید با Public Key ثبت‌شده تطابق ندارد یا قبلاً ذخیره شده است.":
+      "ذخیره رمزگذاری‌شده کلید انجام نشد؛ تنظیمات نگهداری امن را بررسی کنید.");
+    const value=await response.json();
+    if(value.environment!=="Sandbox"||value.keyCustodyReady!==true)
+      throw new Error("پاسخ نگهداری کلید Sandbox معتبر نیست.");
+    setCustodyReady(true);setPrivateFile(null);setPrivateKey("");
+    setShowPrivate(false);
+  }
+
   async function registerMemory(){
-    if(!generated||!validIdentifier||registered||saving||!publicKey)return;
-    setSaving(true);setError("");
+    if(!generated||!validIdentifier||(registered!==null&&custodyReady)||saving||!publicKey)return;
+    setSaving(true);setError("");setNotice("");
     try {
       const response=await fetch("/api/sandbox-memory/"+encodeURIComponent(taxpayerId),{
         method:"POST",credentials:"same-origin",cache:"no-store",
@@ -68,18 +130,24 @@ export default function SandboxFiscalMemoryPanel({taxpayerId}:{taxpayerId:string
         body:JSON.stringify({memoryIdentifier:normalized,publicKeyPem:publicKey}),
         signal:AbortSignal.timeout(18000)
       });
-      if(!response.ok)throw new Error(response.status===409?
-        "برای این مؤدی حافظه آزمایشی ثبت شده است؛ بازخوانی کنید.":"ثبت شناسه آزمایشی انجام نشد.");
-      const value=await response.json();
+      const value=await response.json().catch(()=>null);
+      if(!response.ok)throw new Error(registrationError(response.status,value));
       if(value.environment!=="Sandbox"||!value.data)throw new Error("پاسخ ثبت Sandbox نامعتبر است.");
       setRegistered(value.data);setIdentifier(value.data.memoryIdentifier);
+      setNotice("شناسه و کلید عمومی Sandbox با موفقیت ثبت شد.");
+      if(privateKey){
+        try{await storePrivateKeyPem(privateKey);}
+        catch(e){setError(e instanceof Error?e.message:"ذخیره امن کلید ناموفق بود.");}
+      }
+      removeSandboxStorage(sandboxStorageKey(taxpayerId,"public-key"));
+      removeSandboxStorage(sandboxStorageKey(taxpayerId,"memory-id"));
     }catch(e){setError(e instanceof Error?e.message:"ثبت شناسه ناموفق بود.");}
     finally {setSaving(false);}
   }
 
   async function generateKeys() {
-    if (!consent || generating || registered) return;
-    setGenerating(true);setError("");
+    if (!consent || generating || (registered!==null&&custodyReady)) return;
+    setGenerating(true);setError("");setNotice("");
     try {
       if (!globalThis.crypto?.subtle) throw new Error("مرورگر از تولید امن کلید پشتیبانی نمی‌کند.");
       const pair=await crypto.subtle.generateKey({
@@ -92,11 +160,12 @@ export default function SandboxFiscalMemoryPanel({taxpayerId}:{taxpayerId:string
       ]);
       const p=toPem(pub,"PUBLIC KEY");
       const s=toPem(priv,"PRIVATE KEY");
-      setPublicKey(p);setPrivateKey(s);setGenerated(true);setCopied(false);
+      setPublicKey(p);setPrivateKey(s);setDownloadablePrivateKey(s);setGenerated(true);setCopied(false);
+      writeSandboxStorage(sandboxStorageKey(taxpayerId,"public-key"),p);
       download("argin-sandbox-public.pem",p);
-      download("argin-sandbox-private.pem",s);
+      window.setTimeout(()=>download("argin-sandbox-private.pem",s),250);
     } catch(e) {
-      setGenerated(false);setPublicKey("");setPrivateKey("");
+      setGenerated(false);setPublicKey("");setPrivateKey("");setDownloadablePrivateKey("");
       setError(e instanceof Error?e.message:"تولید کلید آزمایشی ناموفق بود.");
     } finally {setGenerating(false);}
   }
@@ -104,27 +173,11 @@ export default function SandboxFiscalMemoryPanel({taxpayerId}:{taxpayerId:string
 
   async function storePrivateKey(){
     if(!registered||custodyReady||storing)return;
-    setStoring(true);setError("");
+    setStoring(true);setError("");setNotice("");
     try{
-      if(!privateFile)throw new Error("ابتدا فایل خصوصی Sandbox را انتخاب کنید.");
-      if(privateFile.size>12000)throw new Error("حجم فایل کلید نامعتبر است.");
-      const pem=await privateFile.text();
-      if(!pem.startsWith("-----BEGIN PRIVATE KEY-----")||pem.length>11999)
-        throw new Error("فایل Private Key معتبر نیست.");
-      const response=await fetch("/api/sandbox-memory/"+
-        encodeURIComponent(taxpayerId)+"/private-key",{
-        method:"POST",credentials:"same-origin",cache:"no-store",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({privateKeyPem:pem}),signal:AbortSignal.timeout(25000)
-      });
-      if(!response.ok)throw new Error(response.status===409?
-        "این کلید با Public Key ثبت‌شده تطابق ندارد یا قبلاً ذخیره شده است.":
-        "ذخیره رمزگذاری‌شده کلید انجام نشد؛ تنظیمات نگهداری امن را بررسی کنید.");
-      const value=await response.json();
-      if(value.environment!=="Sandbox"||value.keyCustodyReady!==true)
-        throw new Error("پاسخ نگهداری کلید Sandbox معتبر نیست.");
-      setCustodyReady(true);setPrivateFile(null);setPrivateKey("");
-      setShowPrivate(false);
+      const pem=privateKey||(privateFile?await privateFile.text():"");
+      if(!pem)throw new Error("کلید خصوصی Sandbox در این نشست موجود نیست؛ فایل Private Key را انتخاب کنید.");
+      await storePrivateKeyPem(pem);
     }catch(e){setError(e instanceof Error?e.message:"ذخیره امن کلید ناموفق بود.");}
     finally{setStoring(false);}
   }
@@ -132,7 +185,7 @@ export default function SandboxFiscalMemoryPanel({taxpayerId}:{taxpayerId:string
 
   async function verifyStoredKey(){
     if(!custodyReady||selfTesting)return;
-    setSelfTesting(true);setSelfTestPassed(false);setError("");
+    setSelfTesting(true);setSelfTestPassed(false);setError("");setNotice("");
     try{
       const response=await fetch("/api/sandbox-memory/"+
         encodeURIComponent(taxpayerId)+"/key-self-test",{
@@ -168,7 +221,7 @@ export default function SandboxFiscalMemoryPanel({taxpayerId}:{taxpayerId:string
           تأیید می‌کنم این کلید فقط برای محیط آزمایشی ایجاد شود.
         </label>
         <button type="button" className="identity-primary"
-          disabled={!consent || generating || !!registered} onClick={()=>void generateKeys()}>
+          disabled={!consent || generating || (registered!==null&&custodyReady)} onClick={()=>void generateKeys()}>
           {generating?"در حال ایجاد جفت‌کلید…":"ساخت و دانلود جفت‌کلید Sandbox"}
         </button>
         {generated&&<div className="sandbox-memory-panel__files">
@@ -176,9 +229,10 @@ export default function SandboxFiscalMemoryPanel({taxpayerId}:{taxpayerId:string
           <button type="button" className="identity-secondary" onClick={()=>{
             download("argin-sandbox-public.pem",publicKey);
           }}>دانلود مجدد Public Key</button>
-          <button type="button" className="identity-secondary" onClick={()=>{
+          {privateKey&&<button type="button" className="identity-secondary" onClick={()=>{
             download("argin-sandbox-private.pem",privateKey);
-          }}>دانلود Private Key</button>
+          }}>دانلود Private Key</button>}
+          {!privateKey&&<p role="status">Public Key قبلی بازیابی شد؛ برای نگهداری امن، فایل Private Key دانلودشده را دوباره در بخش ۴ انتخاب کنید.</p>}
           <button type="button" className="identity-secondary" onClick={()=>{
             void navigator.clipboard.writeText(publicKey).then(()=>setCopied(true)).catch(()=>setError("کپی کلید عمومی انجام نشد."));
           }}>{copied?"کپی شد":"کپی کلید عمومی"}</button>
@@ -200,26 +254,38 @@ export default function SandboxFiscalMemoryPanel({taxpayerId}:{taxpayerId:string
         <label htmlFor="sandbox-memory-code">کد دریافتی از کارپوشه آزمایشی</label>
         <input id="sandbox-memory-code" type="text" dir="ltr" value={identifier}
           autoComplete="off" maxLength={32} spellCheck={false} placeholder="شناسه آزمایشی"
-          onChange={e=>setIdentifier(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,""))}/>
+          onChange={e=>{const value=e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,"");setIdentifier(value);writeSandboxStorage(sandboxStorageKey(taxpayerId,"memory-id"),value);}}/>
         {identifier&&!validIdentifier&&<p role="status">قالب شناسه را بررسی کنید.</p>}
         {reading&&<p role="status">در حال بارگذاری اطلاعات Sandbox…</p>}
         {registered&&<p role="status">شناسه آزمایشی ثبت شده است. اثر انگشت کلید عمومی: <bdi dir="ltr">{registered.publicFingerprintSha256}</bdi></p>}
+        {registered&&!custodyReady&&<p className="sandbox-memory-panel__warning">Private Key این ثبت هنوز در نگهداری امن وجود ندارد؛ می‌توانید یک جفت‌کلید جدید بسازید و Public Key جدید را دوباره در کارپوشه بارگذاری کنید.</p>}
         <p className="field-hint">در این مرحله فقط شناسه آزمایشی و Public Key ثبت می‌شود. سپس می‌توانید کلید خصوصی را جداگانه و رمزگذاری‌شده ذخیره کنید. تغییر کلید نیازمند فرایند کنترل‌شده است.</p>
         <button type="button" className="identity-secondary"
-          disabled={!generated||!validIdentifier||!!registered||saving||reading}
+          disabled={!generated||!validIdentifier||(registered!==null&&custodyReady)||saving||reading}
           onClick={()=>void registerMemory()}>
-          {saving?"در حال ثبت…":registered?"ثبت شده":"ثبت شناسه و کلید عمومی Sandbox"}
+          {saving?"در حال ثبت…":registered&&custodyReady?"ثبت شده":registered?"ثبت/جایگزینی کلید عمومی":"ثبت شناسه و کلید عمومی Sandbox"}
         </button>
       </section>
       <section>
         <strong>۴. نگهداری رمزگذاری‌شده کلید خصوصی Sandbox</strong>
-        <p>فایل <bdi dir="ltr">argin-sandbox-private.pem</bdi> را انتخاب کنید؛ سرور تطابق آن را با کلید عمومی ثبت‌شده کنترل می‌کند و فقط نسخه رمزگذاری‌شده را نگه می‌دارد. این عملیات کلید اصلی را تغییر نمی‌دهد.</p>
+        <p>{privateKey?"کلید خصوصی تولیدشده در همین نشست آماده نگهداری امن است؛ نیازی به انتخاب فایل نیست.":"فایل argin-sandbox-private.pem را انتخاب کنید؛ سرور تطابق آن را با کلید عمومی ثبت‌شده کنترل می‌کند و فقط نسخه رمزگذاری‌شده را نگه می‌دارد."} این عملیات کلید اصلی را تغییر نمی‌دهد.</p>
+        {downloadablePrivateKey&&<button type="button" className="identity-secondary" onClick={()=>download("argin-sandbox-private.pem",downloadablePrivateKey)}>
+          دانلود Private Key همین نشست
+        </button>}
+        {privateDownloadUrl&&<>
+          <a className="identity-secondary" href={privateDownloadUrl} download="argin-sandbox-private.pem">
+            دانلود مستقیم Private Key
+          </a>
+          <button type="button" className="identity-secondary" onClick={()=>{
+            void navigator.clipboard.writeText(downloadablePrivateKey).then(()=>setNotice("متن Private Key کپی شد؛ آن را فقط در فایل امن با پسوند pem ذخیره کنید.")).catch(()=>setError("کپی Private Key انجام نشد."));
+          }}>کپی Private Key</button>
+        </>}
         <label>فایل Private Key آزمایشی
           <input type="file" accept=".pem" disabled={!registered||custodyReady||storing}
             onChange={e=>setPrivateFile(e.target.files?.[0]??null)}/>
         </label>
         <button type="button" className="identity-secondary"
-          disabled={!registered||custodyReady||storing||!privateFile}
+          disabled={!registered||custodyReady||storing||(!privateKey&&!privateFile)}
           onClick={()=>void storePrivateKey()}>
           {storing?"در حال رمزگذاری…":custodyReady?"کلید خصوصی امن ثبت شده":"ذخیره امن Private Key آزمایشی"}
         </button>
@@ -238,7 +304,8 @@ export default function SandboxFiscalMemoryPanel({taxpayerId}:{taxpayerId:string
         </button>
       </section>
     </div>
-    {error&&<OperationMessageBox kind="error" title="خطای تولید کلید">{error}</OperationMessageBox>}
+    {notice&&<OperationMessageBox key={notice} kind="success" title="ثبت Sandbox انجام شد">{notice}</OperationMessageBox>}
+    {error&&<OperationMessageBox kind="error" title="خطای عملیات Sandbox">{error}</OperationMessageBox>}
     <p className="sandbox-memory-panel__warning">این بخش در مرحله آماده‌سازی است: تولید کلید و ثبت مستقل شناسه و کلید عمومی انجام می‌شود؛ نگهداری رمزگذاری‌شده Private Key پس از ثبت شناسه فعال است؛ تست اتصال زنده تا تأیید API رسمی فعال نمی‌شود. حافظه اصلی بدون تغییر می‌ماند.</p>
   </section>;
 }

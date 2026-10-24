@@ -4,13 +4,14 @@ import {isSameLocalOrigin} from "../../../../lib/identity-origin.mjs";
 
 export const dynamic="force-dynamic";
 type Context={params:Promise<{taxpayerId:string}>};
-const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function error(status:number,code:string) {
   return NextResponse.json({error:code},{status,headers:{"Cache-Control":"no-store"}});
 }
 async function handle(request:NextRequest,context:Context,method:"GET"|"POST"){
   if(!identityUiEnabled())return error(404,"unavailable");
-  const {taxpayerId}=await context.params;
+  const {taxpayerId:rawTaxpayerId}=await context.params;
+  const taxpayerId=rawTaxpayerId.trim();
   if(!uuid.test(taxpayerId))return error(404,"not_found");
   const token=request.cookies.get(ACCESS_COOKIE)?.value;
   if(!token)return error(401,"unauthorized");

@@ -81,7 +81,8 @@ FROM sandbox_fiscal_memories WHERE taxpayer_id=@taxpayer AND customer_user_id=@o
                 if((string?)await guard.ExecuteScalarAsync(ct)!="argintaxpayer_test")
                     return new(503,"sandbox_test_database_required");
 
-                // No updates, no deletion and no replacement; registration is immutable.
+                // A record without private custody is recoverable: replace only the
+                // untrusted public metadata. Once custody exists, replacement is blocked.
                 await using var cmd=conn.CreateCommand();
                 cmd.Transaction=tx;
                 cmd.CommandText="""
@@ -89,19 +90,29 @@ INSERT INTO sandbox_fiscal_memories
 (id,customer_user_id,taxpayer_id,memory_identifier,public_spki_der,
  public_fingerprint_sha256,signing_key_version_id,origin_operation_id,revision,created_at_utc,updated_at_utc)
 VALUES (@id,@owner,@taxpayer,@memory,@spki,@fingerprint,@keyid,@operationid,1,@now,@now)
-ON CONFLICT(customer_user_id,taxpayer_id) DO NOTHING
-RETURNING id
+ON CONFLICT(customer_user_id,taxpayer_id) DO UPDATE SET
+ memory_identifier=EXCLUDED.memory_identifier,
+ public_spki_der=EXCLUDED.public_spki_der,
+ public_fingerprint_sha256=EXCLUDED.public_fingerprint_sha256,
+ signing_key_version_id=EXCLUDED.signing_key_version_id,
+ origin_operation_id=EXCLUDED.origin_operation_id,
+ revision=sandbox_fiscal_memories.revision+1,
+ updated_at_utc=EXCLUDED.updated_at_utc
+WHERE sandbox_fiscal_memories.private_envelope_json IS NULL
+RETURNING id, revision
 """;
                 Add(cmd,"id",Guid.NewGuid());Add(cmd,"owner",authorized.Owner);
                 Add(cmd,"taxpayer",taxpayerId);Add(cmd,"memory",request.MemoryIdentifier);
                 Add(cmd,"spki",spki);Add(cmd,"fingerprint",fingerprint);
                 Add(cmd,"keyid",Guid.NewGuid());Add(cmd,"operationid",Guid.NewGuid());
                 Add(cmd,"now",DateTime.UtcNow);
-                var created=await cmd.ExecuteScalarAsync(ct);
+                await using var createdReader=await cmd.ExecuteReaderAsync(ct);
+                if(!await createdReader.ReadAsync(ct))
+                    return new(409,"sandbox_memory_already_registered");
+                var revision=createdReader.GetInt64(1);
+                await createdReader.DisposeAsync();
                 await tx.CommitAsync(ct);
-                return created is Guid ?
-                    new(201,"",new(request.MemoryIdentifier,fingerprint,1,false,false)):
-                    new(409,"sandbox_memory_already_registered");
+                return new(200,"",new(request.MemoryIdentifier,fingerprint,revision,false,false));
             } catch {
                 await tx.RollbackAsync(CancellationToken.None);
                 throw;
