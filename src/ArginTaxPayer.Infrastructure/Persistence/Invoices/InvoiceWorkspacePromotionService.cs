@@ -95,6 +95,7 @@ public sealed class InvoiceWorkspacePromotionService(
                     input.BuyerPartyId is null||
                     input.Lines is not {Length: > 0 and <= 150} ||
                     input.FiscalMemoryId.HasValue == input.SandboxFiscalMemoryId.HasValue ||
+                    input.SandboxFiscalMemoryId is null ||
                     input.Type!=1 || input.Pattern is not (1 or 4) ||
                     (input.Pattern==4 && string.IsNullOrWhiteSpace(input.ContractNumber)) ||
                     input.Lines.Any(x=>x.CatalogItemId is null ||
