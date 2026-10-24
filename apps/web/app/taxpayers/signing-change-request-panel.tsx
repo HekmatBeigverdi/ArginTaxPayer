@@ -23,6 +23,7 @@ const errorMessages: Record<string, string> = {
   key_not_ready: "ابتدا کلید فعلی را ثبت و نهایی کنید.",
   conflict: "نسخه کلید تغییر کرده یا درخواست قبلی هنوز باز است. وضعیت را بازخوانی کنید.",
   second_memory_requires_plan_review: "تغییر حافظه دوم بدون بررسی مجوز طرح امکان‌پذیر نیست.",
+  rate_limited: "تعداد درخواست‌ها زیاد است؛ کمی بعد دوباره تلاش کنید.",
   service_unavailable: "ثبت یا دریافت درخواست فعلاً ممکن نیست."
 };
 

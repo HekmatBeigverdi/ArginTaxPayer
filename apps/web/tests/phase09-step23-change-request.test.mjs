@@ -7,6 +7,7 @@ const parent = readFileSync(new URL("../app/taxpayers/taxpayer-connection-panel.
 const bff = readFileSync(new URL("../app/api/signing/[taxpayerId]/[memoryId]/change-requests/route.ts", import.meta.url), "utf8");
 const api = readFileSync(new URL("../../../src/ArginTaxPayer.Api/Taxpayers/SigningChangeRequestEndpoints.cs", import.meta.url), "utf8");
 const service = readFileSync(new URL("../../../src/ArginTaxPayer.Infrastructure/Signing/Review/EfSigningChangeRequestSubmission.cs", import.meta.url), "utf8");
+const program = readFileSync(new URL("../../../src/ArginTaxPayer.Api/Program.cs", import.meta.url), "utf8");
 
 test("same selected fiscal memory drives change requests", () => {
   assert.match(parent, /<SigningChangeRequestPanel taxpayerId=\{taxpayerId\} memoryId=\{memoryId\}/);
@@ -33,4 +34,10 @@ test("BFF validates origin, session, body and allowlists response", () => {
   assert.match(bff, /currentKeyRevision/);
   assert.match(api, /IsLoopbackAddress/);
   assert.match(api, /RequireRateLimiting/);
+});
+test("signing rate limits are isolated per operation path and expose throttling", () => {
+  assert.match(program, /http\.Request\.Path/);
+  assert.match(bff, /upstream\.status === 429/);
+  assert.match(bff, /rate_limited/);
+  assert.match(ui, /rate_limited/);
 });

@@ -63,7 +63,7 @@ if (identityDevelopmentEnabled)
         };
         options.AddPolicy("signing-import", http => RateLimitPartition.GetFixedWindowLimiter(
             Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
-                http.Request.Headers.Authorization.ToString()))), _ => new FixedWindowRateLimiterOptions
+                $"{http.Request.Headers.Authorization}|{http.Request.Method}|{http.Request.Path}"))), _ => new FixedWindowRateLimiterOptions
             { PermitLimit = 12, Window = TimeSpan.FromMinutes(1), QueueLimit = 0, AutoReplenishment = true }));
     });
     builder.Services.AddSingleton<IdentityProtectionService>();
