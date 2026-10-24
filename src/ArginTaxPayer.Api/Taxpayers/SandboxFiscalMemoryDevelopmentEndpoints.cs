@@ -55,15 +55,39 @@ public static class SandboxFiscalMemoryDevelopmentEndpoints
         group.MapPost("/connection-test",async(Guid taxpayerId,HttpContext http,
             SandboxFiscalMemoryMetadataService service,CancellationToken ct)=>
         {
+            http.Response.Headers.CacheControl="no-store";
             if(!Local(http))return Results.NotFound();
             if(http.Request.Headers.ContainsKey("Origin"))return Results.StatusCode(403);
-            var scope=await service.GetAsync(Bearer(http),taxpayerId,ct);
-            if(scope.StatusCode!=200)return Reply(scope);
-            // Fail closed: official Sandbox API and separate encrypted private
-            // custody must be installed before any signed token request.
-            return Results.Json(new {status="Unavailable",
-                error="sandbox_authority_api_not_verified",authenticationConfirmed=false,
-                environment="Sandbox"},statusCode:503);
+            if(http.Request.ContentLength is > 0)return Results.StatusCode(413);
+            if(http.Request.ContentType is not null)return Results.StatusCode(415);
+            try
+            {
+                var result=await service.TestAuthorityAsync(Bearer(http),taxpayerId,ct);
+                if(result.Result is null)
+                    return Results.Json(new{environment="Sandbox",status="Unavailable",
+                        error=result.Error,authenticationConfirmed=false},
+                        statusCode:result.StatusCode);
+                return Results.Json(new{
+                    environment="Sandbox",
+                    status=result.Result.Status.ToString(),
+                    safeCode=result.Result.SafeCode,
+                    testedAtUtc=result.Result.TestedAtUtc,
+                    authenticationConfirmed=result.Result.AuthenticationConfirmed,
+                    portalRegistrationConfirmed=false,
+                    fiscalMemoryActivationConfirmed=false,
+                    fiscalInformation=result.Result.FiscalInformation
+                },statusCode:200);
+            }
+            catch(OperationCanceledException)when(!ct.IsCancellationRequested)
+            {
+                return Results.Json(new{environment="Sandbox",status="TimedOut",
+                    error="sandbox_authority_timeout",authenticationConfirmed=false},statusCode:504);
+            }
+            catch(OperationCanceledException){throw;}
+            catch(Exception){
+                return Results.Json(new{environment="Sandbox",status="Unavailable",
+                    error="sandbox_connection_unavailable",authenticationConfirmed=false},statusCode:503);
+            }
         });
         return routes;
     }
