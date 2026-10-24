@@ -281,6 +281,60 @@ WHERE customer_user_id=@owner AND taxpayer_id=@taxpayer
         }finally{if(opened)await conn.CloseAsync();}
     }
 
+
+    /// <summary>
+    /// Real read-only Sandbox authority authentication, opt-in and isolated.
+    /// The selected Sandbox row owns the only fiscal code and key. Never
+    /// accesses fiscal_memories or Production key envelopes.
+    /// </summary>
+    public async Task<(int StatusCode, string Error,
+        ArginTaxPayer.Application.Signing.SigningConnectionTestResult? Result)>
+        TestAuthorityAsync(string? bearer, Guid taxpayerId, CancellationToken ct = default)
+    {
+        var authorized=await AuthorizeAsync(bearer,taxpayerId,ct);
+        if(authorized.Code!=200)
+            return (authorized.Code,"sandbox_scope_denied",null);
+        var probe=services.GetService<ArginTaxPayer.Infrastructure.Signing.Connection.SandboxAuthorityTokenProbe>();
+        if(probe is null || !ArginTaxPayer.Infrastructure.Signing.Connection.SigningConnectionRegistration
+            .SandboxConnectionConfigured(services.GetRequiredService<Microsoft.Extensions.Configuration.IConfiguration>()))
+            return (503,"sandbox_authority_api_not_verified",null);
+        var protector=services.GetService<KeyEnvelopeProtector>();
+        if(protector is null)return (503,"sandbox_key_protection_unavailable",null);
+        var conn=db.Database.GetDbConnection();
+        var opened=conn.State!=ConnectionState.Open;
+        if(opened)await conn.OpenAsync(ct);
+        try {
+            await using var cmd=conn.CreateCommand();
+            cmd.CommandText="""
+SELECT id,memory_identifier,public_spki_der,private_envelope_json,
+ signing_key_version_id,origin_operation_id
+FROM sandbox_fiscal_memories
+WHERE customer_user_id=@owner AND taxpayer_id=@taxpayer
+""";
+            Add(cmd,"owner",authorized.Owner);Add(cmd,"taxpayer",taxpayerId);
+            await using var reader=await cmd.ExecuteReaderAsync(ct);
+            if(!await reader.ReadAsync(ct) || reader.IsDBNull(3))
+                return (409,"sandbox_private_key_not_ready",null);
+            var id=reader.GetGuid(0);
+            var code=reader.GetString(1);
+            var publicSpki=(byte[])reader.GetValue(2);
+            var envelopeJson=reader.GetString(3);
+            var keyId=reader.GetGuid(4);
+            var operationId=reader.GetGuid(5);
+            var identity=new KeyProtectionIdentity(authorized.Owner,taxpayerId,
+                id,keyId,operationId,Sandbox:true);
+            ProtectedKeyEnvelope? envelope;
+            try { envelope=JsonSerializer.Deserialize<ProtectedKeyEnvelope>(envelopeJson); }
+            catch(JsonException) { return (503,"sandbox_key_integrity_failure",null); }
+            if(envelope is null)return (503,"sandbox_key_integrity_failure",null);
+            using var secret=await protector.UnprotectAsync(identity,envelope,ct);
+            var result=await probe.TestAsync(code,secret,publicSpki,ct);
+            return (200,"",result);
+        } catch(KeyProtectionException) {
+            return (503,"sandbox_key_protection_unavailable",null);
+        } finally {if(opened)await conn.CloseAsync();}
+    }
+
     private static async Task<object?> ScalarDatabaseAsync(
         System.Data.Common.DbConnection connection,
         System.Data.Common.DbTransaction transaction, CancellationToken ct)
