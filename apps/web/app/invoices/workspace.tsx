@@ -1036,7 +1036,8 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
               {editing && <InvoiceValidationPanel
                 draftId={editing.id} taxpayerId={editing.taxpayerId}
                 revision={editing.revision} dirty={validationDirty}
-                onSave={()=>saveWorkspace(step===2 && settlement===0 ? 1 : step,false,false,true)}/>}
+                onSave={()=>saveWorkspace(step===2 && settlement===0 ? 1 : step,false,false,true)}
+                onPrepared={()=>{setModal(false);setNotice("نسخه ثابت داخلی ثبت شد؛ ارسال مالیاتی هنوز غیرفعال است.");void reload();}}/>}
               <p className="invoice-register__hint">
                 توضیحات و تسویه در پیش‌نویس قابل‌ویرایش ذخیره می‌شوند.
                 مبالغ مالیاتی و روش تسویه قبل از صدور رسمی باید در سرویس اعتبارسنجی
