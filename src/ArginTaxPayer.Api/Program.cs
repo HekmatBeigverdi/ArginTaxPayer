@@ -110,6 +110,7 @@ if (identityDevelopmentEnabled)
     builder.Services.AddScoped<Phase10InvoiceDispatchHistoryService>();
     builder.Services.AddScoped<ArginTaxPayer.Infrastructure.Persistence.Signing.SandboxFiscalMemoryMetadataService>();
     builder.Services.AddScoped<InvoiceEntryWorkspaceService>();
+    builder.Services.AddScoped<InvoiceWorkspacePromotionService>();
     builder.Services.AddScoped<InvoiceValidationReferenceService>();
     builder.Services.AddScoped<FiscalCertificateMetadataService>();
     builder.Services.AddScoped<IIdentityResourceOwnershipResolver, IdentityResourceOwnershipResolver>();
