@@ -8,6 +8,15 @@ type History={
   environment:"Mock";submissionEnabled:false;fiscalAccepted:false;
   signedPreviewAvailable:false;invoiceRevision:number|null;
   state:string;lastUpdatedAtUtc:string|null;attempts:Attempt[];receipts:Receipt[];
+  recoveryAction:string;recoveryCode:string;mayRetry:false;mayInquire:false;
+};
+const recoveryText:Record<string,string>={
+  CompleteDraft:"پیش‌نویس را تکمیل کنید؛ ارسال هنوز مجاز نیست.",
+  AwaitPreparation:"در انتظار تکمیل آماده‌سازی و امضای معتبر.",
+  RefreshOnly:"رسید اولیه را بررسی کنید؛ این رسید به معنی پذیرش مالیاتی نیست.",
+  AwaitReconciliation:"نتیجه قطعی نیست؛ پیش از هر ارسال مجدد، تطبیق و استعلام مجاز الزامی است.",
+  ManualReview:"بررسی دستی با شواهد و کنترل نسخه لازم است؛ ارسال مجدد خودکار ممنوع.",
+  NoFurtherSend:"عملیات خاتمه یافته؛ ارسال مجدد همین عملیات ممنوع است."
 };
 const safeResult:Record<string,string>={
   success:"ثبت نتیجه اولیه",acknowledged:"رسید اولیه",failed:"خطای ثبت‌شده",
@@ -46,6 +55,7 @@ export default function InvoiceDispatchHistoryPanel({
       const row=value as Record<string,unknown>;
       if(row.environment!=="Mock"||row.submissionEnabled!==false||
         row.fiscalAccepted!==false||row.signedPreviewAvailable!==false||
+        row.mayRetry!==false||row.mayInquire!==false||
         !Array.isArray(row.attempts)||!Array.isArray(row.receipts)||
         typeof row.state!=="string")
         throw Error("قرارداد امنیتی نمایش تاریخچه معتبر نیست.");
@@ -82,6 +92,12 @@ export default function InvoiceDispatchHistoryPanel({
           <div><span>نسخه صورتحساب</span><strong>{data.invoiceRevision??"هنوز آماده نشده"}</strong></div>
           <div><span>وضعیت ثبت‌شده</span><strong>{data.state}</strong></div>
           <div><span>آخرین تغییر</span><strong>{date(data.lastUpdatedAtUtc)}</strong></div>
+        </div>
+        <div className="invoice-dispatch-history__notice" role="status">
+          <strong>اقدام مجاز بعدی:</strong>{" "}
+          {recoveryText[data.recoveryAction]??recoveryText.ManualReview}
+          <p>ارسال مجدد و استعلام زنده در این مرحله غیرفعال است؛
+          Refresh فقط اطلاعات ثبت‌شده را دوباره می‌خواند.</p>
         </div>
         <button type="button" className="identity-secondary"
           aria-expanded={previewOpen} onClick={()=>setPreviewOpen(v=>!v)}>
