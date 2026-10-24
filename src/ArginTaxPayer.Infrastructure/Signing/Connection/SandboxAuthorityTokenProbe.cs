@@ -12,7 +12,7 @@ namespace ArginTaxPayer.Infrastructure.Signing.Connection;
 
 /// <summary>
 /// Opt-in read-only Sandbox GET_TOKEN + GET_FISCAL_INFORMATION probe.
-/// An operator must verify the actual API endpoint and explicitly configure
+/// An operator must explicitly approve the historically documented test API candidate and configure
 /// its pinned base URL. No Production hostname, failover, redirects or invoice send.
 /// </summary>
 internal sealed class SandboxAuthorityTokenProbe(IConfiguration config, IHttpClientFactory clients)
@@ -21,9 +21,9 @@ internal sealed class SandboxAuthorityTokenProbe(IConfiguration config, IHttpCli
     {
         endpoint = null;
         if (config["SandboxConnectionTest:Enabled"] != "true" ||
-            config["SandboxConnectionTest:OfficialApiVerified"] != "true")
+            config["SandboxConnectionTest:OperatorApprovedExperimentalApi"] != "true")
             return false;
-        var supplied = config["SandboxConnectionTest:VerifiedApiBaseUrl"];
+        var supplied = config["SandboxConnectionTest:ApiBaseUrl"];
         if (!Uri.TryCreate(supplied, UriKind.Absolute, out var uri) ||
             uri.Scheme != Uri.UriSchemeHttps || uri.Port != 443 ||
             uri.Host != "sandboxrc.tax.gov.ir" ||
