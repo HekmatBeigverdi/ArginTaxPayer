@@ -37,6 +37,7 @@ type PanelProps = {
   revision: number;
   dirty: boolean;
   onSave: () => Promise<boolean>;
+  onPrepared?: () => void;
 };
 
 const SUBJECT_OPTIONS: ReadonlyArray<{ value: Subject; label: string }> = [
@@ -221,6 +222,7 @@ export default function InvoiceValidationPanel({
   revision,
   dirty,
   onSave,
+  onPrepared,
 }: PanelProps) {
   const [report, setReport] = useState<Evaluation | null>(null);
   const [references, setReferences] = useState<Reference[]>([]);
@@ -229,6 +231,7 @@ export default function InvoiceValidationPanel({
   const [loading, setLoading] = useState(false);
   const [checkingAfterSave, setCheckingAfterSave] = useState(false);
   const [error, setError] = useState("");
+  const [preparing, setPreparing] = useState(false);
 
   async function refresh() {
     if (dirty) {
