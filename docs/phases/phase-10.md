@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 10: Tax Authority Invoice Submission (Two-Pattern Delivery)
 
-**Owner acceptance update (2026-10-24):** Step18 approved by owner; Step19 recovery/follow-up code committed, macOS acceptance pending. The fixed 24-step roadmap titles are authoritative. The previous assistant incorrectly described Step19 as draft finalization; actual Step19 is error recovery and permitted follow-up UI. Invoice working-draft promotion/fiscal finalization remains a blocking integration gap; Step19 does not enable dispatch.\n\n**Status:** Steps 01–16 owner-approved. Step17 compact RTL invoice dispatch status panel, disabled send/inquiry controls and regression tests committed; macOS UI acceptance pending. No live invoice send, no DB migration. Ubuntu remains Step23.  
+**Owner acceptance update (2026-10-24):** Step18 and Step19 (including Sandbox internal snapshot bridge) explicitly approved by owner; Step20 security and regression gate source committed, macOS execution and owner acceptance pending. The fixed 24-step roadmap titles are authoritative. The previous assistant incorrectly described Step19 as draft finalization; actual Step19 is error recovery and permitted follow-up UI. Invoice working-draft promotion/fiscal finalization remains a blocking integration gap; Step19 does not enable dispatch.\n\n**Status:** Steps 01–16 owner-approved. Step17 compact RTL invoice dispatch status panel, disabled send/inquiry controls and regression tests committed; macOS UI acceptance pending. No live invoice send, no DB migration. Ubuntu remains Step23.  
 **Plan date:** 2026-10-23.  
 **Repository:** HekmatBeigverdi/ArginTaxPayer  
 **Base branch / inspected SHA:** `main` / `7112f03b7fe30ceea1aff7f04f587a1b0e939c92` (verify again at Step 01; Phase09 merge/release anchor `fde20594e733f96e032396f8e22e8781b14cac18`).  
@@ -2142,3 +2142,57 @@ Manual QA: complete and save an eligible type-1 general-sales or contracting San
 **Status:** Internal snapshot source code committed. Pending operator Build, Node/.NET tests and browser verification. Step19 recovery UI remains pending owner confirmation; no Step20 acceptance, merge, tag or release.
 
 **Sandbox-only tightening:** The experimental workspace-to-internal-snapshot operation is limited to a selected, encrypted-key-ready Sandbox memory; Production-only workspaces are rejected. This does not alter prior Production invoice flows. The internal snapshot records no governmental invoice tax ID and is not a permitted provider-send source until separately verified fiscal finalization is implemented.
+
+
+## Step20 — Security, regression and reference verification (2026-10-24)
+
+**Approval recorded:** After the Step19 recovery UI and owner-requested internal immutable Sandbox snapshot bridge, the owner explicitly requested to approve the current step and implement the next one. Step19 owner acceptance is recorded, while historic tests without operator-supplied logs are NOT retroactively marked PASS. No merge, tag or release. **Step20 is security/testing work, not legal fiscal finalization or enabling production invoice submission.**
+
+**Implementation delivered (source only):**
+- `apps/web/tests/phase10-step20-security-gate.test.mjs`: explicit negative contract checks for cross-tenant isolation, snapshot vs sending distinction, CAS and source-row locks, idempotent reply, Sandbox private-key custody/Production API exclusion, same-origin POST, 13-digit official-code provenance and signed readiness flags. These are **static source regression checks**, not actual HTTP or PostgreSQL integration tests.
+- `scripts/phase10-step20-macos-gate.sh`: macOS-only and branch/clean-tree guarded. Records exact HEAD SHA, logs and status of `dotnet restore`, `dotnet build`, full `dotnet test`, all `npm test`, targeted Phase10 web contracts, TypeScript typecheck and Next.js build in local `artifacts/phase10-step20-<UTC>/`. Any failure/missing dependencies fails the overall gate. No DB mutation, no authority send, no VPS/Ubuntu tests. Artifacts contain local command output, keep them private and review before sharing.
+- `scripts/phase10-step20-db-audit.sql` and `scripts/phase10-step20-db-audit.sh`: metadata/aggregate-only, test-only PostgreSQL audit with exact database/host/port check, PGOPTIONS read-only enforcement, SQL `BEGIN READ ONLY`, expected migration history, base tables and append-only immutability triggers, FK/check constraints and counts. Does **not** dump private keys, public customer data, tokens or provider responses. Never performs migration, restore or deletion.
+- `apps/web/tests/phase10-step20-evidence-gates.test.mjs`: verifies safe macOS/DB gate scope and no migration or unsafe write.
+- No schema change, no API sending enable, no alteration to legal-preflight warning `invoice.rules.not_approved`.
+
+**Step20 acceptance matrix — no fabricated PASS claims:**
+
+| Gate | Automated coverage | Execution/evidence status |
+| --- | --- | --- |
+| Phase01–09 .NET regressions | `dotnet test ArginTaxPayer.sln --no-restore` | NOT RUN from GitHub-only session; macOS operator required |
+| Phase07–10 snapshot/dispatch security | targeted `phase10-*.test.mjs`, .NET Phase10 suite, full .NET suite | NOT RUN |
+| Tenant/actor/buyer/official-code negative cases | source-level assertions in new Step20 security test | CODE COMMITTED; authenticated HTTP/DB negative integration NOT RUN |
+| No real Sandbox/Production invoice send | disabled invoice submission endpoint, static regression checks | CODE REVIEW/STRUCTURAL ONLY; browser HTTP capture NOT RUN |
+| TLS/authority origin, no Production fallback | `Phase10SandboxAuthorityOriginTests` plus Step20 source checks | NOT RUN |
+| Key custody AES-GCM isolation | `Phase10SandboxKeyIsolationTests`, static test; no secret returned | NOT RUN; key roundtrip after restart manually required |
+| Database migrations / FK / immutability | read-only SQL audit, explicit latest migrations/trigger checks | NOT RUN |
+| Backup archive + restore rehearsal | Existing operator dump backups; no destructive restore script added | OPEN EVIDENCE DEBT; isolated scratch DB with prior owner approval only |
+| Browser manual role boundaries / double-click | operator QA matrix below | NOT RUN |
+| Rule/SDK official reference provenance | Phase06 versioned releases and `OfficialV79InvoicePatternMatrix` source references | INCOMPLETE for legally issuing signed packet; acceptance blocker |
+| Signed fiscal invoice ID, payload, Sandbox send + fiscal inquiry | not wired by Step20 | NOT IMPLEMENTED; must not mark passed |
+
+**Operator commands, after clean local pull:**
+
+```bash
+cd ~/projects/ArginTaxPayer
+git status --short
+git fetch origin --prune
+git switch phase/10-invoice-submission
+git pull --ff-only origin phase/10-invoice-submission
+bash scripts/phase10-step20-macos-gate.sh
+```
+
+`npm ci` may be required first if web node_modules is absent; the gate refuses to claim PASS without those dependencies. The gate logs stay local. For test DB audit, first confirm stable AutoSSH tunnel and source connection variables into shell:
+
+```bash
+set -a
+source .env.dev.local
+set +a
+bash scripts/phase10-step20-db-audit.sh
+```
+
+**Manual QA separate from gate**: different Level1/Level2/customer sessions across at least two unrelated taxpayer owners; view/save/promotion own workspace vs forbidden other owner's; attempt invalid/stale expectedRevision, repeated same promotion, concurrent two-tab save/promote, wrong/missing Sandbox private key, ambiguous/expired official mapping, unsupported invoice pattern; inspect no provider POST/GET_TOKEN during internal snapshot; check no full PII/secret in Network or logs; confirm immutable invoice revision/attempt/receipt triggers; retest after restart. A failed or missing item blocks Step20 acceptance even if the automated scripts report PASS.
+
+**Known unresolved blocker**: Neither `InvoiceWorkspacePromotionService` nor Phase10 dispatch currently creates a legally final invoice and a Sandbox-signed outbound packet. The local snapshot is intentionally `InvoiceLifecycleState.Draft`. No outgoing or Production invoice sending is authorized. Correct fiscal finalization/send wiring and current official SDK/rules must be completed before controlled live Step22 acceptance. Do not waive these controls based on a passing Step20 static gate.
+
+**Status:** Step19 OWNER APPROVED. Step20 code, regression/evidence tools and this matrix delivered for macOS/DB execution. **Step20 acceptance pending operator output**. Ubuntu verification remains deferred to Step23 by owner decision.
