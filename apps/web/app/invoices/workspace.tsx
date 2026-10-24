@@ -21,7 +21,8 @@ type Invoice = { id: string; customerUserId: string; taxpayerId: string; revisio
   systemCode?: string; sellerName?: string | null; buyerName?: string | null };
 type CatalogItem = { id: string; title: string; internalCode?: string; baseUnitId?: string };
 type HeaderOptions = {taxpayer:{id:string;displayName:string;normalizedIdentifier:string};
-  memories:{id:string;memoryIdentifier:string;status:number}[]};
+  memories:{id:string;memoryIdentifier:string;status:number}[];
+  sandboxMemories?:{id:string;memoryIdentifier:string;environment:"Sandbox"}[]};
 type FormMetadata = { edition: string; verifiedForSubmission: boolean;
   entries: {type:number;pattern:number|null;requiredFields:string[]}[] };
 type CatalogPage = { items: CatalogItem[] };
@@ -42,7 +43,7 @@ type SavedEntry = { id: string; customerUserId: string; taxpayerId: string;
   contractNumber?: string|null;serviceBillId?: string|null;flightType?: number|null;
   goldConstructionFeeRial?: number|null;goldSellerProfitRial?: number|null;
   goldCommissionRial?: number|null;goldTotalFeeProfitRial?: number|null;
-  fiscalMemoryId?: string|null; };
+  fiscalMemoryId?: string|null; sandboxFiscalMemoryId?:string|null; };
 const headings = ["سربرگ صورتحساب", "اقلام صورتحساب", "مرور نهایی و تسویه"] as const;
 type Settlement = 0 | 1 | 2 | 3;
 const errorCodes: Record<number, string> = {
@@ -316,7 +317,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
       setTaxpayerId(saved.taxpayerId);
       setDate(saved.issueDateUtc.slice(0,10));
       setHour(saved.issueDateUtc.slice(11,16));
-      setMemoryId(saved.fiscalMemoryId ?? "");
+      setMemoryId(saved.sandboxFiscalMemoryId ? "sandbox:"+saved.sandboxFiscalMemoryId : saved.fiscalMemoryId ?? "");
       setBuyerId(saved.buyerPartyId ?? "");
       setBuyerQuery(saved.buyerDisplayName ?? "");
       setBuyerOpen(false);
@@ -383,7 +384,9 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
     if (headerLoading || headerError || !headerOptions || headerOptions.taxpayer.id!==taxpayerId) {
       setError("اطلاعات مؤدی صادرکننده هنوز آماده نیست؛ مجدداً تلاش کنید.");return false;
     }
-    if(memoryId && !headerOptions.memories.some(m=>m.id===memoryId)) {
+    if(memoryId && !(memoryId.startsWith("sandbox:")
+      ? headerOptions.sandboxMemories?.some(m=>m.id===memoryId.slice(8))
+      : headerOptions.memories.some(m=>m.id===memoryId))) {
       setError("حافظه مالیاتی انتخاب‌شده به مؤدی صادرکننده تعلق ندارد.");return false;
     }
     if (buyerQuery.trim() && !buyerId) {setError("خریدار را از فهرست خریداران ثبت‌شده انتخاب کنید.");return false;}
@@ -391,7 +394,10 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
       id:editing?.id ?? null,
       taxpayerId, expectedRevision:editing?.revision ?? 0,
       lastCompletedStep:persistedStep, issueDateUtc:issued.toISOString(),
-      buyerPartyId:buyerId || null, fiscalMemoryId:memoryId || null, type:invoiceType,pattern,
+      buyerPartyId:buyerId || null,
+      fiscalMemoryId:memoryId&&!memoryId.startsWith("sandbox:")?memoryId:null,
+      sandboxFiscalMemoryId:memoryId.startsWith("sandbox:")?memoryId.slice(8):null,
+      type:invoiceType,pattern,
       ...Object.fromEntries(["contractNumber","serviceBillId","flightType",
         "goldConstructionFeeRial","goldSellerProfitRial","goldCommissionRial","goldTotalFeeProfitRial"]
         .map(k=>[k, !needed.includes(k) || !conditionalFields[k]?.trim() ? null :
@@ -471,7 +477,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
     draftSnapshot !== savedSnapshot;
   const validationDirty = editing !== null && (
     editing.taxpayerId!==taxpayerId || editing.issueDateUtc.slice(0,16)!==date+"T"+hour ||
-    (editing.buyerPartyId??"")!==buyerId || (editing.fiscalMemoryId??"")!==memoryId ||
+    (editing.buyerPartyId??"")!==buyerId || (editing.sandboxFiscalMemoryId?"sandbox:"+editing.sandboxFiscalMemoryId:(editing.fiscalMemoryId??""))!==memoryId ||
     editing.type!==invoiceType || editing.pattern!==pattern ||
     (editing.invoiceDescription??"")!==invoiceDescription.trim() ||
     (editing.settlementMethod??0)!==settlement ||
