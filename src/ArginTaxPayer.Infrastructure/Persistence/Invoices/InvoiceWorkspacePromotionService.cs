@@ -65,8 +65,22 @@ public sealed class InvoiceWorkspacePromotionService(
                         i.CustomerUserId==draft.CustomerUserId &&
                         i.TaxpayerId==draft.TaxpayerId,ct);
                 if(existing is not null)
+                {
+                    // A lost HTTP response may be retried. Return the same
+                    // internal result ONLY if source ID+revision really match.
+                    try {
+                        using var snapshot=JsonDocument.Parse(existing.SnapshotJson);
+                        var root=snapshot.RootElement;
+                        if(root.GetProperty("sourceWorkspaceId").GetGuid()==draft.Id &&
+                            root.GetProperty("sourceRevision").GetInt64()==draft.Revision)
+                            return new InvoiceWorkspacePromotionResult(InvoiceApiDecision.Success,
+                                existing.Id,draft.Revision,true,
+                                "internal_snapshot_already_created");
+                    } catch(JsonException) { /* Unrecognized historical payload. */ }
+                      catch(KeyNotFoundException) { /* Different existing document. */ }
                     return new InvoiceWorkspacePromotionResult(InvoiceApiDecision.Conflict,
-                        existing.Id,draft.Revision,true,"already_promoted");
+                        Code:"workspace_already_bound_to_other_document");
+                }
                 if(draft.LastCompletedStep!=2)
                     return new InvoiceWorkspacePromotionResult(InvoiceApiDecision.Invalid,
                         Code:"incomplete_wizard");
