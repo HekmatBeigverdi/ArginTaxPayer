@@ -38,6 +38,8 @@ export default function SandboxFiscalMemoryPanel({taxpayerId}:{taxpayerId:string
   const [privateFile,setPrivateFile]=useState<File|null>(null);
   const [custodyReady,setCustodyReady]=useState(false);
   const [reading,setReading]=useState(false);
+  const [selfTesting,setSelfTesting]=useState(false);
+  const [selfTestPassed,setSelfTestPassed]=useState(false);
 
   useEffect(()=>{
     setIdentifier("");setGenerated(false);setPublicKey("");setPrivateKey("");
@@ -127,6 +129,25 @@ export default function SandboxFiscalMemoryPanel({taxpayerId}:{taxpayerId:string
     finally{setStoring(false);}
   }
 
+
+  async function verifyStoredKey(){
+    if(!custodyReady||selfTesting)return;
+    setSelfTesting(true);setSelfTestPassed(false);setError("");
+    try{
+      const response=await fetch("/api/sandbox-memory/"+
+        encodeURIComponent(taxpayerId)+"/key-self-test",{
+        method:"POST",credentials:"same-origin",cache:"no-store",
+        signal:AbortSignal.timeout(20000)
+      });
+      const value=await response.json();
+      if(!response.ok||value.environment!=="Sandbox"||
+        value.offlineKeyVerified!==true||value.authorityAuthenticated!==false)
+        throw new Error("تأیید آفلاین کلید آزمایشی انجام نشد.");
+      setSelfTestPassed(true);
+    }catch(e){setError(e instanceof Error?e.message:"آزمون آفلاین کلید ناموفق بود.");}
+    finally{setSelfTesting(false);}
+  }
+
   const normalized=identifier.trim().toUpperCase();
   const validIdentifier=/^[A-Z0-9]{6,32}$/.test(normalized);
   return <section className="sandbox-memory-panel" dir="rtl" aria-label="حافظه مالیاتی Sandbox">
@@ -203,6 +224,11 @@ export default function SandboxFiscalMemoryPanel({taxpayerId}:{taxpayerId:string
           {storing?"در حال رمزگذاری…":custodyReady?"کلید خصوصی امن ثبت شده":"ذخیره امن Private Key آزمایشی"}
         </button>
         {custodyReady&&<p role="status">کلید خصوصی Sandbox با رمزگذاری سمت سرور ذخیره شده است.</p>}
+        <button type="button" className="identity-secondary" disabled={!custodyReady||selfTesting}
+          onClick={()=>void verifyStoredKey()}>
+          {selfTesting?"در حال آزمون رمزنگاری…":"تست صحت کلید ذخیره‌شده (آفلاین)"}
+        </button>
+        {selfTestPassed&&<p role="status">تطبیق جفت‌کلید و امضای چالش آفلاین موفق بود؛ این نتیجه تست اتصال سازمان نیست.</p>}
       </section>
       <section>
         <strong>۵. تست اتصال Sandbox</strong>
