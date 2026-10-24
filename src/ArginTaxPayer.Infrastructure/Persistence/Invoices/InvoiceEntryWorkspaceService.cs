@@ -427,6 +427,12 @@ SELECT EXISTS(
             }
             else
             {
+                // Immutable internal invoice snapshot wins over editing.
+                // This check runs INSIDE the workspace update transaction.
+                if(await db.InvoiceDocuments.AsNoTracking().AnyAsync(d=>
+                    d.Id==input.Id.Value && d.CustomerUserId==access.Item2 &&
+                    d.TaxpayerId==input.TaxpayerId,ct))
+                    return new InvoiceEntryResult(InvoiceApiDecision.Conflict);
                 if (input.Id == Guid.Empty || input.ExpectedRevision < 1)
                     return new InvoiceEntryResult(InvoiceApiDecision.Invalid);
                 var updated = await db.InvoiceEntryWorkspaces.Where(x => x.Id == input.Id &&
