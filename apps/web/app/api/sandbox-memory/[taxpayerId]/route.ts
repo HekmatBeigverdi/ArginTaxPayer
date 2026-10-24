@@ -63,7 +63,7 @@ async function handle(request:NextRequest,context:Context,method:"GET"|"POST"){
         /^[0-9a-f]{64}$/.test(detail.publicFingerprintSha256)
         ?{memoryIdentifier:detail.memoryIdentifier,
           publicFingerprintSha256:detail.publicFingerprintSha256,
-          revision:detail.revision,keyCustodyReady:false,connectionTestReady:false}
+          revision:detail.revision,keyCustodyReady:detail.keyCustodyReady===true,connectionTestReady:false}
         :null,
       connectionTestReady:false
     },{status:response.status,headers:{"Cache-Control":"no-store"}});
