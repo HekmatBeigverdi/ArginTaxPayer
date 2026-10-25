@@ -30,6 +30,12 @@
 
 ### Task 1: Finalization and owner-consent-bound admission
 
+> **Current implementation boundary (2026-10-25):** The owner-scoped, server-owned
+> admission gate is implemented and tested. Internal finalization remains fail-closed
+> until the existing invoice pipeline persists a trusted, revision-pinned validation
+> receipt and application approval; this task is not marked complete by the admission
+> endpoint alone.
+
 **Files:**
 - Modify: existing `Phase10LiveSendReadinessService`, invoice review/finalization service and `SandboxSingleInvoiceConsentGuard` boundaries.
 - Test: existing Phase 10 preflight, consent, dispatch contract and database-contract test files; add focused tests where needed.

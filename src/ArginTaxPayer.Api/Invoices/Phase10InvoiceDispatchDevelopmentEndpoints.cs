@@ -69,6 +69,23 @@ public static class Phase10InvoiceDispatchDevelopmentEndpoints
             };
         });
 
+        group.MapPost("/admission", async (Guid taxpayerId, Guid invoiceId,
+            SandboxSubmissionAdmissionRequest request, HttpContext http,
+            Phase10SandboxSubmissionAdmissionService service, CancellationToken ct) =>
+        {
+            if (!Local(http)) return Results.NotFound();
+            http.Response.Headers.CacheControl = "no-store";
+            var result = await service.EvaluateAsync(Token(http), taxpayerId, invoiceId, request, ct);
+            return result.Decision switch
+            {
+                InvoiceApiDecision.Success => Results.Ok(result.Value),
+                InvoiceApiDecision.Unauthenticated => Results.Unauthorized(),
+                InvoiceApiDecision.Forbidden => Results.StatusCode(403),
+                InvoiceApiDecision.Invalid => Results.BadRequest(new { error = "invalid_admission_request" }),
+                _ => Results.NotFound()
+            };
+        });
+
         // The only control endpoint is an explicit fail-closed response.
         // It performs auth and scope verification before announcing unavailable.
         // This cannot be used to submit packets by guessing a taxpayer ID.

@@ -108,6 +108,7 @@ if (identityDevelopmentEnabled)
     builder.Services.AddScoped<InvoiceReviewCommandService>();
     builder.Services.AddScoped<Phase10InvoiceDispatchReadService>();
     builder.Services.AddScoped<Phase10LiveSendReadinessService>();
+    builder.Services.AddScoped<Phase10SandboxSubmissionAdmissionService>();
     builder.Services.AddScoped<Phase10InvoiceDispatchHistoryService>();
     builder.Services.AddScoped<ArginTaxPayer.Infrastructure.Persistence.Signing.SandboxFiscalMemoryMetadataService>();
     builder.Services.AddScoped<InvoiceEntryWorkspaceService>();
