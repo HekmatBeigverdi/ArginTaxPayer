@@ -5,6 +5,7 @@ type Report={environment:"Sandbox"|"Unverified";invoiceState:"Draft"|"Validated"
  hasImmutableSnapshot:boolean;invoiceRevision:number;sandboxFiscalMemoryId:string|null;
  readyForLiveSend:false;submissionEnabled:false;
  signedPacketAvailable:false;fiscalAccepted:false;blockingCodes:string[]};
+type Review={state:"Draft"|"InReview"|"ChangesRequested"|"Approved";revision:number};
 const labels:Record<string,string>={
  "invoice.snapshot.invalid":"ساختار نسخه ذخیره‌شده قابل تأیید نیست",
  "invoice.snapshot.not_internal_promoted":"نسخه ثابت داخلی هنوز ایجاد یا شناسایی نشده است",
@@ -30,6 +31,7 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
  const [error,setError]=useState("");
  const [actionBusy,setActionBusy]=useState(false);
  const [notice,setNotice]=useState("");
+ const [review,setReview]=useState<Review|null>(null);
  const refresh=useCallback(async(signal?:AbortSignal)=>{
   if(isWorkspace)return;
   setBusy(true);setError("");
@@ -83,8 +85,65 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
   }catch(e){setError((e as Error).message);}
   finally{setActionBusy(false);}
  },[report,actionBusy,taxpayerId,invoiceId,refresh]);
- useEffect(()=>{const controller=new AbortController();void refresh(controller.signal);
-  return()=>controller.abort();},[refresh]);
+ const loadReview=useCallback(async()=>{
+  if(isWorkspace)return;
+  try{
+   const response=await fetch("/api/invoice-dispatch/"+
+    encodeURIComponent(taxpayerId)+"/"+encodeURIComponent(invoiceId)+"/review-status",{
+    cache:"no-store",credentials:"same-origin"});
+   if(!response.ok){setReview(null);return;}
+   const value:unknown=await response.json();
+   if(value&&typeof value==="object"&&!Array.isArray(value)){
+    const candidate=value as Review;
+    if(["Draft","InReview","ChangesRequested","Approved"].includes(candidate.state)&&
+       Number.isSafeInteger(candidate.revision)&&candidate.revision>=1)
+       setReview(candidate);
+   }
+  }catch{setReview(null);}
+ },[isWorkspace,taxpayerId,invoiceId]);
+ const advanceReview=useCallback(async(action:"submit"|"approve")=>{
+  if(!review||actionBusy)return;
+  setActionBusy(true);setError("");setNotice("");
+  try{
+   const response=await fetch("/api/invoice-dispatch/"+
+    encodeURIComponent(taxpayerId)+"/"+encodeURIComponent(invoiceId)+"/review-action",{
+    method:"POST",credentials:"same-origin",cache:"no-store",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({action,expectedReviewRevision:review.revision,
+       idempotencyKey:crypto.randomUUID()})
+   });
+   const payload:unknown=await response.json();
+   const result=payload&&typeof payload==="object"&&!Array.isArray(payload)
+    ?payload as Record<string,unknown>:{};
+   if(!response.ok)throw Error(response.status===403?
+    "این عملیات نیازمند نقش مجاز است؛ ارسال برای بازبینی توسط مالک و تأیید توسط مدیر دارای MFA انجام می‌شود.":
+    "عملیات بازبینی انجام نشد: "+String(result.error??response.status));
+   setNotice(action==="submit"?"صورتحساب برای بازبینی ثبت شد.":"بازبینی داخلی تأیید شد.");
+   await loadReview();await refresh();
+  }catch(e){setError((e as Error).message);}
+  finally{setActionBusy(false);}
+ },[review,actionBusy,invoiceId,taxpayerId,loadReview,refresh]);
+ const finalize=useCallback(async()=>{
+  if(!report||review?.state!=="Approved"||report.invoiceState!=="Validated"||actionBusy)return;
+  setActionBusy(true);setError("");setNotice("");
+  try{
+   const response=await fetch("/api/invoice-dispatch/"+
+    encodeURIComponent(taxpayerId)+"/"+encodeURIComponent(invoiceId)+"/finalize-internal",{
+    method:"POST",credentials:"same-origin",cache:"no-store",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({expectedRevision:report.invoiceRevision})
+   });
+   const payload:unknown=await response.json();
+   const result=payload&&typeof payload==="object"&&!Array.isArray(payload)
+    ?payload as Record<string,unknown>:{};
+   if(!response.ok)throw Error("نهایی‌سازی انجام نشد: "+String(result.error??response.status));
+   setNotice("صورتحساب به‌صورت داخلی نهایی شد؛ این وضعیت به معنی تأیید سازمان نیست.");
+   await refresh();await loadReview();
+  }catch(e){setError((e as Error).message);}
+  finally{setActionBusy(false);}
+ },[report,review,actionBusy,invoiceId,taxpayerId,refresh,loadReview]);
+ useEffect(()=>{const controller=new AbortController();void refresh(controller.signal);void loadReview();
+  return()=>controller.abort();},[refresh,loadReview]);
  if(isWorkspace)return <p className="field-hint">ابتدا نسخه ثابت داخلی سند را ثبت کنید.</p>;
  return <section dir="rtl" className="invoice-validation" aria-label="پیش‌نیازهای ارسال مالیاتی">
   <div className="invoice-validation__heading">
@@ -95,6 +154,19 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
   </div>
   {error&&<p role="alert" className="form-error">{error}</p>}
   {notice&&<p role="status" className="field-hint">{notice}</p>}
+  {report?.invoiceState==="Validated"&&review&&
+   <div className="invoice-validation__actions">
+    <p>وضعیت بازبینی داخلی: <strong>{review.state}</strong></p>
+    {(review.state==="Draft"||review.state==="ChangesRequested")&&
+     <button type="button" className="identity-secondary" disabled={actionBusy||busy}
+      onClick={()=>void advanceReview("submit")}>ارسال برای بازبینی</button>}
+    {review.state==="InReview"&&
+     <button type="button" className="identity-secondary" disabled={actionBusy||busy}
+      onClick={()=>void advanceReview("approve")}>تأیید بازبینی (مدیر)</button>}
+    {review.state==="Approved"&&
+     <button type="button" className="identity-secondary" disabled={actionBusy||busy}
+      onClick={()=>void finalize()}>نهایی‌سازی داخلی صورتحساب</button>}
+   </div>}
   {report?.invoiceState==="Draft"&&report.hasImmutableSnapshot&&report.environment==="Sandbox"&&
    <button type="button" className="identity-secondary" disabled={actionBusy||busy}
     onClick={()=>void validate()}>{actionBusy?"در حال اعتبارسنجی…":"اعتبارسنجی داخلی صورتحساب"}</button>}
