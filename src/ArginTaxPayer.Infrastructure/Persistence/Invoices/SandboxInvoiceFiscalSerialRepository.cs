@@ -42,26 +42,6 @@ public sealed class SandboxInvoiceFiscalSerialRepository(
                 if(database is not string name||name!="argintaxpayer_test")
                     return new(SandboxSerialStatus.Denied);
 
-                // The memory row is the DB-wide reservation mutex for this
-                // exact sandbox fiscal memory (no in-process lock).
-                await using var memoryCmd=Command(conn,tx,"""
-SELECT id,memory_identifier
-FROM sandbox_fiscal_memories
-WHERE customer_user_id=@owner AND taxpayer_id=@taxpayer
- AND private_envelope_json IS NOT NULL
-FOR UPDATE
-""",("owner",owner.Value),("taxpayer",taxpayerId));
-                Guid memoryId;
-                string memoryCode;
-                await using(var reader=await memoryCmd.ExecuteReaderAsync(ct)){
-                    if(!await reader.ReadAsync(ct))
-                        return new(SandboxSerialStatus.NotFound);
-                    memoryId=reader.GetGuid(0);
-                    memoryCode=reader.GetString(1);
-                }
-                if(memoryCode.Length!=6)
-                    return new(SandboxSerialStatus.Invalid);
-
                 await using var invoiceCmd=Command(conn,tx,"""
 SELECT revision,state,issue_date_utc,snapshot_sha256,snapshot_json
 FROM invoice_documents
@@ -83,8 +63,9 @@ FOR UPDATE
                     return new(SandboxSerialStatus.Conflict);
                 if(state!=(int)InvoiceLifecycleState.Finalized)
                     return new(SandboxSerialStatus.NotFinalized);
-                // Bind reservation to the server-owned, signed-off snapshot;
-                // never accept memory or hash from caller.
+                // Resolve the exact memory from the immutable invoice, not the
+                // first memory belonging to this taxpayer.
+                Guid linkedMemory;
                 try{
                     using var json=System.Text.Json.JsonDocument.Parse(snapshot);
                     var root=json.RootElement;
@@ -94,12 +75,31 @@ FOR UPDATE
                        env.GetString()!="Sandbox" ||
                        !root.TryGetProperty("sandboxFiscalMemoryId",out var mid) ||
                        mid.ValueKind!=System.Text.Json.JsonValueKind.String ||
-                       !mid.TryGetGuid(out var linkedMemory) ||
-                       linkedMemory!=memoryId)
+                       !mid.TryGetGuid(out linkedMemory) || linkedMemory==Guid.Empty)
                         return new(SandboxSerialStatus.Denied);
                 }catch(System.Text.Json.JsonException){
                     return new(SandboxSerialStatus.Denied);
                 }
+
+                // Lock only the invoice-bound memory. This also serializes all
+                // concurrent serial allocations for that exact memory.
+                await using var memoryCmd=Command(conn,tx,"""
+SELECT id,memory_identifier
+FROM sandbox_fiscal_memories
+WHERE id=@memory AND customer_user_id=@owner AND taxpayer_id=@taxpayer
+ AND private_envelope_json IS NOT NULL
+FOR UPDATE
+""",("memory",linkedMemory),("owner",owner.Value),("taxpayer",taxpayerId));
+                Guid memoryId;
+                string memoryCode;
+                await using(var reader=await memoryCmd.ExecuteReaderAsync(ct)){
+                    if(!await reader.ReadAsync(ct))
+                        return new(SandboxSerialStatus.NotFound);
+                    memoryId=reader.GetGuid(0);
+                    memoryCode=reader.GetString(1);
+                }
+                if(memoryCode.Length!=6)
+                    return new(SandboxSerialStatus.Invalid);
 
                 await using var previous=Command(conn,tx,"""
 SELECT id,invoice_revision,approved_snapshot_sha256,fiscal_tax_id,serial
