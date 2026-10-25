@@ -13,7 +13,7 @@ cd "$(dirname "$0")/.."
 echo "Phase10 Sandbox SDK-v2 offline gate SHA: $(git rev-parse HEAD)"
 dotnet build ArginTaxPayer.sln --no-restore
 dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --no-restore \
- --filter 'FullyQualifiedName~Phase10FiscalInvoiceIdentifierTests|FullyQualifiedName~Phase10SandboxInvoicePacketCryptographyTests|FullyQualifiedName~Phase10SandboxV2InvoiceTransportTests'
+ --filter 'FullyQualifiedName~Phase10FiscalInvoiceIdentifierTests|FullyQualifiedName~Phase10SandboxInvoicePacketCryptographyTests|FullyQualifiedName~Phase10SandboxV2InvoiceTransportTests|FullyQualifiedName~Phase10SandboxSingleInvoiceConsentTests'
 (
  cd apps/web
  node --test tests/phase10-sandbox-v2-offline-crypto.test.mjs \
