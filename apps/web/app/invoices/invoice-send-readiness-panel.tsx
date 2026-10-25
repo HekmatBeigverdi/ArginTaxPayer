@@ -154,7 +154,26 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
    const body:unknown=await response.json();
    const value=body&&typeof body==="object"&&!Array.isArray(body)
     ?body as Record<string,unknown>:{};
-   if(!response.ok)throw Error("آماده‌سازی بسته Legacy انجام نشد: "+String(value.error??response.status));
+   if(!response.ok){
+    const errors:Record<string,string>={
+     sandbox_legacy_token_disabled:"اتصال Legacy Sandbox فعال یا تنظیم نشده است؛ تنظیمات Endpoint را بررسی کنید.",
+     sandbox_legacy_token_unavailable:"دریافت توکن از Sandbox موفق نبود؛ اتصال و لاگ API را بررسی کنید.",
+     sandbox_legacy_token_rejected:"سامانه Sandbox درخواست توکن حافظه مالیاتی را رد کرد.",
+     sandbox_legacy_key_unavailable:"کلید خصوصی معتبر حافظه Sandbox در دسترس نیست.",
+     sandbox_dispatch_fk_migration_required:"Migration اتصال Outbox به حافظه Sandbox باید اعمال شود.",
+     fiscal_serial_not_reserved:"رزرو سریال این صورتحساب شناسایی نشد.",
+     seller_or_buyer_identity_missing:"شناسه قانونی فروشنده یا خریدار ناقص است.",
+     official_goods_mapping_invalid:"نگاشت رسمی کالا یا خدمت قابل تأیید نیست.",
+     official_units_unverified:"کد رسمی واحد اندازه‌گیری کالا یا خدمت تأیید نشده است.",
+     legacy_wire_mapping_unverified:"اطلاعات این صورتحساب با الگوی فعلی ارسال Legacy سازگار نیست.",
+     invoice_number_missing:"شماره داخلی صورتحساب از سوابق سرور پیدا نشد.",
+     dispatch_operation_requires_reconciliation:"یک عملیات قبلی وجود دارد که به بررسی Outbox نیاز دارد؛ ارسال تکراری ایجاد نشد.",
+     concurrent_preparation_retry_read_status:"آماده‌سازی همزمان انجام شده است؛ ابتدا وضعیت ارسال را تازه‌سازی کنید.",
+     preparation_api_unavailable:"سرویس آماده‌سازی Backend در دسترس نیست."
+    };
+    const code=String(value.error??response.status);
+    throw Error(errors[code]??("آماده‌سازی بسته Legacy انجام نشد: "+code));
+   }
    setNotice("بسته Legacy امضا و در Outbox آزمایشی ثبت شد. هنوز صورتحساب ارسال نشده است.");
    await refresh();
   }catch(e){setError((e as Error).message);}
