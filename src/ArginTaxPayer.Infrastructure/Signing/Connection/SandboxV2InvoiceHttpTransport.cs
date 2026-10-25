@@ -14,7 +14,8 @@ namespace ArginTaxPayer.Infrastructure.Signing.Connection;
 /// automatic retries are prohibited. One POST per call, result indeterminate
 /// unless a correlated provider reference is positively established.
 /// </summary>
-internal sealed class SandboxV2InvoiceHttpTransport(IConfiguration configuration)
+internal sealed class SandboxV2InvoiceHttpTransport(
+    IConfiguration configuration, Func<HttpClient>? testClientFactory=null)
 {
     internal sealed record Result(bool Acknowledged,string SafeCode,
         string? ReferenceNumber=null);
@@ -42,7 +43,7 @@ internal sealed class SandboxV2InvoiceHttpTransport(IConfiguration configuration
     {
         if(!TryResolveSandboxBase(configuration,out var endpoint)||endpoint is null)
             return null;
-        using var client=NewClient();
+        using var client=testClientFactory?.Invoke() ?? NewClient();
         using var request=new HttpRequestMessage(HttpMethod.Get,
             new Uri(endpoint,"api/v2/nonce"));
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
@@ -83,7 +84,7 @@ internal sealed class SandboxV2InvoiceHttpTransport(IConfiguration configuration
             signedNonceBearer.Any(char.IsWhiteSpace))
             return new(false,"sandbox_v2_packet_invalid");
 
-        using var http=NewClient();
+        using var http=testClientFactory?.Invoke() ?? NewClient();
         using var req=new HttpRequestMessage(HttpMethod.Post,
             new Uri(endpoint,"api/v2/invoice")){
             Content=JsonContent.Create(new[]{
