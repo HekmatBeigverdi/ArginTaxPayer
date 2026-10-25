@@ -34,5 +34,7 @@ test("step22: visual readiness is informative only",()=>{
  assert.match(root,/InvoiceSendReadinessPanel/);
  assert.match(ui,/بازبینی آمادگی/);
  assert.match(ui,/غیرمجاز برای ارسال واقعی/);
- assert.doesNotMatch(ui,/method:"POST"|method: "POST"/);
+ assert.match(ui,/validate-internal/);
+ assert.match(ui,/method:"POST"/);
+ assert.doesNotMatch(ui,/\/send/);
 });
