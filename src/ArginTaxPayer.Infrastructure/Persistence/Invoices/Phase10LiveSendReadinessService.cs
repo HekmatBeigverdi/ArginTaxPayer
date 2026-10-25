@@ -78,6 +78,9 @@ public sealed class Phase10LiveSendReadinessService(
         // Do not turn these off based on fields supplied by a client.
         blockers.Add("invoice.rules.not_submission_verified");
         blockers.Add("invoice.fiscal_identifier.not_issued");
+        blockers.Add("invoice.serial.durable_reservation_required");
+        blockers.Add("invoice.sandbox.certificate_chain_not_verified");
+        blockers.Add("invoice.v2.protocol_not_verified_for_sandbox");
         blockers.Add("invoice.signed_packet.not_prepared");
         blockers.Add("invoice.sandbox_outbox.not_connected");
         blockers.Add("invoice.transport.disabled");
