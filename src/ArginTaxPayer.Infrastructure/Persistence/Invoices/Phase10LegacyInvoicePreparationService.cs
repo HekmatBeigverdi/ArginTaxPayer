@@ -327,7 +327,8 @@ WHERE d.customer_user_id=@owner AND d.taxpayer_id=@taxpayer
  AND d.invoice_id=@invoice AND d.invoice_revision=@revision LIMIT 1
 """,("owner",owner),("taxpayer",taxpayer),("invoice",invoice),("revision",revision));
         await using var reader=await cmd.ExecuteReaderAsync(ct);
-        return await reader.ReadAsync(ct) ?(reader.GetGuid(0),reader.GetBoolean(1)):null;
+        if(await reader.ReadAsync(ct))return (reader.GetGuid(0),reader.GetBoolean(1));
+        return null;
     }
 
     private static DbCommand Command(DbConnection c,DbTransaction? tx,
