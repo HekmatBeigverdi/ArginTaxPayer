@@ -2249,3 +2249,25 @@ Review local logs before sharing; never share tokens, private keys, passwords, o
 | M12 | Current official rule edition / valid fiscal ID / signing packet | NOT IMPLEMENTED: recorded Step22 blocker, not a false PASS |
 
 **Acceptance rule**: Automatic macOS suite PASS does not imply the manual or real fiscal-send scenarios PASS. Do not claim Step21 complete unless all applicable manual scenarios are positively evidenced or consciously and explicitly accepted as documented exceptions by owner. As of this commit, Step21 tools are delivered and **operator acceptance pending**. There is no new migration, live invoice dispatch, Git merge, tag or release.
+
+
+## Step21 owner-reported manual acceptance — 2026-10-25
+
+The owner explicitly reported **PASS for all 10 manual browser/operator checks** in the Step21 interaction checklist. This is first-party **operator-reported evidence**, not an automated independent test log.
+
+| Acceptance item | Owner result |
+| --- | --- |
+| Authentication and authorization in Level1, Level2 and customer sessions | PASS — owner reported |
+| Different customer's taxpayer/invoice cannot be viewed or changed | PASS — owner reported |
+| Sandbox memory display and signing key valid after API restart | PASS — owner reported |
+| Verified 13-digit official goods identifier and catalog mapping | PASS — owner reported |
+| Saved draft to immutable internal snapshot, without authority invoice send | PASS — owner reported |
+| Duplicate creation and concurrent two-tab changes rejected | PASS — owner reported |
+| Invalid/missing item identifier or data produces errors | PASS — owner reported |
+| No real taxpayer authority invoice POST triggered during local workflow | PASS — owner reported |
+| Snapshot/revision history remains accessible and preserved | PASS — owner reported |
+| Backup protected and recovery possible in isolated testing environment | PASS — owner reported; commands, target DB and restoration logs not attached |
+
+**Evidence outstanding:** The owner has not yet supplied `scripts/phase10-step21-macos-acceptance.sh` output (`manifest.tsv`, `acceptance-status.txt`) for the Step21 exact SHA, or separately supplied a sanitized isolated backup-restore log. Earlier Step20 7/7 macOS tests and DB audit belong to the earlier SHA and may not substitute for the Step21 runner. Preserve explicit distinction between owner acceptance and machine-verified results.
+
+**Step21 status:** manual checklist 10/10 operator-approved; automatic macOS operator-acceptance manifest / exact-SHA parity **PENDING**. Do not claim full acceptance or begin Step22 authority send from this alone. The fiscal-finalization, source-bound tax identifier, signed packet, Sandbox outbox/send and receipt adapter remain unimplemented or unintegrated in the end-to-end UI pipeline; Step22 is blocked pending those controls and fresh explicit permission. No migration, production send, release, tag or merge is authorized by this manual signoff.
