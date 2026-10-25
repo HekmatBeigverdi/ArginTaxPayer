@@ -6,8 +6,8 @@ type DispatchState = "NotPrepared" | "Prepared" | "Signed" | "Reserved" |
   "Sending" | "Acknowledged" | "Indeterminate" | "RetryEligible" |
   "FailedTerminal" | "Unavailable" | "Unrecognized";
 type DispatchView = {
-  environment: "Mock";
-  submissionEnabled: false;
+  environment: "Mock"|"Sandbox";
+  submissionEnabled: boolean;
   inquiryEnabled: false;
   fiscalAccepted: false;
   status: DispatchState;
@@ -48,7 +48,8 @@ export default function InvoiceDispatchPanel({
       if (!json || typeof json!=="object" || Array.isArray(json))
         throw new Error("پاسخ وضعیت معتبر نیست.");
       const value=json as Record<string,unknown>;
-      if (value.environment!=="Mock" || value.submissionEnabled!==false ||
+      if (!(value.environment==="Mock"||value.environment==="Sandbox") ||
+          typeof value.submissionEnabled!=="boolean" ||
           value.inquiryEnabled!==false || value.fiscalAccepted!==false ||
           typeof value.status!=="string" || !(value.status in labels))
         throw new Error("تنظیمات محیط ارسال تأیید نشده است.");
@@ -59,6 +60,18 @@ export default function InvoiceDispatchPanel({
       if (!signal?.aborted) setLoading(false);
     }
   },[invoiceId,taxpayerId,isWorkspace]);
+
+  const send = useCallback(async()=>{
+    setLoading(true);setError("");
+    try{
+      const response=await fetch("/api/invoice-dispatch/"+encodeURIComponent(taxpayerId)+
+        "/"+encodeURIComponent(invoiceId),{method:"POST",credentials:"same-origin",
+          headers:{"content-type":"application/json"},body:""});
+      const value=await response.json() as Record<string,unknown>;
+      if(!response.ok) throw new Error(typeof value.error==="string"?value.error:"ارسال انجام نشد.");
+      await refresh();
+    }catch(e){setError((e as Error).message);}finally{setLoading(false);}
+  },[invoiceId,taxpayerId,refresh]);
 
   useEffect(()=>{
     const controller=new AbortController();
@@ -72,14 +85,14 @@ export default function InvoiceDispatchPanel({
         <h3>ارسال به سامانه مؤدیان</h3>
         <p>کنترل وضعیت اتصال و ارسال صورتحساب</p>
       </div>
-      <span className="invoice-dispatch-ui__env" title="محیط شبیه‌سازی؛ ارسال قانونی نیست">
-        محیط Mock
+      <span className="invoice-dispatch-ui__env" title="Sandbox آزمایشی؛ پذیرش مالیاتی نیست">
+        محیط {data?.environment??"Sandbox"}
       </span>
     </div>
     <div className="invoice-dispatch-ui__grid">
-      <div><span>محیط فعلی</span><strong>Mock (آزمایشی داخلی)</strong></div>
-      <div><span>اتصال Sandbox</span><strong>فعال نشده</strong></div>
-      <div><span>ارسال صورتحساب</span><strong>غیرفعال</strong></div>
+      <div><span>محیط فعلی</span><strong>{data?.environment??"Sandbox"}</strong></div>
+      <div><span>اتصال Sandbox</span><strong>{data?.environment==="Sandbox"?"فعال":"غیرفعال"}</strong></div>
+      <div><span>ارسال صورتحساب</span><strong>{data?.submissionEnabled?"فعال":"غیرفعال"}</strong></div>
       <div><span>استعلام سازمان</span><strong>غیرفعال</strong></div>
     </div>
     <div className="invoice-dispatch-ui__state" aria-live="polite">
@@ -93,8 +106,9 @@ export default function InvoiceDispatchPanel({
         disabled={isWorkspace||loading} onClick={()=>void refresh()}>
         {loading?"در حال بررسی…":"بروزرسانی وضعیت"}
       </button>
-      <button type="button" className="identity-primary" disabled
-        title="ارسال تا تأیید اتصال Sandbox، امضای معتبر و Outbox عملیاتی غیرفعال است">
+      <button type="button" className="identity-primary"
+        disabled={isWorkspace||loading||!data?.submissionEnabled||data.status!=="Reserved"}
+        onClick={()=>void send()} title="ارسال به Sandbox؛ پذیرش مالیاتی نیست">
         ارسال صورتحساب
       </button>
       <button type="button" className="identity-secondary" disabled

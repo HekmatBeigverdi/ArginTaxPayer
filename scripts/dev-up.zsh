@@ -65,7 +65,9 @@ started_autossh=0
 started_adminer=0
 started_api=0
 started_web=0
+launch_succeeded=0
 cleanup_on_failure() {
+  (( launch_succeeded )) && return 0
   local pid
   for pid in ${started_pids[@]}; do
     stop_pid_tree "$pid"
@@ -258,6 +260,7 @@ fi
 print 'Services launched. Panel: http://127.0.0.1:3000/identity'
 print 'Status: zsh scripts/dev-status.zsh'
 print 'Stop: zsh scripts/dev-down.zsh'
+launch_succeeded=1
 print "Logs: $STATE/{api,web,autossh,adminer}.log"
 print 'SMS remains under your private Ghasedak__EnableLiveSending setting; no test sends are triggered here.'
 trap - EXIT

@@ -14,6 +14,10 @@ public static class SigningConnectionRegistration
     public static IServiceCollection AddPhase10SandboxConnection(this IServiceCollection services)
     {
         services.AddScoped<SandboxAuthorityTokenProbe>();
+        services.AddScoped<LegacyInvoiceAccessTokenClient>();
+        services.AddScoped<LegacyInvoiceSubmissionHttpTransport>();
+        services.AddScoped<LegacyInvoiceOutboxSendCoordinator>();
+        services.AddScoped<DatabaseLegacySigningKeyLoader>();
         return services;
     }
 

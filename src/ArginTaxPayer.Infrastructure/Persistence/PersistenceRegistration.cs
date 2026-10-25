@@ -71,6 +71,14 @@ public static class PersistenceRegistration
         services.AddScoped<IUnitOfWork, EfUnitOfWork>();
         services.AddScoped<IOutboxWriter, EfOutboxWriter>();
         services.AddScoped<Phase10SandboxOutboxService>();
+        services.AddScoped<Phase10DispatchAttemptRepository>();
+        services.AddScoped<Phase10DispatchEvidenceRepository>();
+        services.AddScoped<InvoiceDispatchFaultRepository>();
+        services.AddScoped<Phase10LegacyOutboxWorker>();
+        services.AddScoped<ArginTaxPayer.Application.Invoices.IPhase10LegacyOutboxWorker>(sp =>
+            sp.GetRequiredService<Phase10LegacyOutboxWorker>());
+        services.AddScoped<InvoiceDispatchAdmissionRepository>();
+        services.AddScoped<SandboxInvoiceFiscalSerialRepository>();
         services.AddScoped<IIdempotencyReservationWriter, EfIdempotencyReservationWriter>();
 
         return services;

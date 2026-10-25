@@ -37,7 +37,7 @@ async function dispatch(request: NextRequest, context: Context, method: "GET" | 
     });
     if (response.status >= 300 && response.status < 400)
       return reject(502, "unexpected_redirect");
-    if (![200, 400, 401, 403, 404, 503].includes(response.status))
+    if (![200, 400, 401, 403, 404, 409, 503].includes(response.status))
       return reject(502, "unexpected_api_status");
     const raw = await response.text();
     if (raw.length > 4096) return reject(502, "response_too_large");
@@ -48,12 +48,16 @@ async function dispatch(request: NextRequest, context: Context, method: "GET" | 
     const value = payload as Record<string, unknown>;
     // Only a small bounded and explicitly allowlisted status reaches the browser.
     return NextResponse.json({
-      environment: "Mock",
-      submissionEnabled: false,
+      environment: value.environment === "Sandbox" ? "Sandbox" : "Mock",
+      submissionEnabled: value.submissionEnabled === true,
       inquiryEnabled: false,
       fiscalAccepted: false,
       status: typeof value.status === "string" &&
         /^[A-Za-z]{1,30}$/.test(value.status) ? value.status : "Unavailable",
+      safeCode: typeof value.safeCode === "string" && /^[a-z0-9_.-]{1,100}$/.test(value.safeCode)
+        ? value.safeCode : undefined,
+      referenceNumber: typeof value.referenceNumber === "string" && /^[A-Za-z0-9_-]{1,128}$/.test(value.referenceNumber)
+        ? value.referenceNumber : undefined,
       error: typeof value.error === "string" &&
         /^[a-z_]{1,80}$/.test(value.error) ? value.error : undefined
     }, { status: response.status, headers: { "Cache-Control": "no-store" } });

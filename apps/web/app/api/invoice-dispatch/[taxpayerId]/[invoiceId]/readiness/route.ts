@@ -14,6 +14,7 @@ const codes=new Set([
  "invoice.serial.durable_reservation_required",
  "invoice.sandbox.certificate_chain_not_verified",
  "invoice.v2.protocol_not_verified_for_sandbox",
+ "invoice.legacy.transport_not_registered",
  "invoice.signed_packet.not_prepared",
  "invoice.sandbox_outbox.not_connected",
  "invoice.transport.disabled",

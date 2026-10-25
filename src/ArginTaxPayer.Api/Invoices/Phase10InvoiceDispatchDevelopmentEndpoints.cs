@@ -1,7 +1,11 @@
 using System.Net;
+using ArginTaxPayer.Application.Invoices;
+using Microsoft.Extensions.Configuration;
 using ArginTaxPayer.Infrastructure.Persistence.Invoices;
 
 namespace ArginTaxPayer.Api.Invoices;
+
+public sealed record SandboxFiscalSerialReservationRequest(long ExpectedRevision);
 
 /// <summary>
 /// Step16 loopback-only, authenticated and fail-closed dispatch UI boundary.
@@ -16,14 +20,18 @@ public static class Phase10InvoiceDispatchDevelopmentEndpoints
             .WithTags("Invoice Dispatch (Development, Disabled)");
 
         group.MapGet("/status", async (Guid taxpayerId, Guid invoiceId,
-            HttpContext http, Phase10InvoiceDispatchReadService service, CancellationToken ct) =>
+            HttpContext http, IConfiguration configuration,
+            Phase10InvoiceDispatchReadService service, CancellationToken ct) =>
         {
             if (!Local(http)) return Results.NotFound();
             var result = await service.GetAsync(Token(http), taxpayerId, invoiceId, ct);
             return result.Decision switch
             {
                 InvoiceApiDecision.Success => Results.Ok(new {
-                    environment = "Mock", submissionEnabled = false,
+                    environment = "Sandbox",
+                    submissionEnabled = configuration["SandboxInvoiceLegacy:Enabled"] == "true" &&
+                        configuration["SandboxInvoiceLegacy:OperatorApprovedSend"] == "true" &&
+                        result.Overview?.Status == "Reserved",
                     inquiryEnabled = false, fiscalAccepted = false,
                     status = result.Overview?.Status ?? "NotPrepared",
                     operationId = result.Overview?.OperationId,
@@ -86,11 +94,42 @@ public static class Phase10InvoiceDispatchDevelopmentEndpoints
             };
         });
 
+        group.MapPost("/serial-reservation", async (Guid taxpayerId, Guid invoiceId,
+            SandboxFiscalSerialReservationRequest request, HttpContext http,
+            SandboxInvoiceFiscalSerialRepository serials, CancellationToken ct) =>
+        {
+            if (!Local(http)) return Results.NotFound();
+            http.Response.Headers.CacheControl = "no-store";
+            var result = await serials.ReserveAsync(Token(http), taxpayerId, invoiceId,
+                request.ExpectedRevision, ct);
+            return result.Status switch
+            {
+                SandboxSerialStatus.Reserved or SandboxSerialStatus.IdenticalReplay =>
+                    Results.Ok(new {
+                        status = result.Status.ToString(),
+                        reservationId = result.ReservationId,
+                        fiscalTaxId = result.FiscalTaxId,
+                        serial = result.Serial
+                    }),
+                SandboxSerialStatus.NotFinalized => Results.Conflict(new {
+                    error = "invoice_not_finalized"
+                }),
+                SandboxSerialStatus.Conflict => Results.Conflict(new {
+                    error = "invoice_revision_conflict"
+                }),
+                SandboxSerialStatus.NotFound => Results.NotFound(),
+                SandboxSerialStatus.Denied => Results.StatusCode(403),
+                _ => Results.BadRequest(new { error = "invalid_serial_reservation" })
+            };
+        });
+
         // The only control endpoint is an explicit fail-closed response.
         // It performs auth and scope verification before announcing unavailable.
         // This cannot be used to submit packets by guessing a taxpayer ID.
         group.MapPost("/send", async (Guid taxpayerId, Guid invoiceId,
-            HttpContext http, Phase10InvoiceDispatchReadService service, CancellationToken ct) =>
+            HttpContext http, IConfiguration configuration,
+            Phase10InvoiceDispatchReadService service,
+            IPhase10LegacyOutboxWorker worker, CancellationToken ct) =>
         {
             if (!Local(http)) return Results.NotFound();
             var result = await service.GetAsync(Token(http), taxpayerId, invoiceId, ct);
@@ -100,9 +139,28 @@ public static class Phase10InvoiceDispatchDevelopmentEndpoints
                 return Results.StatusCode(403);
             if (result.Decision != InvoiceApiDecision.Success)
                 return Results.NotFound();
-            return Results.Json(new { error = "invoice_dispatch_not_enabled",
-                environment = "Mock", submissionEnabled = false,
-                fiscalAccepted = false }, statusCode: StatusCodes.Status503ServiceUnavailable);
+            if (configuration["SandboxInvoiceLegacy:Enabled"] != "true" ||
+                configuration["SandboxInvoiceLegacy:OperatorApprovedEndpoint"] != "true" ||
+                configuration["SandboxInvoiceLegacy:OperatorApprovedSend"] != "true")
+                return Results.Json(new { error = "invoice_dispatch_not_enabled",
+                    environment = "Sandbox", submissionEnabled = false,
+                    fiscalAccepted = false }, statusCode: StatusCodes.Status503ServiceUnavailable);
+            var sent = await worker.ProcessInvoiceAsync(taxpayerId, invoiceId, ct);
+            return sent.Status switch
+            {
+                "Acknowledged" => Results.Ok(new { environment = "Sandbox",
+                    submissionEnabled = true, fiscalAccepted = false,
+                    status = sent.Status, safeCode = sent.SafeCode,
+                    referenceNumber = sent.ReferenceNumber, attemptId = sent.AttemptId }),
+                "Indeterminate" => Results.Conflict(new { environment = "Sandbox",
+                    submissionEnabled = true, fiscalAccepted = false,
+                    status = sent.Status, safeCode = sent.SafeCode,
+                    attemptId = sent.AttemptId }),
+                "Blocked" => Results.Conflict(new { environment = "Sandbox",
+                    submissionEnabled = false, fiscalAccepted = false,
+                    status = sent.Status, safeCode = sent.SafeCode }),
+                _ => Results.NotFound(new { error = sent.SafeCode })
+            };
         });
         return routes;
     }

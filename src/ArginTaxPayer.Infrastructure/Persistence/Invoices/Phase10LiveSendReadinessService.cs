@@ -1,6 +1,7 @@
 using System.Text.Json;
 using ArginTaxPayer.Domain.Invoices;
 using ArginTaxPayer.Infrastructure.Persistence.Taxpayers;
+using Microsoft.Extensions.Configuration;
 using Microsoft.EntityFrameworkCore;
 
 namespace ArginTaxPayer.Infrastructure.Persistence.Invoices;
@@ -18,7 +19,7 @@ public sealed record Phase10LiveSendReadinessResult(
     InvoiceApiDecision Decision, Phase10LiveSendReadiness? Readiness=null);
 
 public sealed class Phase10LiveSendReadinessService(
-    ArginTaxPayerDbContext db, TaxpayerScopeService scope)
+    ArginTaxPayerDbContext db, TaxpayerScopeService scope, IConfiguration configuration)
 {
     public async Task<Phase10LiveSendReadinessResult> ReadAsync(
         string? bearer, Guid taxpayerId, Guid invoiceId,
@@ -78,18 +79,35 @@ public sealed class Phase10LiveSendReadinessService(
             blockers.Add("invoice.sandbox.memory_not_bound");
         if(invoice.State!=InvoiceLifecycleState.Finalized)
             blockers.Add("invoice.finalization.not_finalized");
-        // No signed provider packet, fiscal identifier, authoritative
-        // rules evidence or enabled Sandbox transport are wired to this flow.
-        // Do not turn these off based on fields supplied by a client.
+        // These are server-owned evidence gates. Do not turn them off based on
+        // fields supplied by a client. The selected wire profile controls only
+        // which protocol-specific evidence is relevant.
         blockers.Add("invoice.rules.not_submission_verified");
         blockers.Add("invoice.fiscal_identifier.not_issued");
         blockers.Add("invoice.serial.durable_reservation_required");
-        blockers.Add("invoice.sandbox.certificate_chain_not_verified");
-        blockers.Add("invoice.v2.protocol_not_verified_for_sandbox");
+        var profile = configuration["Phase10Submission:Profile"]?.Trim().ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(profile)) profile = "legacy";
+        if (profile == "legacy")
+        {
+            if (configuration["SandboxInvoiceLegacy:Enabled"] != "true" ||
+                configuration["SandboxInvoiceLegacy:OperatorApprovedEndpoint"] != "true")
+                blockers.Add("invoice.legacy.transport_not_registered");
+        }
+        else
+        {
+            blockers.Add("invoice.sandbox.certificate_chain_not_verified");
+            blockers.Add("invoice.v2.protocol_not_verified_for_sandbox");
+        }
+        // These are reported until durable operation evidence exists. The
+        // transport and operator gates are configuration-backed and must not
+        // remain visible after explicit local Sandbox approval.
         blockers.Add("invoice.signed_packet.not_prepared");
         blockers.Add("invoice.sandbox_outbox.not_connected");
-        blockers.Add("invoice.transport.disabled");
-        blockers.Add("invoice.owner_live_send_approval.required");
+        if (configuration["SandboxInvoiceLegacy:Enabled"] != "true" ||
+            configuration["SandboxInvoiceLegacy:OperatorApprovedSend"] != "true")
+            blockers.Add("invoice.transport.disabled");
+        if (configuration["SandboxInvoiceLegacy:OperatorApprovedSend"] != "true")
+            blockers.Add("invoice.owner_live_send_approval.required");
         return new(InvoiceApiDecision.Success,new(
             environment,false,false,false,false,hasInternalSnapshot,
             invoice.State.ToString(),invoice.Revision,sandboxFiscalMemoryId,

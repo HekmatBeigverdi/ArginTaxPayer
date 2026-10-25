@@ -5,10 +5,47 @@ Scope: taxpayer `425a8f26-7633-41ca-a3cc-431c9e2f1719`, invoice business identif
 
 ## Current local result
 
-The local implementation has completed the admission, packet, durable outbox,
-evidence and RTL readiness/history layers. The tested source SHA is recorded by
-the final gate. No Production endpoint, Production database, real invoice POST,
-credential, private key or authority receipt was used by Codex.
+The local implementation currently provides owner-scoped, read-only readiness,
+dispatch history and the legacy transport contract. The readiness report is
+intentionally fail-closed: the current database audit contains 3 invoice
+documents, 3 immutable revisions, 1 Sandbox memory, and **0 dispatch
+operations, 0 attempts and 0 receipts**. Therefore no invoice has been sent.
+No Production endpoint, real invoice POST, credential, private key or authority
+receipt was used by Codex.
+
+The ordered implementation work is tracked in
+`docs/superpowers/plans/2026-10-25-phase10-legacy-sandbox-readiness.md`.
+Tasks are completed only when their tests and evidence are recorded; a local
+connection test is not a fiscal submission.
+
+### Current implementation ledger
+
+- Task 1: readiness/BFF and evidence inventory complete.
+- Task 2: transactional serial repository is registered and exposed through a
+  guarded local endpoint; no reservation exists because the selected invoices
+  remain Draft.
+- Task 3: the certificate-free legacy `INVOICE` packet builder now signs the
+  exact packet bytes with the protected RSA key and emits only bounded packet
+  metadata/request JSON. Offline packet tests pass. Persistence and Outbox
+  admission are intentionally deferred to Task 4. The Phase09 snapshot
+  signature is not reused as a submission packet.
+- Task 4: legacy packet admission is now represented as a separate durable
+  Outbox event with idempotent operation identity and no stored access token.
+  The protected token-refresh boundary now has an opt-in, Sandbox-host-pinned
+  legacy `GET_TOKEN` client; the token remains memory-only. Receipt persistence,
+  Outbox consumption, and HTTP invoice send are still pending, so no HTTP send
+  is enabled by this preparation step.
+- The loopback `/dispatch/send` route now invokes the explicit legacy Outbox
+  worker for the selected invoice, but remains fail-closed until
+  `SandboxInvoiceLegacy__OperatorApprovedSend=true` is set locally.
+- The Outbox endpoint code is now compatible with the append-only attempt table,
+  and the `Reserved -> Sending` state CAS plus attempt-number allocation are
+  atomic. Token custody, external invoice POST, receipt persistence and marking
+  the Outbox message processed remain the next steps.
+- Local custody is the database provider: the public SPKI is metadata and the
+  private PKCS#8 is recovered from the encrypted `DbSigningKeyEnvelopes`
+  envelope using `SigningKeyProtection__DatabaseMasterKey`. The master key is
+  not stored in PostgreSQL, Outbox or logs.
 
 The browser send and inquiry controls remain disabled until the operator has
 verified the real Sandbox endpoint, credential/certificate custody and current
@@ -48,8 +85,9 @@ this handoff. No new migration is required by the current local changes.
 3. Open invoice `00010-05-AAA` and confirm the panel shows taxpayer scope,
    `Sandbox`, invoice revision, Sandbox memory identifier and the current
    blockers.
-4. Confirm the owner consent checkbox is explicit, the inquiry action is
-   disabled, and no browser request is made to a tax-authority host.
+4. Confirm readiness shows the exact blockers for the selected revision. The
+   owner consent checkbox, send and inquiry actions remain disabled until the
+   corresponding plan tasks are complete.
 5. Do not treat `Acknowledged`, `referenceNumber`, or a green local build as
    fiscal acceptance.
 
