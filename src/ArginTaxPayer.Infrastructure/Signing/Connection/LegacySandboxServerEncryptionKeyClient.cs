@@ -110,7 +110,7 @@ internal sealed class LegacySandboxServerEncryptionKeyClient(
                     rsa.ImportSubjectPublicKeyInfo(der,out var consumed);
                     if(consumed!=der.Length||rsa.KeySize<2048||rsa.KeySize>4096)
                         continue;
-                    return new LegacySandboxEncryptionKey(name,der);
+                    return new LegacySandboxEncryptionKey(name,(byte[])der.Clone());
                 }
                 catch(Exception e) when(e is CryptographicException or FormatException)
                 {
@@ -121,8 +121,8 @@ internal sealed class LegacySandboxServerEncryptionKeyClient(
             }
             return null;
         }
-        catch(Exception error) when(error is HttpRequestException or JsonException
-            or OperationCanceledException && !ct.IsCancellationRequested)
+        catch(Exception error) when((error is HttpRequestException or JsonException ||
+            error is OperationCanceledException) && !ct.IsCancellationRequested)
         {
             return null;
         }
