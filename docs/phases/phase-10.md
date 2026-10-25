@@ -2388,3 +2388,16 @@ cd ..
 ```
 
 **Stop conditions**: Any failed test, missing or unverified X.509 certificate, `invoice.rules.not_approved`, incomplete official type/pattern mapping, serial collision, missing signed packet, unknown provider response, wrong environment or absent explicit one-invoice authorization means **do not send**.
+
+
+### Transport mock acceptance extension — 2026-10-25
+
+`SandboxV2InvoiceHttpTransport` has an injected **test-only** `Func<HttpClient>` option to test the real implementation without contacting the Tax Authority. `Phase10SandboxV2InvoiceTransportTests` covers endpoint allowlist (Production, HTTP, nonstandard port, arbitrary path denied before network), Sandbox nonce GET and one POST with matching UID/reference, and fail-closed unknown result. This does NOT execute a real Sandbox request. The adapter remains explicitly disconnected from DI/HTTP UI and serial reservation is not invoked until `Finalized` approval and complete Outbox are implemented.
+
+Focused operator tests now include:
+```bash
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --no-restore \
+  --filter 'FullyQualifiedName~Phase10FiscalInvoiceIdentifierTests|FullyQualifiedName~Phase10SandboxInvoicePacketCryptographyTests|FullyQualifiedName~Phase10SandboxV2InvoiceTransportTests'
+```
+
+**No live SEND invoice was performed or made available**, even with `SandboxInvoiceV2:Enabled=true`. These two configuration keys are NOT sufficient to send; orchestration is unregistered and official SDK signing credential, rule coverage, durable outbox and owner consent gates must be completed first.
