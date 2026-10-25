@@ -1,9 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {resolve} from 'node:path';
+import {dirname, resolve} from 'node:path';
+import {fileURLToPath} from 'node:url';
 
-const root=resolve(import.meta.dirname,'../../..');
+const root=resolve(dirname(fileURLToPath(import.meta.url)),'../../..');
 const backend=readFileSync(resolve(root,'src/ArginTaxPayer.Infrastructure/Persistence/Invoices/Phase10LiveSendReadinessService.cs'),'utf8');
 const bff=readFileSync(resolve(root,'apps/web/app/api/invoice-dispatch/[taxpayerId]/[invoiceId]/readiness/route.ts'),'utf8');
 const ui=readFileSync(resolve(root,'apps/web/app/invoices/invoice-send-readiness-panel.tsx'),'utf8');
