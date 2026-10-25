@@ -8,6 +8,8 @@ const codes=new Set([
  "invoice.snapshot.invalid",
  "invoice.snapshot.not_internal_promoted",
  "invoice.sandbox.memory_not_bound",
+ "invoice.lifecycle.validation_required",
+ "invoice.review.approval_required",
  "invoice.finalization.not_finalized",
  "invoice.rules.not_submission_verified",
  "invoice.fiscal_identifier.not_issued",
