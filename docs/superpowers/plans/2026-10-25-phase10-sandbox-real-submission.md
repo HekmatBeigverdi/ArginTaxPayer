@@ -114,6 +114,12 @@
 
 ### Task 6: Database gate, integration verification and operator handoff
 
+> **Current implementation boundary (2026-10-25):** Local build, full .NET
+> tests, web verification and the offline Sandbox gate pass. The PostgreSQL
+> read-only audit remains operator-pending when the protected connection string
+> is not exported. Handoff documentation explicitly keeps real transmission
+> separate from local evidence; no migration or live send is performed here.
+
 **Files:**
 - Create/modify: local verification script and Phase 10 documentation only as needed.
 - Test: complete .NET and web suites, PostgreSQL integration, concurrency/network simulations and protocol compatibility checks.
