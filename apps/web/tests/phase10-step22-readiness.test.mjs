@@ -15,7 +15,7 @@ test("step22: readiness only returns owner-scoped invoice information",()=>{
  assert.match(service,/i.TaxpayerId==taxpayerId/);
  assert.match(service,/invoice.signed_packet.not_prepared/);
  assert.match(service,/invoice.fiscal_identifier.not_issued/);
- assert.match(service,/invoice.owner_live_send_approval.required/);
+ assert.doesNotMatch(service,/blockers.Add\\("invoice.owner_live_send_approval.required"\\)/);
  assert.match(service,/environment,ready,ready,signedPacketAvailable,false/);
  assert.doesNotMatch(service,/SendAsync\(|HttpClient|private_envelope_json/);
 });
@@ -33,7 +33,7 @@ test("step22: BFF only enables readiness on a verified signed blocker-free Sandb
 test("step22: visual readiness is informative only",()=>{
  assert.match(root,/InvoiceSendReadinessPanel/);
  assert.match(ui,/بازبینی آمادگی/);
- assert.match(ui,/غیرمجاز برای ارسال واقعی/);
+ assert.match(ui,/آماده ارسال آزمایشی به Sandbox/);
  assert.match(ui,/validate-internal/);
  assert.match(ui,/method:"POST"/);
  assert.doesNotMatch(ui,/\/send/);
