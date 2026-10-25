@@ -43,9 +43,9 @@ export async function POST(request:NextRequest,context:Context){
   if(!value||typeof value!=="object"||Array.isArray(value))return fail(502,"invalid_upstream_response");
   const record=value as Record<string,unknown>;
   const code=upstream.ok?record.status:record.error;
-  if(typeof code!=="string"||!/^[a-z_]{1,100}$/.test(code))
+  if(typeof code!=="string"||!(upstream.ok?["Reserved","IdenticalReplay"].includes(code):/^[a-z_]{1,100}$/.test(code)))
    return fail(502,"invalid_upstream_response");
-  return NextResponse.json(upstream.ok?{status:code,authoritySubmitted:false}:{error:code},
+  return NextResponse.json(upstream.ok?{status:code,authoritySubmitted:false,\n   fiscalTaxId:typeof record.fiscalTaxId==="string"&&/^[A-Z0-9]{22}$/.test(record.fiscalTaxId)?record.fiscalTaxId:null}:{error:code},
    {status:upstream.status,headers:{"Cache-Control":"no-store"}});
  }catch{return fail(503,"api_unavailable");}
 }
