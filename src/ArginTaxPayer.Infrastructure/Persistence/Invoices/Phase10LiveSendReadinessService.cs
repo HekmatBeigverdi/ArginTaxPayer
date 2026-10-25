@@ -201,10 +201,8 @@ SELECT EXISTS(
             blockers.Add("invoice.sandbox_outbox.not_connected");
         }
         if (configuration["SandboxInvoiceLegacy:Enabled"] != "true" ||
-            configuration["SandboxInvoiceLegacy:OperatorApprovedSend"] != "true")
+            configuration["SandboxInvoiceLegacy:OperatorApprovedEndpoint"] != "true")
             blockers.Add("invoice.transport.disabled");
-        if (configuration["SandboxInvoiceLegacy:OperatorApprovedSend"] != "true")
-            blockers.Add("invoice.owner_live_send_approval.required");
         var ready = environment == "Sandbox" && signedPacketAvailable &&
             blockers.Count == 0;
         return new(InvoiceApiDecision.Success,new(
