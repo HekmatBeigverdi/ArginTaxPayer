@@ -18,7 +18,7 @@ test('Legacy operation and signed Outbox are written in one transaction',()=>{
  const s=read('src/ArginTaxPayer.Infrastructure/Persistence/Invoices/Phase10LegacyInvoicePreparationService.cs');
  for(const x of ['IsolationLevel.Serializable','BeginTransactionAsync',
   'INSERT INTO invoice_dispatch_operations','INSERT INTO outbox_messages',
-  'CommitAsync','ON CONFLICT']){/* No blind claims about ON CONFLICT are needed. */}
+  'CommitAsync'])assert.ok(s.includes(x),x);
  assert.ok(s.indexOf('INSERT INTO invoice_dispatch_operations')<
            s.indexOf('INSERT INTO outbox_messages'));
  assert.ok(s.indexOf('INSERT INTO outbox_messages')<s.indexOf('CommitAsync(ct)'));
