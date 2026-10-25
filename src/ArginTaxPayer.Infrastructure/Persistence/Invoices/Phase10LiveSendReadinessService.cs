@@ -44,6 +44,11 @@ public sealed class Phase10LiveSendReadinessService(
             .Select(i=>new{i.State,i.Revision,i.SnapshotJson}).SingleOrDefaultAsync(ct);
         if(invoice is null)return new(InvoiceApiDecision.NotFound);
 
+        var reviewState=await db.InvoiceReviews.AsNoTracking()
+            .Where(r=>r.InvoiceId==invoiceId && r.CustomerUserId==owner.Value &&
+                r.TaxpayerId==taxpayerId)
+            .Select(r=>(InvoiceReviewState?)r.State).SingleOrDefaultAsync(ct)
+            ?? InvoiceReviewState.Draft;
         var blockers=new List<string>();
         var environment="Unverified";
         var hasInternalSnapshot=false;
@@ -77,6 +82,10 @@ public sealed class Phase10LiveSendReadinessService(
             blockers.Add("invoice.snapshot.not_internal_promoted");
         if(environment!="Sandbox")
             blockers.Add("invoice.sandbox.memory_not_bound");
+        if(invoice.State==InvoiceLifecycleState.Draft)
+            blockers.Add("invoice.lifecycle.validation_required");
+        if(reviewState!=InvoiceReviewState.Approved)
+            blockers.Add("invoice.review.approval_required");
         if(invoice.State!=InvoiceLifecycleState.Finalized)
             blockers.Add("invoice.finalization.not_finalized");
         // These are server-owned evidence gates. Do not turn them off based on
