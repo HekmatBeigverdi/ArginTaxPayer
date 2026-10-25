@@ -69,7 +69,7 @@ public sealed class Phase10InternalInvoiceValidationService(
 
     internal static bool ValidSandboxSnapshot(string raw, string expectedHash, Guid invoiceId)
     {
-        if (!InvoiceValidationReceipt.IsSha256(expectedHash)) return false;
+        if (expectedHash is not { Length: 64 } || !expectedHash.All(Uri.IsHexDigit)) return false;
         var actual = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(raw)));
         if (!actual.Equals(expectedHash, StringComparison.OrdinalIgnoreCase)) return false;
         try
