@@ -7,6 +7,8 @@ using Xunit;
 namespace ArginTaxPayer.Tests;
 public sealed class Phase10SandboxInvoicePacketCryptographyTests
 {
+    private static readonly string FiscalTaxId = "ABC1230644600000000017";
+
     private static byte[] Decode(string part)
     {
         string str=part.Replace('-','+').Replace('_','/');
@@ -62,5 +64,46 @@ public sealed class Phase10SandboxInvoicePacketCryptographyTests
         Assert.Throws<CryptographicException>(()=>
             Phase10SandboxInvoicePacketCryptography.SignJws(
                 "{\"header\":{}}",signer,cert,DateTime.UtcNow));
+    }
+
+    [Fact]
+    public void Packet_binds_revision_memory_fiscal_id_and_stable_signed_hash_without_private_key_metadata()
+    {
+        using var signer = RSA.Create(2048);
+        using var certificate = new CertificateRequest("CN=Sandbox packet fixture", signer,
+            HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1)
+            .CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1));
+        using var authority = RSA.Create(2048);
+        var signingSpki = signer.ExportSubjectPublicKeyInfo();
+        var fingerprint = Convert.ToHexString(SHA256.HashData(signingSpki)).ToLowerInvariant();
+        var json = $"{{\"header\":{{\"taxid\":\"{FiscalTaxId}\"}},\"body\":[]}}";
+        var packet = Phase10SandboxInvoicePacketBuilder.Build(
+            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), 7,
+            new string('a', 64), FiscalTaxId, Guid.NewGuid(), fingerprint, "sandbox-key",
+            json, signer, certificate, authority, new DateTime(2026, 10, 25, 12, 0, 0, DateTimeKind.Utc));
+
+        Assert.Equal(7, packet.InvoiceRevision);
+        Assert.Equal(fingerprint, packet.SigningKeyFingerprintSha256);
+        Assert.Equal(FiscalTaxId, packet.FiscalTaxId);
+        Assert.Equal(packet.JwsSha256,
+            Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(packet.Jws))).ToLowerInvariant());
+        Assert.DoesNotContain("PRIVATE KEY", packet.Jws, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("PRIVATE KEY", packet.Jwe, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Packet_rejects_fiscal_id_not_present_in_invoice_payload()
+    {
+        using var signer = RSA.Create(2048);
+        using var certificate = new CertificateRequest("CN=Sandbox packet fixture", signer,
+            HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1)
+            .CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1));
+        using var authority = RSA.Create(2048);
+        var fingerprint = Convert.ToHexString(SHA256.HashData(signer.ExportSubjectPublicKeyInfo())).ToLowerInvariant();
+        Assert.Throws<CryptographicException>(() => Phase10SandboxInvoicePacketBuilder.Build(
+            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), 1,
+            new string('a', 64), FiscalTaxId, Guid.NewGuid(), fingerprint, "sandbox-key",
+            "{\"header\":{\"taxid\":\"WRONG\"}}", signer, certificate, authority,
+            DateTime.UtcNow));
     }
 }
