@@ -24,7 +24,8 @@ dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --no-restore \
   tests/phase10-readiness-blocker-contract.test.mjs \
   tests/phase10-internal-validation-transition.test.mjs \
   tests/phase10-internal-validation-ui.test.mjs \
-  tests/phase10-validation-audit-contract.test.mjs
+  tests/phase10-validation-audit-contract.test.mjs \
+  tests/phase10-validation-upstream-errors.test.mjs
  npm run typecheck
  npm run build
 )
