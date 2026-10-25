@@ -55,6 +55,9 @@ public sealed class TaxpayerCreationRetryTests
             Assert.NotNull(result.Taxpayer);
             Assert.Equal(customer, (await db.TaxpayerProfiles.AsNoTracking()
                 .SingleAsync(t => t.Id == result.Taxpayer!.Id)).CustomerUserId);
+            Assert.Equal(1, await db.CustomerTaxpayerMemberships.AsNoTracking()
+                .CountAsync(m => m.CustomerUserId == customer &&
+                    m.TaxpayerId == result.Taxpayer!.Id && m.UnlinkedAtUtc == null));
             Assert.Equal(CreateTaxpayerStatus.Conflict,
                 (await service.CreateAsync(token.AccessToken, input)).Status);
             Assert.Equal(1, await db.TaxpayerProfiles.CountAsync(t => t.CustomerUserId == customer));
@@ -67,6 +70,8 @@ public sealed class TaxpayerCreationRetryTests
             await cleanup.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
             {
                 await using var tx = await cleanup.Database.BeginTransactionAsync();
+                await cleanup.CustomerTaxpayerMemberships
+                    .Where(m => m.CustomerUserId == customer).ExecuteDeleteAsync();
                 await cleanup.TaxpayerProfiles.Where(t => t.CustomerUserId == customer).ExecuteDeleteAsync();
                 await cleanup.SoftwareUserProfiles.Where(p => p.UserId == customer).ExecuteDeleteAsync();
                 await cleanup.IdentitySessions.Where(s => s.UserId == customer).ExecuteDeleteAsync();
