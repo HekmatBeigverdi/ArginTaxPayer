@@ -2,6 +2,7 @@ import {test} from "node:test";
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 const script=readFileSync("../../scripts/phase10-step21-macos-acceptance.sh","utf8");
+const gitignore=readFileSync("../../.gitignore","utf8");
 test("step21 evidence pins macOS branch SHA and no dirty worktree",()=>{
   assert.match(script,/uname -s/);
   assert.match(script,/Darwin/);
@@ -9,6 +10,7 @@ test("step21 evidence pins macOS branch SHA and no dirty worktree",()=>{
   assert.match(script,/git rev-parse HEAD/);
   assert.match(script,/git status --porcelain/);
   assert.match(script,/exact-sha-and-clean-worktree/);
+  assert.match(gitignore,/^artifacts\/phase10-step21-\*\/$/m);
 });
 test("step21 executes build, test, readonly database and live service readiness checks",()=>{
   assert.match(script,/dotnet build ArginTaxPayer.sln --no-restore/);
