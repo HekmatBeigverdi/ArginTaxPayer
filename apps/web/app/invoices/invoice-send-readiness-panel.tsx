@@ -142,6 +142,25 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
   }catch(e){setError((e as Error).message);}
   finally{setActionBusy(false);}
  },[report,review,actionBusy,invoiceId,taxpayerId,refresh,loadReview]);
+ const reserveSerial=useCallback(async()=>{
+  if(!report||report.invoiceState!=="Finalized"||actionBusy)return;
+  setActionBusy(true);setError("");setNotice("");
+  try{
+   const response=await fetch("/api/invoice-dispatch/"+
+    encodeURIComponent(taxpayerId)+"/"+encodeURIComponent(invoiceId)+"/serial-reservation",{
+    method:"POST",credentials:"same-origin",cache:"no-store",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({expectedRevision:report.invoiceRevision})
+   });
+   const body:unknown=await response.json();
+   const value=body&&typeof body==="object"&&!Array.isArray(body)
+    ?body as Record<string,unknown>:{};
+   if(!response.ok)throw Error("رزرو سریال انجام نشد: "+String(value.error??response.status));
+   setNotice("سریال حافظه Sandbox رزرو شد. شناسه مالیاتی: "+String(value.fiscalTaxId??"نامشخص"));
+   await refresh();
+  }catch(e){setError((e as Error).message);}
+  finally{setActionBusy(false);}
+ },[report,actionBusy,taxpayerId,invoiceId,refresh]);
  useEffect(()=>{const controller=new AbortController();void refresh(controller.signal);void loadReview();
   return()=>controller.abort();},[refresh,loadReview]);
  if(isWorkspace)return <p className="field-hint">ابتدا نسخه ثابت داخلی سند را ثبت کنید.</p>;
@@ -167,6 +186,10 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
      <button type="button" className="identity-secondary" disabled={actionBusy||busy}
       onClick={()=>void finalize()}>نهایی‌سازی داخلی صورتحساب</button>}
    </div>}
+  {report?.invoiceState==="Finalized"&&report.environment==="Sandbox"&&
+   report.blockingCodes.includes("invoice.serial.durable_reservation_required")&&
+   <button type="button" className="identity-secondary" disabled={actionBusy||busy}
+    onClick={()=>void reserveSerial()}>{actionBusy?"در حال رزرو…":"رزرو سریال و تولید شناسه مالیاتی Sandbox"}</button>}
   {report?.invoiceState==="Draft"&&report.hasImmutableSnapshot&&report.environment==="Sandbox"&&
    <button type="button" className="identity-secondary" disabled={actionBusy||busy}
     onClick={()=>void validate()}>{actionBusy?"در حال اعتبارسنجی…":"اعتبارسنجی داخلی صورتحساب"}</button>}
