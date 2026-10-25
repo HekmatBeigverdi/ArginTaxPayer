@@ -21,7 +21,8 @@ dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --no-restore \
   tests/phase10-step22-readiness.test.mjs \
   tests/phase10-sandbox-memory-bound-serial.test.mjs \
   tests/phase10-draft-review-readiness.test.mjs \
-  tests/phase10-readiness-blocker-contract.test.mjs
+  tests/phase10-readiness-blocker-contract.test.mjs \
+  tests/phase10-internal-validation-transition.test.mjs
  npm run typecheck
  npm run build
 )
