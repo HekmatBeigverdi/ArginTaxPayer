@@ -30,10 +30,10 @@ internal sealed class LegacyInvoiceOutboxSendCoordinator(
 
     internal async Task<LegacyInvoicePreparedSend?> PrepareAsync(
         string outboxPayloadJson, DatabaseLegacySigningKey signingKey,
-        CancellationToken ct = default)
+        CancellationToken ct = default, string? sandboxClientId = null)
     {
         ArgumentNullException.ThrowIfNull(signingKey);
-        var fiscalId = ReadFiscalId(outboxPayloadJson);
+        var fiscalId = sandboxClientId ?? ReadFiscalId(outboxPayloadJson);
         var token = await tokenClient.RequestAsync(fiscalId, signingKey.PrivateKey,
             signingKey.PublicSpkiDer, ct);
         if (!token.Authenticated || token.AccessToken is null)
