@@ -27,6 +27,16 @@ public sealed class Phase10SandboxV2InvoiceTransportTests
             return Task.FromResult(respond(request));
         }
     }
+    private static string FixtureJwe()
+    {
+        static string Url(byte[] data)=>Convert.ToBase64String(data)
+            .TrimEnd('=').Replace('+','-').Replace('/','_');
+        var header=Url(Encoding.UTF8.GetBytes(
+            "{\"alg\":\"RSA-OAEP-256\",\"enc\":\"A256GCM\",\"kid\":\"fixture\"}"));
+        return string.Join(".",header,Url(new byte[256]),
+            Url(new byte[12]),Url(new byte[32]),Url(new byte[16]));
+    }
+
     private static HttpResponseMessage Json(string body,HttpStatusCode status=HttpStatusCode.OK)=>
         new(status){Content=new StringContent(body,Encoding.UTF8,"application/json")};
 
@@ -41,7 +51,7 @@ public sealed class Phase10SandboxV2InvoiceTransportTests
         var client=new SandboxV2InvoiceHttpTransport(
             Config(),()=>new HttpClient(handler,disposeHandler:false));
         Assert.Equal("sandbox-test-nonce-123",await client.FetchNonceAsync(default));
-        var jwe=string.Join(".",Enumerable.Repeat(new string('A',45),5));
+        var jwe=FixtureJwe();
         var result=await client.PostPersistedPacketOnceAsync(
             jwe,"ABC123",uid,new string('z',220),default);
         Assert.True(result.Acknowledged);
@@ -64,9 +74,23 @@ public sealed class Phase10SandboxV2InvoiceTransportTests
             Config(url),()=>new HttpClient(handler,disposeHandler:false));
         Assert.Null(await client.FetchNonceAsync(default));
         var result=await client.PostPersistedPacketOnceAsync(
+            FixtureJwe(),
+            "ABC123",Guid.NewGuid().ToString("D"),new string('z',220),default);
+        Assert.False(result.Acknowledged);
+        Assert.Empty(handler.Calls);
+    }
+
+    [Fact]
+    public async Task Forged_dot_separated_payload_never_reaches_network()
+    {
+        var handler=new FakeHandler(_=>throw new Exception("Unexpected network call"));
+        var transport=new SandboxV2InvoiceHttpTransport(
+            Config(),()=>new HttpClient(handler,disposeHandler:false));
+        var result=await transport.PostPersistedPacketOnceAsync(
             string.Join(".",Enumerable.Repeat(new string('A',45),5)),
             "ABC123",Guid.NewGuid().ToString("D"),new string('z',220),default);
         Assert.False(result.Acknowledged);
+        Assert.Equal("sandbox_v2_packet_invalid",result.SafeCode);
         Assert.Empty(handler.Calls);
     }
 
