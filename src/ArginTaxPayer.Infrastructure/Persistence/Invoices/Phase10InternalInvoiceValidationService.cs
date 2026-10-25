@@ -54,6 +54,9 @@ public sealed class Phase10InternalInvoiceValidationService(
         if (!ValidSandboxSnapshot(invoice.SnapshotJson, invoice.SnapshotSha256, invoiceId))
             return new(InvoiceApiDecision.Invalid, "sandbox_snapshot_validation_failed");
 
+        // State mutation and append-only audit must commit or roll back together.
+        // The dedicated test-db migration is required before this endpoint is used.
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
         var changed = await db.InvoiceDocuments
             .Where(i => i.Id == invoiceId && i.CustomerUserId == owner.Value &&
                 i.TaxpayerId == taxpayerId && i.Revision == expectedRevision &&
@@ -62,9 +65,19 @@ public sealed class Phase10InternalInvoiceValidationService(
             .ExecuteUpdateAsync(update => update
                 .SetProperty(i => i.State, InvoiceLifecycleState.Validated)
                 .SetProperty(i => i.UpdatedAtUtc, DateTime.UtcNow), ct);
-        return changed == 1
-            ? new(InvoiceApiDecision.Success, "internal_validation_completed")
-            : new(InvoiceApiDecision.Conflict, "concurrent_invoice_change");
+        if (changed != 1)
+            return new(InvoiceApiDecision.Conflict, "concurrent_invoice_change");
+        var recordedAt = DateTime.UtcNow;
+        await db.Database.ExecuteSqlInterpolatedAsync($"""
+INSERT INTO sandbox_invoice_lifecycle_events
+ (id, customer_user_id, taxpayer_id, invoice_id, invoice_revision,
+  from_state, to_state, snapshot_sha256, actor_user_id, created_at_utc)
+VALUES ({Guid.NewGuid()}, {owner.Value}, {taxpayerId}, {invoiceId}, {expectedRevision},
+ {(int)InvoiceLifecycleState.Draft}, {(int)InvoiceLifecycleState.Validated},
+ {invoice.SnapshotSha256}, {actor.ActorId}, {recordedAt})
+""", ct);
+        await transaction.CommitAsync(ct);
+        return new(InvoiceApiDecision.Success, "internal_validation_completed");
     }
 
     internal static bool ValidSandboxSnapshot(string raw, string expectedHash, Guid invoiceId)
