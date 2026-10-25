@@ -93,8 +93,10 @@ public sealed class InvoiceReviewCommandService(
                     await db.CustomerCommercialOwners.AsNoTracking()
                         .AnyAsync(x => x.CustomerUserId == invoice.CustomerUserId &&
                             x.PartnerLevel2UserId == principal.ActorId, ct);
-                bool authorized = command.Action == InvoiceReviewAction.SubmitForReview
-                    ? isCustomer : (isRoot || isPartner);
+                // The invoice owner can submit and approve their own internal
+                // review. Admin approval is not part of Sandbox issuance.
+                // Scoped administrators retain their existing review access.
+                bool authorized = isCustomer || isRoot || isPartner;
                 if (!authorized)
                     return new InvoiceReviewCommandResult(InvoiceReviewCommandDecision.Forbidden);
 
