@@ -116,7 +116,7 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
    const result=payload&&typeof payload==="object"&&!Array.isArray(payload)
     ?payload as Record<string,unknown>:{};
    if(!response.ok)throw Error(response.status===403?
-    "این عملیات نیازمند نقش مجاز است؛ ارسال برای بازبینی توسط مالک و تأیید توسط مدیر دارای MFA انجام می‌شود.":
+    "مجوز بازبینی این صورتحساب تأیید نشد؛ نشست ورود و مالکیت مؤدی را بررسی کنید.":
     "عملیات بازبینی انجام نشد: "+String(result.error??response.status));
    setNotice(action==="submit"?"صورتحساب برای بازبینی ثبت شد.":"بازبینی داخلی تأیید شد.");
    await loadReview();await refresh();
@@ -162,7 +162,7 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
       onClick={()=>void advanceReview("submit")}>ارسال برای بازبینی</button>}
     {review.state==="InReview"&&
      <button type="button" className="identity-secondary" disabled={actionBusy||busy}
-      onClick={()=>void advanceReview("approve")}>تأیید بازبینی (مدیر)</button>}
+      onClick={()=>void advanceReview("approve")}>تأیید بازبینی صورتحساب</button>}
     {review.state==="Approved"&&
      <button type="button" className="identity-secondary" disabled={actionBusy||busy}
       onClick={()=>void finalize()}>نهایی‌سازی داخلی صورتحساب</button>}
