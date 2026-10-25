@@ -51,7 +51,19 @@ public sealed class Phase10InternalInvoiceValidationService(
             return new(InvoiceApiDecision.Success, "already_internally_validated");
         if (invoice.State != InvoiceLifecycleState.Draft)
             return new(InvoiceApiDecision.Conflict, "invoice_not_draft");
-        if (!ValidSandboxSnapshot(invoice.SnapshotJson, invoice.SnapshotSha256, invoiceId))
+        // PostgreSQL jsonb may normalize whitespace/property order. Verify the
+        // original captured hash and snapshot against the immutable revision,
+        // not a newly hashed database-rendered JSON representation.
+        var captured = await db.InvoiceDocumentRevisions.AsNoTracking()
+            .Where(r => r.InvoiceId == invoiceId && r.CustomerUserId == owner.Value &&
+                r.TaxpayerId == taxpayerId && r.Revision == expectedRevision)
+            .Select(r => new { r.SnapshotSha256, r.SnapshotJson })
+            .SingleOrDefaultAsync(ct);
+        if (captured is null ||
+            !string.Equals(captured.SnapshotSha256, invoice.SnapshotSha256,
+                StringComparison.OrdinalIgnoreCase) ||
+            captured.SnapshotJson != invoice.SnapshotJson ||
+            !ValidSandboxSnapshot(invoice.SnapshotJson, invoice.SnapshotSha256, invoiceId))
             return new(InvoiceApiDecision.Invalid, "sandbox_snapshot_validation_failed");
 
         // State mutation and append-only audit must commit or roll back together.
@@ -83,8 +95,6 @@ VALUES ({Guid.NewGuid()}, {owner.Value}, {taxpayerId}, {invoiceId}, {expectedRev
     internal static bool ValidSandboxSnapshot(string raw, string expectedHash, Guid invoiceId)
     {
         if (expectedHash is not { Length: 64 } || !expectedHash.All(Uri.IsHexDigit)) return false;
-        var actual = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(raw)));
-        if (!actual.Equals(expectedHash, StringComparison.OrdinalIgnoreCase)) return false;
         try
         {
             using var doc = JsonDocument.Parse(raw);
