@@ -2313,3 +2313,50 @@ zsh scripts/dev-status.zsh
 **Browser QA:** With the authorized invoice list, open the details of an internally frozen Sandbox invoice and inspect `آمادگی ارسال به سامانه مؤدیان`. It MUST report `غیرمجاز برای ارسال واقعی` and list blockers; never send invoice HTTP POST. With another tenant's document, the readiness request must return 403/404 without revealing invoice state. Verify that unknown or malformed BFF provider responses fail closed. Status panels must not claim authority acceptance. No private credentials, backup files or secrets in logs.
 
 **Step22 status:** Technical blockers surfaced and safe readiness UI/tests committed; **live controlled acceptance NOT PERFORMED, Step22 NOT APPROVED / blocked**. Production/Sandbox live transmission requires implementation plus **separate explicit owner authorization**. Proceeding to Step23 without resolving this would leave the official Step22 acceptance criterion unmet. Retain the fixed 24-step plan and document exceptions rather than silently treating an incomplete send as success.
+
+
+## Step22 Sandbox real-send enablement — SDK-v2 cryptographic preparation (2026-10-25)
+
+**Owner directive:** Prepare code for controlled actual Sandbox test. This authorizes engineering and offline/local tests, **not** a blind provider invoice POST or Production release. GitHub inspection identified multiple blocking integration gaps. Do not claim Step22 accepted or live sending ready.
+
+### Verified SDK reference
+
+Bundled `references/tax-sdk/modern-2.0.32/.../TaxCollectData.Library` inspection:
+- `TaxIdProvider` builds 22-character fiscal IDs from six-character memory ID, Unix UTC days as five hexadecimal characters, 10-digit hexadecimal serial and Verhoeff check digit.
+- `JwsSignatory` uses RS256 with an X.509 certificate in `x5c`, `sigT` and a critical header. A private RSA key by itself does NOT establish the certificate trust chain.
+- `JweEncryptor` encrypts the signed JWS with RSA-OAEP-256 / A256GCM using a Tax Authority public-key ID (`kid`). Key material must be obtained from authenticated, verified server information.
+- The bundled **modern V2** API uses a nonce and signed JWS bearer, and `POST /api/v2/invoice` relative to its version-pinned base URL. Existing Sandbox connection test uses older `GET_TOKEN` / `GET_FISCAL_INFORMATION` legacy self-TSP profile. These are **different protocols**; no safe assumption of drop-in wire compatibility or live Sandbox endpoint availability.
+- Current `invoice_dispatch_operations.fiscal_memory_id` has FK to **Production `fiscal_memories`**, whereas Sandbox memories live in `sandbox_fiscal_memories`. Any real Sandbox dispatch MUST have separately environment-qualified durable reservation or a reviewed additive migration; never forge a Production fiscal-memory ID to satisfy this FK.
+
+### Source additions committed
+
+1. `Phase10FiscalInvoiceIdentifier.cs` and `Phase10FiscalInvoiceIdentifierTests.cs`: bounded SDK-compatible pure 22-character tax ID/Verhoeff generator. **No serial allocation**; unique serial must first be reserved transactionally against the exact Sandbox memory and immutable approved invoice revision.
+2. `Phase10SandboxInvoicePacketCryptography.cs` and corresponding xUnit tests: **real offline** RS256 compact JWS serialization using the matching X.509 certificate, then RSA-OAEP-256/A256GCM compact JWE construction; crypto roundtrip and key/certificate mismatch tests. No secret printing, transport, dynamic endpoint, external HTTP or credential persistence.
+3. `apps/web/tests/phase10-sandbox-v2-offline-crypto.test.mjs`: source safety checks for real crypto primitives, SDK tax ID and unchanged fail-closed live-send barrier.
+4. Readiness codes now additionally surface: `invoice.serial.durable_reservation_required`, `invoice.sandbox.certificate_chain_not_verified` and `invoice.v2.protocol_not_verified_for_sandbox`. BFF and Persian UI allowlist/translation updated.
+
+### Remaining REQUIRED engineering before any actual Sandbox invoice transmission
+
+- Authenticate/select *exact* customer, taxpayer, Sandbox key, memory and fiscal environment; verify matching X.509 certificate/approved signature profile, chain validity, and correct available Sandbox V2 endpoint with evidence. The present Sandbox metadata only stores RSA PKCS8 key and SPKI; do not mint a self-signed X.509 certificate and treat that as authority-approved.
+- Regulatory full invoice validation for each enabled pattern, seller and buyer identifier, settlement/payment rules, tax ID, date, VAT, official item ID/unit, formal `crn` when contracting. Existing `InvoiceWorkspacePromotionService` creates internal Draft, not `Finalized`; current preflight fails closed by design.
+- Add **transactionally reserved serial and tax ID**, a Sandbox-specific signed packet identity and durable Outbox with unique `(customer,taxpayer,sandboxMemory,invoice,revision)`, append-only attempts/receipts; never reference Production fiscal memory via a false FK.
+- Freeze and sign the exact validated server snapshot, persist signed/encrypted packet and hash before any remote I/O, bind to immutable invoice revision; authenticate with **the same modern SDK protocol**, use bounded HTTPS to pinned Sandbox endpoint only, zero decrypted key buffers, no retries of uncertain outcomes until inquiry/reconciliation.
+- Require separate owner-approved one-invoice send in the UI, show exact environment and fiscal memory identity, prevent double-submit; preserve reference number vs final fiscal acceptance distinction. No production fallback.
+- Add integration coverage: real test DB serial races/two-tab retries, key/cert mismatch, signature verification/JWE roundtrip, HTTP mock nonce/invoice/response/timeout, crash after start and reconciliation, browser XSS/CSRF/session isolation and operator Sandbox receipt.
+- Confirm legal and public SDK version/official server requirements before enabling the live adapter.
+
+**macOS tests for current source additions:**
+```bash
+cd ~/projects/ArginTaxPayer
+git status --short
+git pull --ff-only origin phase/10-invoice-submission
+dotnet build ArginTaxPayer.sln --no-restore
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --no-restore \
+ --filter 'FullyQualifiedName~Phase10FiscalInvoiceIdentifierTests|FullyQualifiedName~Phase10SandboxInvoicePacketCryptographyTests'
+cd apps/web
+node --test tests/phase10-sandbox-v2-offline-crypto.test.mjs tests/phase10-step22-readiness.test.mjs
+npm run typecheck && npm run build
+cd ..
+```
+
+**Honest status:** Correct SDK-style offline ID/crypto primitives committed for testing. No end-to-end signed invoice preparation, trusted certificate chain, durable Sandbox serial/outbox, live send or authority receipt yet. Step22 **BLOCKED/IN PROGRESS**, not approved. No migration or network send made in this change.
