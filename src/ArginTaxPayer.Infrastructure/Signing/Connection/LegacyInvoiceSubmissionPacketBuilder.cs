@@ -59,7 +59,7 @@ internal static class LegacyInvoiceSubmissionPacketBuilder
         var packet = new
         {
             uid = operationId.ToString("D"),
-            packetType = "INVOICE",
+            packetType = "INVOICE.V01",
             retry = false,
             data = invoice.RootElement.Clone(),
             encryptionKeyId = (string?)null,
