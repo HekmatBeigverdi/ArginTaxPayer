@@ -2401,3 +2401,22 @@ dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --no-restore \
 ```
 
 **No live SEND invoice was performed or made available**, even with `SandboxInvoiceV2:Enabled=true`. These two configuration keys are NOT sufficient to send; orchestration is unregistered and official SDK signing credential, rule coverage, durable outbox and owner consent gates must be completed first.
+
+
+### Continuation after interrupted session — 2026-10-25
+
+User requested continuation of the previously interrupted Sandbox invoice preparation. Previous in-branch foundation includes SDK-equivalent fiscal identifier function, RS256 JWS + RSA-OAEP-256/A256GCM compact JWE **offline** construction, Sandbox-scoped test-db serial reservation migration/repository, and an **unregistered** Sandbox SDK-v2 nonce/invoice HTTP adapter with mocked HTTP tests. They do NOT constitute a signed legal invoice or enabled sending.
+
+**Security hardening now committed:** `SandboxV2InvoiceHttpTransport` no longer accepts arbitrary dotted payloads or arbitrary bearer strings. It checks bounded JOSE compact-JWE form (`RSA-OAEP-256`, `A256GCM`, `kid`, 96-bit IV, 128-bit tag) and compact RS256 signed nonce token *structure* before any HTTP request. The transport test uses a shaped mock token/JWE and explicitly verifies malformed dotted packets never reach network. **This is syntactic screening only**, not an assertion that the JWS signature, certificate authority, encryption key origin, or legal entitlement is trustworthy. Those must be verified and bound to the persisted Outbox upstream.
+
+New `scripts/phase10-sandbox-v2-offline-gate.sh` runs local macOS-only dotnet build, focused crypto/fiscal-ID/mocked transport tests, BFF source-contract tests, TypeScript and Next.js build. It deliberately has no database migration, no remote HTTP request and no live invoice send. Run after a clean pull:
+```bash
+cd ~/projects/ArginTaxPayer
+git status --short
+git pull --ff-only origin phase/10-invoice-submission
+bash scripts/phase10-sandbox-v2-offline-gate.sh
+```
+
+**Before any live Sandbox invoice request:** apply/review isolated-test-only migration with backup and independent migration approval; prove serial race/idempotence and immutable signed encrypted packet storage in an environment-specific Outbox; implement authenticated, authorized finalization and verified official invoice rules, including exact buyer/seller identifiers and applicable settlement/contract fields; bind private PKCS8 Sandbox custody to legitimate X.509 certificate and current Tax Authority JWE key; prove SDK-v2 authentication for the exact Sandbox endpoint; map provider responses safely, persist acknowledgment/indeterminate states and implement inquiry/reconciliation; obtain separate single-invoice operator approval. Current preflight explicitly forbids authorization and `POST .../dispatch/send` returns `503 invoice_dispatch_not_enabled`. Never work around the gate with a guessed certificate, forged authorization header, or direct manual HTTP POST.
+
+**Acceptance state:** Offline protocol components added and source QA improved; tests must be run by operator. No live authority POST was run. **Phase10 Step22 still not accepted.**
