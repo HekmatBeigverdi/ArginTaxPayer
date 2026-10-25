@@ -111,8 +111,8 @@ public sealed class Phase10SandboxV2InvoiceTransportTests
         var client=new SandboxV2InvoiceHttpTransport(
             Config(),()=>new HttpClient(handler,disposeHandler:false));
         var result=await client.PostPersistedPacketOnceAsync(
-            string.Join(".",Enumerable.Repeat(new string('A',45),5)),
-            "ABC123",Guid.NewGuid().ToString("D"),new string('z',220),default);
+            FixtureJwe(),
+            "ABC123",Guid.NewGuid().ToString("D"),FixtureRs256Token(),default);
         Assert.False(result.Acknowledged);
         Assert.Equal("sandbox_v2_outcome_indeterminate",result.SafeCode);
     }

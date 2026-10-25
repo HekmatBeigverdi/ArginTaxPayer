@@ -61,6 +61,6 @@ public sealed class Phase10SandboxInvoicePacketCryptographyTests
             DateTimeOffset.UtcNow.AddDays(1));
         Assert.Throws<CryptographicException>(()=>
             Phase10SandboxInvoicePacketCryptography.SignJws(
-                "{}",signer,cert,DateTime.UtcNow));
+                "{\"header\":{}}",signer,cert,DateTime.UtcNow));
     }
 }
