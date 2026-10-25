@@ -2271,3 +2271,45 @@ The owner explicitly reported **PASS for all 10 manual browser/operator checks**
 **Evidence outstanding:** The owner has not yet supplied `scripts/phase10-step21-macos-acceptance.sh` output (`manifest.tsv`, `acceptance-status.txt`) for the Step21 exact SHA, or separately supplied a sanitized isolated backup-restore log. Earlier Step20 7/7 macOS tests and DB audit belong to the earlier SHA and may not substitute for the Step21 runner. Preserve explicit distinction between owner acceptance and machine-verified results.
 
 **Step21 status:** manual checklist 10/10 operator-approved; automatic macOS operator-acceptance manifest / exact-SHA parity **PENDING**. Do not claim full acceptance or begin Step22 authority send from this alone. The fiscal-finalization, source-bound tax identifier, signed packet, Sandbox outbox/send and receipt adapter remain unimplemented or unintegrated in the end-to-end UI pipeline; Step22 is blocked pending those controls and fresh explicit permission. No migration, production send, release, tag or merge is authorized by this manual signoff.
+
+
+## Step21 owner acceptance, Step22 controlled submission gate — 2026-10-25
+
+**Step21 owner decision:** The owner reported all Step21 operational and manual acceptance checks OK and explicitly requested the next step. Mark Step21 **owner-approved**, preserving distinction between operator report and missing independent manifest logs on the exact SHA.
+
+**Step22 scope:** According to the fixed 24-step plan, Step22 requires a separately authorized live, legitimate, legally valid taxpayer invoice transmission and evidence of its result. The owner's instruction to proceed with the next step is NOT permission to send an actual fiscal invoice or to enable Production/Sandbox transport silently.
+
+**Source inspection outcome (critical blocker):**
+- `InvoiceWorkspacePromotionService` creates only an internal `InvoiceLifecycleState.Draft` snapshot (not a legally finalized invoice); client flags remain false.
+- `Phase10DispatchPreflight` requires `Finalized`, approved review, source-verified official rule coverage, a legal fiscal identifier, and an appropriate signed packet, not established by the current wizard.
+- `Phase10SubmissionTransport.DisabledInvoiceSubmissionTransport` is deliberately registered/available, while `POST .../dispatch/send` explicitly rejects with `503 invoice_dispatch_not_enabled`.
+- Existing dispatch operation schema references the Production `fiscal_memories` table; it MUST NOT be reused for Sandbox memory IDs. A separate environment-qualified, durable authorized signing/outbox implementation with idempotency and acceptance/inquiry evidence is still needed before a live authority test. Do not circumvent the schema or insert placeholder IDs.
+- No owner-authorized live send was performed and no official receipt exists.
+
+**Step22 implementation (read-only, fail-closed):**
+- `Phase10LiveSendReadinessService.cs`: authenticated live scope via `TaxpayerScopeService`, exact tenant/taxpayer/invoice check, bounded introspection of internal source snapshot, fixed safe-code blockers for unverified rules, missing legal fiscal ID, missing signed packet, missing Sandbox Outbox binding, disabled transport and missing explicit live send authorization. Never returns signed packet, private key, token or raw provider body. Does not trust snapshot JSON flags to grant sending.
+- `GET /api/dev/taxpayers/{taxpayerId}/invoices/{invoiceId}/dispatch/readiness` (loopback): read-only result, no-store, scoped safe HTTP errors.
+- `GET /api/invoice-dispatch/{taxpayerId}/{invoiceId}/readiness`: session-cookie BFF with bounded safe-code allowlist and unconditionally false sending, signing and acceptance claims.
+- `InvoiceSendReadinessPanel` in invoice details: compact RTL list of actionable missing technical/legal prerequisites; it contains no POST, live sending, or override control.
+- `apps/web/tests/phase10-step22-readiness.test.mjs`: static source regression for no transport, no Production fallback, scoped auth, no false send-ready claim and safe BFF contract.
+- No new database migration, no environment mutation, no Tax Authority send, no certificate creation, no Git merge/release.
+
+**macOS operator tests:**
+```bash
+cd ~/projects/ArginTaxPayer
+git status --short
+git pull --ff-only origin phase/10-invoice-submission
+dotnet build ArginTaxPayer.sln --no-restore
+dotnet test ArginTaxPayer.sln --no-build
+cd apps/web
+node --test tests/phase10-step22-readiness.test.mjs
+npm test
+npm run typecheck
+npm run build
+cd ..
+zsh scripts/dev-status.zsh
+```
+
+**Browser QA:** With the authorized invoice list, open the details of an internally frozen Sandbox invoice and inspect `آمادگی ارسال به سامانه مؤدیان`. It MUST report `غیرمجاز برای ارسال واقعی` and list blockers; never send invoice HTTP POST. With another tenant's document, the readiness request must return 403/404 without revealing invoice state. Verify that unknown or malformed BFF provider responses fail closed. Status panels must not claim authority acceptance. No private credentials, backup files or secrets in logs.
+
+**Step22 status:** Technical blockers surfaced and safe readiness UI/tests committed; **live controlled acceptance NOT PERFORMED, Step22 NOT APPROVED / blocked**. Production/Sandbox live transmission requires implementation plus **separate explicit owner authorization**. Proceeding to Step23 without resolving this would leave the official Step22 acceptance criterion unmet. Retain the fixed 24-step plan and document exceptions rather than silently treating an incomplete send as success.
