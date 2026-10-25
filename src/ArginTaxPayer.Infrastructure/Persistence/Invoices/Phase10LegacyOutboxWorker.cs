@@ -54,11 +54,38 @@ internal sealed class Phase10LegacyOutboxWorker(
         var customer = GuidField(root, "customerUserId");
         var taxpayer = GuidField(root, "taxpayerId");
         var memory = GuidField(root, "fiscalMemoryId");
+        // GET_TOKEN uses the six-character fiscal memory client ID, not
+        // the 22-character invoice tax identifier.
+        var connection = db.Database.GetDbConnection();
+        var opened = connection.State != System.Data.ConnectionState.Open;
+        if (opened) await connection.OpenAsync(ct);
+        string? fiscalMemoryCode;
+        try
+        {
+            await using var cmd = connection.CreateCommand();
+            cmd.CommandText = """
+SELECT memory_identifier FROM sandbox_fiscal_memories
+WHERE id=@memory AND customer_user_id=@owner AND taxpayer_id=@taxpayer
+""";
+            foreach(var (name,value) in new (string,object)[] {
+                ("memory",memory),("owner",customer),("taxpayer",taxpayer) })
+            {
+                var parameter=cmd.CreateParameter();
+                parameter.ParameterName=name;
+                parameter.Value=value;
+                cmd.Parameters.Add(parameter);
+            }
+            fiscalMemoryCode = await cmd.ExecuteScalarAsync(ct) as string;
+        }
+        finally { if(opened) await connection.CloseAsync(); }
+        if (fiscalMemoryCode is not { Length: 6 } ||
+            fiscalMemoryCode.Any(c => !char.IsAsciiLetterOrDigit(c)))
+            return new("Blocked", "sandbox_memory_client_id_unavailable");
         var key = await keys.RecoverAsync(customer, taxpayer, memory, ct);
         if (key is null) return new("Blocked", "sandbox_legacy_key_unavailable");
         using (key)
         {
-            var prepared = await sender.PrepareAsync(message.PayloadJson, key, ct);
+            var prepared = await sender.PrepareAsync(message.PayloadJson, key, ct, fiscalMemoryCode);
             if (prepared is null)
                 return new("Blocked", "sandbox_legacy_token_unavailable");
 
