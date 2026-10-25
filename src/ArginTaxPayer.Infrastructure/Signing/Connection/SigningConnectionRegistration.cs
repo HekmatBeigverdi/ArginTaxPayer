@@ -18,6 +18,7 @@ public static class SigningConnectionRegistration
         services.AddScoped<LegacyInvoiceSubmissionHttpTransport>();
         services.AddScoped<LegacyInvoiceOutboxSendCoordinator>();
         services.AddScoped<DatabaseLegacySigningKeyLoader>();
+        services.AddScoped<SandboxLegacySigningKeyLoader>();
         return services;
     }
 
