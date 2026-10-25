@@ -28,7 +28,8 @@ dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --no-restore \
   tests/phase10-validation-upstream-errors.test.mjs \
   tests/phase10-reviewed-finalization-contract.test.mjs \
   tests/phase10-review-and-memory-fk-contract.test.mjs \
-  tests/phase10-owner-review-permissions.test.mjs
+  tests/phase10-owner-review-permissions.test.mjs \
+  tests/phase10-fiscal-reservation-readiness.test.mjs
  npm run typecheck
  npm run build
 )
