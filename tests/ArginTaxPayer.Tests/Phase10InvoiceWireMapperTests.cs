@@ -89,8 +89,20 @@ public sealed class Phase10InvoiceWireMapperTests
     [Fact]
     public void Payment_and_settlement_unknown_rules_fail_closed()
     {
-        Assert.Throws<NotSupportedException>(() => Phase10InvoiceWireMapper.Project(
-            Make() with { SettlementMethod = 1 }));
+        var cash = Phase10InvoiceWireMapper.Project(Make() with {
+            SettlementMethod = 1, CashAmountRial = 198, CreditAmountRial = 0,
+            InvoiceNumber = "00010-05-AAA"
+        });
+        using (var doc = JsonDocument.Parse(cash.Json))
+        {
+            var header = doc.RootElement.GetProperty("header");
+            Assert.Equal(1, header.GetProperty("setm").GetInt32());
+            Assert.Equal(198, header.GetProperty("cap").GetInt64());
+            Assert.Equal(0, header.GetProperty("insp").GetInt64());
+            Assert.Equal("00010-05-AAA", header.GetProperty("inno").GetString());
+        }
+        Assert.Throws<ArgumentException>(() => Phase10InvoiceWireMapper.Project(
+            Make() with { SettlementMethod = 1, CashAmountRial = 197, CreditAmountRial = 1 }));
         Assert.Throws<NotSupportedException>(() => Phase10InvoiceWireMapper.Project(
             Make() with { Payments = new[] { new InvoiceWirePayment(null, null, 198) } }));
     }
