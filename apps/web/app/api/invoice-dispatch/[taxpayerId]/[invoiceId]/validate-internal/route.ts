@@ -29,7 +29,13 @@ export async function POST(request:NextRequest,context:Context){
    headers:{Authorization:"Bearer "+token,"Content-Type":"application/json"},
    body:JSON.stringify({expectedRevision:revision})
   });
+  if(upstream.status>=500)return fail(503,"upstream_server_error");
   if(![200,400,401,403,404,409].includes(upstream.status))return fail(502,"invalid_upstream_status");
+  // ASP.NET Core Results.Unauthorized/Forbid/NotFound commonly have empty bodies.
+  // Preserve their meaning instead of misclassifying them as malformed JSON.
+  if(upstream.status===401)return fail(401,"unauthorized");
+  if(upstream.status===403)return fail(403,"forbidden");
+  if(upstream.status===404)return fail(404,"not_found");
   const raw=await upstream.text();
   if(raw.length>1024)return fail(502,"response_too_large");
   let value:unknown;
