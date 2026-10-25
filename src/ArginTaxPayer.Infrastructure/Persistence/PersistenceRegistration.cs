@@ -70,6 +70,7 @@ public static class PersistenceRegistration
         services.AddScoped<EfInvoiceAtomicWriter>();
         services.AddScoped<IUnitOfWork, EfUnitOfWork>();
         services.AddScoped<IOutboxWriter, EfOutboxWriter>();
+        services.AddScoped<Phase10SandboxOutboxService>();
         services.AddScoped<IIdempotencyReservationWriter, EfIdempotencyReservationWriter>();
 
         return services;

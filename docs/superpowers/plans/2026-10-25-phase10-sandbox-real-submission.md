@@ -60,6 +60,12 @@
 
 ### Task 3: Durable outbox and Sandbox transport wiring
 
+> **Current implementation boundary (2026-10-25):** The immutable encrypted
+> packet is now committed to the existing durable outbox in a database transaction
+> with Sandbox-only metadata, deterministic deduplication and no automatic retry.
+> The external HTTP worker remains disabled until operator-supplied Sandbox
+> credentials, nonce authentication and a verified live endpoint are available.
+
 **Files:**
 - Modify: dispatch admission repository, outbox writer/worker boundary, `IInvoiceSubmissionTransport`, `SandboxV2InvoiceHttpTransport`, API registration and endpoint allowlist configuration.
 - Test: dispatch persistence, outbox integration, transport, endpoint-origin, duplicate/concurrency and no-Production tests.
