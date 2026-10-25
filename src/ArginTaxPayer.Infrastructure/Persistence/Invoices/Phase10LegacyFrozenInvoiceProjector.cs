@@ -19,6 +19,7 @@ public static class Phase10LegacyFrozenInvoiceProjector
         ArgumentNullException.ThrowIfNull(invoice);
         ArgumentNullException.ThrowIfNull(verifiedUnitCodes);
         if (invoice.State != InvoiceLifecycleState.Finalized ||
+            invoice.Subject != InvoiceSubject.Original ||
             invoice.Revision < 1 || invoice.IssueDateUtc.Kind != DateTimeKind.Utc)
             throw new ArgumentException("Invoice is not a finalized UTC revision.");
         using var source = JsonDocument.Parse(invoice.SnapshotJson);
