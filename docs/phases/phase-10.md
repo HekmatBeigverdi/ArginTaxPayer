@@ -2360,3 +2360,31 @@ cd ..
 ```
 
 **Honest status:** Correct SDK-style offline ID/crypto primitives committed for testing. No end-to-end signed invoice preparation, trusted certificate chain, durable Sandbox serial/outbox, live send or authority receipt yet. Step22 **BLOCKED/IN PROGRESS**, not approved. No migration or network send made in this change.
+
+
+### Additional Sandbox dispatch foundations committed — 2026-10-25
+
+- `20261025183000_AddSandboxInvoiceFiscalReservations.cs`: **new, unapplied**, additive, `argintaxpayer_test`-only migration. Creates `sandbox_invoice_fiscal_reservations`, scoped FK to invoice and separately to Sandbox fiscal memory, unique serial/tax ID/document constraints, and trigger prohibiting update/delete. Migration `Down` explicitly prevents destructive rollback. No Production database touched. This is a reservation journal, **not** a complete dispatch Outbox.
+- `SandboxInvoiceFiscalSerialRepository.cs`: authorizes current actor, owner and seller, checks Sandbox key envelope, requires legal `Finalized` invoice and matching Sandbox ID in trusted immutable snapshot, PostgreSQL serializable transaction and `FOR UPDATE` lock on Sandbox memory row; computes next serial from immutable reservations, creates a tax ID with SDK-equivalent pure function, performs scope-bound durable insert. Identical replays return same serial and ID; revisions/other identities conflict. **No automatic sending**. This source has not been integration-tested and must not be registered in public API without completing legal validator, approval and Outbox gates.
+- `SandboxV2InvoiceHttpTransport.cs`: one-shot actual SDK-v2 REST nonce and `POST invoice` HTTP primitives, with strict opt-in `SandboxInvoiceV2:Enabled=true`, `SandboxInvoiceV2:OperatorApprovedEndpoint=true`, hard-pin HTTPS/443/host `sandboxrc.tax.gov.ir`, vetted base path, no redirects, no cookies, no retry, bounded response size and correlation check. In ambiguous outcomes returns `sandbox_v2_outcome_indeterminate`. **This adapter is not registered, not called by any API or UI and NOT READY for a live send**. Before wiring, official Sandbox endpoint/protocol, certificate chain, signed nonce, reference correlation and durable outbox must be confirmed.
+- `phase10-sandbox-serial-durability.test.mjs` and extensions to `phase10-sandbox-v2-offline-crypto.test.mjs`: static safety/integration boundary assertions, not substitute for PostgreSQL/HTTPS tests.
+
+**Pre-send blockers remain**: legal finalization and signed-off rule set, vendor-approved certificate binding to owner Sandbox PKCS8 key, origin/version evidence, fully official buyer/seller/payment/pattern mapping, encrypted immutable signed packet and durable Outbox admission before any POST, operator-authenticated single-invoice confirmation, receipt persistence and unknown-outcome reconciliation. Step22 remains IN PROGRESS; do not claim a real send succeeded or furnish an "enable send" command. Compiling these primitives is the immediate test scope; applying the new migration requires separate test DB change review and backup verification.
+
+**Run these source tests on macOS first**:
+```bash
+cd ~/projects/ArginTaxPayer
+git status --short
+git pull --ff-only origin phase/10-invoice-submission
+dotnet build ArginTaxPayer.sln --no-restore
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --no-restore \
+  --filter 'FullyQualifiedName~Phase10FiscalInvoiceIdentifierTests|FullyQualifiedName~Phase10SandboxInvoicePacketCryptographyTests'
+cd apps/web
+node --test tests/phase10-sandbox-v2-offline-crypto.test.mjs \
+  tests/phase10-sandbox-serial-durability.test.mjs
+npm run typecheck
+npm run build
+cd ..
+```
+
+**Stop conditions**: Any failed test, missing or unverified X.509 certificate, `invoice.rules.not_approved`, incomplete official type/pattern mapping, serial collision, missing signed packet, unknown provider response, wrong environment or absent explicit one-invoice authorization means **do not send**.
