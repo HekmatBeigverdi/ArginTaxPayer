@@ -3,7 +3,7 @@ import {ACCESS_COOKIE,identityApiOrigin,identityUiEnabled} from "../../../../../
 import {isSameLocalOrigin} from "../../../../../../lib/identity-origin.mjs";
 export const dynamic="force-dynamic";
 type Context={params:Promise<{taxpayerId:string;invoiceId:string}>};
-const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const fail=(status:number,error:string)=>NextResponse.json({error},{status,headers:{"Cache-Control":"no-store"}});
 export async function POST(request:NextRequest,context:Context){
  if(!identityUiEnabled())return fail(404,"unavailable");
