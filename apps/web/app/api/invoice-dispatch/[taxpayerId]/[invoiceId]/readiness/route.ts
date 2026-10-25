@@ -46,7 +46,7 @@ export async function GET(request:NextRequest,context:Context){
    return error(502,"invalid_response");
   const data=value as Record<string,unknown>;
   if(data.readyForLiveSend!==false||data.submissionEnabled!==false||
-   data.signedPacketAvailable!==false||data.fiscalAccepted!==false||
+   typeof data.signedPacketAvailable!=="boolean"||data.fiscalAccepted!==false||
    typeof data.hasImmutableSnapshot!=="boolean"||
    !Number.isSafeInteger(data.invoiceRevision)||Number(data.invoiceRevision)<1||
    (data.sandboxFiscalMemoryId!==null&&typeof data.sandboxFiscalMemoryId!=="string")||
@@ -61,7 +61,7 @@ export async function GET(request:NextRequest,context:Context){
    invoiceRevision:data.invoiceRevision,
    sandboxFiscalMemoryId:data.sandboxFiscalMemoryId,
    readyForLiveSend:false,submissionEnabled:false,
-   signedPacketAvailable:false,fiscalAccepted:false,
+   signedPacketAvailable:data.signedPacketAvailable,fiscalAccepted:false,
    blockingCodes:data.blockingCodes
   },{headers:{"Cache-Control":"no-store"}});
  }catch{return error(503,"readiness_unavailable");}
