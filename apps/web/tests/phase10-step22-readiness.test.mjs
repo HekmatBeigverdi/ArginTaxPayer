@@ -1,0 +1,38 @@
+import {test} from "node:test";
+import assert from "node:assert/strict";
+import {readFileSync} from "node:fs";
+const read=(p)=>readFileSync(p,"utf8");
+const service=read("../../src/ArginTaxPayer.Infrastructure/Persistence/Invoices/Phase10LiveSendReadinessService.cs");
+const api=read("../../src/ArginTaxPayer.Api/Invoices/Phase10InvoiceDispatchDevelopmentEndpoints.cs");
+const bff=read("app/api/invoice-dispatch/[taxpayerId]/[invoiceId]/readiness/route.ts");
+const ui=read("app/invoices/invoice-send-readiness-panel.tsx");
+const root=read("app/invoices/workspace.tsx");
+const transport=read("../../src/ArginTaxPayer.Application/Invoices/Phase10SubmissionTransport.cs");
+test("step22: readiness only returns owner-scoped invoice information",()=>{
+ assert.match(service,/scope.ResolveAsync\(bearer,ct\)/);
+ assert.match(service,/scope.ScopedQuery\(actor.ActorId,actor.Level1\)/);
+ assert.match(service,/i.CustomerUserId==owner.Value/);
+ assert.match(service,/i.TaxpayerId==taxpayerId/);
+ assert.match(service,/invoice.signed_packet.not_prepared/);
+ assert.match(service,/invoice.fiscal_identifier.not_issued/);
+ assert.match(service,/invoice.owner_live_send_approval.required/);
+ assert.match(service,/environment,false,false,false,false/);
+ assert.doesNotMatch(service,/SendAsync\(|HttpClient|private_envelope_json/);
+});
+test("step22: BFF cannot enable readiness despite upstream values",()=>{
+ assert.match(bff,/ACCESS_COOKIE/);
+ assert.match(bff,/blockingCodes/);
+ assert.match(bff,/readyForLiveSend:false,submissionEnabled:false/);
+ assert.match(bff,/signedPacketAvailable:false,fiscalAccepted:false/);
+ assert.doesNotMatch(bff,/export async function POST/);
+ assert.match(api,/MapGet\("\/readiness"/);
+ assert.match(api,/Local\(http\)/);
+ assert.match(api,/invoice_dispatch_not_enabled/);
+ assert.match(transport,/DisabledInvoiceSubmissionTransport/);
+});
+test("step22: visual readiness is informative only",()=>{
+ assert.match(root,/InvoiceSendReadinessPanel/);
+ assert.match(ui,/بازبینی آمادگی/);
+ assert.match(ui,/غیرمجاز برای ارسال واقعی/);
+ assert.doesNotMatch(ui,/method:"POST"|method: "POST"/);
+});
