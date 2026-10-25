@@ -85,13 +85,20 @@ FOR UPDATE
                     return new(SandboxSerialStatus.NotFinalized);
                 // Bind reservation to the server-owned, signed-off snapshot;
                 // never accept memory or hash from caller.
-                using(var json=System.Text.Json.JsonDocument.Parse(snapshot)){
+                try{
+                    using var json=System.Text.Json.JsonDocument.Parse(snapshot);
                     var root=json.RootElement;
-                    if(!root.TryGetProperty("environment",out var env) ||
-                        env.GetString()!="Sandbox" ||
-                        !root.TryGetProperty("sandboxFiscalMemoryId",out var mid) ||
-                        mid.GetGuid()!=memoryId)
+                    if(root.ValueKind!=System.Text.Json.JsonValueKind.Object ||
+                       !root.TryGetProperty("environment",out var env) ||
+                       env.ValueKind!=System.Text.Json.JsonValueKind.String ||
+                       env.GetString()!="Sandbox" ||
+                       !root.TryGetProperty("sandboxFiscalMemoryId",out var mid) ||
+                       mid.ValueKind!=System.Text.Json.JsonValueKind.String ||
+                       !mid.TryGetGuid(out var linkedMemory) ||
+                       linkedMemory!=memoryId)
                         return new(SandboxSerialStatus.Denied);
+                }catch(System.Text.Json.JsonException){
+                    return new(SandboxSerialStatus.Denied);
                 }
 
                 await using var previous=Command(conn,tx,"""
