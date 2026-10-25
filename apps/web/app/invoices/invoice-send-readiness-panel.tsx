@@ -4,7 +4,7 @@ import {useCallback,useEffect,useState} from "react";
 type Report={environment:"Sandbox"|"Unverified";invoiceState:"Draft"|"Validated"|"Finalized";
  hasImmutableSnapshot:boolean;invoiceRevision:number;sandboxFiscalMemoryId:string|null;
  readyForLiveSend:false;submissionEnabled:false;
- signedPacketAvailable:false;fiscalAccepted:false;blockingCodes:string[]};
+ signedPacketAvailable:boolean;fiscalAccepted:false;blockingCodes:string[]};
 type Review={state:"Draft"|"InReview"|"ChangesRequested"|"Approved";revision:number};
 const labels:Record<string,string>={
  "invoice.snapshot.invalid":"ساختار نسخه ذخیره‌شده قابل تأیید نیست",
@@ -45,7 +45,7 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
    if(!value||typeof value!=="object"||Array.isArray(value))throw Error("پاسخ نامعتبر");
    const data=value as Report;
    if(data.readyForLiveSend!==false||data.submissionEnabled!==false||
-      data.signedPacketAvailable!==false||data.fiscalAccepted!==false||
+      typeof data.signedPacketAvailable!=="boolean"||data.fiscalAccepted!==false||
       !Number.isSafeInteger(data.invoiceRevision)||data.invoiceRevision<1||
       (data.sandboxFiscalMemoryId!==null&&typeof data.sandboxFiscalMemoryId!=="string")||
       !Array.isArray(data.blockingCodes))throw Error("وضعیت ایمنی نامعتبر");
