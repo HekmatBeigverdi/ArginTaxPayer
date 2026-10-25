@@ -8,6 +8,7 @@ import SearchableCatalogPicker from "./searchable-catalog-picker";
 import InvoiceValidationPanel from "./invoice-validation-panel";
 import InvoiceHistoryPanel from "./invoice-history-panel";
 import InvoiceDispatchPanel from "./invoice-dispatch-panel";
+import InvoiceSendReadinessPanel from "./invoice-send-readiness-panel";
 import InvoiceDispatchHistoryPanel from "./invoice-dispatch-history-panel";
 import InvoiceImportPanel, {type ImportValues} from "./invoice-import-panel";
 import BulkInvoiceImportPanel from "./bulk-invoice-import-panel";
@@ -770,6 +771,9 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
           <dt>نسخه</dt><dd>{detail.revision}</dd>
         </dl>
         <p className="field-hint">این وضعیت به معنی تأیید سازمان امور مالیاتی نیست.</p>
+        <InvoiceSendReadinessPanel key={"readiness:"+detail.id}
+          invoiceId={detail.id} taxpayerId={detail.taxpayerId}
+          isWorkspace={detail.kind === "workspace"}/>
         <InvoiceDispatchPanel key={detail.id} invoiceId={detail.id} taxpayerId={detail.taxpayerId}
           isWorkspace={detail.kind === "workspace"}/>
         <InvoiceDispatchHistoryPanel key={"history:"+detail.id}
