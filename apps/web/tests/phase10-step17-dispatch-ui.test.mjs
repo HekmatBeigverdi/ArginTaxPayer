@@ -6,23 +6,24 @@ const panel=readFileSync("app/invoices/invoice-dispatch-panel.tsx","utf8");
 const workspace=readFileSync("app/invoices/workspace.tsx","utf8");
 const css=readFileSync("app/globals.css","utf8");
 
-test("step17 dispatch panel uses scoped BFF read-only status",()=>{
+test("step17 dispatch panel uses scoped BFF status and guarded send",()=>{
   assert.match(panel,/\/api\/invoice-dispatch\//);
   assert.match(panel,/method:"GET"/);
+  assert.match(panel,/method:"POST"/);
   assert.match(panel,/credentials:"same-origin"/);
   assert.match(panel,/cache:"no-store"/);
   assert.match(panel,/encodeURIComponent\(taxpayerId\)/);
   assert.match(panel,/encodeURIComponent\(invoiceId\)/);
-  assert.doesNotMatch(panel,/method:"POST"/);
 });
-test("step17 cannot enable sandbox or production sending in UI",()=>{
-  assert.match(panel,/submissionEnabled!==false/);
+test("step17 enables only guarded Sandbox sending",()=>{
+  assert.match(panel,/typeof value\.submissionEnabled!=="boolean"/);
   assert.match(panel,/inquiryEnabled!==false/);
   assert.match(panel,/fiscalAccepted!==false/);
-  assert.match(panel,/value\.environment!=="Mock"/);
-  assert.match(panel,/disabled\s+title="ارسال/);
+  assert.match(panel,/value\.environment==="Mock"\|\|value\.environment==="Sandbox"/);
+  assert.match(panel,/data\.status!=="Reserved"/);
+  assert.match(panel,/title="ارسال به Sandbox/);
   assert.match(panel,/disabled\s+title="سرویس استعلام/);
-  assert.match(panel,/محیط Mock/);
+  assert.match(panel,/محیط \{data\?\.environment/);
 });
 test("step17 uses existing invoice details without adding new data mutations",()=>{
   assert.match(workspace,/import InvoiceDispatchPanel/);
