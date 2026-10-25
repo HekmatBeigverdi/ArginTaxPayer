@@ -142,6 +142,24 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
   }catch(e){setError((e as Error).message);}
   finally{setActionBusy(false);}
  },[report,review,actionBusy,invoiceId,taxpayerId,refresh,loadReview]);
+ const prepareLegacy=useCallback(async()=>{
+  if(!report||report.invoiceState!=="Finalized"||actionBusy||
+     report.blockingCodes.includes("invoice.serial.durable_reservation_required"))return;
+  setActionBusy(true);setError("");setNotice("");
+  try{
+   const response=await fetch("/api/invoice-dispatch/"+
+    encodeURIComponent(taxpayerId)+"/"+encodeURIComponent(invoiceId)+"/prepare-legacy",{
+    method:"POST",credentials:"same-origin",cache:"no-store"
+   });
+   const body:unknown=await response.json();
+   const value=body&&typeof body==="object"&&!Array.isArray(body)
+    ?body as Record<string,unknown>:{};
+   if(!response.ok)throw Error("آماده‌سازی بسته Legacy انجام نشد: "+String(value.error??response.status));
+   setNotice("بسته Legacy امضا و در Outbox آزمایشی ثبت شد. هنوز صورتحساب ارسال نشده است.");
+   await refresh();
+  }catch(e){setError((e as Error).message);}
+  finally{setActionBusy(false);}
+ },[report,actionBusy,taxpayerId,invoiceId,refresh]);
  const reserveSerial=useCallback(async()=>{
   if(!report||report.invoiceState!=="Finalized"||actionBusy)return;
   setActionBusy(true);setError("");setNotice("");
@@ -186,6 +204,13 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
      <button type="button" className="identity-secondary" disabled={actionBusy||busy}
       onClick={()=>void finalize()}>نهایی‌سازی داخلی صورتحساب</button>}
    </div>}
+  {report?.invoiceState==="Finalized"&&report.environment==="Sandbox"&&
+   !report.blockingCodes.includes("invoice.serial.durable_reservation_required")&&
+   report.blockingCodes.includes("invoice.signed_packet.not_prepared")&&
+   <button type="button" className="identity-secondary" disabled={actionBusy||busy}
+    onClick={()=>void prepareLegacy()}>
+    {actionBusy?"در حال آماده‌سازی…":"امضا و آماده‌سازی بسته Legacy برای Sandbox"}
+   </button>}
   {report?.invoiceState==="Finalized"&&report.environment==="Sandbox"&&
    report.blockingCodes.includes("invoice.serial.durable_reservation_required")&&
    <button type="button" className="identity-secondary" disabled={actionBusy||busy}
