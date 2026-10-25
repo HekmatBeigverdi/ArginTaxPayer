@@ -61,6 +61,22 @@ public static class InvoiceReviewDevelopmentEndpoints
                     _ => Results.BadRequest(new { error = result.Code })
                 };
             });
+        app.MapGet("/api/dev/taxpayers/{taxpayerId:guid}/invoices/{invoiceId:guid}/review-status",
+            async (Guid taxpayerId, Guid invoiceId, HttpContext http,
+                Phase10ReviewReadService service, CancellationToken ct) =>
+            {
+                if (!IsLocal(http)) return Results.NotFound();
+                http.Response.Headers.CacheControl = "no-store";
+                var result = await service.ReadAsync(Token(http), taxpayerId, invoiceId, ct);
+                return result.Decision switch
+                {
+                    InvoiceApiDecision.Success => Results.Ok(result.Review),
+                    InvoiceApiDecision.Unauthenticated => Results.Unauthorized(),
+                    InvoiceApiDecision.Forbidden => Results.StatusCode(403),
+                    InvoiceApiDecision.Invalid => Results.BadRequest(),
+                    _ => Results.NotFound()
+                };
+            });
         var group = app.MapGroup("/api/dev/invoices/{invoiceId:guid}/review")
             .WithTags("Invoice Review (Development)");
 
