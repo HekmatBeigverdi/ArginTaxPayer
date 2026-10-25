@@ -31,6 +31,93 @@ internal static class LegacyInvoiceSubmissionPacketBuilder
         DefaultIgnoreCondition = JsonIgnoreCondition.Never
     };
 
+    internal static LegacyInvoiceSubmissionPacket BuildEncrypted(
+        Guid operationId, Guid customerUserId, Guid taxpayerId, string fiscalTaxId,
+        string invoiceJson, SensitiveBytes signingKey,
+        ReadOnlyMemory<byte> expectedPublicSpki, string accessToken,
+        Guid requestTraceId, string timestamp, string sandboxMemoryClientId,
+        LegacySandboxEncryptionKey authorityEncryptionKey)
+    {
+        if (sandboxMemoryClientId is not { Length: 6 } ||
+            sandboxMemoryClientId.Any(c=>!char.IsAsciiLetterOrDigit(c)) ||
+            operationId==Guid.Empty || customerUserId==Guid.Empty ||
+            taxpayerId==Guid.Empty || requestTraceId==Guid.Empty ||
+            fiscalTaxId is not {Length:22} ||
+            !fiscalTaxId.All(char.IsAsciiLetterOrDigit) ||
+            accessToken is not {Length: > 0 and <= 16384} ||
+            accessToken.Any(char.IsWhiteSpace) ||
+            timestamp is not { Length: > 0 and <= 32 } ||
+            timestamp.Any(c=>!char.IsAsciiDigit(c)))
+            throw new ArgumentException("Invalid Legacy encrypted invoice identity.");
+        using var document=JsonDocument.Parse(invoiceJson);
+        var original=document.RootElement;
+        if(original.ValueKind!=JsonValueKind.Object ||
+           !original.TryGetProperty("header",out var header) ||
+           !header.TryGetProperty("taxid",out var taxid) ||
+           taxid.GetString()!=fiscalTaxId)
+            throw new ArgumentException("Legacy invoice tax ID mismatch.");
+        var signing=new LegacyOfflineSigningEngine();
+        var contentSignature=signing.SignObject(signingKey,expectedPublicSpki,
+            original.Clone(),LegacySigningPurpose.Content).SignatureBase64;
+        var encrypted=LegacySandboxInvoiceEncryption.Encrypt(original,authorityEncryptionKey);
+        var packet=new {
+            uid=operationId.ToString("D"),packetType="INVOICE.V01",retry=false,
+            data=encrypted.CiphertextBase64,
+            encryptionKeyId=encrypted.EncryptionKeyId,
+            symmetricKey=encrypted.WrappedKeyBase64,iv=encrypted.IvHex,
+            fiscalId=sandboxMemoryClientId,dataSignature=contentSignature,
+            signatureKeyId=(string?)null
+        };
+        var headers=new Dictionary<string,string>{
+            ["requestTraceId"]=requestTraceId.ToString("D"),
+            ["timestamp"]=timestamp,["Authorization"]="Bearer "+accessToken
+        };
+        var signature=signing.SignObject(signingKey,expectedPublicSpki,
+            packet,LegacySigningPurpose.Transfer,headers).SignatureBase64;
+        var body=new { signature,signatureKeyId=(string?)null,packets=new[]{packet} };
+        var requestJson=JsonSerializer.Serialize(body,JsonOptions);
+        return new(operationId,customerUserId,taxpayerId,fiscalTaxId,
+            requestJson,signature,requestTraceId.ToString("D"),timestamp,
+            Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(requestJson)))
+                .ToLowerInvariant());
+    }
+
+    internal static LegacyInvoiceSubmissionPacket ReSignEncrypted(
+        Guid operationId,Guid customerUserId,Guid taxpayerId,string fiscalTaxId,
+        string encryptedData,string encryptionKeyId,string wrappedKey,string ivHex,
+        string contentSignature,string memoryCode,SensitiveBytes signingKey,
+        ReadOnlyMemory<byte> expectedPublicSpki,string accessToken,
+        Guid requestTraceId,string timestamp)
+    {
+        if(memoryCode is not {Length:6} ||
+           memoryCode.Any(c=>!char.IsAsciiLetterOrDigit(c)) ||
+           encryptedData is not {Length: > 16} ||
+           encryptionKeyId is not {Length: > 0 and <=128} ||
+           wrappedKey is not {Length: > 16} ||
+           ivHex is not {Length:32} ||
+           contentSignature is not {Length: >16})
+            throw new ArgumentException("Invalid encrypted Legacy packet.");
+        var packet=new{
+            uid=operationId.ToString("D"),packetType="INVOICE.V01",retry=false,
+            data=encryptedData,encryptionKeyId,symmetricKey=wrappedKey,
+            iv=ivHex,fiscalId=memoryCode,dataSignature=contentSignature,
+            signatureKeyId=(string?)null
+        };
+        var headers=new Dictionary<string,string>{
+            ["requestTraceId"]=requestTraceId.ToString("D"),["timestamp"]=timestamp,
+            ["Authorization"]="Bearer "+accessToken
+        };
+        var signature=new LegacyOfflineSigningEngine().SignObject(signingKey,
+            expectedPublicSpki,packet,LegacySigningPurpose.Transfer,headers).SignatureBase64;
+        var requestJson=JsonSerializer.Serialize(new{
+            signature,signatureKeyId=(string?)null,packets=new[]{packet}
+        },JsonOptions);
+        return new(operationId,customerUserId,taxpayerId,fiscalTaxId,requestJson,
+            signature,requestTraceId.ToString("D"),timestamp,
+            Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(requestJson)))
+                .ToLowerInvariant());
+    }
+
     internal static LegacyInvoiceSubmissionPacket Build(
         Guid operationId, Guid customerUserId, Guid taxpayerId, string fiscalId,
         string invoiceJson, SensitiveBytes signingKey, ReadOnlyMemory<byte> expectedPublicSpki,
