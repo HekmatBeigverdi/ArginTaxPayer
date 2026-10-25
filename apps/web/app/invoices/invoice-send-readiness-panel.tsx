@@ -3,7 +3,7 @@ import {useCallback,useEffect,useState} from "react";
 
 type Report={environment:"Sandbox"|"Unverified";invoiceState:"Draft"|"Validated"|"Finalized";
  hasImmutableSnapshot:boolean;invoiceRevision:number;sandboxFiscalMemoryId:string|null;
- readyForLiveSend:false;submissionEnabled:false;
+ readyForLiveSend:boolean;submissionEnabled:boolean;
  signedPacketAvailable:boolean;fiscalAccepted:false;blockingCodes:string[]};
 type Review={state:"Draft"|"InReview"|"ChangesRequested"|"Approved";revision:number};
 const labels:Record<string,string>={
@@ -44,7 +44,7 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
    const value:unknown=await response.json();
    if(!value||typeof value!=="object"||Array.isArray(value))throw Error("پاسخ نامعتبر");
    const data=value as Report;
-   if(data.readyForLiveSend!==false||data.submissionEnabled!==false||
+   if(typeof data.readyForLiveSend!=="boolean"||typeof data.submissionEnabled!=="boolean"||
       typeof data.signedPacketAvailable!=="boolean"||data.fiscalAccepted!==false||
       !Number.isSafeInteger(data.invoiceRevision)||data.invoiceRevision<1||
       (data.sandboxFiscalMemoryId!==null&&typeof data.sandboxFiscalMemoryId!=="string")||
@@ -223,7 +223,7 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
     <p>وضعیت سند: <strong>{report.invoiceState}</strong></p>
    <p>نسخه صورتحساب: <strong>{report.invoiceRevision}</strong></p>
    <p>حافظه Sandbox: <strong dir="ltr">{report.sandboxFiscalMemoryId??"متصل نشده"}</strong></p>
-    <p className="invoice-validation__warning">وضعیت: غیرمجاز برای ارسال واقعی.</p>
+    <p className="invoice-validation__warning">{report.readyForLiveSend?"وضعیت: آماده ارسال آزمایشی به Sandbox.":"وضعیت: هنوز آماده ارسال آزمایشی نیست."}</p>
     <ul>{report.blockingCodes.map(code=><li key={code}>{labels[code]??"مانع ناشناخته؛ بررسی لازم است"}</li>)}</ul>
    </div>}
  </section>;
