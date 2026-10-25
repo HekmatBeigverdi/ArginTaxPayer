@@ -29,3 +29,20 @@ test("no live send can occur before signature/certificate and durable outbox are
  assert.match(readiness,/environment,false,false,false,false/);
  assert.match(api,/invoice_dispatch_not_enabled/);
 });
+
+
+test("opt-in v2 transport pins Sandbox HTTPS, has no redirects or retries and is not wired to UI",()=>{
+ const transport=readFileSync("../../src/ArginTaxPayer.Infrastructure/Signing/Connection/SandboxV2InvoiceHttpTransport.cs","utf8");
+ assert.match(transport,/sandboxrc\.tax\.gov\.ir/);
+ assert.match(transport,/SandboxInvoiceV2:OperatorApprovedEndpoint/);
+ assert.match(transport,/SandboxInvoiceV2:Enabled/);
+ assert.match(transport,/new Uri\(endpoint,"api\/v2\/nonce"\)/);
+ assert.match(transport,/new Uri\(endpoint,"api\/v2\/invoice"\)/);
+ assert.match(transport,/AllowAutoRedirect=false/);
+ assert.match(transport,/UseCookies=false/);
+ assert.match(transport,/sandbox_v2_outcome_indeterminate/);
+ assert.doesNotMatch(transport,/tp\.tax\.gov\.ir|RetryAsync|Task\.Delay/);
+ const dispatch=readFileSync("../../src/ArginTaxPayer.Api/Invoices/Phase10InvoiceDispatchDevelopmentEndpoints.cs","utf8");
+ assert.match(dispatch,/invoice_dispatch_not_enabled/);
+ assert.doesNotMatch(dispatch,/SandboxV2InvoiceHttpTransport/);
+});
