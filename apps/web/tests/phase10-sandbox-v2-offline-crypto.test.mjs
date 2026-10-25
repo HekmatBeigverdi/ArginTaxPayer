@@ -26,7 +26,7 @@ test("no live send can occur before signature/certificate and durable outbox are
  assert.match(readiness,/invoice.sandbox.certificate_chain_not_verified/);
  assert.match(readiness,/invoice.v2.protocol_not_verified_for_sandbox/);
  assert.match(readiness,/invoice.sandbox_outbox.not_connected/);
- assert.match(readiness,/environment,false,false,false,false/);
+ assert.match(readiness,/environment,false,false,signedPacketAvailable,false/);
  assert.match(api,/invoice_dispatch_not_enabled/);
 });
 
