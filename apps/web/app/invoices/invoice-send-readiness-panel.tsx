@@ -28,6 +28,8 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
  const [report,setReport]=useState<Report|null>(null);
  const [busy,setBusy]=useState(false);
  const [error,setError]=useState("");
+ const [actionBusy,setActionBusy]=useState(false);
+ const [notice,setNotice]=useState("");
  const refresh=useCallback(async(signal?:AbortSignal)=>{
   if(isWorkspace)return;
   setBusy(true);setError("");
@@ -49,6 +51,26 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
   }catch(e){if(!signal?.aborted){setReport(null);setError((e as Error).message);}}
   finally{if(!signal?.aborted)setBusy(false);}
  },[invoiceId,taxpayerId,isWorkspace]);
+ const validate=useCallback(async()=>{
+  if(!report||report.invoiceState!=="Draft"||actionBusy)return;
+  setActionBusy(true);setError("");setNotice("");
+  try{
+   const response=await fetch("/api/invoice-dispatch/"+
+    encodeURIComponent(taxpayerId)+"/"+encodeURIComponent(invoiceId)+"/validate-internal",{
+    method:"POST",credentials:"same-origin",cache:"no-store",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({expectedRevision:report.invoiceRevision})
+   });
+   const body:unknown=await response.json();
+   const data=body&&typeof body==="object"&&!Array.isArray(body)
+    ?body as Record<string,unknown>:{};
+   if(!response.ok)throw Error(typeof data.error==="string"
+    ?"اعتبارسنجی انجام نشد: "+data.error:"خطا در اعتبارسنجی صورتحساب");
+   setNotice("اعتبارسنجی داخلی انجام شد؛ تأیید بازبینی و نهایی‌سازی هنوز لازم است.");
+   await refresh();
+  }catch(e){setError((e as Error).message);}
+  finally{setActionBusy(false);}
+ },[report,actionBusy,taxpayerId,invoiceId,refresh]);
  useEffect(()=>{const controller=new AbortController();void refresh(controller.signal);
   return()=>controller.abort();},[refresh]);
  if(isWorkspace)return <p className="field-hint">ابتدا نسخه ثابت داخلی سند را ثبت کنید.</p>;
@@ -60,6 +82,10 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
     onClick={()=>void refresh()}>{busy?"در حال بررسی…":"بازبینی آمادگی"}</button>
   </div>
   {error&&<p role="alert" className="form-error">{error}</p>}
+  {notice&&<p role="status" className="field-hint">{notice}</p>}
+  {report?.invoiceState==="Draft"&&report.hasImmutableSnapshot&&report.environment==="Sandbox"&&
+   <button type="button" className="identity-secondary" disabled={actionBusy||busy}
+    onClick={()=>void validate()}>{actionBusy?"در حال اعتبارسنجی…":"اعتبارسنجی داخلی صورتحساب"}</button>}
   {report&&<div>
     <p>محیط شناسایی‌شده: <strong>{report.environment==="Sandbox"?"Sandbox":"تأییدنشده"}</strong></p>
     <p>وضعیت سند: <strong>{report.invoiceState}</strong></p>
