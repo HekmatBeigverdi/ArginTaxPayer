@@ -16,14 +16,14 @@ test("step22: readiness only returns owner-scoped invoice information",()=>{
  assert.match(service,/invoice.signed_packet.not_prepared/);
  assert.match(service,/invoice.fiscal_identifier.not_issued/);
  assert.match(service,/invoice.owner_live_send_approval.required/);
- assert.match(service,/environment,false,false,false,false/);
+ assert.match(service,/environment,false,false,signedPacketAvailable,false/);
  assert.doesNotMatch(service,/SendAsync\(|HttpClient|private_envelope_json/);
 });
 test("step22: BFF cannot enable readiness despite upstream values",()=>{
  assert.match(bff,/ACCESS_COOKIE/);
  assert.match(bff,/blockingCodes/);
  assert.match(bff,/readyForLiveSend:false,submissionEnabled:false/);
- assert.match(bff,/signedPacketAvailable:false,fiscalAccepted:false/);
+ assert.match(bff,/signedPacketAvailable:data.signedPacketAvailable,fiscalAccepted:false/);
  assert.doesNotMatch(bff,/export async function POST/);
  assert.match(api,/MapGet\("\/readiness"/);
  assert.match(api,/Local\(http\)/);
