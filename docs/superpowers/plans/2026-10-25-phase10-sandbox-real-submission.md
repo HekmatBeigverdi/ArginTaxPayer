@@ -78,6 +78,12 @@
 
 ### Task 4: Receipt, inquiry and reconciliation
 
+> **Current implementation boundary (2026-10-25):** Append-only evidence
+> persistence and state-revision CAS are implemented for initial receipts;
+> inquiry evidence is recorded without claiming fiscal acceptance. The live
+> inquiry adapter remains disabled until the official endpoint and credentials
+> are operator-verified.
+
 **Files:**
 - Modify: `Phase10AuthorityResponseHandoff`, `Phase10InquiryReconciliation`, dispatch fault/history repositories and API routes.
 - Test: response parser, inquiry/reconciliation, timeout/recovery, duplicate response and immutable history tests.
