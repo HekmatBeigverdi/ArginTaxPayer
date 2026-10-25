@@ -205,8 +205,10 @@ SELECT EXISTS(
             blockers.Add("invoice.transport.disabled");
         if (configuration["SandboxInvoiceLegacy:OperatorApprovedSend"] != "true")
             blockers.Add("invoice.owner_live_send_approval.required");
+        var ready = environment == "Sandbox" && signedPacketAvailable &&
+            blockers.Count == 0;
         return new(InvoiceApiDecision.Success,new(
-            environment,false,false,signedPacketAvailable,false,hasInternalSnapshot,
+            environment,ready,ready,signedPacketAvailable,false,hasInternalSnapshot,
             invoice.State.ToString(),invoice.Revision,sandboxFiscalMemoryId,
             blockers.Distinct().ToArray()));
     }
