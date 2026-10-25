@@ -107,6 +107,7 @@ if (identityDevelopmentEnabled)
     builder.Services.AddScoped<InvoiceDraftApplicationService>();
     builder.Services.AddScoped<InvoiceReviewCommandService>();
     builder.Services.AddScoped<Phase10InternalInvoiceValidationService>();
+    builder.Services.AddScoped<Phase10InvoiceFinalizationService>();
     builder.Services.AddScoped<Phase10InvoiceDispatchReadService>();
     builder.Services.AddScoped<Phase10LiveSendReadinessService>();
     builder.Services.AddScoped<Phase10SandboxSubmissionAdmissionService>();
