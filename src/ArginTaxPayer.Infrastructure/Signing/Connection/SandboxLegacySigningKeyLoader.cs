@@ -1,4 +1,3 @@
-using System.Data;
 using System.Security.Cryptography;
 using System.Text.Json;
 using ArginTaxPayer.Infrastructure.Persistence;
@@ -57,6 +56,7 @@ WHERE id=@memory AND customer_user_id=@owner AND taxpayer_id=@taxpayer
             var identity = new KeyProtectionIdentity(customerUserId,taxpayerId,
                 sandboxMemoryId,keyVersion,originOperation,Sandbox:true);
             var secret = await protector.UnprotectAsync(identity,envelope,ct);
+            var transferred=false;
             try
             {
                 using var rsa = RSA.Create();
@@ -69,14 +69,11 @@ WHERE id=@memory AND customer_user_id=@owner AND taxpayer_id=@taxpayer
                         return null;
                 }
                 finally { CryptographicOperations.ZeroMemory(derived); }
-                return new DatabaseLegacySigningKey(secret, (byte[])spki.Clone());
+                var result = new DatabaseLegacySigningKey(secret, (byte[])spki.Clone());
+                transferred=true;
+                return result;
             }
-            finally
-            {
-                // Ownership of 'secret' is transferred to the result only on success.
-                // Return paths without transfer dispose it below in catch-free form
-                // by the explicit ownership flag in the next revision.
-            }
+            finally { if (!transferred) secret.Dispose(); }
         }
         finally { if (openedHere) await connection.CloseAsync(); }
     }
