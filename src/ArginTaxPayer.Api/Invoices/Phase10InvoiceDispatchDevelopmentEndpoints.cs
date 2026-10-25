@@ -30,7 +30,6 @@ public static class Phase10InvoiceDispatchDevelopmentEndpoints
                 InvoiceApiDecision.Success => Results.Ok(new {
                     environment = "Sandbox",
                     submissionEnabled = configuration["SandboxInvoiceLegacy:Enabled"] == "true" &&
-                        configuration["SandboxInvoiceLegacy:OperatorApprovedSend"] == "true" &&
                         result.Overview?.Status == "Reserved",
                     inquiryEnabled = false, fiscalAccepted = false,
                     status = result.Overview?.Status ?? "NotPrepared",
@@ -161,8 +160,7 @@ public static class Phase10InvoiceDispatchDevelopmentEndpoints
             if (result.Decision != InvoiceApiDecision.Success)
                 return Results.NotFound();
             if (configuration["SandboxInvoiceLegacy:Enabled"] != "true" ||
-                configuration["SandboxInvoiceLegacy:OperatorApprovedEndpoint"] != "true" ||
-                configuration["SandboxInvoiceLegacy:OperatorApprovedSend"] != "true")
+                configuration["SandboxInvoiceLegacy:OperatorApprovedEndpoint"] != "true")
                 return Results.Json(new { error = "invoice_dispatch_not_enabled",
                     environment = "Sandbox", submissionEnabled = false,
                     fiscalAccepted = false }, statusCode: StatusCodes.Status503ServiceUnavailable);
