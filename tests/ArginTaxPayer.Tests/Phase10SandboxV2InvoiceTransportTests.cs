@@ -37,6 +37,16 @@ public sealed class Phase10SandboxV2InvoiceTransportTests
             Url(new byte[12]),Url(new byte[32]),Url(new byte[16]));
     }
 
+    private static string FixtureRs256Token()
+    {
+        static string Url(byte[] data)=>Convert.ToBase64String(data)
+            .TrimEnd('=').Replace('+','-').Replace('/','_');
+        return string.Join(".",Url(Encoding.UTF8.GetBytes(
+            "{\"alg\":\"RS256\",\"typ\":\"JWT\"}")),
+            Url(Encoding.UTF8.GetBytes("{\"nonce\":\"test\"}")),
+            Url(new byte[256]));
+    }
+
     private static HttpResponseMessage Json(string body,HttpStatusCode status=HttpStatusCode.OK)=>
         new(status){Content=new StringContent(body,Encoding.UTF8,"application/json")};
 
@@ -53,7 +63,7 @@ public sealed class Phase10SandboxV2InvoiceTransportTests
         Assert.Equal("sandbox-test-nonce-123",await client.FetchNonceAsync(default));
         var jwe=FixtureJwe();
         var result=await client.PostPersistedPacketOnceAsync(
-            jwe,"ABC123",uid,new string('z',220),default);
+            jwe,"ABC123",uid,FixtureRs256Token(),default);
         Assert.True(result.Acknowledged);
         Assert.Equal("REF-123",result.ReferenceNumber);
         Assert.Equal(2,handler.Calls.Count);
