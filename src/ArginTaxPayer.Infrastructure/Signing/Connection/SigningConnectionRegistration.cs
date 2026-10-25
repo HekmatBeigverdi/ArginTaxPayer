@@ -15,6 +15,7 @@ public static class SigningConnectionRegistration
     {
         services.AddScoped<SandboxAuthorityTokenProbe>();
         services.AddScoped<LegacyInvoiceAccessTokenClient>();
+        services.AddScoped<LegacySandboxServerEncryptionKeyClient>();
         services.AddScoped<LegacyInvoiceSubmissionHttpTransport>();
         services.AddScoped<LegacyInvoiceOutboxSendCoordinator>();
         services.AddScoped<DatabaseLegacySigningKeyLoader>();
