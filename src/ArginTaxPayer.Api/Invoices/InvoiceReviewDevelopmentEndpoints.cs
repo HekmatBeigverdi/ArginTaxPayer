@@ -32,7 +32,10 @@ public static class InvoiceReviewDevelopmentEndpoints
                     InvoiceApiDecision.Success => Results.Ok(new {
                         status = result.Code, authoritySubmitted = false }),
                     InvoiceApiDecision.Unauthenticated => Results.Unauthorized(),
-                    InvoiceApiDecision.Forbidden => Results.StatusCode(403),
+                    InvoiceApiDecision.Forbidden => Results.Json(new {
+                        error = result.Code == "membership_inactive"
+                            ? "membership_inactive" : "forbidden"
+                    }, statusCode: 403),
                     InvoiceApiDecision.NotFound => Results.NotFound(),
                     InvoiceApiDecision.Conflict => Results.Conflict(new { error = result.Code }),
                     _ => Results.BadRequest(new { error = result.Code })
