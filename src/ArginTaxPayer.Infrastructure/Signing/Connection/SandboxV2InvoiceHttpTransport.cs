@@ -81,7 +81,8 @@ internal sealed class SandboxV2InvoiceHttpTransport(
             protectedJwePayload is not {Length:>100 and <3000000} ||
             !IsCompactJwe(protectedJwePayload) ||
             signedNonceBearer is not {Length:>200 and <25000} ||
-            signedNonceBearer.Any(char.IsWhiteSpace))
+            signedNonceBearer.Any(char.IsWhiteSpace) ||
+            !IsCompactRs256Token(signedNonceBearer))
             return new(false,"sandbox_v2_packet_invalid");
 
         using var http=testClientFactory?.Invoke() ?? NewClient();
@@ -121,6 +122,28 @@ internal sealed class SandboxV2InvoiceHttpTransport(
          catch(OperationCanceledException) when(!ct.IsCancellationRequested){
             return new(false,"sandbox_v2_outcome_indeterminate");
          }
+    }
+
+    private static bool IsCompactRs256Token(string signedToken)
+    {
+        var segments=signedToken.Split('.');
+        if(segments.Length!=3 || segments.Any(s=>s.Length==0 ||
+            s.Any(ch=>!(ch is >= 'A' and <= 'Z' or >= 'a' and <= 'z' or
+                >= '0' and <= '9' or '-' or '_'))))
+            return false;
+        try{
+            var header=Convert.FromBase64String(segments[0]
+                .Replace('-','+').Replace('_','/')
+                .PadRight((segments[0].Length+3)/4*4,'='));
+            using var document=JsonDocument.Parse(header);
+            return document.RootElement.ValueKind==JsonValueKind.Object &&
+                document.RootElement.TryGetProperty("alg",out var algorithm) &&
+                algorithm.GetString()=="RS256" &&
+                segments[2].Length==342;
+        }catch(Exception e) when(e is FormatException or JsonException or
+            InvalidOperationException or ArgumentException){
+            return false;
+        }
     }
 
     // Require actual JOSE compact shape and protected RSA-OAEP-256/A256GCM
