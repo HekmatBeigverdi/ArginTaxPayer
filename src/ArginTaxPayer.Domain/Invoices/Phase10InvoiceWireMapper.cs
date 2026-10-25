@@ -25,7 +25,9 @@ public sealed record InvoiceWireInput(
     long TotalVatRial, long TotalBillRial,
     string? BuyerTaxId = null, string? ContractRegistrationNumber = null,
     string? ReferenceTaxId = null, int? SettlementMethod = null,
-    IReadOnlyList<InvoiceWirePayment>? Payments = null);
+    IReadOnlyList<InvoiceWirePayment>? Payments = null,
+    long? CashAmountRial = null, long? CreditAmountRial = null,
+    string? InvoiceNumber = null);
 
 /// <summary>Separate from official SDK's potentially changing public classes.</summary>
 public sealed record InvoiceWireProjection(string Json, InvoiceTypePattern Classification,
@@ -84,8 +86,25 @@ public static class Phase10InvoiceWireMapper
             throw new ArgumentException("Cancellation line projection is not verified.");
         if (source.Payments is { Count: > 0 })
             throw new NotSupportedException("Payment transaction wire mapping awaits official Step07 rules.");
-        if (source.SettlementMethod is not null)
-            throw new NotSupportedException("Settlement serialization awaits official Step07 rules.");
+        if (source.SettlementMethod is { } settlement)
+        {
+            if (settlement is < 1 or > 3 ||
+                source.CashAmountRial is not { } cash ||
+                source.CreditAmountRial is not { } credit ||
+                cash < 0 || credit < 0 ||
+                cash > long.MaxValue - credit ||
+                cash + credit != source.TotalBillRial ||
+                settlement == 1 && (credit != 0 || cash != source.TotalBillRial) ||
+                settlement == 2 && (cash != 0 || credit != source.TotalBillRial) ||
+                settlement == 3 && (cash <= 0 || credit <= 0))
+                throw new ArgumentException("Settlement amounts do not match invoice totals.");
+        }
+        else if (source.CashAmountRial is not null || source.CreditAmountRial is not null)
+            throw new ArgumentException("Settlement amounts require a settlement method.");
+        if (source.InvoiceNumber is not null &&
+            (source.InvoiceNumber.Length is < 1 or > 40 ||
+             source.InvoiceNumber.Any(char.IsControl)))
+            throw new ArgumentException("Invalid seller invoice number.");
 
         var body = cancellation ? Array.Empty<object>() :
             source.Lines!.Select(x =>
@@ -129,6 +148,7 @@ public static class Phase10InvoiceWireMapper
             header = new
             {
                 taxid = source.TaxId,
+                inno = source.InvoiceNumber,
                 indatim = source.IssueUnixMilliseconds,
                 ins = (int)source.Subject,
                 inty = cancellation ? (int?)null : (int)pair.Type,
@@ -141,7 +161,10 @@ public static class Phase10InvoiceWireMapper
                 tdis = source.TotalDiscountRial,
                 tadis = source.TotalAfterDiscountRial,
                 tvam = source.TotalVatRial,
-                tbill = source.TotalBillRial
+                tbill = source.TotalBillRial,
+                setm = source.SettlementMethod,
+                cap = source.CashAmountRial,
+                insp = source.CreditAmountRial
             },
             body,
             payments = Array.Empty<object>(),
