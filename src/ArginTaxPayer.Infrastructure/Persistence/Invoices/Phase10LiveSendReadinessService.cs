@@ -92,8 +92,49 @@ public sealed class Phase10LiveSendReadinessService(
         // fields supplied by a client. The selected wire profile controls only
         // which protocol-specific evidence is relevant.
         blockers.Add("invoice.rules.not_submission_verified");
-        blockers.Add("invoice.fiscal_identifier.not_issued");
-        blockers.Add("invoice.serial.durable_reservation_required");
+        // A fiscal ID must be grounded in the durable reservation row.
+        // Never infer issuance from a user-supplied snapshot field.
+        var reserved = false;
+        if (invoice.State == InvoiceLifecycleState.Finalized &&
+            sandboxFiscalMemoryId is { } memoryId)
+        {
+            var connection = db.Database.GetDbConnection();
+            var opened = connection.State != System.Data.ConnectionState.Open;
+            if (opened) await connection.OpenAsync(ct);
+            try
+            {
+                await using var command = connection.CreateCommand();
+                command.CommandText = """
+SELECT EXISTS (
+ SELECT 1 FROM sandbox_invoice_fiscal_reservations
+ WHERE customer_user_id=@owner AND taxpayer_id=@taxpayer AND
+  invoice_id=@invoice AND invoice_revision=@revision AND
+  sandbox_memory_id=@memory AND fiscal_tax_id IS NOT NULL
+)
+""";
+                foreach (var (name,value) in new (string,object)[] {
+                    ("owner",owner.Value),("taxpayer",taxpayerId),
+                    ("invoice",invoiceId),("revision",invoice.Revision),
+                    ("memory",memoryId)
+                })
+                {
+                    var parameter=command.CreateParameter();
+                    parameter.ParameterName=name;
+                    parameter.Value=value;
+                    command.Parameters.Add(parameter);
+                }
+                reserved = (bool)(await command.ExecuteScalarAsync(ct) ?? false);
+            }
+            finally
+            {
+                if (opened) await connection.CloseAsync();
+            }
+        }
+        if (!reserved)
+        {
+            blockers.Add("invoice.fiscal_identifier.not_issued");
+            blockers.Add("invoice.serial.durable_reservation_required");
+        }
         var profile = configuration["Phase10Submission:Profile"]?.Trim().ToLowerInvariant();
         if (string.IsNullOrWhiteSpace(profile)) profile = "legacy";
         if (profile == "legacy")
