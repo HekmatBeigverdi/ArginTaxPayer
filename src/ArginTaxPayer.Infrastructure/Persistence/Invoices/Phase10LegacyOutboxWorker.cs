@@ -13,7 +13,7 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Invoices;
 /// </summary>
 internal sealed class Phase10LegacyOutboxWorker(
     ArginTaxPayerDbContext db,
-    DatabaseLegacySigningKeyLoader keys,
+    SandboxLegacySigningKeyLoader keys,
     LegacyInvoiceOutboxSendCoordinator sender,
     Phase10DispatchAttemptRepository attempts,
     Phase10DispatchEvidenceRepository evidence,
