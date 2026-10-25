@@ -13,7 +13,7 @@ cd "$(dirname "$0")/.."
 echo "Phase10 Sandbox SDK-v2 offline gate SHA: $(git rev-parse HEAD)"
 dotnet build ArginTaxPayer.sln --no-restore
 dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --no-restore \
- --filter 'FullyQualifiedName~Phase10FiscalInvoiceIdentifierTests|FullyQualifiedName~Phase10SandboxInvoicePacketCryptographyTests|FullyQualifiedName~Phase10SandboxV2InvoiceTransportTests|FullyQualifiedName~Phase10SandboxSingleInvoiceConsentTests'
+ --filter 'FullyQualifiedName~Phase10FiscalInvoiceIdentifierTests|FullyQualifiedName~Phase10SandboxInvoicePacketCryptographyTests|FullyQualifiedName~Phase10SandboxV2InvoiceTransportTests|FullyQualifiedName~Phase10SandboxSingleInvoiceConsentTests|FullyQualifiedName~Phase10LegacyFrozenInvoiceProjectorTests|FullyQualifiedName~Phase10InvoiceWireMapperTests'
 (
  cd apps/web
  node --test tests/phase10-sandbox-v2-offline-crypto.test.mjs \
@@ -31,7 +31,8 @@ dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --no-restore \
   tests/phase10-owner-review-permissions.test.mjs \
   tests/phase10-fiscal-reservation-readiness.test.mjs \
   tests/phase10-sandbox-legacy-key-loader.test.mjs \
-  tests/phase10-legacy-evidence-and-auth.test.mjs
+  tests/phase10-legacy-evidence-and-auth.test.mjs \
+  tests/phase10-legacy-preparation-contract.test.mjs
  npm run typecheck
  npm run build
 )
