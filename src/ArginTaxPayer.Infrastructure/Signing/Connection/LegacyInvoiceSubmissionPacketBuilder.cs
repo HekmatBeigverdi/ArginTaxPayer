@@ -34,7 +34,8 @@ internal static class LegacyInvoiceSubmissionPacketBuilder
     internal static LegacyInvoiceSubmissionPacket Build(
         Guid operationId, Guid customerUserId, Guid taxpayerId, string fiscalId,
         string invoiceJson, SensitiveBytes signingKey, ReadOnlyMemory<byte> expectedPublicSpki,
-        string accessToken, Guid requestTraceId, string timestamp)
+        string accessToken, Guid requestTraceId, string timestamp,
+        string? sandboxMemoryClientId = null)
     {
         if (operationId == Guid.Empty || customerUserId == Guid.Empty || taxpayerId == Guid.Empty ||
             requestTraceId == Guid.Empty || fiscalId is not { Length: >= 6 and <= 32 } ||
@@ -43,6 +44,10 @@ internal static class LegacyInvoiceSubmissionPacketBuilder
             accessToken is not { Length: > 0 and <= 16_384 } || accessToken.Any(char.IsWhiteSpace) ||
             timestamp is not { Length: > 0 and <= 32 } || timestamp.Any(c => !char.IsAsciiDigit(c)))
             throw new ArgumentException("Invalid legacy invoice packet input.");
+        if (sandboxMemoryClientId is not null &&
+            (sandboxMemoryClientId.Length != 6 ||
+             sandboxMemoryClientId.Any(c => !char.IsAsciiLetterOrDigit(c))))
+            throw new ArgumentException("Invalid Sandbox memory client ID.");
         ArgumentNullException.ThrowIfNull(signingKey);
         if (expectedPublicSpki.Length is < 1 or > 4096)
             throw new ArgumentException("Invalid legacy signing public key.", nameof(expectedPublicSpki));
@@ -60,7 +65,7 @@ internal static class LegacyInvoiceSubmissionPacketBuilder
             encryptionKeyId = (string?)null,
             symmetricKey = (string?)null,
             iv = (string?)null,
-            fiscalId,
+            fiscalId = sandboxMemoryClientId ?? fiscalId,
             dataSignature = (string?)null,
             signatureKeyId = (string?)null
         };
