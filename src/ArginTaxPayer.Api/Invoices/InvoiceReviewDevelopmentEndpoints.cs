@@ -41,6 +41,26 @@ public static class InvoiceReviewDevelopmentEndpoints
                     _ => Results.BadRequest(new { error = result.Code })
                 };
             });
+        app.MapPost("/api/dev/taxpayers/{taxpayerId:guid}/invoices/{invoiceId:guid}/finalize-internal",
+            async (Guid taxpayerId, Guid invoiceId, InternalValidationRequest request,
+                HttpContext http, Phase10InvoiceFinalizationService service,
+                CancellationToken ct) =>
+            {
+                if (!IsLocal(http)) return Results.NotFound();
+                http.Response.Headers.CacheControl = "no-store";
+                var result = await service.FinalizeAsync(Token(http), taxpayerId, invoiceId,
+                    request.ExpectedRevision, ct);
+                return result.Decision switch
+                {
+                    InvoiceApiDecision.Success => Results.Ok(new {
+                        status = result.Code, authoritySubmitted = false }),
+                    InvoiceApiDecision.Unauthenticated => Results.Unauthorized(),
+                    InvoiceApiDecision.Forbidden => Results.StatusCode(403),
+                    InvoiceApiDecision.NotFound => Results.NotFound(),
+                    InvoiceApiDecision.Conflict => Results.Conflict(new { error = result.Code }),
+                    _ => Results.BadRequest(new { error = result.Code })
+                };
+            });
         var group = app.MapGroup("/api/dev/invoices/{invoiceId:guid}/review")
             .WithTags("Invoice Review (Development)");
 
