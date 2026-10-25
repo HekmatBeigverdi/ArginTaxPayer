@@ -54,7 +54,7 @@ internal static class LegacyInvoiceOutboxPacketRebuilder
         var packet = packets[0];
         if (!TryProperty(packet, "packetType", out var packetType) ||
             packetType.ValueKind != JsonValueKind.String ||
-            packetType.GetString() != "INVOICE" ||
+            packetType.GetString() != "INVOICE.V01" ||
             !TryProperty(packet, "data", out var data) ||
             data.ValueKind != JsonValueKind.Object)
             throw new ArgumentException("Invalid legacy invoice packet.", nameof(outboxPayloadJson));
