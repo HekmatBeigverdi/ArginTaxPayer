@@ -40,7 +40,8 @@ internal sealed class LegacyInvoiceOutboxSendCoordinator(
             return null;
 
         var packet = LegacyInvoiceOutboxPacketRebuilder.Rebuild(outboxPayloadJson,
-            signingKey.PrivateKey, signingKey.PublicSpkiDer, token.AccessToken, ct);
+            signingKey.PrivateKey, signingKey.PublicSpkiDer, token.AccessToken, ct,
+            sandboxClientId);
         return new(packet, token.AccessToken);
     }
 
