@@ -91,7 +91,8 @@ public sealed class Phase10LiveSendReadinessService(
         // These are server-owned evidence gates. Do not turn them off based on
         // fields supplied by a client. The selected wire profile controls only
         // which protocol-specific evidence is relevant.
-        blockers.Add("invoice.rules.not_submission_verified");
+        // Legacy rules become evidenced only after the strict Type1/Pattern1
+        // server-side projection and durable signed Outbox preparation.
         // A fiscal ID must be grounded in the durable reservation row.
         // Never infer issuance from a user-supplied snapshot field.
         var reserved = false;
@@ -195,6 +196,7 @@ SELECT EXISTS(
         }
         if(!signedPacketAvailable)
         {
+            blockers.Add("invoice.rules.not_submission_verified");
             blockers.Add("invoice.signed_packet.not_prepared");
             blockers.Add("invoice.sandbox_outbox.not_connected");
         }
