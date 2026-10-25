@@ -96,6 +96,12 @@
 
 ### Task 5: Existing Persian RTL dispatch UI
 
+> **Current implementation boundary (2026-10-25):** The existing RTL dispatch
+> panels and BFF now expose server-owned invoice revision and Sandbox memory
+> context, bounded blockers, receipt history and explicit owner/inquiry states.
+> Browser submission remains disabled; no credential or live authority request
+> is initiated from the UI.
+
 **Files:**
 - Modify: `apps/web/app/invoices/invoice-send-readiness-panel.tsx`, `invoice-dispatch-panel.tsx`, `invoice-dispatch-history-panel.tsx`, BFF routes and related styles.
 - Test: Step22 readiness, dispatch UI/history, tenant/RBAC and no-network-from-browser suites.

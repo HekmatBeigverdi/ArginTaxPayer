@@ -45,6 +45,8 @@ export async function GET(request:NextRequest,context:Context){
   if(data.readyForLiveSend!==false||data.submissionEnabled!==false||
    data.signedPacketAvailable!==false||data.fiscalAccepted!==false||
    typeof data.hasImmutableSnapshot!=="boolean"||
+   !Number.isSafeInteger(data.invoiceRevision)||Number(data.invoiceRevision)<1||
+   (data.sandboxFiscalMemoryId!==null&&typeof data.sandboxFiscalMemoryId!=="string")||
    !["Sandbox","Unverified"].includes(String(data.environment))||
    !["Draft","Validated","Finalized"].includes(String(data.invoiceState))||
    !Array.isArray(data.blockingCodes)||data.blockingCodes.length>20||
@@ -53,6 +55,8 @@ export async function GET(request:NextRequest,context:Context){
   return NextResponse.json({
    environment:data.environment,invoiceState:data.invoiceState,
    hasImmutableSnapshot:data.hasImmutableSnapshot,
+   invoiceRevision:data.invoiceRevision,
+   sandboxFiscalMemoryId:data.sandboxFiscalMemoryId,
    readyForLiveSend:false,submissionEnabled:false,
    signedPacketAvailable:false,fiscalAccepted:false,
    blockingCodes:data.blockingCodes

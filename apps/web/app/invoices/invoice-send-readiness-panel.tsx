@@ -2,7 +2,8 @@
 import {useCallback,useEffect,useState} from "react";
 
 type Report={environment:"Sandbox"|"Unverified";invoiceState:"Draft"|"Validated"|"Finalized";
- hasImmutableSnapshot:boolean;readyForLiveSend:false;submissionEnabled:false;
+ hasImmutableSnapshot:boolean;invoiceRevision:number;sandboxFiscalMemoryId:string|null;
+ readyForLiveSend:false;submissionEnabled:false;
  signedPacketAvailable:false;fiscalAccepted:false;blockingCodes:string[]};
 const labels:Record<string,string>={
  "invoice.snapshot.invalid":"ساختار نسخه ذخیره‌شده قابل تأیید نیست",
@@ -38,6 +39,8 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
    const data=value as Report;
    if(data.readyForLiveSend!==false||data.submissionEnabled!==false||
       data.signedPacketAvailable!==false||data.fiscalAccepted!==false||
+      !Number.isSafeInteger(data.invoiceRevision)||data.invoiceRevision<1||
+      (data.sandboxFiscalMemoryId!==null&&typeof data.sandboxFiscalMemoryId!=="string")||
       !Array.isArray(data.blockingCodes))throw Error("وضعیت ایمنی نامعتبر");
    if(!signal?.aborted)setReport(data);
   }catch(e){if(!signal?.aborted){setReport(null);setError((e as Error).message);}}
@@ -57,6 +60,8 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
   {report&&<div>
     <p>محیط شناسایی‌شده: <strong>{report.environment==="Sandbox"?"Sandbox":"تأییدنشده"}</strong></p>
     <p>وضعیت سند: <strong>{report.invoiceState}</strong></p>
+   <p>نسخه صورتحساب: <strong>{report.invoiceRevision}</strong></p>
+   <p>حافظه Sandbox: <strong dir="ltr">{report.sandboxFiscalMemoryId??"متصل نشده"}</strong></p>
     <p className="invoice-validation__warning">وضعیت: غیرمجاز برای ارسال واقعی.</p>
     <ul>{report.blockingCodes.map(code=><li key={code}>{labels[code]??"مانع ناشناخته؛ بررسی لازم است"}</li>)}</ul>
    </div>}

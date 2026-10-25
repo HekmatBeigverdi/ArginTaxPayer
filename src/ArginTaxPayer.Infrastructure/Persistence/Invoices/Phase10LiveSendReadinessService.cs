@@ -12,7 +12,8 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Invoices;
 public sealed record Phase10LiveSendReadiness(
     string Environment, bool ReadyForLiveSend, bool SubmissionEnabled,
     bool SignedPacketAvailable, bool FiscalAccepted, bool HasImmutableSnapshot,
-    string InvoiceState, string[] BlockingCodes);
+    string InvoiceState, long InvoiceRevision, Guid? SandboxFiscalMemoryId,
+    string[] BlockingCodes);
 public sealed record Phase10LiveSendReadinessResult(
     InvoiceApiDecision Decision, Phase10LiveSendReadiness? Readiness=null);
 
@@ -39,12 +40,13 @@ public sealed class Phase10LiveSendReadinessService(
         var invoice=await db.InvoiceDocuments.AsNoTracking().Where(i=>
             i.Id==invoiceId && i.CustomerUserId==owner.Value &&
             i.TaxpayerId==taxpayerId)
-            .Select(i=>new{i.State,i.SnapshotJson}).SingleOrDefaultAsync(ct);
+            .Select(i=>new{i.State,i.Revision,i.SnapshotJson}).SingleOrDefaultAsync(ct);
         if(invoice is null)return new(InvoiceApiDecision.NotFound);
 
         var blockers=new List<string>();
         var environment="Unverified";
         var hasInternalSnapshot=false;
+        Guid? sandboxFiscalMemoryId=null;
         try {
             using var document=JsonDocument.Parse(invoice.SnapshotJson);
             var root=document.RootElement;
@@ -61,7 +63,10 @@ public sealed class Phase10LiveSendReadinessService(
                 root.TryGetProperty("sandboxFiscalMemoryId",out var mem) &&
                 mem.ValueKind==JsonValueKind.String && mem.TryGetGuid(out var keyId) &&
                 keyId!=Guid.Empty)
+            {
                 environment="Sandbox";
+                sandboxFiscalMemoryId=keyId;
+            }
         } catch(JsonException) {
             blockers.Add("invoice.snapshot.invalid");
         } catch(FormatException) {
@@ -87,6 +92,7 @@ public sealed class Phase10LiveSendReadinessService(
         blockers.Add("invoice.owner_live_send_approval.required");
         return new(InvoiceApiDecision.Success,new(
             environment,false,false,false,false,hasInternalSnapshot,
-            invoice.State.ToString(),blockers.Distinct().ToArray()));
+            invoice.State.ToString(),invoice.Revision,sandboxFiscalMemoryId,
+            blockers.Distinct().ToArray()));
     }
 }
