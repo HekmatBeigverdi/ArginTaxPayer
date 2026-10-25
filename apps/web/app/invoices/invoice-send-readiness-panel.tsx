@@ -64,8 +64,20 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
    const body:unknown=await response.json();
    const data=body&&typeof body==="object"&&!Array.isArray(body)
     ?body as Record<string,unknown>:{};
-   if(!response.ok)throw Error(typeof data.error==="string"
-    ?"اعتبارسنجی انجام نشد: "+data.error:"خطا در اعتبارسنجی صورتحساب");
+   if(!response.ok){
+    const messages:Record<string,string>={
+     unauthorized:"نشست ورود معتبر نیست؛ دوباره وارد حساب شوید.",
+     forbidden:"مجوز اعتبارسنجی این صورتحساب برای حساب فعلی وجود ندارد.",
+     not_found:"صورتحساب در محدوده دسترسی حساب فعلی پیدا نشد.",
+     origin_not_allowed:"مبدأ درخواست مورد تأیید نیست؛ صفحه را از نشانی محلی برنامه باز کنید.",
+     invalid_upstream_response:"پاسخ سرویس اعتبارسنجی نامعتبر است؛ وضعیت API بررسی شود.",
+     upstream_server_error:"سرویس Backend خطای داخلی دارد؛ Migration و لاگ API بررسی شود.",
+     api_unavailable:"اتصال به API برقرار نیست.",
+     sandbox_snapshot_validation_failed:"نسخه ثابت صورتحساب شرایط اعتبارسنجی داخلی را ندارد."
+    };
+    const code=typeof data.error==="string"?data.error:"unknown_error";
+    throw Error(messages[code]??("اعتبارسنجی انجام نشد: "+code));
+   }
    setNotice("اعتبارسنجی داخلی انجام شد؛ تأیید بازبینی و نهایی‌سازی هنوز لازم است.");
    await refresh();
   }catch(e){setError((e as Error).message);}
