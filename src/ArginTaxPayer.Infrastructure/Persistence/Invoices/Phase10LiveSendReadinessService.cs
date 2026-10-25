@@ -151,15 +151,60 @@ SELECT EXISTS (
         // These are reported until durable operation evidence exists. The
         // transport and operator gates are configuration-backed and must not
         // remain visible after explicit local Sandbox approval.
-        blockers.Add("invoice.signed_packet.not_prepared");
-        blockers.Add("invoice.sandbox_outbox.not_connected");
+        // A signed packet and a durable Outbox message are proven by an
+        // identical operation ID, trusted scope, revision, memory and hash.
+        // Never trust the frozen invoice's old signedPacketAvailable flag.
+        var signedPacketAvailable=false;
+        if (invoice.State==InvoiceLifecycleState.Finalized &&
+            sandboxFiscalMemoryId is { } boundMemory)
+        {
+            var conn=db.Database.GetDbConnection();
+            var opened=conn.State!=System.Data.ConnectionState.Open;
+            if(opened)await conn.OpenAsync(ct);
+            try
+            {
+                await using var cmd=conn.CreateCommand();
+                cmd.CommandText="""
+SELECT EXISTS(
+ SELECT 1 FROM invoice_dispatch_operations d
+ JOIN outbox_messages o ON o.id=d.id AND o.taxpayer_id=d.taxpayer_id
+ WHERE d.customer_user_id=@owner AND d.taxpayer_id=@taxpayer
+  AND d.invoice_id=@invoice AND d.invoice_revision=@revision
+  AND d.fiscal_memory_id=@memory
+  AND o.event_type='invoice.sandbox.legacy.dispatch.requested'
+  AND o.payload_json::jsonb->>'environment'='Sandbox'
+  AND o.payload_json::jsonb->>'requestSha256'=d.payload_sha256
+  AND o.payload_json::jsonb->>'invoiceId'=@invoice_text
+  AND o.payload_json::jsonb->>'fiscalMemoryId'=@memory_text
+)
+""";
+                foreach(var (name,value) in new (string,object)[] {
+                    ("owner",owner.Value),("taxpayer",taxpayerId),
+                    ("invoice",invoiceId),("revision",invoice.Revision),
+                    ("memory",boundMemory),
+                    ("invoice_text",invoiceId.ToString("D")),
+                    ("memory_text",boundMemory.ToString("D"))
+                })
+                {
+                    var p=cmd.CreateParameter();
+                    p.ParameterName=name;p.Value=value;cmd.Parameters.Add(p);
+                }
+                signedPacketAvailable=(bool)(await cmd.ExecuteScalarAsync(ct)??false);
+            }
+            finally { if(opened)await conn.CloseAsync(); }
+        }
+        if(!signedPacketAvailable)
+        {
+            blockers.Add("invoice.signed_packet.not_prepared");
+            blockers.Add("invoice.sandbox_outbox.not_connected");
+        }
         if (configuration["SandboxInvoiceLegacy:Enabled"] != "true" ||
             configuration["SandboxInvoiceLegacy:OperatorApprovedSend"] != "true")
             blockers.Add("invoice.transport.disabled");
         if (configuration["SandboxInvoiceLegacy:OperatorApprovedSend"] != "true")
             blockers.Add("invoice.owner_live_send_approval.required");
         return new(InvoiceApiDecision.Success,new(
-            environment,false,false,false,false,hasInternalSnapshot,
+            environment,false,false,signedPacketAvailable,false,hasInternalSnapshot,
             invoice.State.ToString(),invoice.Revision,sandboxFiscalMemoryId,
             blockers.Distinct().ToArray()));
     }
