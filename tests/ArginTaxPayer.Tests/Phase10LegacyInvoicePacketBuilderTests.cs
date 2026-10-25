@@ -32,6 +32,24 @@ public sealed class Phase10LegacyInvoicePacketBuilderTests
     }
 
     [Fact]
+    public void Legacy_invoice_packet_uses_client_memory_code_not_22_character_tax_id()
+    {
+        using var rsa = RSA.Create(2048);
+        using var key = SensitiveBytes.TakeOwnership(rsa.ExportPkcs8PrivateKey());
+        var packet = LegacyInvoiceSubmissionPacketBuilder.Build(
+            Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),
+            "AAAAAAAAAAAAAAAAAAAAAA",
+            "{\\\"header\\\":{\\\"taxid\\\":\\\"AAAAAAAAAAAAAAAAAAAAAA\\\"},\\\"body\\\":[]}",
+            key,rsa.ExportSubjectPublicKeyInfo(),"token-value",
+            Guid.NewGuid(),"1792939200000","ABC123");
+        using var doc = JsonDocument.Parse(packet.RequestJson);
+        var sent = doc.RootElement.GetProperty("packets")[0];
+        Assert.Equal("INVOICE.V01",sent.GetProperty("packetType").GetString());
+        Assert.Equal("ABC123",sent.GetProperty("fiscalId").GetString());
+        Assert.Equal("AAAAAAAAAAAAAAAAAAAAAA",packet.FiscalTaxId);
+    }
+
+    [Fact]
     public void Rejects_empty_invoice_payload_or_invalid_scope()
     {
         using var rsa = RSA.Create(2048);
