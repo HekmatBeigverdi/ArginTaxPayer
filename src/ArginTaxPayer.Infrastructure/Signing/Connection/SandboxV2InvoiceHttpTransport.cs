@@ -79,7 +79,7 @@ internal sealed class SandboxV2InvoiceHttpTransport(
             !Guid.TryParse(requestTraceId,out var uid) ||
             uid==Guid.Empty ||
             protectedJwePayload is not {Length:>100 and <3000000} ||
-            protectedJwePayload.Count(c=>c=='.')!=4 ||
+            !IsCompactJwe(protectedJwePayload) ||
             signedNonceBearer is not {Length:>200 and <25000} ||
             signedNonceBearer.Any(char.IsWhiteSpace))
             return new(false,"sandbox_v2_packet_invalid");
@@ -121,6 +121,41 @@ internal sealed class SandboxV2InvoiceHttpTransport(
          catch(OperationCanceledException) when(!ct.IsCancellationRequested){
             return new(false,"sandbox_v2_outcome_indeterminate");
          }
+    }
+
+    // Require actual JOSE compact shape and protected RSA-OAEP-256/A256GCM
+    // headers; a dotted arbitrary string must never pass into send transport.
+    // Full cryptographic proof remains mandatory in the signed-outbox layer.
+    private static bool IsCompactJwe(string candidate)
+    {
+        var parts=candidate.Split('.');
+        if(parts.Length!=5 ||
+           parts.Any(part=>part.Length==0 ||
+              part.Any(ch=>!(ch is >= 'A' and <= 'Z' or >= 'a' and <= 'z' or
+                  >= '0' and <= '9' or '-' or '_'))))
+            return false;
+        try {
+            byte[] encodedHeader=Convert.FromBase64String(
+                parts[0].Replace('-','+').Replace('_','/')
+                    .PadRight((parts[0].Length+3)/4*4,'='));
+            using var json=JsonDocument.Parse(encodedHeader);
+            if(json.RootElement.ValueKind!=JsonValueKind.Object ||
+               !json.RootElement.TryGetProperty("alg",out var alg) ||
+               alg.GetString()!="RSA-OAEP-256" ||
+               !json.RootElement.TryGetProperty("enc",out var enc) ||
+               enc.GetString()!="A256GCM" ||
+               !json.RootElement.TryGetProperty("kid",out var kid) ||
+               kid.ValueKind!=JsonValueKind.String ||
+               kid.GetString() is not {Length:>0 and <=128})
+                return false;
+            // Base64url encoded 96-bit IV and 128-bit GCM tag.
+            if(parts[2].Length!=16 || parts[4].Length!=22)
+                return false;
+            return parts[1].Length>=300 && parts[3].Length>0;
+        }catch(Exception e) when(e is FormatException or JsonException or
+            InvalidOperationException or ArgumentException){
+            return false;
+        }
     }
 
     private static HttpClient NewClient()
