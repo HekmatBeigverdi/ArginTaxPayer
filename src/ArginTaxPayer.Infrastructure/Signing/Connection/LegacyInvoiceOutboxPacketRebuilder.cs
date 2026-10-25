@@ -57,25 +57,24 @@ internal static class LegacyInvoiceOutboxPacketRebuilder
             packetType.GetString() != "INVOICE.V01" ||
             !TryProperty(packet, "data", out var data) ||
             data.ValueKind != JsonValueKind.String ||
-            !TryProperty(packet,"encryptionKeyId",out var encryptionId) ||
-            encryptionId.ValueKind!=JsonValueKind.String ||
-            !TryProperty(packet,"symmetricKey",out var symmetricKey) ||
-            symmetricKey.ValueKind!=JsonValueKind.String ||
-            !TryProperty(packet,"iv",out var iv) ||
-            iv.ValueKind!=JsonValueKind.String ||
-            !TryProperty(packet,"dataSignature",out var contentSignature) ||
-            contentSignature.ValueKind!=JsonValueKind.String ||
-            !TryProperty(packet,"fiscalId",out var packetFiscalId) ||
-            packetFiscalId.ValueKind!=JsonValueKind.String ||
-            sandboxMemoryClientId is not { Length: 6 } ||
-            packetFiscalId.GetString()!=sandboxMemoryClientId)
-            throw new ArgumentException("Encrypted Legacy invoice required.", nameof(outboxPayloadJson));
+            !TryProperty(packet, "uid", out var uid) ||
+            uid.ValueKind != JsonValueKind.String ||
+            uid.GetString() != operationId.ToString("D") ||
+            !TryProperty(packet, "retry", out var retry) ||
+            retry.ValueKind != JsonValueKind.False)
+            throw new ArgumentException("Invalid encrypted legacy invoice packet.");
+
+        var encryptedData = RequiredString(packet, "data");
+        var encryptionKeyId = RequiredString(packet, "encryptionKeyId");
+        var symmetricKey = RequiredString(packet, "symmetricKey");
+        var iv = RequiredString(packet, "iv");
+        var contentSignature = RequiredString(packet, "dataSignature");
+        var memoryCode = RequiredString(packet, "fiscalId");
         return LegacyInvoiceSubmissionPacketBuilder.ReSignEncrypted(
-            operationId,customerUserId,taxpayerId,fiscalId,
-            data.GetString()!,encryptionId.GetString()!,
-            symmetricKey.GetString()!,iv.GetString()!,
-            contentSignature.GetString()!,sandboxMemoryClientId,
-            signingKey,expectedPublicSpki,accessToken,Guid.NewGuid(),
+            operationId, customerUserId, taxpayerId, fiscalId,
+            encryptedData, encryptionKeyId, symmetricKey, iv,
+            contentSignature, memoryCode, signingKey, expectedPublicSpki,
+            accessToken, Guid.NewGuid(),
             DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
                 .ToString(System.Globalization.CultureInfo.InvariantCulture));
     }
