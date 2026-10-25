@@ -12,7 +12,7 @@ internal static class LegacyInvoiceOutboxPacketRebuilder
     internal static LegacyInvoiceSubmissionPacket Rebuild(
         string outboxPayloadJson, SensitiveBytes signingKey,
         ReadOnlyMemory<byte> expectedPublicSpki, string accessToken,
-        CancellationToken ct = default)
+        CancellationToken ct = default, string? sandboxMemoryClientId = null)
     {
         ct.ThrowIfCancellationRequested();
         if (outboxPayloadJson is not { Length: > 2 and <= MaxPayloadBytes })
@@ -63,7 +63,7 @@ internal static class LegacyInvoiceOutboxPacketRebuilder
             operationId, customerUserId, taxpayerId, fiscalId,
             data.GetRawText(), signingKey, expectedPublicSpki, accessToken,
             Guid.NewGuid(), DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
-                .ToString(System.Globalization.CultureInfo.InvariantCulture));
+                .ToString(System.Globalization.CultureInfo.InvariantCulture),sandboxMemoryClientId);
     }
 
     private static string RequiredString(JsonElement root, string name)
