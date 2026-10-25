@@ -160,9 +160,14 @@ public sealed class Phase10LegacyInvoicePreparationService(
         var trace=Guid.NewGuid();
         var timestamp=DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
             .ToString(System.Globalization.CultureInfo.InvariantCulture);
-        var packet=LegacyInvoiceSubmissionPacketBuilder.Build(operationId,
+        var encryptionClient=services.GetRequiredService<LegacySandboxServerEncryptionKeyClient>();
+        using var authorityKey=await encryptionClient.RequestAsync(
+            memoryCode,key.PrivateKey,key.PublicSpkiDer,ct);
+        if(authorityKey is null)
+            return Denied("sandbox_legacy_authority_encryption_key_unavailable");
+        var packet=LegacyInvoiceSubmissionPacketBuilder.BuildEncrypted(operationId,
             owner.Value,taxpayerId,reservation,wire.Json,key.PrivateKey,
-            key.PublicSpkiDer,token.AccessToken,trace,timestamp,memoryCode);
+            key.PublicSpkiDer,token.AccessToken,trace,timestamp,memoryCode,authorityKey);
         var outboxPayload=JsonSerializer.Serialize(new {
             schema="phase10.sandbox.legacy.invoice.dispatch.v1",
             environment="Sandbox",operationId,customerUserId=owner.Value,
