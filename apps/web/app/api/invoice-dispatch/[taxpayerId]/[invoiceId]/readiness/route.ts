@@ -45,7 +45,7 @@ export async function GET(request:NextRequest,context:Context){
   if(!value||typeof value!=="object"||Array.isArray(value))
    return error(502,"invalid_response");
   const data=value as Record<string,unknown>;
-  if(data.readyForLiveSend!==false||data.submissionEnabled!==false||
+  if(typeof data.readyForLiveSend!=="boolean"||typeof data.submissionEnabled!=="boolean"||
    typeof data.signedPacketAvailable!=="boolean"||data.fiscalAccepted!==false||
    typeof data.hasImmutableSnapshot!=="boolean"||
    !Number.isSafeInteger(data.invoiceRevision)||Number(data.invoiceRevision)<1||
@@ -55,12 +55,17 @@ export async function GET(request:NextRequest,context:Context){
    !Array.isArray(data.blockingCodes)||data.blockingCodes.length>20||
    data.blockingCodes.some((item:unknown)=>typeof item!=="string"||!codes.has(item)))
    return error(502,"invalid_readiness_policy");
+  if((data.readyForLiveSend||data.submissionEnabled)&&
+     (data.environment!=="Sandbox"||data.signedPacketAvailable!==true||
+      !data.readyForLiveSend||!data.submissionEnabled||
+      (data.blockingCodes as unknown[]).length!==0))
+   return error(502,"invalid_readiness_policy");
   return NextResponse.json({
    environment:data.environment,invoiceState:data.invoiceState,
    hasImmutableSnapshot:data.hasImmutableSnapshot,
    invoiceRevision:data.invoiceRevision,
    sandboxFiscalMemoryId:data.sandboxFiscalMemoryId,
-   readyForLiveSend:false,submissionEnabled:false,
+   readyForLiveSend:data.readyForLiveSend,submissionEnabled:data.submissionEnabled,
    signedPacketAvailable:data.signedPacketAvailable,fiscalAccepted:false,
    blockingCodes:data.blockingCodes
   },{headers:{"Cache-Control":"no-store"}});
