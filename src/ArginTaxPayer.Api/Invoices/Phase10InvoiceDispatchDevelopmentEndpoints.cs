@@ -53,6 +53,22 @@ public static class Phase10InvoiceDispatchDevelopmentEndpoints
             };
         });
 
+        group.MapGet("/readiness", async (Guid taxpayerId, Guid invoiceId,
+            HttpContext http, Phase10LiveSendReadinessService readiness,
+            CancellationToken ct) =>
+        {
+            if(!Local(http))return Results.NotFound();
+            http.Response.Headers.CacheControl="no-store";
+            var result=await readiness.ReadAsync(Token(http),taxpayerId,invoiceId,ct);
+            return result.Decision switch {
+                InvoiceApiDecision.Success=>Results.Ok(result.Readiness),
+                InvoiceApiDecision.Unauthenticated=>Results.Unauthorized(),
+                InvoiceApiDecision.Forbidden=>Results.StatusCode(403),
+                InvoiceApiDecision.Invalid=>Results.BadRequest(new{error="invalid_invoice_id"}),
+                _=>Results.NotFound()
+            };
+        });
+
         // The only control endpoint is an explicit fail-closed response.
         // It performs auth and scope verification before announcing unavailable.
         // This cannot be used to submit packets by guessing a taxpayer ID.
