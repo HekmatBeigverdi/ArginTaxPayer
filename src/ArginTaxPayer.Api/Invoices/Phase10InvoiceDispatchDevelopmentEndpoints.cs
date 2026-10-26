@@ -63,6 +63,23 @@ public static class Phase10InvoiceDispatchDevelopmentEndpoints
             };
         });
 
+        group.MapPost("/inquiry-by-reference", async (Guid taxpayerId, Guid invoiceId,
+            HttpContext http, Phase10LegacyReferenceInquiryService inquiry, CancellationToken ct) =>
+        {
+            if (!Local(http)) return Results.NotFound();
+            http.Response.Headers.CacheControl = "no-store";
+            var outcome = await inquiry.InquireAsync(Token(http), taxpayerId, invoiceId, ct);
+            return outcome.Decision switch {
+                InvoiceApiDecision.Success => Results.Ok(new {
+                    safeCode=outcome.SafeCode, referenceNumber=outcome.ReferenceNumber,
+                    fiscalAccepted=false, authoritySubmitted=false }),
+                InvoiceApiDecision.Unauthenticated => Results.Unauthorized(),
+                InvoiceApiDecision.Forbidden => Results.StatusCode(403),
+                InvoiceApiDecision.NotFound => Results.NotFound(),
+                _ => Results.BadRequest(new { error=outcome.SafeCode })
+            };
+        });
+
         group.MapGet("/history", async (Guid taxpayerId,Guid invoiceId,
             HttpContext http,Phase10InvoiceDispatchHistoryService history,CancellationToken ct) =>
         {
