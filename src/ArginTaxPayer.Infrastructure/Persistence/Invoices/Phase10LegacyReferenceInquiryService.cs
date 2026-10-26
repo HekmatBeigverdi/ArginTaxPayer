@@ -142,7 +142,7 @@ WHERE operation_id=@operation ORDER BY attempt_number DESC LIMIT 1
             AutomaticDecompression=DecompressionMethods.None
         }){Timeout=TimeSpan.FromSeconds(15)};
         using var message=new HttpRequestMessage(HttpMethod.Post,
-            new Uri(baseUrl,"self-tsp/sync/INQUIRY_BY_REFERENCE_NUMBER/")){
+            new Uri(baseUrl,"self-tsp/sync/INQUIRY_BY_REFERENCE_NUMBER")){
             Content=JsonContent.Create(new {
                 Signature=signature,SignatureKeyId=(string?)null,
                 Packet=new {
