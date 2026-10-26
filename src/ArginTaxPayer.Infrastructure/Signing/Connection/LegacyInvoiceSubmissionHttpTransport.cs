@@ -94,7 +94,21 @@ internal sealed class LegacyInvoiceSubmissionHttpTransport(
             if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
                 return new(false, "sandbox_legacy_rejected");
             if (!response.IsSuccessStatusCode)
-                return new(false, "sandbox_legacy_outcome_indeterminate");
+            {
+                var classification = response.StatusCode switch
+                {
+                    HttpStatusCode.BadRequest => "sandbox_legacy_http_400",
+                    HttpStatusCode.NotFound => "sandbox_legacy_http_404",
+                    HttpStatusCode.MethodNotAllowed => "sandbox_legacy_http_405",
+                    HttpStatusCode.Conflict => "sandbox_legacy_http_409",
+                    HttpStatusCode.TooManyRequests => "sandbox_legacy_http_429",
+                    HttpStatusCode.BadGateway => "sandbox_legacy_http_502",
+                    HttpStatusCode.ServiceUnavailable => "sandbox_legacy_http_503",
+                    HttpStatusCode.GatewayTimeout => "sandbox_legacy_http_504",
+                    _ => "sandbox_legacy_http_other"
+                };
+                return new(false, classification);
+            }
             using var body = await ParseBoundedAsync(response, ct);
             return ParseAcknowledgement(body);
         }
@@ -115,14 +129,19 @@ internal sealed class LegacyInvoiceSubmissionHttpTransport(
     private static Result ParseAcknowledgement(JsonDocument document)
     {
         var root = document.RootElement;
-        if (!TryProperty(root, "errors", out var errors) ||
-            (errors.ValueKind != JsonValueKind.Null &&
-             (errors.ValueKind != JsonValueKind.Array || errors.GetArrayLength() != 0)) ||
-            !TryProperty(root, "result", out var result) ||
+        if (TryProperty(root, "errors", out var errors) &&
+            errors.ValueKind != JsonValueKind.Null &&
+            (errors.ValueKind != JsonValueKind.Array || errors.GetArrayLength() != 0))
+            return new(false, "sandbox_legacy_response_errors");
+        if (!TryProperty(root, "result", out var result) ||
             result.ValueKind != JsonValueKind.Array || result.GetArrayLength() != 1)
             return new(false, "sandbox_legacy_outcome_indeterminate");
 
         var row = result[0];
+        if (TryProperty(row, "errorCode", out var packetError) &&
+            packetError.ValueKind == JsonValueKind.String &&
+            !string.IsNullOrWhiteSpace(packetError.GetString()))
+            return new(false, "sandbox_legacy_packet_rejected");
         if (!TryProperty(row, "referenceNumber", out var reference) ||
             reference.ValueKind != JsonValueKind.String)
             return new(false, "sandbox_legacy_outcome_indeterminate");
