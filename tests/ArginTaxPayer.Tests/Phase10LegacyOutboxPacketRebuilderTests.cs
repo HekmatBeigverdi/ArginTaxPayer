@@ -36,6 +36,9 @@ public sealed class Phase10LegacyOutboxPacketRebuilderTests
         var rebuilt=LegacyInvoiceOutboxPacketRebuilder.Rebuild(payload,key,
             rsa.ExportSubjectPublicKeyInfo(),"new-token",
             sandboxMemoryClientId:"ABC123");
+        Assert.Throws<ArgumentException>(()=>LegacyInvoiceOutboxPacketRebuilder.Rebuild(
+            payload,key,rsa.ExportSubjectPublicKeyInfo(),"new-token",
+            sandboxMemoryClientId:"BAD999"));
         Assert.NotEqual(initial.TransferSignature,rebuilt.TransferSignature);
         using var original=JsonDocument.Parse(initial.RequestJson);
         using var replayed=JsonDocument.Parse(rebuilt.RequestJson);
