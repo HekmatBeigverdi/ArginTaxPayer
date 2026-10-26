@@ -56,6 +56,34 @@ public sealed class Phase10LegacyInvoiceTransportTests
         Assert.DoesNotContain("signature", request.Headers.Select(x => x.Key), StringComparer.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public async Task Rejects_reference_for_a_different_packet_uid()
+    {
+        var handler = new FakeHandler(_ => Json(
+            """{"result":[{"uid":"11111111-1111-4111-8111-111111111111","referenceNumber":"ref-1","errorCode":null}],"errors":[]}"""));
+        var transport = new LegacyInvoiceSubmissionHttpTransport(
+            Config(), () => new HttpClient(handler, disposeHandler: false));
+        var result = await transport.PostAsync(
+            "A2HPH4", ValidRequest(new string('A',344)), new string('A',344),
+            "token", Guid.NewGuid().ToString("D"), "123", default);
+        Assert.False(result.Acknowledged);
+        Assert.Equal("sandbox_legacy_response_uid_mismatch", result.SafeCode);
+    }
+
+    [Fact]
+    public async Task Classifies_explicit_packet_rejection_without_acknowledging()
+    {
+        var handler = new FakeHandler(_ => Json(
+            """{"result":[{"uid":"c7251456-d883-4e06-8ae9-8aa5f62e238c","referenceNumber":null,"errorCode":"INVALID_DATA"}],"errors":[]}"""));
+        var transport = new LegacyInvoiceSubmissionHttpTransport(
+            Config(), () => new HttpClient(handler, disposeHandler: false));
+        var result = await transport.PostAsync(
+            "A2HPH4", ValidRequest(new string('A',344)), new string('A',344),
+            "token", Guid.NewGuid().ToString("D"), "123", default);
+        Assert.False(result.Acknowledged);
+        Assert.Equal("sandbox_legacy_packet_rejected", result.SafeCode);
+    }
+
     [Theory]
     [InlineData("https://tp.tax.gov.ir/req/api/")]
     [InlineData("http://sandboxrc.tax.gov.ir/req/api/")]
