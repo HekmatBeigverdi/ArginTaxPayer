@@ -100,6 +100,26 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
   }catch(e){setError((e as Error).message);}
   finally{setActionBusy(false);}
  },[actionBusy,dispatch,report,taxpayerId,invoiceId,loadDispatch,refresh]);
+ const inquireByUid=useCallback(async()=>{
+  if(actionBusy||dispatch?.status!=="Indeterminate")return;
+  setActionBusy(true);setError("");setNotice("");
+  try{
+   const response=await fetch("/api/invoice-dispatch/"+
+    encodeURIComponent(taxpayerId)+"/"+encodeURIComponent(invoiceId)+"/inquiry-by-uid",{
+    method:"POST",credentials:"same-origin",cache:"no-store"});
+   const body:unknown=await response.json();
+   const data=body&&typeof body==="object"&&!Array.isArray(body)
+    ?body as Record<string,unknown>:{};
+   if(!response.ok)throw Error("استعلام انجام نشد: "+String(data.error??response.status));
+   const code=String(data.safeCode??"inquiry_inconclusive");
+   setNotice(data.referenceNumber?
+    "استعلام UID دارای نتیجه مرتبط است؛ شماره مرجع: "+String(data.referenceNumber)+
+    " — پذیرش نهایی مالیاتی هنوز تأیید نشده است.":
+    "استعلام UID انجام شد: "+code+" — نتیجه قطعی مشخص نیست؛ ارسال مجدد نکنید.");
+   await loadDispatch();
+  }catch(e){setError((e as Error).message);}
+  finally{setActionBusy(false);}
+ },[actionBusy,dispatch,taxpayerId,invoiceId,loadDispatch]);
  const sendSandbox=useCallback(async()=>{
   if(actionBusy||!dispatch||dispatch.status!=="Reserved"||
      !report||report.environment!=="Sandbox"||report.invoiceState!=="Finalized")return;
@@ -290,6 +310,9 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
    <p role="alert" className="form-error">عملیات Reserved است، اما تنظیمات فعال‌سازی ارسال Legacy در Backend کامل نیست.</p>}
   {dispatch&&<p role="status" className="field-hint">وضعیت ارسال Sandbox: <strong>{dispatch.status}</strong>
    {dispatch.referenceNumber&&<> — شماره پیگیری: <b dir="ltr">{dispatch.referenceNumber}</b></>}</p>}
+  {report?.environment==="Sandbox"&&dispatch?.status==="Indeterminate"&&
+   <button type="button" className="identity-secondary" disabled={actionBusy||busy}
+    onClick={()=>void inquireByUid()}>{actionBusy?"در حال استعلام…":"استعلام نتیجه ارسال قبلی از Sandbox با UID"}</button>}
   {report?.environment==="Sandbox"&&report.invoiceState==="Finalized"&&
    dispatch?.status==="Prepared"&&
    <button type="button" className="identity-secondary" disabled={actionBusy||busy||dispatchLoading}
