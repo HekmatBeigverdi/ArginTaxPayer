@@ -44,7 +44,9 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
    const response=await fetch("/api/invoice-dispatch/"+
     encodeURIComponent(taxpayerId)+"/"+encodeURIComponent(invoiceId)+"/readiness",
     {cache:"no-store",credentials:"same-origin",signal});
-   if(!response.ok)throw Error(response.status===403||response.status===404?
+   if(!response.ok)throw Error(response.status===401?
+    "نشست ورود منقضی شده است؛ دوباره وارد حساب شوید.":
+    response.status===403||response.status===404?
     "دسترسی به وضعیت این سند مجاز نیست.":"بررسی آمادگی ارسال در دسترس نیست.");
    const value:unknown=await response.json();
    if(!value||typeof value!=="object"||Array.isArray(value))throw Error("پاسخ نامعتبر");
@@ -67,7 +69,9 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
     encodeURIComponent(invoiceId),{cache:"no-store",credentials:"same-origin"});
    if(!response.ok){
     setDispatch(null);
-    setDispatchError("دریافت وضعیت عملیات ارسال ناموفق بود (HTTP "+response.status+").");
+    setDispatchError(response.status===401?
+     "نشست ورود منقضی شده است. یک‌بار از حساب خارج شوید و دوباره وارد شوید، سپس این صفحه را باز کنید.":
+     "دریافت وضعیت عملیات ارسال ناموفق بود (HTTP "+response.status+").");
     setDispatchFeedback("");
     return;
    }
