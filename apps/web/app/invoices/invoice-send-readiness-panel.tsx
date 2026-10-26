@@ -100,6 +100,23 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
   }catch(e){setError((e as Error).message);}
   finally{setActionBusy(false);}
  },[actionBusy,dispatch,report,taxpayerId,invoiceId,loadDispatch,refresh]);
+ const inquireByReference=useCallback(async()=>{
+  if(actionBusy||dispatch?.status!=="Acknowledged")return;
+  setActionBusy(true);setError("");setNotice("");
+  try{
+   const response=await fetch("/api/invoice-dispatch/"+
+    encodeURIComponent(taxpayerId)+"/"+encodeURIComponent(invoiceId)+"/inquiry-by-reference",{
+    method:"POST",credentials:"same-origin",cache:"no-store"});
+   const body:unknown=await response.json();
+   const data=body&&typeof body==="object"&&!Array.isArray(body)
+    ?body as Record<string,unknown>:{};
+   if(!response.ok)throw Error("استعلام رهگیری انجام نشد: "+String(data.error??response.status));
+   setNotice("نتیجه استعلام شماره رهگیری: "+String(data.safeCode??"نامشخص")+
+    (typeof data.referenceNumber==="string"?" — شماره مرجع: "+data.referenceNumber:"")+
+    " — وضعیت پذیرش قطعی مالیاتی هنوز تأیید نشده است.");
+  }catch(e){setError((e as Error).message);}
+  finally{setActionBusy(false);}
+ },[actionBusy,dispatch,taxpayerId,invoiceId]);
  const inquireByUid=useCallback(async()=>{
   if(actionBusy||dispatch?.status!=="Indeterminate")return;
   setActionBusy(true);setError("");setNotice("");
@@ -310,6 +327,9 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
    <p role="alert" className="form-error">عملیات Reserved است، اما تنظیمات فعال‌سازی ارسال Legacy در Backend کامل نیست.</p>}
   {dispatch&&<p role="status" className="field-hint">وضعیت ارسال Sandbox: <strong>{dispatch.status}</strong>
    {dispatch.referenceNumber&&<> — شماره پیگیری: <b dir="ltr">{dispatch.referenceNumber}</b></>}</p>}
+  {report?.environment==="Sandbox"&&dispatch?.status==="Acknowledged"&&
+   <button type="button" className="identity-secondary" disabled={actionBusy||busy}
+    onClick={()=>void inquireByReference()}>{actionBusy?"در حال استعلام…":"استعلام شماره رهگیری از Sandbox"}</button>}
   {report?.environment==="Sandbox"&&dispatch?.status==="Indeterminate"&&
    <button type="button" className="identity-secondary" disabled={actionBusy||busy}
     onClick={()=>void inquireByUid()}>{actionBusy?"در حال استعلام…":"استعلام نتیجه ارسال قبلی از Sandbox با UID"}</button>}
