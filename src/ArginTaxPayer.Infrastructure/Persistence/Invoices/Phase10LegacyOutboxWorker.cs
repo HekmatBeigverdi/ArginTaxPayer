@@ -17,7 +17,8 @@ internal sealed class Phase10LegacyOutboxWorker(
     LegacyInvoiceOutboxSendCoordinator sender,
     Phase10DispatchAttemptRepository attempts,
     Phase10DispatchEvidenceRepository evidence,
-    InvoiceDispatchFaultRepository faults)
+    InvoiceDispatchFaultRepository faults,
+    ILogger<Phase10LegacyOutboxWorker> logger)
     : IPhase10LegacyOutboxWorker
 {
     public async Task<Phase10LegacyOutboxWorkResult> ProcessInvoiceAsync(
@@ -99,6 +100,11 @@ WHERE id=@memory AND customer_user_id=@owner AND taxpayer_id=@taxpayer
                 return new("Blocked", "dispatch_attempt_not_started");
 
             var result = await sender.SendPreparedAsync(prepared, ct);
+            // Sanitized diagnostic: no token, signed payload, fiscal identifier, or provider body.
+            logger.LogInformation(
+                "Phase10 Sandbox enqueue outcome. OperationId={OperationId} AttemptId={AttemptId} Acknowledged={Acknowledged} SafeCode={SafeCode} HasReference={HasReference}",
+                operationId, attemptId, result.Acknowledged, result.SafeCode,
+                !string.IsNullOrWhiteSpace(result.ReferenceNumber));
             var observed = DateTime.UtcNow;
             if (result.Acknowledged && result.ReferenceNumber is not null)
             {
