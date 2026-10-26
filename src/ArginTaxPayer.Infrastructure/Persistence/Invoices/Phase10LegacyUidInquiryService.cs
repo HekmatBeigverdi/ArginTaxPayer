@@ -118,7 +118,7 @@ JOIN sandbox_fiscal_memories m ON m.id=d.fiscal_memory_id
             AutomaticDecompression=DecompressionMethods.None
         }){Timeout=TimeSpan.FromSeconds(15)};
         using var message=new HttpRequestMessage(HttpMethod.Post,
-            new Uri(baseUrl,"self-tsp/sync/INQUIRY_BY_UID")){
+            new Uri(baseUrl,"self-tsp/sync/INQUIRY_BY_UID/")){
             Content=JsonContent.Create(new {
                 Signature=signature,SignatureKeyId=(string?)null,
                 Packet=new {
@@ -137,7 +137,24 @@ JOIN sandbox_fiscal_memories m ON m.id=d.fiscal_memory_id
         {
             using var response=await http.SendAsync(message,HttpCompletionOption.ResponseHeadersRead,ct);
             if(!response.IsSuccessStatusCode)
-                return new(InvoiceApiDecision.Success,"inquiry_authority_unavailable");
+            {
+                // Only an allowlisted HTTP class is reported. Never disclose
+                // provider bodies, token, signed packet or transport headers.
+                var safe = response.StatusCode switch
+                {
+                    HttpStatusCode.NotFound => "inquiry_http_404",
+                    HttpStatusCode.MethodNotAllowed => "inquiry_http_405",
+                    HttpStatusCode.Unauthorized => "inquiry_http_401",
+                    HttpStatusCode.Forbidden => "inquiry_http_403",
+                    HttpStatusCode.BadRequest => "inquiry_http_400",
+                    HttpStatusCode.TooManyRequests => "inquiry_http_429",
+                    HttpStatusCode.BadGateway => "inquiry_http_502",
+                    HttpStatusCode.ServiceUnavailable => "inquiry_http_503",
+                    HttpStatusCode.GatewayTimeout => "inquiry_http_504",
+                    _ => "inquiry_http_other"
+                };
+                return new(InvoiceApiDecision.Success,safe);
+            }
             if(response.Content.Headers.ContentLength is > 262144)
                 return new(InvoiceApiDecision.Success,"inquiry_response_too_large");
             var bytes=await response.Content.ReadAsByteArrayAsync(ct);
