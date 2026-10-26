@@ -39,7 +39,7 @@ public sealed class Phase10LegacyInvoicePacketBuilderTests
         var packet = LegacyInvoiceSubmissionPacketBuilder.Build(
             Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),
             "AAAAAAAAAAAAAAAAAAAAAA",
-            "{\\\"header\\\":{\\\"taxid\\\":\\\"AAAAAAAAAAAAAAAAAAAAAA\\\"},\\\"body\\\":[]}",
+            """{"header":{"taxid":"AAAAAAAAAAAAAAAAAAAAAA"},"body":[]}""",
             key,rsa.ExportSubjectPublicKeyInfo(),"token-value",
             Guid.NewGuid(),"1792939200000","ABC123");
         using var doc = JsonDocument.Parse(packet.RequestJson);

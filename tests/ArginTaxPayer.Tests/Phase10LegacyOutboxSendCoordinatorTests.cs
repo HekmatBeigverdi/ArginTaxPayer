@@ -15,18 +15,22 @@ public sealed class Phase10LegacyOutboxSendCoordinatorTests
     public async Task Gets_fresh_token_rebuilds_packet_and_sends_once()
     {
         using var rsa = RSA.Create(2048);
+        using var authorityRsa = RSA.Create(2048);
         using var key = SensitiveBytes.TakeOwnership(rsa.ExportPkcs8PrivateKey());
         var operation = Guid.NewGuid();
         var customer = Guid.NewGuid();
         var taxpayer = Guid.NewGuid();
-        var initial = LegacyInvoiceSubmissionPacketBuilder.Build(operation, customer, taxpayer,
-            "ABC123", "{\"amount\":125}", key, rsa.ExportSubjectPublicKeyInfo(),
-            "old-token", Guid.NewGuid(), "1700000000000");
+        using var authority = new LegacySandboxEncryptionKey("authority-test",
+            (byte[])authorityRsa.ExportSubjectPublicKeyInfo().Clone());
+        var initial = LegacyInvoiceSubmissionPacketBuilder.BuildEncrypted(operation, customer, taxpayer,
+            "AAAAAAAAAAAAAAAAAAAAAA", """{"header":{"taxid":"AAAAAAAAAAAAAAAAAAAAAA"},"body":[]}""",
+            key, rsa.ExportSubjectPublicKeyInfo(), "old-token", Guid.NewGuid(),
+            "1700000000000", "ABC123", authority);
         var payload = JsonSerializer.Serialize(new
         {
             schema = "phase10.sandbox.legacy.invoice.dispatch.v1", environment = "Sandbox",
             operationId = operation, customerUserId = customer, taxpayerId = taxpayer,
-            fiscalTaxId = "ABC123", requestJson = initial.RequestJson,
+            fiscalTaxId = "AAAAAAAAAAAAAAAAAAAAAA", requestJson = initial.RequestJson,
             transferSignature = initial.TransferSignature, requestSha256 = initial.RequestSha256,
             accessTokenStored = false
         });
@@ -55,7 +59,10 @@ public sealed class Phase10LegacyOutboxSendCoordinatorTests
                 () => new HttpClient(handler, disposeHandler: false)));
         using var signingKey = new DatabaseLegacySigningKey(key, rsa.ExportSubjectPublicKeyInfo());
 
-        var result = await coordinator.SendAsync(payload, signingKey);
+        var prepared = await coordinator.PrepareAsync(payload, signingKey,
+            sandboxClientId: "ABC123");
+        Assert.NotNull(prepared);
+        var result = await coordinator.SendPreparedAsync(prepared);
 
         Assert.True(result.Acknowledged);
         Assert.Equal("REF-1", result.ReferenceNumber);

@@ -20,6 +20,7 @@ using System.Text.Json;
 using ArginTaxPayer.Infrastructure.Signing.Import;
 using ArginTaxPayer.Infrastructure.Signing.Generation;
 using ArginTaxPayer.Infrastructure.Signing.Connection;
+using ArginTaxPayer.Infrastructure.Signing.Protection;
 using ArginTaxPayer.Infrastructure.Signing.Review;
 using ArginTaxPayer.Infrastructure.Persistence.Signing;
 using System.Threading.RateLimiting;
@@ -54,6 +55,7 @@ if (identityDevelopmentEnabled)
         client.Timeout = TimeSpan.FromSeconds(18))
         .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
         { AllowAutoRedirect = false, UseCookies = false });
+    builder.Services.AddPhase09KeyProtection(builder.Configuration);
     builder.Services.AddPhase10SandboxConnection();
     builder.Services.AddScoped<EfSigningOperationRepository>();
     builder.Services.AddScoped<ISigningChangeRequestSubmission, EfSigningChangeRequestSubmission>();
