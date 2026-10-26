@@ -10,7 +10,7 @@ namespace ArginTaxPayer.Infrastructure.Signing.Connection;
 /// Loads only an encrypted Sandbox memory key; never consults fiscal_memories
 /// or production signing-key selections. Returns a zeroizable key scope.
 /// </summary>
-internal sealed class SandboxLegacySigningKeyLoader(
+public sealed class SandboxLegacySigningKeyLoader(
     ArginTaxPayerDbContext db, KeyEnvelopeProtector protector)
 {
     internal async Task<DatabaseLegacySigningKey?> RecoverAsync(
