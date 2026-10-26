@@ -21,7 +21,7 @@ internal sealed class SandboxLegacySigningKeyLoader(
             sandboxMemoryId == Guid.Empty)
             return null;
         var connection = db.Database.GetDbConnection();
-        var openedHere = connection.State != ConnectionState.Open;
+        var openedHere = connection.State != System.Data.ConnectionState.Open;
         if (openedHere) await connection.OpenAsync(ct);
         try
         {

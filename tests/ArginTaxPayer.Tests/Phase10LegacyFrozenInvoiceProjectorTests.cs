@@ -16,6 +16,7 @@ public sealed class Phase10LegacyFrozenInvoiceProjectorTests
         var lines=new[]{line};
         return new StoredInvoice{
             Id=InvoiceId,Revision=1,
+            Subject=InvoiceSubject.Original,
             State=finalized?InvoiceLifecycleState.Finalized:InvoiceLifecycleState.Validated,
             IssueDateUtc=new DateTime(2026,10,25,12,0,0,DateTimeKind.Utc),
             SnapshotJson=JsonSerializer.Serialize(new{

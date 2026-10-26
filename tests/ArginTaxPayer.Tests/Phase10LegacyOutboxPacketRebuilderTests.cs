@@ -21,7 +21,7 @@ public sealed class Phase10LegacyOutboxPacketRebuilderTests
             "authority-test",(byte[])authorityRsa.ExportSubjectPublicKeyInfo().Clone());
         var initial = LegacyInvoiceSubmissionPacketBuilder.BuildEncrypted(
             operation,customer,taxpayer,"AAAAAAAAAAAAAAAAAAAAAA",
-            "{\\"header\\":{\\"taxid\\":\\"AAAAAAAAAAAAAAAAAAAAAA\\"},\\"body\\":[]}",
+            """{"header":{"taxid":"AAAAAAAAAAAAAAAAAAAAAA"},"body":[]}""",
             key,rsa.ExportSubjectPublicKeyInfo(),"old-token",
             Guid.NewGuid(),"1700000000000","ABC123",authority);
         var payload = JsonSerializer.Serialize(new {
@@ -49,7 +49,7 @@ public sealed class Phase10LegacyOutboxPacketRebuilderTests
             bad,key,rsa.ExportSubjectPublicKeyInfo(),"new-token",
             sandboxMemoryClientId:"ABC123"));
         var plaintext=LegacyInvoiceSubmissionPacketBuilder.Build(
-            operation,customer,taxpayer,"ABC123","{\\"amount\\":125}",
+            operation,customer,taxpayer,"ABC123","""{"amount":125}""",
             key,rsa.ExportSubjectPublicKeyInfo(),"old-token",
             Guid.NewGuid(),"1700000000000");
         var oldPayload=JsonSerializer.Serialize(new {
