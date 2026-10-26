@@ -30,6 +30,13 @@ public sealed class Phase10DispatchArmService(ArginTaxPayerDbContext db,
             await using var tx=await conn.BeginTransactionAsync(IsolationLevel.Serializable,ct);
             try
             {
+                await using(var guard=conn.CreateCommand())
+                {
+                    guard.Transaction=tx;
+                    guard.CommandText="SELECT current_database()";
+                    if((string?)await guard.ExecuteScalarAsync(ct)!="argintaxpayer_test")
+                        throw new InvalidOperationException("Sandbox arm requires isolated test DB.");
+                }
                 await using var cmd=conn.CreateCommand();
                 cmd.Transaction=tx;
                 cmd.CommandText="""
@@ -48,6 +55,7 @@ WHERE d.id=@operation AND d.invoice_id=@invoice AND d.taxpayer_id=@taxpayer
   AND o.payload_json::jsonb->>'invoiceId'=d.invoice_id::text
   AND o.payload_json::jsonb->>'customerUserId'=d.customer_user_id::text
   AND o.payload_json::jsonb->>'environment'='Sandbox'
+  AND o.payload_json::jsonb->>'requestSha256'=d.payload_sha256
   AND NOT EXISTS(SELECT 1 FROM invoice_dispatch_attempts a WHERE a.operation_id=d.id)
 RETURNING d.id
 """;
