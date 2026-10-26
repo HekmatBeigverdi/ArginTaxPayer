@@ -70,6 +70,11 @@ internal static class LegacyInvoiceOutboxPacketRebuilder
         var iv = RequiredString(packet, "iv");
         var contentSignature = RequiredString(packet, "dataSignature");
         var memoryCode = RequiredString(packet, "fiscalId");
+        // The worker resolves this ID from the currently scoped Sandbox memory.
+        // Reject stale or foreign-memory outbox payloads before any HTTP request.
+        if (sandboxMemoryClientId is not { Length: 6 } ||
+            !string.Equals(memoryCode, sandboxMemoryClientId, StringComparison.Ordinal))
+            throw new ArgumentException("Outbox Sandbox memory identifier mismatch.");
         return LegacyInvoiceSubmissionPacketBuilder.ReSignEncrypted(
             operationId, customerUserId, taxpayerId, fiscalId,
             encryptedData, encryptionKeyId, symmetricKey, iv,
