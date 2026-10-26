@@ -50,7 +50,7 @@ async function dispatch(request: NextRequest, context: Context, method: "GET" | 
     return NextResponse.json({
       environment: value.environment === "Sandbox" ? "Sandbox" : "Mock",
       submissionEnabled: value.submissionEnabled === true,
-      inquiryEnabled: false,
+      inquiryEnabled: value.inquiryEnabled === true,
       fiscalAccepted: false,
       status: typeof value.status === "string" &&
         /^[A-Za-z]{1,30}$/.test(value.status) ? value.status : "Unavailable",
