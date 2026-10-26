@@ -92,9 +92,22 @@ JOIN invoice_dispatch_receipts receipt ON receipt.operation_id=d.id AND receipt.
         }
         catch(JsonException){return new(InvoiceApiDecision.Invalid,"stored_packet_invalid");}
         finally{if(opened)await conn.CloseAsync();}
-        attemptId=await db.InvoiceDispatchAttempts.AsNoTracking()
-            .Where(a=>a.OperationId==operationId)
-            .OrderByDescending(a=>a.AttemptNumber).Select(a=>a.Id).FirstOrDefaultAsync(ct);
+        var connection=db.Database.GetDbConnection();
+        var openedAttempt=connection.State!=System.Data.ConnectionState.Open;
+        if(openedAttempt)await connection.OpenAsync(ct);
+        try
+        {
+            await using var attemptQuery=connection.CreateCommand();
+            attemptQuery.CommandText="""
+SELECT id FROM invoice_dispatch_attempts
+WHERE operation_id=@operation ORDER BY attempt_number DESC LIMIT 1
+""";
+            var parameter=attemptQuery.CreateParameter();
+            parameter.ParameterName="operation";parameter.Value=operationId;
+            attemptQuery.Parameters.Add(parameter);
+            attemptId=(await attemptQuery.ExecuteScalarAsync(ct)) is Guid id ? id : Guid.Empty;
+        }
+        finally {if(openedAttempt)await connection.CloseAsync();}
         if(attemptId==Guid.Empty)
             return new(InvoiceApiDecision.Invalid,"inquiry_attempt_not_found");
         if(uid!=operationId.ToString("D")||packetType!="INVOICE.V01"||
