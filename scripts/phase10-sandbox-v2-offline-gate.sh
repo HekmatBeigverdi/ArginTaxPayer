@@ -34,7 +34,8 @@ dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --no-restore \
   tests/phase10-sandbox-send-ui-contract.test.mjs \
   tests/phase10-sandbox-legacy-key-loader.test.mjs \
   tests/phase10-legacy-evidence-and-auth.test.mjs \
-  tests/phase10-legacy-preparation-contract.test.mjs
+  tests/phase10-legacy-preparation-contract.test.mjs \
+  tests/phase10-dispatch-arm-contract.test.mjs
  npm run typecheck
  npm run build
 )
