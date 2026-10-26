@@ -103,7 +103,7 @@ JOIN sandbox_fiscal_memories m ON m.id=d.fiscal_memory_id
             System.Globalization.CultureInfo.InvariantCulture);
         var inquiryPacket=new {
             Uid=Guid.NewGuid().ToString("D"),PacketType="INQUIRY_BY_UID",Retry=false,
-            Data=new[]{new {uid,fiscalId=memoryCode}},
+            Data=new { UidList=new[]{uid}, FiscalId=memoryCode },
             EncryptionKeyId=(string?)null,SymmetricKey=(string?)null,
             Iv=(string?)null,FiscalId=memoryCode,DataSignature=(string?)null
         };
@@ -148,8 +148,19 @@ JOIN sandbox_fiscal_memories m ON m.id=d.fiscal_memory_id
                 errors.ValueKind!=JsonValueKind.Null &&
                 (errors.ValueKind!=JsonValueKind.Array||errors.GetArrayLength()>0))
                 return new(InvoiceApiDecision.Success,"inquiry_authority_rejected");
-            if(!root.TryGetProperty("result",out var results)||results.ValueKind!=JsonValueKind.Array)
-                return new(InvoiceApiDecision.Success,"inquiry_inconclusive");
+            if(!root.TryGetProperty("result",out var result))
+                return new(InvoiceApiDecision.Success,"inquiry_result_missing");
+            JsonElement results;
+            if(result.ValueKind==JsonValueKind.Array)
+                results=result;
+            else if(result.ValueKind==JsonValueKind.Object &&
+                    result.TryGetProperty("data",out var inner) &&
+                    inner.ValueKind==JsonValueKind.Array)
+                results=inner;
+            else
+                return new(InvoiceApiDecision.Success,"inquiry_result_shape_unrecognized");
+            if(results.GetArrayLength()==0)
+                return new(InvoiceApiDecision.Success,"inquiry_no_results");
             var expected=new InvoiceReconciliationIdentity(operationId,owner.Value,taxpayerId,
                 memoryId,uid,packetType,memoryCode,null);
             var verdict=Phase10InquiryReconciliation.Evaluate(expected,results.GetRawText());
