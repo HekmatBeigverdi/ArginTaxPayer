@@ -8,7 +8,7 @@ const read=p=>readFileSync(resolve(root,p),'utf8');
 test('UID inquiry scopes existing Indeterminate operation without submission',()=>{
  const service=read('src/ArginTaxPayer.Infrastructure/Persistence/Invoices/Phase10LegacyUidInquiryService.cs');
  for(const phrase of ['d.state=6','invoice_dispatch_attempts','SandboxLegacySigningKeyLoader',
- 'INQUIRY_BY_UID','UidList=new[]{uid}','FiscalId=memoryCode','inquiry_result_shape_unrecognized','inquiry_no_results','self-tsp/sync/INQUIRY_BY_UID/','packetType!="INVOICE.V01"',
+ 'INQUIRY_BY_UID','Data=new[]{new {uid,fiscalId=memoryCode}}','inquiry_result_shape_unrecognized','inquiry_no_results','self-tsp/sync/INQUIRY_BY_UID','packetType!="INVOICE.V01"',
  'inquiry_http_404','inquiry_http_405','Phase10InquiryReconciliation.Evaluate','AppendInquiryEvidenceAsync','uid!=operationId.ToString("D")'])
   assert.ok(service.includes(phrase),phrase);
  assert.ok(!service.includes('normal-enqueue'));
