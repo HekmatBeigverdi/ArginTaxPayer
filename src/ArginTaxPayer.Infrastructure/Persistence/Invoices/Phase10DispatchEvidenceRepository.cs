@@ -44,6 +44,15 @@ public sealed class Phase10DispatchEvidenceRepository(ArginTaxPayerDbContext db)
             receiptKind: 2, authorityReference, evidenceSha256, observedAtUtc,
             advanceTo: null, ct);
 
+    public Task<Phase10DispatchEvidenceResult> AppendReferenceInquiryEvidenceAsync(
+        Guid operationId, Guid customerUserId, Guid taxpayerId, Guid attemptId,
+        long expectedStateRevision, string authorityReference, string evidenceSha256,
+        DateTime observedAtUtc, CancellationToken ct = default) =>
+        AppendAsync(operationId, customerUserId, taxpayerId, attemptId,
+            InvoiceDispatchState.Acknowledged, expectedStateRevision,
+            receiptKind: 2, authorityReference, evidenceSha256, observedAtUtc,
+            advanceTo: null, ct);
+
     private async Task<Phase10DispatchEvidenceResult> AppendAsync(
         Guid operationId, Guid customerUserId, Guid taxpayerId, Guid? attemptId,
         InvoiceDispatchState expectedState, long expectedStateRevision,
