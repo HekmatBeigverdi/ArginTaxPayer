@@ -29,16 +29,20 @@ public sealed class Phase10LegacyInvoiceTransportTests
     private static HttpResponseMessage Json(string body, HttpStatusCode status = HttpStatusCode.OK) =>
         new(status) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
 
+    private const string TestUid = "c7251456-d883-4e06-8ae9-8aa5f62e238c";
+    private static string ValidRequest(string signature) =>
+        "{\"signature\":\""+signature+"\",\"packets\":[{\"uid\":\""+TestUid+"\"}]}";
+
     [Fact]
     public async Task Posts_legacy_async_enqueue_to_the_pinned_sandbox_route()
     {
         var handler = new FakeHandler(_ => Json(
-            """{"timestamp":1,"result":[{"uid":"u-1","referenceNumber":"r-1","errorCode":null,"errorDetail":null}],"errors":[]}"""));
+            """{"timestamp":1,"result":[{"uid":"c7251456-d883-4e06-8ae9-8aa5f62e238c","referenceNumber":"r-1","errorCode":null,"errorDetail":null}],"errors":[]}"""));
         var transport = new LegacyInvoiceSubmissionHttpTransport(
             Config(), () => new HttpClient(handler, disposeHandler: false));
 
         var result = await transport.PostAsync(
-            "A2HPH4", "{\"signature\":\"" + new string('A', 344) + "\",\"packets\":[{}]}", new string('A', 344),
+            "A2HPH4", ValidRequest(new string('A', 344)), new string('A', 344),
             "token", Guid.NewGuid().ToString("D"), "123", default);
 
         Assert.True(result.Acknowledged);
