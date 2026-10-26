@@ -34,6 +34,7 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
  const [notice,setNotice]=useState("");
  const [review,setReview]=useState<Review|null>(null);
  const [dispatch,setDispatch]=useState<DispatchStatus|null>(null);
+ const [dispatchError,setDispatchError]=useState("");
  const refresh=useCallback(async(signal?:AbortSignal)=>{
   if(isWorkspace)return;
   setBusy(true);setError("");
@@ -60,14 +61,19 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
   try{
    const response=await fetch("/api/invoice-dispatch/"+encodeURIComponent(taxpayerId)+"/"+
     encodeURIComponent(invoiceId),{cache:"no-store",credentials:"same-origin"});
-   if(!response.ok){setDispatch(null);return;}
+   if(!response.ok){
+    setDispatch(null);
+    setDispatchError("دریافت وضعیت عملیات ارسال ناموفق بود (HTTP "+response.status+").");
+    return;
+   }
    const body:unknown=await response.json();
    if(body&&typeof body==="object"&&!Array.isArray(body)){
     const candidate=body as DispatchStatus;
     if(typeof candidate.status==="string"&&typeof candidate.submissionEnabled==="boolean"&&
-       candidate.fiscalAccepted===false)setDispatch(candidate);
+       candidate.fiscalAccepted===false){setDispatch(candidate);setDispatchError("");}
+    else {setDispatch(null);setDispatchError("پاسخ وضعیت ارسال ساختار معتبر ندارد.");}
    }
-  }catch{setDispatch(null);}
+  }catch{setDispatch(null);setDispatchError("اتصال به سرویس وضعیت ارسال برقرار نشد.");}
  },[isWorkspace,taxpayerId,invoiceId]);
  const sendSandbox=useCallback(async()=>{
   if(actionBusy||!dispatch||dispatch.status!=="Reserved"||
@@ -251,6 +257,7 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
   </div>
   {error&&<p role="alert" className="form-error">{error}</p>}
   {notice&&<p role="status" className="field-hint">{notice}</p>}
+  {dispatchError&&<p role="alert" className="form-error">{dispatchError}</p>}
   {dispatch&&<p role="status" className="field-hint">وضعیت ارسال Sandbox: <strong>{dispatch.status}</strong>
    {dispatch.referenceNumber&&<> — شماره پیگیری: <b dir="ltr">{dispatch.referenceNumber}</b></>}</p>}
   {report?.environment==="Sandbox"&&report.invoiceState==="Finalized"&&
