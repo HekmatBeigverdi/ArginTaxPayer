@@ -10,7 +10,8 @@ test('Legacy Outbox sender uses Sandbox key custody, not production key selectio
  const loader=read('src/ArginTaxPayer.Infrastructure/Signing/Connection/SandboxLegacySigningKeyLoader.cs');
  const registration=read('src/ArginTaxPayer.Infrastructure/Signing/Connection/SigningConnectionRegistration.cs');
  assert.ok(worker.includes('SandboxLegacySigningKeyLoader keys'));
- assert.ok(registration.includes('AddScoped<SandboxLegacySigningKeyLoader>()'));
+ assert.ok(registration.includes('AddScoped<SandboxLegacySigningKeyLoader>(sp =>'));
+ assert.ok(registration.includes('GetRequiredService<KeyEnvelopeProtector>()'));
  for(const term of ['FROM sandbox_fiscal_memories','Sandbox:true',
   'customer_user_id=@owner','taxpayer_id=@taxpayer',
   'UnprotectAsync','FixedTimeEquals'])assert.ok(loader.includes(term),term);
