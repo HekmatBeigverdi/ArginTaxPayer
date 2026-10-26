@@ -257,7 +257,11 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
   </div>
   {error&&<p role="alert" className="form-error">{error}</p>}
   {notice&&<p role="status" className="field-hint">{notice}</p>}
+  <button type="button" className="identity-secondary" disabled={busy||actionBusy}
+   onClick={()=>void loadDispatch()}>به‌روزرسانی وضعیت عملیات ارسال</button>
   {dispatchError&&<p role="alert" className="form-error">{dispatchError}</p>}
+  {dispatch?.status==="Reserved"&&!dispatch.submissionEnabled&&
+   <p role="alert" className="form-error">عملیات Reserved است، اما تنظیمات فعال‌سازی ارسال Legacy در Backend کامل نیست.</p>}
   {dispatch&&<p role="status" className="field-hint">وضعیت ارسال Sandbox: <strong>{dispatch.status}</strong>
    {dispatch.referenceNumber&&<> — شماره پیگیری: <b dir="ltr">{dispatch.referenceNumber}</b></>}</p>}
   {report?.environment==="Sandbox"&&report.invoiceState==="Finalized"&&
