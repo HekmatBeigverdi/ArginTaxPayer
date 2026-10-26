@@ -100,6 +100,44 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
   }catch(e){setError((e as Error).message);}
   finally{setActionBusy(false);}
  },[actionBusy,dispatch,report,taxpayerId,invoiceId,loadDispatch,refresh]);
+ const readyExisting=useCallback(async()=>{
+  if(actionBusy||!report||report.invoiceState!=="Finalized"||
+     report.environment!=="Sandbox"||dispatchLoading||dispatch?.status==="Indeterminate"||
+     dispatch?.status==="Acknowledged"||dispatch?.status==="Sending")return;
+  setActionBusy(true);setError("");setNotice("");
+  const base="/api/invoice-dispatch/"+encodeURIComponent(taxpayerId)+"/"+
+   encodeURIComponent(invoiceId);
+  const invoke=async(path:string,body?:unknown)=>{
+   const result=await fetch(base+path,{method:"POST",credentials:"same-origin",
+    cache:"no-store",...(body===undefined?{}:{headers:{"Content-Type":"application/json"},
+    body:JSON.stringify(body)})});
+   const data:unknown=await result.json();
+   const value=data&&typeof data==="object"&&!Array.isArray(data)
+    ?data as Record<string,unknown>:{};
+   if(!result.ok)throw Error(String(value.error??value.safeCode??result.status));
+   return value;
+  };
+  try{
+   let state=dispatch?.status??"NotPrepared";
+   if(state==="NotPrepared"){
+    if(report.blockingCodes.includes("invoice.serial.durable_reservation_required")){
+     await invoke("/serial-reservation",{expectedRevision:report.invoiceRevision});
+    }
+    await invoke("/prepare-legacy");
+    state="Prepared";
+   }
+   if(state==="Prepared"){
+    await invoke("/arm");
+    state="Reserved";
+   }
+   setNotice(state==="Reserved"?
+    "صورتحساب برای ارسال آماده است. برای ارسال واقعی، دکمه «ارسال واقعی صورتحساب به Sandbox» را بزنید.":
+    "وضعیت عملیات به‌روزرسانی شد.");
+  }catch(e){setError("آماده‌سازی ارسال متوقف شد: "+(e as Error).message);}
+  finally{
+   await loadDispatch();await refresh();setActionBusy(false);
+  }
+ },[actionBusy,report,dispatch,dispatchLoading,taxpayerId,invoiceId,loadDispatch,refresh]);
  const inquireByReference=useCallback(async()=>{
   if(actionBusy||dispatch?.status!=="Acknowledged")return;
   setActionBusy(true);setError("");setNotice("");
@@ -327,6 +365,14 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
    <p role="alert" className="form-error">عملیات Reserved است، اما تنظیمات فعال‌سازی ارسال Legacy در Backend کامل نیست.</p>}
   {dispatch&&<p role="status" className="field-hint">وضعیت ارسال Sandbox: <strong>{dispatch.status}</strong>
    {dispatch.referenceNumber&&<> — شماره پیگیری: <b dir="ltr">{dispatch.referenceNumber}</b></>}</p>}
+  {report?.environment==="Sandbox"&&report.invoiceState==="Finalized"&&
+   (!dispatch||["NotPrepared","Prepared"].includes(dispatch.status))&&
+   !dispatchError&&
+   <button type="button" className="identity-secondary" disabled={actionBusy||busy||dispatchLoading}
+    onClick={()=>void readyExisting()}>{actionBusy?"در حال آماده‌سازی عملیات…":
+    "آماده‌سازی کامل برای ارسال Sandbox"}</button>}
+  {dispatch?.status==="Indeterminate"&&
+   <p role="alert" className="form-error">این عملیات قبلاً شروع شده و نتیجه آن نامشخص است. همین صورتحساب را مجدداً ارسال نکنید؛ برای تست ارسال تازه، صورتحساب آزمایشی جدید با شماره و شناسه مالیاتی مستقل ایجاد کنید.</p>}
   {report?.environment==="Sandbox"&&dispatch?.status==="Acknowledged"&&
    <button type="button" className="identity-secondary" disabled={actionBusy||busy}
     onClick={()=>void inquireByReference()}>{actionBusy?"در حال استعلام…":"استعلام شماره رهگیری از Sandbox"}</button>}
