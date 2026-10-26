@@ -44,6 +44,10 @@ public sealed class Phase10LegacyAccessTokenClientTests
         Assert.Null(requestAuthorization);
         Assert.NotNull(requestBody);
         Assert.Contains("GET_TOKEN", requestBody, StringComparison.Ordinal);
+        Assert.Contains("\\\"packet\\\"", requestBody, StringComparison.Ordinal);
+        Assert.Contains("\\\"packetType\\\"", requestBody, StringComparison.Ordinal);
+        Assert.Contains("\\\"username\\\"", requestBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("\\\"PacketType\\\"", requestBody, StringComparison.Ordinal);
         Assert.DoesNotContain(privateKeyText, requestBody, StringComparison.Ordinal);
     }
 
