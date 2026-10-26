@@ -46,7 +46,8 @@ public sealed class Phase10LegacyReferenceInquiryService(
         var conn=db.Database.GetDbConnection();
         var opened=conn.State!=System.Data.ConnectionState.Open;
         if(opened)await conn.OpenAsync(ct);
-        Guid operationId,memoryId;
+        Guid operationId,memoryId,attemptId;
+        long stateRevision;
         string referenceNumber;
         long stateRevision;
         string memoryCode,uid,fiscalTaxId,packetType;
@@ -80,6 +81,9 @@ JOIN invoice_dispatch_receipts receipt ON receipt.operation_id=d.id AND receipt.
             memoryCode=reader.GetString(2);fiscalTaxId=reader.GetString(3);
             stateRevision=reader.GetInt64(4);
             referenceNumber=reader.GetString(6);
+            stateRevision=reader.GetInt64(4);
+            // Bind evidence to the prior send attempt, not this inquiry request.
+            attemptId=Guid.Empty;
             var requestJson=reader.GetString(5);
             using var request=JsonDocument.Parse(requestJson,new JsonDocumentOptions{MaxDepth=24});
             var packet=request.RootElement.GetProperty("packets")[0];
@@ -88,6 +92,11 @@ JOIN invoice_dispatch_receipts receipt ON receipt.operation_id=d.id AND receipt.
         }
         catch(JsonException){return new(InvoiceApiDecision.Invalid,"stored_packet_invalid");}
         finally{if(opened)await conn.CloseAsync();}
+        attemptId=await db.InvoiceDispatchAttempts.AsNoTracking()
+            .Where(a=>a.OperationId==operationId)
+            .OrderByDescending(a=>a.AttemptNumber).Select(a=>a.Id).FirstOrDefaultAsync(ct);
+        if(attemptId==Guid.Empty)
+            return new(InvoiceApiDecision.Invalid,"inquiry_attempt_not_found");
         if(uid!=operationId.ToString("D")||packetType!="INVOICE.V01"||
            referenceNumber.Length is < 1 or > 128 ||
            memoryCode.Length!=6||fiscalTaxId.Length!=22)
@@ -185,6 +194,18 @@ JOIN invoice_dispatch_receipts receipt ON receipt.operation_id=d.id AND receipt.
             var verdict=Phase10InquiryReconciliation.Evaluate(expected,results.GetRawText());
             // Read-only until authoritative final acceptance semantics are separately verified.
             // Never transition Acknowledged into fiscally Accepted merely from a status string.
+            if(verdict.Outcome==InvoiceReconciliationOutcome.CorrelatedPendingReview &&
+               verdict.MatchedReference==referenceNumber)
+            {
+                var observed=DateTime.UtcNow;
+                var digest=Phase10DispatchEvidenceRepository.EvidenceHash(
+                    "inquiry_reference_correlated",referenceNumber,observed);
+                var written=await evidence.AppendReferenceInquiryEvidenceAsync(
+                    operationId,owner.Value,taxpayerId,attemptId,stateRevision,
+                    referenceNumber,digest,observed,ct);
+                if(written.Status!=Phase10DispatchEvidenceStatus.Recorded)
+                    return new(InvoiceApiDecision.Success,"inquiry_evidence_conflict");
+            }
             return new(InvoiceApiDecision.Success,verdict.SafeCode,verdict.MatchedReference);
         }
         catch(HttpRequestException){return new(InvoiceApiDecision.Success,"inquiry_network_unavailable");}
