@@ -8,7 +8,7 @@ const read=p=>readFileSync(resolve(root,p),'utf8');
 test('Reserved dispatch errors and disabled flags are visible',()=>{
  const ui=read('apps/web/app/invoices/invoice-send-readiness-panel.tsx');
  for(const word of ['dispatchError','response.status','به‌روزرسانی وضعیت عملیات ارسال','تنظیمات فعال‌سازی ارسال Legacy',
- 'dispatch?.status==="Reserved"'])assert.ok(ui.includes(word),word);
+ 'dispatch?.status==="Reserved"','dispatchLoading','dispatchFeedback','در حال دریافت وضعیت…'])assert.ok(ui.includes(word),word);
 });
 test('status readiness and send enforce same sandbox endpoint flags',()=>{
  const endpoint=read('src/ArginTaxPayer.Api/Invoices/Phase10InvoiceDispatchDevelopmentEndpoints.cs');
