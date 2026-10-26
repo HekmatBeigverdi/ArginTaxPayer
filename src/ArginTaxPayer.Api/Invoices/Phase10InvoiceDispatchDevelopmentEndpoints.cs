@@ -32,7 +32,10 @@ public static class Phase10InvoiceDispatchDevelopmentEndpoints
                     submissionEnabled = configuration["SandboxInvoiceLegacy:Enabled"] == "true" &&
                         configuration["SandboxInvoiceLegacy:OperatorApprovedEndpoint"] == "true" &&
                         result.Overview?.Status == "Reserved",
-                    inquiryEnabled = false, fiscalAccepted = false,
+                    inquiryEnabled = result.Overview?.Status == "Acknowledged" &&
+                        result.Overview?.ReferenceNumber is not null,
+                    fiscalAccepted = false,
+                    referenceNumber = result.Overview?.ReferenceNumber,
                     status = result.Overview?.Status ?? "NotPrepared",
                     operationId = result.Overview?.OperationId,
                     invoiceRevision = result.Overview?.InvoiceRevision,
