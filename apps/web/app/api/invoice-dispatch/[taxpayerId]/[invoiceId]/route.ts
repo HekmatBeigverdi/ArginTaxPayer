@@ -32,7 +32,7 @@ async function dispatch(request: NextRequest, context: Context, method: "GET" | 
       method,
       cache: "no-store",
       redirect: "manual",
-      signal: AbortSignal.timeout(10000),
+      signal: AbortSignal.timeout(method === "POST" ? 45000 : 10000),
       headers: { Authorization: "Bearer " + bearer }
     });
     if (response.status >= 300 && response.status < 400)
