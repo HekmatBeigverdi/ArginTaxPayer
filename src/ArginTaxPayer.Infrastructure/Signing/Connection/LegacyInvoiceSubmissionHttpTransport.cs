@@ -110,7 +110,7 @@ internal sealed class LegacyInvoiceSubmissionHttpTransport(
                     HttpStatusCode.BadGateway => "sandbox_legacy_http_502",
                     HttpStatusCode.ServiceUnavailable => "sandbox_legacy_http_503",
                     HttpStatusCode.GatewayTimeout => "sandbox_legacy_http_504",
-                    _ => "sandbox_legacy_http_other"
+                    _ => "sandbox_legacy_http_" + ((int)response.StatusCode).ToString(System.Globalization.CultureInfo.InvariantCulture)
                 };
                 return new(false, classification);
             }
