@@ -103,7 +103,7 @@ JOIN sandbox_fiscal_memories m ON m.id=d.fiscal_memory_id
             System.Globalization.CultureInfo.InvariantCulture);
         var inquiryPacket=new {
             Uid=Guid.NewGuid().ToString("D"),PacketType="INQUIRY_BY_UID",Retry=false,
-            Data=new { UidList=new[]{uid}, FiscalId=memoryCode },
+            Data=new[]{new {uid,fiscalId=memoryCode}},
             EncryptionKeyId=(string?)null,SymmetricKey=(string?)null,
             Iv=(string?)null,FiscalId=memoryCode,DataSignature=(string?)null
         };
@@ -118,7 +118,7 @@ JOIN sandbox_fiscal_memories m ON m.id=d.fiscal_memory_id
             AutomaticDecompression=DecompressionMethods.None
         }){Timeout=TimeSpan.FromSeconds(15)};
         using var message=new HttpRequestMessage(HttpMethod.Post,
-            new Uri(baseUrl,"self-tsp/sync/INQUIRY_BY_UID/")){
+            new Uri(baseUrl,"self-tsp/sync/INQUIRY_BY_UID")){
             Content=JsonContent.Create(new {
                 Signature=signature,SignatureKeyId=(string?)null,
                 Packet=new {
