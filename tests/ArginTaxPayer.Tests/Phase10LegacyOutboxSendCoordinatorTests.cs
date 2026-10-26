@@ -49,8 +49,11 @@ public sealed class Phase10LegacyOutboxSendCoordinatorTests
                     "{\"errors\":[],\"result\":{\"data\":{\"token\":\"fresh-token\"}}}");
             invoiceRequests++;
             Assert.Equal("Bearer fresh-token", request.Headers.Authorization?.ToString());
-            return Json(HttpStatusCode.OK,
-                "{\"errors\":null,\"result\":[{\"referenceNumber\":\"REF-1\"}]}");
+            return Json(HttpStatusCode.OK, JsonSerializer.Serialize(new
+            {
+                errors = (string?)null,
+                result = new[] { new { uid = operation.ToString("D"), referenceNumber = "REF-1" } }
+            }));
         });
         var coordinator = new LegacyInvoiceOutboxSendCoordinator(
             new LegacyInvoiceAccessTokenClient(config,
