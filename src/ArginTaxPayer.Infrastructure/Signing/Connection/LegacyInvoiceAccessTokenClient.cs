@@ -20,6 +20,7 @@ internal sealed class LegacyInvoiceAccessTokenClient(
     IConfiguration configuration, Func<HttpClient>? testClientFactory = null)
 {
     private const int MaxResponseBytes = 262_144;
+    private static readonly JsonSerializerOptions LegacyJsonOptions = new(JsonSerializerDefaults.Web);
 
     internal async Task<LegacyInvoiceAccessTokenResult> RequestAsync(
         string fiscalId, SensitiveBytes signingKey, ReadOnlyMemory<byte> expectedPublicSpki,
@@ -70,7 +71,7 @@ internal sealed class LegacyInvoiceAccessTokenClient(
                     packet.FiscalId, packet.DataSignature,
                     SignatureKeyId = (string?)null
                 }
-            })
+            }, options: LegacyJsonOptions)
         };
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         request.Headers.TryAddWithoutValidation("requestTraceId", trace);
@@ -107,10 +108,11 @@ internal sealed class LegacyInvoiceAccessTokenClient(
     {
         token = string.Empty;
         var root = document.RootElement;
-        if (!TryProperty(root, "errors", out var errors) ||
-            (errors.ValueKind != JsonValueKind.Null &&
-             (errors.ValueKind != JsonValueKind.Array || errors.GetArrayLength() != 0)) ||
-            !TryProperty(root, "result", out var result) ||
+        if (TryProperty(root, "errors", out var errors) &&
+            errors.ValueKind != JsonValueKind.Null &&
+            (errors.ValueKind != JsonValueKind.Array || errors.GetArrayLength() != 0))
+            return false;
+        if (!TryProperty(root, "result", out var result) ||
             result.ValueKind != JsonValueKind.Object ||
             !TryProperty(result, "data", out var data) ||
             data.ValueKind != JsonValueKind.Object ||
