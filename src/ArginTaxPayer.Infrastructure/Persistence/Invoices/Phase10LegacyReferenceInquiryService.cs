@@ -49,7 +49,6 @@ public sealed class Phase10LegacyReferenceInquiryService(
         Guid operationId,memoryId,attemptId;
         long stateRevision;
         string referenceNumber;
-        long stateRevision;
         string memoryCode,uid,fiscalTaxId,packetType;
         try
         {
@@ -81,7 +80,6 @@ JOIN invoice_dispatch_receipts receipt ON receipt.operation_id=d.id AND receipt.
             memoryCode=reader.GetString(2);fiscalTaxId=reader.GetString(3);
             stateRevision=reader.GetInt64(4);
             referenceNumber=reader.GetString(6);
-            stateRevision=reader.GetInt64(4);
             // Bind evidence to the prior send attempt, not this inquiry request.
             attemptId=Guid.Empty;
             var requestJson=reader.GetString(5);
