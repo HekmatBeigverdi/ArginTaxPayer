@@ -84,7 +84,7 @@ public sealed class Phase10LegacyInvoiceTransportTests
             Config(), () => new HttpClient(handler, disposeHandler: false));
 
         var result = await transport.PostAsync(
-            "A2HPH4", "{\"signature\":\"" + new string('A', 344) + "\",\"packets\":[{}]}", new string('A', 344),
+            "A2HPH4", ValidRequest(new string('A', 344)), new string('A', 344),
             "token", Guid.NewGuid().ToString("D"), "123", default);
 
         Assert.False(result.Acknowledged);
