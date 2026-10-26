@@ -21,7 +21,8 @@ public sealed record Phase10UidInquiryResult(InvoiceApiDecision Decision,
 /// </summary>
 public sealed class Phase10LegacyUidInquiryService(
     ArginTaxPayerDbContext db, TaxpayerScopeService scope,
-    IConfiguration config, SandboxLegacySigningKeyLoader keys)
+    IConfiguration config, SandboxLegacySigningKeyLoader keys,
+    Phase10DispatchEvidenceRepository evidence)
 {
     public async Task<Phase10UidInquiryResult> InquireAsync(
         string? bearer,Guid taxpayerId,Guid invoiceId,CancellationToken ct)
@@ -45,7 +46,8 @@ public sealed class Phase10LegacyUidInquiryService(
         var conn=db.Database.GetDbConnection();
         var opened=conn.State!=System.Data.ConnectionState.Open;
         if(opened)await conn.OpenAsync(ct);
-        Guid operationId,memoryId;
+        Guid operationId,memoryId,attemptId;
+        long stateRevision;
         string memoryCode,uid,fiscalTaxId,packetType;
         try
         {
@@ -53,9 +55,10 @@ public sealed class Phase10LegacyUidInquiryService(
             cmd.CommandText="""
 SELECT d.id,d.fiscal_memory_id,m.memory_identifier,
        o.payload_json::jsonb->>'fiscalTaxId',
-       o.payload_json::jsonb->'requestJson'->>0,
-       d.state,
-       o.payload_json::jsonb->>'requestJson'
+       d.state_revision,
+       o.payload_json::jsonb->>'requestJson',
+       (SELECT a.id FROM invoice_dispatch_attempts a WHERE a.operation_id=d.id
+        ORDER BY a.attempt_number DESC LIMIT 1)
 FROM invoice_dispatch_operations d
 JOIN outbox_messages o ON o.id=d.id
 JOIN sandbox_fiscal_memories m ON m.id=d.fiscal_memory_id
@@ -74,7 +77,9 @@ JOIN sandbox_fiscal_memories m ON m.id=d.fiscal_memory_id
                 return new(InvoiceApiDecision.Invalid,"indeterminate_operation_not_found");
             operationId=reader.GetGuid(0);memoryId=reader.GetGuid(1);
             memoryCode=reader.GetString(2);fiscalTaxId=reader.GetString(3);
-            var requestJson=reader.GetString(6);
+            stateRevision=reader.GetInt64(4);
+            attemptId=reader.GetGuid(6);
+            var requestJson=reader.GetString(5);
             using var request=JsonDocument.Parse(requestJson,new JsonDocumentOptions{MaxDepth=24});
             var packet=request.RootElement.GetProperty("packets")[0];
             uid=packet.GetProperty("uid").GetString()??"";
@@ -148,6 +153,17 @@ JOIN sandbox_fiscal_memories m ON m.id=d.fiscal_memory_id
             var expected=new InvoiceReconciliationIdentity(operationId,owner.Value,taxpayerId,
                 memoryId,uid,packetType,memoryCode,null);
             var verdict=Phase10InquiryReconciliation.Evaluate(expected,results.GetRawText());
+            if(verdict.Outcome==InvoiceReconciliationOutcome.CorrelatedPendingReview)
+            {
+                var now=DateTime.UtcNow;
+                var hash=Phase10DispatchEvidenceRepository.EvidenceHash(
+                    "inquiry_uid_correlated",verdict.MatchedReference,now);
+                var stored=await evidence.AppendInquiryEvidenceAsync(
+                    operationId,owner.Value,taxpayerId,attemptId,stateRevision,
+                    verdict.MatchedReference,hash,now,ct);
+                if(stored.Status!=Phase10DispatchEvidenceStatus.Recorded)
+                    return new(InvoiceApiDecision.Success,"inquiry_evidence_conflict");
+            }
             return new(InvoiceApiDecision.Success,verdict.SafeCode,verdict.MatchedReference);
         }
         catch(HttpRequestException){return new(InvoiceApiDecision.Success,"inquiry_network_unavailable");}
