@@ -84,6 +84,22 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
   }catch{setDispatch(null);setDispatchError("اتصال به سرویس وضعیت ارسال برقرار نشد.");setDispatchFeedback("");}
   finally{setDispatchLoading(false);}
  },[isWorkspace,taxpayerId,invoiceId]);
+ const armDispatch=useCallback(async()=>{
+  if(actionBusy||dispatch?.status!=="Prepared"||report?.invoiceState!=="Finalized")return;
+  setActionBusy(true);setError("");setNotice("");
+  try{
+   const response=await fetch("/api/invoice-dispatch/"+encodeURIComponent(taxpayerId)+"/"+
+     encodeURIComponent(invoiceId)+"/arm",{
+     method:"POST",credentials:"same-origin",cache:"no-store"});
+   const body:unknown=await response.json();
+   const data=body&&typeof body==="object"&&!Array.isArray(body)
+    ?body as Record<string,unknown>:{};
+   if(!response.ok)throw Error("انتقال به صف ارسال انجام نشد: "+String(data.error??response.status));
+   setNotice("بسته موجود برای ارسال Sandbox رزرو شد؛ هنوز درخواستی به سازمان ارسال نشده است.");
+   await loadDispatch();await refresh();
+  }catch(e){setError((e as Error).message);}
+  finally{setActionBusy(false);}
+ },[actionBusy,dispatch,report,taxpayerId,invoiceId,loadDispatch,refresh]);
  const sendSandbox=useCallback(async()=>{
   if(actionBusy||!dispatch||dispatch.status!=="Reserved"||
      !report||report.environment!=="Sandbox"||report.invoiceState!=="Finalized")return;
@@ -274,6 +290,10 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
    <p role="alert" className="form-error">عملیات Reserved است، اما تنظیمات فعال‌سازی ارسال Legacy در Backend کامل نیست.</p>}
   {dispatch&&<p role="status" className="field-hint">وضعیت ارسال Sandbox: <strong>{dispatch.status}</strong>
    {dispatch.referenceNumber&&<> — شماره پیگیری: <b dir="ltr">{dispatch.referenceNumber}</b></>}</p>}
+  {report?.environment==="Sandbox"&&report.invoiceState==="Finalized"&&
+   dispatch?.status==="Prepared"&&
+   <button type="button" className="identity-secondary" disabled={actionBusy||busy||dispatchLoading}
+    onClick={()=>void armDispatch()}>{actionBusy?"در حال رزرو عملیات…":"ثبت عملیات آماده‌شده در صف ارسال Sandbox"}</button>}
   {report?.environment==="Sandbox"&&report.invoiceState==="Finalized"&&
    dispatch?.status==="Reserved"&&dispatch.submissionEnabled&&
    <button type="button" className="identity-secondary" disabled={actionBusy||busy}
