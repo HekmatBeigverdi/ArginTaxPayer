@@ -12,7 +12,8 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Invoices;
 public sealed record InvoiceDispatchOverview(
     Guid OperationId, Guid InvoiceId, long InvoiceRevision, string Status,
     long StateRevision, DateTime UpdatedAtUtc, string Environment,
-    bool SubmissionEnabled, bool InquiryEnabled, bool FiscalAccepted);
+    bool SubmissionEnabled, bool InquiryEnabled, bool FiscalAccepted,
+    string? ReferenceNumber = null);
 
 public sealed record InvoiceDispatchOverviewResult(
     InvoiceApiDecision Decision, InvoiceDispatchOverview? Overview = null);
@@ -53,10 +54,13 @@ public sealed class Phase10InvoiceDispatchReadService(
         {
             await using var cmd = conn.CreateCommand();
             cmd.CommandText = """
-SELECT id, invoice_revision, state, state_revision, updated_at_utc
-FROM invoice_dispatch_operations
-WHERE customer_user_id=@owner AND taxpayer_id=@taxpayer AND invoice_id=@invoice
-ORDER BY invoice_revision DESC, created_at_utc DESC, id
+SELECT d.id, d.invoice_revision, d.state, d.state_revision, d.updated_at_utc,
+       (SELECT r.authority_reference FROM invoice_dispatch_receipts r
+        WHERE r.operation_id=d.id AND r.receipt_kind=1 AND r.authority_reference IS NOT NULL
+        ORDER BY r.observed_at_utc DESC LIMIT 1)
+FROM invoice_dispatch_operations d
+WHERE d.customer_user_id=@owner AND d.taxpayer_id=@taxpayer AND d.invoice_id=@invoice
+ORDER BY d.invoice_revision DESC, d.created_at_utc DESC, d.id
 LIMIT 1
 """;
             foreach (var (name, value) in new (string, object)[] {
@@ -76,7 +80,8 @@ LIMIT 1
                 : "Unrecognized";
             return new(InvoiceApiDecision.Success, new(
                 reader.GetGuid(0),invoiceId,reader.GetInt64(1),stateName,reader.GetInt64(3),
-                reader.GetDateTime(4),"Mock",false,false,false));
+                reader.GetDateTime(4),"Mock",false,false,false,
+                reader.IsDBNull(5)?null:reader.GetString(5)));
         }
         finally
         {
