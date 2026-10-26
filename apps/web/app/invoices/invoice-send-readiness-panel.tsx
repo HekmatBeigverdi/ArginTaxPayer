@@ -35,6 +35,8 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
  const [review,setReview]=useState<Review|null>(null);
  const [dispatch,setDispatch]=useState<DispatchStatus|null>(null);
  const [dispatchError,setDispatchError]=useState("");
+ const [dispatchLoading,setDispatchLoading]=useState(false);
+ const [dispatchFeedback,setDispatchFeedback]=useState("");
  const refresh=useCallback(async(signal?:AbortSignal)=>{
   if(isWorkspace)return;
   setBusy(true);setError("");
@@ -58,22 +60,29 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
  },[invoiceId,taxpayerId,isWorkspace]);
  const loadDispatch=useCallback(async()=>{
   if(isWorkspace)return;
+  setDispatchLoading(true);
+  setDispatchFeedback("در حال دریافت وضعیت عملیات ارسال از سرور…");
   try{
    const response=await fetch("/api/invoice-dispatch/"+encodeURIComponent(taxpayerId)+"/"+
     encodeURIComponent(invoiceId),{cache:"no-store",credentials:"same-origin"});
    if(!response.ok){
     setDispatch(null);
     setDispatchError("دریافت وضعیت عملیات ارسال ناموفق بود (HTTP "+response.status+").");
+    setDispatchFeedback("");
     return;
    }
    const body:unknown=await response.json();
    if(body&&typeof body==="object"&&!Array.isArray(body)){
     const candidate=body as DispatchStatus;
     if(typeof candidate.status==="string"&&typeof candidate.submissionEnabled==="boolean"&&
-       candidate.fiscalAccepted===false){setDispatch(candidate);setDispatchError("");}
-    else {setDispatch(null);setDispatchError("پاسخ وضعیت ارسال ساختار معتبر ندارد.");}
-   }
-  }catch{setDispatch(null);setDispatchError("اتصال به سرویس وضعیت ارسال برقرار نشد.");}
+       candidate.fiscalAccepted===false){
+        setDispatch(candidate);setDispatchError("");
+        setDispatchFeedback("آخرین وضعیت دریافتی: "+candidate.status+(candidate.submissionEnabled?" — ارسال فعال است.":" — ارسال غیرفعال است."));
+       }
+    else {setDispatch(null);setDispatchError("پاسخ وضعیت ارسال ساختار معتبر ندارد.");setDispatchFeedback("");}
+   }else {setDispatch(null);setDispatchError("پاسخ وضعیت ارسال خالی یا نامعتبر است.");setDispatchFeedback("");}
+  }catch{setDispatch(null);setDispatchError("اتصال به سرویس وضعیت ارسال برقرار نشد.");setDispatchFeedback("");}
+  finally{setDispatchLoading(false);}
  },[isWorkspace,taxpayerId,invoiceId]);
  const sendSandbox=useCallback(async()=>{
   if(actionBusy||!dispatch||dispatch.status!=="Reserved"||
@@ -257,8 +266,9 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
   </div>
   {error&&<p role="alert" className="form-error">{error}</p>}
   {notice&&<p role="status" className="field-hint">{notice}</p>}
-  <button type="button" className="identity-secondary" disabled={busy||actionBusy}
-   onClick={()=>void loadDispatch()}>به‌روزرسانی وضعیت عملیات ارسال</button>
+  <button type="button" className="identity-secondary" disabled={busy||actionBusy||dispatchLoading}
+   onClick={()=>void loadDispatch()}>{dispatchLoading?"در حال دریافت وضعیت…":"به‌روزرسانی وضعیت عملیات ارسال"}</button>
+  {dispatchFeedback&&<p role="status" className="field-hint">{dispatchFeedback}</p>}
   {dispatchError&&<p role="alert" className="form-error">{dispatchError}</p>}
   {dispatch?.status==="Reserved"&&!dispatch.submissionEnabled&&
    <p role="alert" className="form-error">عملیات Reserved است، اما تنظیمات فعال‌سازی ارسال Legacy در Backend کامل نیست.</p>}
