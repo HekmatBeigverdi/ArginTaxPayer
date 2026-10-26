@@ -60,6 +60,7 @@ internal sealed class LegacyInvoiceSubmissionHttpTransport(
             timestamp.Any(c => !char.IsAsciiDigit(c)))
             return new(false, "sandbox_legacy_packet_invalid");
 
+        string expectedUid;
         try
         {
             using var parsedRequest = JsonDocument.Parse(requestJson);
@@ -69,8 +70,12 @@ internal sealed class LegacyInvoiceSubmissionHttpTransport(
                 signature.ValueKind != JsonValueKind.String ||
                 !string.Equals(signature.GetString(), transferSignature, StringComparison.Ordinal) ||
                 !TryProperty(root, "packets", out var packets) ||
-                packets.ValueKind != JsonValueKind.Array || packets.GetArrayLength() == 0)
+                packets.ValueKind != JsonValueKind.Array || packets.GetArrayLength() != 1 ||
+                !TryProperty(packets[0], "uid", out var packetUid) ||
+                packetUid.ValueKind != JsonValueKind.String ||
+                !Guid.TryParse(packetUid.GetString(), out var uidGuid) || uidGuid == Guid.Empty)
                 return new(false, "sandbox_legacy_packet_invalid");
+            expectedUid = uidGuid.ToString("D");
         }
         catch (JsonException)
         {
@@ -110,7 +115,7 @@ internal sealed class LegacyInvoiceSubmissionHttpTransport(
                 return new(false, classification);
             }
             using var body = await ParseBoundedAsync(response, ct);
-            return ParseAcknowledgement(body);
+            return ParseAcknowledgement(body, expectedUid);
         }
         catch (HttpRequestException)
         {
@@ -126,7 +131,7 @@ internal sealed class LegacyInvoiceSubmissionHttpTransport(
         }
     }
 
-    private static Result ParseAcknowledgement(JsonDocument document)
+    private static Result ParseAcknowledgement(JsonDocument document, string expectedUid)
     {
         var root = document.RootElement;
         if (TryProperty(root, "errors", out var errors) &&
@@ -138,13 +143,19 @@ internal sealed class LegacyInvoiceSubmissionHttpTransport(
             return new(false, "sandbox_legacy_outcome_indeterminate");
 
         var row = result[0];
+        if (row.ValueKind != JsonValueKind.Object ||
+            !TryProperty(row, "uid", out var responseUid) ||
+            responseUid.ValueKind != JsonValueKind.String ||
+            !Guid.TryParse(responseUid.GetString(), out var parsedUid) ||
+            parsedUid.ToString("D") != expectedUid)
+            return new(false, "sandbox_legacy_response_uid_mismatch");
         if (TryProperty(row, "errorCode", out var packetError) &&
             packetError.ValueKind == JsonValueKind.String &&
             !string.IsNullOrWhiteSpace(packetError.GetString()))
             return new(false, "sandbox_legacy_packet_rejected");
         if (!TryProperty(row, "referenceNumber", out var reference) ||
             reference.ValueKind != JsonValueKind.String)
-            return new(false, "sandbox_legacy_outcome_indeterminate");
+            return new(false, "sandbox_legacy_reference_missing");
         var value = reference.GetString();
         if (value is not { Length: > 0 and <= 128 } ||
             value.Any(c => !(char.IsAsciiLetterOrDigit(c) || c is '-' or '_')))
