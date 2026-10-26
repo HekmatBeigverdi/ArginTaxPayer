@@ -30,6 +30,7 @@ public static class Phase10InvoiceDispatchDevelopmentEndpoints
                 InvoiceApiDecision.Success => Results.Ok(new {
                     environment = "Sandbox",
                     submissionEnabled = configuration["SandboxInvoiceLegacy:Enabled"] == "true" &&
+                        configuration["SandboxInvoiceLegacy:OperatorApprovedEndpoint"] == "true" &&
                         result.Overview?.Status == "Reserved",
                     inquiryEnabled = false, fiscalAccepted = false,
                     status = result.Overview?.Status ?? "NotPrepared",
