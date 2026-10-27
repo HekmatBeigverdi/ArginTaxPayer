@@ -9,7 +9,7 @@ namespace ArginTaxPayer.Tests;
 public sealed class Phase08Step19RegressionTests
 {
     [Fact]
-    public void Invoice_lines_use_decimal_rounding_and_reconcile()
+    public void Invoice_lines_use_decimal_truncation_and_reconcile()
     {
         var items = new[] {
             new InvoiceEntryLine(null, "A", 2m, 9100m, 100m, 10m),

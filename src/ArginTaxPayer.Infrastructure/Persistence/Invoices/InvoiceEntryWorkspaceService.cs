@@ -60,16 +60,14 @@ public static class InvoiceDraftSettlementPolicy
         decimal gross = 0, discount = 0, vat = 0;
         foreach (var line in lines)
         {
-            // Quantize each invoice line once using decimal; aggregate rounded
-            // amounts, never floating-point UI totals or client-provided sums.
-            var grossLine = decimal.Round(checked(line.Quantity * line.UnitPriceRial),
-                2, MidpointRounding.AwayFromZero);
-            var discountLine = decimal.Round(checked(line.Quantity * line.DiscountPerUnitRial),
-                2, MidpointRounding.AwayFromZero);
+            // The preview must use the exact same whole-rial truncation as the
+            // finalized wire projection; otherwise the UI total and `vam` can
+            // differ when a line calculation has fractional rial digits.
+            var grossLine = decimal.Truncate(checked(line.Quantity * line.UnitPriceRial));
+            var discountLine = decimal.Truncate(checked(line.Quantity * line.DiscountPerUnitRial));
             var baseLine = checked(grossLine - discountLine);
-            var vatLine = decimal.Round(checked(
-                baseLine * (line.VatRatePercent ?? 0m) / 100m),
-                2, MidpointRounding.AwayFromZero);
+            var vatLine = decimal.Truncate(checked(
+                baseLine * (line.VatRatePercent ?? 0m) / 100m));
             gross = checked(gross + grossLine);
             discount = checked(discount + discountLine);
             vat = checked(vat + vatLine);
