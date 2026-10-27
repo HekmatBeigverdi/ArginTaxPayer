@@ -12,7 +12,8 @@ using Npgsql;
 namespace ArginTaxPayer.Infrastructure.Persistence.Invoices;
 
 public sealed record Phase10LegacyPreparationResult(
-    InvoiceApiDecision Decision, string SafeCode, Guid? OperationId=null);
+    InvoiceApiDecision Decision, string SafeCode, Guid? OperationId=null,
+    string? WirePreviewJson=null);
 
 /// <summary>
 /// One finalized Sandbox invoice -> immutable official reference projection ->
@@ -51,6 +52,8 @@ public sealed class Phase10LegacyInvoicePreparationService(
             return new(InvoiceApiDecision.NotFound,"invoice_not_found");
         if(invoice.State!=InvoiceLifecycleState.Finalized)
             return Denied("invoice_not_finalized");
+        if(invoice.IssueDateUtc > DateTime.UtcNow)
+            return Denied("invoice_issue_date_future");
         if(!await db.InvoiceReviews.AsNoTracking().AnyAsync(r=>r.InvoiceId==invoiceId &&
                 r.CustomerUserId==owner.Value && r.TaxpayerId==taxpayerId &&
                 r.State==InvoiceReviewState.Approved,ct))
@@ -78,36 +81,41 @@ public sealed class Phase10LegacyInvoicePreparationService(
         try { lines=JsonSerializer.Deserialize<InvoiceEntryLine[]>(linesField.GetRawText())??[]; }
         catch(JsonException){return Denied("invoice_lines_invalid");}
         if(lines.Length==0 || lines.Any(l=>l.CatalogItemId is null ||
-                l.UnitId is null || l.OfficialIdentifierSnapshot is null))
+                l.UnitId is null || l.OfficialIdentifierSnapshot is not { Length: 13 } code ||
+                !code.All(char.IsAsciiDigit)))
             return Denied("official_invoice_lines_incomplete");
 
-        var seller=await db.TaxpayerProfiles.AsNoTracking()
-            .Where(t=>t.Id==taxpayerId && t.CustomerUserId==owner.Value)
-            .Select(t=>t.NormalizedIdentifier).SingleOrDefaultAsync(ct);
-        var buyer=await (from link in db.CustomerPartyLinks.AsNoTracking()
+        var sellerRow=await db.InvoiceParticipantDetails.AsNoTracking()
+            .Where(t=>t.TaxpayerId==taxpayerId && t.CustomerUserId==owner.Value)
+            .Select(t=>new { t.EconomicCode, t.BranchCode }).SingleOrDefaultAsync(ct);
+        var buyerRow=await (from link in db.CustomerPartyLinks.AsNoTracking()
             join party in db.Parties.AsNoTracking() on link.PartyId equals party.Id
             where link.CustomerUserId==owner.Value && link.PartyId==buyerId &&
                 link.UnlinkedAtUtc==null && party.Status==PartyStatus.Active
-            select party.NormalizedIdentifier).SingleOrDefaultAsync(ct);
+            select new { Identifier=party.NormalizedIdentifier, PersonType=(int?)party.Kind })
+            .SingleOrDefaultAsync(ct);
+        var buyerDetails=await db.InvoiceParticipantDetails.AsNoTracking()
+            .Where(t=>t.PartyId==buyerId && t.CustomerUserId==owner.Value)
+            .Select(t=>new { t.EconomicCode, t.BranchCode, t.PostalCode })
+            .SingleOrDefaultAsync(ct);
+        var seller=sellerRow?.EconomicCode;
+        var buyer=buyerDetails?.EconomicCode ?? buyerRow?.Identifier;
         if(string.IsNullOrWhiteSpace(seller) || string.IsNullOrWhiteSpace(buyer))
             return Denied("seller_or_buyer_identity_missing");
+        if(seller.Length is not (11 or 14) || !seller.All(char.IsAsciiDigit))
+            return Denied("seller_economic_identifier_invalid");
 
-        var itemIds=lines.Select(l=>l.CatalogItemId!.Value).Distinct().ToArray();
-        var mapping=await db.CatalogOfficialMappings.AsNoTracking()
-            .Where(m=>itemIds.Contains(m.ItemId) &&
-                m.EffectiveFromUtc<=invoice.IssueDateUtc &&
-                (m.EffectiveToUtc==null || m.EffectiveToUtc>invoice.IssueDateUtc))
-            .Join(db.OfficialGoodsServiceEntries.AsNoTracking(),
-                m=>m.OfficialEntryId,e=>e.Id,(m,e)=>new{m.ItemId,e.Code,
-                    e.VerificationStatus,e.ReleaseId})
-            .Where(m=>m.VerificationStatus==2 &&
-                db.CatalogReferenceReleases.Any(r=>r.Id==m.ReleaseId && r.State==3))
-            .ToArrayAsync(ct);
-        if(lines.Any(l=>mapping.Where(m=>m.ItemId==l.CatalogItemId)
-                 .Select(m=>m.Code).Distinct().Count()!=1 ||
-             !mapping.Any(m=>m.ItemId==l.CatalogItemId &&
-                 m.Code==l.OfficialIdentifierSnapshot)))
-            return Denied("official_goods_mapping_invalid");
+        int? buyerPersonTypeOverride = root.TryGetProperty("buyerPersonType", out _)
+            ? null : buyerRow?.PersonType;
+        decimal? otherTaxAndLegalFeesOverride = root.TryGetProperty("otherTaxAndLegalFeesRial", out _)
+            ? null : 0m;
+        var calculationAudit = Phase10InvoiceCalculationAuditService.AuditSnapshot(
+            invoice.SnapshotJson, invoice.IssueDateUtc,
+            buyerPersonTypeOverride, otherTaxAndLegalFeesOverride);
+        if (!calculationAudit.CanResend)
+            return Denied("invoice_calculation_audit_failed");
+        var buyerPersonType = buyerPersonTypeOverride;
+        long? otherTaxAndLegalFees = otherTaxAndLegalFeesOverride is not null ? 0L : null;
 
         var unitIds=lines.Select(l=>l.UnitId!.Value).Distinct().ToArray();
         var units=await db.OfficialMeasurementUnits.AsNoTracking()
@@ -131,7 +139,10 @@ public sealed class Phase10LegacyInvoicePreparationService(
         InvoiceWireProjection wire;
         try {
             wire=Phase10LegacyFrozenInvoiceProjector.Project(invoice,
-                reservation,seller,buyer,units,invoiceNumber);
+                reservation,seller,buyer,units,invoiceNumber,
+                buyerPersonType,otherTaxAndLegalFees,
+                buyerRow?.Identifier,buyerDetails?.BranchCode,buyerDetails?.PostalCode,
+                sellerRow?.BranchCode);
         }
         catch(Exception exception) when(exception is ArgumentException or
             InvalidOperationException or NotSupportedException or OverflowException or
@@ -145,7 +156,7 @@ public sealed class Phase10LegacyInvoicePreparationService(
         var existing=await FindExistingAsync(owner.Value,taxpayerId,invoiceId,invoice.Revision,ct);
         if(existing is { } found)
             return found.Prepared
-                ? new(InvoiceApiDecision.Success,"already_prepared",found.Id)
+                ? new(InvoiceApiDecision.Success,"already_prepared",found.Id,wire.Json)
                 : Denied("dispatch_operation_requires_reconciliation");
 
         var loader=services.GetRequiredService<SandboxLegacySigningKeyLoader>();
@@ -246,7 +257,7 @@ VALUES(@id,@taxpayer,@event,@payload,@dedup,@now,NULL,0)
                     ("dedup",$"phase10:sandbox:legacy:{taxpayerId:N}:{invoiceId:N}:{invoice.Revision}"),
                     ("now",now));
                 await tx.CommitAsync(ct);
-                return new(InvoiceApiDecision.Success,"legacy_outbox_prepared",operationId);
+                return new(InvoiceApiDecision.Success,"legacy_outbox_prepared",operationId,wire.Json);
             }
             catch(PostgresException ex) when(ex.SqlState is
                 PostgresErrorCodes.UniqueViolation or PostgresErrorCodes.SerializationFailure)

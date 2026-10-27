@@ -9,7 +9,7 @@ test('Legacy preparation is owner scoped and uses matching immutable reservation
  const s=read('src/ArginTaxPayer.Infrastructure/Persistence/Invoices/Phase10LegacyInvoicePreparationService.cs');
  for(const x of ['ScopedQuery(actor.ActorId,actor.Level1)','CustomerTaxpayerMemberships',
   'InvoiceLifecycleState.Finalized','InvoiceReviewState.Approved','InvoiceDocumentRevisions',
-  'CatalogOfficialMappings','OfficialMeasurementUnits','ReadReservationAsync',
+  'OfficialMeasurementUnits','ReadReservationAsync',
   'Phase10LegacyFrozenInvoiceProjector.Project','SandboxLegacySigningKeyLoader',
   'LegacyInvoiceAccessTokenClient','LegacyInvoiceSubmissionPacketBuilder.Build'])
   assert.ok(s.includes(x),x);

@@ -28,7 +28,7 @@ export async function POST(request:NextRequest,context:Context){
   if(![200,400,409].includes(response.status))
    return fail(503,"preparation_api_unavailable");
   const raw=await response.text();
-  if(raw.length>2048)return fail(502,"response_too_large");
+  if(raw.length>65536)return fail(502,"response_too_large");
   const payload:unknown=JSON.parse(raw);
   if(!payload||typeof payload!=="object"||Array.isArray(payload))
    return fail(502,"invalid_preparation_response");
@@ -38,10 +38,15 @@ export async function POST(request:NextRequest,context:Context){
    return fail(502,"invalid_preparation_response");
   if(!response.ok)return fail(response.status,code);
   if(value.authoritySubmitted!==false||
-     typeof value.operationId!=="string"||!uuid.test(value.operationId))
+     typeof value.operationId!=="string"||!uuid.test(value.operationId)||
+     typeof value.wirePreviewJson!=="string"||value.wirePreviewJson.length>60000)
    return fail(502,"invalid_preparation_response");
+  let wire:unknown;
+  try{wire=JSON.parse(value.wirePreviewJson);}catch{return fail(502,"invalid_preparation_response");}
+  if(!wire||typeof wire!=="object"||Array.isArray(wire)||
+     !("header" in wire)||!("body" in wire))return fail(502,"invalid_preparation_response");
   return NextResponse.json({status:code,operationId:value.operationId,
-   environment:"Sandbox",authoritySubmitted:false},
+   environment:"Sandbox",authoritySubmitted:false,wirePreviewJson:value.wirePreviewJson},
    {headers:{"Cache-Control":"no-store"}});
  }catch{return fail(503,"preparation_api_unavailable");}
 }

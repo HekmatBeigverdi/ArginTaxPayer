@@ -77,6 +77,7 @@ type FiscalEntry = {
   type: "buyer" | "taxpayer";
   displayName: string;
   identifier: string;
+  kind: 1 | 2;
   status: number;
 };
 
@@ -126,6 +127,7 @@ type SavedEntry = {
   settlementMethod?: number;
   cashAmountRial?: number | null;
   creditAmountRial?: number | null;
+  otherTaxAndLegalFeesRial?: number | null;
   contractNumber?: string | null;
   serviceBillId?: string | null;
   flightType?: number | null;
@@ -184,7 +186,31 @@ async function getJson<T>(url: string, init?: RequestInit): Promise<T> {
   if (!response.ok) throw new Error(errorCodes[response.status] || "خطای سرویس (" + response.status + ")");
   return response.json() as Promise<T>;
 }
-const todayUtc = () => new Date().toISOString().slice(0, 10);
+const tehranDateTime = (instant: Date) => {
+  const parts = new Intl.DateTimeFormat("en-CA-u-nu-latn", {
+    timeZone: "Asia/Tehran", year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hourCycle: "h23"
+  }).formatToParts(instant);
+  const get = (type: string) => parts.find(part => part.type === type)?.value ?? "00";
+  return {date: `${get("year")}-${get("month")}-${get("day")}`,
+    time: `${get("hour")}:${get("minute")}`};
+};
+const tehranLocalToUtc = (date: string, time: string) => {
+  const [year, month, day] = date.split("-").map(Number);
+  const [hour, minute] = time.split(":").map(Number);
+  const target = Date.UTC(year, month - 1, day, hour, minute);
+  let utc = target;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const local = tehranDateTime(new Date(utc));
+    const [localYear, localMonth, localDay] = local.date.split("-").map(Number);
+    const [localHour, localMinute] = local.time.split(":").map(Number);
+    const represented = Date.UTC(localYear, localMonth - 1, localDay, localHour, localMinute);
+    const correction = target - represented;
+    utc += correction;
+    if (correction === 0) break;
+  }
+  return new Date(utc);
+};
 const toFaDate = (value: string) => new Date(value).toLocaleDateString("fa-IR-u-ca-persian", {timeZone:"UTC"});
 const amount = (value: string) => {
   const n = Number(value);
@@ -232,8 +258,8 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   const [buyerLoading, setBuyerLoading] = useState(false);
   const [buyerOpen, setBuyerOpen] = useState(false);
   const [buyerActive, setBuyerActive] = useState(0);
-  const [date, setDate] = useState(todayUtc);
-  const [hour, setHour] = useState("12:00");
+  const [date, setDate] = useState(() => tehranDateTime(new Date()).date);
+  const [hour, setHour] = useState(() => tehranDateTime(new Date()).time);
   const [formMetadata, setFormMetadata] = useState<FormMetadata | null>(null);
   const [formMetadataError, setFormMetadataError] = useState("");
   const [conditionalFields,setConditionalFields] = useState<Record<string,string>>({});
@@ -248,6 +274,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   const [invoiceDescription,setInvoiceDescription] = useState("");
   const [settlement,setSettlement] = useState<Settlement>(0);
   const [cashInput,setCashInput] = useState("");
+  const [otherTaxInput,setOtherTaxInput] = useState("0");
   const nextKey = useRef(0);
   const [detail, setDetail] = useState<Invoice | null>(null);
 
@@ -386,7 +413,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
         const byId = new Map(items.map(item => [item.id, item]));
         setRows(current => current.map(row => {
           const item = byId.get(row.productId);
-          return item ? {...row, officialIdentifierSnapshot: item.officialCode ?? undefined} : row;
+          return item ? {...row, officialIdentifierSnapshot: row.officialIdentifierSnapshot ?? item.officialCode ?? undefined} : row;
         }));
       } })
       .catch(() => { if (live) setCatalog([]); })
@@ -436,16 +463,26 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   function open() {
     setEditing(null);
     setDetail(null);
-    setStep(0); setDate(todayUtc()); setHour("12:00");
+    const currentTehran = tehranDateTime(new Date());
+    setStep(0); setDate(currentTehran.date); setHour(currentTehran.time);
     setBuyerId(""); setBuyerQuery(""); setBuyerOpen(false); setInvoiceType(1); setPattern(1);
     setMemoryId("");setHeaderOptions(null);
     setConditionalFields({});
     setHeaderCustomer(isAdmin ? (filterCustomer || "") : actorId);
     setTaxpayerId(isAdmin ? "" : taxpayerId);
     setRows([]); setInvoiceDescription(""); setSettlement(0); setCashInput("");
+    setOtherTaxInput("0");
     setSavedSnapshot(null); setError(""); setNotice(""); setModal(true);
   }
-  async function editDraft(draft: Invoice) {
+  useEffect(() => {
+    const params=new URLSearchParams(window.location.search);
+    const workspaceId=params.get("workspaceId");
+    if(params.get("issueDateAdjusted")==="1")
+      setNotice("زمان پیش‌نویس اصلاح که در آینده بود با زمان فعلی سامانه جایگزین شد؛ پیش از ثبت، تاریخ و ساعت واقعی را بررسی کنید.");
+    if(workspaceId&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(workspaceId))
+      void editDraft({id:workspaceId});
+  }, []);
+  async function editDraft(draft: Pick<Invoice,"id">) {
     setBusy(true); setError("");
     try {
       const saved = await getJson<SavedEntry>("/api/invoices/workspaces/"+draft.id);
@@ -453,8 +490,9 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
       setSavedSnapshot(null);
       setHeaderCustomer(saved.customerUserId);
       setTaxpayerId(saved.taxpayerId);
-      setDate(saved.issueDateUtc.slice(0,10));
-      setHour(saved.issueDateUtc.slice(11,16));
+      const savedTehran = tehranDateTime(new Date(saved.issueDateUtc));
+      setDate(savedTehran.date);
+      setHour(savedTehran.time);
       // Preserve the regular memory value for older drafts, then override it
       // only when the draft explicitly points at a Sandbox memory.
       setMemoryId(saved.fiscalMemoryId ?? "");
@@ -471,6 +509,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
       setInvoiceDescription(saved.invoiceDescription ?? "");
       setSettlement((saved.settlementMethod ?? 0) as Settlement);
       setCashInput(saved.settlementMethod === 3 ? String(saved.cashAmountRial ?? "") : "");
+      setOtherTaxInput(String(saved.otherTaxAndLegalFeesRial ?? 0));
       setRows(saved.lines.map((line,index)=>({
         key:index+1,productId:line.catalogItemId ?? "",
         unitId:line.unitId ?? undefined,catalogCodeSnapshot:line.catalogCodeSnapshot ?? undefined,
@@ -493,9 +532,13 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
     if (busy || !taxpayerId || !headerCustomer) {
       setError("ابتدا مشتری و مؤدی صادرکننده را انتخاب کنید."); return false;
     }
-    const issued = new Date(date+"T"+hour+":00.000Z");
-    if(Number.isNaN(issued.valueOf()) || issued.toISOString().slice(0,10)!==date) {
+    const issued = tehranLocalToUtc(date,hour);
+    if(Number.isNaN(issued.valueOf()) || tehranDateTime(issued).date!==date ||
+        tehranDateTime(issued).time!==hour) {
       setError("تاریخ یا ساعت صدور معتبر نیست.");return false;
+    }
+    if(issued.getTime()>Date.now()) {
+      setError("تاریخ و زمان صدور صورتحساب نمی‌تواند در آینده باشد.");return false;
     }
     if(rows.some(r=>!r.name.trim() || !Number.isFinite(Number(r.quantity)) ||
         Number(r.quantity)<0 || Number(r.unitPrice)<0 ||
@@ -503,18 +546,29 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
         Number(r.vatRate)<0 || Number(r.vatRate)>=1000)) {
       setError("شرح یا مقادیر یکی از ردیف‌ها معتبر نیست.");return false;
     }
+    if(persistedStep===2 && rows.some(r=>!/^\d{13}$/.test(r.officialIdentifierSnapshot??""))) {
+      setError("شناسه رسمی هر کالا یا خدمت باید ۱۳ رقم باشد؛ اعتبار آن هنگام ارسال توسط سامانه مالیاتی بررسی می‌شود.");return false;
+    }
     try { invoicePreview(rows); }
     catch { setError("مقادیر عددی ردیف‌ها یا دقت آن‌ها معتبر نیست."); return false; }
     if (persistedStep===2 && settlement===0) {
       setError("برای تکمیل مراحل، روش تسویه صورتحساب را انتخاب کنید.");return false;
     }
-    const cash = settlement === 1 ? calculated.total : settlement === 2 ? 0 :
+    const parsedOtherTax = Number(otherTaxInput);
+    const otherTax = parsedOtherTax;
+    const invoiceTotal = calculated.total + otherTax;
+    const cash = settlement === 1 ? invoiceTotal : settlement === 2 ? 0 :
       settlement === 3 ? roundRial(Number(cashInput)) : null;
-    const credit = settlement === 1 ? 0 : settlement === 2 ? calculated.total :
-      settlement === 3 ? roundRial(calculated.total - Number(cashInput)) : null;
+    const credit = settlement === 1 ? 0 : settlement === 2 ? invoiceTotal :
+      settlement === 3 ? roundRial(invoiceTotal - Number(cashInput)) : null;
     if (settlement === 3 && (cashInput.trim() === "" || !Number.isFinite(cash) ||
-        Number(cash) <= 0 || Number(credit) <= 0 || Number(cash) >= calculated.total)) {
+        Number(cash) <= 0 || Number(credit) <= 0 || Number(cash) >= invoiceTotal)) {
       setError("برای روش نقدی و نسیه، مبلغ نقدی باید بیشتر از صفر و کمتر از جمع صورتحساب باشد.");
+      return false;
+    }
+    if (otherTaxInput.trim() === "" || !Number.isFinite(parsedOtherTax) ||
+        otherTax < 0 || !Number.isInteger(otherTax)) {
+      setError("مجموع سایر مالیات و وجوه قانونی باید عدد صحیح نامنفی باشد.");
       return false;
     }
     const required = formMetadata?.entries.find(p=>p.type===invoiceType && p.pattern===pattern)?.requiredFields;
@@ -550,12 +604,14 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
           k==="contractNumber"||k==="serviceBillId" ? conditionalFields[k].trim() : Number(conditionalFields[k])])),
       invoiceDescription:invoiceDescription.trim() || null,
       settlementMethod:settlement, cashAmountRial:cash, creditAmountRial:credit,
+      otherTaxAndLegalFeesRial:otherTax,
       lines:rows.map(r=>({
         catalogItemId:r.productId || null,unitId:r.unitId || null,
         description:r.name.trim(),
         quantity:Number(r.quantity),unitPriceRial:Number(r.unitPrice),
         discountPerUnitRial:Number(r.discount),
-        vatRatePercent:r.vatRate==="" ? null : Number(r.vatRate)
+        vatRatePercent:r.vatRate==="" ? null : Number(r.vatRate),
+        officialIdentifierSnapshot:r.officialIdentifierSnapshot??null
       }))
     };
     setBusy(true);setError("");
@@ -608,17 +664,19 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
     try { return invoicePreview(rows); }
     catch { return {base:0,discount:0,vat:0,total:0}; }
   }, [rows]);
-  const cashPreview = settlement === 1 ? calculated.total : settlement === 2 ? 0 :
+  const otherTax = amount(otherTaxInput);
+  const invoiceTotal = calculated.total + otherTax;
+  const cashPreview = settlement === 1 ? invoiceTotal : settlement === 2 ? 0 :
     settlement === 3 ? roundRial(amount(cashInput)) : 0;
-  const creditPreview = settlement === 2 ? calculated.total : settlement === 1 ? 0 :
-    settlement === 3 ? roundRial(Math.max(0,calculated.total-cashPreview)) : 0;
+  const creditPreview = settlement === 2 ? invoiceTotal : settlement === 1 ? 0 :
+    settlement === 3 ? roundRial(Math.max(0,invoiceTotal-cashPreview)) : 0;
   const settlementError = settlement === 3 &&
     (cashInput.trim() === "" || !Number.isFinite(Number(cashInput)) ||
-      cashPreview <= 0 || cashPreview >= calculated.total);
+      cashPreview <= 0 || cashPreview >= invoiceTotal);
   const draftSnapshot = JSON.stringify({
     headerCustomer,taxpayerId,memoryId,buyerId,date,hour,invoiceType,pattern,
-    conditionalFields,rows:rows.map(({officialIdentifierSnapshot:_official,...rest})=>rest),
-    invoiceDescription,settlement,cashInput
+    conditionalFields,rows,
+    invoiceDescription,settlement,cashInput,otherTaxInput
   });
   useEffect(() => {
     if (modal && savedSnapshot === null) setSavedSnapshot(draftSnapshot);
@@ -626,13 +684,15 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   const unsavedChanges = modal && savedSnapshot !== null &&
     draftSnapshot !== savedSnapshot;
   const validationDirty = editing !== null && (
-    editing.taxpayerId!==taxpayerId || editing.issueDateUtc.slice(0,16)!==date+"T"+hour ||
+    editing.taxpayerId!==taxpayerId || (()=>{const saved=tehranDateTime(new Date(editing.issueDateUtc));return saved.date!==date||saved.time!==hour;})() ||
     (editing.buyerPartyId??"")!==buyerId || (editing.sandboxFiscalMemoryId?"sandbox:"+editing.sandboxFiscalMemoryId:(editing.fiscalMemoryId??""))!==memoryId ||
     editing.type!==invoiceType || editing.pattern!==pattern ||
     (editing.invoiceDescription??"")!==invoiceDescription.trim() ||
+    Number(editing.otherTaxAndLegalFeesRial??0)!==otherTax ||
     (editing.settlementMethod??0)!==settlement ||
     rows.length!==editing.lines.length ||
     rows.some((r,i)=>r.name.trim()!==editing.lines[i]?.description ||
+      r.officialIdentifierSnapshot!==(editing.lines[i]?.officialIdentifierSnapshot??undefined) ||
       Number(r.quantity)!==editing.lines[i]?.quantity ||
       Number(r.unitPrice)!==editing.lines[i]?.unitPriceRial ||
       Number(r.discount)!==editing.lines[i]?.discountPerUnitRial ||
@@ -872,16 +932,17 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
                       className={buyerActive===i?"active":""}
                       onMouseDown={e=>e.preventDefault()}
                       onClick={()=>{setBuyerId(b.id);setBuyerQuery(b.displayName);setBuyerOpen(false);}}>
-                    <strong>{b.displayName}</strong><small dir="ltr">{b.identifier}</small>
+                    <strong>{b.displayName}</strong><small>{b.kind===2?"شخص حقوقی":"شخص حقیقی"} · <span dir="ltr">{b.identifier}</span></small>
                   </button>)}
                 </div>}
                 {buyerId && <small className="invoice-register__selected-buyer">
-                  خریدار انتخاب‌شده: {chosenBuyer?.displayName || buyerQuery}</small>}
+                  خریدار انتخاب‌شده: {chosenBuyer?.displayName || buyerQuery}
+                  {chosenBuyer ? ` — ${chosenBuyer.kind===2?"حقوقی":"حقیقی"}` : ""}</small>}
               </div>
               <label htmlFor="invoice-date">تاریخ صدور شمسی</label>
               <PersianDatePicker id="invoice-date" value={date} onChange={setDate} floating/>
-              <label htmlFor="invoice-hour">ساعت صدور (UTC)</label>
-              <PersianTimePicker id="invoice-hour" value={hour} onChange={setHour} timeZoneLabel="UTC" />
+              <label htmlFor="invoice-hour">ساعت صدور (تهران)</label>
+              <PersianTimePicker id="invoice-hour" value={hour} onChange={setHour} timeZoneLabel="تهران" />
               <label htmlFor="invoice-type">نوع صورتحساب</label>
               <select id="invoice-type" disabled={!formMetadata || busy} value={invoiceType} onChange={e => {
                 const next = Number(e.target.value);
@@ -929,7 +990,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
                 <label htmlFor="invoice-catalog-search">انتخاب کالا / خدمت</label>
                 <SearchableCatalogPicker items={catalog} value={catalogQuery}
                   onQueryChange={setCatalogQuery} loading={catalogBusy} onChoose={addRow}/>
-                <small className="field-hint">کد داخلی کالای انتخابی با شناسه رسمی ۱۳ رقمی (sstid) متفاوت است. برای تخصیص شناسه معتبر، در «کالاها و خدمات» از گزینه «نگاشت» استفاده کنید. کد رسمی توسط سرور هنگام ذخیره صورتحساب از نگاشت فعال خوانده می‌شود.</small>
+                <small className="field-hint">شناسه ۱۳ رقمی (sstid) را از اطلاعات کالا وارد کنید. نرم‌افزار قالب ۱۳ رقمی را کنترل می‌کند؛ اعتبار شناسه و نرخ را سامانه مالیاتی بررسی می‌کند.</small>
               </div>
               {importOpen && <InvoiceImportPanel disabled={busy} onImport={applyImportedRows}
                 onClose={()=>setImportOpen(false)}/>}
@@ -942,16 +1003,14 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
                   <tbody>{rows.length===0?<tr><td colSpan={7}>هنوز ردیفی اضافه نشده است.</td></tr>:
                     rows.map((row,index)=><tr key={row.key}>
                       <td>{index+1}</td>
-                      <td className="invoice-register__description-cell"><input aria-label={"شرح ردیف "+(index+1)} title={row.productId?("کد داخلی: "+(row.catalogCodeSnapshot||"—") + " | شناسه رسمی: "+(row.officialIdentifierSnapshot||"ثبت نشده")):""}
+                      <td className="invoice-register__description-cell"><input aria-label={"شرح ردیف "+(index+1)} title={row.productId?("کد داخلی: "+(row.catalogCodeSnapshot||"—")):""}
                         style={{width:"100%",minWidth:0}} value={row.name} maxLength={256}
                         onChange={e=>updateRow(row.key,{name:e.target.value})}/>
-                        {row.officialIdentifierSnapshot ?
-                          <small className="invoice-register__sstid-status invoice-register__sstid-status--ready" dir="ltr">
-                            <span>sstid:</span><bdi>{row.officialIdentifierSnapshot}</bdi>
-                          </small> :
-                          <small className="invoice-register__sstid-status invoice-register__sstid-status--missing" role="status">
-                            شناسه رسمی ثبت نشده
-                          </small>}
+                        <input aria-label={"شناسه رسمی ۱۳ رقمی ردیف "+(index+1)}
+                          placeholder="شناسه رسمی ۱۳ رقمی" inputMode="numeric" maxLength={13}
+                          dir="ltr" style={{width:"100%",minWidth:0,marginTop:4}}
+                          value={row.officialIdentifierSnapshot??""}
+                          onChange={e=>updateRow(row.key,{officialIdentifierSnapshot:e.target.value.replace(/\D/g,"").slice(0,13)})}/>
                       </td>
                       <td><input aria-label={"مقدار ردیف "+(index+1)} style={{width:"100%",minWidth:0}} dir="ltr" type="number" min="0.00000001" step="any"
                         value={row.quantity} onChange={e=>updateRow(row.key,{quantity:e.target.value})}/></td>
@@ -982,7 +1041,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
                     <dt>مؤدی / فروشنده</dt>
                     <dd>{visibleTaxpayers.find(t=>t.id===taxpayerId)?.displayName || "مؤدی انتخاب‌شده"}</dd>
                     <dt>خریدار</dt><dd>{buyerQuery || "هنوز انتخاب نشده"}</dd>
-                    <dt>تاریخ و زمان</dt><dd>{new Intl.DateTimeFormat("fa-IR-u-ca-persian",{timeZone:"Asia/Tehran",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).format(new Date(date+"T"+hour+":00Z"))}</dd>
+                    <dt>تاریخ و زمان</dt><dd>{new Intl.DateTimeFormat("fa-IR-u-ca-persian",{timeZone:"Asia/Tehran",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).format(tehranLocalToUtc(date,hour))}</dd>
                     <dt>نوع و الگو</dt><dd>نوع {invoiceType} · الگوی {pattern}</dd>
                     <dt>تعداد ردیف‌ها</dt><dd>{rows.length}</dd>
                   </dl>
@@ -994,9 +1053,11 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
                     <dt>مجموع تخفیفات</dt><dd>{fmt(calculated.discount)}</dd>
                     <dt>مجموع مبلغ پس از تخفیف</dt><dd>{fmt(calculated.base-calculated.discount)}</dd>
                     <dt>مجموع مالیات بر ارزش افزوده (محاسبه موقت)</dt><dd>{fmt(calculated.vat)}</dd>
-                    <dt>سایر مالیات و عوارض (در این پیش‌نویس پشتیبانی نمی‌شود)</dt><dd>—</dd>
+                    <dt>سایر مالیات و وجوه قانونی (ریال)</dt>
+                    <dd><input id="invoice-other-tax" type="number" min="0" step="1" dir="ltr"
+                      value={otherTaxInput} onChange={e=>setOtherTaxInput(e.target.value)} /></dd>
                     <dt className="invoice-register__grand">جمع صورتحساب</dt>
-                    <dd className="invoice-register__grand">{fmt(calculated.total)} ریال</dd>
+                    <dd className="invoice-register__grand">{fmt(invoiceTotal)} ریال</dd>
                   </dl>
                 </section>
               </div>
@@ -1041,6 +1102,12 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
                 draftId={editing.id} taxpayerId={editing.taxpayerId}
                 revision={editing.revision} dirty={validationDirty}
                 onSave={()=>saveWorkspace(step===2 && settlement===0 ? 1 : step,false,false,true)}
+                onDraftChanged={async()=>{
+                  const refreshed=await getJson<SavedEntry>("/api/invoices/workspaces/"+editing.id);
+                  const refreshedTehran=tehranDateTime(new Date(refreshed.issueDateUtc));
+                  setEditing(refreshed);setDate(refreshedTehran.date);setHour(refreshedTehran.time);
+                  setSavedSnapshot(null);
+                }}
                 onPrepared={()=>{setModal(false);setNotice("نسخه ثابت داخلی ثبت شد؛ ارسال مالیاتی هنوز غیرفعال است.");void reload();}}/>}
               <p className="invoice-register__hint">
                 توضیحات و تسویه در پیش‌نویس قابل‌ویرایش ذخیره می‌شوند.

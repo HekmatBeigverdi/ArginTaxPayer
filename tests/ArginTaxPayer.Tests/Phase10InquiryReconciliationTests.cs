@@ -39,6 +39,15 @@ public sealed class Phase10InquiryReconciliationTests
         Assert.False(result.MayAutomaticallyResend);
     }
 
+    [Fact]
+    public void Legacy_invoice_receipt_packet_type_is_correlated_to_submitted_invoice_type()
+    {
+        var result=Phase10InquiryReconciliation.Evaluate(Identity(),
+            Response("FAILED").Replace("INVOICE.V01","receive_invoice_confirm"));
+        Assert.Equal(InvoiceReconciliationOutcome.CorrelatedPendingReview,result.Outcome);
+        Assert.Equal(Reference,result.MatchedReference);
+    }
+
     [Theory]
     [InlineData("[]")]
     [InlineData("{}")]

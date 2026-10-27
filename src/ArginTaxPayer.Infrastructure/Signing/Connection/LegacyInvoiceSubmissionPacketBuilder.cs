@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Newtonsoft.Json.Linq;
 using ArginTaxPayer.Infrastructure.Signing.Offline;
 using ArginTaxPayer.Infrastructure.Signing.Protection;
 
@@ -58,7 +59,7 @@ internal static class LegacyInvoiceSubmissionPacketBuilder
             throw new ArgumentException("Legacy invoice tax ID mismatch.");
         var signing=new LegacyOfflineSigningEngine();
         var contentSignature=signing.SignObject(signingKey,expectedPublicSpki,
-            original.Clone(),LegacySigningPurpose.Content).SignatureBase64;
+            JObject.Parse(invoiceJson),LegacySigningPurpose.Content).SignatureBase64;
         var encrypted=LegacySandboxInvoiceEncryption.Encrypt(original,authorityEncryptionKey);
         var packet=new {
             uid=operationId.ToString("D"),packetType="INVOICE.V01",retry=false,
@@ -72,8 +73,7 @@ internal static class LegacyInvoiceSubmissionPacketBuilder
             ["requestTraceId"]=requestTraceId.ToString("D"),
             ["timestamp"]=timestamp,["Authorization"]="Bearer "+accessToken
         };
-        var signature=signing.SignObject(signingKey,expectedPublicSpki,
-            packet,LegacySigningPurpose.Transfer,headers).SignatureBase64;
+        var signature=SignAsyncPacket(packet,signingKey,expectedPublicSpki,headers);
         var body=new { signature,signatureKeyId=(string?)null,packets=new[]{packet} };
         var requestJson=JsonSerializer.Serialize(body,JsonOptions);
         return new(operationId,customerUserId,taxpayerId,fiscalTaxId,
@@ -107,8 +107,7 @@ internal static class LegacyInvoiceSubmissionPacketBuilder
             ["requestTraceId"]=requestTraceId.ToString("D"),["timestamp"]=timestamp,
             ["Authorization"]="Bearer "+accessToken
         };
-        var signature=new LegacyOfflineSigningEngine().SignObject(signingKey,
-            expectedPublicSpki,packet,LegacySigningPurpose.Transfer,headers).SignatureBase64;
+        var signature=SignAsyncPacket(packet,signingKey,expectedPublicSpki,headers);
         var requestJson=JsonSerializer.Serialize(new{
             signature,signatureKeyId=(string?)null,packets=new[]{packet}
         },JsonOptions);
@@ -162,9 +161,7 @@ internal static class LegacyInvoiceSubmissionPacketBuilder
             ["timestamp"] = timestamp,
             ["Authorization"] = "Bearer " + accessToken
         };
-        var signature = new LegacyOfflineSigningEngine().SignObject(
-            signingKey, expectedPublicSpki, packet, LegacySigningPurpose.Transfer, headers)
-            .SignatureBase64;
+        var signature = SignAsyncPacket(packet, signingKey, expectedPublicSpki, headers);
         var body = new
         {
             signature,
@@ -175,5 +172,17 @@ internal static class LegacyInvoiceSubmissionPacketBuilder
         return new(operationId, customerUserId, taxpayerId, fiscalId, requestJson, signature,
             requestTraceId.ToString("D"), timestamp,
             Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(requestJson))).ToLowerInvariant());
+    }
+
+    private static string SignAsyncPacket(object packet, SensitiveBytes signingKey,
+        ReadOnlyMemory<byte> expectedPublicSpki, IReadOnlyDictionary<string,string> headers)
+    {
+        // TaxPayerBackend ObjectTransferApi.GetAsyncSendData signs a packet collection.
+        // Its certificate-free adapter omits SignatureKeyId from the signed packet.
+        // Serialize with STJ first so JsonElement invoice values survive Newtonsoft normalization.
+        var signingPacket = JObject.Parse(JsonSerializer.Serialize(packet, JsonOptions));
+        signingPacket.Remove("signatureKeyId");
+        return new LegacyOfflineSigningEngine().SignObject(signingKey, expectedPublicSpki,
+            new object[] { signingPacket }, LegacySigningPurpose.Transfer, headers).SignatureBase64;
     }
 }

@@ -90,6 +90,7 @@ async function proxy(request: NextRequest, context: Context, method: "GET" | "PO
         const permitted = ["id","taxpayerId","expectedRevision","lastCompletedStep",
           "issueDateUtc","buyerPartyId","type","pattern","lines",
           "invoiceDescription","settlementMethod","cashAmountRial","creditAmountRial",
+          "otherTaxAndLegalFeesRial",
           "contractNumber","serviceBillId","flightType","goldConstructionFeeRial",
           "goldSellerProfitRial","goldCommissionRial","goldTotalFeeProfitRial",
           "fiscalMemoryId","sandboxFiscalMemoryId"];
@@ -146,9 +147,20 @@ async function proxy(request: NextRequest, context: Context, method: "GET" | "PO
       ...(body ? { body } : {})
     });
     if (response.status >= 300 && response.status < 400) return error(502, "unexpected_redirect");
-    if (![200, 201].includes(response.status))
+    if (![200, 201].includes(response.status)) {
+      const responseText = await response.text();
+      let errorCode = "request_rejected";
+      try {
+        const payload: unknown = JSON.parse(responseText);
+        if (payload && typeof payload === "object" && !Array.isArray(payload)) {
+          const candidate = (payload as Record<string, unknown>).error;
+          if (typeof candidate === "string" && /^[a-z][a-z0-9_]{0,63}$/.test(candidate))
+            errorCode = candidate;
+        }
+      } catch { /* Keep the stable generic error for non-JSON responses. */ }
       return error([400, 401, 403, 404, 409].includes(response.status) ?
-        response.status : 502, "request_rejected");
+        response.status : 502, errorCode);
+    }
     const payload = await response.text();
     if (payload.length > 500000) return error(502, "response_too_large");
     return new NextResponse(payload, {

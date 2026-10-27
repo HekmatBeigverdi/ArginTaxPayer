@@ -508,6 +508,9 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 .invoice-register__dialog-footer{padding:12px 18px;border-top:1px solid #e2e8ee;display:flex;justify-content:flex-end;gap:8px}
 .invoice-register__dialog-footer button{min-height:34px}
 .invoice-register button:focus-visible,.invoice-register input:focus-visible,.invoice-register select:focus-visible{outline:2px solid #3269ac;outline-offset:2px}
+.invoice-calculation-audit{margin:12px 0;padding:12px 14px;border:1px solid #e6b4b4;border-radius:9px;background:#fff7f7;color:#713838;line-height:1.9}
+.invoice-calculation-audit h4{margin:0 0 6px;font-size:13px}
+.invoice-calculation-audit ul{margin:0;padding-right:18px}
 
 /* Shared Persian calendar in invoices too: previously its layout rules only
    matched .console-catalog-page, making the new invoice picker unstyled. */

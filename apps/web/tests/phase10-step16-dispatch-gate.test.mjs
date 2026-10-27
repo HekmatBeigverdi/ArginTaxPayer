@@ -21,7 +21,7 @@ test("Step16 scopes every dispatch lookup to current actor and invoice owner", (
   assert.match(service, /scope\.ResolveAsync\(bearer/);
   assert.match(service, /scope\.ScopedQuery\(actor\.ActorId, actor\.Level1\)/);
   assert.match(service, /x\.CustomerUserId == owner\.Value/);
-  assert.match(service, /customer_user_id=@owner AND taxpayer_id=@taxpayer AND invoice_id=@invoice/);
+  assert.match(service, /FROM invoice_dispatch_operations d\s+WHERE d\.customer_user_id=@owner AND d\.taxpayer_id=@taxpayer AND d\.invoice_id=@invoice/);
   assert.match(service, /submissionEnabled/i);
   assert.doesNotMatch(service, /UPDATE invoice_dispatch_operations|INSERT INTO invoice_dispatch_operations/);
 });

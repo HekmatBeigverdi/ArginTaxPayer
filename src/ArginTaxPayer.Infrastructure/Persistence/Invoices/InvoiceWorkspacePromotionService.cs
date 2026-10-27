@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using ArginTaxPayer.Domain.Invoices;
+using ArginTaxPayer.Infrastructure.Persistence.Parties;
 using ArginTaxPayer.Infrastructure.Persistence.Taxpayers;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -86,9 +87,6 @@ public sealed class InvoiceWorkspacePromotionService(
                     return new InvoiceWorkspacePromotionResult(InvoiceApiDecision.Conflict,
                         Code:"workspace_already_bound_to_other_document");
                 }
-                if(draft.LastCompletedStep!=2)
-                    return new InvoiceWorkspacePromotionResult(InvoiceApiDecision.Invalid,
-                        Code:"incomplete_wizard");
                 var input=JsonSerializer.Deserialize<SaveInvoiceEntryRequest>(
                     draft.DraftJson);
                 if(input is null||input.TaxpayerId!=draft.TaxpayerId||
@@ -106,29 +104,52 @@ public sealed class InvoiceWorkspacePromotionService(
                     input.SettlementMethod==InvoiceDraftSettlementMethod.Unknown ||
                     input.CashAmountRial is null||input.CreditAmountRial is null ||
                     !InvoiceDraftSettlementPolicy.IsConsistent(input.SettlementMethod,
-                        input.CashAmountRial,input.CreditAmountRial,
-                        InvoiceDraftSettlementPolicy.Calculate(input.Lines).PreviewGrandTotalRial))
+                        input.CashAmountRial,input.CreditAmountRial,input.Lines,
+                        input.OtherTaxAndLegalFeesRial ?? 0m))
                     return new InvoiceWorkspacePromotionResult(InvoiceApiDecision.Invalid,
                         Code:"invoice_not_ready_for_snapshot");
 
+                if(draft.IssueDateUtc > DateTime.UtcNow)
+                {
+                    // RC_IITP.IS V7.9 Table 4 prohibits future issue instants.
+                    // This preparation is the point where the draft becomes an
+                    // immutable issue candidate. Persist current UTC, advance
+                    // the revision, and require fresh review before freezing.
+                    var adjustedAt=DateTime.UtcNow;
+                    var adjustedInput=input with {
+                        Id=null,ExpectedRevision=0,IssueDateUtc=adjustedAt,
+                        BulkFingerprint=input.BulkImportKey is null ? null :
+                            InvoiceBulkIdentity.Fingerprint(input with {IssueDateUtc=adjustedAt})
+                    };
+                    var adjustedJson=JsonSerializer.Serialize(adjustedInput);
+                    var nextRevision=draft.Revision+1;
+                    var updated=await db.InvoiceEntryWorkspaces
+                        .Where(w=>w.Id==draft.Id&&w.CustomerUserId==draft.CustomerUserId&&
+                            w.TaxpayerId==draft.TaxpayerId&&w.Revision==draft.Revision)
+                        .ExecuteUpdateAsync(setters=>setters
+                            .SetProperty(w=>w.Revision,nextRevision)
+                            .SetProperty(w=>w.IssueDateUtc,adjustedAt)
+                            .SetProperty(w=>w.DraftJson,adjustedJson)
+                            .SetProperty(w=>w.UpdatedAtUtc,adjustedAt),ct);
+                    if(updated!=1)
+                        return new InvoiceWorkspacePromotionResult(InvoiceApiDecision.Conflict,
+                            Code:"stale_workspace_revision");
+                    db.InvoiceEntryWorkspaceRevisions.Add(new InvoiceEntryWorkspaceRevision {
+                        WorkspaceId=draft.Id,CustomerUserId=draft.CustomerUserId,
+                        TaxpayerId=draft.TaxpayerId,Revision=nextRevision,
+                        ActorUserId=actor.ActorId,Action="save",
+                        Reason="تنظیم زمان آینده در پیش‌نویس اصلاح طبق زمان UTC فعلی",
+                        SnapshotJson=adjustedJson,OccurredAtUtc=adjustedAt
+                    });
+                    await db.SaveChangesAsync(ct);
+                    await tx.CommitAsync(ct);
+                    return new InvoiceWorkspacePromotionResult(InvoiceApiDecision.Conflict,
+                        Code:"issue_date_adjusted");
+                }
 
-                // Re-resolve each official 13-digit identifier from a trusted
-                // active catalogue release at the original issue date. Stored
-                // snapshots alone are not legal evidence of a current mapping.
+
                 var itemIds=input.Lines.Select(l=>l.CatalogItemId!.Value)
                     .Distinct().ToArray();
-                var mapped=await db.CatalogOfficialMappings.AsNoTracking()
-                    .Where(m=>itemIds.Contains(m.ItemId) &&
-                        m.EffectiveFromUtc<=draft.IssueDateUtc &&
-                        (m.EffectiveToUtc==null || m.EffectiveToUtc>draft.IssueDateUtc))
-                    .Join(db.OfficialGoodsServiceEntries.AsNoTracking(),
-                        m=>m.OfficialEntryId,e=>e.Id,(m,e)=>new{
-                            m.ItemId,e.Code,e.VerificationStatus,e.Kind,e.ReleaseId
-                        })
-                    .Where(x=>x.VerificationStatus==2 && x.Code.Length==13 &&
-                        db.CatalogReferenceReleases.Any(r=>
-                            r.Id==x.ReleaseId&&r.State==3))
-                    .ToArrayAsync(ct);
                 var ownerItems=await db.CustomerCatalogItems.AsNoTracking()
                     .Where(x=>itemIds.Contains(x.Id) && x.CustomerUserId==draft.CustomerUserId &&
                         x.Status==1)
@@ -138,14 +159,11 @@ public sealed class InvoiceWorkspacePromotionService(
                     input.Lines.Any(line=>{
                         if(!ownerItems.TryGetValue(line.CatalogItemId!.Value,out var item) ||
                             item.BaseUnitId!=line.UnitId)return true;
-                        var candidates=mapped.Where(x=>x.ItemId==item.Id &&
-                            (item.Kind is 1 or 2 ? x.Kind==1 : x.Kind==2))
-                            .Select(x=>x.Code).Distinct().ToArray();
-                        return candidates.Length!=1 ||
-                            candidates[0]!=line.OfficialIdentifierSnapshot;
+                        return line.OfficialIdentifierSnapshot is not { Length: 13 } code ||
+                            !code.All(char.IsAsciiDigit);
                     }))
                     return new(InvoiceApiDecision.Invalid,
-                        Code:"official_item_mapping_changed_or_invalid");
+                        Code:"official_item_identifier_invalid");
                 // Production tax memory must be owned by this seller; Sandbox
                 // memory must be an independent, key-ready row of same owner.
                 if(input.FiscalMemoryId is { } production){
@@ -171,11 +189,31 @@ AND private_envelope_json IS NOT NULL)
                     if(await cmd.ExecuteScalarAsync(ct) is not true)
                         return new(InvoiceApiDecision.Invalid,Code:"sandbox_memory_not_ready");
                 }
-                var ownerBuyer=await db.CustomerPartyLinks.AsNoTracking()
-                    .AnyAsync(x=>x.CustomerUserId==draft.CustomerUserId &&
-                        x.PartyId==input.BuyerPartyId && x.UnlinkedAtUtc==null,ct);
-                if(!ownerBuyer)
+                var buyerPersonType=await (from link in db.CustomerPartyLinks.AsNoTracking()
+                    join party in db.Parties.AsNoTracking() on link.PartyId equals party.Id
+                    where link.CustomerUserId==draft.CustomerUserId &&
+                        link.PartyId==input.BuyerPartyId && link.UnlinkedAtUtc==null &&
+                        party.Status==PartyStatus.Active
+                    select (int?)party.Kind).SingleOrDefaultAsync(ct);
+                if(buyerPersonType is null)
                     return new(InvoiceApiDecision.Invalid,Code:"buyer_not_owned");
+
+                InvoiceFinancialPreview financialPreview;
+                try
+                {
+                    financialPreview=InvoiceFinancialCalculator.Preview(
+                        input.Lines.Select((line,index)=>new InvoiceFinancialInput(
+                            line.CatalogItemId!.Value,line.Quantity,line.UnitPriceRial,
+                            decimal.Truncate(line.Quantity*line.DiscountPerUnitRial),
+                            line.VatRatePercent, OtherTaxesRial:
+                                index==0 ? input.OtherTaxAndLegalFeesRial ?? 0m : 0m)).ToArray(),
+                        new InvoiceTypePattern(ElectronicInvoiceType.First,1),
+                        new InvoiceRoundingPolicy(OfficialV79InvoicePatternMatrix.Edition));
+                }
+                catch(ArgumentException)
+                {
+                    return new(InvoiceApiDecision.Invalid,Code:"invoice_financial_calculation_invalid");
+                }
 
                 // Stable, server-derived immutable snapshot. This contains no
                 // fiscal invoice ID, legal signoff, provider receipt or token.
@@ -187,11 +225,16 @@ AND private_envelope_json IS NOT NULL)
                     invoiceType=input.Type,pattern=input.Pattern,
                     issueDateUtc=draft.IssueDateUtc,
                     buyerPartyId=input.BuyerPartyId,
+                    buyerPersonType=buyerPersonType.Value,
                     lines=input.Lines,
                     settlementMethod=input.SettlementMethod,
                     cashAmountRial=input.CashAmountRial,
                     creditAmountRial=input.CreditAmountRial,
-                    financialSummary=InvoiceDraftSettlementPolicy.Calculate(input.Lines),
+                    financialSummary=new InvoiceDraftFinancialSummary(
+                        financialPreview.BeforeDiscountRial,financialPreview.DiscountRial,
+                        financialPreview.AfterDiscountRial,financialPreview.VatRial??0m,
+                        financialPreview.GrandTotalRial??0m),
+                    otherTaxAndLegalFeesRial=input.OtherTaxAndLegalFeesRial ?? 0m,
                     fiscalSubmissionAuthorized=false,
                     signedPacketAvailable=false
                 });

@@ -96,7 +96,7 @@ public sealed class InvoiceValidationReferenceService(
                 "جمع پیش‌نویس باید بزرگ‌تر از صفر باشد.");
         if (draft.SettlementMethod == InvoiceDraftSettlementMethod.Unknown)
             Add("invoice.settlement.unknown","footer.settlement",
-                "روش تسویه هنوز تعیین نشده است.",true);
+                "روش تسویه هنوز تعیین نشده است.");
 
         if(draft.FiscalMemoryId is null && draft.SandboxFiscalMemoryId is null)
             Add("invoice.memory.required_for_submission","header.fiscalMemory",

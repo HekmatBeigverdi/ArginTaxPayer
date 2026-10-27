@@ -49,6 +49,30 @@ public static class Phase10InvoiceDispatchDevelopmentEndpoints
             };
         });
 
+        group.MapGet("/calculation-audit", async (Guid taxpayerId, Guid invoiceId,
+            HttpContext http, Phase10InvoiceCalculationAuditService service,
+            CancellationToken ct) =>
+        {
+            if (!Local(http)) return Results.NotFound();
+            http.Response.Headers.CacheControl = "no-store";
+            var result = await service.AuditAsync(Token(http), taxpayerId, invoiceId, ct);
+            return result.Decision switch
+            {
+                InvoiceApiDecision.Success => Results.Ok(new {
+                    invoiceRevision = result.Report!.InvoiceRevision,
+                    canResend = result.Report.CanResend,
+                    findings = result.Report.Findings.Select(x => new {
+                        code = x.Code, field = x.Field, message = x.Message,
+                        expected = x.Expected, actual = x.Actual
+                    })
+                }),
+                InvoiceApiDecision.Unauthenticated => Results.Unauthorized(),
+                InvoiceApiDecision.Forbidden => Results.StatusCode(403),
+                InvoiceApiDecision.Invalid => Results.BadRequest(new { error = "invalid_invoice_id" }),
+                _ => Results.NotFound()
+            };
+        });
+
         group.MapPost("/inquiry-by-uid", async (Guid taxpayerId,Guid invoiceId,
             HttpContext http,Phase10LegacyUidInquiryService inquiry,CancellationToken ct) =>
         {
@@ -66,6 +90,42 @@ public static class Phase10InvoiceDispatchDevelopmentEndpoints
             };
         });
 
+        group.MapGet("/inquiry-by-reference", async (Guid taxpayerId, Guid invoiceId,
+            HttpContext http, Phase10LegacyReferenceInquiryService inquiry, CancellationToken ct) =>
+        {
+            if (!Local(http)) return Results.NotFound();
+            http.Response.Headers.CacheControl = "no-store";
+            var outcome = await inquiry.ReadAsync(Token(http), taxpayerId, invoiceId, ct);
+            return outcome.Decision switch {
+                InvoiceApiDecision.Success => Results.Ok(new {
+                    safeCode=outcome.SafeCode, referenceNumber=outcome.ReferenceNumber,
+                    authorityResult=outcome.AuthorityResult,
+                    fiscalAccepted=false, authoritySubmitted=false }),
+                InvoiceApiDecision.Unauthenticated => Results.Unauthorized(),
+                InvoiceApiDecision.Forbidden => Results.StatusCode(403),
+                InvoiceApiDecision.NotFound => Results.NotFound(),
+                _ => Results.BadRequest(new { error=outcome.SafeCode })
+            };
+        });
+
+        group.MapPost("/correction-draft", async (Guid taxpayerId, Guid invoiceId,
+            HttpContext http, LegacyInvoiceCorrectionDraftService service, CancellationToken ct) =>
+        {
+            if (!Local(http)) return Results.NotFound();
+            http.Response.Headers.CacheControl = "no-store";
+            var outcome = await service.CreateAsync(Token(http), taxpayerId, invoiceId, ct);
+            return outcome.Decision switch {
+                InvoiceApiDecision.Success => Results.Ok(new {
+                    workspaceId=outcome.WorkspaceId, authoritySubmitted=false,
+                    issueDateAdjusted=outcome.IssueDateAdjusted }),
+                InvoiceApiDecision.Unauthenticated => Results.Unauthorized(),
+                InvoiceApiDecision.Forbidden => Results.StatusCode(403),
+                InvoiceApiDecision.NotFound => Results.NotFound(),
+                InvoiceApiDecision.Conflict => Results.Conflict(new { error=outcome.SafeCode }),
+                _ => Results.BadRequest(new { error=outcome.SafeCode })
+            };
+        });
+
         group.MapPost("/inquiry-by-reference", async (Guid taxpayerId, Guid invoiceId,
             HttpContext http, Phase10LegacyReferenceInquiryService inquiry, CancellationToken ct) =>
         {
@@ -75,6 +135,7 @@ public static class Phase10InvoiceDispatchDevelopmentEndpoints
             return outcome.Decision switch {
                 InvoiceApiDecision.Success => Results.Ok(new {
                     safeCode=outcome.SafeCode, referenceNumber=outcome.ReferenceNumber,
+                    authorityResult=outcome.AuthorityResult,
                     fiscalAccepted=false, authoritySubmitted=false }),
                 InvoiceApiDecision.Unauthenticated => Results.Unauthorized(),
                 InvoiceApiDecision.Forbidden => Results.StatusCode(403),
@@ -171,7 +232,8 @@ public static class Phase10InvoiceDispatchDevelopmentEndpoints
             {
                 InvoiceApiDecision.Success => Results.Ok(new {
                     status = result.SafeCode, operationId = result.OperationId,
-                    environment = "Sandbox", authoritySubmitted = false
+                    environment = "Sandbox", authoritySubmitted = false,
+                    wirePreviewJson = result.WirePreviewJson
                 }),
                 InvoiceApiDecision.Unauthenticated => Results.Unauthorized(),
                 InvoiceApiDecision.Forbidden => Results.StatusCode(403),

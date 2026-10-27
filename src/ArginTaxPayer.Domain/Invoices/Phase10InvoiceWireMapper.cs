@@ -27,7 +27,10 @@ public sealed record InvoiceWireInput(
     string? ReferenceTaxId = null, int? SettlementMethod = null,
     IReadOnlyList<InvoiceWirePayment>? Payments = null,
     long? CashAmountRial = null, long? CreditAmountRial = null,
-    string? InvoiceNumber = null);
+    string? InvoiceNumber = null, int? BuyerPersonType = null,
+    long? TotalOtherTaxAndLegalFeesRial = null,
+    string? BuyerNationalOrForeignCode = null, string? BuyerBranchCode = null,
+    string? BuyerPostalCode = null, string? SellerBranchCode = null);
 
 /// <summary>Separate from official SDK's potentially changing public classes.</summary>
 public sealed record InvoiceWireProjection(string Json, InvoiceTypePattern Classification,
@@ -57,14 +60,17 @@ public static class Phase10InvoiceWireMapper
             throw new NotSupportedException("Only the two approved Phase10 pattern families are mapped.");
         if (!OfficialV79InvoiceSubjectPolicy.Allows(pair, source.Subject))
             throw new ArgumentException("Unsupported invoice subject.");
+        var otherTaxAndLegalFeesRial = source.TotalOtherTaxAndLegalFeesRial ?? 0L;
         if (!IsTaxId(source.TaxId) || !IsDigits(source.SellerTaxId, 1, 32) ||
             source.IssueUnixMilliseconds <= 0 ||
             source.TotalBeforeDiscountRial < 0 || source.TotalDiscountRial < 0 ||
             source.TotalAfterDiscountRial < 0 || source.TotalVatRial < 0 ||
             source.TotalBillRial < 0 ||
             source.TotalBeforeDiscountRial - source.TotalDiscountRial != source.TotalAfterDiscountRial ||
-            source.TotalAfterDiscountRial > long.MaxValue - source.TotalVatRial ||
-            source.TotalBillRial < source.TotalAfterDiscountRial + source.TotalVatRial)
+            (decimal)source.TotalAfterDiscountRial + source.TotalVatRial +
+                otherTaxAndLegalFeesRial > long.MaxValue ||
+            source.TotalBillRial < source.TotalAfterDiscountRial + source.TotalVatRial +
+                otherTaxAndLegalFeesRial)
             throw new ArgumentException("Invalid frozen header or monetary totals.");
 
         if (source.Subject == InvoiceSubject.Original && source.ReferenceTaxId is not null ||
@@ -78,6 +84,17 @@ public static class Phase10InvoiceWireMapper
             throw new ArgumentException("Type2 buyer-specific fields require separate verified evidence.");
         if (source.BuyerTaxId is not null && !IsDigits(source.BuyerTaxId, 1, 32))
             throw new ArgumentException("Invalid buyer identifier.");
+        if (source.BuyerNationalOrForeignCode is not null &&
+            !IsDigits(source.BuyerNationalOrForeignCode, 1, 32))
+            throw new ArgumentException("Invalid buyer national or foreign identifier.");
+        if (source.BuyerBranchCode is not null && !IsDigits(source.BuyerBranchCode, 1, 16) ||
+            source.SellerBranchCode is not null && !IsDigits(source.SellerBranchCode, 1, 16) ||
+            source.BuyerPostalCode is not null && !IsDigits(source.BuyerPostalCode, 10, 10))
+            throw new ArgumentException("Invalid participant branch or postal code.");
+        if (source.BuyerPersonType is < 1 or > 4)
+            throw new ArgumentException("Invalid buyer person type.");
+        if (otherTaxAndLegalFeesRial < 0)
+            throw new ArgumentException("Invalid other tax and legal fee total.");
 
         var cancellation = source.Subject == InvoiceSubject.Cancellation;
         if (!cancellation && (source.Lines is null || source.Lines.Count == 0))
@@ -138,7 +155,7 @@ public static class Phase10InvoiceWireMapper
              source.Lines.Sum(x => (decimal)x.DiscountRial) != source.TotalDiscountRial ||
              source.Lines.Sum(x => (decimal)x.AfterDiscountRial) != source.TotalAfterDiscountRial ||
              source.Lines.Sum(x => (decimal)x.VatRial) != source.TotalVatRial ||
-             source.Lines.Sum(x => (decimal)x.TotalRial) != source.TotalBillRial))
+            source.Lines.Sum(x => (decimal)x.TotalRial) + otherTaxAndLegalFeesRial != source.TotalBillRial))
             throw new ArgumentException("Header and line totals mismatch.");
 
         // Anonymous ordered members preserve wire property names without introducing
@@ -155,13 +172,19 @@ public static class Phase10InvoiceWireMapper
                 inp = cancellation ? (int?)null : pair.Pattern,
                 tins = source.SellerTaxId,
                 tinb = source.BuyerTaxId,
+                bid = source.BuyerNationalOrForeignCode,
+                bbc = source.BuyerBranchCode,
+                bpc = source.BuyerPostalCode,
+                sbc = source.SellerBranchCode,
                 crn = source.ContractRegistrationNumber,
                 irtaxid = source.ReferenceTaxId,
                 tprdis = source.TotalBeforeDiscountRial,
                 tdis = source.TotalDiscountRial,
                 tadis = source.TotalAfterDiscountRial,
                 tvam = source.TotalVatRial,
+                todam = otherTaxAndLegalFeesRial,
                 tbill = source.TotalBillRial,
+                tob = source.BuyerPersonType,
                 setm = source.SettlementMethod,
                 cap = source.CashAmountRial,
                 insp = source.CreditAmountRial

@@ -51,8 +51,12 @@ public sealed record InvoiceDraftFinancialSummary(decimal GrossRial, decimal Dis
 
 public static class InvoiceDraftSettlementPolicy
 {
-    public static InvoiceDraftFinancialSummary Calculate(IReadOnlyList<InvoiceEntryLine> lines)
+    public static InvoiceDraftFinancialSummary Calculate(IReadOnlyList<InvoiceEntryLine> lines,
+        decimal otherTaxAndLegalFeesRial = 0m)
     {
+        if (otherTaxAndLegalFeesRial < 0 ||
+            otherTaxAndLegalFeesRial != decimal.Truncate(otherTaxAndLegalFeesRial))
+            throw new ArgumentException("Other tax and legal fees must be a nonnegative whole rial amount.");
         decimal gross = 0, discount = 0, vat = 0;
         foreach (var line in lines)
         {
@@ -71,7 +75,8 @@ public static class InvoiceDraftSettlementPolicy
             vat = checked(vat + vatLine);
         }
         var subtotal = checked(gross - discount);
-        return new(gross, discount, subtotal, vat, checked(subtotal + vat));
+        return new(gross, discount, subtotal, vat,
+            checked(subtotal + vat + otherTaxAndLegalFeesRial));
     }
 
     public static bool IsConsistent(InvoiceDraftSettlementMethod method,
@@ -95,6 +100,12 @@ public static class InvoiceDraftSettlementPolicy
             _ => false
         };
     }
+
+    public static bool IsConsistent(InvoiceDraftSettlementMethod method,
+        decimal? cashRial, decimal? creditRial, IReadOnlyList<InvoiceEntryLine> lines,
+        decimal otherTaxAndLegalFeesRial) =>
+        IsConsistent(method, cashRial, creditRial,
+            Calculate(lines, otherTaxAndLegalFeesRial).PreviewGrandTotalRial);
 }
 
 public sealed record SaveInvoiceEntryRequest(Guid? Id, Guid TaxpayerId, long ExpectedRevision,
@@ -110,7 +121,8 @@ public sealed record SaveInvoiceEntryRequest(Guid? Id, Guid TaxpayerId, long Exp
     string? InternalReviewReason = null, Guid? SubmittedByUserId = null,
     Guid? ReviewedByUserId = null, DateTime? ReviewedAtUtc = null,
     string? BulkImportKey = null, string? BulkFingerprint = null,
-    Guid? SandboxFiscalMemoryId = null);
+    Guid? SandboxFiscalMemoryId = null,
+    decimal? OtherTaxAndLegalFeesRial = 0m);
 public sealed record InvoiceEntryView(Guid Id, Guid CustomerUserId, Guid TaxpayerId, long Revision,
     int LastCompletedStep, DateTime IssueDateUtc, DateTime UpdatedAtUtc,
     Guid? BuyerPartyId, int Type, int Pattern, InvoiceEntryLine[] Lines,
@@ -123,7 +135,8 @@ public sealed record InvoiceEntryView(Guid Id, Guid CustomerUserId, Guid Taxpaye
     Guid? FiscalMemoryId = null, string? InternalReviewState = null,
     string? InternalReviewReason = null, Guid? SubmittedByUserId = null,
     Guid? ReviewedByUserId = null, DateTime? ReviewedAtUtc = null,
-    Guid? SandboxFiscalMemoryId = null);
+    Guid? SandboxFiscalMemoryId = null,
+    decimal OtherTaxAndLegalFeesRial = 0m);
 public sealed record InvoiceEntryResult(InvoiceApiDecision Decision, InvoiceEntryView? Draft = null,
     bool Replayed = false);
 
@@ -180,6 +193,8 @@ public sealed class InvoiceEntryWorkspaceService(
                 input.IssueDateUtc) != InvoicePatternDecision.AllowedByReferencedEdition ||
             input.Lines is null || input.Lines.Length > 150 ||
             input.InvoiceDescription is { Length: > 1500 } ||
+            (input.OtherTaxAndLegalFeesRial ?? 0m) < 0 ||
+            (input.OtherTaxAndLegalFeesRial ?? 0m) != decimal.Truncate(input.OtherTaxAndLegalFeesRial ?? 0m) ||
             (input.InvoiceDescription?.Any(c => char.IsControl(c) &&
                 c != '\r' && c != '\n' && c != '\t') ?? false) ||
             input.Lines.Any(l => l.Description is null || l.Description.Length > 256 ||
@@ -214,7 +229,8 @@ public sealed class InvoiceEntryWorkspaceService(
             return false;
         try
         {
-            var summary = InvoiceDraftSettlementPolicy.Calculate(input.Lines);
+            var summary = InvoiceDraftSettlementPolicy.Calculate(input.Lines,
+                input.OtherTaxAndLegalFeesRial ?? 0m);
             if (input.LastCompletedStep == 2 &&
                 (input.SettlementMethod == InvoiceDraftSettlementMethod.Unknown ||
                  input.CashAmountRial is null || input.CreditAmountRial is null))
@@ -234,12 +250,14 @@ public sealed class InvoiceEntryWorkspaceService(
             value.BuyerPartyId,value.Type,value.Pattern,value.Lines ?? [],
             value.BuyerDisplayName, value.InvoiceDescription, value.SettlementMethod,
             value.CashAmountRial, value.CreditAmountRial,
-            InvoiceDraftSettlementPolicy.Calculate(value.Lines ?? []),
+            InvoiceDraftSettlementPolicy.Calculate(value.Lines ?? [],
+                value.OtherTaxAndLegalFeesRial ?? 0m),
             value.ContractNumber,value.ServiceBillId,value.FlightType,
             value.GoldConstructionFeeRial,value.GoldSellerProfitRial,
             value.GoldCommissionRial,value.GoldTotalFeeProfitRial,value.FiscalMemoryId,
             value.InternalReviewState,value.InternalReviewReason,value.SubmittedByUserId,
-            value.ReviewedByUserId,value.ReviewedAtUtc,value.SandboxFiscalMemoryId);
+            value.ReviewedByUserId,value.ReviewedAtUtc,value.SandboxFiscalMemoryId,
+            value.OtherTaxAndLegalFeesRial ?? 0m);
     }
 
     public async Task<InvoiceEntryResult> SaveAsync(string? token,
@@ -310,26 +328,10 @@ SELECT EXISTS(
             .Select(l => l.CatalogItemId!.Value).Distinct().ToArray();
         var catalogItems = await db.CustomerCatalogItems.AsNoTracking()
             .Where(c => productIds.Contains(c.Id) && c.CustomerUserId == access.Item2)
-            .Select(c => new { c.Id, c.InternalCode, c.BaseUnitId, c.Status, c.Kind })
+            .Select(c => new { c.Id, c.InternalCode, c.BaseUnitId, c.Status })
             .ToDictionaryAsync(c => c.Id, ct);
         if (productIds.Any(id => !catalogItems.ContainsKey(id)))
             return new(InvoiceApiDecision.Invalid);
-        // Freeze a server-derived 13-digit official identifier candidate
-        // separately from the product's internal code. This is catalog
-        // metadata, NOT governmental authorization to submit an invoice.
-        var validOfficialMappings = await db.CatalogOfficialMappings.AsNoTracking()
-            .Where(m => productIds.Contains(m.ItemId) &&
-                m.EffectiveFromUtc<=input.IssueDateUtc &&
-                (m.EffectiveToUtc==null || m.EffectiveToUtc>input.IssueDateUtc))
-            .Join(db.OfficialGoodsServiceEntries.AsNoTracking(),
-                m=>m.OfficialEntryId,e=>e.Id,(m,e)=>new{m.ItemId,e.Code,e.Kind,
-                    e.VerificationStatus,e.ReleaseId})
-            .Where(x=>x.VerificationStatus==2 && x.Code.Length==13 &&
-                db.CatalogReferenceReleases.Any(r=>r.Id==x.ReleaseId&&r.State==3))
-            .ToArrayAsync(ct);
-        var officialByItem=validOfficialMappings
-            .GroupBy(x=>x.ItemId)
-            .ToDictionary(g=>g.Key,g=>g.ToArray());
         var original = input.Id is { } existingId
             ? await db.InvoiceEntryWorkspaces.AsNoTracking()
                 .Where(w => w.Id == existingId && w.CustomerUserId == access.Item2)
@@ -359,12 +361,11 @@ SELECT EXISTS(
             var code = previous?.CatalogCodeSnapshot ?? item.InternalCode;
             if (line.UnitId is { } requestedUnit && requestedUnit != unit)
                 return new(InvoiceApiDecision.Invalid);
-            var officialCandidates=officialByItem.GetValueOrDefault(itemId) ?? [];
-            var matched=officialCandidates.Where(x=>item.Kind is 1 or 2
-                ? x.Kind==1 : x.Kind==2).Select(x=>x.Code).Distinct().ToArray();
-            // Never accept a caller-provided official code or silently treat
-            // an ambiguous mapping as one verified code.
-            var officialCode=matched.Length==1?matched[0]:null;
+            // The authority is the source of truth for Sstid validity. Preserve
+            // the user's 13-digit value; local catalog tables are not an
+            // authoritative code registry.
+            var officialCode = line.OfficialIdentifierSnapshot is { Length: 13 } supplied &&
+                supplied.All(char.IsAsciiDigit) ? supplied : previous?.OfficialIdentifierSnapshot;
             canonicalLines.Add(line with {
                 UnitId = unit,
                 CatalogCodeSnapshot = code,
@@ -385,7 +386,7 @@ SELECT EXISTS(
             InvoiceBulkIdentity.Fingerprint(input);
         Guid? importId = input.BulkImportKey is null ? null :
             InvoiceBulkIdentity.StableWorkspaceId(access.Item2,input.BulkImportKey);
-        if (importId is { } existingImportId)
+        if (importId is { } existingImportId && input.Id is null)
         {
             var prior = await db.InvoiceEntryWorkspaces.AsNoTracking()
                 .Where(w=>w.Id==existingImportId && w.CustomerUserId==access.Item2 &&

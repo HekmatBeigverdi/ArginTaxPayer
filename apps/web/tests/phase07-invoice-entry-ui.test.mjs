@@ -171,6 +171,13 @@ test("final stage settlement permits unknown, cash, credit and mixed with constr
   assert.match(css, /invoice-register__final-grid/);
 });
 
+test("final stage exposes other legal taxes with a zero default", () => {
+ const workspace=read("../app/invoices/workspace.tsx");
+ assert.match(workspace,/otherTaxAndLegalFeesRial/);
+ assert.match(workspace,/سایر مالیات و وجوه قانونی/);
+ assert.match(workspace,/value={otherTaxInput}/);
+});
+
 test("Step21 scoped validation panel is explicitly not a fiscal approval", () => {
   const panel=read("../app/invoices/invoice-validation-panel.tsx");
   assert.match(workspace, /<InvoiceValidationPanel/);

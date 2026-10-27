@@ -116,8 +116,10 @@ if (identityDevelopmentEnabled)
     builder.Services.AddScoped<Phase10DispatchEvidenceRepository>();
     builder.Services.AddScoped<Phase10LegacyUidInquiryService>();
     builder.Services.AddScoped<Phase10LegacyReferenceInquiryService>();
+    builder.Services.AddScoped<LegacyInvoiceCorrectionDraftService>();
     builder.Services.AddScoped<Phase10DispatchArmService>();
     builder.Services.AddScoped<Phase10LiveSendReadinessService>();
+    builder.Services.AddScoped<Phase10InvoiceCalculationAuditService>();
     builder.Services.AddScoped<Phase10SandboxSubmissionAdmissionService>();
     builder.Services.AddScoped<Phase10InvoiceDispatchHistoryService>();
     builder.Services.AddScoped<ArginTaxPayer.Infrastructure.Persistence.Signing.SandboxFiscalMemoryMetadataService>();

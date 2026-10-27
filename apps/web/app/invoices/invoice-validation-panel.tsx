@@ -38,6 +38,7 @@ type PanelProps = {
   dirty: boolean;
   onSave: () => Promise<boolean>;
   onPrepared?: () => void;
+  onDraftChanged?: () => Promise<void>;
 };
 
 const SUBJECT_OPTIONS: ReadonlyArray<{ value: Subject; label: string }> = [
@@ -223,6 +224,7 @@ export default function InvoiceValidationPanel({
   dirty,
   onSave,
   onPrepared,
+  onDraftChanged,
 }: PanelProps) {
   const [report, setReport] = useState<Evaluation | null>(null);
   const [references, setReferences] = useState<Reference[]>([]);
@@ -316,8 +318,18 @@ export default function InvoiceValidationPanel({
         headers:{"Content-Type":"application/json"},
         body:JSON.stringify({expectedRevision:revision}),signal:AbortSignal.timeout(20000)
       });
-      if (!response.ok) throw new Error(response.status===409 ?
-        "این نسخه قبلاً ثابت شده یا تغییر کرده است." : "ثبت نسخه ثابت داخلی رد شد.");
+      if (!response.ok) {
+        const failure = await response.json().catch(() => null) as {error?: unknown} | null;
+        const errorCode = typeof failure?.error === "string" ? failure.error : "";
+        if(errorCode==="issue_date_adjusted") {
+          await onDraftChanged?.();
+          setError("طبق جدول ۴ مستند V7.9، زمان آینده در پیش‌نویس اصلاح با زمان فعلی UTC جایگزین شد. نسخه تازه را دوباره بررسی کنید و سپس ثبت نسخه ثابت را تکرار کنید.");
+          return;
+        }
+        throw new Error(response.status===409 ?
+          "این نسخه قبلاً ثابت شده یا تغییر کرده است." + (errorCode ? ` (${errorCode})` : "") :
+          "ثبت نسخه ثابت داخلی رد شد." + (errorCode ? `؛ علت: ${errorCode}` : ""));
+      }
       const result = await response.json();
       if(result.internalSnapshotCreated!==true || result.fiscalSubmissionAuthorized!==false ||
         result.signedPacketAvailable!==false || result.environmentSubmissionEnabled!==false)

@@ -14,10 +14,19 @@ public static class Phase10LegacyFrozenInvoiceProjector
     public static InvoiceWireProjection Project(
         StoredInvoice invoice, string fiscalTaxId,
         string sellerTaxIdentifier, string buyerTaxIdentifier,
-        IReadOnlyDictionary<Guid,string> verifiedUnitCodes, string? invoiceNumber = null)
+        IReadOnlyDictionary<Guid,string> verifiedUnitCodes, string? invoiceNumber = null,
+        int? buyerPersonTypeOverride = null, long? totalOtherTaxAndLegalFeesOverride = null,
+        string? buyerNationalOrForeignCode = null, string? buyerBranchCode = null,
+        string? buyerPostalCode = null, string? sellerBranchCode = null)
     {
         ArgumentNullException.ThrowIfNull(invoice);
         ArgumentNullException.ThrowIfNull(verifiedUnitCodes);
+        if (sellerTaxIdentifier is not { Length: 11 or 14 } ||
+            !sellerTaxIdentifier.All(char.IsAsciiDigit))
+            throw new ArgumentException("Legacy seller economic identifier must contain 11 or 14 digits.");
+        if (fiscalTaxId is not { Length: 22 } ||
+            !fiscalTaxId.AsSpan(11, 10).ToString().All(Uri.IsHexDigit))
+            throw new ArgumentException("Invalid reserved fiscal invoice serial.");
         if (invoice.State != InvoiceLifecycleState.Finalized ||
             invoice.Subject != InvoiceSubject.Original ||
             invoice.Revision < 1 || invoice.IssueDateUtc.Kind != DateTimeKind.Utc)
@@ -35,9 +44,53 @@ public static class Phase10LegacyFrozenInvoiceProjector
             root.GetProperty("lines").GetRawText()) ?? [];
         if (entries.Length == 0 || entries.Length > 150)
             throw new ArgumentException("Missing official invoice items.");
-        var lines = new List<InvoiceWireLine>(entries.Length);
-        foreach (var item in entries)
+        var buyerPersonType = buyerPersonTypeOverride;
+        if (buyerPersonType is null && root.TryGetProperty("buyerPersonType", out var buyerTypeField) &&
+            buyerTypeField.TryGetInt32(out var storedBuyerPersonType))
+            buyerPersonType = storedBuyerPersonType;
+        if (buyerPersonType is < 1 or > 4 or null)
+            throw new ArgumentException("Buyer person type is required.");
+
+        var otherTaxAndLegalFees = totalOtherTaxAndLegalFeesOverride;
+        if (otherTaxAndLegalFees is null &&
+            root.TryGetProperty("otherTaxAndLegalFeesRial", out var otherTaxField))
         {
+            if (!otherTaxField.TryGetDecimal(out var storedOtherTaxAndLegalFees) ||
+                storedOtherTaxAndLegalFees < 0 ||
+                storedOtherTaxAndLegalFees != decimal.Truncate(storedOtherTaxAndLegalFees) ||
+                storedOtherTaxAndLegalFees > long.MaxValue)
+                throw new ArgumentException("Other tax and legal fee total is invalid.");
+            otherTaxAndLegalFees = (long)storedOtherTaxAndLegalFees;
+        }
+        otherTaxAndLegalFees ??= 0;
+        if (otherTaxAndLegalFees < 0)
+            throw new ArgumentException("Other tax and legal fee total is invalid.");
+
+        var financialInputs = entries.Select(item => new InvoiceFinancialInput(
+            item.CatalogItemId ?? Guid.Empty, item.Quantity, item.UnitPriceRial,
+            decimal.Truncate(item.Quantity * item.DiscountPerUnitRial), item.VatRatePercent))
+            .ToArray();
+        if (entries.Any(item =>
+                decimal.Truncate(item.Quantity * item.UnitPriceRial) != item.Quantity * item.UnitPriceRial ||
+                decimal.Truncate(item.Quantity * item.DiscountPerUnitRial) !=
+                    item.Quantity * item.DiscountPerUnitRial))
+            throw new ArgumentException("Snapshot line rial amounts must be whole numbers.");
+        InvoiceFinancialPreview financial;
+        try
+        {
+            financial = InvoiceFinancialCalculator.Preview(financialInputs,
+                new InvoiceTypePattern(ElectronicInvoiceType.First, 1),
+                new InvoiceRoundingPolicy(OfficialV79InvoicePatternMatrix.Edition));
+        }
+        catch (Exception exception) when (exception is ArgumentException or OverflowException)
+        {
+            throw new ArgumentException("Snapshot monetary calculation is invalid.", exception);
+        }
+
+        var lines = new List<InvoiceWireLine>(entries.Length);
+        for (var index = 0; index < entries.Length; index++)
+        {
+            var item = entries[index];
             if (item.CatalogItemId is null || item.UnitId is not { } unitId ||
                 !verifiedUnitCodes.TryGetValue(unitId, out var unitCode) ||
                 unitCode is not { Length: > 0 } ||
@@ -46,26 +99,14 @@ public static class Phase10LegacyFrozenInvoiceProjector
                 item.Quantity <= 0 || item.UnitPriceRial <= 0 ||
                 item.VatRatePercent is null)
                 throw new ArgumentException("Official item or unit is incomplete.");
-
-            var gross = CheckedRial(decimal.Round(
-                checked(item.Quantity * item.UnitPriceRial), 2, MidpointRounding.AwayFromZero));
-            var discount = CheckedRial(decimal.Round(
-                checked(item.Quantity * item.DiscountPerUnitRial), 2, MidpointRounding.AwayFromZero));
-            var net = checked(gross - discount);
-            if (net < 0) throw new ArgumentException("Negative line net amount.");
-            var vat = CheckedRial(decimal.Round(
-                checked(net * item.VatRatePercent.Value / 100m), 2,
-                MidpointRounding.AwayFromZero));
-            var total = checked(net + vat);
+            var calculated = financial.Lines[index];
             lines.Add(new InvoiceWireLine(officialId,item.Quantity,item.UnitPriceRial,
-                gross,discount,net,item.VatRatePercent.Value,vat,total,item.Description,unitCode));
+                CheckedRial(calculated.BeforeDiscountRial),
+                CheckedRial(calculated.DiscountRial),
+                CheckedRial(calculated.AfterDiscountRial),item.VatRatePercent.Value,
+                CheckedRial(calculated.VatRial ?? 0),CheckedRial(calculated.TotalRial ?? 0),
+                item.Description,unitCode));
         }
-
-        var summary = InvoiceDraftSettlementPolicy.Calculate(entries);
-        if (CheckedRial(summary.GrossRial) != lines.Sum(x=>x.BeforeDiscountRial) ||
-            CheckedRial(summary.DiscountRial) != lines.Sum(x=>x.DiscountRial) ||
-            CheckedRial(summary.PreviewVatRial) != lines.Sum(x=>x.VatRial))
-            throw new ArgumentException("Snapshot monetary summary mismatch.");
 
         var settlement = root.GetProperty("settlementMethod").GetInt32();
         var cash = CheckedRial(root.GetProperty("cashAmountRial").GetDecimal());
@@ -75,11 +116,18 @@ public static class Phase10LegacyFrozenInvoiceProjector
             InvoiceSubject.Original,fiscalTaxId,
             new DateTimeOffset(invoice.IssueDateUtc).ToUnixTimeMilliseconds(),
             sellerTaxIdentifier,lines,
-            CheckedRial(summary.GrossRial),CheckedRial(summary.DiscountRial),
-            CheckedRial(summary.AfterDiscountRial),
-            CheckedRial(summary.PreviewVatRial),CheckedRial(summary.PreviewGrandTotalRial),
+            CheckedRial(financial.BeforeDiscountRial),CheckedRial(financial.DiscountRial),
+            CheckedRial(financial.AfterDiscountRial),
+            CheckedRial(financial.VatRial ?? 0),
+            CheckedRial((financial.GrandTotalRial ?? 0) + otherTaxAndLegalFees.Value),
             BuyerTaxId:buyerTaxIdentifier,SettlementMethod:settlement,
-            CashAmountRial:cash,CreditAmountRial:credit,InvoiceNumber:invoiceNumber);
+            // The internal display number is not the authority's 10-hex-digit serial.
+            CashAmountRial:cash,CreditAmountRial:credit,InvoiceNumber:fiscalTaxId.Substring(11,10),
+            BuyerPersonType:buyerPersonType,
+            TotalOtherTaxAndLegalFeesRial:otherTaxAndLegalFees,
+            BuyerNationalOrForeignCode:buyerNationalOrForeignCode,
+            BuyerBranchCode:buyerBranchCode,BuyerPostalCode:buyerPostalCode,
+            SellerBranchCode:sellerBranchCode);
         return Phase10InvoiceWireMapper.Project(wire);
     }
 

@@ -38,6 +38,34 @@ public sealed class Phase10InvoiceWireMapperTests
     }
 
     [Fact]
+    public void Required_buyer_type_and_other_tax_total_are_written_explicitly()
+    {
+        var result=Phase10InvoiceWireMapper.Project(Make() with {
+            BuyerPersonType=2, TotalOtherTaxAndLegalFeesRial=0
+        });
+        using var doc=JsonDocument.Parse(result.Json);
+        var header=doc.RootElement.GetProperty("header");
+        Assert.Equal(2,header.GetProperty("tob").GetInt32());
+        Assert.Equal(0,header.GetProperty("todam").GetInt64());
+    }
+
+    [Fact]
+    public void Other_tax_total_is_added_to_tbill_and_participant_fields_are_written()
+    {
+        var result=Phase10InvoiceWireMapper.Project(Make() with {
+            BuyerPersonType=2, TotalOtherTaxAndLegalFeesRial=2,
+            TotalBillRial=200, BuyerNationalOrForeignCode="1234567890",
+            BuyerBranchCode="12", BuyerPostalCode="1234567890", SellerBranchCode="34"
+        });
+        using var doc=JsonDocument.Parse(result.Json);
+        var header=doc.RootElement.GetProperty("header");
+        Assert.Equal(2,header.GetProperty("todam").GetInt64());
+        Assert.Equal(200,header.GetProperty("tbill").GetInt64());
+        Assert.Equal("1234567890",header.GetProperty("bid").GetString());
+        Assert.Equal("1234567890",header.GetProperty("bpc").GetString());
+    }
+
+    [Fact]
     public void Contracting_has_registered_crn_and_same_shared_transport_shape()
     {
         var result = Phase10InvoiceWireMapper.Project(Make(pattern: 4, crn: "123456"));

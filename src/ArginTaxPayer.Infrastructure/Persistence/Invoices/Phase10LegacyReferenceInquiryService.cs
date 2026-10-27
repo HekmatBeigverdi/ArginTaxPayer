@@ -13,17 +13,34 @@ using Microsoft.Extensions.Configuration;
 namespace ArginTaxPayer.Infrastructure.Persistence.Invoices;
 
 public sealed record Phase10ReferenceInquiryResult(InvoiceApiDecision Decision,
-    string SafeCode, string? ReferenceNumber=null);
+    string SafeCode, string? ReferenceNumber=null, LegacyAuthorityInquiryReport? AuthorityResult=null);
 
 /// <summary>
-/// Single UID reconciliation probe of an existing Indeterminate Sandbox operation.
-/// Strictly no invoice POST, retry, transition to Reserved, or fiscal acceptance claim.
+/// Correlated reference inquiry for a receipted Sandbox operation.
+/// Stores bounded authority errors; never resends the original packet.
 /// </summary>
 public sealed class Phase10LegacyReferenceInquiryService(
     ArginTaxPayerDbContext db, TaxpayerScopeService scope,
     IConfiguration config, SandboxLegacySigningKeyLoader keys,
     Phase10DispatchEvidenceRepository evidence)
 {
+    public async Task<Phase10ReferenceInquiryResult> ReadAsync(
+        string? bearer,Guid taxpayerId,Guid invoiceId,CancellationToken ct)
+    {
+        var actor=await scope.ResolveAsync(bearer,ct);
+        if(actor.Decision==TaxpayerScopeDecision.Unauthenticated)
+            return new(InvoiceApiDecision.Unauthenticated,"unauthenticated");
+        if(actor.Decision!=TaxpayerScopeDecision.Allowed)
+            return new(InvoiceApiDecision.Forbidden,"forbidden");
+        var owner=await scope.ScopedQuery(actor.ActorId,actor.Level1)
+            .Where(t=>t.Id==taxpayerId).Select(t=>t.CustomerUserId).SingleOrDefaultAsync(ct);
+        if(owner is null || !await db.InvoiceDocuments.AsNoTracking().AnyAsync(i=>
+            i.Id==invoiceId&&i.CustomerUserId==owner.Value&&i.TaxpayerId==taxpayerId,ct))
+            return new(InvoiceApiDecision.NotFound,"not_found");
+        var stored=await new LegacyAuthorityReportRepository(db).ReadAsync(owner.Value,taxpayerId,invoiceId,ct);
+        return new(InvoiceApiDecision.Success,"inquiry_report_loaded",stored?.ReferenceNumber,stored?.Report);
+    }
+
     public async Task<Phase10ReferenceInquiryResult> InquireAsync(
         string? bearer,Guid taxpayerId,Guid invoiceId,CancellationToken ct)
     {
@@ -125,7 +142,8 @@ WHERE operation_id=@operation ORDER BY attempt_number DESC LIMIT 1
             System.Globalization.CultureInfo.InvariantCulture);
         var inquiryPacket=new {
             Uid=Guid.NewGuid().ToString("D"),PacketType="INQUIRY_BY_REFERENCE_NUMBER",Retry=false,
-            Data=new { ReferenceNumbers=new[]{referenceNumber} },
+            // Legacy InquiryByReferenceNumberDto uses singular ReferenceNumber for its list.
+            Data=new { ReferenceNumber=new[]{referenceNumber} },
             EncryptionKeyId=(string?)null,SymmetricKey=(string?)null,
             Iv=(string?)null,FiscalId=memoryCode,DataSignature=(string?)null
         };
@@ -203,6 +221,7 @@ WHERE operation_id=@operation ORDER BY attempt_number DESC LIMIT 1
             var expected=new InvoiceReconciliationIdentity(operationId,owner.Value,taxpayerId,
                 memoryId,uid,packetType,memoryCode,referenceNumber);
             var verdict=Phase10InquiryReconciliation.Evaluate(expected,results.GetRawText());
+            var report=LegacyAuthorityInquiryReportParser.Parse(expected,results.GetRawText(),DateTime.UtcNow);
             // Read-only until authoritative final acceptance semantics are separately verified.
             // Never transition Acknowledged into fiscally Accepted merely from a status string.
             if(verdict.Outcome==InvoiceReconciliationOutcome.CorrelatedPendingReview &&
@@ -216,8 +235,11 @@ WHERE operation_id=@operation ORDER BY attempt_number DESC LIMIT 1
                     referenceNumber,digest,observed,ct);
                 if(written.Status!=Phase10DispatchEvidenceStatus.Recorded)
                     return new(InvoiceApiDecision.Success,"inquiry_evidence_conflict");
+                if(report is not null && !await new LegacyAuthorityReportRepository(db).AppendAsync(
+                    owner.Value,taxpayerId,invoiceId,operationId,referenceNumber,report,ct))
+                    return new(InvoiceApiDecision.Success,"inquiry_evidence_conflict");
             }
-            return new(InvoiceApiDecision.Success,verdict.SafeCode,verdict.MatchedReference);
+            return new(InvoiceApiDecision.Success,verdict.SafeCode,verdict.MatchedReference,report);
         }
         catch(HttpRequestException){return new(InvoiceApiDecision.Success,"inquiry_network_unavailable");}
         catch(JsonException){return new(InvoiceApiDecision.Success,"inquiry_response_invalid");}

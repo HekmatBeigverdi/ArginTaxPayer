@@ -1,11 +1,29 @@
 "use client";
-import {useCallback,useEffect,useState} from "react";
+import {useCallback,useEffect,useRef,useState} from "react";
 
 type Report={environment:"Sandbox"|"Unverified";invoiceState:"Draft"|"Validated"|"Finalized";
  hasImmutableSnapshot:boolean;invoiceRevision:number;sandboxFiscalMemoryId:string|null;
  readyForLiveSend:boolean;submissionEnabled:boolean;
  signedPacketAvailable:boolean;fiscalAccepted:false;blockingCodes:string[]};
 type DispatchStatus={status:string;submissionEnabled:boolean;referenceNumber?:string;safeCode?:string;fiscalAccepted:false};
+type CalculationFinding={code:"0204501"|"0304401"|"0200201"|"00010"|"00026";
+ field:string;message:string;expected:string|null;actual:string|null};
+type CalculationAudit={invoiceRevision:number;canResend:boolean;findings:CalculationFinding[]};
+type WireField={path:string;value:string};
+function flattenWire(value:unknown,path=""):WireField[]{
+ if(value!==null&&typeof value==="object"){
+  if(Array.isArray(value))return value.flatMap((item,index)=>flattenWire(item,`${path}[${index+1}]`));
+  return Object.entries(value as Record<string,unknown>).flatMap(([key,item])=>
+   flattenWire(item,path?`${path}.${key}`:key));
+ }
+ return [{path,value:JSON.stringify(value)}];
+}
+type AuthorityResult={status:"FAILED"|"SUCCESS"|"PENDING"|"UNKNOWN";
+ errors:{code:string;message:string}[];warnings:{code:string;message:string}[];
+ canPrepareCorrection:boolean;observedAtUtc:string};
+const authorityLabels:Record<AuthorityResult["status"],string>={
+ FAILED:"رد شده توسط سازمان",SUCCESS:"نتیجه موفق در Sandbox",
+ PENDING:"در انتظار نتیجه سازمان",UNKNOWN:"نتیجه سازمان نامشخص است"};
 type Review={state:"Draft"|"InReview"|"ChangesRequested"|"Approved";revision:number};
 const labels:Record<string,string>={
  "invoice.snapshot.invalid":"ساختار نسخه ذخیره‌شده قابل تأیید نیست",
@@ -37,6 +55,102 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
  const [dispatchError,setDispatchError]=useState("");
  const [dispatchLoading,setDispatchLoading]=useState(false);
  const [dispatchFeedback,setDispatchFeedback]=useState("");
+ const [authority,setAuthority]=useState<{scope:string;result:AuthorityResult|null;referenceNumber:string|null}|null>(null);
+ const [authorityError,setAuthorityError]=useState("");
+ const [correctionUrl,setCorrectionUrl]=useState("");
+ const [calculationAudit,setCalculationAudit]=useState<CalculationAudit|null>(null);
+ const [calculationAuditError,setCalculationAuditError]=useState("");
+ const [wirePreviewJson,setWirePreviewJson]=useState("");
+ const [reviewedWirePreview,setReviewedWirePreview]=useState(false);
+ const authorityScope=taxpayerId+"/"+invoiceId;
+ const authorityResult=authority?.scope===authorityScope?authority.result:null;
+ const authorityController=useRef<AbortController|null>(null);
+ const authoritySequence=useRef(0);
+ const loadAuthorityReport=useCallback(async(signal:AbortSignal)=>{
+  if(isWorkspace)return;
+  const sequence=++authoritySequence.current;
+  try{
+   const response=await fetch("/api/invoice-dispatch/"+encodeURIComponent(taxpayerId)+"/"+
+    encodeURIComponent(invoiceId)+"/inquiry-by-reference",
+    {method:"GET",cache:"no-store",credentials:"same-origin",signal});
+   if(!response.ok)throw Error("دریافت گزارش ذخیره‌شده سازمان ناموفق بود.");
+   const data=await response.json();
+   if(!signal.aborted&&sequence===authoritySequence.current){
+    setAuthority({scope:taxpayerId+"/"+invoiceId,result:data.authorityResult??null,
+     referenceNumber:data.referenceNumber??null});setAuthorityError("");
+   }
+  }catch(e){if(!signal.aborted&&sequence===authoritySequence.current)setAuthorityError((e as Error).message);}
+ },[isWorkspace,taxpayerId,invoiceId]);
+ const loadCalculationAudit=useCallback(async()=>{
+  if(isWorkspace)return;
+  setCalculationAuditError("");
+  try{
+   const response=await fetch("/api/invoice-dispatch/"+encodeURIComponent(taxpayerId)+"/"+
+    encodeURIComponent(invoiceId)+"/calculation-audit",{cache:"no-store",credentials:"same-origin"});
+   if(!response.ok)throw Error("بررسی محاسبات صورتحساب در دسترس نیست.");
+   const value:unknown=await response.json();
+   if(!value||typeof value!=="object"||Array.isArray(value))throw Error("گزارش محاسبات نامعتبر است.");
+   const data=value as Record<string,unknown>;
+   if(!Number.isSafeInteger(data.invoiceRevision)||Number(data.invoiceRevision)<1||
+      typeof data.canResend!=="boolean"||!Array.isArray(data.findings))
+     throw Error("گزارش محاسبات نامعتبر است.");
+   const findings=data.findings.filter((item):item is CalculationFinding=>{
+    if(!item||typeof item!=="object"||Array.isArray(item))return false;
+    const row=item as Record<string,unknown>;
+    return typeof row.code==="string"&&typeof row.field==="string"&&typeof row.message==="string"&&
+      (row.expected===null||typeof row.expected==="string")&&
+      (row.actual===null||typeof row.actual==="string");
+   });
+   if(findings.length!==data.findings.length)throw Error("گزارش محاسبات نامعتبر است.");
+   setCalculationAudit({invoiceRevision:Number(data.invoiceRevision),canResend:data.canResend,findings});
+  }catch(e){setCalculationAudit(null);setCalculationAuditError((e as Error).message);}
+ },[isWorkspace,taxpayerId,invoiceId]);
+ useEffect(()=>{
+  const controller=new AbortController();authorityController.current=controller;
+  setAuthority(null);setAuthorityError("");setCorrectionUrl("");setActionBusy(false);setNotice("");
+  setWirePreviewJson("");setReviewedWirePreview(false);
+  void loadAuthorityReport(controller.signal);
+  return()=>controller.abort();
+ },[loadAuthorityReport]);
+ const prepareCorrection=useCallback(async()=>{
+  if(actionBusy||authorityResult?.status!=="FAILED"||!authorityResult.canPrepareCorrection)return;
+  const signal=authorityController.current?.signal;
+  setActionBusy(true);setError("");setCorrectionUrl("");
+  try{
+   const response=await fetch("/api/invoice-dispatch/"+encodeURIComponent(taxpayerId)+"/"+
+    encodeURIComponent(invoiceId)+"/correction-draft",
+    {method:"POST",cache:"no-store",credentials:"same-origin",signal});
+   const data=await response.json().catch(()=>({}));
+   if(signal?.aborted)return;
+   if(!response.ok){
+    const code=typeof data.error==="string"?data.error:"";
+    const messages:Record<string,string>={
+     authority_rejection_required:"گزارش رد معتبر از استعلام سازمان در دسترس نیست؛ استعلام را تازه کنید و دوباره تلاش کنید.",
+     correction_draft_creation_failed:"گزارش سازمان دریافت شد، اما ذخیرهٔ پیش‌نویس انجام نشد. دوباره تلاش کنید.",
+     correction_draft_invalid:"داده‌های پیش‌نویس اصلاح معتبر نیستند؛ شناسهٔ ۱۳ رقمی کالا و تاریخ واقعی صدور را بررسی کنید.",
+     correction_draft_empty:"ذخیره انجام شد اما شناسهٔ پیش‌نویس از سرویس دریافت نشد؛ صفحه را تازه کنید.",
+     correction_link_conflict:"پیش‌نویس اصلاح قبلاً ایجاد شده، اما پیوند آن کامل نشده است. صفحه را تازه‌سازی کنید.",
+     source_workspace_missing:"پیش‌نویس اولیهٔ این فاکتور پیدا نشد.",
+     source_workspace_revision_mismatch:"پیش‌نویس اولیه پس از صدور تغییر کرده است؛ وضعیت فاکتور را تازه کنید.",
+     sandbox_snapshot_required:"این فاکتور برای اصلاح در محیط Sandbox آماده نیست.",
+     correction_api_unavailable:"سرویس ایجاد پیش‌نویس موقتاً در دسترس نیست؛ دوباره تلاش کنید.",
+     correction_access_denied:"دسترسی به پیش‌نویس اصلاح مجاز نیست.",
+     correction_rejected:"درخواست ایجاد پیش‌نویس از سوی سرویس رد شد.",
+    };
+    throw Error(messages[code]||`ایجاد پیش‌نویس انجام نشد (HTTP ${response.status}${code?`, ${code}`:""}).`);
+   }
+   if(data.authoritySubmitted!==false||typeof data.workspaceId!=="string"||
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(data.workspaceId))
+    throw Error("پاسخ ایجاد پیش‌نویس نامعتبر است.");
+   const dateAdjusted=data.issueDateAdjusted===true;
+   const url="/invoices?workspaceId="+encodeURIComponent(data.workspaceId)+
+    (dateAdjusted?"&issueDateAdjusted=1":"");
+   setCorrectionUrl(url);
+   setNotice("پیش‌نویس اصلاح ایجاد شد؛ هیچ ارسال جدیدی انجام نشده است.");
+   window.location.assign(url);
+  }catch(e){if(!signal?.aborted)setError((e as Error).message);}
+  finally{if(!signal?.aborted)setActionBusy(false);}
+ },[actionBusy,authorityResult,taxpayerId,invoiceId]);
  const refresh=useCallback(async(signal?:AbortSignal)=>{
   if(isWorkspace)return;
   setBusy(true);setError("");
@@ -105,7 +219,7 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
   finally{setActionBusy(false);}
  },[actionBusy,dispatch,report,taxpayerId,invoiceId,loadDispatch,refresh]);
  const readyExisting=useCallback(async()=>{
-  if(actionBusy||!report||report.invoiceState!=="Finalized"||
+  if(actionBusy||!report||calculationAudit?.invoiceRevision!==report.invoiceRevision||!calculationAudit.canResend||report.invoiceState!=="Finalized"||
      report.environment!=="Sandbox"||dispatchLoading||dispatch?.status==="Indeterminate"||
      dispatch?.status==="Acknowledged"||dispatch?.status==="Sending")return;
   setActionBusy(true);setError("");setNotice("");
@@ -118,7 +232,11 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
    const data:unknown=await result.json();
    const value=data&&typeof data==="object"&&!Array.isArray(data)
     ?data as Record<string,unknown>:{};
-   if(!result.ok)throw Error(String(value.error??value.safeCode??result.status));
+   if(!result.ok){
+    const code=String(value.error??value.safeCode??result.status);
+    throw Error(code==="seller_economic_identifier_invalid"
+     ?"شماره اقتصادی فروشنده باید ۱۱ یا ۱۴ رقم باشد؛ شناسه فعلی برای ارسال معتبر نیست.":code);
+   }
    return value;
   };
   try{
@@ -127,8 +245,14 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
     if(report.blockingCodes.includes("invoice.serial.durable_reservation_required")){
      await invoke("/serial-reservation",{expectedRevision:report.invoiceRevision});
     }
-    await invoke("/prepare-legacy");
+    const prepared=await invoke("/prepare-legacy");
+    if(typeof prepared.wirePreviewJson!=="string")throw Error("پیش‌نمایش دقیق فیلدهای ارسالی دریافت نشد.");
+    setWirePreviewJson(prepared.wirePreviewJson);setReviewedWirePreview(false);
     state="Prepared";
+   }else if(state==="Prepared"){
+    const prepared=await invoke("/prepare-legacy");
+    if(typeof prepared.wirePreviewJson!=="string")throw Error("پیش‌نمایش دقیق فیلدهای ارسالی دریافت نشد.");
+    setWirePreviewJson(prepared.wirePreviewJson);setReviewedWirePreview(false);
    }
    if(state==="Prepared"){
     await invoke("/arm");
@@ -141,23 +265,43 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
   finally{
    await loadDispatch();await refresh();setActionBusy(false);
   }
- },[actionBusy,report,dispatch,dispatchLoading,taxpayerId,invoiceId,loadDispatch,refresh]);
+ },[actionBusy,report,calculationAudit,dispatch,dispatchLoading,taxpayerId,invoiceId,loadDispatch,refresh]);
+ const loadWirePreview=useCallback(async()=>{
+  if(actionBusy||!dispatch||!["Prepared","Reserved"].includes(dispatch.status))return;
+  setActionBusy(true);setError("");setNotice("");
+  try{
+   const response=await fetch("/api/invoice-dispatch/"+encodeURIComponent(taxpayerId)+"/"+
+    encodeURIComponent(invoiceId)+"/prepare-legacy",{method:"POST",credentials:"same-origin",cache:"no-store"});
+   const data:unknown=await response.json();
+   const value=data&&typeof data==="object"&&!Array.isArray(data)?data as Record<string,unknown>:{};
+   if(!response.ok||typeof value.wirePreviewJson!=="string")
+    throw Error("پیش‌نمایش فیلدهای نهایی ارسالی دریافت نشد: "+String(value.error??response.status));
+   setWirePreviewJson(value.wirePreviewJson);setReviewedWirePreview(false);
+   setNotice("پیش‌نمایش از نسخه ثابت فاکتور ساخته شد؛ هنوز چیزی به سازمان ارسال نشده است.");
+  }catch(e){setError((e as Error).message);}
+  finally{setActionBusy(false);}
+ },[actionBusy,dispatch,taxpayerId,invoiceId]);
  const inquireByReference=useCallback(async()=>{
   if(actionBusy||dispatch?.status!=="Acknowledged")return;
+  const signal=authorityController.current?.signal;
+  ++authoritySequence.current;setAuthority(null);setAuthorityError("");
   setActionBusy(true);setError("");setNotice("");
   try{
    const response=await fetch("/api/invoice-dispatch/"+
     encodeURIComponent(taxpayerId)+"/"+encodeURIComponent(invoiceId)+"/inquiry-by-reference",{
-    method:"POST",credentials:"same-origin",cache:"no-store"});
+    method:"POST",credentials:"same-origin",cache:"no-store",signal});
    const body:unknown=await response.json();
    const data=body&&typeof body==="object"&&!Array.isArray(body)
     ?body as Record<string,unknown>:{};
+   if(signal?.aborted)return;
    if(!response.ok)throw Error("استعلام رهگیری انجام نشد: "+String(data.error??response.status));
+   setAuthority({scope:taxpayerId+"/"+invoiceId,result:(data.authorityResult??null) as AuthorityResult|null,
+    referenceNumber:typeof data.referenceNumber==="string"?data.referenceNumber:null});
    setNotice("نتیجه استعلام شماره رهگیری: "+String(data.safeCode??"نامشخص")+
     (typeof data.referenceNumber==="string"?" — شماره مرجع: "+data.referenceNumber:"")+
     " — وضعیت پذیرش قطعی مالیاتی هنوز تأیید نشده است.");
-  }catch(e){setError((e as Error).message);}
-  finally{setActionBusy(false);}
+  }catch(e){if(!signal?.aborted)setError((e as Error).message);}
+  finally{if(!signal?.aborted)setActionBusy(false);}
  },[actionBusy,dispatch,taxpayerId,invoiceId]);
  const inquireByUid=useCallback(async()=>{
   if(actionBusy||dispatch?.status!=="Indeterminate")return;
@@ -180,7 +324,7 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
   finally{setActionBusy(false);}
  },[actionBusy,dispatch,taxpayerId,invoiceId,loadDispatch]);
  const sendSandbox=useCallback(async()=>{
-  if(actionBusy||!dispatch||dispatch.status!=="Reserved"||
+  if(actionBusy||!dispatch||dispatch.status!=="Reserved"||!wirePreviewJson||!reviewedWirePreview||
      !report||report.environment!=="Sandbox"||report.invoiceState!=="Finalized")return;
   setActionBusy(true);setError("");setNotice("");
   try{
@@ -203,7 +347,7 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
    setError("ارتباط هنگام ارسال قطع شد. احتمال ارسال نامشخص است؛ بدون بررسی وضعیت مجدداً ارسال نکنید.");
    await loadDispatch();
   }finally{setActionBusy(false);}
- },[actionBusy,dispatch,report,taxpayerId,invoiceId,loadDispatch,refresh]);
+ },[actionBusy,dispatch,report,wirePreviewJson,reviewedWirePreview,taxpayerId,invoiceId,loadDispatch,refresh]);
  const validate=useCallback(async()=>{
   if(!report||report.invoiceState!=="Draft"||actionBusy)return;
   setActionBusy(true);setError("");setNotice("");
@@ -314,6 +458,8 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
      sandbox_dispatch_fk_migration_required:"Migration اتصال Outbox به حافظه Sandbox باید اعمال شود.",
      fiscal_serial_not_reserved:"رزرو سریال این صورتحساب شناسایی نشد.",
      seller_or_buyer_identity_missing:"شناسه قانونی فروشنده یا خریدار ناقص است.",
+     seller_economic_identifier_invalid:"شماره اقتصادی فروشنده باید ۱۱ یا ۱۴ رقم باشد؛ شناسه فعلی برای ارسال معتبر نیست.",
+     invoice_calculation_audit_failed:"محاسبات یا فیلدهای اجباری صورتحساب معتبر نیست؛ خطاهای محاسباتی را اصلاح و دوباره بررسی کنید.",
      official_goods_mapping_invalid:"نگاشت رسمی کالا یا خدمت قابل تأیید نیست.",
      official_units_unverified:"کد رسمی واحد اندازه‌گیری کالا یا خدمت تأیید نشده است.",
      legacy_wire_mapping_unverified:"اطلاعات این صورتحساب با الگوی فعلی ارسال Legacy سازگار نیست.",
@@ -349,8 +495,8 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
   }catch(e){setError((e as Error).message);}
   finally{setActionBusy(false);}
  },[report,actionBusy,taxpayerId,invoiceId,refresh]);
- useEffect(()=>{const controller=new AbortController();void refresh(controller.signal);void loadReview();void loadDispatch();
-  return()=>controller.abort();},[refresh,loadReview,loadDispatch]);
+ useEffect(()=>{const controller=new AbortController();void refresh(controller.signal);void loadReview();void loadDispatch();void loadCalculationAudit();
+  return()=>controller.abort();},[refresh,loadReview,loadDispatch,loadCalculationAudit]);
  if(isWorkspace)return <p className="field-hint">ابتدا نسخه ثابت داخلی سند را ثبت کنید.</p>;
  return <section dir="rtl" className="invoice-validation" aria-label="پیش‌نیازهای ارسال مالیاتی">
   <div className="invoice-validation__heading">
@@ -365,18 +511,65 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
    onClick={()=>void loadDispatch()}>{dispatchLoading?"در حال دریافت وضعیت…":"به‌روزرسانی وضعیت عملیات ارسال"}</button>
   {dispatchFeedback&&<p role="status" className="field-hint">{dispatchFeedback}</p>}
   {dispatchError&&<p role="alert" className="form-error">{dispatchError}</p>}
+  {calculationAuditError&&<p role="alert" className="form-error">{calculationAuditError}</p>}
+  {calculationAudit?.findings?.length ? <section className="invoice-calculation-audit" aria-label="خطاهای محاسباتی صورتحساب">
+   <h4>خطاهای محاسباتی و فیلدهای اجباری</h4>
+   <ul>{calculationAudit.findings.map((item,index)=><li key={item.code+":"+index}>
+    <bdi dir="ltr">{item.code}</bdi> — {item.message}
+    {item.expected!==null&&<>؛ مقدار مورد انتظار: <bdi dir="ltr">{item.expected}</bdi></>}
+    {item.actual!==null&&<>؛ مقدار فعلی: <bdi dir="ltr">{item.actual}</bdi></>}
+   </li>)}</ul>
+  </section>:null}
+  {authorityError&&<p role="alert" className="form-error">{authorityError}</p>}
+  {authorityResult&&<div aria-label="گزارش نتیجه سازمان">
+   <h4>نتیجه استعلام سازمان: {authorityLabels[authorityResult.status]}</h4>
+   <p>شماره رهگیری فقط رسید دریافت درخواست است و به معنی پذیرش قطعی مالیاتی نیست.</p>
+   {authority?.referenceNumber&&<p>شماره مرجع: <b dir="ltr">{authority.referenceNumber}</b></p>}
+   <p>زمان مشاهده: <time dir="ltr">{authorityResult.observedAtUtc}</time></p>
+   <h5>خطاهای سازمان</h5>
+   <ul>{authorityResult.errors.map((item,index)=><li key={index}><b dir="ltr">{item.code}</b> — {item.message}</li>)}</ul>
+   <h5>هشدارهای سازمان</h5>
+   <ul>{authorityResult.warnings.map((item,index)=><li key={index}><b dir="ltr">{item.code}</b> — {item.message}</li>)}</ul>
+   {(authorityResult.status==="PENDING"||authorityResult.status==="UNKNOWN")&&
+    <p>نتیجه قطعی مشخص نیست؛ ارسال را تکرار نکنید.</p>}
+   {authorityResult.status==="SUCCESS"&&<p>این نتیجه مربوط به Sandbox است؛ پذیرش قطعی مالیاتی ثبت نشده است.</p>}
+   {authorityResult.status==="FAILED"&&authorityResult.canPrepareCorrection&&
+    <button type="button" className="identity-secondary" disabled={actionBusy||!!correctionUrl}
+     onClick={()=>void prepareCorrection()}>ایجاد پیش‌نویس برای اصلاح و ارسال مجدد</button>}
+  </div>}
+  {correctionUrl&&<a href={correctionUrl}>باز کردن پیش‌نویس اصلاح برای ویرایش</a>}
   {dispatch?.status==="Reserved"&&!dispatch.submissionEnabled&&
    <p role="alert" className="form-error">عملیات Reserved است، اما تنظیمات فعال‌سازی ارسال Legacy در Backend کامل نیست.</p>}
   {dispatch&&<p role="status" className="field-hint">وضعیت ارسال Sandbox: <strong>{dispatch.status}</strong>
    {dispatch.referenceNumber&&<> — شماره پیگیری: <b dir="ltr">{dispatch.referenceNumber}</b></>}</p>}
+  {wirePreviewJson&&(()=>{
+   let fields:WireField[]=[];
+   try{fields=flattenWire(JSON.parse(wirePreviewJson));}catch{}
+   return <section className="invoice-calculation-audit" aria-label="پیش‌نمایش مقادیر ارسالی">
+    <h4>مقادیر نهایی ارسالی به سازمان</h4>
+    <p>این مقادیر عین JSON ساخته‌شده از نسخه ثابت فاکتور هستند. هنوز ارسال نشده‌اند.</p>
+    <div className="table-scroll"><table><thead><tr><th>مسیر فیلد</th><th>مقدار نهایی</th></tr></thead>
+     <tbody>{fields.map((field,index)=><tr key={field.path+":"+index}>
+      <td><bdi dir="ltr">{field.path}</bdi></td><td><bdi dir="ltr">{field.value}</bdi></td>
+     </tr>)}</tbody></table></div>
+    <details><summary>JSON کامل بسته صورتحساب</summary>
+     <pre dir="ltr" style={{whiteSpace:"pre-wrap",overflowWrap:"anywhere"}}>{JSON.stringify(JSON.parse(wirePreviewJson),null,2)}</pre>
+    </details>
+    <button type="button" className="identity-secondary" onClick={()=>void navigator.clipboard?.writeText(JSON.stringify(JSON.parse(wirePreviewJson),null,2))}>کپی JSON</button>
+    {dispatch?.status==="Reserved"&&<label className="field-hint">
+     <input type="checkbox" checked={reviewedWirePreview} onChange={event=>setReviewedWirePreview(event.target.checked)}/>
+     مقادیر فیلدها و محاسبات را بررسی کردم.
+    </label>}
+   </section>;
+  })()}
   {report?.environment==="Sandbox"&&report.invoiceState==="Finalized"&&
    (!dispatch||["NotPrepared","Prepared"].includes(dispatch.status))&&
    !dispatchError&&
-   <button type="button" className="identity-secondary" disabled={actionBusy||busy||dispatchLoading}
-    onClick={()=>void readyExisting()}>{actionBusy?"در حال آماده‌سازی عملیات…":
-    "آماده‌سازی کامل برای ارسال Sandbox"}</button>}
+   <button type="button" className="identity-secondary" disabled={actionBusy||busy||dispatchLoading||calculationAudit?.canResend!==true}
+   onClick={()=>void readyExisting()}>{actionBusy?"در حال بررسی و آماده‌سازی…":
+   "بررسی محاسبات و آماده‌سازی ارسال مجدد"}</button>}
   {dispatch?.status==="Indeterminate"&&
-   <p role="alert" className="form-error">این عملیات قبلاً شروع شده و نتیجه آن نامشخص است. همین صورتحساب را مجدداً ارسال نکنید؛ برای تست ارسال تازه، صورتحساب آزمایشی جدید با شماره و شناسه مالیاتی مستقل ایجاد کنید.</p>}
+   <p role="alert" className="form-error">این عملیات قبلاً شروع شده و نتیجه آن نامشخص است. تا روشن‌شدن نتیجه، صورتحساب را مجدداً ارسال نکنید.</p>}
   {report?.environment==="Sandbox"&&dispatch?.status==="Acknowledged"&&
    <button type="button" className="identity-secondary" disabled={actionBusy||busy}
     onClick={()=>void inquireByReference()}>{actionBusy?"در حال استعلام…":"استعلام شماره رهگیری از Sandbox"}</button>}
@@ -388,8 +581,12 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
    <button type="button" className="identity-secondary" disabled={actionBusy||busy||dispatchLoading}
     onClick={()=>void armDispatch()}>{actionBusy?"در حال رزرو عملیات…":"ثبت عملیات آماده‌شده در صف ارسال Sandbox"}</button>}
   {report?.environment==="Sandbox"&&report.invoiceState==="Finalized"&&
+   ["Prepared","Reserved"].includes(dispatch?.status??"")&&!wirePreviewJson&&
+   <button type="button" className="identity-secondary" disabled={actionBusy||busy||dispatchLoading}
+    onClick={()=>void loadWirePreview()}>{actionBusy?"در حال ساخت پیش‌نمایش…":"نمایش محاسبات و فیلدهای دقیق ارسالی"}</button>}
+  {report?.environment==="Sandbox"&&report.invoiceState==="Finalized"&&
    dispatch?.status==="Reserved"&&dispatch.submissionEnabled&&
-   <button type="button" className="identity-secondary" disabled={actionBusy||busy}
+   <button type="button" className="identity-secondary" disabled={actionBusy||busy||!wirePreviewJson||!reviewedWirePreview}
     onClick={()=>void sendSandbox()}>{actionBusy?"در حال ارسال…":"ارسال واقعی صورتحساب به Sandbox"}</button>}
   {report?.invoiceState==="Validated"&&review&&
    <div className="invoice-validation__actions">

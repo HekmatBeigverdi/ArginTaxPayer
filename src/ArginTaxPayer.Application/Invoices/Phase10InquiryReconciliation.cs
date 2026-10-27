@@ -80,7 +80,7 @@ public static class Phase10InquiryReconciliation
                 return Unknown();
 
             if (!string.Equals(uid, expected.PacketUid, StringComparison.Ordinal) ||
-                !string.Equals(type, expected.PacketType, StringComparison.Ordinal) ||
+                !MatchesResponsePacketType(expected.PacketType, type!) ||
                 !string.Equals(fiscalId, expected.FiscalIdentifier, StringComparison.Ordinal) ||
                 (expected.AuthorityReference is not null &&
                  !string.Equals(reference, expected.AuthorityReference, StringComparison.Ordinal)))
@@ -95,6 +95,13 @@ public static class Phase10InquiryReconciliation
         catch (JsonException) { return Unknown(); }
         catch (InvalidOperationException) { return Unknown(); }
     }
+
+    // Legacy SELF_TSP acknowledges INVOICE.V01 using the distinct response
+    // packet type receive_invoice_confirm. Keep the accepted mapping explicit.
+    private static bool MatchesResponsePacketType(string submitted,string received) =>
+        string.Equals(submitted,received,StringComparison.Ordinal) ||
+        (string.Equals(submitted,"INVOICE.V01",StringComparison.Ordinal) &&
+         string.Equals(received,"receive_invoice_confirm",StringComparison.Ordinal));
 
     private static bool ReadString(JsonElement element, string property, out string? value)
     {

@@ -19,6 +19,7 @@ test("snapshot promotion uses live session, scoped tenant, row lock, serializabl
   assert.match(service,/InvoiceDocuments\.AsNoTracking/);
   assert.match(service,/sourceWorkspaceId=draft\.Id/);
   assert.match(service,/sourceRevision=draft\.Revision/);
+  assert.match(service,/input\.OtherTaxAndLegalFeesRial \?\? 0m\)\)/);
   assert.match(service,/SHA256\.HashData/);
   assert.match(service,/InvoiceDocumentRevisions\.Add/);
   assert.match(service,/await tx\.CommitAsync/);
@@ -52,5 +53,7 @@ test("the internal snapshot cannot be quietly overwritten, duplicated or misrepr
   assert.match(validation,/fiscalSubmissionAuthorized!==false/);
   assert.match(bff,/"prepare"/);
   assert.match(bff,/invalid_snapshot_revision/);
+  assert.match(bff,/request_rejected/);
+  assert.match(validation,/errorCode/);
   assert.match(api,/InvoiceWorkspacePromotionService/);
 });
