@@ -39,25 +39,24 @@ export default function InvoiceDispatchHistory({taxpayerId,invoiceId}:{
   void load(controller.signal);
   return()=>controller.abort();
  },[load]);
- return <details dir="rtl" className="invoice-calculation-audit">
-  <summary>تاریخچه ارسال و استعلام Sandbox</summary>
-  <button type="button" className="identity-secondary" disabled={pending}
+ return <section dir="rtl" aria-label="جزئیات تاریخچه ارسال" style={{padding:"4px 0",fontSize:12,lineHeight:1.55}}>
+  <button type="button" className="identity-secondary" style={{padding:"5px 9px",fontSize:12}} disabled={pending}
    onClick={()=>void load()}>{pending?"در حال دریافت…":"تازه‌سازی تاریخچه"}</button>
   {error&&<p role="alert" className="form-error">{error}</p>}
   {history&&<>
-   <p>وضعیت: <strong>{statusNames[history.state]??"نیازمند بررسی"}</strong>
+   <p style={{margin:"7px 0"}}>وضعیت: <strong>{statusNames[history.state]??"نیازمند بررسی"}</strong>
     {" — "}نسخه: {history.invoiceRevision??"—"}
     {" — "}آخرین تغییر: <time>{date(history.lastUpdatedAtUtc)}</time></p>
    {history.state==="Indeterminate"&&
     <p role="alert">نتیجه درخواست قبلی مشخص نیست. بدون دریافت شواهد معتبر، ارسال مجدد مجاز نیست.</p>}
-   <h4>تلاش‌های ارسال</h4>
+   <h4 style={{margin:"10px 0 5px",fontSize:12}}>تلاش‌های ارسال ({history.attempts.length})</h4>
    {history.attempts.length===0?<p>تلاشی ثبت نشده است.</p>:
-    <div className="table-scroll"><table><thead><tr><th>شماره</th><th>شروع</th><th>پایان</th><th>نتیجه</th></tr></thead>
+    <div className="table-scroll" style={{maxHeight:230,overflow:"auto"}}><table className="console-table" style={{fontSize:12}}><thead><tr><th>شماره</th><th>شروع</th><th>پایان</th><th>نتیجه</th></tr></thead>
     <tbody>{history.attempts.map((item,index)=><tr key={item.number+":"+index}>
      <td>{item.number}</td><td>{date(item.startedAtUtc)}</td>
      <td>{date(item.endedAtUtc)}</td><td><bdi dir="ltr">{item.result}</bdi></td>
     </tr>)}</tbody></table></div>}
-   <h4>شواهد و پاسخ‌ها</h4>
+   <h4 style={{margin:"10px 0 5px",fontSize:12}}>شواهد و پاسخ‌ها ({history.receipts.length})</h4>
    {history.receipts.length===0?<p>رسیدی ثبت نشده است.</p>:
     <div className="table-scroll"><table><thead><tr><th>نوع</th><th>زمان</th><th>مرجع سازمان</th></tr></thead>
     <tbody>{history.receipts.map((item,index)=><tr key={item.observedAtUtc+":"+index}>
