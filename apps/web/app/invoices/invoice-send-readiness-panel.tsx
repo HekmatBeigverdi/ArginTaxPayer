@@ -44,8 +44,8 @@ const labels:Record<string,string>={
  "invoice.transport.disabled":"ارسال واقعی در Backend غیرفعال است",
  "invoice.owner_live_send_approval.required":"مجوز جداگانه ارسال واقعی دریافت نشده است"
 };
-export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorkspace,hideHistory=false}:
- {invoiceId:string;taxpayerId:string;isWorkspace:boolean;hideHistory?:boolean}){
+export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorkspace,hideHistory=false,onCompleted}:
+ {invoiceId:string;taxpayerId:string;isWorkspace:boolean;hideHistory?:boolean;onCompleted?:()=>void}){
  const [report,setReport]=useState<Report|null>(null);
  const [busy,setBusy]=useState(false);
  const [error,setError]=useState("");
@@ -251,9 +251,10 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
       " ارسال شد. نتیجه استعلام: "+String(result.safeCode??"در انتظار بررسی"));
    else setError("نتیجه ارسال مشخص نیست؛ ارسال را تکرار نکنید. "+String(result.safeCode??""));
    await loadDispatch();await refresh();await loadReview();
+   if(result.status==="Acknowledged")onCompleted?.();
   }catch(e){setError((e as Error).message+"؛ پیش از تلاش دیگر وضعیت را تازه کنید.");await loadDispatch();}
   finally{setActionBusy(false);}
- },[actionBusy,isWorkspace,dispatchLoading,dispatch,taxpayerId,invoiceId,loadDispatch,refresh,loadReview]);
+ },[actionBusy,isWorkspace,dispatchLoading,dispatch,taxpayerId,invoiceId,loadDispatch,refresh,loadReview,onCompleted]);
  const readyExisting=useCallback(async()=>{
   if(actionBusy||!report||calculationAudit?.invoiceRevision!==report.invoiceRevision||!calculationAudit.canResend||report.invoiceState!=="Finalized"||
      report.environment!=="Sandbox"||dispatchLoading||dispatch?.status==="Indeterminate"||
