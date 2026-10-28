@@ -334,12 +334,13 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
    if(!response.ok)throw Error("استعلام رهگیری انجام نشد: "+String(data.error??response.status));
    setAuthority({scope:taxpayerId+"/"+invoiceId,result:(data.authorityResult??null) as AuthorityResult|null,
     referenceNumber:typeof data.referenceNumber==="string"?data.referenceNumber:null});
+   if(data.authorityResult)onCompleted?.();
    setNotice("نتیجه استعلام شماره رهگیری: "+String(data.safeCode??"نامشخص")+
     (typeof data.referenceNumber==="string"?" — شماره مرجع: "+data.referenceNumber:"")+
     " — وضعیت پذیرش قطعی مالیاتی هنوز تأیید نشده است.");
   }catch(e){if(!signal?.aborted)setError((e as Error).message);}
   finally{if(!signal?.aborted)setActionBusy(false);}
- },[actionBusy,dispatch,taxpayerId,invoiceId]);
+ },[actionBusy,dispatch,taxpayerId,invoiceId,onCompleted]);
  const inquireByUid=useCallback(async()=>{
   if(actionBusy||dispatch?.status!=="Indeterminate")return;
   setActionBusy(true);setError("");setNotice("");
