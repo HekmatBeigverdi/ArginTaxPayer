@@ -29,7 +29,7 @@ export async function GET(request:NextRequest,context:Context){
     if(!value||typeof value!=="object"||Array.isArray(value))
       return fail(502,"invalid_payload");
     const row=value as Record<string,unknown>;
-    if(row.environment!=="Mock"||row.submissionEnabled!==false||
+    if(row.environment!=="Sandbox"||row.submissionEnabled!==false||
       row.fiscalAccepted!==false||row.signedPreviewAvailable!==false||
       typeof row.state!=="string"||!/^[A-Za-z]{1,30}$/.test(row.state)||
       !Array.isArray(row.attempts)||!Array.isArray(row.receipts)||
@@ -65,7 +65,7 @@ export async function GET(request:NextRequest,context:Context){
     if(row.mayRetry!==false||row.mayInquire!==false)
       return fail(502,"invalid_recovery_policy");
     return NextResponse.json({
-      environment:"Mock",submissionEnabled:false,fiscalAccepted:false,
+      environment:"Sandbox",submissionEnabled:false,fiscalAccepted:false,
       signedPreviewAvailable:false,
       invoiceRevision:typeof row.invoiceRevision==="number"&&
         Number.isSafeInteger(row.invoiceRevision)&&row.invoiceRevision>0?
