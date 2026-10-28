@@ -318,7 +318,7 @@ public sealed class InvoiceDraftApplicationService(
             try
             {
                 await using var tableCheck=connection.CreateCommand();
-                tableCheck.CommandText="SELECT to_regclass('public.sandbox_authority_inquiry_reports')";
+                tableCheck.CommandText="SELECT to_regclass('public.sandbox_authority_inquiry_reports')::text";
                 var reportTableExists=await tableCheck.ExecuteScalarAsync(ct) is not DBNull and not null;
                 await using var command=connection.CreateCommand();
                 command.CommandText=reportTableExists ? """

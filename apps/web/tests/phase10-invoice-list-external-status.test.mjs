@@ -12,3 +12,8 @@ test('external status is backed by scoped authority inquiry rather than enqueue 
  assert.ok(ui.includes('item.authorityStatus==="ACKNOWLEDGED"'));
  assert.ok(ui.includes('const listPageSize = 15;'));
 });
+
+test('invoice list checks optional authority table through a text-compatible PostgreSQL result',()=>{
+ const service=read('src/ArginTaxPayer.Infrastructure/Persistence/Invoices/InvoiceDraftApplicationService.cs');
+ assert.match(service,/SELECT to_regclass\('public\.sandbox_authority_inquiry_reports'\)::text/);
+});
