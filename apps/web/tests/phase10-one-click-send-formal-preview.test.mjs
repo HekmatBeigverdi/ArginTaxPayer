@@ -1,9 +1,15 @@
 import test from "node:test";import assert from "node:assert/strict";import {readFileSync} from "node:fs";import {resolve,dirname} from "node:path";import {fileURLToPath} from "node:url";
 const root=resolve(dirname(fileURLToPath(import.meta.url)),"../../..");const read=p=>readFileSync(resolve(root,p),"utf8");
-test("one button orchestrates existing server steps without retrying indeterminate send",()=>{
+test("one button delegates the complete send workflow to the backend without retrying",()=>{
  const route=read("apps/web/app/api/invoice-dispatch/[taxpayerId]/[invoiceId]/send-and-inquire/route.ts");
- for(const x of ["validate-internal","review/submit","review/approve","finalize-internal","serial-reservation","prepare-legacy","/arm","/send","inquiry-by-reference","Indeterminate","existing_operation_requires_reconciliation"])assert.ok(route.includes(x),x);
- assert.equal((route.match(/invoicePath\+"send","POST"/g)||[]).length,1);
+ assert.ok(route.includes("/dispatch/send-and-inquire"));
+ assert.ok(route.includes("Exactly one backend API call")||route.includes("one backend API call"));
+ assert.ok(route.includes("send_api_unavailable"));
+ assert.ok(route.includes("invalid_send_response"));
+ assert.ok(route.includes('status:data.status==="Acknowledged"?"Acknowledged":"Blocked"'));
+ assert.ok(!route.includes("validate-internal"));
+ assert.ok(!route.includes("review/submit"));
+ assert.ok(!route.includes("prepare-legacy"));
  const ui=read("apps/web/app/invoices/invoice-send-readiness-panel.tsx");
  assert.ok(ui.includes("ارسال به سامانه مؤدیان و استعلام"));
  assert.ok(!ui.includes("JSON کامل بسته صورتحساب"));
