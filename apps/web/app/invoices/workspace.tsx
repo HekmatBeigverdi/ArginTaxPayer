@@ -804,18 +804,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
             <td>{item.revision}</td>
             <td>{item.kind === "workspace" ? <button type="button" className="console-row-action"
               onClick={() => void editDraft(item)}>ویرایش و ادامه</button> :
-              <span style={{display:"inline-flex",gap:6,flexWrap:"wrap"}}>
-                <button type="button" className="console-row-action"
-                 onClick={() => setDetail(item)}>مشاهده</button>
-                <button type="button" className="console-row-action"
-                 disabled={item.authorityStatus!=="SUCCESS"}
-                 title={item.authorityStatus==="SUCCESS"?"بررسی امکان اصلاح قانونی":"نیازمند نتیجه موفق استعلام سازمان"}
-                 onClick={() => setDetail(item)}>اصلاح</button>
-                <button type="button" className="console-row-action"
-                 disabled={item.authorityStatus!=="SUCCESS"}
-                 title={item.authorityStatus==="SUCCESS"?"بررسی صدور سند ابطالی":"نیازمند نتیجه موفق استعلام سازمان"}
-                 onClick={() => {setDetail(item);setNotice("برای ابطال قانونی باید صورتحساب ابطالی مستقل ارسال و نتیجه آن تأیید شود؛ سند اصلی بدون تغییر باقی می‌ماند.");}}>ابطال</button>
-               </span>}</td>
+              <button type="button" className="console-row-action" onClick={()=>setDetail(item)}>مشاهده</button>}</td>
           </tr>)}</tbody>
       </table>
     </div>
@@ -840,7 +829,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
           <button type="button" className="identity-secondary" onClick={() => setDetail(null)}
             aria-label="بستن جزئیات">×</button>
         </div>
-        <InvoiceFormalPreview key={"formal:"+detail.id} taxpayerId={detail.taxpayerId} invoiceId={detail.id} reference={detail.systemCode??""}/>
+        <InvoiceFormalPreview key={"formal:"+detail.id} taxpayerId={detail.taxpayerId} invoiceId={detail.id} reference={detail.systemCode??""} authorityStatus={detail.authorityStatus}/>
         <details><summary>مشخصات داخلی و فنی صورتحساب</summary>
         <dl className="invoice-register__totals">
           <dt>شناسه سیستمی</dt><dd dir="ltr">{detail.systemCode || "در انتظار تخصیص"}</dd>
