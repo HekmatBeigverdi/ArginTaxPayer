@@ -203,6 +203,22 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
   }catch{setDispatch(null);setDispatchError("اتصال به سرویس وضعیت ارسال برقرار نشد.");setDispatchFeedback("");}
   finally{setDispatchLoading(false);}
  },[isWorkspace,taxpayerId,invoiceId]);
+ const loadReview=useCallback(async()=>{
+  if(isWorkspace)return;
+  try{
+   const response=await fetch("/api/invoice-dispatch/"+
+    encodeURIComponent(taxpayerId)+"/"+encodeURIComponent(invoiceId)+"/review-status",{
+    cache:"no-store",credentials:"same-origin"});
+   if(!response.ok){setReview(null);return;}
+   const value:unknown=await response.json();
+   if(value&&typeof value==="object"&&!Array.isArray(value)){
+    const candidate=value as Review;
+    if(["Draft","InReview","ChangesRequested","Approved"].includes(candidate.state)&&
+       Number.isSafeInteger(candidate.revision)&&candidate.revision>=1)
+       setReview(candidate);
+   }
+  }catch{setReview(null);}
+ },[isWorkspace,taxpayerId,invoiceId]);
  const armDispatch=useCallback(async()=>{
   if(actionBusy||dispatch?.status!=="Prepared"||report?.invoiceState!=="Finalized")return;
   setActionBusy(true);setError("");setNotice("");
@@ -400,22 +416,6 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
   }catch(e){setError((e as Error).message);}
   finally{setActionBusy(false);}
  },[report,actionBusy,taxpayerId,invoiceId,refresh]);
- const loadReview=useCallback(async()=>{
-  if(isWorkspace)return;
-  try{
-   const response=await fetch("/api/invoice-dispatch/"+
-    encodeURIComponent(taxpayerId)+"/"+encodeURIComponent(invoiceId)+"/review-status",{
-    cache:"no-store",credentials:"same-origin"});
-   if(!response.ok){setReview(null);return;}
-   const value:unknown=await response.json();
-   if(value&&typeof value==="object"&&!Array.isArray(value)){
-    const candidate=value as Review;
-    if(["Draft","InReview","ChangesRequested","Approved"].includes(candidate.state)&&
-       Number.isSafeInteger(candidate.revision)&&candidate.revision>=1)
-       setReview(candidate);
-   }
-  }catch{setReview(null);}
- },[isWorkspace,taxpayerId,invoiceId]);
  const advanceReview=useCallback(async(action:"submit"|"approve")=>{
   if(!review||actionBusy)return;
   setActionBusy(true);setError("");setNotice("");
