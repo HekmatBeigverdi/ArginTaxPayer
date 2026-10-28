@@ -110,7 +110,7 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
   const controller=new AbortController();authorityController.current=controller;
   setAuthority(null);setAuthorityError("");setCorrectionUrl("");setActionBusy(false);setNotice("");
   setWirePreviewJson("");setReviewedWirePreview(false);
-  void loadAuthorityReport(controller.signal);
+  // The authority inquiry report is fetched only when the user opens its section.
   return()=>controller.abort();
  },[loadAuthorityReport]);
  const prepareCorrection=useCallback(async()=>{
@@ -521,7 +521,14 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
     {item.actual!==null&&<>؛ مقدار فعلی: <bdi dir="ltr">{item.actual}</bdi></>}
    </li>)}</ul>
   </section>:null}
-  {authorityError&&<p role="alert" className="form-error">{authorityError}</p>}
+  <details aria-label="استعلام و گزارش سازمان" onToggle={event=>{
+    if(event.currentTarget.open&&dispatch?.status==="Acknowledged"){
+     const controller=authorityController.current;
+     if(controller&&!controller.signal.aborted)void loadAuthorityReport(controller.signal);
+    }
+   }}>
+   <summary>استعلام و گزارش نتیجه سازمان (باز کردن در صورت نیاز)</summary>
+     {authorityError&&<p role="alert" className="form-error">{authorityError}</p>}
   {authorityResult&&<div aria-label="گزارش نتیجه سازمان">
    <h4>نتیجه استعلام سازمان: {authorityLabels[authorityResult.status]}</h4>
    <p>شماره رهگیری فقط رسید دریافت درخواست است و به معنی پذیرش قطعی مالیاتی نیست.</p>
@@ -538,6 +545,8 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
     <button type="button" className="identity-secondary" disabled={actionBusy||!!correctionUrl}
      onClick={()=>void prepareCorrection()}>ایجاد پیش‌نویس برای اصلاح و ارسال مجدد</button>}
   </div>}
+
+  </details>
   {correctionUrl&&<a href={correctionUrl}>باز کردن پیش‌نویس اصلاح برای ویرایش</a>}
   {dispatch?.status==="Reserved"&&!dispatch.submissionEnabled&&
    <p role="alert" className="form-error">عملیات Reserved است، اما تنظیمات فعال‌سازی ارسال Legacy در Backend کامل نیست.</p>}
@@ -571,6 +580,7 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
    "بررسی محاسبات و آماده‌سازی ارسال مجدد"}</button>}
   {dispatch?.status==="Indeterminate"&&
    <p role="alert" className="form-error">این عملیات قبلاً شروع شده و نتیجه آن نامشخص است. تا روشن‌شدن نتیجه، صورتحساب را مجدداً ارسال نکنید.</p>}
+  <p className="field-hint">مشاهده و استعلام نتیجه سازمان فقط با درخواست شما انجام می‌شود.</p>
   {report?.environment==="Sandbox"&&dispatch?.status==="Acknowledged"&&
    <button type="button" className="identity-secondary" disabled={actionBusy||busy}
     onClick={()=>void inquireByReference()}>{actionBusy?"در حال استعلام…":"استعلام شماره رهگیری از Sandbox"}</button>}
