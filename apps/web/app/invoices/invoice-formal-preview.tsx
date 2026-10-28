@@ -17,6 +17,7 @@ type Line = {
 type Invoice = {
   issueDateUtc: string;
   revision: number;
+  uniqueInvoiceId: string;
   seller: string | null;
   buyer: string | null;
   description: string | null;
@@ -118,7 +119,7 @@ function InvoiceHeader({
 }) {
   return (
     <>
-      <h4>سربرگ صورتحساب</h4>
+
       <div style={detailsGridStyle}>
         <span>
           فروشنده: <strong>{invoice.seller ?? "—"}</strong>
@@ -132,6 +133,7 @@ function InvoiceHeader({
         <span>
           نسخه: <strong>{invoice.revision}</strong>
         </span>
+        <span>شناسه یکتای فاکتور: <strong dir="ltr">{invoice.uniqueInvoiceId}</strong></span>
         {reference && (
           <span>
             شماره صورتحساب: <strong dir="ltr">{reference}</strong>
@@ -150,7 +152,7 @@ function InvoiceHeader({
 function InvoiceLines({ lines }: { lines: Line[] }) {
   return (
     <>
-      <h4>بدنه صورتحساب</h4>
+
       <div
         className="table-scroll"
         style={{ maxHeight: 300, overflow: "auto", marginBottom: 14 }}
@@ -193,7 +195,7 @@ function InvoiceLines({ lines }: { lines: Line[] }) {
 function InvoiceTotals({ invoice }: { invoice: Invoice }) {
   return (
     <>
-      <h4>پاورقی و جمع مبالغ</h4>
+
       <div style={totalsGridStyle}>
         <span>
           جمع ناخالص: <strong>{money(invoice.grossRial)} ریال</strong>
