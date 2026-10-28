@@ -44,8 +44,8 @@ const labels:Record<string,string>={
  "invoice.transport.disabled":"ارسال واقعی در Backend غیرفعال است",
  "invoice.owner_live_send_approval.required":"مجوز جداگانه ارسال واقعی دریافت نشده است"
 };
-export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorkspace}:
- {invoiceId:string;taxpayerId:string;isWorkspace:boolean}){
+export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorkspace,hideHistory=false}:
+ {invoiceId:string;taxpayerId:string;isWorkspace:boolean;hideHistory?:boolean}){
  const [report,setReport]=useState<Report|null>(null);
  const [busy,setBusy]=useState(false);
  const [error,setError]=useState("");
@@ -500,16 +500,17 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
   return()=>controller.abort();},[refresh,loadReview,loadDispatch,loadCalculationAudit]);
  if(isWorkspace)return <p className="field-hint">ابتدا نسخه ثابت داخلی سند را ثبت کنید.</p>;
  return <section dir="rtl" className="invoice-validation" aria-label="پیش‌نیازهای ارسال مالیاتی">
-  <div className="invoice-validation__heading">
+  {dispatch?.status!=="Acknowledged"&&<div className="invoice-validation__heading">
    <div><h3>آمادگی ارسال به سامانه مؤدیان</h3>
     <p>بررسی فقط‌خواندنی؛ هیچ فاکتوری ارسال نمی‌شود.</p></div>
    <button type="button" className="identity-secondary" disabled={busy}
     onClick={()=>void refresh()}>{busy?"در حال بررسی…":"بازبینی آمادگی"}</button>
   </div>
+  }
   {error&&<p role="alert" className="form-error">{error}</p>}
   {notice&&<p role="status" className="field-hint">{notice}</p>}
-  <button type="button" className="identity-secondary" disabled={busy||actionBusy||dispatchLoading}
-   onClick={()=>void loadDispatch()}>{dispatchLoading?"در حال دریافت وضعیت…":"به‌روزرسانی وضعیت عملیات ارسال"}</button>
+  {dispatch?.status!=="Acknowledged"&&<button type="button" className="identity-secondary" disabled={busy||actionBusy||dispatchLoading}
+   onClick={()=>void loadDispatch()}>{dispatchLoading?"در حال دریافت وضعیت…":"به‌روزرسانی وضعیت عملیات ارسال"}</button>}
   {dispatchFeedback&&<p role="status" className="field-hint">{dispatchFeedback}</p>}
   {dispatchError&&<p role="alert" className="form-error">{dispatchError}</p>}
   {calculationAuditError&&<p role="alert" className="form-error">{calculationAuditError}</p>}
@@ -627,14 +628,14 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
   {report?.invoiceState==="Draft"&&report.hasImmutableSnapshot&&report.environment==="Sandbox"&&
    <button type="button" className="identity-secondary" disabled={actionBusy||busy}
     onClick={()=>void validate()}>{actionBusy?"در حال اعتبارسنجی…":"اعتبارسنجی داخلی صورتحساب"}</button>}
-  {report&&<div>
+  {report&&dispatch?.status!=="Acknowledged"&&<div>
     <p>محیط شناسایی‌شده: <strong>{report.environment==="Sandbox"?"Sandbox":"تأییدنشده"}</strong></p>
     <p>وضعیت سند: <strong>{report.invoiceState}</strong></p>
    <p>نسخه صورتحساب: <strong>{report.invoiceRevision}</strong></p>
    <p>حافظه Sandbox: <strong dir="ltr">{report.sandboxFiscalMemoryId??"متصل نشده"}</strong></p>
-    <p className="invoice-validation__warning">{report.readyForLiveSend?"وضعیت: آماده ارسال آزمایشی به Sandbox.":"وضعیت: هنوز آماده ارسال آزمایشی نیست."}</p>
+
     <ul>{report.blockingCodes.map(code=><li key={code}>{labels[code]??"مانع ناشناخته؛ بررسی لازم است"}</li>)}</ul>
    </div>}
-  <InvoiceDispatchHistory taxpayerId={taxpayerId} invoiceId={invoiceId}/>
+  {!hideHistory&&<InvoiceDispatchHistory taxpayerId={taxpayerId} invoiceId={invoiceId}/>}
  </section>;
 }
