@@ -115,7 +115,7 @@ ORDER BY observed_at_utc DESC,id DESC LIMIT 30
             // Even a Signed state does not establish a previewable signed artifact.
             var next=ArginTaxPayer.Application.Invoices.Phase10InvoiceRecoveryAdvice
                 .ForState(state,false);
-            return new(InvoiceApiDecision.Success,new("Mock",false,false,false,
+            return new(InvoiceApiDecision.Success,new("Sandbox",false,false,false,
                 revision,state,updated,attempts.ToArray(),receipts.ToArray(),
                 next.NextAction.ToString(),next.SafeCode,next.MayRetry,next.MayInquire));
         }finally{if(opened)await conn.CloseAsync();}
