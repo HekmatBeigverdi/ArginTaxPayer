@@ -804,8 +804,18 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
             <td>{item.revision}</td>
             <td>{item.kind === "workspace" ? <button type="button" className="console-row-action"
               onClick={() => void editDraft(item)}>ویرایش و ادامه</button> :
-              <button type="button" className="console-row-action"
-                onClick={() => setDetail(item)}>مشاهده و وضعیت ارسال</button>}</td>
+              <span style={{display:"inline-flex",gap:6,flexWrap:"wrap"}}>
+                <button type="button" className="console-row-action"
+                 onClick={() => setDetail(item)}>مشاهده</button>
+                <button type="button" className="console-row-action"
+                 disabled={item.authorityStatus!=="SUCCESS"}
+                 title={item.authorityStatus==="SUCCESS"?"بررسی امکان اصلاح قانونی":"نیازمند نتیجه موفق استعلام سازمان"}
+                 onClick={() => setDetail(item)}>اصلاح</button>
+                <button type="button" className="console-row-action"
+                 disabled={item.authorityStatus!=="SUCCESS"}
+                 title={item.authorityStatus==="SUCCESS"?"بررسی صدور سند ابطالی":"نیازمند نتیجه موفق استعلام سازمان"}
+                 onClick={() => {setDetail(item);setNotice("برای ابطال قانونی باید صورتحساب ابطالی مستقل ارسال و نتیجه آن تأیید شود؛ سند اصلی بدون تغییر باقی می‌ماند.");}}>ابطال</button>
+               </span>}</td>
           </tr>)}</tbody>
       </table>
     </div>
