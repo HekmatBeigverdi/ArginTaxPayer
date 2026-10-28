@@ -587,14 +587,6 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
   {dispatch?.status==="Indeterminate"&&<p role="alert" className="form-error">
     نتیجه ارسال قبلی مشخص نیست؛ ارسال مجدد خودکار انجام نمی‌شود.
    </p>}
-  {report&&dispatch?.status!=="Acknowledged"&&<div>
-    <p>محیط شناسایی‌شده: <strong>{report.environment==="Sandbox"?"Sandbox":"تأییدنشده"}</strong></p>
-    <p>وضعیت سند: <strong>{report.invoiceState}</strong></p>
-   <p>نسخه صورتحساب: <strong>{report.invoiceRevision}</strong></p>
-   <p>حافظه Sandbox: <strong dir="ltr">{report.sandboxFiscalMemoryId??"متصل نشده"}</strong></p>
-
-    <ul>{report.blockingCodes.map(code=><li key={code}>{labels[code]??"مانع ناشناخته؛ بررسی لازم است"}</li>)}</ul>
-   </div>}
   {!hideHistory&&<InvoiceDispatchHistory taxpayerId={taxpayerId} invoiceId={invoiceId}/>}
  </section>;
 }
