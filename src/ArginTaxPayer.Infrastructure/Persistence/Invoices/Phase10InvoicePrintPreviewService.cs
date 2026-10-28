@@ -1,6 +1,7 @@
 using System.Text.Json;
 using ArginTaxPayer.Infrastructure.Persistence.Taxpayers;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace ArginTaxPayer.Infrastructure.Persistence.Invoices;
 
@@ -74,8 +75,34 @@ public sealed class Phase10InvoicePrintPreviewService(
             var buyer=Guid.TryParse(buyerId,out var partyId)
                 ?await db.Parties.AsNoTracking().Where(p=>p.Id==partyId&&p.OwnerCustomerUserId==owner.Value).Select(p=>p.DisplayName).FirstOrDefaultAsync(ct)
                 :null;
+            string? fiscalTaxId=null;
+            var connection=db.Database.GetDbConnection();
+            var opened=connection.State!=System.Data.ConnectionState.Open;
+            if(opened)await connection.OpenAsync(ct);
+            try
+            {
+                await using var query=connection.CreateCommand();
+                query.CommandText="""
+SELECT fiscal_tax_id
+FROM sandbox_invoice_fiscal_serial_reservations
+WHERE invoice_id=@invoice AND taxpayer_id=@taxpayer AND customer_user_id=@owner
+ORDER BY created_at_utc DESC LIMIT 1
+""";
+                foreach(var (key,value) in new (string,object)[]{
+                    ("invoice",invoiceId),("taxpayer",taxpayerId),("owner",owner.Value)})
+                {
+                    var parameter=query.CreateParameter();
+                    parameter.ParameterName=key;parameter.Value=value;query.Parameters.Add(parameter);
+                }
+                fiscalTaxId=await query.ExecuteScalarAsync(ct) as string;
+            }
+            catch(Npgsql.PostgresException ex) when(ex.SqlState=="42P01")
+            {
+                // Historical drafts may predate the Sandbox reservation migration.
+            }
+            finally {if(opened)await connection.CloseAsync();}
             return (InvoiceApiDecision.Success,new {
-                invoiceId,uniqueInvoiceId=invoiceId.ToString("D"),revision=invoice.Revision,issueDateUtc=invoice.IssueDateUtc,
+                invoiceId,uniqueInvoiceId=fiscalTaxId,revision=invoice.Revision,issueDateUtc=invoice.IssueDateUtc,
                 seller=seller??String(root,"seller")??String(root,"sellerDisplayName"),
                 buyer=buyer??String(root,"buyer")??String(root,"BuyerDisplayName"),
                 description=String(root,"invoiceDescription"),
