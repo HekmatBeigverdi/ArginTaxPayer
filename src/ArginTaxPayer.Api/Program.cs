@@ -114,6 +114,7 @@ if (identityDevelopmentEnabled)
     builder.Services.AddScoped<Phase10LegacyInvoicePreparationService>();
     builder.Services.AddScoped<Phase10InvoiceDispatchReadService>();
     builder.Services.AddScoped<Phase10InvoicePrintPreviewService>();
+    builder.Services.AddScoped<Phase10OneClickSandboxSubmissionService>();
     builder.Services.AddScoped<Phase10DispatchEvidenceRepository>();
     builder.Services.AddScoped<Phase10LegacyUidInquiryService>();
     builder.Services.AddScoped<Phase10LegacyReferenceInquiryService>();
