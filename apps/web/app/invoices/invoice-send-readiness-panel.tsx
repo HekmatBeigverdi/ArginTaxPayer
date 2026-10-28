@@ -1,5 +1,6 @@
 "use client";
 import {useCallback,useEffect,useRef,useState} from "react";
+import InvoiceDispatchHistory from "./invoice-dispatch-history";
 
 type Report={environment:"Sandbox"|"Unverified";invoiceState:"Draft"|"Validated"|"Finalized";
  hasImmutableSnapshot:boolean;invoiceRevision:number;sandboxFiscalMemoryId:string|null;
@@ -623,5 +624,6 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
     <p className="invoice-validation__warning">{report.readyForLiveSend?"وضعیت: آماده ارسال آزمایشی به Sandbox.":"وضعیت: هنوز آماده ارسال آزمایشی نیست."}</p>
     <ul>{report.blockingCodes.map(code=><li key={code}>{labels[code]??"مانع ناشناخته؛ بررسی لازم است"}</li>)}</ul>
    </div>}
+  <InvoiceDispatchHistory taxpayerId={taxpayerId} invoiceId={invoiceId}/>
  </section>;
 }
