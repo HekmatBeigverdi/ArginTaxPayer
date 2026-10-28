@@ -278,6 +278,24 @@ public static class Phase10InvoiceDispatchDevelopmentEndpoints
             };
         });
 
+        group.MapPost("/send-and-inquire", async (Guid taxpayerId,Guid invoiceId,
+            HttpContext http,Phase10OneClickSandboxSubmissionService workflow,CancellationToken ct)=>{
+            if(!Local(http))return Results.NotFound();
+            http.Response.Headers.CacheControl="no-store";
+            var result=await workflow.SendAsync(Token(http),taxpayerId,invoiceId,ct);
+            return result.Decision switch{
+                InvoiceApiDecision.Success=>Results.Ok(new{status=result.Status,
+                    safeCode=result.Code,referenceNumber=result.ReferenceNumber,
+                    inquiryCode=result.InquiryCode}),
+                InvoiceApiDecision.Unauthenticated=>Results.Unauthorized(),
+                InvoiceApiDecision.Forbidden=>Results.StatusCode(403),
+                InvoiceApiDecision.NotFound=>Results.NotFound(),
+                InvoiceApiDecision.Conflict=>Results.Conflict(new{error=result.Code,
+                    status=result.Status}),
+                _=>Results.BadRequest(new{error=result.Code})
+            };
+        });
+
         group.MapPost("/send", async (Guid taxpayerId, Guid invoiceId,
             HttpContext http, IConfiguration configuration,
             Phase10InvoiceDispatchReadService service,
