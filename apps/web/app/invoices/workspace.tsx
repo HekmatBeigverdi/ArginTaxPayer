@@ -231,7 +231,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   const [searchHelpOpen, setSearchHelpOpen] = useState(false);
   const [reviewFilter, setReviewFilter] = useState("");
   const [listPage, setListPage] = useState(1);
-  const listPageSize = 50;
+  const listPageSize = 15;
 
   // Modal and draft lifecycle state.
   const [modal, setModal] = useState(false);
