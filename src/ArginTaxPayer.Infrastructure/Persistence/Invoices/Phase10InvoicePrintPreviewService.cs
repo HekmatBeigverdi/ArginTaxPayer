@@ -84,7 +84,7 @@ public sealed class Phase10InvoicePrintPreviewService(
                 await using var query=connection.CreateCommand();
                 query.CommandText="""
 SELECT fiscal_tax_id
-FROM sandbox_invoice_fiscal_serial_reservations
+FROM sandbox_invoice_fiscal_reservations
 WHERE invoice_id=@invoice AND taxpayer_id=@taxpayer AND customer_user_id=@owner
 ORDER BY created_at_utc DESC LIMIT 1
 """;
