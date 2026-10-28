@@ -17,7 +17,7 @@ type Line = {
 type Invoice = {
   issueDateUtc: string;
   revision: number;
-  uniqueInvoiceId: string;
+  uniqueInvoiceId: string | null;
   seller: string | null;
   buyer: string | null;
   description: string | null;
@@ -133,7 +133,7 @@ function InvoiceHeader({
         <span>
           نسخه: <strong>{invoice.revision}</strong>
         </span>
-        <span>شناسه یکتای فاکتور: <strong dir="ltr">{invoice.uniqueInvoiceId}</strong></span>
+        <span>شناسه یکتای مالیاتی: <strong dir="ltr">{invoice.uniqueInvoiceId ?? "در انتظار تخصیص"}</strong></span>
         {reference && (
           <span>
             شماره صورتحساب: <strong dir="ltr">{reference}</strong>
