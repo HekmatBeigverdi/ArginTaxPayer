@@ -539,7 +539,7 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
      {authorityError&&<p role="alert" className="form-error">{authorityError}</p>}
   {authorityResult&&<div aria-label="گزارش نتیجه سازمان">
    <h4>نتیجه استعلام سازمان: {authorityLabels[authorityResult.status]}</h4>
-   <p>شماره رهگیری فقط رسید دریافت درخواست است و به معنی پذیرش قطعی مالیاتی نیست.</p>
+   <p className="field-hint">شماره رهگیری: رسید درخواست، نه تأیید نهایی.</p>
    {authority?.referenceNumber&&<p>شماره مرجع: <b dir="ltr">{authority.referenceNumber}</b></p>}
    <p>زمان مشاهده: <time dir="ltr">{authorityResult.observedAtUtc}</time></p>
    <h5>خطاهای سازمان</h5>
@@ -551,14 +551,14 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
    {authorityResult.status==="SUCCESS"&&<p>این نتیجه مربوط به Sandbox است؛ پذیرش قطعی مالیاتی ثبت نشده است.</p>}
    {authorityResult.status==="FAILED"&&authorityResult.canPrepareCorrection&&
     <button type="button" className="identity-secondary" disabled={actionBusy||!!correctionUrl}
-     onClick={()=>void prepareCorrection()}>ایجاد پیش‌نویس برای اصلاح و ارسال مجدد</button>}
+     onClick={()=>void prepareCorrection()}>بازگشت به پیش‌نویس اصلاحی</button>}
   </div>}
 
   </details>
   {correctionUrl&&<a href={correctionUrl}>باز کردن پیش‌نویس اصلاح برای ویرایش</a>}
   {dispatch?.status==="Reserved"&&!dispatch.submissionEnabled&&
    <p role="alert" className="form-error">عملیات Reserved است، اما تنظیمات فعال‌سازی ارسال Legacy در Backend کامل نیست.</p>}
-  {dispatch&&<p role="status" className="field-hint">وضعیت ارسال Sandbox: <strong>{dispatch.status}</strong>
+  {dispatch?.status==="Acknowledged"&&<p role="status" className="field-hint">وضعیت ارسال Sandbox: <strong>{dispatch.status}</strong>
    {dispatch.referenceNumber&&<> — شماره پیگیری: <b dir="ltr">{dispatch.referenceNumber}</b></>}</p>}
   {wirePreviewJson&&(()=>{
    let fields:WireField[]=[];
@@ -588,7 +588,7 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
    "بررسی محاسبات و آماده‌سازی ارسال مجدد"}</button>}
   {dispatch?.status==="Indeterminate"&&
    <p role="alert" className="form-error">این عملیات قبلاً شروع شده و نتیجه آن نامشخص است. تا روشن‌شدن نتیجه، صورتحساب را مجدداً ارسال نکنید.</p>}
-  <p className="field-hint">مشاهده و استعلام نتیجه سازمان فقط با درخواست شما انجام می‌شود.</p>
+
   {report?.environment==="Sandbox"&&report.invoiceState==="Finalized"&&
    dispatch?.status==="Prepared"&&
    <button type="button" className="identity-secondary" disabled={actionBusy||busy||dispatchLoading}
