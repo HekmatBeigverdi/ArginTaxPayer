@@ -786,7 +786,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
               accounts.find(a=>a.customerUserId===item.customerUserId)?.personName || "حساب مشتری"}</td>}
             <td>{item.sellerName || taxpayers.find(t=>t.id===item.taxpayerId)?.displayName || "مؤدی ثبت‌شده"}</td>
             <td>{item.buyerName || "ثبت نشده"}</td>
-            <td>{toFaDate(item.issueDateUtc)}</td><td>{({Original:"اصلی",Correction:"اصلاحی",Corrective:"اصلاحی",Cancellation:"ابطالی",Cancel:"ابطالی",ReturnFromSale:"برگشت از فروش",Return:"برگشت از فروش"} as Record<string,string>)[item.subject]??item.subject}</td>
+            <td>{toFaDate(item.issueDateUtc)}</td><td>{({Original:"اصلی",Correction:"اصلاحی",Corrective:"اصلاحی",Cancellation:"ابطالی",Cancel:"ابطالی",SalesReturn:"برگشت از فروش",ReturnFromSale:"برگشت از فروش",Return:"برگشت از فروش"} as Record<string,string>)[item.subject]??item.subject}</td>
             <td>{item.reviewState === "WorkingDraft" ? "در حال تکمیل" :
               item.reviewState === "InReview" ? "در انتظار بازبینی" :
               item.reviewState === "ChangesRequested" ? "نیازمند اصلاح" :
