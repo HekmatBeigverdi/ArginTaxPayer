@@ -33,6 +33,7 @@ type Invoice = {
   systemCode?: string;
   sellerName?: string | null;
   buyerName?: string | null;
+  authorityStatus?: string;
 };
 
 type CatalogItem = {
@@ -775,9 +776,9 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
       </div>}
       <table className="console-table">
         <thead><tr><th>شناسه سیستمی</th>{isAdmin && <th>مشتری</th>}<th>مؤدی فروشنده</th><th>خریدار</th><th>تاریخ صدور</th><th>موضوع</th>
-          <th>وضعیت داخلی</th><th>نسخه</th><th>عملیات</th></tr></thead>
-        <tbody>{filtered.length === 0 ? <tr><td colSpan={isAdmin ? 9 : 8}>صورتحسابی برای نمایش وجود ندارد.</td></tr> :
-          filtered.map(item => <tr key={item.id}>
+          <th>وضعیت داخلی</th><th>وضعیت سازمان</th><th>نسخه</th><th>عملیات</th></tr></thead>
+        <tbody>{filtered.length === 0 ? <tr><td colSpan={isAdmin ? 10 : 9}>صورتحسابی برای نمایش وجود ندارد.</td></tr> :
+          filtered.map(item => <tr key={item.id} style={{backgroundColor:item.authorityStatus==="SUCCESS"?"rgba(22,163,74,.10)":undefined}}>
             <td><button type="button" className="console-row-action" title="کپی شناسه برای پشتیبانی" disabled={!item.systemCode} onClick={() => {void navigator.clipboard.writeText(item.systemCode || "").then(()=>setNotice("شناسه سیستمی کپی شد."));}}><bdi dir="ltr">{item.systemCode || "در انتظار تخصیص"}</bdi> ⧉</button></td>
             {isAdmin && <td>{accounts.find(a=>a.customerUserId===item.customerUserId)?.companyName ||
               accounts.find(a=>a.customerUserId===item.customerUserId)?.personName || "حساب مشتری"}</td>}
@@ -788,6 +789,17 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
               item.reviewState === "InReview" ? "در انتظار بازبینی" :
               item.reviewState === "ChangesRequested" ? "نیازمند اصلاح" :
               item.reviewState === "Approved" ? "تأیید داخلی" : "پیش‌نویس داخلی"}</td>
+            <td><span style={{color:item.authorityStatus==="SUCCESS"?"#15803d":
+              item.authorityStatus==="FAILED"?"#b91c1c":undefined,fontWeight:600}}>
+              {item.authorityStatus==="SUCCESS"?"تأیید شده در Sandbox":
+               item.authorityStatus==="FAILED"?"رد شده توسط سازمان":
+               item.authorityStatus==="PENDING"?"در انتظار بررسی":
+               item.authorityStatus==="ACKNOWLEDGED"?"کد رهگیری دریافت شد":
+               item.authorityStatus==="INDETERMINATE"?"نتیجه نامشخص":
+               item.authorityStatus==="RESERVED"?"آماده ارسال":
+               item.authorityStatus==="PREPARED"?"آماده‌سازی شده":
+               item.authorityStatus==="SENDING"?"در حال ارسال":"ارسال نشده"}
+            </span></td>
             <td>{item.revision}</td>
             <td>{item.kind === "workspace" ? <button type="button" className="console-row-action"
               onClick={() => void editDraft(item)}>ویرایش و ادامه</button> :
