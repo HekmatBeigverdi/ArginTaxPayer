@@ -3,7 +3,7 @@ const root=resolve(dirname(fileURLToPath(import.meta.url)),"../../..");const rea
 test("one-open-at-a-time accordion opens formal invoice by default",()=>{
  const ui=read("apps/web/app/invoices/workspace.tsx");
  assert.equal((ui.match(/name="invoice-detail-sections"/g)||[]).length,4);
- assert.ok(ui.includes('name="invoice-detail-sections" open'));
+ assert.ok(ui.includes('name="invoice-detail-sections" className="fiscal-section invoice-detail-section" open'));
  assert.ok(ui.includes('hideHistory={true}'));
 });
 test("successful invoice has inquiry without redundant preparation and yellow banner",()=>{
@@ -28,4 +28,13 @@ test("history section has neutral treatment and no nested accordion",()=>{
  assert.ok(history.includes('maxHeight:230'));
  assert.ok(history.includes('className="console-table"'));
  assert.ok(!history.includes("return <details"));
+});
+
+test("invoice accordion visually matches buyer seller dossier",()=>{
+ const ui=read("apps/web/app/invoices/workspace.tsx");
+ const css=read("apps/web/app/globals.css");
+ assert.equal((ui.match(/className="fiscal-section invoice-detail-section"/g)||[]).length,4);
+ assert.equal((ui.match(/className="fiscal-section-content invoice-detail-section__content"/g)||[]).length,4);
+ for(const token of [".fiscal-section > summary",".invoice-detail-section > summary","background:#f0f7f6","border-radius:8px"])
+  assert.ok(css.includes(token),token);
 });
