@@ -219,6 +219,25 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
   }catch(e){setError((e as Error).message);}
   finally{setActionBusy(false);}
  },[actionBusy,dispatch,report,taxpayerId,invoiceId,loadDispatch,refresh]);
+ const oneClickSend=useCallback(async()=>{
+  if(actionBusy||isWorkspace||dispatchLoading||dispatch?.status==="Indeterminate"||
+    dispatch?.status==="Sending"||dispatch?.status==="Acknowledged")return;
+  setActionBusy(true);setError("");setNotice("در حال اعتبارسنجی و ارسال…");
+  try{
+   const response=await fetch("/api/invoice-dispatch/"+encodeURIComponent(taxpayerId)+"/"+
+    encodeURIComponent(invoiceId)+"/send-and-inquire",{method:"POST",cache:"no-store",
+    credentials:"same-origin"});
+   const value:unknown=await response.json();
+   const result=value&&typeof value==="object"&&!Array.isArray(value)?value as Record<string,unknown>:{};
+   if(!response.ok)throw Error("فرآیند متوقف شد: "+String(result.error??response.status));
+   if(result.status==="Acknowledged")
+    setNotice("صورتحساب با شماره رهگیری "+String(result.referenceNumber??"—")+
+      " ارسال شد. نتیجه استعلام: "+String(result.safeCode??"در انتظار بررسی"));
+   else setError("نتیجه ارسال مشخص نیست؛ ارسال را تکرار نکنید. "+String(result.safeCode??""));
+   await loadDispatch();await refresh();await loadReview();
+  }catch(e){setError((e as Error).message+"؛ پیش از تلاش دیگر وضعیت را تازه کنید.");await loadDispatch();}
+  finally{setActionBusy(false);}
+ },[actionBusy,isWorkspace,dispatchLoading,dispatch,taxpayerId,invoiceId,loadDispatch,refresh,loadReview]);
  const readyExisting=useCallback(async()=>{
   if(actionBusy||!report||calculationAudit?.invoiceRevision!==report.invoiceRevision||!calculationAudit.canResend||report.invoiceState!=="Finalized"||
      report.environment!=="Sandbox"||dispatchLoading||dispatch?.status==="Indeterminate"||
@@ -560,74 +579,14 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
    <p role="alert" className="form-error">عملیات Reserved است، اما تنظیمات فعال‌سازی ارسال Legacy در Backend کامل نیست.</p>}
   {dispatch?.status==="Acknowledged"&&<p role="status" className="field-hint">وضعیت ارسال Sandbox: <strong>{dispatch.status}</strong>
    {dispatch.referenceNumber&&<> — شماره پیگیری: <b dir="ltr">{dispatch.referenceNumber}</b></>}</p>}
-  {wirePreviewJson&&(()=>{
-   let fields:WireField[]=[];
-   try{fields=flattenWire(JSON.parse(wirePreviewJson));}catch{}
-   return <section className="invoice-calculation-audit" aria-label="پیش‌نمایش مقادیر ارسالی">
-    <h4>مقادیر نهایی ارسالی به سازمان</h4>
-    <p>این مقادیر عین JSON ساخته‌شده از نسخه ثابت فاکتور هستند. هنوز ارسال نشده‌اند.</p>
-    <div className="table-scroll"><table><thead><tr><th>مسیر فیلد</th><th>مقدار نهایی</th></tr></thead>
-     <tbody>{fields.map((field,index)=><tr key={field.path+":"+index}>
-      <td><bdi dir="ltr">{field.path}</bdi></td><td><bdi dir="ltr">{field.value}</bdi></td>
-     </tr>)}</tbody></table></div>
-    <details><summary>JSON کامل بسته صورتحساب</summary>
-     <pre dir="ltr" style={{whiteSpace:"pre-wrap",overflowWrap:"anywhere"}}>{JSON.stringify(JSON.parse(wirePreviewJson),null,2)}</pre>
-    </details>
-    <button type="button" className="identity-secondary" onClick={()=>void navigator.clipboard?.writeText(JSON.stringify(JSON.parse(wirePreviewJson),null,2))}>کپی JSON</button>
-    {dispatch?.status==="Reserved"&&<label className="field-hint">
-     <input type="checkbox" checked={reviewedWirePreview} onChange={event=>setReviewedWirePreview(event.target.checked)}/>
-     مقادیر فیلدها و محاسبات را بررسی کردم.
-    </label>}
-   </section>;
-  })()}
-  {report?.environment==="Sandbox"&&report.invoiceState==="Finalized"&&
-   (!dispatch||["NotPrepared","Prepared"].includes(dispatch.status))&&
-   !dispatchError&&
-   <button type="button" className="identity-secondary" disabled={actionBusy||busy||dispatchLoading||calculationAudit?.canResend!==true}
-   onClick={()=>void readyExisting()}>{actionBusy?"در حال بررسی و آماده‌سازی…":
-   "بررسی محاسبات و آماده‌سازی ارسال مجدد"}</button>}
-  {dispatch?.status==="Indeterminate"&&
-   <p role="alert" className="form-error">این عملیات قبلاً شروع شده و نتیجه آن نامشخص است. تا روشن‌شدن نتیجه، صورتحساب را مجدداً ارسال نکنید.</p>}
-
-  {report?.environment==="Sandbox"&&report.invoiceState==="Finalized"&&
-   dispatch?.status==="Prepared"&&
-   <button type="button" className="identity-secondary" disabled={actionBusy||busy||dispatchLoading}
-    onClick={()=>void armDispatch()}>{actionBusy?"در حال رزرو عملیات…":"ثبت عملیات آماده‌شده در صف ارسال Sandbox"}</button>}
-  {report?.environment==="Sandbox"&&report.invoiceState==="Finalized"&&
-   ["Prepared","Reserved"].includes(dispatch?.status??"")&&!wirePreviewJson&&
-   <button type="button" className="identity-secondary" disabled={actionBusy||busy||dispatchLoading}
-    onClick={()=>void loadWirePreview()}>{actionBusy?"در حال ساخت پیش‌نمایش…":"نمایش محاسبات و فیلدهای دقیق ارسالی"}</button>}
-  {report?.environment==="Sandbox"&&report.invoiceState==="Finalized"&&
-   dispatch?.status==="Reserved"&&dispatch.submissionEnabled&&
-   <button type="button" className="identity-secondary" disabled={actionBusy||busy||!wirePreviewJson||!reviewedWirePreview}
-    onClick={()=>void sendSandbox()}>{actionBusy?"در حال ارسال…":"ارسال واقعی صورتحساب به Sandbox"}</button>}
-  {report?.invoiceState==="Validated"&&review&&
-   <div className="invoice-validation__actions">
-    <p>وضعیت بازبینی داخلی: <strong>{review.state}</strong></p>
-    {(review.state==="Draft"||review.state==="ChangesRequested")&&
-     <button type="button" className="identity-secondary" disabled={actionBusy||busy}
-      onClick={()=>void advanceReview("submit")}>ارسال برای بازبینی</button>}
-    {review.state==="InReview"&&
-     <button type="button" className="identity-secondary" disabled={actionBusy||busy}
-      onClick={()=>void advanceReview("approve")}>تأیید بازبینی صورتحساب</button>}
-    {review.state==="Approved"&&
-     <button type="button" className="identity-secondary" disabled={actionBusy||busy}
-      onClick={()=>void finalize()}>نهایی‌سازی داخلی صورتحساب</button>}
-   </div>}
-  {report?.invoiceState==="Finalized"&&report.environment==="Sandbox"&&
-   !report.blockingCodes.includes("invoice.serial.durable_reservation_required")&&
-   report.blockingCodes.includes("invoice.signed_packet.not_prepared")&&
-   <button type="button" className="identity-secondary" disabled={actionBusy||busy}
-    onClick={()=>void prepareLegacy()}>
-    {actionBusy?"در حال آماده‌سازی…":"امضا و آماده‌سازی بسته Legacy برای Sandbox"}
-   </button>}
-  {report?.invoiceState==="Finalized"&&report.environment==="Sandbox"&&
-   report.blockingCodes.includes("invoice.serial.durable_reservation_required")&&
-   <button type="button" className="identity-secondary" disabled={actionBusy||busy}
-    onClick={()=>void reserveSerial()}>{actionBusy?"در حال رزرو…":"رزرو سریال و تولید شناسه مالیاتی Sandbox"}</button>}
-  {report?.invoiceState==="Draft"&&report.hasImmutableSnapshot&&report.environment==="Sandbox"&&
-   <button type="button" className="identity-secondary" disabled={actionBusy||busy}
-    onClick={()=>void validate()}>{actionBusy?"در حال اعتبارسنجی…":"اعتبارسنجی داخلی صورتحساب"}</button>}
+  {report?.environment==="Sandbox"&&
+   dispatch?.status!=="Acknowledged"&&dispatch?.status!=="Indeterminate"&&
+   dispatch?.status!=="Sending"&&
+   <button type="button" className="identity-primary" disabled={actionBusy||busy||dispatchLoading}
+    onClick={()=>void oneClickSend()}>{actionBusy?"در حال پردازش…":"ارسال به سامانه مؤدیان و استعلام"}</button>}
+  {dispatch?.status==="Indeterminate"&&<p role="alert" className="form-error">
+    نتیجه ارسال قبلی مشخص نیست؛ ارسال مجدد خودکار انجام نمی‌شود.
+   </p>}
   {report&&dispatch?.status!=="Acknowledged"&&<div>
     <p>محیط شناسایی‌شده: <strong>{report.environment==="Sandbox"?"Sandbox":"تأییدنشده"}</strong></p>
     <p>وضعیت سند: <strong>{report.invoiceState}</strong></p>
