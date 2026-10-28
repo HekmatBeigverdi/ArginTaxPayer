@@ -39,7 +39,8 @@ dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --no-restore \
   tests/phase10-legacy-reference-inquiry-contract.test.mjs \
   tests/phase10-existing-invoice-preparation.test.mjs \
   tests/phase10-enqueue-outcome-logging-contract.test.mjs \
-  tests/phase10-dispatch-arm-contract.test.mjs
+  tests/phase10-dispatch-arm-contract.test.mjs \
+  tests/phase10-step23-reference-inquiry-acceptance.test.mjs
  npm run typecheck
  npm run build
 )
