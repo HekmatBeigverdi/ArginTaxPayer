@@ -786,7 +786,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
               accounts.find(a=>a.customerUserId===item.customerUserId)?.personName || "حساب مشتری"}</td>}
             <td>{item.sellerName || taxpayers.find(t=>t.id===item.taxpayerId)?.displayName || "مؤدی ثبت‌شده"}</td>
             <td>{item.buyerName || "ثبت نشده"}</td>
-            <td>{toFaDate(item.issueDateUtc)}</td><td>{item.subject}</td>
+            <td>{toFaDate(item.issueDateUtc)}</td><td>{({Original:"اصلی",Correction:"اصلاحی",Corrective:"اصلاحی",Cancellation:"ابطالی",Cancel:"ابطالی",ReturnFromSale:"برگشت از فروش",Return:"برگشت از فروش"} as Record<string,string>)[item.subject]??item.subject}</td>
             <td>{item.reviewState === "WorkingDraft" ? "در حال تکمیل" :
               item.reviewState === "InReview" ? "در انتظار بازبینی" :
               item.reviewState === "ChangesRequested" ? "نیازمند اصلاح" :
@@ -821,13 +821,13 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
     </footer>
     {bulkOpen && <BulkInvoiceImportPanel onClose={()=>setBulkOpen(false)} onChanged={()=>void reload()}/>}
     {detail && <div className="invoice-register__overlay" onMouseDown={e => {
-      if (e.currentTarget === e.target) setDetail(null);
+      if (e.currentTarget === e.target) {setDetail(null);void reload();}
     }}>
       <div className="invoice-register__detail-modal" role="dialog" aria-modal="true"
         aria-label="جزئیات صورتحساب">
         <div className="invoice-register__dialog-header">
           <h2>جزئیات صورتحساب</h2>
-          <button type="button" className="identity-secondary" onClick={() => setDetail(null)}
+          <button type="button" className="identity-secondary" onClick={() => {setDetail(null);void reload();}}
             aria-label="بستن جزئیات">×</button>
         </div>
         <details name="invoice-detail-sections" className="fiscal-section invoice-detail-section" open key={"invoice-section:"+detail.id}><summary>صورتحساب فروش</summary>
@@ -855,7 +855,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
         <div className="fiscal-section-content invoice-detail-section__content">
         <InvoiceSendReadinessPanel key={"readiness:"+detail.id}
           invoiceId={detail.id} taxpayerId={detail.taxpayerId}
-          isWorkspace={detail.kind === "workspace"} hideHistory={true}/>
+          isWorkspace={detail.kind === "workspace"} hideHistory={true} onCompleted={()=>void reload()}/>
         </div>
         </details>
         <details name="invoice-detail-sections" className="fiscal-section invoice-detail-section"><summary>تاریخچه ارسال و استعلام</summary>
