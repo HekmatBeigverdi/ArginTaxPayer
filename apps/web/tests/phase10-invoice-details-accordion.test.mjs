@@ -24,4 +24,8 @@ test("history section has neutral treatment and no nested accordion",()=>{
  assert.ok(history.includes('background:"transparent"'));
  assert.ok(!history.includes('className="invoice-calculation-audit"'));
  assert.ok(!history.includes("<summary>تاریخچه ارسال"));
+ assert.ok(history.includes('aria-label="جزئیات تاریخچه ارسال"'));
+ assert.ok(history.includes('maxHeight:230'));
+ assert.ok(history.includes('className="console-table"'));
+ assert.ok(!history.includes("return <details"));
 });
