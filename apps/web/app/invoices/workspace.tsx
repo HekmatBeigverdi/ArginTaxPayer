@@ -9,6 +9,7 @@ import InvoiceValidationPanel from "./invoice-validation-panel";
 import InvoiceHistoryPanel from "./invoice-history-panel";
 import InvoiceSendReadinessPanel from "./invoice-send-readiness-panel";
 import InvoiceFormalPreview from "./invoice-formal-preview";
+import InvoiceDispatchHistory from "./invoice-dispatch-history";
 import InvoiceImportPanel, {type ImportValues} from "./invoice-import-panel";
 import BulkInvoiceImportPanel from "./bulk-invoice-import-panel";
 import {invoicePreview} from "./invoice-financial-preview.mjs";
@@ -829,8 +830,10 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
           <button type="button" className="identity-secondary" onClick={() => setDetail(null)}
             aria-label="بستن جزئیات">×</button>
         </div>
+        <details name="invoice-detail-sections" open key={"invoice-section:"+detail.id}><summary>صورتحساب فروش</summary>
         <InvoiceFormalPreview key={"formal:"+detail.id} taxpayerId={detail.taxpayerId} invoiceId={detail.id} reference={detail.systemCode??""} authorityStatus={detail.authorityStatus}/>
-        <details><summary>مشخصات داخلی و فنی صورتحساب</summary>
+        </details>
+        <details name="invoice-detail-sections"><summary>مشخصات داخلی و فنی صورتحساب</summary>
         <dl className="invoice-register__totals">
           <dt>شناسه سیستمی</dt><dd dir="ltr">{detail.systemCode || "در انتظار تخصیص"}</dd>
           <dt>تاریخ</dt><dd>{toFaDate(detail.issueDateUtc)}</dd>
@@ -843,9 +846,14 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
           <dt>نسخه</dt><dd>{detail.revision}</dd>
         </dl>
         <p className="field-hint">این وضعیت به معنی تأیید سازمان امور مالیاتی نیست.</p>
+        </details>
+        <details name="invoice-detail-sections"><summary>{detail.authorityStatus==="SUCCESS"||detail.authorityStatus==="FAILED"||detail.authorityStatus==="PENDING"||detail.authorityStatus==="ACKNOWLEDGED"?"استعلام و نتیجه سازمان":"ارسال به سامانه مؤدیان"}</summary>
         <InvoiceSendReadinessPanel key={"readiness:"+detail.id}
           invoiceId={detail.id} taxpayerId={detail.taxpayerId}
-          isWorkspace={detail.kind === "workspace"}/>
+          isWorkspace={detail.kind === "workspace"} hideHistory={true}/>
+        </details>
+        <details name="invoice-detail-sections"><summary>تاریخچه ارسال و استعلام</summary>
+          <InvoiceDispatchHistory taxpayerId={detail.taxpayerId} invoiceId={detail.id}/>
         </details>
       </div>
     </div>}
