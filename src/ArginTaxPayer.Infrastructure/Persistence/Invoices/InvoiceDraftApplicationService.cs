@@ -21,7 +21,7 @@ public sealed record InvoiceDraftView(
     long Revision, string State, string Subject, DateTime IssueDateUtc,
     DateTime UpdatedAtUtc, string? Kind = null, int? LastCompletedStep = null,
     string? ReviewState = null, string? SystemCode = null,
-    string? SellerName = null, string? BuyerName = null);
+    string? SellerName = null, string? BuyerName = null, string? AuthorityStatus = null);
 
 public sealed record InvoiceDraftResult(InvoiceApiDecision Decision,
     InvoiceDraftView? Invoice = null);
@@ -307,6 +307,52 @@ public sealed class InvoiceDraftApplicationService(
             }
             catch (JsonException) { /* Historical malformed snapshot: no display name. */ }
         }
+        // Read only statuses belonging to the 15 scoped invoice rows.
+        // The authority report is not interchangeable with the initial enqueue receipt.
+        var authorityByInvoice = new Dictionary<Guid,string>();
+        if(ids.Length>0)
+        {
+            var connection=db.Database.GetDbConnection();
+            var opened=connection.State!=System.Data.ConnectionState.Open;
+            if(opened)await connection.OpenAsync(ct);
+            try
+            {
+                await using var command=connection.CreateCommand();
+                command.CommandText="""
+SELECT d.invoice_id, d.state,
+       (SELECT r.report_json->>'Status' FROM sandbox_authority_inquiry_reports r
+        WHERE r.operation_id=d.id AND r.customer_user_id=d.customer_user_id
+          AND r.taxpayer_id=d.taxpayer_id AND r.invoice_id=d.invoice_id
+        ORDER BY r.observed_at_utc DESC, r.id DESC LIMIT 1) AS authority_status
+FROM invoice_dispatch_operations d
+WHERE d.invoice_id=ANY(@invoice_ids)
+ AND d.customer_user_id=ANY(@owners)
+ AND d.taxpayer_id=ANY(@taxpayers)
+ORDER BY d.invoice_revision DESC,d.created_at_utc DESC
+""";
+                foreach(var (name,value) in new (string,object)[]{
+                    ("invoice_ids",ids),("owners",rows.Select(x=>x.CustomerUserId).Distinct().ToArray()),
+                    ("taxpayers",taxpayerIds)})
+                {
+                    var p=command.CreateParameter();p.ParameterName=name;p.Value=value;
+                    command.Parameters.Add(p);
+                }
+                await using var reader=await command.ExecuteReaderAsync(ct);
+                while(await reader.ReadAsync(ct))
+                {
+                    var id=reader.GetGuid(0);
+                    if(authorityByInvoice.ContainsKey(id))continue;
+                    var state=reader.GetInt32(1);
+                    var reported=reader.IsDBNull(2)?null:reader.GetString(2);
+                    authorityByInvoice[id]=reported is "SUCCESS" or "FAILED" or "PENDING"
+                        ?reported:state switch{
+                            5=>"ACKNOWLEDGED",6=>"INDETERMINATE",
+                            4=>"SENDING",3=>"RESERVED",1=>"PREPARED",
+                            _=>"UNKNOWN"};
+                }
+            }
+            finally{if(opened)await connection.CloseAsync();}
+        }
         return (InvoiceApiDecision.Success, rows.Select(x =>
             new InvoiceDraftView(x.Id,x.CustomerUserId,x.TaxpayerId,x.Revision,
                 x.Source == 1 ? "WorkingDraft" :
@@ -320,7 +366,8 @@ public sealed class InvoiceDraftApplicationService(
                     ((InvoiceReviewState)(x.Review ?? 1)).ToString(),
                 referenceCodes.GetValueOrDefault((x.Source == 1 ? "workspace" : "document", x.Id)),
                 names.GetValueOrDefault(x.TaxpayerId),
-                buyers.GetValueOrDefault(x.Id))).ToArray());
+                buyers.GetValueOrDefault(x.Id),
+                authorityByInvoice.GetValueOrDefault(x.Id,"NOT_SENT"))).ToArray());
     }
 
     private static InvoiceDraftView View(StoredInvoice invoice) =>
