@@ -31,7 +31,7 @@ public sealed class Phase10InvoicePrintPreviewService(
             var root=doc.RootElement;
             static string? String(JsonElement e,string name)
             {
-                if(!e.TryGetProperty(name,out var v) || e.TryGetProperty(char.ToUpperInvariant(name[0])+name[1..],out v))return null;
+                if(!e.TryGetProperty(name,out var v) && !e.TryGetProperty(char.ToUpperInvariant(name[0])+name[1..],out v))return null;
                 return v.ValueKind switch {
                     JsonValueKind.String=>v.GetString(),
                     JsonValueKind.Number=>v.GetRawText(),
