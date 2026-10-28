@@ -40,7 +40,8 @@ dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --no-restore \
   tests/phase10-existing-invoice-preparation.test.mjs \
   tests/phase10-enqueue-outcome-logging-contract.test.mjs \
   tests/phase10-dispatch-arm-contract.test.mjs \
-  tests/phase10-step23-reference-inquiry-acceptance.test.mjs
+  tests/phase10-step23-reference-inquiry-acceptance.test.mjs \
+  tests/phase10-step24-dispatch-history.test.mjs
  npm run typecheck
  npm run build
 )
