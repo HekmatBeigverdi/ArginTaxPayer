@@ -75,12 +75,12 @@ public sealed class Phase10InvoicePrintPreviewService(
                 ?await db.Parties.AsNoTracking().Where(p=>p.Id==partyId&&p.OwnerCustomerUserId==owner.Value).Select(p=>p.DisplayName).FirstOrDefaultAsync(ct)
                 :null;
             return (InvoiceApiDecision.Success,new {
-                invoiceId,revision=invoice.Revision,issueDateUtc=invoice.IssueDateUtc,
+                invoiceId,uniqueInvoiceId=invoiceId.ToString("D"),revision=invoice.Revision,issueDateUtc=invoice.IssueDateUtc,
                 seller=seller??String(root,"seller")??String(root,"sellerDisplayName"),
                 buyer=buyer??String(root,"buyer")??String(root,"BuyerDisplayName"),
                 description=String(root,"invoiceDescription"),
                 contractNumber=String(root,"contractNumber"),
-                settlementMethod=String(root,"settlementMethod"),
+                settlementMethod=String(root,"settlementMethod") switch { "1"=>"نقدی", "2"=>"نسیه", "3"=>"نقدی و نسیه", _=>"نامشخص" },
                 lines,grossRial=gross,discountRial=discountTotal,
                 netRial=gross-discountTotal,vatRial=vatTotal,
                 totalRial=gross-discountTotal+vatTotal
