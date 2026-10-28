@@ -67,5 +67,5 @@ export default function InvoiceDispatchHistory({taxpayerId,invoiceId}:{
     </tr>)}</tbody></table></div>}
    <p className="field-hint">این تاریخچه صرفاً داده‌های ثبت‌شده را نمایش می‌دهد و به معنی پذیرش قطعی مالیاتی نیست.</p>
   </>}
- </details>;
+ </section>;
 }
