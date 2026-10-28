@@ -31,7 +31,7 @@ public sealed class Phase10InvoicePrintPreviewService(
             var root=doc.RootElement;
             static string? String(JsonElement e,string name)
             {
-                if(!e.TryGetProperty(name,out var v))return null;
+                if(!e.TryGetProperty(name,out var v) || e.TryGetProperty(char.ToUpperInvariant(name[0])+name[1..],out v))return null;
                 return v.ValueKind switch {
                     JsonValueKind.String=>v.GetString(),
                     JsonValueKind.Number=>v.GetRawText(),
@@ -47,7 +47,7 @@ public sealed class Phase10InvoicePrintPreviewService(
                 if(row.ValueKind!=JsonValueKind.Object)return (InvoiceApiDecision.Invalid,null);
                 static decimal Number(JsonElement e,string key)
                 {
-                    if(!e.TryGetProperty(key,out var v))return 0;
+                    if(!e.TryGetProperty(key,out var v) && !e.TryGetProperty(char.ToUpperInvariant(key[0])+key[1..],out v))return 0;
                     if(v.ValueKind==JsonValueKind.Number&&v.TryGetDecimal(out var n))return n;
                     if(v.ValueKind==JsonValueKind.String&&decimal.TryParse(v.GetString(),
                         System.Globalization.NumberStyles.Number,
@@ -69,10 +69,15 @@ public sealed class Phase10InvoicePrintPreviewService(
                     netRial=net,vatRatePercent=vatRate,vatRial=tax,totalRial=net+tax
                 });
             }
+            var seller=await db.TaxpayerProfiles.AsNoTracking().Where(t=>t.Id==taxpayerId).Select(t=>t.DisplayName).FirstOrDefaultAsync(ct);
+            var buyerId=String(root,"buyerPartyId");
+            var buyer=Guid.TryParse(buyerId,out var partyId)
+                ?await db.Parties.AsNoTracking().Where(p=>p.Id==partyId&&p.OwnerCustomerUserId==owner.Value).Select(p=>p.DisplayName).FirstOrDefaultAsync(ct)
+                :null;
             return (InvoiceApiDecision.Success,new {
                 invoiceId,revision=invoice.Revision,issueDateUtc=invoice.IssueDateUtc,
-                seller=String(root,"seller")??String(root,"sellerDisplayName"),
-                buyer=String(root,"buyer")??String(root,"BuyerDisplayName"),
+                seller=seller??String(root,"seller")??String(root,"sellerDisplayName"),
+                buyer=buyer??String(root,"buyer")??String(root,"BuyerDisplayName"),
                 description=String(root,"invoiceDescription"),
                 contractNumber=String(root,"contractNumber"),
                 settlementMethod=String(root,"settlementMethod"),
