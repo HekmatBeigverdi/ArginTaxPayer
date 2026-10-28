@@ -846,7 +846,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
         <InvoiceSendReadinessPanel key={"readiness:"+detail.id}
           invoiceId={detail.id} taxpayerId={detail.taxpayerId}
           isWorkspace={detail.kind === "workspace"}/>
-
+        </details>
       </div>
     </div>}
 
