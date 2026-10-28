@@ -45,7 +45,7 @@ export async function POST(request:NextRequest,context:Context){
    readiness=await requestJson(invoicePath+"readiness");
   }
   if(readiness.invoiceState==="Validated"){
-   const status=await requestJson("/api/dev/invoices/"+invoiceId+"/review/status");
+   const status=await requestJson("/api/dev/taxpayers/"+taxpayerId+"/invoices/"+invoiceId+"/review-status");
    let reviewState=String(status.state??"");
    let revision=Number(status.revision);
    if(reviewState==="Draft"||reviewState==="ChangesRequested"){
