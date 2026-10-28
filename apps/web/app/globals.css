@@ -897,3 +897,33 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 .invoice-dispatch-history__notice{font-size:11px;color:#785f36;background:#fff9e9;border:1px solid #e9dbbb;border-radius:7px;padding:8px;line-height:1.8;margin:0}
 .invoice-dispatch-history button:disabled{opacity:.56;cursor:not-allowed}
 @media(max-width:520px){.invoice-dispatch-history__facts{grid-template-columns:1fr}.invoice-dispatch-history__head{flex-wrap:wrap}}
+
+/* Invoice detail sections inherit the buyer/seller dossier accordion visual language. */
+.invoice-register__detail-modal .invoice-detail-section {
+  margin:0 0 8px;
+  border:1px solid var(--argin-line);
+  border-radius:8px;
+  background:var(--surface,#fff);
+  overflow:hidden;
+}
+.invoice-register__detail-modal .invoice-detail-section > summary {
+  cursor:pointer;
+  padding:10px 12px;
+  font-size:13px;
+  font-weight:700;
+  color:#205c60;
+  background:#f0f7f6;
+  border-radius:8px;
+}
+.invoice-register__detail-modal .invoice-detail-section[open] > summary {
+  border-radius:8px 8px 0 0;
+}
+.invoice-register__detail-modal .invoice-detail-section__content {
+  padding:10px 12px;
+  max-height:58dvh;
+  overflow:auto;
+}
+.invoice-register__detail-modal .invoice-detail-section > summary:focus-visible {
+  outline:2px solid var(--argin-primary);
+  outline-offset:-2px;
+}
