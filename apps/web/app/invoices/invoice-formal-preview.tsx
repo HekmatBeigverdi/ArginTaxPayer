@@ -3,7 +3,7 @@ import {useEffect,useState} from "react";
 type Line={description:string;officialIdentifier:string|null;quantity:number;unitPriceRial:number;discountRial:number;netRial:number;vatRatePercent:number;vatRial:number;totalRial:number};
 type Invoice={issueDateUtc:string;revision:number;seller:string|null;buyer:string|null;description:string|null;contractNumber:string|null;settlementMethod:string|null;lines:Line[];grossRial:number;discountRial:number;netRial:number;vatRial:number;totalRial:number};
 const money=(value:number)=>value.toLocaleString("fa-IR",{maximumFractionDigits:2});
-export default function InvoiceFormalPreview({taxpayerId,invoiceId,reference}:{taxpayerId:string;invoiceId:string;reference:string}){
+export default function InvoiceFormalPreview({taxpayerId,invoiceId,reference,authorityStatus}:{taxpayerId:string;invoiceId:string;reference:string;authorityStatus?:string}){
  const [invoice,setInvoice]=useState<Invoice|null>(null);
  const [error,setError]=useState("");
  useEffect(()=>{
@@ -18,13 +18,13 @@ export default function InvoiceFormalPreview({taxpayerId,invoiceId,reference}:{t
    }catch(e){if(!controller.signal.aborted)setError((e as Error).message);}
   })();return()=>controller.abort();
  },[taxpayerId,invoiceId]);
- return <section dir="rtl" aria-label="نمای رسمی صورتحساب" style={{border:"1px solid var(--border,#d2d9df)",borderRadius:12,padding:12,marginBlock:12}}>
-  <h3 style={{textAlign:"center",margin:"4px 0 16px"}}>صورتحساب فروش کالا و خدمات</h3>
+ return <section dir="rtl" aria-label="نمای رسمی صورتحساب" style={{border:"1px solid var(--border,#d2d9df)",borderRadius:10,padding:10,marginBlock:8,fontSize:12,lineHeight:1.5}}>
+  <h3 style={{textAlign:"center",margin:"2px 0 8px"}}>صورتحساب فروش کالا و خدمات</h3>
   {error&&<p role="alert" className="form-error">{error}</p>}
-  {!invoice&&!error&&<p role="status">در حال دریافت اطلاعات صورتحساب…</p>}
+  {!invoice&&!error&&<div role="status" aria-busy="true" style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10,padding:20}}><span className="argin-loader-spinner" aria-hidden="true"/><span>در حال بارگذاری اطلاعات و اقلام صورتحساب…</span></div>}
   {invoice&&<>
    <h4>سربرگ صورتحساب</h4>
-   <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:8,marginBottom:14}}>
+   <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:5,marginBottom:8}}>
     <span>فروشنده: <strong>{invoice.seller??"—"}</strong></span>
     <span>خریدار: <strong>{invoice.buyer??"—"}</strong></span>
     <span>تاریخ: <strong>{new Date(invoice.issueDateUtc).toLocaleDateString("fa-IR-u-ca-persian")}</strong></span>
@@ -33,7 +33,7 @@ export default function InvoiceFormalPreview({taxpayerId,invoiceId,reference}:{t
     {invoice.contractNumber&&<span>شماره قرارداد: <strong dir="ltr">{invoice.contractNumber}</strong></span>}
    </div>
    <h4>بدنه صورتحساب</h4>
-   <div className="table-scroll" style={{maxHeight:340,overflow:"auto",marginBottom:14}}>
+   <div className="table-scroll" style={{maxHeight:300,overflow:"auto",marginBottom:14}}>
     <table className="console-table" style={{minWidth:900}}>
      <thead><tr><th>ردیف</th><th>شرح کالا/خدمت</th><th>شناسه رسمی</th><th>تعداد</th><th>فی (ریال)</th><th>تخفیف</th><th>مالیات</th><th>مبلغ نهایی (ریال)</th></tr></thead>
      <tbody>{invoice.lines.map((line,i)=><tr key={i}><td>{i+1}</td>
@@ -53,6 +53,11 @@ export default function InvoiceFormalPreview({taxpayerId,invoiceId,reference}:{t
     {invoice.settlementMethod&&<span>روش تسویه: <strong>{invoice.settlementMethod}</strong></span>}
    </div>
    {invoice.description&&<p>توضیحات: {invoice.description}</p>}
+   <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:10}}>
+    <button type="button" className="identity-secondary" disabled title="اصلاح قانونی از مسیر پیش‌نویس اصلاحی فعال خواهد شد">اصلاح صورتحساب</button>
+    <button type="button" className="identity-secondary" disabled title="صدور و ارسال صورتحساب ابطالی هنوز پیاده‌سازی نشده است">ابطال صورتحساب</button>
+    <button type="button" className="identity-secondary" disabled title="صدور برگشت از فروش هنوز پیاده‌سازی نشده است">برگشت از فروش</button>
+   </div>
   </>}
  </section>;
 }
