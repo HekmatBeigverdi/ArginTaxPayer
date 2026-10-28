@@ -53,11 +53,11 @@ export default function InvoiceFormalPreview({taxpayerId,invoiceId,reference,aut
     {invoice.settlementMethod&&<span>روش تسویه: <strong>{invoice.settlementMethod}</strong></span>}
    </div>
    {invoice.description&&<p>توضیحات: {invoice.description}</p>}
-   <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:10}}>
-    <button type="button" className="identity-secondary" disabled title="اصلاح قانونی از مسیر پیش‌نویس اصلاحی فعال خواهد شد">اصلاح صورتحساب</button>
-    <button type="button" className="identity-secondary" disabled title="صدور و ارسال صورتحساب ابطالی هنوز پیاده‌سازی نشده است">ابطال صورتحساب</button>
-    <button type="button" className="identity-secondary" disabled title="صدور برگشت از فروش هنوز پیاده‌سازی نشده است">برگشت از فروش</button>
-   </div>
+   {authorityStatus==="SUCCESS"&&<div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:10}}>
+    <button type="button" className="identity-secondary" disabled title="صدور سند اصلاحی مستقل هنوز فعال نشده است">اصلاح</button>
+    <button type="button" className="identity-secondary" disabled title="صدور سند ابطالی مستقل هنوز فعال نشده است">ابطال</button>
+    <button type="button" className="identity-secondary" disabled title="برگشت از فروش مستقل هنوز فعال نشده است">برگشت از فروش</button>
+   </div>}
   </>}
  </section>;
 }
