@@ -44,7 +44,8 @@ dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --no-restore \
   tests/phase10-step24-dispatch-history.test.mjs \
   tests/phase10-invoice-table-ux-step24.test.mjs \
   tests/phase10-invoice-list-external-status.test.mjs \
-  tests/phase10-formal-invoice-modal-contract.test.mjs
+  tests/phase10-formal-invoice-modal-contract.test.mjs \
+  tests/phase10-formal-invoice-preview-fixed.test.mjs
  npm run typecheck
  npm run build
 )
