@@ -7,9 +7,7 @@ import { PersianTimePicker } from "../components/persian-time-picker";
 import SearchableCatalogPicker from "./searchable-catalog-picker";
 import InvoiceValidationPanel from "./invoice-validation-panel";
 import InvoiceHistoryPanel from "./invoice-history-panel";
-import InvoiceDispatchPanel from "./invoice-dispatch-panel";
 import InvoiceSendReadinessPanel from "./invoice-send-readiness-panel";
-import InvoiceDispatchHistoryPanel from "./invoice-dispatch-history-panel";
 import InvoiceImportPanel, {type ImportValues} from "./invoice-import-panel";
 import BulkInvoiceImportPanel from "./bulk-invoice-import-panel";
 import {invoicePreview} from "./invoice-financial-preview.mjs";
@@ -834,11 +832,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
         <InvoiceSendReadinessPanel key={"readiness:"+detail.id}
           invoiceId={detail.id} taxpayerId={detail.taxpayerId}
           isWorkspace={detail.kind === "workspace"}/>
-        <InvoiceDispatchPanel key={detail.id} invoiceId={detail.id} taxpayerId={detail.taxpayerId}
-          isWorkspace={detail.kind === "workspace"}/>
-        <InvoiceDispatchHistoryPanel key={"history:"+detail.id}
-          invoiceId={detail.id} taxpayerId={detail.taxpayerId}
-          isWorkspace={detail.kind === "workspace"}/>
+
       </div>
     </div>}
 
