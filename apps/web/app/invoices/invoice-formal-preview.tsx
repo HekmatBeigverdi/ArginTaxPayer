@@ -1,63 +1,316 @@
 "use client";
-import {useEffect,useState} from "react";
-type Line={description:string;officialIdentifier:string|null;quantity:number;unitPriceRial:number;discountRial:number;netRial:number;vatRatePercent:number;vatRial:number;totalRial:number};
-type Invoice={issueDateUtc:string;revision:number;seller:string|null;buyer:string|null;description:string|null;contractNumber:string|null;settlementMethod:string|null;lines:Line[];grossRial:number;discountRial:number;netRial:number;vatRial:number;totalRial:number};
-const money=(value:number)=>value.toLocaleString("fa-IR",{maximumFractionDigits:2});
-export default function InvoiceFormalPreview({taxpayerId,invoiceId,reference,authorityStatus}:{taxpayerId:string;invoiceId:string;reference:string;authorityStatus?:string}){
- const [invoice,setInvoice]=useState<Invoice|null>(null);
- const [error,setError]=useState("");
- useEffect(()=>{
-  const controller=new AbortController();
-  setInvoice(null);setError("");
-  void (async()=>{
-   try{
-    const response=await fetch("/api/invoice-dispatch/"+encodeURIComponent(taxpayerId)+"/"+encodeURIComponent(invoiceId)+"/print-preview",{cache:"no-store",credentials:"same-origin",signal:controller.signal});
-    if(!response.ok)throw Error(response.status===401?"نشست ورود منقضی شده است.":"نمای صورتحساب در دسترس نیست.");
-    const data=await response.json() as Invoice;
-    if(!controller.signal.aborted)setInvoice(data);
-   }catch(e){if(!controller.signal.aborted)setError((e as Error).message);}
-  })();return()=>controller.abort();
- },[taxpayerId,invoiceId]);
- return <section dir="rtl" aria-label="نمای رسمی صورتحساب" style={{border:"1px solid var(--border,#d2d9df)",borderRadius:10,padding:10,marginBlock:8,fontSize:12,lineHeight:1.5}}>
-  <h3 style={{textAlign:"center",margin:"2px 0 8px"}}>صورتحساب فروش کالا و خدمات</h3>
-  {error&&<p role="alert" className="form-error">{error}</p>}
-  {!invoice&&!error&&<div role="status" aria-busy="true" style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10,padding:20}}><span className="argin-loader-spinner" aria-hidden="true"/><span>در حال بارگذاری اطلاعات و اقلام صورتحساب…</span></div>}
-  {invoice&&<>
-   <h4>سربرگ صورتحساب</h4>
-   <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:5,marginBottom:8}}>
-    <span>فروشنده: <strong>{invoice.seller??"—"}</strong></span>
-    <span>خریدار: <strong>{invoice.buyer??"—"}</strong></span>
-    <span>تاریخ: <strong>{new Date(invoice.issueDateUtc).toLocaleDateString("fa-IR-u-ca-persian")}</strong></span>
-    <span>نسخه: <strong>{invoice.revision}</strong></span>
-    {reference&&<span>شماره صورتحساب: <strong dir="ltr">{reference}</strong></span>}
-    {invoice.contractNumber&&<span>شماره قرارداد: <strong dir="ltr">{invoice.contractNumber}</strong></span>}
-   </div>
-   <h4>بدنه صورتحساب</h4>
-   <div className="table-scroll" style={{maxHeight:300,overflow:"auto",marginBottom:14}}>
-    <table className="console-table" style={{minWidth:900}}>
-     <thead><tr><th>ردیف</th><th>شرح کالا/خدمت</th><th>شناسه رسمی</th><th>تعداد</th><th>فی (ریال)</th><th>تخفیف</th><th>مالیات</th><th>مبلغ نهایی (ریال)</th></tr></thead>
-     <tbody>{invoice.lines.map((line,i)=><tr key={i}><td>{i+1}</td>
-      <td>{line.description}</td><td><bdi dir="ltr">{line.officialIdentifier??"—"}</bdi></td>
-      <td>{money(line.quantity)}</td><td>{money(line.unitPriceRial)}</td>
-      <td>{money(line.discountRial)}</td><td>{money(line.vatRial)}</td>
-      <td>{money(line.totalRial)}</td></tr>)}</tbody>
-    </table>
-   </div>
-   <h4>پاورقی و جمع مبالغ</h4>
-   <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:8}}>
-    <span>جمع ناخالص: <strong>{money(invoice.grossRial)} ریال</strong></span>
-    <span>جمع تخفیف: <strong>{money(invoice.discountRial)} ریال</strong></span>
-    <span>جمع پس از تخفیف: <strong>{money(invoice.netRial)} ریال</strong></span>
-    <span>مالیات ارزش افزوده: <strong>{money(invoice.vatRial)} ریال</strong></span>
-    <span>مبلغ قابل پرداخت: <strong>{money(invoice.totalRial)} ریال</strong></span>
-    {invoice.settlementMethod&&<span>روش تسویه: <strong>{invoice.settlementMethod}</strong></span>}
-   </div>
-   {invoice.description&&<p>توضیحات: {invoice.description}</p>}
-   {authorityStatus==="SUCCESS"&&<div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:10}}>
-    <button type="button" className="identity-secondary" disabled title="صدور سند اصلاحی مستقل هنوز فعال نشده است">اصلاح</button>
-    <button type="button" className="identity-secondary" disabled title="صدور سند ابطالی مستقل هنوز فعال نشده است">ابطال</button>
-    <button type="button" className="identity-secondary" disabled title="برگشت از فروش مستقل هنوز فعال نشده است">برگشت از فروش</button>
-   </div>}
-  </>}
- </section>;
+
+import { useEffect, useState } from "react";
+
+type Line = {
+  description: string;
+  officialIdentifier: string | null;
+  quantity: number;
+  unitPriceRial: number;
+  discountRial: number;
+  netRial: number;
+  vatRatePercent: number;
+  vatRial: number;
+  totalRial: number;
+};
+
+type Invoice = {
+  issueDateUtc: string;
+  revision: number;
+  seller: string | null;
+  buyer: string | null;
+  description: string | null;
+  contractNumber: string | null;
+  settlementMethod: string | null;
+  lines: Line[];
+  grossRial: number;
+  discountRial: number;
+  netRial: number;
+  vatRial: number;
+  totalRial: number;
+};
+
+type InvoiceFormalPreviewProps = {
+  taxpayerId: string;
+  invoiceId: string;
+  reference: string;
+  authorityStatus?: string;
+};
+
+const money = (value: number) =>
+  value.toLocaleString("fa-IR", { maximumFractionDigits: 2 });
+
+const formatIssueDate = (value: string) =>
+  new Date(value).toLocaleDateString("fa-IR-u-ca-persian");
+
+const previewStyle = {
+  border: "1px solid var(--border,#d2d9df)",
+  borderRadius: 10,
+  padding: 10,
+  marginBlock: 8,
+  fontSize: 12,
+  lineHeight: 1.5,
+};
+
+const detailsGridStyle = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))",
+  gap: 5,
+  marginBottom: 8,
+};
+
+const totalsGridStyle = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))",
+  gap: 8,
+};
+
+const loadingStyle = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 10,
+  padding: 20,
+};
+
+const actionsStyle = {
+  display: "flex",
+  gap: 8,
+  flexWrap: "wrap" as const,
+  marginTop: 10,
+};
+
+async function fetchInvoicePreview(
+  taxpayerId: string,
+  invoiceId: string,
+  signal: AbortSignal,
+): Promise<Invoice> {
+  const path =
+    "/api/invoice-dispatch/" +
+    encodeURIComponent(taxpayerId) +
+    "/" +
+    encodeURIComponent(invoiceId) +
+    "/print-preview";
+
+  const response = await fetch(path, {
+    cache: "no-store",
+    credentials: "same-origin",
+    signal,
+  });
+
+  if (!response.ok) {
+    throw Error(
+      response.status === 401
+        ? "نشست ورود منقضی شده است."
+        : "نمای صورتحساب در دسترس نیست.",
+    );
+  }
+
+  return (await response.json()) as Invoice;
+}
+
+function InvoiceHeader({
+  invoice,
+  reference,
+}: {
+  invoice: Invoice;
+  reference: string;
+}) {
+  return (
+    <>
+      <h4>سربرگ صورتحساب</h4>
+      <div style={detailsGridStyle}>
+        <span>
+          فروشنده: <strong>{invoice.seller ?? "—"}</strong>
+        </span>
+        <span>
+          خریدار: <strong>{invoice.buyer ?? "—"}</strong>
+        </span>
+        <span>
+          تاریخ: <strong>{formatIssueDate(invoice.issueDateUtc)}</strong>
+        </span>
+        <span>
+          نسخه: <strong>{invoice.revision}</strong>
+        </span>
+        {reference && (
+          <span>
+            شماره صورتحساب: <strong dir="ltr">{reference}</strong>
+          </span>
+        )}
+        {invoice.contractNumber && (
+          <span>
+            شماره قرارداد: <strong dir="ltr">{invoice.contractNumber}</strong>
+          </span>
+        )}
+      </div>
+    </>
+  );
+}
+
+function InvoiceLines({ lines }: { lines: Line[] }) {
+  return (
+    <>
+      <h4>بدنه صورتحساب</h4>
+      <div
+        className="table-scroll"
+        style={{ maxHeight: 300, overflow: "auto", marginBottom: 14 }}
+      >
+        <table className="console-table" style={{ minWidth: 900 }}>
+          <thead>
+            <tr>
+              <th>ردیف</th>
+              <th>شرح کالا/خدمت</th>
+              <th>شناسه رسمی</th>
+              <th>تعداد</th>
+              <th>فی (ریال)</th>
+              <th>تخفیف</th>
+              <th>مالیات</th>
+              <th>مبلغ نهایی (ریال)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {lines.map((line, index) => (
+              <tr key={index}>
+                <td>{index + 1}</td>
+                <td>{line.description}</td>
+                <td>
+                  <bdi dir="ltr">{line.officialIdentifier ?? "—"}</bdi>
+                </td>
+                <td>{money(line.quantity)}</td>
+                <td>{money(line.unitPriceRial)}</td>
+                <td>{money(line.discountRial)}</td>
+                <td>{money(line.vatRial)}</td>
+                <td>{money(line.totalRial)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
+function InvoiceTotals({ invoice }: { invoice: Invoice }) {
+  return (
+    <>
+      <h4>پاورقی و جمع مبالغ</h4>
+      <div style={totalsGridStyle}>
+        <span>
+          جمع ناخالص: <strong>{money(invoice.grossRial)} ریال</strong>
+        </span>
+        <span>
+          جمع تخفیف: <strong>{money(invoice.discountRial)} ریال</strong>
+        </span>
+        <span>
+          جمع پس از تخفیف: <strong>{money(invoice.netRial)} ریال</strong>
+        </span>
+        <span>
+          مالیات ارزش افزوده: <strong>{money(invoice.vatRial)} ریال</strong>
+        </span>
+        <span>
+          مبلغ قابل پرداخت: <strong>{money(invoice.totalRial)} ریال</strong>
+        </span>
+        {invoice.settlementMethod && (
+          <span>
+            روش تسویه: <strong>{invoice.settlementMethod}</strong>
+          </span>
+        )}
+      </div>
+      {invoice.description && <p>توضیحات: {invoice.description}</p>}
+    </>
+  );
+}
+
+function AuthorityActions({ authorityStatus }: { authorityStatus?: string }) {
+  return authorityStatus==="SUCCESS"&&<div style={actionsStyle}>
+      <button
+        type="button"
+        className="identity-secondary"
+        disabled
+        title="صدور سند اصلاحی مستقل هنوز فعال نشده است"
+      >
+        اصلاح
+      </button>
+      <button
+        type="button"
+        className="identity-secondary"
+        disabled
+        title="صدور سند ابطالی مستقل هنوز فعال نشده است"
+      >
+        ابطال
+      </button>
+      <button
+        type="button"
+        className="identity-secondary"
+        disabled
+        title="برگشت از فروش مستقل هنوز فعال نشده است"
+      >
+        برگشت از فروش
+      </button>
+  </div>;
+}
+
+export default function InvoiceFormalPreview({
+  taxpayerId,
+  invoiceId,
+  reference,
+  authorityStatus,
+}: InvoiceFormalPreviewProps) {
+  const [invoice, setInvoice] = useState<Invoice | null>(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    setInvoice(null);
+    setError("");
+
+    void (async () => {
+      try {
+        const data = await fetchInvoicePreview(
+          taxpayerId,
+          invoiceId,
+          controller.signal,
+        );
+
+        if (!controller.signal.aborted) setInvoice(data);
+      } catch (caughtError) {
+        if (!controller.signal.aborted) {
+          setError((caughtError as Error).message);
+        }
+      }
+    })();
+
+    return () => controller.abort();
+  }, [taxpayerId, invoiceId]);
+
+  return (
+    <section
+      dir="rtl"
+      aria-label="نمای رسمی صورتحساب"
+      style={previewStyle}
+    >
+      <h3 style={{ textAlign: "center", margin: "2px 0 8px" }}>
+        صورتحساب فروش کالا و خدمات
+      </h3>
+
+      {error && <p role="alert" className="form-error">{error}</p>}
+
+      {!invoice && !error && (
+        <div role="status" aria-busy="true" style={loadingStyle}>
+          <span className="argin-loader-spinner" aria-hidden="true" />
+          <span>در حال بارگذاری اطلاعات و اقلام صورتحساب…</span>
+        </div>
+      )}
+
+      {invoice && (
+        <>
+          <InvoiceHeader invoice={invoice} reference={reference} />
+          <InvoiceLines lines={invoice.lines} />
+          <InvoiceTotals invoice={invoice} />
+          <AuthorityActions authorityStatus={authorityStatus} />
+        </>
+      )}
+    </section>
+  );
 }
