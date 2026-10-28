@@ -317,13 +317,23 @@ public sealed class InvoiceDraftApplicationService(
             if(opened)await connection.OpenAsync(ct);
             try
             {
+                await using var tableCheck=connection.CreateCommand();
+                tableCheck.CommandText="SELECT to_regclass('public.sandbox_authority_inquiry_reports')";
+                var reportTableExists=await tableCheck.ExecuteScalarAsync(ct) is not DBNull and not null;
                 await using var command=connection.CreateCommand();
-                command.CommandText="""
+                command.CommandText=reportTableExists ? """
 SELECT d.invoice_id, d.state,
        (SELECT r.report_json->>'Status' FROM sandbox_authority_inquiry_reports r
         WHERE r.operation_id=d.id AND r.customer_user_id=d.customer_user_id
           AND r.taxpayer_id=d.taxpayer_id AND r.invoice_id=d.invoice_id
         ORDER BY r.observed_at_utc DESC, r.id DESC LIMIT 1) AS authority_status
+FROM invoice_dispatch_operations d
+WHERE d.invoice_id=ANY(@invoice_ids)
+ AND d.customer_user_id=ANY(@owners)
+ AND d.taxpayer_id=ANY(@taxpayers)
+ORDER BY d.invoice_revision DESC,d.created_at_utc DESC
+""" : """
+SELECT d.invoice_id,d.state,NULL::text AS authority_status
 FROM invoice_dispatch_operations d
 WHERE d.invoice_id=ANY(@invoice_ids)
  AND d.customer_user_id=ANY(@owners)
