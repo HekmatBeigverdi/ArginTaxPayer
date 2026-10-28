@@ -18,7 +18,7 @@ test("one button delegates the complete send workflow to the backend without ret
 test("formal invoice prints unique identifier and textual settlement method without section labels",()=>{
  const backend=read("src/ArginTaxPayer.Infrastructure/Persistence/Invoices/Phase10InvoicePrintPreviewService.cs");
  const ui=read("apps/web/app/invoices/invoice-formal-preview.tsx");
- assert.ok(backend.includes('uniqueInvoiceId=invoiceId.ToString("D")'));
+ assert.ok(backend.includes('uniqueInvoiceId=fiscalTaxId'));
  for(const x of ["نقدی","نسیه","نقدی و نسیه"])assert.ok(backend.includes(x));
  assert.ok(ui.includes("شناسه یکتای فاکتور"));
  for(const x of ["سربرگ صورتحساب","بدنه صورتحساب","پاورقی و جمع مبالغ"])assert.ok(!ui.includes(x));
