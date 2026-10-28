@@ -528,6 +528,13 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
     }
    }}>
    <summary>استعلام و گزارش نتیجه سازمان (باز کردن در صورت نیاز)</summary>
+  {report?.environment==="Sandbox"&&dispatch?.status==="Acknowledged"&&
+   <button type="button" className="identity-secondary" disabled={actionBusy||busy}
+    onClick={()=>void inquireByReference()}>{actionBusy?"در حال استعلام…":"استعلام شماره رهگیری از Sandbox"}</button>}
+  {report?.environment==="Sandbox"&&dispatch?.status==="Indeterminate"&&
+   <button type="button" className="identity-secondary" disabled={actionBusy||busy}
+    onClick={()=>void inquireByUid()}>{actionBusy?"در حال استعلام…":"استعلام نتیجه ارسال قبلی از Sandbox با UID"}</button>}
+
      {authorityError&&<p role="alert" className="form-error">{authorityError}</p>}
   {authorityResult&&<div aria-label="گزارش نتیجه سازمان">
    <h4>نتیجه استعلام سازمان: {authorityLabels[authorityResult.status]}</h4>
@@ -581,12 +588,6 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
   {dispatch?.status==="Indeterminate"&&
    <p role="alert" className="form-error">این عملیات قبلاً شروع شده و نتیجه آن نامشخص است. تا روشن‌شدن نتیجه، صورتحساب را مجدداً ارسال نکنید.</p>}
   <p className="field-hint">مشاهده و استعلام نتیجه سازمان فقط با درخواست شما انجام می‌شود.</p>
-  {report?.environment==="Sandbox"&&dispatch?.status==="Acknowledged"&&
-   <button type="button" className="identity-secondary" disabled={actionBusy||busy}
-    onClick={()=>void inquireByReference()}>{actionBusy?"در حال استعلام…":"استعلام شماره رهگیری از Sandbox"}</button>}
-  {report?.environment==="Sandbox"&&dispatch?.status==="Indeterminate"&&
-   <button type="button" className="identity-secondary" disabled={actionBusy||busy}
-    onClick={()=>void inquireByUid()}>{actionBusy?"در حال استعلام…":"استعلام نتیجه ارسال قبلی از Sandbox با UID"}</button>}
   {report?.environment==="Sandbox"&&report.invoiceState==="Finalized"&&
    dispatch?.status==="Prepared"&&
    <button type="button" className="identity-secondary" disabled={actionBusy||busy||dispatchLoading}
