@@ -24,3 +24,14 @@
 - `Phase10Step26CancellationWireFactoryTests`: tests no-body, reference and distinct-tax-ID invariants.
 
 **Not implemented yet:** successor persistence, schema migration, cancellation dispatch orchestration, authority-confirmed update, active UI operation and live Sandbox results.
+
+## Implementation update — cancellation send wired (2026-10-29)
+
+- API: `POST /api/dev/taxpayers/{taxpayerId}/invoices/{invoiceId}/dispatch/cancel-and-inquire` calls `Phase10SandboxCancellationService`; authenticated loopback only.
+- Next BFF: `/api/invoice-dispatch/{taxpayerId}/{invoiceId}/cancel-and-inquire` uses same-origin validation, authenticated cookie and exactly one backend POST.
+- A fresh cancellation `InvoiceDocument`, immutable revision and approved internal review row are created; its predecessor relation is recorded in the existing Step26 migration.
+- The cancellation's frozen snapshot carries `referenceTaxId` from the reserved original fiscal ID; `Phase10LegacyFrozenInvoiceProjector` routes to `Phase10CancellationWireFactory` to produce `ins=3`, `irtaxid`, no body lines.
+- UI confirmation now calls the BFF after confirmed eligibility, reports the new internal invoice ID and dispatch result; no automatic resend after errors.
+- Only the isolated `argintaxpayer_test` database may create the successor. No Ubuntu acceptance until phase29.
+- **Operator acceptance still required**: run macOS dotnet build/test, Next typecheck/build, and send one accepted original through real Sandbox cancellation inquiry. The existence of commits does not establish that API, provider SDK and migration together execute successfully.
+- **Known follow-up**: effective subject projection of the original list row and multi-node lineage visual still require runtime verification and further integration.
