@@ -28,7 +28,7 @@ public static class Phase10LegacyFrozenInvoiceProjector
             !fiscalTaxId.AsSpan(11, 10).ToString().All(Uri.IsHexDigit))
             throw new ArgumentException("Invalid reserved fiscal invoice serial.");
         if (invoice.State != InvoiceLifecycleState.Finalized ||
-            invoice.Subject != InvoiceSubject.Original ||
+            invoice.Subject is not (InvoiceSubject.Original or InvoiceSubject.Cancellation) ||
             invoice.Revision < 1 || invoice.IssueDateUtc.Kind != DateTimeKind.Utc)
             throw new ArgumentException("Invoice is not a finalized UTC revision.");
         using var source = JsonDocument.Parse(invoice.SnapshotJson);
@@ -39,6 +39,19 @@ public static class Phase10LegacyFrozenInvoiceProjector
             root.GetProperty("invoiceType").GetInt32() != 1 ||
             root.GetProperty("pattern").GetInt32() != 1)
             throw new NotSupportedException("Only a finalized Sandbox Type1/Pattern1 snapshot is supported.");
+
+        if(invoice.Subject==InvoiceSubject.Cancellation)
+        {
+            if(!root.TryGetProperty("referenceTaxId",out var refField) ||
+               refField.ValueKind!=JsonValueKind.String ||
+               refField.GetString() is not {Length:22} predecessor ||
+               predecessor==fiscalTaxId)
+                throw new ArgumentException("Verified cancellation predecessor is required.");
+            return Phase10CancellationWireFactory.Project(
+                fiscalTaxId,predecessor,sellerTaxIdentifier,
+                new DateTimeOffset(invoice.IssueDateUtc).ToUnixTimeMilliseconds(),
+                new InvoiceTypePattern(ElectronicInvoiceType.First,1));
+        }
 
         var entries = JsonSerializer.Deserialize<InvoiceEntryLine[]>(
             root.GetProperty("lines").GetRawText()) ?? [];
