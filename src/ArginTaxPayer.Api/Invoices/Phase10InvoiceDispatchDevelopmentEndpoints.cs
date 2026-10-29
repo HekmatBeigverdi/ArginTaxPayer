@@ -19,6 +19,18 @@ public static class Phase10InvoiceDispatchDevelopmentEndpoints
         var group = routes.MapGroup("/api/dev/taxpayers/{taxpayerId:guid}/invoices/{invoiceId:guid}/dispatch")
             .WithTags("Invoice Dispatch (Development, Disabled)");
 
+        group.MapGet("/lineage",async(Guid taxpayerId,Guid invoiceId,HttpContext http,
+            Phase10InvoiceLineageReadService service,CancellationToken ct)=>{
+            if(!Local(http))return Results.NotFound();
+            http.Response.Headers.CacheControl="no-store";
+            var data=await service.ReadAsync(Token(http),taxpayerId,invoiceId,ct);
+            return data.Decision switch {
+                InvoiceApiDecision.Success=>Results.Ok(data.Value),
+                InvoiceApiDecision.Unauthenticated=>Results.Unauthorized(),
+                InvoiceApiDecision.Forbidden=>Results.StatusCode(403),
+                _=>Results.NotFound()
+            };
+        });
         group.MapGet("/print-preview", async (Guid taxpayerId,Guid invoiceId,
             HttpContext http,Phase10InvoicePrintPreviewService preview,CancellationToken ct)=>{
             if(!Local(http))return Results.NotFound();
