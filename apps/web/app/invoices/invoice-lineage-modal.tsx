@@ -1,5 +1,6 @@
 "use client";
 import {useEffect,useState} from "react";
+import InvoiceFormalPreview from "./invoice-formal-preview";
 
 type Node={invoiceId:string;subject:string;fiscalTaxId:string|null;
  issuedAtUtc:string;dispatchState:string;authorityReference:string|null;
@@ -48,6 +49,12 @@ export default function InvoiceLineageModal({taxpayerId,invoiceId,onClose}:{
         <span>نتیجه سازمان: {node.authorityStatus??"ثبت نشده"}</span>
         <span>شماره رهگیری: <bdi dir="ltr">{node.authorityReference??"—"}</bdi></span>
        </div>
+       <details className="fiscal-section" style={{marginTop:10}}>
+        <summary>مشاهده صورتحساب در همین مرحله</summary>
+        <div className="fiscal-section-content">
+         <InvoiceFormalPreview taxpayerId={taxpayerId} invoiceId={node.invoiceId} reference="" authorityStatus={node.authorityStatus??undefined} readOnly/>
+        </div>
+       </details>
       </article>
      </div>)}
     {!graph.hasChanges&&<p className="field-hint">سند ارجاعی تأییدشده‌ای در زنجیره ثبت نشده است. ارتباط اصلاح، ابطال و برگشت از فروش در ادامه گام ۲۵ تکمیل می‌شود.</p>}
