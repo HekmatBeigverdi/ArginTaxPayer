@@ -841,7 +841,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
         </div>
         <details name="invoice-detail-sections" className="fiscal-section invoice-detail-section" open key={"invoice-section:"+detail.id}><summary><span>صورتحساب فروش</span><span className="invoice-detail-section__summary-action">مشاهده جزئیات</span></summary>
         <div className="fiscal-section-content invoice-detail-section__content">
-        <InvoiceFormalPreview key={"formal:"+detail.id} taxpayerId={detail.taxpayerId} invoiceId={detail.id} reference={detail.systemCode??""} authorityStatus={detail.authorityStatus}/>
+        <InvoiceFormalPreview key={"formal:"+detail.id} taxpayerId={detail.taxpayerId} invoiceId={detail.id} reference={detail.systemCode??""} authorityStatus={detail.authorityStatus} onCancellationCompleted={()=>void reload()}/>
         </div>
         </details>
         <details name="invoice-detail-sections" className="fiscal-section invoice-detail-section"><summary><span>مشخصات داخلی و فنی صورتحساب</span><span className="invoice-detail-section__summary-action">مشاهده جزئیات</span></summary>
