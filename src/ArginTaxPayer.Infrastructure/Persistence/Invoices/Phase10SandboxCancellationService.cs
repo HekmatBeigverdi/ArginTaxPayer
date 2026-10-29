@@ -35,6 +35,8 @@ public sealed class Phase10SandboxCancellationService(
    if(current is null)return new(InvoiceApiDecision.NotFound,"not_found");
    if(current.Subject!=InvoiceSubject.Original||current.State!=InvoiceLifecycleState.Finalized)
     return new(InvoiceApiDecision.Conflict,"invalid_predecessor");
+   if(await db.Database.SqlQueryRaw<string>("SELECT current_database() AS \"Value\"").SingleAsync(ct)!="argintaxpayer_test")
+    return new(InvoiceApiDecision.Forbidden,"sandbox_database_required");
    var existing=await db.Database.SqlQueryRaw<int>($"""
 SELECT 1 AS "Value" FROM sandbox_invoice_legal_relations
 WHERE customer_user_id='{owner.Value}' AND taxpayer_id='{taxpayerId}'
@@ -48,6 +50,7 @@ WHERE customer_user_id='{owner.Value}' AND taxpayer_id='{taxpayerId}'
    var now=DateTime.UtcNow;
    snapshot["sourceWorkspaceId"]=successor.ToString("D");
    snapshot["sourceRevision"]=1;
+   snapshot["issueDateUtc"]=now;
    snapshot["referenceTaxId"]=predecessorTaxId;
    snapshot["predecessorInvoiceId"]=predecessorId.ToString("D");
    snapshot["legalSubject"]=3;
