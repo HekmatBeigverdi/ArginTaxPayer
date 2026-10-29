@@ -133,7 +133,12 @@ function InvoiceHeader({
         <span>
           نسخه: <strong>{invoice.revision}</strong>
         </span>
-        <span>شناسه یکتای مالیاتی: <strong dir="ltr">{invoice.uniqueInvoiceId ?? "در انتظار تخصیص"}</strong></span>
+        <span>
+          شناسه یکتای فاکتور (شناسه یکتای مالیاتی):{" "}
+          <strong dir="ltr">
+            {invoice.uniqueInvoiceId ?? "در انتظار تخصیص"}
+          </strong>
+        </span>
         {reference && (
           <span>
             شماره صورتحساب: <strong dir="ltr">{reference}</strong>
