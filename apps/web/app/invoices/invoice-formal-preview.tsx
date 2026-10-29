@@ -229,33 +229,15 @@ function InvoiceTotals({ invoice }: { invoice: Invoice }) {
   );
 }
 
-function AuthorityActions({ authorityStatus }: { authorityStatus?: string }) {
-  return authorityStatus==="SUCCESS"&&<div style={actionsStyle}>
-      <button
-        type="button"
-        className="identity-secondary"
-        disabled
-        title="صدور سند اصلاحی مستقل هنوز فعال نشده است"
-      >
-        اصلاح
-      </button>
-      <button
-        type="button"
-        className="identity-secondary"
-        disabled
-        title="صدور سند ابطالی مستقل هنوز فعال نشده است"
-      >
-        ابطال
-      </button>
-      <button
-        type="button"
-        className="identity-secondary"
-        disabled
-        title="برگشت از فروش مستقل هنوز فعال نشده است"
-      >
-        برگشت از فروش
-      </button>
-  </div>;
+function AuthorityActions({authorityStatus,onCancel}:{
+ authorityStatus?:string;onCancel:()=>void
+}){
+ if(authorityStatus!=="SUCCESS")return null;
+ return <div style={actionsStyle}>
+  <button type="button" className="identity-secondary" disabled title="مسیر اصلاحی در گام بعدی تکمیل می‌شود">اصلاح</button>
+  <button type="button" className="identity-secondary" onClick={onCancel}>ابطال</button>
+  <button type="button" className="identity-secondary" disabled title="مسیر برگشت از فروش در گام بعدی تکمیل می‌شود">برگشت از فروش</button>
+ </div>;
 }
 
 export default function InvoiceFormalPreview({
@@ -267,6 +249,7 @@ export default function InvoiceFormalPreview({
 }: InvoiceFormalPreviewProps) {
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [error, setError] = useState("");
+  const [cancelOpen,setCancelOpen]=useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -312,12 +295,19 @@ export default function InvoiceFormalPreview({
         </div>
       )}
 
+      {cancelOpen&&<div role="dialog" aria-modal="true" aria-label="تأیید ابطال صورتحساب" style={{border:"1px solid #cbd5e1",background:"#fff",padding:14,borderRadius:10,marginBlock:12}}>
+       <strong>درخواست ابطال صورتحساب</strong>
+       <p>ابطال پس از پذیرش سازمان غیرقابل بازگشت است. سند اصلی نباید حذف یا ویرایش شود؛ سند ابطالی با شناسه مالیاتی جدید و ارجاع قانونی صادر می‌شود.</p>
+       <p>شناسه مرجع: <bdi dir="ltr">{invoice?.uniqueInvoiceId??"نامشخص"}</bdi></p>
+       <p role="status">مسیر ثبت و ارسال سند ابطالی در Backend هنوز آماده نیست. برای جلوگیری از ابطال اشتباه، ثبت درخواست فعلاً غیرفعال است.</p>
+       <div style={{display:"flex",gap:8}}><button type="button" className="identity-secondary" onClick={()=>setCancelOpen(false)}>بازگشت</button><button type="button" className="identity-primary" disabled title="ابتدا باید سرویس Backend صدور ابطالی مستقل تکمیل شود">تأیید و ارسال ابطال</button></div>
+      </div>}
       {invoice && (
         <>
           <InvoiceHeader invoice={invoice} reference={reference} />
           <InvoiceLines lines={invoice.lines} />
           <InvoiceTotals invoice={invoice} />
-          {!readOnly && <AuthorityActions authorityStatus={authorityStatus} />}
+          {!readOnly && <AuthorityActions authorityStatus={authorityStatus} onCancel={()=>setCancelOpen(true)} />}
         </>
       )}
     </section>
