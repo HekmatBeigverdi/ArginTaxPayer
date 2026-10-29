@@ -67,7 +67,7 @@ ORDER BY d.invoice_revision DESC,d.created_at_utc DESC LIMIT 1
             if(!await reader.ReadAsync(ct))
                 return (InvoiceApiDecision.Success,new(false,false,false,Array.Empty<InvoiceLineageNode>()));
             var state=reader.GetInt32(0);
-            var created=reader.GetDateTime(1);
+            // Dispatch operation creation is not proof of the external send time.
             var reference=reader.IsDBNull(2)?null:reader.GetString(2);
             var official=reader.IsDBNull(3)?null:reader.GetString(3);
             var taxId=reader.IsDBNull(4)?null:reader.GetString(4);
@@ -78,7 +78,7 @@ ORDER BY d.invoice_revision DESC,d.created_at_utc DESC LIMIT 1
             // A prepared/armed operation is not evidence of an actual submission attempt.
             var attempted=state is 4 or 5 or 6;
             var node=new InvoiceLineageNode(invoiceId,invoice.Subject.ToString(),taxId,
-                invoice.IssueDateUtc,label,reference,official,attempted?created:null);
+                invoice.IssueDateUtc,label,reference,official,null);
             return (InvoiceApiDecision.Success,
                 new(attempted,false,state is 4 or 6,new[]{node}));
         }
