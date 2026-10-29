@@ -32,3 +32,11 @@ Never confuse internal workspace revisions with separate fiscal documents.
 6. Repeated reload persists graph.
 7. 15-row pagination retains row action, data loaded only when clicked.
 8. Real Sandbox integration test after each lawful successor type; no success badge until confirmed by official inquiry.
+
+## Implementation log — Step25 started (2026-10-29)
+
+- **Slice A committed:** scoped .NET read service, `GET /dispatch/lineage`, protected Next.js BFF, conditional invoice-list chain action, compact read-only timeline modal, and contract tests.
+- This first slice intentionally reports **only the selected existing invoice** from trusted dispatch, serial reservation and authority-report tables. It does **not** fabricate legal predecessor links or mark unverified related documents as accepted.
+- **Remaining Step25 tasks:** add durable lineage edge storage and migration, write-side creation safeguards for correction/cancellation/sales return, integrate actual links in graph and query, expand statuses to `تک‌ارسال`/`دارای تغییرات` grounded in backend graph data, and run full macOS acceptance + Sandbox evidence.
+- Not yet accepted: legal successor creation, graph arrows between distinct documents, real Sandbox multi-document chain. No irreversible fiscal operation is introduced by Slice A.
+- Tests: `node --test apps/web/tests/phase10-step25-lineage-initial.test.mjs`; full `dotnet build ArginTaxPayer.sln`, web typecheck/build and authenticated browser test are mandatory before acceptance.
