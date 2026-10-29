@@ -26,7 +26,11 @@ export async function POST(request:NextRequest,context:Context){
   const parsed:unknown=JSON.parse(raw);
   if(!parsed||typeof parsed!=="object"||Array.isArray(parsed))return fail(502,"invalid_cancellation_response");
   const data=parsed as Record<string,unknown>;
-  if(!response.ok)return fail(response.status,typeof data.error==="string"?data.error:"cancellation_failed");
+  if(!response.ok)return NextResponse.json({
+   error:typeof data.error==="string"?data.error:"cancellation_failed",
+   invoiceId:typeof data.invoiceId==="string"?data.invoiceId:null,
+   status:typeof data.status==="string"?data.status:null
+  },{status:response.status,headers:{"Cache-Control":"no-store"}});
   return NextResponse.json({
    invoiceId:typeof data.invoiceId==="string"?data.invoiceId:null,
    status:data.status==="Acknowledged"?"Acknowledged":"Blocked",
