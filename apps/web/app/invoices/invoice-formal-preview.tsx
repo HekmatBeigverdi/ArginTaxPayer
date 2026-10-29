@@ -37,6 +37,7 @@ type InvoiceFormalPreviewProps = {
   reference: string;
   authorityStatus?: string;
   readOnly?: boolean;
+  onCancellationCompleted?:()=>void;
 };
 
 const money = (value: number) =>
@@ -246,12 +247,16 @@ export default function InvoiceFormalPreview({
   reference,
   authorityStatus,
   readOnly = false,
+  onCancellationCompleted,
 }: InvoiceFormalPreviewProps) {
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [error, setError] = useState("");
   const [cancelOpen,setCancelOpen]=useState(false);
   const [cancelEligibility,setCancelEligibility]=useState<string>("");
   const [cancelChecking,setCancelChecking]=useState(false);
+  const [cancelSubmitting,setCancelSubmitting]=useState(false);
+  const [cancelEligible,setCancelEligible]=useState(false);
+  const [cancelOutcome,setCancelOutcome]=useState("");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -303,8 +308,22 @@ export default function InvoiceFormalPreview({
        <p>شناسه مرجع: <bdi dir="ltr">{invoice?.uniqueInvoiceId??"نامشخص"}</bdi></p>
        {cancelChecking&&<p role="status">در حال بررسی سند مرجع…</p>}
        {cancelEligibility&&<p role="status">{cancelEligibility}</p>}
-       <p role="status">مسیر ثبت و ارسال سند ابطالی در Backend هنوز آماده نیست. برای جلوگیری از ابطال اشتباه، ثبت درخواست فعلاً غیرفعال است.</p>
-       <div style={{display:"flex",gap:8}}><button type="button" className="identity-secondary" onClick={()=>setCancelOpen(false)}>بازگشت</button><button type="button" className="identity-primary" disabled title="ابتدا باید سرویس Backend صدور ابطالی مستقل تکمیل شود">تأیید و ارسال ابطال</button></div>
+       {cancelOutcome&&<p role="status">{cancelOutcome}</p>}
+       <div style={{display:"flex",gap:8}}><button type="button" className="identity-secondary" onClick={()=>setCancelOpen(false)}>بازگشت</button><button type="button" className="identity-primary" disabled={!cancelEligible||cancelChecking||cancelSubmitting}
+        onClick={()=>{if(cancelSubmitting||!cancelEligible)return;setCancelSubmitting(true);setCancelOutcome("در حال صدور و ارسال سند ابطالی…");
+         void fetch("/api/invoice-dispatch/"+encodeURIComponent(taxpayerId)+"/"+encodeURIComponent(invoiceId)+"/cancel-and-inquire",
+          {method:"POST",credentials:"same-origin",cache:"no-store"})
+          .then(async response=>{const data=await response.json() as Record<string,unknown>;
+           if(!response.ok)throw Error(String(data.error??response.status));
+           setCancelEligible(false);
+           setCancelOutcome("سند ابطالی با شناسه داخلی "+String(data.invoiceId??"—")+
+             " ثبت شد. وضعیت ارسال: "+String(data.status??"نامشخص")+
+             "؛ رهگیری: "+String(data.referenceNumber??"در انتظار بررسی")+
+             ". برای تأیید قطعی سازمان، نتیجه استعلام سند ابطالی را بررسی کنید.");
+           onCancellationCompleted?.();
+          })
+          .catch(e=>{setCancelEligible(false);setCancelOutcome("وضعیت ابطال نیازمند بررسی است: "+(e as Error).message+"؛ درخواست را تکرار نکنید.");})
+          .finally(()=>setCancelSubmitting(false));}}> {cancelSubmitting?"در حال ارسال…":"تأیید و ارسال ابطال"}</button></div>
       </div>}
       {invoice && (
         <>
@@ -312,9 +331,9 @@ export default function InvoiceFormalPreview({
           <InvoiceLines lines={invoice.lines} />
           <InvoiceTotals invoice={invoice} />
           {!readOnly && <AuthorityActions authorityStatus={authorityStatus} onCancel={()=>{
-            setCancelOpen(true);setCancelChecking(true);setCancelEligibility("");
+            setCancelOpen(true);setCancelChecking(true);setCancelEligibility("");setCancelEligible(false);setCancelOutcome("");
             void fetch("/api/invoice-dispatch/"+encodeURIComponent(taxpayerId)+"/"+encodeURIComponent(invoiceId)+"/cancellation-eligibility",{cache:"no-store",credentials:"same-origin"})
-              .then(async response=>{const value=await response.json();setCancelEligibility(response.ok&&value.eligible===true?"سند مرجع برای درخواست ابطال معتبر است.":"امکان ابطال تأیید نشد: "+String(value.code??value.error??response.status));})
+              .then(async response=>{const value=await response.json();setCancelEligible(response.ok&&value.eligible===true);setCancelEligibility(response.ok&&value.eligible===true?"سند مرجع برای درخواست ابطال معتبر است.":"امکان ابطال تأیید نشد: "+String(value.code??value.error??response.status));})
               .catch(()=>setCancelEligibility("بررسی امکان ابطال در دسترس نیست."))
               .finally(()=>setCancelChecking(false));
            }} />}
