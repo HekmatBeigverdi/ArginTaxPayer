@@ -36,6 +36,7 @@ type InvoiceFormalPreviewProps = {
   invoiceId: string;
   reference: string;
   authorityStatus?: string;
+  readOnly?: boolean;
 };
 
 const money = (value: number) =>
@@ -262,6 +263,7 @@ export default function InvoiceFormalPreview({
   invoiceId,
   reference,
   authorityStatus,
+  readOnly = false,
 }: InvoiceFormalPreviewProps) {
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [error, setError] = useState("");
@@ -315,7 +317,7 @@ export default function InvoiceFormalPreview({
           <InvoiceHeader invoice={invoice} reference={reference} />
           <InvoiceLines lines={invoice.lines} />
           <InvoiceTotals invoice={invoice} />
-          <AuthorityActions authorityStatus={authorityStatus} />
+          {!readOnly && <AuthorityActions authorityStatus={authorityStatus} />}
         </>
       )}
     </section>
