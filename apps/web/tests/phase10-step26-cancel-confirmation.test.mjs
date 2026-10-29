@@ -7,9 +7,10 @@ test("accepted fiscal invoice exposes cancellation confirmation without mutating
  assert.ok(ui.includes('role="dialog"'));
  assert.ok(ui.includes('غیرقابل بازگشت'));
  assert.ok(ui.includes('invoice?.uniqueInvoiceId'));
- assert.ok(ui.includes('title="ابتدا باید سرویس Backend صدور ابطالی مستقل تکمیل شود"'));
+ assert.ok(ui.includes("/cancel-and-inquire"));
+ assert.ok(ui.includes("disabled={!cancelEligible||cancelChecking||cancelSubmitting}"));
 });
-test("unsafe cancellation submission remains unavailable pending server transaction",()=>{
+test("cancellation submission is wired to authenticated backend endpoint",()=>{
  const api=read("src/ArginTaxPayer.Api/Invoices/Phase10InvoiceDispatchDevelopmentEndpoints.cs");
- assert.ok(!api.includes('MapPost("/cancel-and-inquire"'));
+ assert.ok(api.includes('MapPost("/cancel-and-inquire"'));
 });
