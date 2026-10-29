@@ -839,12 +839,12 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
           <button type="button" className="identity-secondary" onClick={() => {setDetail(null);void reload();}}
             aria-label="بستن جزئیات">×</button>
         </div>
-        <details name="invoice-detail-sections" className="fiscal-section invoice-detail-section" open key={"invoice-section:"+detail.id}><summary>صورتحساب فروش</summary>
+        <details name="invoice-detail-sections" className="fiscal-section invoice-detail-section" open key={"invoice-section:"+detail.id}><summary><span>صورتحساب فروش</span><span className="invoice-detail-section__summary-action">مشاهده جزئیات</span></summary>
         <div className="fiscal-section-content invoice-detail-section__content">
         <InvoiceFormalPreview key={"formal:"+detail.id} taxpayerId={detail.taxpayerId} invoiceId={detail.id} reference={detail.systemCode??""} authorityStatus={detail.authorityStatus}/>
         </div>
         </details>
-        <details name="invoice-detail-sections" className="fiscal-section invoice-detail-section"><summary>مشخصات داخلی و فنی صورتحساب</summary>
+        <details name="invoice-detail-sections" className="fiscal-section invoice-detail-section"><summary><span>مشخصات داخلی و فنی صورتحساب</span><span className="invoice-detail-section__summary-action">مشاهده جزئیات</span></summary>
         <div className="fiscal-section-content invoice-detail-section__content">
         <dl className="invoice-register__totals">
           <dt>شناسه سیستمی</dt><dd dir="ltr">{detail.systemCode || "در انتظار تخصیص"}</dd>
@@ -860,14 +860,14 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
         <p className="field-hint">این وضعیت به معنی تأیید سازمان امور مالیاتی نیست.</p>
         </div>
         </details>
-        <details name="invoice-detail-sections" className="fiscal-section invoice-detail-section"><summary>{detail.authorityStatus==="SUCCESS"||detail.authorityStatus==="FAILED"||detail.authorityStatus==="PENDING"||detail.authorityStatus==="ACKNOWLEDGED"?"استعلام و نتیجه سازمان":"ارسال به سامانه مؤدیان"}</summary>
+        <details name="invoice-detail-sections" className="fiscal-section invoice-detail-section"><summary><span>{detail.authorityStatus==="SUCCESS"||detail.authorityStatus==="FAILED"||detail.authorityStatus==="PENDING"||detail.authorityStatus==="ACKNOWLEDGED"?"استعلام و نتیجه سازمان":"ارسال به سامانه مؤدیان"}</span><span className="invoice-detail-section__summary-action">مشاهده جزئیات</span></summary>
         <div className="fiscal-section-content invoice-detail-section__content">
         <InvoiceSendReadinessPanel key={"readiness:"+detail.id}
           invoiceId={detail.id} taxpayerId={detail.taxpayerId}
           isWorkspace={detail.kind === "workspace"} hideHistory={true} onCompleted={()=>void reload()}/>
         </div>
         </details>
-        <details name="invoice-detail-sections" className="fiscal-section invoice-detail-section"><summary>تاریخچه ارسال و استعلام</summary>
+        <details name="invoice-detail-sections" className="fiscal-section invoice-detail-section"><summary><span>تاریخچه ارسال و استعلام</span><span className="invoice-detail-section__summary-action">مشاهده جزئیات</span></summary>
           <div className="fiscal-section-content invoice-detail-section__content">
           <InvoiceDispatchHistory taxpayerId={detail.taxpayerId} invoiceId={detail.id}/>
           </div>

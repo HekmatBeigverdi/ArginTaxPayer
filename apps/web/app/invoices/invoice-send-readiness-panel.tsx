@@ -25,6 +25,14 @@ type AuthorityResult={status:"FAILED"|"SUCCESS"|"PENDING"|"UNKNOWN";
 const authorityLabels:Record<AuthorityResult["status"],string>={
  FAILED:"رد شده توسط سازمان",SUCCESS:"نتیجه موفق در Sandbox",
  PENDING:"در انتظار نتیجه سازمان",UNKNOWN:"نتیجه سازمان نامشخص است"};
+const formatObservedAt=(value:string)=>{
+ const date=new Date(value);
+ if(Number.isNaN(date.getTime()))return value;
+ return new Intl.DateTimeFormat("fa-IR-u-ca-persian",{
+  timeZone:"Asia/Tehran",year:"numeric",month:"2-digit",day:"2-digit",
+  hour:"2-digit",minute:"2-digit",second:"2-digit",hourCycle:"h23"
+ }).format(date);
+};
 type Review={state:"Draft"|"InReview"|"ChangesRequested"|"Approved";revision:number};
 const labels:Record<string,string>={
  "invoice.snapshot.invalid":"ساختار نسخه ذخیره‌شده قابل تأیید نیست",
@@ -57,6 +65,7 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
  const [dispatchLoading,setDispatchLoading]=useState(false);
  const [dispatchFeedback,setDispatchFeedback]=useState("");
  const [authority,setAuthority]=useState<{scope:string;result:AuthorityResult|null;referenceNumber:string|null}|null>(null);
+ const [authorityLoading,setAuthorityLoading]=useState(false);
  const [authorityError,setAuthorityError]=useState("");
  const [correctionUrl,setCorrectionUrl]=useState("");
  const [calculationAudit,setCalculationAudit]=useState<CalculationAudit|null>(null);
@@ -69,6 +78,7 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
  const authoritySequence=useRef(0);
  const loadAuthorityReport=useCallback(async(signal:AbortSignal)=>{
   if(isWorkspace)return;
+  setAuthorityLoading(true);
   const sequence=++authoritySequence.current;
   try{
    const response=await fetch("/api/invoice-dispatch/"+encodeURIComponent(taxpayerId)+"/"+
@@ -81,6 +91,7 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
      referenceNumber:data.referenceNumber??null});setAuthorityError("");
    }
   }catch(e){if(!signal.aborted&&sequence===authoritySequence.current)setAuthorityError((e as Error).message);}
+  finally{if(!signal.aborted)setAuthorityLoading(false);}
  },[isWorkspace,taxpayerId,invoiceId]);
  const loadCalculationAudit=useCallback(async()=>{
   if(isWorkspace)return;
@@ -543,13 +554,14 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
     {item.actual!==null&&<>؛ مقدار فعلی: <bdi dir="ltr">{item.actual}</bdi></>}
    </li>)}</ul>
   </section>:null}
-  <details aria-label="استعلام و گزارش سازمان" onToggle={event=>{
+  <details className="fiscal-section invoice-inquiry-section" aria-label="استعلام و گزارش سازمان" onToggle={event=>{
     if(event.currentTarget.open&&dispatch?.status==="Acknowledged"){
      const controller=authorityController.current;
      if(controller&&!controller.signal.aborted)void loadAuthorityReport(controller.signal);
     }
    }}>
-   <summary>استعلام و گزارش نتیجه سازمان (باز کردن در صورت نیاز)</summary>
+   <summary><span>برای مشاهده استعلام و گزارش نتیجه سازمان کلیک کنید</span><span className="invoice-inquiry-section__action">مشاهده گزارش</span></summary>
+  {authorityLoading&&<p className="invoice-inquiry-section__loading" role="status" aria-live="polite"><span aria-hidden="true"/>در حال دریافت گزارش استعلام…</p>}
   {report?.environment==="Sandbox"&&dispatch?.status==="Acknowledged"&&
    <button type="button" className="identity-secondary" disabled={actionBusy||busy}
     onClick={()=>void inquireByReference()}>{actionBusy?"در حال استعلام…":"استعلام شماره رهگیری از Sandbox"}</button>}
@@ -562,7 +574,7 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
    <h4>نتیجه استعلام سازمان: {authorityLabels[authorityResult.status]}</h4>
    <p className="field-hint">شماره رهگیری: رسید درخواست، نه تأیید نهایی.</p>
    {authority?.referenceNumber&&<p>شماره مرجع: <b dir="ltr">{authority.referenceNumber}</b></p>}
-   <p>زمان مشاهده: <time dir="ltr">{authorityResult.observedAtUtc}</time></p>
+   <p>زمان مشاهده: <time dir="ltr" dateTime={authorityResult.observedAtUtc}>{formatObservedAt(authorityResult.observedAtUtc)}</time></p>
    <h5>خطاهای سازمان</h5>
    <ul>{authorityResult.errors.map((item,index)=><li key={index}><b dir="ltr">{item.code}</b> — {item.message}</li>)}</ul>
    <h5>هشدارهای سازمان</h5>

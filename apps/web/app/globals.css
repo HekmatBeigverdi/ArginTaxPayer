@@ -743,6 +743,93 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 .fiscal-section > summary { cursor:pointer; padding:10px 12px; font-size:13px; font-weight:700; color:#205c60; background:#f0f7f6; border-radius:8px; }
 .fiscal-section > summary:focus-visible { outline:2px solid var(--argin-primary); outline-offset:2px; }
 .fiscal-section-content { padding:12px; max-height:52dvh; overflow:auto; }
+.invoice-inquiry-section {
+  margin-top:4px;
+  border:1px solid #b7d8d5;
+  border-radius:10px;
+  background:#fbfefd;
+  overflow:hidden;
+}
+.invoice-inquiry-section > summary {
+  display:flex;
+  align-items:center;
+  gap:10px;
+  min-height:46px;
+  padding:9px 12px;
+  cursor:pointer;
+  color:#145d62;
+  background:#eaf6f4;
+  font-weight:700;
+  line-height:1.8;
+  transition:background-color .16s ease, box-shadow .16s ease;
+}
+.invoice-inquiry-section > summary:hover { background:#dff0ed; }
+.invoice-inquiry-section > summary:focus-visible {
+  outline:2px solid var(--argin-primary);
+  outline-offset:-2px;
+  box-shadow:0 0 0 3px rgba(32,92,96,.14);
+}
+.invoice-inquiry-section > summary::marker { color:#17666b; }
+.invoice-inquiry-section > summary::after {
+  content:"⌄";
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:25px;
+  height:25px;
+  margin-inline-start:auto;
+  border:1px solid #72ada8;
+  border-radius:50%;
+  color:#17666b;
+  background:#fff;
+  font-size:17px;
+  line-height:1;
+  transition:transform .16s ease, background-color .16s ease;
+}
+.invoice-inquiry-section:not([open]) > summary::after { transform:rotate(180deg); }
+.invoice-inquiry-section__action {
+  flex:none;
+  padding:3px 9px;
+  border:1px solid #8fc2bd;
+  border-radius:999px;
+  color:#145d62;
+  background:#fff;
+  font-size:11px;
+  white-space:nowrap;
+}
+.invoice-inquiry-section > button {
+  display:block;
+  margin:12px auto 0;
+}
+.invoice-inquiry-section > :is(h4,p,ul) {
+  margin-inline:12px;
+  padding-inline:12px;
+}
+.invoice-inquiry-section > div {
+  padding-inline:12px;
+}
+.invoice-inquiry-section__loading {
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  margin:12px;
+  padding:10px 12px;
+  border:1px solid #c6dfdc;
+  border-radius:8px;
+  color:#28666a;
+  background:#f2faf9;
+  font-size:12px;
+}
+.invoice-inquiry-section__loading > span {
+  width:14px;
+  height:14px;
+  flex:none;
+  border:2px solid #b8d8d5;
+  border-top-color:#17666b;
+  border-radius:50%;
+  animation:argin-spin .75s linear infinite;
+}
 .fiscal-dialog .taxpayer-workspace-single, .fiscal-dialog .taxpayer-sections-grid { display:block; }
 .fiscal-dialog .argin-memory-step { margin:0; padding:0; border:0; }
 .fiscal-dialog .invoice-participant { margin:0; }
@@ -907,6 +994,9 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
   overflow:hidden;
 }
 .invoice-register__detail-modal .invoice-detail-section > summary {
+  display:flex;
+  align-items:center;
+  gap:10px;
   cursor:pointer;
   padding:10px 12px;
   font-size:13px;
@@ -914,6 +1004,45 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
   color:#205c60;
   background:#f0f7f6;
   border-radius:8px;
+  transition:background-color .16s ease, box-shadow .16s ease;
+}
+.invoice-register__detail-modal .invoice-detail-section > summary:hover {
+  background:#e3f1ef;
+}
+.invoice-register__detail-modal .invoice-detail-section > summary::marker {
+  color:#17666b;
+}
+.invoice-register__detail-modal .invoice-detail-section > summary::after {
+  content:"⌄";
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:22px;
+  height:22px;
+  margin-inline-start:auto;
+  border:1px solid #9fc8c5;
+  border-radius:50%;
+  color:#17666b;
+  font-size:16px;
+  line-height:1;
+  transition:transform .16s ease, background-color .16s ease;
+}
+.invoice-register__detail-modal .invoice-detail-section:not([open]) > summary::after {
+  transform:rotate(180deg);
+}
+.invoice-register__detail-modal .invoice-detail-section > summary:hover::after {
+  background:#d5e9e7;
+}
+.invoice-register__detail-modal .invoice-detail-section__summary-action {
+  flex:none;
+  padding:3px 8px;
+  border:1px solid #b9d7d4;
+  border-radius:999px;
+  color:#397074;
+  background:#fff;
+  font-size:11px;
+  font-weight:600;
+  white-space:nowrap;
 }
 .invoice-register__detail-modal .invoice-detail-section[open] > summary {
   border-radius:8px 8px 0 0;
@@ -926,4 +1055,5 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 .invoice-register__detail-modal .invoice-detail-section > summary:focus-visible {
   outline:2px solid var(--argin-primary);
   outline-offset:-2px;
+  box-shadow:0 0 0 3px rgba(32,92,96,.14);
 }

@@ -217,7 +217,7 @@ export default function InvoiceDispatchHistory({
       dir="rtl"
       aria-label="جزئیات تاریخچه ارسال"
       className="invoice-dispatch-history"
-      style={{ background:"transparent", padding: "4px 0", fontSize: 12, lineHeight: 1.55 }}
+      style={{ background:"transparent", padding: "4px 12px", fontSize: 12, lineHeight: 1.55 }}
     >
       <button
         type="button"
