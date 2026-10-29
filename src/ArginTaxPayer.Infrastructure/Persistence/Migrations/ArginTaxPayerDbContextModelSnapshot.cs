@@ -22,35 +22,6 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Signing.DbSigningKeyEnvelope", b =>
-                {
-                    b.Property<Guid>("KeyVersionId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("key_version_id");
-                    b.Property<Guid>("CustomerUserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("customer_user_id");
-                    b.Property<Guid>("TaxpayerId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("taxpayer_id");
-                    b.Property<Guid>("FiscalMemoryId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("fiscal_memory_id");
-                    b.Property<Guid>("OriginOperationRecordId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("origin_operation_record_id");
-                    b.Property<string>("EnvelopeJson")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("envelope_json");
-                    b.Property<int>("Version")
-                        .HasColumnType("integer")
-                        .HasColumnName("version");
-                    b.HasKey("KeyVersionId");
-                    b.ToTable("signing_private_key_envelopes");
-                });
-
-
             modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Catalog.CatalogItemUnitConversion", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2075,6 +2046,43 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Signing.DbSigningKeyEnvelope", b =>
+                {
+                    b.Property<Guid>("KeyVersionId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("key_version_id");
+
+                    b.Property<Guid>("CustomerUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("customer_user_id");
+
+                    b.Property<string>("EnvelopeJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("envelope_json");
+
+                    b.Property<Guid>("FiscalMemoryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("fiscal_memory_id");
+
+                    b.Property<Guid>("OriginOperationRecordId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("origin_operation_record_id");
+
+                    b.Property<Guid>("TaxpayerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("taxpayer_id");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("integer")
+                        .HasColumnName("version");
+
+                    b.HasKey("KeyVersionId");
+
+                    b.ToTable("signing_private_key_envelopes", (string)null);
+                });
+
             modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Signing.SigningAuditEvent", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3063,6 +3071,11 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(256)")
                         .HasColumnName("new_display_name");
 
+                    b.Property<string>("NewNormalizedIdentifier")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("new_normalized_identifier");
+
                     b.Property<int>("NewStatus")
                         .HasColumnType("integer")
                         .HasColumnName("new_status");
@@ -3072,6 +3085,11 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)")
                         .HasColumnName("prior_display_name");
+
+                    b.Property<string>("PriorNormalizedIdentifier")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("prior_normalized_identifier");
 
                     b.Property<int>("PriorStatus")
                         .HasColumnType("integer")

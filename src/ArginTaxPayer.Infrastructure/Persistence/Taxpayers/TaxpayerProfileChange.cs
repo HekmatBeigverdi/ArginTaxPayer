@@ -12,6 +12,8 @@ public sealed class TaxpayerProfileChange
     public long ToRevision { get; set; }
     public string PriorDisplayName { get; set; } = string.Empty;
     public string NewDisplayName { get; set; } = string.Empty;
+    public string? PriorNormalizedIdentifier { get; set; }
+    public string? NewNormalizedIdentifier { get; set; }
     public TaxpayerStatus PriorStatus { get; set; }
     public TaxpayerStatus NewStatus { get; set; }
     public DateTime ChangedAtUtc { get; set; }

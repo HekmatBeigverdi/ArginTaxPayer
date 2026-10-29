@@ -1,6 +1,7 @@
 using ArginTaxPayer.Infrastructure.Persistence.Identity;
 using ArginTaxPayer.Infrastructure.Persistence.Parties;
 using ArginTaxPayer.Domain.Taxpayers;
+using ArginTaxPayer.Domain.Invoices;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 
@@ -9,6 +10,7 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Taxpayers;
 public enum TaxpayerScopeDecision { Allowed, Unauthenticated, Forbidden, NotFound, Conflict, Invalid }
 public sealed record ScopedTaxpayerResult(TaxpayerScopeDecision Decision, TaxpayerProfileView? Profile = null);
 public sealed record ScopedRenameRequest(string? DisplayName, long ExpectedRevision);
+public sealed record ScopedIdentifierRequest(string? Identifier, long ExpectedRevision);
 public sealed record ScopedArchiveRequest(long ExpectedRevision);
 public sealed record ScopedTaxpayerListResult(TaxpayerScopeDecision Decision, TaxpayerProfileView[]? Profiles = null);
 
@@ -215,6 +217,79 @@ public sealed class TaxpayerScopeService(ArginTaxPayerDbContext db, IdentityAuth
         {
             db.ChangeTracker.Clear();
             return new ScopedTaxpayerResult(TaxpayerScopeDecision.Conflict);
+        }
+    }
+
+    public async Task<ScopedTaxpayerResult> ChangeIdentifierAsync(
+        string? token, Guid taxpayerId, ScopedIdentifierRequest? request, CancellationToken ct = default)
+    {
+        var actor = await ResolveAsync(token, ct);
+        if (actor.Decision != TaxpayerScopeDecision.Allowed) return new(actor.Decision);
+        if (request is null || request.ExpectedRevision < 1 || taxpayerId == Guid.Empty ||
+            string.IsNullOrWhiteSpace(request.Identifier))
+            return new(TaxpayerScopeDecision.Invalid);
+        try
+        {
+            return await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+            {
+                await using var tx = await db.Database.BeginTransactionAsync(
+                    System.Data.IsolationLevel.Serializable, ct);
+                var previous = await ScopedQuery(actor.ActorId, actor.Level1)
+                    .Where(p => p.Id == taxpayerId)
+                    .Select(p => new { p.CustomerUserId, p.Kind, p.NormalizedIdentifier,
+                        p.DisplayName, p.Status, p.Revision })
+                    .SingleOrDefaultAsync(ct);
+                if (previous is null || previous.CustomerUserId is null)
+                    return new ScopedTaxpayerResult(TaxpayerScopeDecision.NotFound);
+                if (!await participantScope.CanManageAsync(actor.ActorId, previous.CustomerUserId.Value, ct))
+                    return new ScopedTaxpayerResult(TaxpayerScopeDecision.Forbidden);
+                if (previous.Revision != request.ExpectedRevision || previous.Status == TaxpayerStatus.Archived)
+                    return new ScopedTaxpayerResult(TaxpayerScopeDecision.Conflict);
+                if (!IranianTaxpayerIdentifier.TryNormalize(previous.Kind, request.Identifier, out var identifier))
+                    return new ScopedTaxpayerResult(TaxpayerScopeDecision.Invalid);
+                if (identifier == previous.NormalizedIdentifier)
+                    return new ScopedTaxpayerResult(TaxpayerScopeDecision.Invalid);
+                if (await db.TaxpayerProfiles.AnyAsync(p => p.Id != taxpayerId &&
+                    p.CustomerUserId == previous.CustomerUserId && p.Kind == previous.Kind &&
+                    p.NormalizedIdentifier == identifier, ct))
+                    return new ScopedTaxpayerResult(TaxpayerScopeDecision.Conflict);
+                if (await db.InvoiceDocuments.AnyAsync(i => i.TaxpayerId == taxpayerId &&
+                    i.State != InvoiceLifecycleState.Draft, ct))
+                    return new ScopedTaxpayerResult(TaxpayerScopeDecision.Conflict);
+                var now = DateTime.UtcNow;
+                var changed = await ScopedCommandQuery(actor.ActorId, actor.Level1)
+                    .Where(p => p.Id == taxpayerId && p.Revision == request.ExpectedRevision &&
+                        p.NormalizedIdentifier == previous.NormalizedIdentifier && p.Status == previous.Status)
+                    .ExecuteUpdateAsync(set => set.SetProperty(p => p.NormalizedIdentifier, identifier)
+                        .SetProperty(p => p.Revision, p => p.Revision + 1)
+                        .SetProperty(p => p.UpdatedAtUtc, now), ct);
+                if (changed != 1) return new ScopedTaxpayerResult(TaxpayerScopeDecision.Conflict);
+                db.TaxpayerProfileChanges.Add(new TaxpayerProfileChange
+                {
+                    Id = Guid.NewGuid(), TaxpayerId = taxpayerId, ActorUserId = actor.ActorId,
+                    FromRevision = previous.Revision, ToRevision = previous.Revision + 1,
+                    PriorDisplayName = previous.DisplayName, NewDisplayName = previous.DisplayName,
+                    PriorNormalizedIdentifier = previous.NormalizedIdentifier,
+                    NewNormalizedIdentifier = identifier,
+                    PriorStatus = previous.Status, NewStatus = previous.Status, ChangedAtUtc = now
+                });
+                await db.SaveChangesAsync(ct);
+                await tx.CommitAsync(ct);
+                return new ScopedTaxpayerResult(TaxpayerScopeDecision.Allowed,
+                    new TaxpayerProfileView(taxpayerId, previous.Kind, identifier,
+                        previous.DisplayName, previous.Status, previous.Revision + 1));
+            });
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException
+            { SqlState: PostgresErrorCodes.UniqueViolation })
+        {
+            db.ChangeTracker.Clear();
+            return new(TaxpayerScopeDecision.Conflict);
+        }
+        catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.SerializationFailure)
+        {
+            db.ChangeTracker.Clear();
+            return new(TaxpayerScopeDecision.Conflict);
         }
     }
 

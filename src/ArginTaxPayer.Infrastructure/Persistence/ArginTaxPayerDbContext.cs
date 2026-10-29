@@ -489,6 +489,8 @@ public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbConte
         changes.Property(x => x.ToRevision).HasColumnName("to_revision");
         changes.Property(x => x.PriorDisplayName).HasColumnName("prior_display_name").HasMaxLength(256).IsRequired();
         changes.Property(x => x.NewDisplayName).HasColumnName("new_display_name").HasMaxLength(256).IsRequired();
+        changes.Property(x => x.PriorNormalizedIdentifier).HasColumnName("prior_normalized_identifier").HasMaxLength(32);
+        changes.Property(x => x.NewNormalizedIdentifier).HasColumnName("new_normalized_identifier").HasMaxLength(32);
         changes.Property(x => x.PriorStatus).HasColumnName("prior_status").HasConversion<int>();
         changes.Property(x => x.NewStatus).HasColumnName("new_status").HasConversion<int>();
         changes.Property(x => x.ChangedAtUtc).HasColumnName("changed_at_utc").HasColumnType("timestamp with time zone");

@@ -10,6 +10,10 @@ test("one-click cancel has separate immutable successor and fiscal reference",()
  for(const name of ["InvoiceSubject.Cancellation","InvoiceDocumentRevisions.Add","sandbox_invoice_legal_relations","referenceTaxId","submission.SendAsync","argintaxpayer_test"])
   assert.ok(service.includes(name),name);
 });
+test("cancellation transaction is executed through the configured EF retry strategy",()=>{
+ const service=read("src/ArginTaxPayer.Infrastructure/Persistence/Invoices/Phase10SandboxCancellationService.cs");
+ assert.match(service,/CreateExecutionStrategy\(\)\.ExecuteAsync/);
+});
 test("backend cancel route and BFF are wired with same-origin protection",()=>{
  const api=read("src/ArginTaxPayer.Api/Invoices/Phase10InvoiceDispatchDevelopmentEndpoints.cs");
  const bff=read("apps/web/app/api/invoice-dispatch/[taxpayerId]/[invoiceId]/cancel-and-inquire/route.ts");

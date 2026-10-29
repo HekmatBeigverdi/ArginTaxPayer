@@ -29,6 +29,7 @@ public sealed class Phase10SandboxCancellationService(
    return new(eligible.Decision,eligible.Code);
   var successor=Guid.NewGuid();
   try{
+   var transactionResult = await db.Database.CreateExecutionStrategy().ExecuteAsync<CancellationSendResult?>(async () => {
    await using var tx=await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable,ct);
    var current=await db.InvoiceDocuments.AsNoTracking().SingleOrDefaultAsync(i=>
     i.Id==predecessorId&&i.TaxpayerId==taxpayerId&&i.CustomerUserId==owner.Value,ct);
@@ -75,6 +76,9 @@ VALUES ({Guid.NewGuid()},{owner.Value},{taxpayerId},{predecessorId},{successor},
 {predecessorTaxId},3,1,{"cancel:"+predecessorId.ToString("N")},{"user-confirmed"},{now})
 """,ct);
    await tx.CommitAsync(ct);
+   return null;
+   });
+   if(transactionResult is not null)return transactionResult;
   }catch(DbUpdateException ex)when(ex.InnerException is PostgresException {SqlState:PostgresErrorCodes.UniqueViolation}){
    return new(InvoiceApiDecision.Conflict,"cancellation_already_requested");
   }catch(PostgresException ex)when(ex.SqlState is PostgresErrorCodes.UniqueViolation or PostgresErrorCodes.SerializationFailure){

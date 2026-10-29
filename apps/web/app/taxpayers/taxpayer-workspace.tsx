@@ -51,6 +51,7 @@ export default function TaxpayerWorkspace({ isLevel1, initialTaxpayerId, showCre
   const [newName, setNewName] = useState("");
   const [newCustomerId, setNewCustomerId] = useState("");
   const [editName, setEditName] = useState("");
+  const [editIdentifier, setEditIdentifier] = useState("");
   const [newMemory, setNewMemory] = useState("");
 
   const reload = useCallback(async () => {
@@ -79,7 +80,8 @@ export default function TaxpayerWorkspace({ isLevel1, initialTaxpayerId, showCre
       const [profile, list] = await Promise.all([
         request<Taxpayer>("/" + id), request<Memory[]>("/" + id + "/memories")
       ]);
-      setDetails(profile); setEditName(profile.displayName); setMemories(list);
+      setDetails(profile); setEditName(profile.displayName);
+      setEditIdentifier(profile.normalizedIdentifier); setMemories(list);
     } catch (ex) { setDetailsError((ex as Error).message); }
     finally { setDetailsLoading(false); }
   }, []);
@@ -104,6 +106,18 @@ export default function TaxpayerWorkspace({ isLevel1, initialTaxpayerId, showCre
       setDetails(updated); setNotice("نام نمایشی تغییر کرد و سابقه تغییر ثبت شد.");
       await reload();
     } catch (ex) { setError((ex as Error).message); } finally { setBusy(false); }
+  }
+  async function changeIdentifier(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); if (!details || busy) return;
+    setBusy(true); setError(""); setNotice("");
+    try {
+      const updated = await request<Taxpayer>("/" + details.id + "/legal-identifier", "PATCH",
+        { identifier: editIdentifier, expectedRevision: details.revision });
+      setDetails(updated); setEditIdentifier(updated.normalizedIdentifier);
+      setNotice("شناسه قانونی مؤدی تغییر کرد؛ این تغییر فقط برای مؤدی بدون صورتحساب صادرشده مجاز است.");
+      await reload();
+    } catch (ex) { setError((ex as Error).message); }
+    finally { setBusy(false); }
   }
   async function addMemory(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (!details || busy) return;
@@ -163,7 +177,15 @@ export default function TaxpayerWorkspace({ isLevel1, initialTaxpayerId, showCre
               onChange={e => setEditName(e.target.value)}/>
             <button type="submit" className="identity-primary" disabled={busy || editName.trim() === details.displayName}>ذخیره نام</button>
           </form>}
-          <p className="field-hint">ویرایش نام به معنای تغییر شناسه رسمی، مالکیت مؤدی یا حافظه مالیاتی نیست.</p>
+          <p className="field-hint">شناسه قانونی با شماره اقتصادی بخش اطلاعات مالیاتی متفاوت است.</p>
+          {isLevel1 && <form className="identity-form" onSubmit={changeIdentifier}>
+            <label htmlFor="taxpayer-legal-identifier">ویرایش شناسه قانونی مؤدی</label>
+            <input id="taxpayer-legal-identifier" dir="ltr" inputMode="numeric" required maxLength={11}
+              value={editIdentifier} onChange={e => setEditIdentifier(e.target.value)}/>
+            <small>این تغییر فقط برای مؤدی‌ای مجاز است که هنوز صورتحساب صادرشده ندارد.</small>
+            <button type="submit" className="identity-primary"
+              disabled={busy || editIdentifier.trim() === details.normalizedIdentifier}>ذخیره شناسه قانونی</button>
+          </form>}
         </article>}
         <details name="fiscal-sections" className="fiscal-section">
           <summary>حافظه‌های مالیاتی{detailsLoading && <SectionLoading />}</summary>
