@@ -113,7 +113,7 @@ ORDER BY rel.created_at_utc,rel.id
             await using var next=await related.ExecuteReaderAsync(ct);
             while(await next.ReadAsync(ct))
             {
-                var dispatchState=next.IsDBNull(7)?0:next.GetInt32(7);
+                var dispatchState=next.IsDBNull(6)?0:next.GetInt32(6);
                 var status=dispatchState switch{1=>"Prepared",3=>"Reserved",4=>"Sending",
                     5=>"Acknowledged",6=>"Indeterminate",_=>"NotPrepared"};
                 nodes.Add(new(next.GetGuid(0),
