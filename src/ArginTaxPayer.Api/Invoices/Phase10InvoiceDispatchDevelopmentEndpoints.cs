@@ -19,6 +19,25 @@ public static class Phase10InvoiceDispatchDevelopmentEndpoints
         var group = routes.MapGroup("/api/dev/taxpayers/{taxpayerId:guid}/invoices/{invoiceId:guid}/dispatch")
             .WithTags("Invoice Dispatch (Development, Disabled)");
 
+        group.MapPost("/cancel-and-inquire",async(Guid taxpayerId,Guid invoiceId,
+            HttpContext http,Phase10SandboxCancellationService service,CancellationToken ct)=>{
+            if(!Local(http))return Results.NotFound();
+            http.Response.Headers.CacheControl="no-store";
+            var result=await service.SendAsync(Token(http),taxpayerId,invoiceId,ct);
+            return result.Decision switch{
+                InvoiceApiDecision.Success=>Results.Ok(new{
+                    invoiceId=result.InvoiceId,status=result.Status,
+                    referenceNumber=result.ReferenceNumber,inquiryCode=result.InquiryCode,
+                    code=result.Code}),
+                InvoiceApiDecision.Unauthenticated=>Results.Unauthorized(),
+                InvoiceApiDecision.Forbidden=>Results.StatusCode(403),
+                InvoiceApiDecision.NotFound=>Results.NotFound(),
+                InvoiceApiDecision.Conflict=>Results.Conflict(new{
+                    error=result.Code,invoiceId=result.InvoiceId,status=result.Status}),
+                _=>Results.BadRequest(new{
+                    error=result.Code,invoiceId=result.InvoiceId,status=result.Status})
+            };
+        });
         group.MapGet("/cancellation-eligibility",async(Guid taxpayerId,Guid invoiceId,
             HttpContext http,Phase10CancellationEligibilityService service,CancellationToken ct)=>{
             if(!Local(http))return Results.NotFound();
