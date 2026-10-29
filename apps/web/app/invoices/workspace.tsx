@@ -10,6 +10,7 @@ import InvoiceHistoryPanel from "./invoice-history-panel";
 import InvoiceSendReadinessPanel from "./invoice-send-readiness-panel";
 import InvoiceFormalPreview from "./invoice-formal-preview";
 import InvoiceDispatchHistory from "./invoice-dispatch-history";
+import InvoiceLineageModal from "./invoice-lineage-modal";
 import InvoiceImportPanel, {type ImportValues} from "./invoice-import-panel";
 import BulkInvoiceImportPanel from "./bulk-invoice-import-panel";
 import {invoicePreview} from "./invoice-financial-preview.mjs";
@@ -278,6 +279,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   const [otherTaxInput,setOtherTaxInput] = useState("0");
   const nextKey = useRef(0);
   const [detail, setDetail] = useState<Invoice | null>(null);
+  const [lineage, setLineage] = useState<Invoice | null>(null);
 
   useEffect(() => {
     if (!modal || !taxpayerId) { setHeaderOptions(null);setHeaderLoading(false);return; }
@@ -805,7 +807,13 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
             <td>{item.revision}</td>
             <td>{item.kind === "workspace" ? <button type="button" className="console-row-action"
               onClick={() => void editDraft(item)}>ویرایش و ادامه</button> :
-              <button type="button" className="console-row-action" onClick={()=>setDetail(item)}>مشاهده</button>}</td>
+              <span style={{display:"inline-flex",gap:5,alignItems:"center",flexWrap:"wrap"}}>
+               <button type="button" className="console-row-action" onClick={()=>setDetail(item)}>مشاهده</button>
+               {["ACKNOWLEDGED","SUCCESS","FAILED","PENDING","INDETERMINATE","SENDING"].includes(item.authorityStatus??"")&&
+                <button type="button" className="console-row-action" title="نمایش سوابق و شناسه‌های مالیاتی" onClick={()=>setLineage(item)}>
+                 ⛓ زنجیره
+                </button>}
+              </span>}</td>
           </tr>)}</tbody>
       </table>
     </div>
@@ -820,6 +828,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
       </div>
     </footer>
     {bulkOpen && <BulkInvoiceImportPanel onClose={()=>setBulkOpen(false)} onChanged={()=>void reload()}/>}
+    {lineage&&<InvoiceLineageModal taxpayerId={lineage.taxpayerId} invoiceId={lineage.id} onClose={()=>setLineage(null)}/>}
     {detail && <div className="invoice-register__overlay" onMouseDown={e => {
       if (e.currentTarget === e.target) {setDetail(null);void reload();}
     }}>
