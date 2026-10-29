@@ -250,6 +250,8 @@ export default function InvoiceFormalPreview({
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [error, setError] = useState("");
   const [cancelOpen,setCancelOpen]=useState(false);
+  const [cancelEligibility,setCancelEligibility]=useState<string>("");
+  const [cancelChecking,setCancelChecking]=useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -299,6 +301,8 @@ export default function InvoiceFormalPreview({
        <strong>درخواست ابطال صورتحساب</strong>
        <p>ابطال پس از پذیرش سازمان غیرقابل بازگشت است. سند اصلی نباید حذف یا ویرایش شود؛ سند ابطالی با شناسه مالیاتی جدید و ارجاع قانونی صادر می‌شود.</p>
        <p>شناسه مرجع: <bdi dir="ltr">{invoice?.uniqueInvoiceId??"نامشخص"}</bdi></p>
+       {cancelChecking&&<p role="status">در حال بررسی سند مرجع…</p>}
+       {cancelEligibility&&<p role="status">{cancelEligibility}</p>}
        <p role="status">مسیر ثبت و ارسال سند ابطالی در Backend هنوز آماده نیست. برای جلوگیری از ابطال اشتباه، ثبت درخواست فعلاً غیرفعال است.</p>
        <div style={{display:"flex",gap:8}}><button type="button" className="identity-secondary" onClick={()=>setCancelOpen(false)}>بازگشت</button><button type="button" className="identity-primary" disabled title="ابتدا باید سرویس Backend صدور ابطالی مستقل تکمیل شود">تأیید و ارسال ابطال</button></div>
       </div>}
@@ -307,7 +311,13 @@ export default function InvoiceFormalPreview({
           <InvoiceHeader invoice={invoice} reference={reference} />
           <InvoiceLines lines={invoice.lines} />
           <InvoiceTotals invoice={invoice} />
-          {!readOnly && <AuthorityActions authorityStatus={authorityStatus} onCancel={()=>setCancelOpen(true)} />}
+          {!readOnly && <AuthorityActions authorityStatus={authorityStatus} onCancel={()=>{
+            setCancelOpen(true);setCancelChecking(true);setCancelEligibility("");
+            void fetch("/api/invoice-dispatch/"+encodeURIComponent(taxpayerId)+"/"+encodeURIComponent(invoiceId)+"/cancellation-eligibility",{cache:"no-store",credentials:"same-origin"})
+              .then(async response=>{const value=await response.json();setCancelEligibility(response.ok&&value.eligible===true?"سند مرجع برای درخواست ابطال معتبر است.":"امکان ابطال تأیید نشد: "+String(value.code??value.error??response.status));})
+              .catch(()=>setCancelEligibility("بررسی امکان ابطال در دسترس نیست."))
+              .finally(()=>setCancelChecking(false));
+           }} />}
         </>
       )}
     </section>
