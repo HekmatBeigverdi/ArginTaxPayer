@@ -35,3 +35,11 @@
 - Only the isolated `argintaxpayer_test` database may create the successor. No Ubuntu acceptance until phase29.
 - **Operator acceptance still required**: run macOS dotnet build/test, Next typecheck/build, and send one accepted original through real Sandbox cancellation inquiry. The existence of commits does not establish that API, provider SDK and migration together execute successfully.
 - **Known follow-up**: effective subject projection of the original list row and multi-node lineage visual still require runtime verification and further integration.
+
+## Main overview presentation fix (2026-10-29)
+
+- Fiscal documents are immutable and remain independently stored, but the primary invoice overview is **one row per root**.
+- A legal successor (cancellation, and subsequently correction/return) is excluded from overview **before** pagination. Never delete it from invoice_documents.
+- The root row retains its original human-friendly system reference, root invoice ID, seller/buyer and history access. Subject, issue date and authority status reflect its most recent direct legal successor; this does not imply authority acceptance, which is shown separately by status.
+- The lineage modal loads root plus related distinct documents. Each accordion uses its own document ID and immutable snapshot; the arrows represent the reference relation.
+- Current implementation handles direct successors; chained descendants and sorting overview by effective last-event timestamp are future follow-up requirements. Test with a Sandbox cancellation and verify one row, original human reference and two accordion stages.
