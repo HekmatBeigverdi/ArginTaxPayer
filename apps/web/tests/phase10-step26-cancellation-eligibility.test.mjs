@@ -7,9 +7,9 @@ test("cancellation migration protects immutable predecessor link and active clai
  const s=read("src/ArginTaxPayer.Infrastructure/Persistence/Migrations/20261029121500_AddSandboxLegalInvoiceRelations.cs");
  for(const x of ["FOREIGN KEY","predecessor_invoice_id<>successor_invoice_id","ux_sandbox_legal_active_cancellation","idempotency_key"])assert.ok(s.includes(x),x);
 });
-test("UI shows preflight, no unsafe send before dedicated backend dispatcher exists",()=>{
+test("UI shows preflight and routes confirmed cancellation to dedicated backend",()=>{
  const s=read("apps/web/app/invoices/invoice-formal-preview.tsx");
  assert.ok(s.includes("/cancellation-eligibility"));
  assert.ok(s.includes("در حال بررسی سند مرجع"));
- assert.ok(s.includes("ابتدا باید سرویس Backend صدور ابطالی مستقل تکمیل شود"));
+ assert.ok(s.includes("/cancel-and-inquire"));
 });
