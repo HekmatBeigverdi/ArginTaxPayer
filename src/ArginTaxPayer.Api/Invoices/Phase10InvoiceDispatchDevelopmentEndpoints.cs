@@ -19,6 +19,20 @@ public static class Phase10InvoiceDispatchDevelopmentEndpoints
         var group = routes.MapGroup("/api/dev/taxpayers/{taxpayerId:guid}/invoices/{invoiceId:guid}/dispatch")
             .WithTags("Invoice Dispatch (Development, Disabled)");
 
+        group.MapGet("/cancellation-eligibility",async(Guid taxpayerId,Guid invoiceId,
+            HttpContext http,Phase10CancellationEligibilityService service,CancellationToken ct)=>{
+            if(!Local(http))return Results.NotFound();
+            http.Response.Headers.CacheControl="no-store";
+            var value=await service.ReadAsync(Token(http),taxpayerId,invoiceId,ct);
+            return value.Decision switch{
+                InvoiceApiDecision.Success=>Results.Ok(new{
+                    eligible=value.Eligible,fiscalTaxId=value.FiscalTaxId,code=value.Code}),
+                InvoiceApiDecision.Unauthenticated=>Results.Unauthorized(),
+                InvoiceApiDecision.Forbidden=>Results.StatusCode(403),
+                InvoiceApiDecision.NotFound=>Results.NotFound(),
+                _=>Results.Conflict(new{eligible=false,code=value.Code})
+            };
+        });
         group.MapGet("/lineage",async(Guid taxpayerId,Guid invoiceId,HttpContext http,
             Phase10InvoiceLineageReadService service,CancellationToken ct)=>{
             if(!Local(http))return Results.NotFound();
