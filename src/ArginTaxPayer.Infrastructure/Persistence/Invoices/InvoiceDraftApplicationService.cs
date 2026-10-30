@@ -22,7 +22,7 @@ public sealed record InvoiceDraftView(
     DateTime UpdatedAtUtc, string? Kind = null, int? LastCompletedStep = null,
     string? ReviewState = null, string? SystemCode = null,
     string? SellerName = null, string? BuyerName = null, string? AuthorityStatus = null,
-    Guid? EffectiveInvoiceId = null);
+    Guid? EffectiveInvoiceId = null, bool CorrectionInProgress = false);
 
 public sealed record InvoiceDraftResult(InvoiceApiDecision Decision,
     InvoiceDraftView? Invoice = null);
@@ -477,7 +477,8 @@ ORDER BY r.created_at_utc DESC
                 buyers.GetValueOrDefault(x.Id),
                 effectiveByRoot.TryGetValue(x.Id,out var effectiveStatus)?effectiveStatus.Status:
                     authorityByInvoice.GetValueOrDefault(x.Id,"NOT_SENT"),
-                effectiveByRoot.TryGetValue(x.Id,out var effectiveInvoice)?effectiveInvoice.InvoiceId:null)).ToArray());
+                effectiveByRoot.TryGetValue(x.Id,out var effectiveInvoice)?effectiveInvoice.InvoiceId:null,
+                correctionInProgress.Contains(x.Id))).ToArray());
     }
 
     private static InvoiceDraftView View(StoredInvoice invoice) =>
