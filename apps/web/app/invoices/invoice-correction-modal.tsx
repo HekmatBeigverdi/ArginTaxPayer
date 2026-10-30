@@ -14,6 +14,7 @@ export default function InvoiceCorrectionModal({taxpayerId,invoiceId,onClose,onC
  const [cash,setCash]=useState(0);
  const [credit,setCredit]=useState(0);
  const [mistake,setMistake]=useState(false);
+ const [mistakeEvidence,setMistakeEvidence]=useState("");
  const [busy,setBusy]=useState(false);
  const [error,setError]=useState("");
  const [message,setMessage]=useState("");
@@ -27,7 +28,8 @@ export default function InvoiceCorrectionModal({taxpayerId,invoiceId,onClose,onC
   const response=await fetch(url+"/"+suffix,{method,cache:"no-store",credentials:"same-origin",
    ...(body?{headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}:{})});
   const result=await response.json() as Result & {error?:string};
-  if(!response.ok)throw Error(String(result.code??result.error??response.status));
+  if(!response.ok)throw Error(String(result.code??result.error??response.status)+
+   (result.invoiceId?"؛ شناسه سند ایجادشده: "+result.invoiceId:""));
   return result;
  },[url]);
  useEffect(()=>{
@@ -46,7 +48,7 @@ export default function InvoiceCorrectionModal({taxpayerId,invoiceId,onClose,onC
    const result=await action("PUT","correction-draft",{
     expectedRevision:draft.revision,lines:entries,settlementMethod:settlement,
     cashAmountRial:cash,creditAmountRial:credit,
-    reductionCorrectsOriginalMistake:mistake
+    reductionCorrectsOriginalMistake:mistake,reductionEvidenceReference:mistake?mistakeEvidence:null
    });
    if(result.draft)apply(result.draft);
    setMessage("پیش‌نویس اصلاحی ذخیره شد؛ می‌توانید بعداً ادامه دهید.");
@@ -109,7 +111,13 @@ export default function InvoiceCorrectionModal({taxpayerId,invoiceId,onClose,onC
     </table>
     <label><input type="checkbox" checked={mistake} onChange={e=>setMistake(e.target.checked)}/>
      کاهش مقدار صرفاً برای اصلاح اشتباه ثبت اولیه است (نه برگشت واقعی کالا)
-    </label></div>}
+    </label>
+    {mistake&&<label>مرجع مستند اصلاح اشتباه اولیه
+     <input type="text" maxLength={256} value={mistakeEvidence}
+      onChange={e=>setMistakeEvidence(e.target.value)}
+      placeholder="شماره یا کد مستند مربوط به اشتباه اولیه"/>
+    </label>}
+    </div>}
     {stage==="settlement"&&<div style={{display:"grid",gap:10}}>
      <label>روش تسویه
       <select value={settlement} onChange={e=>setSettlement(Number(e.target.value))} disabled={busy}>
