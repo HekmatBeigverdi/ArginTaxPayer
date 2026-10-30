@@ -53,8 +53,8 @@ test('legal actions render only for exact authoritative SUCCESS on a non-cancell
  }).outputText,{exports,require,React,actionsStyle:{}});
  for(const authorityStatus of [undefined,'SUCCESS','Acknowledged','ACKNOWLEDGED','FAILED','PENDING','UNKNOWN','success']){
   for(const subject of ['Original','Cancellation','cancellation']){
-   let correctionOpened=false;
-   const props={authorityStatus,subject,onCancel:()=>{},onCorrect:()=>{correctionOpened=true;}};
+   let correctionOpened=false;let returnOpened=false;
+   const props={authorityStatus,subject,onSalesReturn:()=>{returnOpened=true;},onCancel:()=>{},onCorrect:()=>{correctionOpened=true;}};
    const html=renderToStaticMarkup(React.createElement(exports.Actions,props));
    assert.equal(html.includes('>ابطال</button>'),authorityStatus==='SUCCESS'&&subject==='Original',String(authorityStatus)+' '+subject);
    if(authorityStatus==='SUCCESS'&&subject==='Original'){
@@ -62,7 +62,9 @@ test('legal actions render only for exact authoritative SUCCESS on a non-cancell
     assert.notEqual(correction.props.disabled,true);
     correction.props.onClick();
     assert.equal(correctionOpened,true);
-    assert.match(html,/disabled=""[^>]*>برگشت از فروش<\/button>/);
+    const salesReturn=exports.Actions(props).props.children.find(child=>child?.props?.children==='برگشت از فروش');
+    assert.notEqual(salesReturn.props.disabled,true);
+    salesReturn.props.onClick();assert.equal(returnOpened,true);
    }else assert.equal(html,'');
   }
  }

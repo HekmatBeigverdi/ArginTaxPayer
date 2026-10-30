@@ -22,9 +22,9 @@ test("invoice list wires the completion callback and refreshes when closing deta
 });
 test("subject labels correspond to the four legal subject enums",()=>{
  const domain=read("src/ArginTaxPayer.Domain/Invoices/InvoiceSubjects.cs");
- const list=read("apps/web/app/invoices/workspace.tsx");
+ const labels=read("apps/web/app/invoices/invoice-subject-badge.tsx");
  for(const name of ["Original","Correction","Cancellation","SalesReturn"]){
   assert.ok(domain.includes(name+" = "));
-  assert.ok(list.includes(name+':'));
+  assert.ok(labels.includes(name+':'));
  }
 });

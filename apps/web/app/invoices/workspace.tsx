@@ -11,6 +11,7 @@ import InvoiceSendReadinessPanel from "./invoice-send-readiness-panel";
 import InvoiceFormalPreview from "./invoice-formal-preview";
 import InvoiceCorrectionModal from "./invoice-correction-modal";
 import InvoiceSalesReturnModal from "./invoice-sales-return-modal";
+import InvoiceSubjectBadge from "./invoice-subject-badge";
 import InvoiceDispatchHistory from "./invoice-dispatch-history";
 import InvoiceLineageModal from "./invoice-lineage-modal";
 import InvoiceImportPanel, {type ImportValues} from "./invoice-import-panel";
@@ -795,7 +796,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
               accounts.find(a=>a.customerUserId===item.customerUserId)?.personName || "حساب مشتری"}</td>}
             <td>{item.sellerName || taxpayers.find(t=>t.id===item.taxpayerId)?.displayName || "مؤدی ثبت‌شده"}</td>
             <td>{item.buyerName || "ثبت نشده"}</td>
-            <td>{toFaDate(item.issueDateUtc)}</td><td><span className={["Correction","Corrective"].includes(item.subject)?"invoice-subject-badge invoice-subject-badge--correction":undefined}>{({Original:"اصلی",Correction:"اصلاحیه",Corrective:"اصلاحیه",Cancellation:"ابطالی",Cancel:"ابطالی",SalesReturn:"برگشت از فروش",ReturnFromSale:"برگشت از فروش",Return:"برگشت از فروش"} as Record<string,string>)[item.subject]??item.subject}</span></td>
+            <td>{toFaDate(item.issueDateUtc)}</td><td><InvoiceSubjectBadge subject={item.subject}/></td>
             <td>{item.correctionInProgress ? "در حال ویرایش اصلاحی" :
               item.reviewState === "WorkingDraft" ? "در حال تکمیل" :
               item.reviewState === "InReview" ? "در انتظار بازبینی" :
@@ -841,8 +842,6 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
       </div>
     </footer>
     {bulkOpen && <BulkInvoiceImportPanel onClose={()=>setBulkOpen(false)} onChanged={()=>void reload()}/>}
-    {returnTarget&&<InvoiceSalesReturnModal taxpayerId={returnTarget.taxpayerId}
-      invoiceId={returnTarget.id} onClose={()=>setReturnTarget(null)} onChanged={()=>void reload()}/>}
     {correctionTarget&&<InvoiceCorrectionModal taxpayerId={correctionTarget.taxpayerId}
       invoiceId={correctionTarget.effectiveInvoiceId ?? correctionTarget.id} onClose={()=>setCorrectionTarget(null)} onChanged={()=>void reload()}/>}
     {lineage&&<InvoiceLineageModal taxpayerId={lineage.taxpayerId} invoiceId={lineage.id} onClose={()=>setLineage(null)}/>}
@@ -858,7 +857,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
         </div>
         <details name="invoice-detail-sections" className="fiscal-section invoice-detail-section" open key={"invoice-section:"+detail.id}><summary><span>صورتحساب فروش</span><span className="invoice-detail-section__summary-action">مشاهده جزئیات</span></summary>
         <div className="fiscal-section-content invoice-detail-section__content">
-        <InvoiceFormalPreview key={"formal:"+detail.id} taxpayerId={detail.taxpayerId} invoiceId={detail.effectiveInvoiceId ?? detail.id} reference={detail.systemCode??""} authorityStatus={detail.authorityStatus} subject={detail.subject} onCancellationCompleted={()=>void reload()} onCorrectionCompleted={()=>void reload()}/>
+        <InvoiceFormalPreview key={"formal:"+detail.id} taxpayerId={detail.taxpayerId} invoiceId={detail.effectiveInvoiceId ?? detail.id} reference={detail.systemCode??""} authorityStatus={detail.authorityStatus} subject={detail.subject} onCancellationCompleted={()=>void reload()} onCorrectionCompleted={()=>void reload()} onSalesReturn={()=>setReturnTarget(detail)}/>
         </div>
         </details>
         <details name="invoice-detail-sections" className="fiscal-section invoice-detail-section"><summary><span>مشخصات داخلی و فنی صورتحساب</span><span className="invoice-detail-section__summary-action">مشاهده جزئیات</span></summary>
@@ -891,6 +890,9 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
         </details>
       </div>
     </div>}
+
+    {returnTarget&&<InvoiceSalesReturnModal taxpayerId={returnTarget.taxpayerId}
+      invoiceId={returnTarget.id} onClose={()=>setReturnTarget(null)} onChanged={()=>void reload()}/>}
 
     {modal && <div className="invoice-register__overlay" onMouseDown={e => {
       if (e.target === e.currentTarget) close();

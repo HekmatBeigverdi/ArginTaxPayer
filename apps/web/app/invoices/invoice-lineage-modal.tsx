@@ -15,8 +15,10 @@ export default function InvoiceLineageModal({taxpayerId,invoiceId,onClose}:{
  const [reload,setReload]=useState(0);
  const [inquiryBusy,setInquiryBusy]=useState<string|null>(null);
  const [inquiryMessage,setInquiryMessage]=useState("");
+ const [loading,setLoading]=useState(true);
  useEffect(()=>{
   const controller=new AbortController();
+  setLoading(true);setError("");
   void (async()=>{
    try{
     const res=await fetch("/api/invoice-dispatch/"+
@@ -26,6 +28,7 @@ export default function InvoiceLineageModal({taxpayerId,invoiceId,onClose}:{
     const data=await res.json() as Graph;
     if(!controller.signal.aborted)setGraph(data);
    }catch(e){if(!controller.signal.aborted)setError((e as Error).message);}
+   finally{if(!controller.signal.aborted)setLoading(false);}
   })();
   return()=>controller.abort();
  },[taxpayerId,invoiceId,reload]);
@@ -34,8 +37,24 @@ export default function InvoiceLineageModal({taxpayerId,invoiceId,onClose}:{
    <header className="invoice-register__dialog-header"><h2>زنجیره صورتحساب</h2>
     <button type="button" className="identity-secondary" onClick={onClose} aria-label="بستن">×</button>
    </header>
-   {!graph&&!error&&<p role="status">در حال دریافت زنجیره…</p>}
-   {error&&<p role="alert" className="form-error">{error}</p>}
+   {loading&&!graph&&<div className="invoice-lineage-loading" role="status" aria-live="polite" aria-busy="true">
+    <div className="argin-loader"><span className="argin-loader-spinner" aria-hidden="true"/>
+     <strong>در حال دریافت زنجیره صورتحساب…</strong>
+     <span className="argin-loader-subtitle">سوابق ارسال و ارتباط اسناد در حال دریافت است؛ لطفاً منتظر بمانید.</span>
+    </div>
+    <div className="invoice-lineage-skeleton" aria-hidden="true">
+     {[0,1,2].map(index=><div className="invoice-lineage-skeleton__node" key={index}>
+      <span className="invoice-lineage-skeleton__dot"/>
+      <div className="invoice-lineage-skeleton__card"><span/><span/><span/></div>
+     </div>)}
+    </div>
+   </div>}
+   {loading&&graph&&<p className="invoice-lineage-refresh" role="status" aria-live="polite" aria-busy="true">
+    <span className="argin-loader-spinner" aria-hidden="true"/>در حال به‌روزرسانی زنجیره…
+   </p>}
+   {error&&<div role="alert" className="form-error invoice-lineage-error"><span>{error}</span>
+    <button type="button" className="identity-secondary invoice-action-button" disabled={loading} onClick={()=>setReload(value=>value+1)}>تلاش دوباره</button>
+   </div>}
    {inquiryMessage&&<p role="status">{inquiryMessage}</p>}
    {graph&&!graph.hasDispatchAttempt&&<p>برای این صورتحساب هنوز سابقه ارسال ثبت نشده است.</p>}
    {graph?.hasDispatchAttempt&&<div style={{display:"grid",gap:8,padding:10,maxHeight:"65dvh",overflow:"auto"}}>
@@ -53,7 +72,7 @@ export default function InvoiceLineageModal({taxpayerId,invoiceId,onClose}:{
         <span>نتیجه سازمان: {node.authorityStatus??"ثبت نشده"}</span>
         <span>شماره رهگیری: <bdi dir="ltr">{node.authorityReference??"—"}</bdi></span>
        </div>
-       {node.authorityReference&&<button type="button" className="identity-secondary"
+       {node.authorityReference&&<button type="button" className="identity-secondary invoice-lineage-inquiry" aria-busy={inquiryBusy===node.invoiceId}
         disabled={inquiryBusy!==null} onClick={()=>{
          setInquiryBusy(node.invoiceId);setInquiryMessage("");
          void fetch("/api/invoice-dispatch/"+encodeURIComponent(taxpayerId)+"/"+
@@ -67,7 +86,7 @@ export default function InvoiceLineageModal({taxpayerId,invoiceId,onClose}:{
           })
           .catch(e=>setInquiryMessage("استعلام ناموفق بود: "+(e as Error).message))
           .finally(()=>setInquiryBusy(null));
-        }}>{inquiryBusy===node.invoiceId?"در حال استعلام…":"استعلام این سند از سازمان"}</button>}
+        }}>{inquiryBusy===node.invoiceId?<><span className="argin-loader-spinner" aria-hidden="true"/>در حال استعلام…</>:"استعلام این سند از سازمان"}</button>}
        <details className="fiscal-section" style={{marginTop:10}}>
         <summary>مشاهده صورتحساب در همین مرحله</summary>
         <div className="fiscal-section-content">

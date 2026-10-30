@@ -41,6 +41,7 @@ type InvoiceFormalPreviewProps = {
   readOnly?: boolean;
   onCancellationCompleted?:()=>void;
   onCorrectionCompleted?:()=>void;
+  onSalesReturn?:()=>void;
 };
 
 const money = (value: number) =>
@@ -233,14 +234,14 @@ function InvoiceTotals({ invoice }: { invoice: Invoice }) {
   );
 }
 
-function AuthorityActions({authorityStatus,subject,onCancel,onCorrect}:{
- authorityStatus?:string;subject?:string;onCancel:()=>void;onCorrect:()=>void
+function AuthorityActions({authorityStatus,subject,onCancel,onCorrect,onSalesReturn}:{
+ authorityStatus?:string;subject?:string;onCancel:()=>void;onCorrect:()=>void;onSalesReturn?:()=>void
 }){
  if(authorityStatus!=="SUCCESS" || subject?.toLowerCase()==="cancellation")return null;
  return <div style={actionsStyle}>
   <button type="button" className="identity-secondary" onClick={onCorrect}>اصلاح</button>
   <button type="button" className="identity-secondary" onClick={onCancel}>ابطال</button>
-  <button type="button" className="identity-secondary" disabled title="مسیر برگشت از فروش در گام بعدی تکمیل می‌شود">برگشت از فروش</button>
+  {onSalesReturn&&["Original","SalesReturn"].includes(subject??"")&&<button type="button" className="identity-secondary" onClick={onSalesReturn}>برگشت از فروش</button>}
  </div>;
 }
 
@@ -253,6 +254,7 @@ export default function InvoiceFormalPreview({
   readOnly = false,
   onCancellationCompleted,
   onCorrectionCompleted,
+  onSalesReturn,
 }: InvoiceFormalPreviewProps) {
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [error, setError] = useState("");
@@ -341,7 +343,7 @@ export default function InvoiceFormalPreview({
           <InvoiceHeader invoice={invoice} reference={reference} />
           <InvoiceLines lines={invoice.lines} />
           <InvoiceTotals invoice={invoice} />
-          {!readOnly && <AuthorityActions authorityStatus={authorityStatus} subject={subject}
+          {!readOnly && <AuthorityActions authorityStatus={authorityStatus} subject={subject} onSalesReturn={onSalesReturn}
            onCorrect={()=>setCorrectionOpen(invoiceId)} onCancel={()=>{
             setCancelOpen(true);setCancelChecking(true);setCancelEligibility("");setCancelEligible(false);setCancelOutcome("");setCancelSucceeded(false);setCancelInquiry({status:"",reference:"",code:""});
             void fetch("/api/invoice-dispatch/"+encodeURIComponent(taxpayerId)+"/"+encodeURIComponent(invoiceId)+"/cancellation-eligibility",{cache:"no-store",credentials:"same-origin"})
