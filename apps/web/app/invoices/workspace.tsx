@@ -817,7 +817,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
               onClick={() => void editDraft(item)}>ویرایش و ادامه</button> :
               <span style={{display:"inline-flex",gap:5,alignItems:"center",flexWrap:"wrap"}}>
                <button type="button" className="console-row-action" onClick={()=>setDetail(item)}>مشاهده</button>
-               {item.authorityStatus==="SUCCESS"&&item.subject==="Original"&&
+               {item.authorityStatus==="SUCCESS"&&["Original","SalesReturn"].includes(item.subject)&&
                 <button type="button" className="console-row-action" onClick={()=>setReturnTarget(item)}>برگشت از فروش</button>}
                {item.correctionInProgress&&<button type="button" className="console-row-action"
                 onClick={()=>setCorrectionTarget(item)}>ادامه ویرایش</button>}
@@ -842,7 +842,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
     </footer>
     {bulkOpen && <BulkInvoiceImportPanel onClose={()=>setBulkOpen(false)} onChanged={()=>void reload()}/>}
     {returnTarget&&<InvoiceSalesReturnModal taxpayerId={returnTarget.taxpayerId}
-      invoiceId={returnTarget.effectiveInvoiceId ?? returnTarget.id} onClose={()=>setReturnTarget(null)} onChanged={()=>void reload()}/>}
+      invoiceId={returnTarget.id} onClose={()=>setReturnTarget(null)} onChanged={()=>void reload()}/>}
     {correctionTarget&&<InvoiceCorrectionModal taxpayerId={correctionTarget.taxpayerId}
       invoiceId={correctionTarget.effectiveInvoiceId ?? correctionTarget.id} onClose={()=>setCorrectionTarget(null)} onChanged={()=>void reload()}/>}
     {lineage&&<InvoiceLineageModal taxpayerId={lineage.taxpayerId} invoiceId={lineage.id} onClose={()=>setLineage(null)}/>}
