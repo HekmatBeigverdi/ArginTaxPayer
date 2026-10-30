@@ -2,8 +2,6 @@ name: Phase 10 Step 29 Cross-Platform Offline Gate
 on:
   push:
     branches: [work/phase10-step29-cross-platform-acceptance]
-  pull_request:
-    branches: [phase/10-invoice-submission]
   workflow_dispatch:
 permissions:
   contents: read
