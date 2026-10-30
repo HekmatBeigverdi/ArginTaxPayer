@@ -500,7 +500,7 @@ public sealed class Phase10SandboxSalesReturnService(
                 {
                     var index = i + 1;
                     used[i] = await db.Database.SqlQueryRaw<decimal>($"""
-                        SELECT COALESCE(SUM((items.value->>'quantity')::numeric),0) AS "Value"
+                        SELECT COALESCE(SUM((COALESCE(items.value->>'Quantity',items.value->>'quantity'))::numeric),0) AS "Value"
                         FROM sandbox_invoice_legal_relations rel
                         JOIN invoice_documents successor
                           ON successor.id=rel.successor_invoice_id
