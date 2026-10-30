@@ -12,6 +12,9 @@ export default function InvoiceLineageModal({taxpayerId,invoiceId,onClose}:{
  taxpayerId:string;invoiceId:string;onClose:()=>void}){
  const [graph,setGraph]=useState<Graph|null>(null);
  const [error,setError]=useState("");
+ const [reload,setReload]=useState(0);
+ const [inquiryBusy,setInquiryBusy]=useState<string|null>(null);
+ const [inquiryMessage,setInquiryMessage]=useState("");
  useEffect(()=>{
   const controller=new AbortController();
   void (async()=>{
@@ -25,7 +28,7 @@ export default function InvoiceLineageModal({taxpayerId,invoiceId,onClose}:{
    }catch(e){if(!controller.signal.aborted)setError((e as Error).message);}
   })();
   return()=>controller.abort();
- },[taxpayerId,invoiceId]);
+ },[taxpayerId,invoiceId,reload]);
  return <div className="invoice-register__overlay" onMouseDown={e=>{if(e.target===e.currentTarget)onClose();}}>
   <section className="invoice-register__detail-modal" dir="rtl" role="dialog" aria-modal="true" aria-label="زنجیره صورتحساب">
    <header className="invoice-register__dialog-header"><h2>زنجیره صورتحساب</h2>
@@ -33,6 +36,7 @@ export default function InvoiceLineageModal({taxpayerId,invoiceId,onClose}:{
    </header>
    {!graph&&!error&&<p role="status">در حال دریافت زنجیره…</p>}
    {error&&<p role="alert" className="form-error">{error}</p>}
+   {inquiryMessage&&<p role="status">{inquiryMessage}</p>}
    {graph&&!graph.hasDispatchAttempt&&<p>برای این صورتحساب هنوز سابقه ارسال ثبت نشده است.</p>}
    {graph?.hasDispatchAttempt&&<div style={{display:"grid",gap:8,padding:10,maxHeight:"65dvh",overflow:"auto"}}>
     {graph.nodes.map((node,i)=><div key={node.invoiceId}>
@@ -49,6 +53,21 @@ export default function InvoiceLineageModal({taxpayerId,invoiceId,onClose}:{
         <span>نتیجه سازمان: {node.authorityStatus??"ثبت نشده"}</span>
         <span>شماره رهگیری: <bdi dir="ltr">{node.authorityReference??"—"}</bdi></span>
        </div>
+       {node.authorityReference&&<button type="button" className="identity-secondary"
+        disabled={inquiryBusy!==null} onClick={()=>{
+         setInquiryBusy(node.invoiceId);setInquiryMessage("");
+         void fetch("/api/invoice-dispatch/"+encodeURIComponent(taxpayerId)+"/"+
+          encodeURIComponent(node.invoiceId)+"/inquiry-by-reference",
+          {method:"POST",credentials:"same-origin",cache:"no-store"})
+          .then(async resp=>{const result=await resp.json() as {
+           safeCode?:string;authorityResult?:{status:string}|null;error?:string};
+           if(!resp.ok)throw Error(String(result.error??resp.status));
+           setInquiryMessage("نتیجه استعلام: "+String(result.authorityResult?.status??result.safeCode??"در انتظار بررسی"));
+           setReload(v=>v+1);
+          })
+          .catch(e=>setInquiryMessage("استعلام ناموفق بود: "+(e as Error).message))
+          .finally(()=>setInquiryBusy(null));
+        }}>{inquiryBusy===node.invoiceId?"در حال استعلام…":"استعلام این سند از سازمان"}</button>}
        <details className="fiscal-section" style={{marginTop:10}}>
         <summary>مشاهده صورتحساب در همین مرحله</summary>
         <div className="fiscal-section-content">
