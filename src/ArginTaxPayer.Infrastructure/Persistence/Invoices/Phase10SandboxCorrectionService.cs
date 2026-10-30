@@ -155,21 +155,23 @@ VALUES({id},{owner.Value},{taxpayerId},{predecessorId},{taxid},
     decimal.Truncate(x.Quantity*x.DiscountPerUnitRial),x.VatRatePercent)).ToArray(),
     new InvoiceTypePattern(ElectronicInvoiceType.First,1),
     new InvoiceRoundingPolicy(OfficialV79InvoicePatternMatrix.Edition));
-  }catch(ArgumentException){return new(InvoiceApiDecision.Invalid,"invalid_amounts");}
+  }catch(Exception ex)when(ex is ArgumentException or OverflowException){return new(InvoiceApiDecision.Invalid,"invalid_amounts");}
   var extra=originalDoc.RootElement.GetProperty("otherTaxAndLegalFeesRial").GetDecimal();
   var total=(financial.GrandTotalRial??0m)+extra;
-  if(input.CashAmountRial<0||input.CreditAmountRial<0||
-   input.CashAmountRial+input.CreditAmountRial!=total||
-   (input.SettlementMethod==1 && input.CreditAmountRial!=0)||
-   (input.SettlementMethod==2 && input.CashAmountRial!=0)||
-   (input.SettlementMethod==3 && (input.CashAmountRial<=0||input.CreditAmountRial<=0))||
+  var cashAmount=input.SettlementMethod==1?total:input.SettlementMethod==2?0m:input.CashAmountRial;
+  var creditAmount=input.SettlementMethod==2?total:input.SettlementMethod==1?0m:input.CreditAmountRial;
+  if(cashAmount<0||creditAmount<0||
+   cashAmount+creditAmount!=total||
+   (input.SettlementMethod==1 && creditAmount!=0)||
+   (input.SettlementMethod==2 && cashAmount!=0)||
+   (input.SettlementMethod==3 && (cashAmount<=0||creditAmount<=0))||
    input.SettlementMethod is <1 or >3)
    return new(InvoiceApiDecision.Invalid,"settlement_invalid");
   var root=JsonNode.Parse(d.Json)!.AsObject();
   root["lines"]=JsonSerializer.SerializeToNode(edited);
   root["settlementMethod"]=input.SettlementMethod;
-  root["cashAmountRial"]=input.CashAmountRial;
-  root["creditAmountRial"]=input.CreditAmountRial;
+  root["cashAmountRial"]=cashAmount;
+  root["creditAmountRial"]=creditAmount;
   root["financialSummary"]=JsonSerializer.SerializeToNode(new InvoiceDraftFinancialSummary(
    financial.BeforeDiscountRial,financial.DiscountRial,financial.AfterDiscountRial,
    financial.VatRial??0m,financial.GrandTotalRial??0m));
@@ -220,6 +222,16 @@ WHERE customer_user_id={owner.Value} AND taxpayer_id={taxpayerId}
   var reduced=(bool?)root["reductionCorrectsOriginalMistake"]??false;
   if(!Phase10CorrectionValidation.AllowedLines(originalLines,changedLines,reduced))
    return new(InvoiceApiDecision.Invalid,"invalid_correction_lines");
+  var linesChanged=originalLines.Zip(changedLines).Any(pair=>
+   pair.First.Quantity!=pair.Second.Quantity||
+   pair.First.UnitPriceRial!=pair.Second.UnitPriceRial||
+   pair.First.DiscountPerUnitRial!=pair.Second.DiscountPerUnitRial);
+  if(!linesChanged &&
+   origDoc.RootElement.GetProperty("settlementMethod").GetInt32()==(int?)root["settlementMethod"] &&
+   origDoc.RootElement.GetProperty("cashAmountRial").GetDecimal()==(decimal?)root["cashAmountRial"] &&
+   origDoc.RootElement.GetProperty("creditAmountRial").GetDecimal()==(decimal?)root["creditAmountRial"])
+   return new(InvoiceApiDecision.Invalid,"no_changes_to_correct");
+
   if(reduced && string.IsNullOrWhiteSpace((string?)root["reductionEvidenceReference"]))
    return new(InvoiceApiDecision.Invalid,"original_mistake_evidence_required");
   if(config["SandboxInvoiceLegacy:Enabled"]!="true"||
