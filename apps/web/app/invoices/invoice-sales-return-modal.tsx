@@ -4,7 +4,7 @@ import InvoiceActionToast,{InvoiceActionIcon} from "./invoice-action-toast";
 import InvoiceCorrectionReceipt,{type CorrectionReceiptValue} from "./invoice-correction-receipt";
 import {fetchWithSessionRefresh} from "../../lib/session-fetch";
 type Line={description:string;quantity:number;unitPriceRial:number;discountPerUnitRial:number;vatRatePercent:number|null;officialIdentifierSnapshot:string|null};
-type Draft={workspaceId:string;predecessorInvoiceId:string;revision:number;lines:Line[];settlementMethod:number;cashAmountRial:number;creditAmountRial:number};
+type Draft={workspaceId:string;predecessorInvoiceId:string;revision:number;lines:Line[];originalQuantities:number[];settlementMethod:number;cashAmountRial:number;creditAmountRial:number};
 type Result={decision:number;code:string;draft?:Draft|null;invoiceId?:string|null;status?:string|null;referenceNumber?:string|null;inquiryCode?:string|null};
 type Entry={quantity:number;unitPriceRial:number;discountPerUnitRial:number};
 class SalesReturnActionError extends Error{
@@ -160,12 +160,13 @@ export default function InvoiceSalesReturnModal({taxpayerId,invoiceId,onClose,on
        onClick={()=>setStage(t.id)} aria-pressed={stage===t.id}><InvoiceActionIcon name={t.id==="items"?"items":t.id==="settlement"?"settlement":"review"}/>{t.text}</button>)}
     </div>
     {stage==="items"&&<div className="table-scroll"><table className="console-table">
-     <thead><tr><th>شرح</th><th>شناسه رسمی</th><th>تعداد</th><th>قیمت ثابت (ریال)</th><th>تخفیف ثابت</th><th>نرخ مالیات</th></tr></thead>
+     <thead><tr><th>شرح</th><th>شناسه رسمی</th><th>تعداد اولیه</th><th>تعداد برگشتی</th><th>قیمت ثابت (ریال)</th><th>تخفیف ثابت</th><th>نرخ مالیات</th></tr></thead>
      <tbody>{draft.lines.map((line,i)=><tr key={i}>
       <td>{line.description}</td><td><bdi dir="ltr">{line.officialIdentifierSnapshot??"—"}</bdi></td>
+      <td>{fa(draft.originalQuantities?.[i]??0)}</td>
       {(["quantity"] as const).map(k=><td key={k}>
        <input type="number" min={0} step="any"
-        style={{width:110}} disabled={busy} value={entries[i]?.[k]??0}
+        style={{width:110}} max={draft.originalQuantities?.[i]} disabled={busy} value={entries[i]?.[k]??0}
         onChange={e=>change(i,k,Number(e.target.value))}/>
       </td>)}
       <td>{fa(line.unitPriceRial)}</td><td>{fa(line.discountPerUnitRial)}</td>
@@ -198,7 +199,7 @@ export default function InvoiceSalesReturnModal({taxpayerId,invoiceId,onClose,on
      <table className="console-table"><thead><tr><th>قلم</th><th>فی قبلی</th><th>فی جدید</th><th>تعداد قبلی</th><th>تعداد جدید</th></tr></thead>
       <tbody>{draft.lines.map((line,i)=><tr key={i}><td>{line.description}</td>
        <td>{fa(line.unitPriceRial)}</td><td>{fa(entries[i]?.unitPriceRial??0)}</td>
-       <td>سند مرجع</td><td>{fa(entries[i]?.quantity??0)}</td></tr>)}</tbody>
+       <td>{fa(draft.originalQuantities?.[i]??0)}</td><td>{fa(entries[i]?.quantity??0)}</td></tr>)}</tbody>
      </table>
     </div>}
     <div className="invoice-correction-actions">
