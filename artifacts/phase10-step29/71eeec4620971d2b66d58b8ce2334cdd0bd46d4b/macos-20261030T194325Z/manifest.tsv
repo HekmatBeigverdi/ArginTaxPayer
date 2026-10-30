@@ -1,0 +1,13 @@
+check	status	evidence
+dotnet-restore	PASS	artifacts/phase10-step29/71eeec4620971d2b66d58b8ce2334cdd0bd46d4b/macos-20261030T194325Z/dotnet-restore.log
+dotnet-release-build	PASS	artifacts/phase10-step29/71eeec4620971d2b66d58b8ce2334cdd0bd46d4b/macos-20261030T194325Z/dotnet-release-build.log
+dotnet-release-tests	PASS	artifacts/phase10-step29/71eeec4620971d2b66d58b8ce2334cdd0bd46d4b/macos-20261030T194325Z/dotnet-release-tests.log
+sales-return-tests	PASS	artifacts/phase10-step29/71eeec4620971d2b66d58b8ce2334cdd0bd46d4b/macos-20261030T194325Z/sales-return-tests.log
+web-tests	PASS	artifacts/phase10-step29/71eeec4620971d2b66d58b8ce2334cdd0bd46d4b/macos-20261030T194325Z/web-tests.log
+web-step28-contract	PASS	artifacts/phase10-step29/71eeec4620971d2b66d58b8ce2334cdd0bd46d4b/macos-20261030T194325Z/web-step28-contract.log
+web-typecheck	PASS	artifacts/phase10-step29/71eeec4620971d2b66d58b8ce2334cdd0bd46d4b/macos-20261030T194325Z/web-typecheck.log
+web-build	PASS	artifacts/phase10-step29/71eeec4620971d2b66d58b8ce2334cdd0bd46d4b/macos-20261030T194325Z/web-build.log
+postgres-test-db-audit	MANUAL_PENDING	Run guarded DB audit on macOS tunnel and on Ubuntu
+sandbox-live-send-and-inquiry	MANUAL_PENDING	Operator must execute Type1/Pattern1 original, cancellation, correction and sales return with unique Tax IDs
+scoped-browser-acceptance	MANUAL_PENDING	Operator must check Level1/Level2/customer, ownership, preview, chain, statuses and no duplicate rows
+prod-isolation	MANUAL_PENDING	Operator must verify test credentials and Sandbox endpoint only
