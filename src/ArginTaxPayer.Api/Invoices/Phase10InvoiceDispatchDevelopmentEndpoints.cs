@@ -19,6 +19,46 @@ public static class Phase10InvoiceDispatchDevelopmentEndpoints
         var group = routes.MapGroup("/api/dev/taxpayers/{taxpayerId:guid}/invoices/{invoiceId:guid}/dispatch")
             .WithTags("Invoice Dispatch (Development, Disabled)");
 
+        static IResult CorrectionResult(CorrectionOperationResult result)=>
+            result.Decision switch {
+                InvoiceApiDecision.Success=>Results.Ok(result),
+                InvoiceApiDecision.Unauthenticated=>Results.Unauthorized(),
+                InvoiceApiDecision.Forbidden=>Results.StatusCode(403),
+                InvoiceApiDecision.NotFound=>Results.NotFound(),
+                InvoiceApiDecision.Conflict=>Results.Conflict(result),
+                _=>Results.BadRequest(result)
+            };
+        group.MapPost("/correction-draft",async(Guid taxpayerId,Guid invoiceId,
+            HttpContext http,Phase10SandboxCorrectionService service,CancellationToken ct)=>{
+            if(!Local(http))return Results.NotFound();
+            http.Response.Headers.CacheControl="no-store";
+            return CorrectionResult(await service.OpenAsync(Token(http),taxpayerId,invoiceId,ct));
+        });
+        group.MapGet("/correction-draft",async(Guid taxpayerId,Guid invoiceId,
+            HttpContext http,Phase10SandboxCorrectionService service,CancellationToken ct)=>{
+            if(!Local(http))return Results.NotFound();
+            http.Response.Headers.CacheControl="no-store";
+            return CorrectionResult(await service.ReadAsync(Token(http),taxpayerId,invoiceId,ct));
+        });
+        group.MapPut("/correction-draft",async(Guid taxpayerId,Guid invoiceId,
+            CorrectionSaveRequest input,HttpContext http,
+            Phase10SandboxCorrectionService service,CancellationToken ct)=>{
+            if(!Local(http))return Results.NotFound();
+            http.Response.Headers.CacheControl="no-store";
+            return CorrectionResult(await service.SaveAsync(Token(http),taxpayerId,invoiceId,input,ct));
+        });
+        group.MapDelete("/correction-draft",async(Guid taxpayerId,Guid invoiceId,
+            HttpContext http,Phase10SandboxCorrectionService service,CancellationToken ct)=>{
+            if(!Local(http))return Results.NotFound();
+            http.Response.Headers.CacheControl="no-store";
+            return CorrectionResult(await service.DiscardAsync(Token(http),taxpayerId,invoiceId,ct));
+        });
+        group.MapPost("/correction-send-and-inquire",async(Guid taxpayerId,Guid invoiceId,
+            HttpContext http,Phase10SandboxCorrectionService service,CancellationToken ct)=>{
+            if(!Local(http))return Results.NotFound();
+            http.Response.Headers.CacheControl="no-store";
+            return CorrectionResult(await service.SubmitAsync(Token(http),taxpayerId,invoiceId,ct));
+        });
         group.MapPost("/cancel-and-inquire",async(Guid taxpayerId,Guid invoiceId,
             HttpContext http,Phase10SandboxCancellationService service,CancellationToken ct)=>{
             if(!Local(http))return Results.NotFound();
