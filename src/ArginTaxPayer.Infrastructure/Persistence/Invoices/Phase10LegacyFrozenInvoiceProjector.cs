@@ -28,7 +28,7 @@ public static class Phase10LegacyFrozenInvoiceProjector
             !fiscalTaxId.AsSpan(11, 10).ToString().All(Uri.IsHexDigit))
             throw new ArgumentException("Invalid reserved fiscal invoice serial.");
         if (invoice.State != InvoiceLifecycleState.Finalized ||
-            invoice.Subject is not (InvoiceSubject.Original or InvoiceSubject.Correction or InvoiceSubject.Cancellation) ||
+            invoice.Subject is not (InvoiceSubject.Original or InvoiceSubject.Correction or InvoiceSubject.Cancellation or InvoiceSubject.SalesReturn) ||
             invoice.Revision < 1 || invoice.IssueDateUtc.Kind != DateTimeKind.Utc)
             throw new ArgumentException("Invoice is not a finalized UTC revision.");
         using var source = JsonDocument.Parse(invoice.SnapshotJson);
@@ -42,6 +42,8 @@ public static class Phase10LegacyFrozenInvoiceProjector
 
         var entries = JsonSerializer.Deserialize<InvoiceEntryLine[]>(
             root.GetProperty("lines").GetRawText()) ?? [];
+        if (invoice.Subject == InvoiceSubject.SalesReturn)
+            entries = entries.Where(item => item.Quantity > 0).ToArray();
         if (entries.Length == 0 || entries.Length > 150)
             throw new ArgumentException("Missing official invoice items.");
         var buyerPersonType = buyerPersonTypeOverride;
@@ -140,7 +142,7 @@ public static class Phase10LegacyFrozenInvoiceProjector
             CheckedRial(financial.VatRial ?? 0),
             CheckedRial((financial.GrandTotalRial ?? 0) + otherTaxAndLegalFees.Value),
             BuyerTaxId:buyerTaxIdentifier,
-            ReferenceTaxId:invoice.Subject==InvoiceSubject.Correction
+            ReferenceTaxId:invoice.Subject is InvoiceSubject.Correction or InvoiceSubject.SalesReturn
                 ?root.GetProperty("referenceTaxId").GetString():null,
             SettlementMethod:settlement,
             // The internal display number is not the authority's 10-hex-digit serial.
