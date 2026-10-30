@@ -119,6 +119,7 @@ if (identityDevelopmentEnabled)
     builder.Services.AddScoped<Phase10CancellationEligibilityService>();
     builder.Services.AddScoped<LegacyAuthorityReportRepository>();
     builder.Services.AddScoped<Phase10SandboxCancellationService>();
+    builder.Services.AddScoped<Phase10SandboxCorrectionService>();
     builder.Services.AddScoped<Phase10DispatchEvidenceRepository>();
     builder.Services.AddScoped<Phase10LegacyUidInquiryService>();
     builder.Services.AddScoped<Phase10LegacyReferenceInquiryService>();
