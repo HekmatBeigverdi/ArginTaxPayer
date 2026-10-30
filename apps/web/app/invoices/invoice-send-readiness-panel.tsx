@@ -133,7 +133,7 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
   setActionBusy(true);setError("");setCorrectionUrl("");
   try{
    const response=await fetch("/api/invoice-dispatch/"+encodeURIComponent(taxpayerId)+"/"+
-    encodeURIComponent(invoiceId)+"/correction-draft",
+    encodeURIComponent(invoiceId)+"/rejection-correction-draft",
     {method:"POST",cache:"no-store",credentials:"same-origin",signal});
    const data=await response.json().catch(()=>({}));
    if(signal?.aborted)return;

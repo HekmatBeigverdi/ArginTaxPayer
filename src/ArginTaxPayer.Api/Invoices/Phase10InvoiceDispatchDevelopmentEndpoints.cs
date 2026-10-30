@@ -207,7 +207,7 @@ public static class Phase10InvoiceDispatchDevelopmentEndpoints
             };
         });
 
-        group.MapPost("/correction-draft", async (Guid taxpayerId, Guid invoiceId,
+        group.MapPost("/rejection-correction-draft", async (Guid taxpayerId, Guid invoiceId,
             HttpContext http, LegacyInvoiceCorrectionDraftService service, CancellationToken ct) =>
         {
             if (!Local(http)) return Results.NotFound();

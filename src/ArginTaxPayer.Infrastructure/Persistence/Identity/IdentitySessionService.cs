@@ -9,7 +9,7 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Identity;
 /// </summary>
 public sealed class IdentitySessionService(ArginTaxPayerDbContext db)
 {
-    private static readonly TimeSpan AccessLifetime = TimeSpan.FromMinutes(10);
+    private static readonly TimeSpan AccessLifetime = TimeSpan.FromMinutes(30);
     private static readonly TimeSpan RefreshLifetime = TimeSpan.FromDays(7);
 
     public async Task<SessionTokens?> LoginAsync(string? email, string? password, CancellationToken ct = default)

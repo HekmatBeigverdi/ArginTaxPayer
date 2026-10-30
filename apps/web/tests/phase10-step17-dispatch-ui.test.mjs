@@ -27,7 +27,7 @@ test("step17 enables only guarded Sandbox sending",()=>{
 });
 test("invoice details use scoped one-click readiness and dedicated history",()=>{
   assert.match(workspace,/import InvoiceSendReadinessPanel/);
-  assert.match(workspace,/<InvoiceSendReadinessPanel key=\{"readiness:"\+detail\.id\}/);
+  assert.match(workspace,/<InvoiceSendReadinessPanel key=\{"readiness:"\+\(detail\.effectiveInvoiceId \?\? detail\.id\)\}/);
   assert.match(workspace,/invoiceId=\{detail\.effectiveInvoiceId \?\? detail\.id\} taxpayerId=\{detail\.taxpayerId\}/);
   assert.match(workspace,/isWorkspace=\{detail\.kind === "workspace"\} hideHistory=\{true\}/);
   assert.match(workspace,/<InvoiceDispatchHistory taxpayerId=\{detail\.taxpayerId\}/);

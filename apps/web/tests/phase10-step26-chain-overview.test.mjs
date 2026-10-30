@@ -9,8 +9,7 @@ test("main invoice overview hides successor before paging and retains original s
  assert.ok(s.includes("effectiveByRoot.TryGetValue(x.Id,out var effectiveSubject)"));
  assert.ok(s.includes("effectiveByRoot.TryGetValue(x.Id,out var effectiveDate)"));
  assert.ok(s.includes("effectiveByRoot.TryGetValue(x.Id,out var effectiveStatus)"));
- assert.ok(s.includes("AND COALESCE((SELECT ar.report_json->>'Status'"));
- assert.ok(s.includes("='SUCCESS'"));
+ assert.ok(s.includes("Phase10EffectiveInvoiceQuery.ReadAsync"));
  assert.ok(s.includes("EffectiveInvoiceId"));
  assert.ok(s.includes("buyerPartyIdsByInvoice"));
  assert.ok(s.includes("Parties.AsNoTracking"));

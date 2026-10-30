@@ -415,52 +415,8 @@ WHERE predecessor_invoice_id=ANY(@ids)
         // Overlay the newest related legal document on its original row, keeping
         // the original human reference and root invoice ID. Related documents
         // never appear as additional main-table rows.
-        var effectiveByRoot=new Dictionary<Guid,(Guid InvoiceId,string Subject,DateTime Date,string Status)>();
-        if(ids.Length>0)
-        {
-            var conn=db.Database.GetDbConnection();
-            var opened=conn.State!=System.Data.ConnectionState.Open;
-            if(opened)await conn.OpenAsync(ct);
-            try
-            {
-                await using var cmd=conn.CreateCommand();
-                cmd.CommandText="""
-SELECT r.predecessor_invoice_id, d.id, d.subject, d.issue_date_utc,
- COALESCE((SELECT ar.report_json->>'Status'
-   FROM sandbox_authority_inquiry_reports ar
-   WHERE ar.invoice_id=d.id AND ar.taxpayer_id=r.taxpayer_id
-    AND ar.customer_user_id=r.customer_user_id
-   ORDER BY ar.observed_at_utc DESC, ar.id DESC LIMIT 1),
-   CASE WHEN EXISTS(SELECT 1 FROM invoice_dispatch_operations op
-    WHERE op.invoice_id=d.id AND op.state=5) THEN 'ACKNOWLEDGED'
-   ELSE 'NOT_SENT' END)
-FROM sandbox_invoice_legal_relations r
-JOIN invoice_documents d ON d.id=r.successor_invoice_id
- AND d.customer_user_id=r.customer_user_id AND d.taxpayer_id=r.taxpayer_id
-WHERE r.predecessor_invoice_id=ANY(@ids)
- AND r.customer_user_id=ANY(@owners) AND r.taxpayer_id=ANY(@taxpayers)
- AND COALESCE((SELECT ar.report_json->>'Status'
-   FROM sandbox_authority_inquiry_reports ar
-   WHERE ar.invoice_id=d.id AND ar.taxpayer_id=r.taxpayer_id
-    AND ar.customer_user_id=r.customer_user_id
-   ORDER BY ar.observed_at_utc DESC, ar.id DESC LIMIT 1),'')='SUCCESS'
-ORDER BY r.created_at_utc DESC
-""";
-                foreach(var (name,value) in new (string,object)[]{
-                    ("ids",ids),("owners",rows.Select(x=>x.CustomerUserId).Distinct().ToArray()),
-                    ("taxpayers",taxpayerIds)})
-                {var p=cmd.CreateParameter();p.ParameterName=name;p.Value=value;cmd.Parameters.Add(p);}
-                await using var reader=await cmd.ExecuteReaderAsync(ct);
-                while(await reader.ReadAsync(ct))
-                {
-                    var root=reader.GetGuid(0);
-                    if(effectiveByRoot.ContainsKey(root))continue;
-                    var subject=((InvoiceSubject)reader.GetInt32(2)).ToString();
-                    effectiveByRoot[root]=(reader.GetGuid(1),subject,reader.GetDateTime(3),reader.GetString(4));
-                }
-            }
-            finally{if(opened)await conn.CloseAsync();}
-        }
+        var effectiveByRoot = await Phase10EffectiveInvoiceQuery.ReadAsync(db, ids,
+            rows.Select(x => x.CustomerUserId).Distinct().ToArray(), taxpayerIds, ct);
         return (InvoiceApiDecision.Success, rows.Select(x =>
             new InvoiceDraftView(x.Id,x.CustomerUserId,x.TaxpayerId,x.Revision,
                 x.Source == 1 ? "WorkingDraft" :

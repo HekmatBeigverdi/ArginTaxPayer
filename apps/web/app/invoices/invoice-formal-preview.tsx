@@ -257,7 +257,7 @@ export default function InvoiceFormalPreview({
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [error, setError] = useState("");
   const [cancelOpen,setCancelOpen]=useState(false);
-  const [correctionOpen,setCorrectionOpen]=useState(false);
+  const [correctionOpen,setCorrectionOpen]=useState<string|null>(null);
   const [cancelEligibility,setCancelEligibility]=useState<string>("");
   const [cancelChecking,setCancelChecking]=useState(false);
   const [cancelSubmitting,setCancelSubmitting]=useState(false);
@@ -334,15 +334,15 @@ export default function InvoiceFormalPreview({
           .catch(e=>{setCancelEligible(false);setCancelOutcome("وضعیت ابطال نیازمند بررسی است: "+(e as Error).message+"؛ درخواست را تکرار نکنید.");})
           .finally(()=>setCancelSubmitting(false));}}> {cancelSubmitting?"در حال ارسال…":"تأیید و ارسال ابطال"}</button></div>}
       </div>}
-      {correctionOpen&&<InvoiceCorrectionModal taxpayerId={taxpayerId} invoiceId={invoiceId}
-       onClose={()=>setCorrectionOpen(false)} onChanged={()=>onCorrectionCompleted?.()}/>}
+      {correctionOpen&&<InvoiceCorrectionModal taxpayerId={taxpayerId} invoiceId={correctionOpen}
+       onClose={()=>setCorrectionOpen(null)} onChanged={()=>onCorrectionCompleted?.()}/>}
       {invoice && (
         <>
           <InvoiceHeader invoice={invoice} reference={reference} />
           <InvoiceLines lines={invoice.lines} />
           <InvoiceTotals invoice={invoice} />
           {!readOnly && <AuthorityActions authorityStatus={authorityStatus} subject={subject}
-           onCorrect={()=>setCorrectionOpen(true)} onCancel={()=>{
+           onCorrect={()=>setCorrectionOpen(invoiceId)} onCancel={()=>{
             setCancelOpen(true);setCancelChecking(true);setCancelEligibility("");setCancelEligible(false);setCancelOutcome("");setCancelSucceeded(false);setCancelInquiry({status:"",reference:"",code:""});
             void fetch("/api/invoice-dispatch/"+encodeURIComponent(taxpayerId)+"/"+encodeURIComponent(invoiceId)+"/cancellation-eligibility",{cache:"no-store",credentials:"same-origin"})
               .then(async response=>{const value=await response.json();setCancelEligible(response.ok&&value.eligible===true);setCancelEligibility(response.ok&&value.eligible===true?"سند مرجع برای درخواست ابطال معتبر است.":"امکان ابطال تأیید نشد: "+String(value.code??value.error??response.status));})

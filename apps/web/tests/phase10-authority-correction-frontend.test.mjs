@@ -62,8 +62,8 @@ test('nullable reports and maximum allowed lists are supported',async()=>{
  }
 });
 test('correction validates UUID and safe flag, forwards auth and refuses cross-origin or payload',async()=>{
- const r=route('correction-draft',{workspaceId:id,authoritySubmitted:false},(url,options)=>{
- assert.ok(url.endsWith('/dispatch/correction-draft'));assert.equal(options.method,'POST');
+ const r=route('rejection-correction-draft',{workspaceId:id,authoritySubmitted:false},(url,options)=>{
+ assert.ok(url.endsWith('/dispatch/rejection-correction-draft'));assert.equal(options.method,'POST');
  assert.equal(options.headers.Authorization,'Bearer token');});
  assert.deepEqual(await (await r.POST(request(),context)).json(),{workspaceId:id,authoritySubmitted:false,issueDateAdjusted:false});
  assert.equal((await r.POST(request('POST',{body:''}),context)).status,200);
@@ -72,7 +72,7 @@ test('correction validates UUID and safe flag, forwards auth and refuses cross-o
  assert.equal((await r.POST(request('POST',{body:'{}'}),context)).status,400);
  for(const p of [{workspaceId:'javascript:bad',authoritySubmitted:false},{workspaceId:id,authoritySubmitted:true},
   {workspaceId:id,authoritySubmitted:false,issueDateAdjusted:'true'},null]){
- assert.equal((await route('correction-draft',p).POST(request(),context)).status,502);
+ assert.equal((await route('rejection-correction-draft',p).POST(request(),context)).status,502);
  }
 });
 test('UI loads persisted report, renders text and offers only explicitly authorized failed correction',()=>{
@@ -124,7 +124,7 @@ test('rendered authority messages are escaped and only failed authorized reports
 
 test('correction preserves the date-adjustment flag while projecting private fields away',async()=>{
  for(const adjusted of [true,false]){
-  const response=await route('correction-draft',{
+  const response=await route('rejection-correction-draft',{
    workspaceId:id,authoritySubmitted:false,issueDateAdjusted:adjusted,privateKey:'must-not-leak'
   }).POST(request(),context);
   assert.equal(response.status,200);

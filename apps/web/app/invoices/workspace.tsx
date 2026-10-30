@@ -334,7 +334,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
       query.set("page", String(listPage));
       query.set("pageSize", String(listPageSize));
       const list = await getJson<Invoice[]>("/api/invoices/overview?" + query);
-      if (requestId === requestSeq.current) { setInvoices(list); setError(""); }
+      if (requestId === requestSeq.current) { setInvoices(list); setDetail(current=>current?list.find(item=>item.id===current.id)??current:null); setError(""); }
     } catch (e) { if (requestId === requestSeq.current) setError((e as Error).message); }
     finally { if (requestId === requestSeq.current) setLoading(false); }
   }, [filterCustomer, filterTaxpayer, reviewFilter, search, listPage]);
@@ -787,13 +787,13 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
         <thead><tr><th>شناسه سیستمی</th>{isAdmin && <th>مشتری</th>}<th>مؤدی فروشنده</th><th>خریدار</th><th>تاریخ صدور</th><th>موضوع</th>
           <th>وضعیت داخلی</th><th>وضعیت سازمان</th><th>نسخه</th><th>عملیات</th></tr></thead>
         <tbody>{filtered.length === 0 ? <tr><td colSpan={isAdmin ? 10 : 9}>صورتحسابی برای نمایش وجود ندارد.</td></tr> :
-          filtered.map(item => <tr key={item.id} style={{backgroundColor:item.subject === "Cancellation" ? "rgba(220,38,38,.10)" : item.authorityStatus==="SUCCESS"?"rgba(22,163,74,.10)":undefined}}>
+          filtered.map(item => <tr key={item.id} style={{backgroundColor:item.subject === "Cancellation" ? "rgba(220,38,38,.10)" : ["Correction","Corrective"].includes(item.subject)?"rgba(59,130,246,.09)": item.authorityStatus==="SUCCESS"?"rgba(22,163,74,.10)":undefined}}>
             <td><button type="button" className="console-row-action" title="کپی شناسه برای پشتیبانی" disabled={!item.systemCode} onClick={() => {void navigator.clipboard.writeText(item.systemCode || "").then(()=>setNotice("شناسه سیستمی کپی شد."));}}><bdi dir="ltr">{item.systemCode || "در انتظار تخصیص"}</bdi> ⧉</button></td>
             {isAdmin && <td>{accounts.find(a=>a.customerUserId===item.customerUserId)?.companyName ||
               accounts.find(a=>a.customerUserId===item.customerUserId)?.personName || "حساب مشتری"}</td>}
             <td>{item.sellerName || taxpayers.find(t=>t.id===item.taxpayerId)?.displayName || "مؤدی ثبت‌شده"}</td>
             <td>{item.buyerName || "ثبت نشده"}</td>
-            <td>{toFaDate(item.issueDateUtc)}</td><td>{({Original:"اصلی",Correction:"اصلاحی",Corrective:"اصلاحی",Cancellation:"ابطالی",Cancel:"ابطالی",SalesReturn:"برگشت از فروش",ReturnFromSale:"برگشت از فروش",Return:"برگشت از فروش"} as Record<string,string>)[item.subject]??item.subject}</td>
+            <td>{toFaDate(item.issueDateUtc)}</td><td><span className={["Correction","Corrective"].includes(item.subject)?"invoice-subject-badge invoice-subject-badge--correction":undefined}>{({Original:"اصلی",Correction:"اصلاحیه",Corrective:"اصلاحیه",Cancellation:"ابطالی",Cancel:"ابطالی",SalesReturn:"برگشت از فروش",ReturnFromSale:"برگشت از فروش",Return:"برگشت از فروش"} as Record<string,string>)[item.subject]??item.subject}</span></td>
             <td>{item.correctionInProgress ? "در حال ویرایش اصلاحی" :
               item.reviewState === "WorkingDraft" ? "در حال تکمیل" :
               item.reviewState === "InReview" ? "در انتظار بازبینی" :
@@ -838,7 +838,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
     </footer>
     {bulkOpen && <BulkInvoiceImportPanel onClose={()=>setBulkOpen(false)} onChanged={()=>void reload()}/>}
     {correctionTarget&&<InvoiceCorrectionModal taxpayerId={correctionTarget.taxpayerId}
-      invoiceId={correctionTarget.id} onClose={()=>setCorrectionTarget(null)} onChanged={()=>void reload()}/>}
+      invoiceId={correctionTarget.effectiveInvoiceId ?? correctionTarget.id} onClose={()=>setCorrectionTarget(null)} onChanged={()=>void reload()}/>}
     {lineage&&<InvoiceLineageModal taxpayerId={lineage.taxpayerId} invoiceId={lineage.id} onClose={()=>setLineage(null)}/>}
     {detail && <div className="invoice-register__overlay" onMouseDown={e => {
       if (e.currentTarget === e.target) {setDetail(null);void reload();}
@@ -852,7 +852,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
         </div>
         <details name="invoice-detail-sections" className="fiscal-section invoice-detail-section" open key={"invoice-section:"+detail.id}><summary><span>صورتحساب فروش</span><span className="invoice-detail-section__summary-action">مشاهده جزئیات</span></summary>
         <div className="fiscal-section-content invoice-detail-section__content">
-        <InvoiceFormalPreview key={"formal:"+detail.id} taxpayerId={detail.taxpayerId} invoiceId={detail.id} reference={detail.systemCode??""} authorityStatus={detail.authorityStatus} subject={detail.subject} onCancellationCompleted={()=>void reload()} onCorrectionCompleted={()=>void reload()}/>
+        <InvoiceFormalPreview key={"formal:"+detail.id} taxpayerId={detail.taxpayerId} invoiceId={detail.effectiveInvoiceId ?? detail.id} reference={detail.systemCode??""} authorityStatus={detail.authorityStatus} subject={detail.subject} onCancellationCompleted={()=>void reload()} onCorrectionCompleted={()=>void reload()}/>
         </div>
         </details>
         <details name="invoice-detail-sections" className="fiscal-section invoice-detail-section"><summary><span>مشخصات داخلی و فنی صورتحساب</span><span className="invoice-detail-section__summary-action">مشاهده جزئیات</span></summary>
@@ -873,7 +873,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
         </details>
         <details name="invoice-detail-sections" className="fiscal-section invoice-detail-section"><summary><span>{detail.authorityStatus==="SUCCESS"||detail.authorityStatus==="FAILED"||detail.authorityStatus==="PENDING"||detail.authorityStatus==="ACKNOWLEDGED"?"استعلام و نتیجه سازمان":"ارسال به سامانه مؤدیان"}</span><span className="invoice-detail-section__summary-action">مشاهده جزئیات</span></summary>
         <div className="fiscal-section-content invoice-detail-section__content">
-        <InvoiceSendReadinessPanel key={"readiness:"+detail.id}
+        <InvoiceSendReadinessPanel key={"readiness:"+(detail.effectiveInvoiceId ?? detail.id)}
           invoiceId={detail.effectiveInvoiceId ?? detail.id} taxpayerId={detail.taxpayerId}
           isWorkspace={detail.kind === "workspace"} hideHistory={true} onCompleted={()=>void reload()}/>
         </div>
