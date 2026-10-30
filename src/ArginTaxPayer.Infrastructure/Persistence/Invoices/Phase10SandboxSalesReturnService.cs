@@ -129,7 +129,10 @@ public sealed class Phase10SandboxSalesReturnService(
         var now = DateTime.UtcNow;
         snapshot["referenceTaxId"] = referenceTaxId;
         snapshot["predecessorInvoiceId"] = predecessorId.ToString("D");
-        snapshot["legalSubject"] = 2;
+        snapshot["legalSubject"] = 4;
+        snapshot["otherTaxAndLegalFeesRial"] = 0;
+        if (snapshot["lines"] is JsonArray zeroLines)
+            foreach (var line in zeroLines) if (line is JsonObject item) item["quantity"] = 0;
         var json = snapshot.ToJsonString();
         try
         {
@@ -227,7 +230,7 @@ public sealed class Phase10SandboxSalesReturnService(
         if (input.Lines.Length != baseline.Length ||
             !Phase10SalesReturnValidation.AllowedLines(baseline, edited, new decimal[baseline.Length]))
         {
-            return new(InvoiceApiDecision.Invalid, "illegal_correction_fields");
+            return new(InvoiceApiDecision.Invalid, "illegal_return_fields");
         }
         if (edited.Any(x => x.Quantity * x.UnitPriceRial != decimal.Truncate(x.Quantity * x.UnitPriceRial) ||
             x.Quantity * x.DiscountPerUnitRial != decimal.Truncate(x.Quantity * x.DiscountPerUnitRial)))
@@ -359,7 +362,7 @@ public sealed class Phase10SandboxSalesReturnService(
         var reductionCorrectsOriginalMistake = (bool?)root["reductionCorrectsOriginalMistake"] ?? false;
         if (!Phase10SalesReturnValidation.AllowedLines(originalLines, changedLines, new decimal[originalLines.Length]))
         {
-            return new(InvoiceApiDecision.Invalid, "invalid_correction_lines");
+            return new(InvoiceApiDecision.Invalid, "invalid_return_lines");
         }
 
         var linesChanged = originalLines.Zip(changedLines).Any(pair =>
@@ -371,7 +374,7 @@ public sealed class Phase10SandboxSalesReturnService(
             origDoc.RootElement.GetProperty("cashAmountRial").GetDecimal() == (decimal?)root["cashAmountRial"] &&
             origDoc.RootElement.GetProperty("creditAmountRial").GetDecimal() == (decimal?)root["creditAmountRial"])
         {
-            return new(InvoiceApiDecision.Invalid, "no_changes_to_correct");
+            return new(InvoiceApiDecision.Invalid, "no_return_quantity");
         }
 
         if (false && reductionCorrectsOriginalMistake && string.IsNullOrWhiteSpace((string?)root["reductionEvidenceReference"]))
