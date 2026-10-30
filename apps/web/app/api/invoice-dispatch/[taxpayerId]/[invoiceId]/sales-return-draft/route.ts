@@ -126,6 +126,8 @@ function readDraft(value: unknown, predecessorId: string) {
   if (!isObject(value) || !isId(value.workspaceId) || value.predecessorInvoiceId !== predecessorId
     || !Number.isSafeInteger(value.revision) || Number(value.revision) < 1
     || !Array.isArray(value.lines) || value.lines.length > 1000
+    || !Array.isArray(value.originalQuantities) || value.originalQuantities.length !== value.lines.length
+    || !value.originalQuantities.every(isNumber)
     || !Number.isInteger(value.settlementMethod) || !isNumber(value.cashAmountRial)
     || !isNumber(value.creditAmountRial)) return null;
 
@@ -143,7 +145,7 @@ function readDraft(value: unknown, predecessorId: string) {
   }
   return {
     workspaceId: value.workspaceId, predecessorInvoiceId: value.predecessorInvoiceId,
-    revision: value.revision, lines, settlementMethod: value.settlementMethod,
+    revision: value.revision, lines, originalQuantities: value.originalQuantities, settlementMethod: value.settlementMethod,
     cashAmountRial: value.cashAmountRial, creditAmountRial: value.creditAmountRial,
   };
 }
