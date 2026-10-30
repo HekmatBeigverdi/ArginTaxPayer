@@ -11,6 +11,21 @@ public sealed record CatalogUnitHit(Guid Id, Guid ReleaseId, string Code, string
 /// <summary>Authenticated read-only catalog search; never treats a staged code as official.</summary>
 public sealed class CatalogSearchService(ArginTaxPayerDbContext db, IdentityAuthorizationService identity)
 {
+    internal static async Task<Dictionary<Guid, string>> CurrentCodesAsync(
+        ArginTaxPayerDbContext db, Guid customer, Guid[] itemIds, DateTime atUtc,
+        CancellationToken ct = default)
+    {
+        var codes = await (from mapping in db.CatalogOfficialMappings.AsNoTracking()
+            join item in db.CustomerCatalogItems on mapping.ItemId equals item.Id
+            join entry in db.OfficialGoodsServiceEntries on mapping.OfficialEntryId equals entry.Id
+            where item.CustomerUserId == customer && itemIds.Contains(item.Id) &&
+                mapping.EffectiveFromUtc <= atUtc &&
+                (mapping.EffectiveToUtc == null || mapping.EffectiveToUtc > atUtc)
+            select new { item.Id, entry.Code }).ToArrayAsync(ct);
+        return codes.GroupBy(x => x.Id).Where(group => group.Count() == 1)
+            .ToDictionary(group => group.Key, group => group.Single().Code);
+    }
+
     public static bool ValidPage(int page, int pageSize, string? query) =>
         page is >= 1 and <= 100000 && pageSize is >= 1 and <= 100 &&
         (long)(page - 1) * pageSize <= int.MaxValue &&
@@ -59,10 +74,12 @@ public sealed class CatalogSearchService(ArginTaxPayerDbContext db, IdentityAuth
         }
         var rows = await filtered.OrderBy(x => x.InternalCode).ThenBy(x => x.Id)
             .Skip((page - 1) * size).Take(size + 1).ToArrayAsync(ct);
+        var codes = await CurrentCodesAsync(db, customer, rows.Take(size).Select(x => x.Id).ToArray(), DateTime.UtcNow, ct);
         return new(CatalogQueryDecision.Success,
             rows.Take(size).Select(x => new CustomerProductView(x.Id, x.CustomerUserId,
                 x.InternalCode, x.Title, (ArginTaxPayer.Domain.Catalog.CatalogItemKind)x.Kind,
-                x.BaseUnitId, (ArginTaxPayer.Domain.Catalog.CatalogItemStatus)x.Status, x.Revision)).ToArray(),
+                x.BaseUnitId, (ArginTaxPayer.Domain.Catalog.CatalogItemStatus)x.Status, x.Revision,
+                codes.GetValueOrDefault(x.Id))).ToArray(),
             page, size, rows.Length > size);
     }
 
@@ -84,10 +101,12 @@ public sealed class CatalogSearchService(ArginTaxPayerDbContext db, IdentityAuth
         }
         var rows = await filtered.OrderBy(x => x.InternalCode).ThenBy(x => x.Id)
             .Skip((page - 1) * size).Take(size + 1).ToArrayAsync(ct);
+        var codes = await CurrentCodesAsync(db, customer, rows.Take(size).Select(x => x.Id).ToArray(), DateTime.UtcNow, ct);
         return new(CatalogQueryDecision.Success,
             rows.Take(size).Select(x => new CustomerServiceView(x.Id, x.CustomerUserId,
                 x.InternalCode, x.Title, x.BaseUnitId,
-                (ArginTaxPayer.Domain.Catalog.CatalogItemStatus)x.Status, x.Revision)).ToArray(),
+                (ArginTaxPayer.Domain.Catalog.CatalogItemStatus)x.Status, x.Revision,
+                codes.GetValueOrDefault(x.Id))).ToArray(),
             page, size, rows.Length > size);
     }
 

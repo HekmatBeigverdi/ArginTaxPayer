@@ -21,7 +21,8 @@ public sealed record InvoiceDraftView(
     long Revision, string State, string Subject, DateTime IssueDateUtc,
     DateTime UpdatedAtUtc, string? Kind = null, int? LastCompletedStep = null,
     string? ReviewState = null, string? SystemCode = null,
-    string? SellerName = null, string? BuyerName = null);
+    string? SellerName = null, string? BuyerName = null, string? AuthorityStatus = null,
+    Guid? EffectiveInvoiceId = null, bool CorrectionInProgress = false);
 
 public sealed record InvoiceDraftResult(InvoiceApiDecision Decision,
     InvoiceDraftView? Invoice = null);
@@ -186,8 +187,14 @@ public sealed class InvoiceDraftApplicationService(
         // supplied customer ID can extend its reach.
         var allowed = scope.ScopedQuery(principal.ActorId, principal.Level1)
             .Select(x => x.Id);
+        // Legal successor documents remain immutable, but the workspace overview
+        // displays exactly one row for the root chain, before pagination.
+        var legalSuccessors=db.Database.SqlQueryRaw<Guid>("""
+SELECT successor_invoice_id AS "Value"
+FROM sandbox_invoice_legal_relations
+""");
         var documents = db.InvoiceDocuments.AsNoTracking()
-            .Where(x => allowed.Contains(x.TaxpayerId))
+            .Where(x => allowed.Contains(x.TaxpayerId) && !legalSuccessors.Contains(x.Id))
             .Select(x => new {
                 x.Id, x.CustomerUserId, x.TaxpayerId, x.Revision,
                 x.IssueDateUtc, x.UpdatedAtUtc,
@@ -198,7 +205,9 @@ public sealed class InvoiceDraftApplicationService(
                     .Select(v => (int?)v.State).FirstOrDefault()
             });
         var working = db.InvoiceEntryWorkspaces.AsNoTracking()
-            .Where(x => allowed.Contains(x.TaxpayerId))
+            .Where(x => allowed.Contains(x.TaxpayerId) &&
+                !db.InvoiceDocuments.Any(d => d.Id == x.Id &&
+                    d.TaxpayerId == x.TaxpayerId && d.CustomerUserId == x.CustomerUserId))
             .Select(x => new {
                 x.Id, x.CustomerUserId, x.TaxpayerId, x.Revision,
                 x.IssueDateUtc, x.UpdatedAtUtc,
@@ -277,8 +286,10 @@ public sealed class InvoiceDraftApplicationService(
             .Select(r => new { r.SourceId, r.SourceKind, r.SystemCode }).ToArrayAsync(ct);
         var referenceCodes = referenceRows.ToDictionary(
             r => (r.SourceKind, r.SourceId), r => r.SystemCode);
+        var internalSnapshots = new HashSet<Guid>();
         var workspaceReviews = new Dictionary<Guid,string>();
         var buyers = new Dictionary<Guid, string?>();
+        var buyerPartyIdsByInvoice = new Dictionary<Guid, Guid>();
         foreach (var row in rows)
         {
             var json = row.Source == 1
@@ -288,6 +299,10 @@ public sealed class InvoiceDraftApplicationService(
             {
                 using var parsed = JsonDocument.Parse(json);
                 var root = parsed.RootElement;
+                if (row.Source == 0 && root.TryGetProperty("sourceWorkspaceId",out var sourceId) &&
+                    sourceId.ValueKind==JsonValueKind.String &&
+                    sourceId.TryGetGuid(out var parsedSourceId) && parsedSourceId==row.Id)
+                    internalSnapshots.Add(row.Id);
                 if (row.Source == 1 && root.TryGetProperty("InternalReviewState",out var review) &&
                     review.ValueKind == JsonValueKind.String)
                     workspaceReviews[row.Id] = review.GetString() ?? "Draft";
@@ -297,22 +312,129 @@ public sealed class InvoiceDraftApplicationService(
                 else if (root.TryGetProperty("buyer", out var buyer) &&
                     buyer.ValueKind == JsonValueKind.String)
                     buyers[row.Id] = buyer.GetString();
+                if (!buyers.ContainsKey(row.Id) &&
+                    (root.TryGetProperty("buyerPartyId", out var buyerPartyId) ||
+                     root.TryGetProperty("BuyerPartyId", out buyerPartyId)) &&
+                    buyerPartyId.ValueKind == JsonValueKind.String &&
+                    buyerPartyId.TryGetGuid(out var parsedBuyerPartyId))
+                    buyerPartyIdsByInvoice[row.Id] = parsedBuyerPartyId;
             }
             catch (JsonException) { /* Historical malformed snapshot: no display name. */ }
         }
+        if (buyerPartyIdsByInvoice.Count > 0)
+        {
+            var partyIds = buyerPartyIdsByInvoice.Values.Distinct().ToArray();
+            var partyNames = await db.Parties.AsNoTracking()
+                .Where(p => partyIds.Contains(p.Id))
+                .Select(p => new { p.Id, p.DisplayName })
+                .ToDictionaryAsync(p => p.Id, p => p.DisplayName, ct);
+            foreach (var (invoiceId, partyId) in buyerPartyIdsByInvoice)
+                if (partyNames.TryGetValue(partyId, out var partyName))
+                    buyers[invoiceId] = partyName;
+        }
+        // Read only statuses belonging to the 15 scoped invoice rows.
+        // The authority report is not interchangeable with the initial enqueue receipt.
+        var authorityByInvoice = new Dictionary<Guid,string>();
+        if(ids.Length>0)
+        {
+            var connection=db.Database.GetDbConnection();
+            var opened=connection.State!=System.Data.ConnectionState.Open;
+            if(opened)await connection.OpenAsync(ct);
+            try
+            {
+                await using var tableCheck=connection.CreateCommand();
+                tableCheck.CommandText="SELECT to_regclass('public.sandbox_authority_inquiry_reports')::text";
+                var reportTableExists=await tableCheck.ExecuteScalarAsync(ct) is not DBNull and not null;
+                await using var command=connection.CreateCommand();
+                command.CommandText=reportTableExists ? """
+SELECT d.invoice_id, d.state,
+       (SELECT r.report_json->>'Status' FROM sandbox_authority_inquiry_reports r
+        WHERE r.operation_id=d.id AND r.customer_user_id=d.customer_user_id
+          AND r.taxpayer_id=d.taxpayer_id AND r.invoice_id=d.invoice_id
+        ORDER BY r.observed_at_utc DESC, r.id DESC LIMIT 1) AS authority_status
+FROM invoice_dispatch_operations d
+WHERE d.invoice_id=ANY(@invoice_ids)
+ AND d.customer_user_id=ANY(@owners)
+ AND d.taxpayer_id=ANY(@taxpayers)
+ORDER BY d.invoice_revision DESC,d.created_at_utc DESC
+""" : """
+SELECT d.invoice_id,d.state,NULL::text AS authority_status
+FROM invoice_dispatch_operations d
+WHERE d.invoice_id=ANY(@invoice_ids)
+ AND d.customer_user_id=ANY(@owners)
+ AND d.taxpayer_id=ANY(@taxpayers)
+ORDER BY d.invoice_revision DESC,d.created_at_utc DESC
+""";
+                foreach(var (name,value) in new (string,object)[]{
+                    ("invoice_ids",ids),("owners",rows.Select(x=>x.CustomerUserId).Distinct().ToArray()),
+                    ("taxpayers",taxpayerIds)})
+                {
+                    var p=command.CreateParameter();p.ParameterName=name;p.Value=value;
+                    command.Parameters.Add(p);
+                }
+                await using var reader=await command.ExecuteReaderAsync(ct);
+                while(await reader.ReadAsync(ct))
+                {
+                    var id=reader.GetGuid(0);
+                    if(authorityByInvoice.ContainsKey(id))continue;
+                    var state=reader.GetInt32(1);
+                    var reported=reader.IsDBNull(2)?null:reader.GetString(2);
+                    authorityByInvoice[id]=reported is "SUCCESS" or "FAILED" or "PENDING"
+                        ?reported:state switch{
+                            5=>"ACKNOWLEDGED",6=>"INDETERMINATE",
+                            4=>"SENDING",3=>"RESERVED",1=>"PREPARED",
+                            _=>"UNKNOWN"};
+                }
+            }
+            finally{if(opened)await connection.CloseAsync();}
+        }
+        var correctionInProgress=new HashSet<Guid>();
+        if(ids.Length>0)
+        {
+            var conn=db.Database.GetDbConnection();
+            var opened=conn.State!=System.Data.ConnectionState.Open;
+            if(opened)await conn.OpenAsync(ct);
+            try
+            {
+                await using var cmd=conn.CreateCommand();
+                cmd.CommandText="""
+SELECT predecessor_invoice_id
+FROM sandbox_invoice_correction_workspaces
+WHERE predecessor_invoice_id=ANY(@ids)
+ AND customer_user_id=ANY(@owners) AND taxpayer_id=ANY(@taxpayers)
+ AND state=1
+""";
+                foreach(var (name,value) in new (string,object)[]{
+                    ("ids",ids),("owners",rows.Select(x=>x.CustomerUserId).Distinct().ToArray()),
+                    ("taxpayers",taxpayerIds)})
+                {var p=cmd.CreateParameter();p.ParameterName=name;p.Value=value;cmd.Parameters.Add(p);}
+                await using var reader=await cmd.ExecuteReaderAsync(ct);
+                while(await reader.ReadAsync(ct))correctionInProgress.Add(reader.GetGuid(0));
+            }finally{if(opened)await conn.CloseAsync();}
+        }
+        // Overlay the newest related legal document on its original row, keeping
+        // the original human reference and root invoice ID. Related documents
+        // never appear as additional main-table rows.
+        var effectiveByRoot = await Phase10EffectiveInvoiceQuery.ReadAsync(db, ids,
+            rows.Select(x => x.CustomerUserId).Distinct().ToArray(), taxpayerIds, ct);
         return (InvoiceApiDecision.Success, rows.Select(x =>
             new InvoiceDraftView(x.Id,x.CustomerUserId,x.TaxpayerId,x.Revision,
                 x.Source == 1 ? "WorkingDraft" :
                     ((InvoiceLifecycleState)x.Lifecycle!.Value).ToString(),
-                x.Source == 1 ? "Original" :
-                    ((InvoiceSubject)x.SubjectValue!.Value).ToString(),
-                x.IssueDateUtc,x.UpdatedAtUtc,
-                x.Source == 1 ? "workspace" : null, x.Step,
+                effectiveByRoot.TryGetValue(x.Id,out var effectiveSubject)?effectiveSubject.Subject:
+                    x.Source == 1 ? "Original" : ((InvoiceSubject)x.SubjectValue!.Value).ToString(),
+                effectiveByRoot.TryGetValue(x.Id,out var effectiveDate)?effectiveDate.Date:x.IssueDateUtc,x.UpdatedAtUtc,
+                x.Source == 1 ? "workspace" :
+                    internalSnapshots.Contains(x.Id) ? "internalSnapshot" : null, x.Step,
                 x.Source == 1 ? workspaceReviews.GetValueOrDefault(x.Id,"WorkingDraft") :
                     ((InvoiceReviewState)(x.Review ?? 1)).ToString(),
                 referenceCodes.GetValueOrDefault((x.Source == 1 ? "workspace" : "document", x.Id)),
                 names.GetValueOrDefault(x.TaxpayerId),
-                buyers.GetValueOrDefault(x.Id))).ToArray());
+                buyers.GetValueOrDefault(x.Id),
+                effectiveByRoot.TryGetValue(x.Id,out var effectiveStatus)?effectiveStatus.Status:
+                    authorityByInvoice.GetValueOrDefault(x.Id,"NOT_SENT"),
+                effectiveByRoot.TryGetValue(x.Id,out var effectiveInvoice)?effectiveInvoice.InvoiceId:null,
+                correctionInProgress.Contains(x.Id))).ToArray());
     }
 
     private static InvoiceDraftView View(StoredInvoice invoice) =>

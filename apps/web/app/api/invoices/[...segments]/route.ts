@@ -11,6 +11,8 @@ function target(segments: string[], method: "GET" | "POST"): string | null {
       return "/api/dev/invoice-workspaces/bulk";
     if (segments.length === 1 && (method === "GET" || method === "POST"))
       return "/api/dev/invoice-workspaces";
+    if (segments.length===3 && segments[2]==="prepare" && method==="POST" && uuid.test(segments[1]))
+      return "/api/dev/invoice-workspaces/"+segments[1]+"/prepare";
     if (segments.length === 3 && method === "GET" && uuid.test(segments[1]) &&
         segments[2] === "history") return "/api/dev/invoice-workspaces/"+segments[1]+"/history";
     if (segments.length === 3 && method === "GET" && uuid.test(segments[1]) &&
@@ -80,18 +82,29 @@ async function proxy(request: NextRequest, context: Context, method: "GET" | "PO
                 draft.id!=null || draft.expectedRevision!==0 || draft.lastCompletedStep!==2;
             }))
           return error(400,"invalid_bulk_manifest");
+      } else if (segments[0] === "workspaces" && segments.length===3 && segments[2]==="prepare") {
+        if(Object.keys(data).length!==1 || typeof data.expectedRevision!=="number" ||
+          !Number.isSafeInteger(data.expectedRevision)||data.expectedRevision<1)
+          return error(400,"invalid_snapshot_revision");
       } else if (segments[0] === "workspaces") {
         const permitted = ["id","taxpayerId","expectedRevision","lastCompletedStep",
           "issueDateUtc","buyerPartyId","type","pattern","lines",
           "invoiceDescription","settlementMethod","cashAmountRial","creditAmountRial",
+          "otherTaxAndLegalFeesRial",
           "contractNumber","serviceBillId","flightType","goldConstructionFeeRial",
-          "goldSellerProfitRial","goldCommissionRial","goldTotalFeeProfitRial","fiscalMemoryId"];
+          "goldSellerProfitRial","goldCommissionRial","goldTotalFeeProfitRial",
+          "fiscalMemoryId","sandboxFiscalMemoryId"];
         if (Object.keys(data).some(k=>!permitted.includes(k)) ||
             typeof data.taxpayerId !== "string" || !uuid.test(data.taxpayerId) ||
             typeof data.issueDateUtc !== "string" || !Array.isArray(data.lines) ||
             data.lines.length > 150 || typeof data.expectedRevision !== "number" ||
             typeof data.lastCompletedStep !== "number" ||
-            (data.id != null && (typeof data.id !== "string" || !uuid.test(data.id))))
+            (data.id != null && (typeof data.id !== "string" || !uuid.test(data.id))) ||
+            (data.fiscalMemoryId != null &&
+              (typeof data.fiscalMemoryId !== "string" || !uuid.test(data.fiscalMemoryId))) ||
+            (data.sandboxFiscalMemoryId != null &&
+              (typeof data.sandboxFiscalMemoryId !== "string" || !uuid.test(data.sandboxFiscalMemoryId))) ||
+            (data.fiscalMemoryId != null && data.sandboxFiscalMemoryId != null))
           return error(400,"unsupported_invoice_fields");
       } else if (Object.keys(data).some(k => !["issueDateUtc", "sellerDisplayName", "buyerDisplayName", "buyerPartyId"].includes(k)) ||
           typeof data.issueDateUtc !== "string" ||
@@ -134,9 +147,20 @@ async function proxy(request: NextRequest, context: Context, method: "GET" | "PO
       ...(body ? { body } : {})
     });
     if (response.status >= 300 && response.status < 400) return error(502, "unexpected_redirect");
-    if (![200, 201].includes(response.status))
+    if (![200, 201].includes(response.status)) {
+      const responseText = await response.text();
+      let errorCode = "request_rejected";
+      try {
+        const payload: unknown = JSON.parse(responseText);
+        if (payload && typeof payload === "object" && !Array.isArray(payload)) {
+          const candidate = (payload as Record<string, unknown>).error;
+          if (typeof candidate === "string" && /^[a-z][a-z0-9_]{0,63}$/.test(candidate))
+            errorCode = candidate;
+        }
+      } catch { /* Keep the stable generic error for non-JSON responses. */ }
       return error([400, 401, 403, 404, 409].includes(response.status) ?
-        response.status : 502, "request_rejected");
+        response.status : 502, errorCode);
+    }
     const payload = await response.text();
     if (payload.length > 500000) return error(502, "response_too_large");
     return new NextResponse(payload, {

@@ -38,7 +38,38 @@ public static class InvoiceDraftDevelopmentEndpoints
                 .OrderBy(m => m.MemoryIdentifier)
                 .Select(m => new {m.Id,m.MemoryIdentifier,m.Status})
                 .ToArrayAsync(ct);
-            return Results.Ok(new { taxpayer, memories });
+            // Sandbox fiscal-memory selection is scoped to the exact seller/owner,
+            // kept separate from Production IDs and marked non-production.
+            var owner = await scope.ScopedQuery(actor.ActorId,actor.Level1)
+                .Where(p => p.Id == taxpayerId)
+                .Select(p => p.CustomerUserId).SingleOrDefaultAsync(ct);
+            var sandboxMemories = new List<object>();
+            if(owner is { } ownerId && ownerId!=Guid.Empty)
+            {
+                var conn=db.Database.GetDbConnection();
+                var opened=conn.State!=System.Data.ConnectionState.Open;
+                if(opened)await conn.OpenAsync(ct);
+                try
+                {
+                    await using var cmd=conn.CreateCommand();
+                    cmd.CommandText="""
+SELECT id,memory_identifier
+FROM sandbox_fiscal_memories
+WHERE taxpayer_id=@taxpayer AND customer_user_id=@owner
+ AND private_envelope_json IS NOT NULL
+ORDER BY memory_identifier
+""";
+                    var t=cmd.CreateParameter();t.ParameterName="taxpayer";t.Value=taxpayerId;
+                    cmd.Parameters.Add(t);
+                    var o=cmd.CreateParameter();o.ParameterName="owner";o.Value=ownerId;
+                    cmd.Parameters.Add(o);
+                    await using var reader=await cmd.ExecuteReaderAsync(ct);
+                    while(await reader.ReadAsync(ct))
+                        sandboxMemories.Add(new { id=reader.GetGuid(0),
+                            memoryIdentifier=reader.GetString(1),environment="Sandbox" });
+                } finally {if(opened)await conn.CloseAsync();}
+            }
+            return Results.Ok(new { taxpayer, memories, sandboxMemories });
         }).WithTags("Invoice Header Options (Development)");
 
         app.MapGet("/api/dev/invoices/form-metadata", async (
@@ -179,6 +210,33 @@ public static class InvoiceDraftDevelopmentEndpoints
             return result.Decision == InvoiceApiDecision.Success
                 ? Results.Ok(result.Draft) : Error(result.Decision);
         }).WithTags("Resumable Invoice Drafts (Development)");
+
+        app.MapPost("/api/dev/invoice-workspaces/{id:guid}/prepare", async (
+            Guid id,[FromBody] InvoiceWorkspacePromotionRequest request,
+            HttpContext http,InvoiceWorkspacePromotionService service,
+            CancellationToken ct) =>
+        {
+            if(!Local(http))return Results.NotFound();
+            if(http.Request.Headers.ContainsKey("Origin"))return Results.StatusCode(403);
+            http.Response.Headers.CacheControl="no-store";
+            var result=await service.PromoteAsync(Token(http),id,request,ct);
+            return result.Decision switch {
+                InvoiceApiDecision.Success => Results.Ok(new{
+                    invoiceId=result.InvoiceId,
+                    sourceRevision=result.SourceRevision,
+                    internalSnapshotCreated=true,
+                    fiscalSubmissionAuthorized=false,
+                    signedPacketAvailable=false,
+                    environmentSubmissionEnabled=false,
+                    status=result.Code
+                }),
+                InvoiceApiDecision.Unauthenticated=>Results.Unauthorized(),
+                InvoiceApiDecision.Forbidden=>Results.StatusCode(403),
+                InvoiceApiDecision.NotFound=>Results.NotFound(),
+                InvoiceApiDecision.Conflict=>Results.Conflict(new{error=result.Code}),
+                _=>Results.BadRequest(new{error=result.Code})
+            };
+        }).WithTags("Internal Invoice Snapshot Preparation (Development)");
 
         app.MapGet("/api/dev/invoices", async (Guid? customerId, Guid? taxpayerId,
             int? page, int? pageSize, string? reviewState, string? search,

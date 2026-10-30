@@ -367,6 +367,26 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 .console-catalog-page .catalog-grid-loading-host .argin-loader-overlay{position:absolute;inset:0;z-index:3;border-radius:8px;background:#ffffffdd}
 .console-catalog-page .catalog-filters select{width:100%;min-height:35px;border-radius:7px;border:1px solid #b9ccdd;background:#fff;color:#19324a;padding:6px 9px;font:inherit;font-size:12px}
 .console-catalog-page .catalog-editor-panel .catalog-modal-footer{justify-content:flex-start}
+.console-catalog-page .catalog-mapping-editor{background:#f8fcff}
+.console-catalog-page .catalog-mapping-form{grid-template-columns:1fr!important;gap:12px!important}
+.console-catalog-page .catalog-mapping-help{margin:0;line-height:1.8}
+.console-catalog-page .catalog-inline-field{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px;align-items:end}
+.console-catalog-page .catalog-inline-field button{white-space:nowrap}
+.console-catalog-page .catalog-official-results{display:grid;gap:6px;margin:0;padding:10px;border:1px solid #cbdbe5;border-radius:8px;min-width:0}
+.console-catalog-page .catalog-official-results legend{padding:0 5px;font-size:11px;font-weight:700;color:#315a73}
+.console-catalog-page .catalog-official-option{display:grid!important;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:8px;padding:8px;border:1px solid #dce7ee;border-radius:7px;background:#fff;cursor:pointer}
+.console-catalog-page .catalog-official-option:has(input:checked),.console-catalog-page .catalog-official-option.is-selected{border-color:#2b7794;background:#eaf6fb}
+.console-catalog-page .catalog-official-option input{width:auto!important;min-height:auto!important}
+.console-catalog-page .catalog-mapping-search-modal{position:fixed;inset:0;z-index:1400;display:grid;place-items:center;padding:18px;background:#17374d55}
+.console-catalog-page .catalog-mapping-search-dialog{width:min(620px,100%);max-height:min(80vh,680px);overflow:auto;padding:16px;border:1px solid #cbdbe5;border-radius:12px;background:#fff;box-shadow:0 18px 50px #17374d35}
+.console-catalog-page .catalog-mapping-search-dialog .catalog-inline-field{margin-bottom:12px}
+.console-catalog-page .catalog-mapping-search-dialog .catalog-official-results{display:grid;grid-template-columns:1fr;gap:6px}
+.console-catalog-page .catalog-mapping-search-dialog .catalog-official-option{width:100%;font:inherit;text-align:right}
+.console-catalog-page .catalog-mapping-history{border-top:1px solid #e0e8ef;margin-top:14px;padding-top:10px}
+.console-catalog-page .catalog-mapping-history h3{margin:0 0 8px;font-size:13px}
+.console-catalog-page .catalog-mapping-history .catalog-history{max-height:190px;overflow:auto}
+.console-catalog-page .catalog-mapping-history .catalog-history li{font-size:11px;padding:9px}
+.console-catalog-page .catalog-mapping-history .catalog-history button{margin-inline-start:8px;padding:4px 7px;font-size:10px}
 @media(max-width:1100px){.console-catalog-page .catalog-split-layout{grid-template-columns:1fr}}
 @media(max-width:530px){.console-catalog-page .catalog-editor-panel .catalog-form{grid-template-columns:1fr}.console-catalog-page .catalog-editor-panel .catalog-form label:has(.catalog-unit-combo){grid-column:auto}}
 /* Shared ArginAccounting PersianDatePicker component styling, locally scoped to catalog. */
@@ -396,14 +416,13 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 .console-catalog-page .catalog-editor-panel .catalog-form label:has(.catalog-unit-combo){grid-column:1/-1}
 .console-catalog-page .catalog-editor-panel .catalog-form .catalog-help,
 .console-catalog-page .catalog-editor-panel .catalog-modal-footer{grid-column:1/-1}
-.console-catalog-page .catalog-split-layout .catalog-table{min-width:0;width:100%;table-layout:fixed}
-.console-catalog-page .catalog-split-layout .catalog-table th:nth-child(1){width:15%}
-.console-catalog-page .catalog-split-layout .catalog-table th:nth-child(2){width:30%}
-.console-catalog-page .catalog-split-layout .catalog-table th:nth-child(3){width:17%}
-.console-catalog-page .catalog-split-layout .catalog-table th:nth-child(4){width:38%}
-.console-catalog-page .catalog-split-layout .catalog-table td{overflow-wrap:anywhere;word-break:normal}
-.console-catalog-page .catalog-split-layout .catalog-actions{gap:4px}
-.console-catalog-page .catalog-split-layout .catalog-actions button{padding:5px 7px}
+.console-catalog-page .catalog-split-layout .catalog-table{min-width:640px;width:100%;table-layout:auto}
+.console-catalog-page .catalog-split-layout .catalog-table th,
+.console-catalog-page .catalog-split-layout .catalog-table td{overflow-wrap:normal;word-break:normal;white-space:nowrap}
+.console-catalog-page .catalog-split-layout .catalog-table .catalog-title-cell{min-width:150px;white-space:normal;overflow-wrap:anywhere}
+.console-catalog-page .catalog-split-layout .catalog-table th:last-child{width:1%}
+.console-catalog-page .catalog-split-layout .catalog-actions{gap:4px;flex-wrap:nowrap}
+.console-catalog-page .catalog-split-layout .catalog-actions button{padding:5px 7px;flex-shrink:0;white-space:nowrap}
 .console-catalog-page .ui-persian-date__popover{top:auto;bottom:calc(100% + 7px);right:0;left:auto}
 @media(max-width:1100px){.console-catalog-page .catalog-split-layout{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:530px){.console-catalog-page .catalog-editor-panel .catalog-form{grid-template-columns:minmax(0,1fr)}}
@@ -489,6 +508,9 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 .invoice-register__dialog-footer{padding:12px 18px;border-top:1px solid #e2e8ee;display:flex;justify-content:flex-end;gap:8px}
 .invoice-register__dialog-footer button{min-height:34px}
 .invoice-register button:focus-visible,.invoice-register input:focus-visible,.invoice-register select:focus-visible{outline:2px solid #3269ac;outline-offset:2px}
+.invoice-calculation-audit{margin:12px 0;padding:12px 14px;border:1px solid #e6b4b4;border-radius:9px;background:#fff7f7;color:#713838;line-height:1.9}
+.invoice-calculation-audit h4{margin:0 0 6px;font-size:13px}
+.invoice-calculation-audit ul{margin:0;padding-right:18px}
 
 /* Shared Persian calendar in invoices too: previously its layout rules only
    matched .console-catalog-page, making the new invoice picker unstyled. */
@@ -564,6 +586,11 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 .console-page .invoice-register .console-table{font-size:12px;line-height:1.45;border-collapse:collapse;width:100%;white-space:nowrap}
 .console-page .invoice-register .console-table :is(th,td){padding:7px 10px;border-bottom:1px solid #e8edf1}
 .console-page .invoice-register .console-table th{background:#eef4f6;color:#476176;font-size:12px;font-weight:750}
+.console-page .invoice-register .console-table td.invoice-register__description-cell{white-space:normal;vertical-align:top;min-width:0}
+.console-page .invoice-register__sstid-status{display:flex;align-items:center;justify-content:flex-start;gap:5px;max-width:100%;margin-top:4px;padding:3px 6px;border-radius:5px;font-size:10px;line-height:1.4;white-space:normal;overflow-wrap:anywhere}
+.console-page .invoice-register__sstid-status--ready{color:#216147;background:#edf8f1;border:1px solid #c7e5d2}
+.console-page .invoice-register__sstid-status--ready span{font-weight:700;letter-spacing:.02em}
+.console-page .invoice-register__sstid-status--missing{color:#8a5b19;background:#fff8e9;border:1px solid #f0dcae}
 .console-page .invoice-register .console-row-action{padding:4px 9px;font:inherit;font-size:12px}
 .console-page .invoice-register .console-table-footer{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:0;padding:12px 3px 0;color:var(--argin-muted,#617487);font-size:12px;border:0;background:transparent}
 .console-page .invoice-register .console-table-footer>div{display:flex;align-items:center;gap:10px}
@@ -603,6 +630,7 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 .console-page .invoice-register__totals :is(dt,dd){padding:5px 0}
 .console-page .invoice-register__restriction{margin-top:9px;padding:9px 11px;font-size:11px}
 .invoice-register__catalog-picker{display:grid;grid-template-columns:110px minmax(0,1fr);align-items:center;gap:10px;max-width:780px;margin:9px 0}
+.invoice-register__catalog-picker>.field-hint{grid-column:1/-1;display:block;box-sizing:border-box;width:100%;margin:0;padding:6px 9px;border:1px solid #dbe7ef;border-radius:7px;background:#f7fafc;color:#617489;font-size:11px;line-height:1.7;white-space:normal;overflow-wrap:anywhere}
 .invoice-register__catalog-picker>label{font-size:12px;font-weight:600}
 .invoice-register__catalog-combo{position:relative;min-width:0}
 .invoice-register__catalog-combo input{display:block;width:100%;height:32px;min-height:32px;padding:5px 9px;border:1px solid #c5d4e0;border-radius:6px;font:inherit;font-size:12px;background:var(--surface,#fff);color:inherit}
@@ -704,7 +732,9 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
   box-shadow:0 8px 25px #173d5629; font-size:12px; line-height:1.9;
   white-space:normal;
 }
-.invoice-register__loading { z-index:5; display:flex; }
+.invoice-register__table-stage { position:relative; min-height:220px; }
+.invoice-register__table-stage[aria-busy="true"] { overflow:hidden; }
+.invoice-register__loading { z-index:5; display:flex; height:100%; min-height:100%; }
 .argin-modal-close{border-radius:10px!important;font-size:18px!important;line-height:1;display:grid;place-items:center}.argin-modal-close:hover{background:#eaf5f5;border-color:#8fc4c7}.argin-modal-close:focus-visible{outline:3px solid #24a5a3;outline-offset:2px}
 .taxpayer-workspace-single{display:block}.taxpayer-workspace-single>.taxpayer-main{min-width:0}.taxpayer-workspace-single .taxpayer-panel{padding:15px}.taxpayer-workspace-single .taxpayer-facts{margin-bottom:14px}
 
@@ -715,6 +745,93 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 .fiscal-section > summary { cursor:pointer; padding:10px 12px; font-size:13px; font-weight:700; color:#205c60; background:#f0f7f6; border-radius:8px; }
 .fiscal-section > summary:focus-visible { outline:2px solid var(--argin-primary); outline-offset:2px; }
 .fiscal-section-content { padding:12px; max-height:52dvh; overflow:auto; }
+.invoice-inquiry-section {
+  margin-top:4px;
+  border:1px solid #b7d8d5;
+  border-radius:10px;
+  background:#fbfefd;
+  overflow:hidden;
+}
+.invoice-inquiry-section > summary {
+  display:flex;
+  align-items:center;
+  gap:10px;
+  min-height:46px;
+  padding:9px 12px;
+  cursor:pointer;
+  color:#145d62;
+  background:#eaf6f4;
+  font-weight:700;
+  line-height:1.8;
+  transition:background-color .16s ease, box-shadow .16s ease;
+}
+.invoice-inquiry-section > summary:hover { background:#dff0ed; }
+.invoice-inquiry-section > summary:focus-visible {
+  outline:2px solid var(--argin-primary);
+  outline-offset:-2px;
+  box-shadow:0 0 0 3px rgba(32,92,96,.14);
+}
+.invoice-inquiry-section > summary::marker { color:#17666b; }
+.invoice-inquiry-section > summary::after {
+  content:"⌄";
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:25px;
+  height:25px;
+  margin-inline-start:auto;
+  border:1px solid #72ada8;
+  border-radius:50%;
+  color:#17666b;
+  background:#fff;
+  font-size:17px;
+  line-height:1;
+  transition:transform .16s ease, background-color .16s ease;
+}
+.invoice-inquiry-section:not([open]) > summary::after { transform:rotate(180deg); }
+.invoice-inquiry-section__action {
+  flex:none;
+  padding:3px 9px;
+  border:1px solid #8fc2bd;
+  border-radius:999px;
+  color:#145d62;
+  background:#fff;
+  font-size:11px;
+  white-space:nowrap;
+}
+.invoice-inquiry-section > button {
+  display:block;
+  margin:12px auto 0;
+}
+.invoice-inquiry-section > :is(h4,p,ul) {
+  margin-inline:12px;
+  padding-inline:12px;
+}
+.invoice-inquiry-section > div {
+  padding-inline:12px;
+}
+.invoice-inquiry-section__loading {
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  margin:12px;
+  padding:10px 12px;
+  border:1px solid #c6dfdc;
+  border-radius:8px;
+  color:#28666a;
+  background:#f2faf9;
+  font-size:12px;
+}
+.invoice-inquiry-section__loading > span {
+  width:14px;
+  height:14px;
+  flex:none;
+  border:2px solid #b8d8d5;
+  border-top-color:#17666b;
+  border-radius:50%;
+  animation:argin-spin .75s linear infinite;
+}
 .fiscal-dialog .taxpayer-workspace-single, .fiscal-dialog .taxpayer-sections-grid { display:block; }
 .fiscal-dialog .argin-memory-step { margin:0; padding:0; border:0; }
 .fiscal-dialog .invoice-participant { margin:0; }
@@ -809,3 +926,198 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 .signing-admin-review__decision textarea{border:1px solid #becfcb;border-radius:7px;padding:8px;font:inherit;font-size:12px;resize:vertical}
 .signing-admin-review__actions{display:flex;gap:8px;flex-wrap:wrap}
 @media(max-width:640px){.signing-admin-review__item dl{grid-template-columns:1fr}}
+
+
+/* Phase10 Step17 — compact RTL invoice dispatch panel, existing Argin green theme. */
+.invoice-dispatch-ui{border:1px solid #cfdfd9;border-radius:10px;background:#f8fbfa;padding:12px;margin-top:12px;display:grid;gap:10px;min-width:0}
+.invoice-dispatch-ui__head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.invoice-dispatch-ui__head h3{font-size:14px;color:#20574b;margin:0 0 3px}
+.invoice-dispatch-ui__head p,.invoice-dispatch-ui__hint{font-size:11px;line-height:1.85;color:#5c756e;margin:0}
+.invoice-dispatch-ui__env{flex-shrink:0;font-size:10px;background:#e4f1ec;border:1px solid #bcd7cc;color:#20594b;border-radius:20px;padding:4px 9px;font-weight:700}
+.invoice-dispatch-ui__grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.invoice-dispatch-ui__grid>div{display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px;border:1px solid #e0eae5;border-radius:7px;padding:7px 9px;background:#fff;font-size:11px}
+.invoice-dispatch-ui__grid span,.invoice-dispatch-ui__state span{color:#58716a}
+.invoice-dispatch-ui__grid strong,.invoice-dispatch-ui__state strong{font-size:11px;color:#254f44}
+.invoice-dispatch-ui__state{display:flex;justify-content:space-between;align-items:center;gap:8px;border:1px solid #d5e5dd;background:#eaf5f0;border-radius:7px;padding:9px;font-size:11px}
+.invoice-dispatch-ui__actions{display:flex;flex-wrap:wrap;gap:7px;align-items:center}
+.invoice-dispatch-ui__actions button{min-height:32px!important;padding:5px 11px!important;font-size:11px!important;width:auto!important;margin:0!important}
+.invoice-dispatch-ui__actions button:disabled{opacity:.54;cursor:not-allowed}
+.invoice-dispatch-ui__hint{border-top:1px solid #dfebe4;padding-top:8px}
+@media(max-width:520px){.invoice-dispatch-ui__grid{grid-template-columns:1fr}.invoice-dispatch-ui__actions button{flex:1 1 140px}}
+
+
+/* Separate Sandbox fiscal-memory onboarding - isolated from Production */
+.sandbox-memory-panel{display:grid;gap:12px;direction:rtl;border:1px solid #cee3d9;background:#f8fcfa;border-radius:10px;padding:12px;margin:10px 0}
+.sandbox-memory-panel__heading{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.sandbox-memory-panel__heading h3{font-size:14px;color:#21604c;margin:0 0 4px}
+.sandbox-memory-panel__heading p,.sandbox-memory-panel__steps p{font-size:11px;line-height:1.9;color:#536b62;margin:0 0 8px}
+.sandbox-memory-panel__heading>span{font-size:11px;color:#215b49;background:#dcefe6;border:1px solid #b4d5c6;border-radius:15px;padding:3px 8px}
+.sandbox-memory-panel__steps{display:grid;gap:8px}
+.sandbox-memory-panel__steps>section{background:#fff;border:1px solid #dceae3;border-radius:8px;padding:11px;display:grid;gap:8px}
+.sandbox-memory-panel__steps strong{font-size:12px;color:#245849}
+.sandbox-memory-panel__steps label{font-size:11px}
+.sandbox-memory-panel__steps input[type=text]{width:min(100%,360px);min-height:34px;background:#fff;border:1px solid #bad3c8;border-radius:7px;padding:6px 9px;font:inherit;font-size:12px}
+.sandbox-memory-panel__steps button{width:fit-content!important;min-height:33px!important;font-size:11px!important;padding:6px 12px!important;margin:0!important}
+.sandbox-memory-panel__steps button:disabled{opacity:.52;cursor:not-allowed}
+.sandbox-memory-panel__steps a{font-size:12px;color:#176d52;text-decoration:underline;width:fit-content}
+.sandbox-memory-panel__consent{display:flex;gap:7px;align-items:center;line-height:1.6}
+.sandbox-memory-panel__files{display:flex;gap:8px;flex-wrap:wrap;align-items:center;background:#eef7f1;border:1px solid #c9e3d4;border-radius:7px;padding:9px}
+.sandbox-memory-panel__files strong,.sandbox-memory-panel__files p{flex-basis:100%}
+.sandbox-memory-panel__warning{background:#fff9ec;border:1px solid #f0dfb9;border-radius:7px;color:#6e5734;padding:9px;font-size:11px;line-height:2;margin:0}
+@media(max-width:600px){.sandbox-memory-panel__heading{flex-direction:column}.sandbox-memory-panel__steps button{max-width:100%;width:100%!important}.sandbox-memory-panel__files button{width:100%!important}}
+
+
+/* Phase10 step18: compact, read-only invoice dispatch timeline */
+.invoice-dispatch-history{border:1px solid #d3e3d9;border-radius:9px;background:#f9fcfa;padding:11px;margin-top:10px;display:grid;gap:9px;direction:rtl;min-width:0}
+.invoice-dispatch-history__head{display:flex;align-items:start;justify-content:space-between;gap:8px}
+.invoice-dispatch-history__head h3{font-size:13px;margin:0 0 4px;color:#225b48}
+.invoice-dispatch-history__head p,.invoice-dispatch-history__preview p{font-size:11px;color:#64766d;line-height:1.8;margin:0}
+.invoice-dispatch-history__head button,.invoice-dispatch-history button{font-size:11px!important;padding:6px 9px!important;min-height:30px!important;width:auto!important;margin:0!important}
+.invoice-dispatch-history__facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.invoice-dispatch-history__facts>div{background:#fff;border:1px solid #e1e9e3;border-radius:7px;display:flex;align-items:center;flex-wrap:wrap;justify-content:space-between;gap:7px;padding:7px;font-size:11px}
+.invoice-dispatch-history__facts span{color:#637a6e}
+.invoice-dispatch-history__facts strong{font-size:11px;color:#285747}
+.invoice-dispatch-history h4{margin:3px 0 0;font-size:12px;color:#2b6350}
+.invoice-dispatch-history__preview,.invoice-dispatch-history__confirm>div{display:grid;gap:7px;background:white;border:1px solid #dce9e0;border-radius:7px;padding:9px;min-width:0;overflow-wrap:anywhere}
+.invoice-dispatch-history__loading{display:flex;align-items:center;gap:8px;padding:12px;font-size:11px;color:#4e685a}
+.invoice-dispatch-history__receipts{display:grid;gap:6px}
+.invoice-dispatch-history__receipts>div{display:flex;flex-wrap:wrap;gap:9px;background:#fff;border:1px solid #dce9e0;border-radius:7px;padding:8px;font-size:11px}
+.invoice-dispatch-history__confirm{display:grid;gap:8px}
+.invoice-dispatch-history__notice{font-size:11px;color:#785f36;background:#fff9e9;border:1px solid #e9dbbb;border-radius:7px;padding:8px;line-height:1.8;margin:0}
+.invoice-dispatch-history button:disabled{opacity:.56;cursor:not-allowed}
+@media(max-width:520px){.invoice-dispatch-history__facts{grid-template-columns:1fr}.invoice-dispatch-history__head{flex-wrap:wrap}}
+
+/* Invoice detail sections inherit the buyer/seller dossier accordion visual language. */
+.invoice-register__detail-modal .invoice-detail-section {
+  margin:0 0 8px;
+  border:1px solid var(--argin-line);
+  border-radius:8px;
+  background:var(--surface,#fff);
+  overflow:hidden;
+}
+.invoice-register__detail-modal .invoice-detail-section > summary {
+  display:flex;
+  align-items:center;
+  gap:10px;
+  cursor:pointer;
+  padding:10px 12px;
+  font-size:13px;
+  font-weight:700;
+  color:#205c60;
+  background:#f0f7f6;
+  border-radius:8px;
+  transition:background-color .16s ease, box-shadow .16s ease;
+}
+.invoice-register__detail-modal .invoice-detail-section > summary:hover {
+  background:#e3f1ef;
+}
+.invoice-register__detail-modal .invoice-detail-section > summary::marker {
+  color:#17666b;
+}
+.invoice-register__detail-modal .invoice-detail-section > summary::after {
+  content:"⌄";
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:22px;
+  height:22px;
+  margin-inline-start:auto;
+  border:1px solid #9fc8c5;
+  border-radius:50%;
+  color:#17666b;
+  font-size:16px;
+  line-height:1;
+  transition:transform .16s ease, background-color .16s ease;
+}
+.invoice-register__detail-modal .invoice-detail-section:not([open]) > summary::after {
+  transform:rotate(180deg);
+}
+.invoice-register__detail-modal .invoice-detail-section > summary:hover::after {
+  background:#d5e9e7;
+}
+.invoice-register__detail-modal .invoice-detail-section__summary-action {
+  flex:none;
+  padding:3px 8px;
+  border:1px solid #b9d7d4;
+  border-radius:999px;
+  color:#397074;
+  background:#fff;
+  font-size:11px;
+  font-weight:600;
+  white-space:nowrap;
+}
+.invoice-register__detail-modal .invoice-detail-section[open] > summary {
+  border-radius:8px 8px 0 0;
+}
+.invoice-register__detail-modal .invoice-detail-section__content {
+  padding:10px 12px;
+  max-height:58dvh;
+  overflow:auto;
+}
+.invoice-register__detail-modal .invoice-detail-section > summary:focus-visible {
+  outline:2px solid var(--argin-primary);
+  outline-offset:-2px;
+  box-shadow:0 0 0 3px rgba(32,92,96,.14);
+}
+
+/* Live invoice submission and authority inquiry progress. */
+.invoice-send-progress{display:flex;align-items:flex-start;gap:16px;padding:20px;margin:16px 0;border:1px solid #b9dfe1;border-radius:14px;background:linear-gradient(135deg,#f0faf9,#f7fbff);color:#173d56;box-shadow:0 4px 16px #173d5608}
+.invoice-send-progress>.argin-loader-spinner{flex:none;width:30px;height:30px;margin-top:3px}
+.invoice-send-progress__body{flex:1;min-width:0}
+.invoice-send-progress__body>strong{font-size:15px;line-height:1.9}
+.invoice-send-progress__body>p{margin:6px 0;font-size:13px;line-height:1.9;color:#526c7e}
+.invoice-send-progress__body>.invoice-send-progress__success{color:#147148;font-weight:600;overflow-wrap:anywhere}
+.invoice-send-progress__steps{display:flex;flex-wrap:wrap;gap:8px;list-style:none;padding:0;margin:14px 0 0;font-size:12px}
+.invoice-send-progress__steps li{padding:6px 12px;border-radius:8px;background:#e9eef2;color:#677b8b}
+.invoice-send-progress__steps li[aria-current="step"]{background:#d7eeee;color:#096f74;font-weight:700;box-shadow:inset 0 0 0 1px #9dd0d2}
+.invoice-send-progress__steps li[data-complete="true"]{background:#e1f3e8;color:#147148}
+@media(max-width:540px){.invoice-send-progress{padding:14px;gap:10px}.invoice-send-progress>.argin-loader-spinner{width:24px;height:24px;border-width:3px}}
+
+/* Correction workflow: compact actions, explicit receipt and persistent confirmation. */
+.invoice-action-button{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:34px;padding:6px 11px!important;font-size:12px!important;line-height:1.5;white-space:nowrap}
+.invoice-action-button svg{flex:none}
+.invoice-correction-actions{display:flex;align-items:center;justify-content:flex-end;gap:7px;flex-wrap:wrap;position:sticky;bottom:-8px;padding:12px 0 4px;background:var(--surface,#fff);border-top:1px solid #e2e8f0}
+.invoice-action-toast{position:fixed;z-index:1800;inset-inline-start:24px;bottom:24px;display:flex;align-items:flex-start;gap:12px;width:min(440px,calc(100vw - 32px));padding:18px;border:1px solid #b9d7ec;border-inline-start:4px solid #287ab4;border-radius:14px;background:#fff;color:#203e56;box-shadow:0 12px 45px #193d5933;text-align:start;animation:invoice-toast-in .18s ease-out}
+.invoice-action-toast__icon,.correction-receipt__icon{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;flex:none;border-radius:10px;background:#eaf4ff;color:#2271b1}
+.invoice-action-toast__body{min-width:0;flex:1}
+.invoice-action-toast strong{font-size:14px}.invoice-action-toast p{font-size:13px;line-height:1.9;margin:5px 0 12px;color:#5b7184}
+.invoice-action-toast__actions{display:flex;gap:8px;flex-wrap:wrap}
+.correction-receipt{margin:16px 0;padding:20px;border:1px solid #bcd6ed;border-radius:14px;background:linear-gradient(120deg,#f1f7ff,#fbfdff);text-align:start}
+.correction-receipt>header{display:flex;align-items:flex-start;gap:12px}
+.correction-receipt h3{margin:0;font-size:15px;line-height:1.8}.correction-receipt p{margin:5px 0 0;color:#536d83;font-size:12px;line-height:1.9}
+.correction-receipt dl{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:18px 0 0}
+.correction-receipt dl>div{background:#ffffffb3;border:1px solid #e0eaf3;border-radius:9px;padding:10px 12px}
+.correction-receipt dt{font-size:11px;color:#627a8f;margin-bottom:5px}.correction-receipt dd{margin:0;font-size:13px;font-weight:600;line-height:1.8}
+.correction-receipt__reference{grid-column:1/-1}.correction-receipt__reference dd{overflow-wrap:anywhere;user-select:all;font-family:ui-monospace,monospace;font-size:13px;letter-spacing:.3px}
+.correction-receipt details{margin-top:14px;border-top:1px solid #dae6f1;padding-top:10px;color:#627a8f;font-size:11px}.correction-receipt summary{cursor:pointer}.correction-receipt details code{display:block;overflow-wrap:anywhere;margin-top:8px;user-select:all;text-align:left}
+.correction-receipt[data-outcome="success"]{border-color:#addbc6;background:#f2fbf6}.correction-receipt[data-outcome="success"] .correction-receipt__icon{background:#daf2e5;color:#168353}
+.correction-receipt[data-outcome="failed"]{border-color:#ebc5c5;background:#fff8f8}
+.invoice-subject-badge{display:inline-flex;align-items:center;padding:3px 10px;border-radius:6px;font-size:12px;font-weight:600}.invoice-subject-badge--correction{color:#2164a4;background:#dcecff;border:1px solid #c2dcfa}
+@keyframes invoice-toast-in{from{transform:translateY(10px);opacity:0}to{transform:translateY(0);opacity:1}}
+@media(max-width:540px){.invoice-action-toast{inset-inline-start:16px;bottom:16px}.correction-receipt{padding:14px}.correction-receipt dl{grid-template-columns:1fr}.invoice-correction-actions{justify-content:stretch}.invoice-correction-actions button{flex:1}.correction-receipt__reference{grid-column:auto}}
+@media(prefers-reduced-motion:reduce){.invoice-action-toast{animation:none}}
+.invoice-correction-editor{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;max-height:68dvh;overflow-y:auto;padding:8px;min-width:0}
+.invoice-correction-editor .table-scroll{overflow-x:auto;min-width:0}
+.invoice-correction-editor label{font-size:12px;line-height:1.9;white-space:normal}
+.invoice-correction-editor>div:first-child button{min-height:32px;padding:6px 11px;font-size:12px}
+.invoice-correction-editor button[aria-pressed="true"]{background:#eaf4ff;border-color:#83b4dc;color:#2164a4}
+.invoice-subject-badge--original{color:#475569;background:#f1f5f9;border:1px solid #d9e2ec}
+.invoice-subject-badge--return{color:#9a5411;background:#fff3df;border:1px solid #f2d4a3}
+.invoice-subject-badge--cancellation{color:#b42332;background:#fff0f1;border:1px solid #f0c5cb}
+.invoice-lineage-loading{padding:8px 12px 20px;min-height:340px}
+.invoice-lineage-loading .argin-loader{min-height:145px;padding:18px 10px;gap:12px}
+.invoice-lineage-loading .argin-loader-subtitle{max-width:330px;line-height:1.9}
+.invoice-lineage-skeleton{display:grid;gap:14px;padding:0 8px}
+.invoice-lineage-skeleton__node{position:relative;display:flex;align-items:flex-start;gap:14px}
+.invoice-lineage-skeleton__node:not(:last-child)::after{content:"";position:absolute;inset-inline-start:6px;top:15px;bottom:-17px;width:2px;background:#e0eaf0}
+.invoice-lineage-skeleton__dot{flex:none;width:14px;height:14px;margin-top:12px;border:3px solid #d5e7eb;border-radius:50%;background:#fff;z-index:1}
+.invoice-lineage-skeleton__card{flex:1;min-width:0;padding:12px 14px;border:1px solid #e2eaf1;border-radius:10px;background:#f8fbfd;display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.invoice-lineage-skeleton__card>span{height:9px;border-radius:5px;background:linear-gradient(90deg,#e5edf3 25%,#f4f8fb 50%,#e5edf3 75%);background-size:200% 100%;animation:invoice-lineage-shimmer 1.6s ease-in-out infinite}
+.invoice-lineage-skeleton__card>span:first-child{width:35%;grid-column:1/-1;height:11px}
+.invoice-lineage-refresh{display:flex;align-items:center;gap:9px;margin:12px 0 4px;padding:10px 12px;background:#f1f8fb;border:1px solid #d9eaf1;border-radius:9px;color:#48667a;font-size:12px}
+.invoice-lineage-refresh .argin-loader-spinner,.invoice-lineage-inquiry .argin-loader-spinner{width:16px;height:16px;border-width:2px;flex:none}
+.invoice-lineage-inquiry{display:inline-flex;align-items:center;gap:8px}
+.invoice-lineage-error{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
+@keyframes invoice-lineage-shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+@media(max-width:540px){.invoice-lineage-loading{padding-inline:0}.invoice-lineage-loading .argin-loader-subtitle{max-width:260px}}
+@media(prefers-reduced-motion:reduce){.invoice-lineage-skeleton__card>span{animation:none}}

@@ -5,7 +5,8 @@ namespace ArginTaxPayer.Infrastructure.Signing.Protection;
 
 // Internal custody boundary. None of these types is an API DTO or a business DB entity.
 internal readonly record struct KeyProtectionIdentity(
-    Guid CustomerUserId, Guid TaxpayerId, Guid FiscalMemoryId, Guid KeyVersionId, Guid OperationRecordId)
+    Guid CustomerUserId, Guid TaxpayerId, Guid FiscalMemoryId, Guid KeyVersionId, Guid OperationRecordId,
+    bool Sandbox = false)
 {
     public void Validate()
     {
@@ -18,7 +19,7 @@ internal readonly record struct KeyProtectionIdentity(
     {
         Validate();
         return Encoding.ASCII.GetBytes(
-            $"argin:key:v1|{CustomerUserId:D}|{TaxpayerId:D}|{FiscalMemoryId:D}|{KeyVersionId:D}");
+            $"{(Sandbox ? "argin:key:sandbox:v1" : "argin:key:v1")}|{CustomerUserId:D}|{TaxpayerId:D}|{FiscalMemoryId:D}|{KeyVersionId:D}");
     }
 
     // Transit binds the originating journal operation as well as the mandated local GCM AAD.
@@ -28,7 +29,9 @@ internal readonly record struct KeyProtectionIdentity(
     public string StoragePath()
     {
         Validate();
-        return $"keys/{CustomerUserId:N}/{TaxpayerId:N}/{FiscalMemoryId:N}/{OperationRecordId:N}/{KeyVersionId:N}";
+        return Sandbox
+            ? $"keys/sandbox/{CustomerUserId:N}/{TaxpayerId:N}/{FiscalMemoryId:N}/{OperationRecordId:N}/{KeyVersionId:N}"
+            : $"keys/{CustomerUserId:N}/{TaxpayerId:N}/{FiscalMemoryId:N}/{OperationRecordId:N}/{KeyVersionId:N}";
     }
 }
 

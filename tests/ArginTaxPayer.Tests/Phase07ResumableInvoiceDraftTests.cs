@@ -75,6 +75,16 @@ public sealed class Phase07ResumableInvoiceDraftTests
         Assert.Equal(198m,summary.PreviewGrandTotalRial);
     }
 
+    [Fact]
+    public void Promotion_settlement_total_includes_other_tax_and_legal_fees()
+    {
+        var consistent = InvoiceDraftSettlementPolicy.IsConsistent(
+            InvoiceDraftSettlementMethod.Cash, 200m, 0m,
+            [new InvoiceEntryLine(null,"کالا",1m,180m,0m,0m)], 20m);
+
+        Assert.True(consistent);
+    }
+
     [Theory]
     [InlineData(InvoiceDraftSettlementMethod.Unknown,null,null,true)]
     [InlineData(InvoiceDraftSettlementMethod.Unknown,0,0,false)]

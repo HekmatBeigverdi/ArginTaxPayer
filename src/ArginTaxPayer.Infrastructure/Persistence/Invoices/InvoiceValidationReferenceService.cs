@@ -8,7 +8,8 @@ public sealed record InvoiceUiFinding(
     string Key, string Severity, string FieldPath, string Message);
 public sealed record InvoiceUiValidation(
     Guid DraftId, long Revision, string Edition,
-    bool IsSubmissionAuthorized, IReadOnlyList<InvoiceUiFinding> Findings);
+    bool IsSubmissionAuthorized, IReadOnlyList<InvoiceUiFinding> Findings,
+    bool FormHasBlockingErrors = false, string SelectedEnvironment = "Unselected");
 public sealed record InvoiceUiValidationResult(
     InvoiceApiDecision Decision, InvoiceUiValidation? Validation = null);
 public sealed record InvoiceUiReference(
@@ -62,20 +63,57 @@ public sealed class InvoiceValidationReferenceService(
                 Add("invoice.line.vat.unverified",$"body[{index}].vatRate",
                     $"نرخ مالیات ردیف {index + 1} هنوز مشخص و تأیید نشده است.",true);
         }
+        // The catalog's InternalCode is NOT the sstid/stid field on a
+        // taxpayer-system invoice. A 13-digit official identifier must be
+        // mapped to each selected item for its effective issue date.
+        foreach(var (line,index) in draft.Lines.Select((value,index)=>(value,index)))
+        {
+            if(line.CatalogItemId is not { } itemId)
+            {
+                Add("invoice.line.official_catalog_missing",
+                    $"body[{index}].sstid",
+                    $"ردیف {index+1}: کالای ثبت‌شده در کاتالوگ انتخاب نشده و شناسه ۱۳ رقمی رسمی قابل تعیین نیست.",true);
+                continue;
+            }
+            var official = await db.CatalogOfficialMappings.AsNoTracking()
+                .Where(m=>m.ItemId==itemId &&
+                    m.EffectiveFromUtc<=draft.IssueDateUtc &&
+                    (m.EffectiveToUtc==null||m.EffectiveToUtc>draft.IssueDateUtc))
+                .Join(db.OfficialGoodsServiceEntries.AsNoTracking(),
+                    m=>m.OfficialEntryId,e=>e.Id,(m,e)=>new{m,e})
+                .Where(x=>x.e.VerificationStatus==2 &&
+                    x.e.Code.Length==13 &&
+                    db.CatalogReferenceReleases.Any(r=>
+                        r.Id==x.e.ReleaseId&&r.State==3))
+                .Select(x=>x.e.Code).Take(2).ToArrayAsync(ct);
+            if(official.Length!=1)
+                Add("invoice.line.official_identifier_missing",
+                    $"body[{index}].sstid",
+                    $"ردیف {index+1}: نگاشت یکتای شناسه رسمی ۱۳ رقمیِ فعال تأیید نشده است. در کالاها و خدمات، بخش «نگاشت» را تکمیل کنید.",true);
+        }
         if (draft.FinancialSummary.PreviewGrandTotalRial <= 0)
             Add("invoice.totals.positive","footer.total",
                 "جمع پیش‌نویس باید بزرگ‌تر از صفر باشد.");
         if (draft.SettlementMethod == InvoiceDraftSettlementMethod.Unknown)
             Add("invoice.settlement.unknown","footer.settlement",
-                "روش تسویه هنوز تعیین نشده است.",true);
+                "روش تسویه هنوز تعیین نشده است.");
 
+        if(draft.FiscalMemoryId is null && draft.SandboxFiscalMemoryId is null)
+            Add("invoice.memory.required_for_submission","header.fiscalMemory",
+                "حافظه مالیاتی صادرکننده انتخاب نشده است؛ برای آماده‌سازی ارسال، حافظه مخصوص محیط اصلی یا Sandbox را انتخاب کنید.",true);
+        if(draft.FiscalMemoryId is not null && draft.SandboxFiscalMemoryId is not null)
+            Add("invoice.memory.environment_conflict","header.fiscalMemory",
+                "حافظه اصلی و آزمایشی نباید همزمان به یک صورتحساب متصل باشند.");
         // V7.9 local catalogue edition is not proven effective/complete for
         // authority transmission. Even zero UI errors MUST remain fail-closed.
         Add("invoice.rules.not_approved","validation",
-            "قواعد و شناسه مالیاتی برای ارسال رسمی هنوز به‌صورت معتبر تأیید نشده‌اند.",true);
+            "پیش‌بررسی داخلی انجام شد؛ اما شناسه مالیاتی صورتحساب، نسخه معتبر قواعد ارسال و بسته امضاشده هنوز برای صدور مالیاتی تأیید نشده‌اند. تأیید داخلی با پذیرش سازمان متفاوت است.",true);
         return new(InvoiceApiDecision.Success,
             new(draft.Id,draft.Revision,OfficialV79InvoicePatternMatrix.Edition,
-                false,findings.AsReadOnly()));
+                false,findings.AsReadOnly(),
+                findings.Any(f=>f.Severity=="error"),
+                draft.SandboxFiscalMemoryId is not null ? "Sandbox" :
+                draft.FiscalMemoryId is not null ? "Production" : "Unselected"));
     }
 
     public async Task<InvoiceUiReferenceResult> ListReferencesAsync(

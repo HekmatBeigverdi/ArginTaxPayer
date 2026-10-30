@@ -1,0 +1,12 @@
+✔ sales-return draft proxy is authenticated and same-origin (0.38475ms)
+✔ submission uses separate one-attempt endpoint (0.083708ms)
+✔ return editor does not allow price or VAT changes (0.332834ms)
+✔ list exposes return action on accepted invoice and keeps original identity (0.190167ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 31.054291

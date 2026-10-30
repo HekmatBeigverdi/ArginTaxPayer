@@ -15,7 +15,7 @@ function sameOrigin(req: NextRequest): boolean {
 }
 
 function saveTokens(response: NextResponse, tokens: TokenResponse) {
-  response.cookies.set(ACCESS_COOKIE, tokens.accessToken, { ...cookieOptions, maxAge: 600 });
+  response.cookies.set(ACCESS_COOKIE, tokens.accessToken, { ...cookieOptions, maxAge: 30 * 60 });
   response.cookies.set(REFRESH_COOKIE, tokens.refreshToken, { ...cookieOptions, maxAge: 7 * 86400 });
 }
 

@@ -5,6 +5,7 @@ using ArginTaxPayer.Domain.Invoices;
 using ArginTaxPayer.Infrastructure.Persistence.Parties;
 using ArginTaxPayer.Infrastructure.Persistence.Taxpayers;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace ArginTaxPayer.Infrastructure.Persistence.Invoices;
 
@@ -41,7 +42,8 @@ public sealed record InvoiceWorkspaceHistoryResult(InvoiceApiDecision Decision,
 
 public sealed record InvoiceEntryLine(Guid? CatalogItemId, string Description,
     decimal Quantity, decimal UnitPriceRial, decimal DiscountPerUnitRial, decimal? VatRatePercent,
-    Guid? UnitId = null, string? CatalogCodeSnapshot = null);
+    Guid? UnitId = null, string? CatalogCodeSnapshot = null,
+    string? OfficialIdentifierSnapshot = null);
 public enum InvoiceDraftSettlementMethod { Unknown = 0, Cash = 1, Credit = 2, CashAndCredit = 3 }
 
 public sealed record InvoiceDraftFinancialSummary(decimal GrossRial, decimal DiscountRial,
@@ -49,27 +51,30 @@ public sealed record InvoiceDraftFinancialSummary(decimal GrossRial, decimal Dis
 
 public static class InvoiceDraftSettlementPolicy
 {
-    public static InvoiceDraftFinancialSummary Calculate(IReadOnlyList<InvoiceEntryLine> lines)
+    public static InvoiceDraftFinancialSummary Calculate(IReadOnlyList<InvoiceEntryLine> lines,
+        decimal otherTaxAndLegalFeesRial = 0m)
     {
+        if (otherTaxAndLegalFeesRial < 0 ||
+            otherTaxAndLegalFeesRial != decimal.Truncate(otherTaxAndLegalFeesRial))
+            throw new ArgumentException("Other tax and legal fees must be a nonnegative whole rial amount.");
         decimal gross = 0, discount = 0, vat = 0;
         foreach (var line in lines)
         {
-            // Quantize each invoice line once using decimal; aggregate rounded
-            // amounts, never floating-point UI totals or client-provided sums.
-            var grossLine = decimal.Round(checked(line.Quantity * line.UnitPriceRial),
-                2, MidpointRounding.AwayFromZero);
-            var discountLine = decimal.Round(checked(line.Quantity * line.DiscountPerUnitRial),
-                2, MidpointRounding.AwayFromZero);
+            // The preview must use the exact same whole-rial truncation as the
+            // finalized wire projection; otherwise the UI total and `vam` can
+            // differ when a line calculation has fractional rial digits.
+            var grossLine = decimal.Truncate(checked(line.Quantity * line.UnitPriceRial));
+            var discountLine = decimal.Truncate(checked(line.Quantity * line.DiscountPerUnitRial));
             var baseLine = checked(grossLine - discountLine);
-            var vatLine = decimal.Round(checked(
-                baseLine * (line.VatRatePercent ?? 0m) / 100m),
-                2, MidpointRounding.AwayFromZero);
+            var vatLine = decimal.Truncate(checked(
+                baseLine * (line.VatRatePercent ?? 0m) / 100m));
             gross = checked(gross + grossLine);
             discount = checked(discount + discountLine);
             vat = checked(vat + vatLine);
         }
         var subtotal = checked(gross - discount);
-        return new(gross, discount, subtotal, vat, checked(subtotal + vat));
+        return new(gross, discount, subtotal, vat,
+            checked(subtotal + vat + otherTaxAndLegalFeesRial));
     }
 
     public static bool IsConsistent(InvoiceDraftSettlementMethod method,
@@ -93,6 +98,12 @@ public static class InvoiceDraftSettlementPolicy
             _ => false
         };
     }
+
+    public static bool IsConsistent(InvoiceDraftSettlementMethod method,
+        decimal? cashRial, decimal? creditRial, IReadOnlyList<InvoiceEntryLine> lines,
+        decimal otherTaxAndLegalFeesRial) =>
+        IsConsistent(method, cashRial, creditRial,
+            Calculate(lines, otherTaxAndLegalFeesRial).PreviewGrandTotalRial);
 }
 
 public sealed record SaveInvoiceEntryRequest(Guid? Id, Guid TaxpayerId, long ExpectedRevision,
@@ -107,7 +118,9 @@ public sealed record SaveInvoiceEntryRequest(Guid? Id, Guid TaxpayerId, long Exp
     Guid? FiscalMemoryId = null, string? InternalReviewState = null,
     string? InternalReviewReason = null, Guid? SubmittedByUserId = null,
     Guid? ReviewedByUserId = null, DateTime? ReviewedAtUtc = null,
-    string? BulkImportKey = null, string? BulkFingerprint = null);
+    string? BulkImportKey = null, string? BulkFingerprint = null,
+    Guid? SandboxFiscalMemoryId = null,
+    decimal? OtherTaxAndLegalFeesRial = 0m);
 public sealed record InvoiceEntryView(Guid Id, Guid CustomerUserId, Guid TaxpayerId, long Revision,
     int LastCompletedStep, DateTime IssueDateUtc, DateTime UpdatedAtUtc,
     Guid? BuyerPartyId, int Type, int Pattern, InvoiceEntryLine[] Lines,
@@ -119,7 +132,9 @@ public sealed record InvoiceEntryView(Guid Id, Guid CustomerUserId, Guid Taxpaye
     decimal? GoldCommissionRial = null, decimal? GoldTotalFeeProfitRial = null,
     Guid? FiscalMemoryId = null, string? InternalReviewState = null,
     string? InternalReviewReason = null, Guid? SubmittedByUserId = null,
-    Guid? ReviewedByUserId = null, DateTime? ReviewedAtUtc = null);
+    Guid? ReviewedByUserId = null, DateTime? ReviewedAtUtc = null,
+    Guid? SandboxFiscalMemoryId = null,
+    decimal OtherTaxAndLegalFeesRial = 0m);
 public sealed record InvoiceEntryResult(InvoiceApiDecision Decision, InvoiceEntryView? Draft = null,
     bool Replayed = false);
 
@@ -176,6 +191,8 @@ public sealed class InvoiceEntryWorkspaceService(
                 input.IssueDateUtc) != InvoicePatternDecision.AllowedByReferencedEdition ||
             input.Lines is null || input.Lines.Length > 150 ||
             input.InvoiceDescription is { Length: > 1500 } ||
+            (input.OtherTaxAndLegalFeesRial ?? 0m) < 0 ||
+            (input.OtherTaxAndLegalFeesRial ?? 0m) != decimal.Truncate(input.OtherTaxAndLegalFeesRial ?? 0m) ||
             (input.InvoiceDescription?.Any(c => char.IsControl(c) &&
                 c != '\r' && c != '\n' && c != '\t') ?? false) ||
             input.Lines.Any(l => l.Description is null || l.Description.Length > 256 ||
@@ -210,7 +227,8 @@ public sealed class InvoiceEntryWorkspaceService(
             return false;
         try
         {
-            var summary = InvoiceDraftSettlementPolicy.Calculate(input.Lines);
+            var summary = InvoiceDraftSettlementPolicy.Calculate(input.Lines,
+                input.OtherTaxAndLegalFeesRial ?? 0m);
             if (input.LastCompletedStep == 2 &&
                 (input.SettlementMethod == InvoiceDraftSettlementMethod.Unknown ||
                  input.CashAmountRial is null || input.CreditAmountRial is null))
@@ -230,12 +248,14 @@ public sealed class InvoiceEntryWorkspaceService(
             value.BuyerPartyId,value.Type,value.Pattern,value.Lines ?? [],
             value.BuyerDisplayName, value.InvoiceDescription, value.SettlementMethod,
             value.CashAmountRial, value.CreditAmountRial,
-            InvoiceDraftSettlementPolicy.Calculate(value.Lines ?? []),
+            InvoiceDraftSettlementPolicy.Calculate(value.Lines ?? [],
+                value.OtherTaxAndLegalFeesRial ?? 0m),
             value.ContractNumber,value.ServiceBillId,value.FlightType,
             value.GoldConstructionFeeRial,value.GoldSellerProfitRial,
             value.GoldCommissionRial,value.GoldTotalFeeProfitRial,value.FiscalMemoryId,
             value.InternalReviewState,value.InternalReviewReason,value.SubmittedByUserId,
-            value.ReviewedByUserId,value.ReviewedAtUtc);
+            value.ReviewedByUserId,value.ReviewedAtUtc,value.SandboxFiscalMemoryId,
+            value.OtherTaxAndLegalFeesRial ?? 0m);
     }
 
     public async Task<InvoiceEntryResult> SaveAsync(string? token,
@@ -245,6 +265,41 @@ public sealed class InvoiceEntryWorkspaceService(
             return new(InvoiceApiDecision.Invalid);
         var access = await Authorize(token,input.TaxpayerId,ct);
         if (access.Item1 != InvoiceApiDecision.Success) return new(access.Item1);
+        // The Sandbox memory is a separate credential identity and cannot be
+        // substituted for a production fiscal_memories FK.
+        if(input.FiscalMemoryId.HasValue && input.SandboxFiscalMemoryId.HasValue)
+            return new(InvoiceApiDecision.Invalid);
+        if(input.SandboxFiscalMemoryId is { } sandboxId)
+        {
+            if(sandboxId==Guid.Empty)return new(InvoiceApiDecision.Invalid);
+            var sandboxOwner=await db.TaxpayerProfiles.AsNoTracking()
+                .Where(x=>x.Id==input.TaxpayerId)
+                .Select(x=>x.CustomerUserId).SingleOrDefaultAsync(ct);
+            if(sandboxOwner is null || sandboxOwner.Value==Guid.Empty)
+                return new(InvoiceApiDecision.NotFound);
+            var dbConnection=db.Database.GetDbConnection();
+            var wasClosed=dbConnection.State!=System.Data.ConnectionState.Open;
+            if(wasClosed)await dbConnection.OpenAsync(ct);
+            try
+            {
+                await using var cmd=dbConnection.CreateCommand();
+                cmd.CommandText="""
+SELECT EXISTS(
+ SELECT 1 FROM sandbox_fiscal_memories
+ WHERE id=@sandbox AND taxpayer_id=@taxpayer AND customer_user_id=@owner
+ AND private_envelope_json IS NOT NULL
+)
+""";
+                void Param(string name,Guid value){
+                    var p=cmd.CreateParameter();p.ParameterName=name;p.Value=value;cmd.Parameters.Add(p);
+                }
+                Param("sandbox",sandboxId);Param("taxpayer",input.TaxpayerId);
+                Param("owner",sandboxOwner.Value);
+                if(await cmd.ExecuteScalarAsync(ct) is not true)
+                    return new(InvoiceApiDecision.Invalid);
+            }
+            finally { if(wasClosed)await dbConnection.CloseAsync(); }
+        }
         // Fiscal memory must belong to the selected, currently accessible seller.
         // It remains an optional draft reference until authoritative verification
         // and activation are available in later phases.
@@ -287,7 +342,8 @@ public sealed class InvoiceEntryWorkspaceService(
         {
             if (line.CatalogItemId is not { } itemId)
             {
-                if (line.UnitId is not null || line.CatalogCodeSnapshot is not null)
+                if (line.UnitId is not null || line.CatalogCodeSnapshot is not null ||
+                    line.OfficialIdentifierSnapshot is not null)
                     return new(InvoiceApiDecision.Invalid);
                 canonicalLines.Add(line);
                 continue;
@@ -303,9 +359,15 @@ public sealed class InvoiceEntryWorkspaceService(
             var code = previous?.CatalogCodeSnapshot ?? item.InternalCode;
             if (line.UnitId is { } requestedUnit && requestedUnit != unit)
                 return new(InvoiceApiDecision.Invalid);
+            // The authority is the source of truth for Sstid validity. Preserve
+            // the user's 13-digit value; local catalog tables are not an
+            // authoritative code registry.
+            var officialCode = line.OfficialIdentifierSnapshot is { Length: 13 } supplied &&
+                supplied.All(char.IsAsciiDigit) ? supplied : previous?.OfficialIdentifierSnapshot;
             canonicalLines.Add(line with {
                 UnitId = unit,
-                CatalogCodeSnapshot = code
+                CatalogCodeSnapshot = code,
+                OfficialIdentifierSnapshot = officialCode
             });
         }
 
@@ -322,7 +384,7 @@ public sealed class InvoiceEntryWorkspaceService(
             InvoiceBulkIdentity.Fingerprint(input);
         Guid? importId = input.BulkImportKey is null ? null :
             InvoiceBulkIdentity.StableWorkspaceId(access.Item2,input.BulkImportKey);
-        if (importId is { } existingImportId)
+        if (importId is { } existingImportId && input.Id is null)
         {
             var prior = await db.InvoiceEntryWorkspaces.AsNoTracking()
                 .Where(w=>w.Id==existingImportId && w.CustomerUserId==access.Item2 &&
@@ -365,6 +427,34 @@ public sealed class InvoiceEntryWorkspaceService(
             }
             else
             {
+
+                if (input.Id == Guid.Empty || input.ExpectedRevision < 1)
+                    return new InvoiceEntryResult(InvoiceApiDecision.Invalid);
+                // Saving and promotion MUST lock this same row before
+                // checking whether an immutable snapshot already exists.
+                await using(var lockCommand=db.Database.GetDbConnection().CreateCommand()){
+                    lockCommand.Transaction=transaction.GetDbTransaction();
+                    lockCommand.CommandText="""
+SELECT id FROM invoice_entry_workspaces
+WHERE id=@id AND customer_user_id=@owner AND taxpayer_id=@taxpayer
+FOR UPDATE
+""";
+                    foreach(var (name,value) in new[]{
+                        ("id",input.Id!.Value),("owner",access.Item2),
+                        ("taxpayer",input.TaxpayerId)
+                    }){
+                        var p=lockCommand.CreateParameter();
+                        p.ParameterName=name;p.Value=value;lockCommand.Parameters.Add(p);
+                    }
+                    if(await lockCommand.ExecuteScalarAsync(ct) is null)
+                        return new InvoiceEntryResult(InvoiceApiDecision.NotFound);
+                }
+                // Immutable internal invoice snapshot wins over editing.
+                // This check runs INSIDE the workspace update transaction.
+                if(await db.InvoiceDocuments.AsNoTracking().AnyAsync(d=>
+                    d.Id==input.Id.Value && d.CustomerUserId==access.Item2 &&
+                    d.TaxpayerId==input.TaxpayerId,ct))
+                    return new InvoiceEntryResult(InvoiceApiDecision.Conflict);
                 if (input.Id == Guid.Empty || input.ExpectedRevision < 1)
                     return new InvoiceEntryResult(InvoiceApiDecision.Invalid);
                 var updated = await db.InvoiceEntryWorkspaces.Where(x => x.Id == input.Id &&

@@ -1,0 +1,20 @@
+{
+  "environment": "Sandbox",
+  "fiscalMemory": "A2HPH4",
+  "taxid": "A2HPH4051110007E71C132",
+  "referenceNumber": "09O9hLluF2Koc2WBHuFPxDb1Us1OpryhSYWW3A",
+  "sstid": "2720000007776",
+  "am": 1,
+  "fee": 1000000,
+  "adis": 1000000,
+  "vra": 0,
+  "vam": 0,
+  "inquiryHttpStatus": 200,
+  "inquiryExtract": {
+    "status": "SUCCESS",
+    "error": [],
+    "warning": [],
+    "success": true
+  },
+  "note": "Sandbox observation only; does not establish the production VAT rate. Sent outside application invoice workflow."
+}

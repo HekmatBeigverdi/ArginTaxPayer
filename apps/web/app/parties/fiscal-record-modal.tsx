@@ -113,10 +113,24 @@ export default function FiscalRecordModal({ record, isLevel1, onClose, onChanged
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ expectedRevision: person.revision }) });
         } else {
-          res = await fetch("/api/taxpayers/" + record.id + "/display-name", {
-            method: "PATCH", credentials: "same-origin",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ displayName: name, expectedRevision: person.revision }) });
+          const taxpayer = person as Taxpayer;
+          let revision = taxpayer.revision;
+          if (identifier.trim() !== taxpayer.normalizedIdentifier) {
+            res = await fetch("/api/taxpayers/" + record.id + "/legal-identifier", {
+              method: "PATCH", credentials: "same-origin",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ identifier, expectedRevision: revision }) });
+            if (!res.ok) throw new Error(errorText(res.status));
+            revision = (await res.json() as Taxpayer).revision;
+          }
+          if (name.trim() !== taxpayer.displayName) {
+            res = await fetch("/api/taxpayers/" + record.id + "/display-name", {
+              method: "PATCH", credentials: "same-origin",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ displayName: name, expectedRevision: revision }) });
+          } else {
+            res = new Response(null, { status: 200 });
+          }
         }
       }
       if (!res.ok) throw new Error(errorText(res.status));
@@ -165,6 +179,11 @@ export default function FiscalRecordModal({ record, isLevel1, onClose, onChanged
               </select>
               <small>با تغییر نوع شخصیت، نام و شناسه معتبر متناسب با نوع جدید وارد کنید.</small>
             </label>}
+            {record.type === "taxpayer" && <label>شناسه قانونی مؤدی
+              <input dir="ltr" inputMode="numeric" value={identifier}
+                onChange={e => setIdentifier(e.target.value)} required maxLength={11}/>
+              <small>این شناسه با شماره اقتصادی بخش اطلاعات مالیاتی متفاوت است و فقط قبل از صدور صورتحساب قابل تغییر است.</small>
+            </label>}
             <label>{record.type === "buyer" && buyerKind === 1 ? "نام" : "نام / عنوان"}
               <input value={name} onChange={e => setName(e.target.value)} required
                 disabled={mode === "archive"} maxLength={256}/></label>
@@ -186,15 +205,16 @@ export default function FiscalRecordModal({ record, isLevel1, onClose, onChanged
             <dl className="taxpayer-facts">
               <div><dt>نام / عنوان</dt><dd>{record.name}</dd></div>
               <div><dt>نوع شخصیت</dt><dd>{record.kind === 1 ? "حقیقی" : "حقوقی"}</dd></div>
-              <div><dt>شناسه قانونی</dt><dd dir="ltr">{identifier}</dd></div>
+              <div><dt>شناسه قانونی (اطلاعات هویتی)</dt><dd dir="ltr">{identifier}</dd></div>
               <div><dt>شناسه پرونده</dt><dd dir="ltr">{record.id}</dd></div>
             </dl>
+            <p className="field-hint">شماره اقتصادی صورتحساب در بخش «اطلاعات مالیاتی، تماس و نشانی» مدیریت می‌شود و با شناسه قانونی متفاوت است.</p>
           </>}
           </>}
             </div>
           </details>
           <details name="fiscal-sections" className="fiscal-section">
-            <summary>اطلاعات مالیاتی، تماس و نشانی{fiscalLoading && <SectionLoading />}</summary>
+            <summary>اطلاعات مالیاتی، تماس و نشانی — شماره اقتصادی{fiscalLoading && <SectionLoading />}</summary>
             <div className="fiscal-section-content">
             <InvoiceParticipantForm onLoadingChange={setFiscalLoading} key={record.id} customerId={record.buyerId} subjectId={record.id}
               role={record.type === "buyer" ? "buyer" : "seller"} personKind={record.kind ?? undefined}/>

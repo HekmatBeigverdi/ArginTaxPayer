@@ -1,0 +1,49 @@
+name: Phase 10 Step 29 Cross-Platform Offline Gate
+on:
+  push:
+    branches: [work/phase10-step29-cross-platform-acceptance]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  offline:
+    name: Offline build and regression / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15]
+    env:
+      DOTNET_NOLOGO: 'true'
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      NEXT_TELEMETRY_DISABLED: '1'
+      RUN_ARGINTAXPAYER_PG_INTEGRATION: '0'
+      Ghasedak__EnableLiveSending: 'false'
+      SandboxInvoiceLegacy__Enabled: 'false'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Install locked frontend dependencies
+        run: npm --prefix apps/web ci --no-audit --no-fund
+      - name: Execute same-SHA offline gate
+        env:
+          PHASE10_EXPECT_SHA: ${{ github.sha }}
+        run: bash scripts/phase10-step29-acceptance.sh
+      - name: Preserve offline evidence (not an authority receipt)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase10-step29-${{ matrix.os }}
+          path: artifacts/phase10-step29/
+          if-no-files-found: warn
+          retention-days: 14

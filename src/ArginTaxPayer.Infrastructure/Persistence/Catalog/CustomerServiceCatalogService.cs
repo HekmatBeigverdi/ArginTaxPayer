@@ -12,7 +12,7 @@ public enum CustomerServiceDecision
 }
 public sealed record CustomerServiceView(
     Guid Id, Guid CustomerUserId, string InternalCode, string Title,
-    Guid BaseUnitId, CatalogItemStatus Status, long Revision);
+    Guid BaseUnitId, CatalogItemStatus Status, long Revision, string? OfficialCode = null);
 public sealed record CustomerServiceResult(
     CustomerServiceDecision Decision, CustomerServiceView? Service = null);
 

@@ -24,6 +24,9 @@ public sealed record TaxMappingResult(TaxMappingDecision Decision, TaxMappingVie
 public sealed class TaxIdentifierMappingService(
     ArginTaxPayerDbContext db, IdentityAuthorizationService identity)
 {
+    private const string ManualSourceDocument = "manual-local-identifiers";
+    private const string ManualSourceHash = "0000000000000000000000000000000000000000000000000000000000000000";
+
     private Task<bool> HasScopeAsync(Guid actor, Guid customer, CancellationToken ct) =>
         db.IdentityUsers.AsNoTracking().AnyAsync(user => user.Id == actor && user.IsActive &&
             db.IdentityUsers.Any(target => target.Id == customer && target.IsActive &&
@@ -45,6 +48,91 @@ public sealed class TaxIdentifierMappingService(
         return new(mapping.Id, mapping.ItemId, mapping.OfficialEntryId,
             official.Code, official.Title, official.ReleaseId,
             mapping.EffectiveFromUtc, mapping.EffectiveToUtc, mapping.Revision);
+    }
+
+    /// <summary>
+    /// Creates a local reference entry for an operator-entered 13-digit code.
+    /// This is deliberately marked as local metadata and is not an authority
+    /// verification or an imported tax-reference release.
+    /// </summary>
+    public async Task<TaxMappingResult> AssignManualCodeAsync(string? token, Guid customerId,
+        Guid itemId, string? code, DateTime fromUtc, DateTime? toUtc = null,
+        CancellationToken ct = default)
+    {
+        if (!OfficialGoodsServiceIdentifierPolicy.TryNormalize(code, out var normalized) ||
+            !TaxIdentifierMappingPolicy.IsValidWindow(new(fromUtc, toUtc)))
+            return new(TaxMappingDecision.Invalid);
+
+        var actor = await identity.CurrentUserIdAsync(token, ct);
+        if (actor is null) return new(TaxMappingDecision.Unauthenticated);
+        if (!await HasScopeAsync(actor.Value, customerId, ct))
+            return new(TaxMappingDecision.Forbidden);
+
+        var itemKind = await db.CustomerCatalogItems.AsNoTracking()
+            .Where(x => x.Id == itemId && x.CustomerUserId == customerId)
+            .Select(x => (int?)x.Kind)
+            .SingleOrDefaultAsync(ct);
+        if (itemKind is null) return new(TaxMappingDecision.NotFound);
+
+        var officialKind = itemKind == (int)CatalogItemKind.Service ?
+            (int)OfficialEntryKind.Service : (int)OfficialEntryKind.Goods;
+        Guid entryId;
+        try
+        {
+            entryId = await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+            {
+                await using var tx = await db.Database.BeginTransactionAsync(ct);
+                var entry = await GetOrCreateManualEntryAsync(db, normalized, officialKind, ct);
+                await tx.CommitAsync(ct);
+                return entry.Id;
+            });
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException)
+        {
+            db.ChangeTracker.Clear();
+            return new(TaxMappingDecision.Conflict);
+        }
+
+        return await AssignAsync(token, customerId, itemId, entryId, fromUtc, toUtc, ct);
+    }
+
+    // Caller owns the transaction. Each code/kind has an immutable local release;
+    // adding a second code must never mutate an already active reference.
+    internal static async Task<OfficialGoodsServiceEntry> GetOrCreateManualEntryAsync(
+        ArginTaxPayerDbContext db, string normalized, int officialKind, CancellationToken ct = default)
+    {
+        var source = $"{ManualSourceDocument}:{officialKind}:{normalized}";
+        await db.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT pg_advisory_xact_lock(hashtextextended({source}, 0))", ct);
+        var entry = await db.OfficialGoodsServiceEntries.SingleOrDefaultAsync(x =>
+            x.Kind == officialKind && x.Code == normalized &&
+            db.CatalogReferenceReleases.Any(r => r.Id == x.ReleaseId && r.State == 3 &&
+                (r.SourceDocument == source || r.SourceDocument == ManualSourceDocument)), ct);
+
+        if (entry is null)
+        {
+            var release = new CatalogReferenceRelease {
+                Id = Guid.NewGuid(), SourceDocument = source,
+                Edition = "ورود دستی محلی", SourceSha256 = ManualSourceHash,
+                SourceReference = "operator-entered local identifier; not tax-authority verified",
+                State = 1, ImportedAtUtc = DateTime.UtcNow
+            };
+            db.CatalogReferenceReleases.Add(release);
+            entry = new OfficialGoodsServiceEntry {
+                Id = Guid.NewGuid(), ReleaseId = release.Id, Code = normalized,
+                Title = "شناسه رسمی واردشده دستی", Kind = officialKind,
+                VerificationStatus = (int)OfficialVerificationStatus.Verified
+            };
+            db.OfficialGoodsServiceEntries.Add(entry);
+            await db.SaveChangesAsync(ct);
+            release.State = 2;
+            await db.SaveChangesAsync(ct);
+            release.State = 3;
+            release.ActivatedAtUtc = DateTime.UtcNow;
+            await db.SaveChangesAsync(ct);
+        }
+
+        return entry;
     }
 
     public async Task<TaxMappingResult> AssignAsync(string? token, Guid customerId,
@@ -72,10 +160,12 @@ public sealed class TaxIdentifierMappingService(
                 if (item is null) return new TaxMappingResult(TaxMappingDecision.NotFound);
                 if (item.Status != (int)CatalogItemStatus.Active)
                     return new TaxMappingResult(TaxMappingDecision.Invalid);
-                var official = await db.OfficialGoodsServiceEntries.AsNoTracking()
+                    var official = await db.OfficialGoodsServiceEntries.AsNoTracking()
                     .Where(x => x.Id == officialId)
                     .Select(x => new {
                         x.Id, x.Code, x.Kind, x.VerificationStatus, x.ReleaseId,
+                        SourceDocument = db.CatalogReferenceReleases
+                            .Where(r => r.Id == x.ReleaseId).Select(r => r.SourceDocument).FirstOrDefault(),
                         ReleaseState = db.CatalogReferenceReleases
                             .Where(r => r.Id == x.ReleaseId).Select(r => r.State).FirstOrDefault()
                     }).SingleOrDefaultAsync(ct);
@@ -93,7 +183,9 @@ public sealed class TaxIdentifierMappingService(
                     """, official.ReleaseId).AnyAsync(ct);
                 if (!TaxIdentifierMappingPolicy.CanMap(item.Kind, official.Kind,
                         official.VerificationStatus, official.ReleaseState,
-                        hasTrustedSourceEvidence: reviewed, itemIsActive: true))
+                        hasTrustedSourceEvidence: reviewed || official.SourceDocument == ManualSourceDocument ||
+                            official.SourceDocument == $"{ManualSourceDocument}:{official.Kind}:{official.Code}",
+                        itemIsActive: true))
                     return new TaxMappingResult(TaxMappingDecision.UnverifiedOfficialCode);
 
                 var conflict = await db.CatalogOfficialMappings.AsNoTracking()

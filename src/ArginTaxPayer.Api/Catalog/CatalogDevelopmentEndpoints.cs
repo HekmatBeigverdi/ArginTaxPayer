@@ -12,7 +12,7 @@ public static class CatalogDevelopmentEndpoints
         CatalogItemKind Kind, Guid BaseUnitId, long ExpectedRevision = 0, bool Discontinue = false);
     public sealed record ServiceWrite(string InternalCode, string Title,
         Guid BaseUnitId, long ExpectedRevision = 0, bool Discontinue = false);
-    public sealed record MappingWrite(Guid OfficialEntryId, DateTime EffectiveFromUtc,
+    public sealed record MappingWrite(Guid? OfficialEntryId, string? OfficialCode, DateTime EffectiveFromUtc,
         DateTime? EffectiveToUtc = null);
 
     private static bool Local(HttpContext http) => http.Connection.RemoteIpAddress is { } ip &&
@@ -174,8 +174,12 @@ public static class CatalogDevelopmentEndpoints
         {
             if (!Local(http)) return Results.NotFound();
             if (input is null) return Results.BadRequest(new { error = "invalid_mapping" });
-            return Status(await svc.AssignAsync(Token(http), customerId, itemId,
-                input.OfficialEntryId, input.EffectiveFromUtc, input.EffectiveToUtc, ct), true);
+            var result = input.OfficialEntryId is { } officialEntryId
+                ? await svc.AssignAsync(Token(http), customerId, itemId,
+                    officialEntryId, input.EffectiveFromUtc, input.EffectiveToUtc, ct)
+                : await svc.AssignManualCodeAsync(Token(http), customerId, itemId,
+                    input.OfficialCode, input.EffectiveFromUtc, input.EffectiveToUtc, ct);
+            return Status(result, true);
         });
         group.MapPut("/customers/{customerId:guid}/tax-mappings/{mappingId:guid}/close", async (
             Guid customerId, Guid mappingId, [FromQuery] long expectedRevision,

@@ -8,7 +8,8 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Catalog;
 
 public enum CustomerProductDecision { Success, Unauthenticated, Forbidden, Invalid, NotFound, Conflict, UnitUnavailable }
 public sealed record CustomerProductView(Guid Id, Guid CustomerUserId, string InternalCode,
-    string Title, CatalogItemKind Kind, Guid BaseUnitId, CatalogItemStatus Status, long Revision);
+    string Title, CatalogItemKind Kind, Guid BaseUnitId, CatalogItemStatus Status, long Revision,
+    string? OfficialCode = null);
 public sealed record CustomerProductResult(CustomerProductDecision Decision, CustomerProductView? Product = null);
 
 /// <summary>Customer-owned internal product aggregate; never maps codes to authority records implicitly.</summary>

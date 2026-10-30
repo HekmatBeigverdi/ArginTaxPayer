@@ -1,6 +1,8 @@
 import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import {runInNewContext} from "node:vm";
+import ts from "typescript";
 
 const read = path => readFileSync(new URL(path, import.meta.url), "utf8");
 const proxy = read("../app/api/invoices/[...segments]/route.ts");
@@ -111,12 +113,26 @@ test("accessible buyer combobox supports keyboard selection and resolves selecte
   assert.match(workspace, /setBuyerId\(b\.id\)/);
   assert.doesNotMatch(workspace, /<input id="invoice-seller"/);
 });
-test("all authorized customers are paged server-side", () => {
-  assert.match(workspace, /listPageSize = 50/);
-  assert.match(workspace, /query\.set\("page",\s*String\(listPage\)\)/);
-  assert.match(workspace, /صفحه قبل|قبلی/);
-  assert.match(workspace, /صفحه بعد|بعدی/);
-  assert.match(workspace, /همه مشتریان زیرمجموعه/);
+test("invoice paging forwards page size and authorized filters to the server", async () => {
+  const start=workspace.indexOf("const reload = useCallback(");
+  const end=workspace.indexOf("useEffect(",start);
+  const code=workspace.slice(start,end).replace("const reload =", "exports.reload =");
+  for(const page of [1,2,7]){
+    const calls=[];
+    const context={exports:{},URLSearchParams,useCallback:fn=>fn,requestSeq:{current:0},
+      listPage:page,listPageSize:15,filterCustomer:"customer-1",filterTaxpayer:"taxpayer-1",
+      reviewFilter:"Approved",search:"  invoice  ",setLoading:()=>{},setError:()=>{},
+      setInvoices:()=>{},getJson:async url=>{calls.push(url);return [];}};
+    runInNewContext(ts.transpileModule(code,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,context);
+    await context.exports.reload();
+    assert.equal(calls.length,1);
+    const url=new URL(calls[0],"http://localhost");
+    assert.equal(url.pathname,"/api/invoices/overview");
+    assert.deepEqual(Object.fromEntries(url.searchParams),{
+      customerId:"customer-1",taxpayerId:"taxpayer-1",reviewState:"Approved",
+      search:"invoice",page:String(page),pageSize:"15"
+    });
+  }
 });
 
 test("invoice list reuses the shared dense console table and pagination layout", () => {
@@ -143,6 +159,7 @@ test("shared console density applies within modal and rows", () => {
   assert.match(css, /\.console-page \.invoice-register__item/);
   assert.match(css, /\.console-page \.invoice-register__fields/);
   assert.match(css, /\.invoice-register__catalog-options/);
+  assert.match(css, /invoice-register__catalog-picker>\.field-hint\{grid-column:1\/-1/);
 });
 
 test("final stage has compact financial summary and saved invoice description", () => {
@@ -168,6 +185,13 @@ test("final stage settlement permits unknown, cash, credit and mixed with constr
   assert.match(workspace, /settlementError/);
   assert.match(css, /invoice-register__settlement/);
   assert.match(css, /invoice-register__final-grid/);
+});
+
+test("final stage exposes other legal taxes with a zero default", () => {
+ const workspace=read("../app/invoices/workspace.tsx");
+ assert.match(workspace,/otherTaxAndLegalFeesRial/);
+ assert.match(workspace,/سایر مالیات و وجوه قانونی/);
+ assert.match(workspace,/value={otherTaxInput}/);
 });
 
 test("Step21 scoped validation panel is explicitly not a fiscal approval", () => {

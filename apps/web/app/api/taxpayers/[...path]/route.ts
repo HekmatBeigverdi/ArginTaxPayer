@@ -16,7 +16,8 @@ function validPath(parts: string[], method: "GET" | "POST" | "PATCH") {
   }
   if (method === "POST") return (parts.length === 1 && parts[0] === "new") ||
     (parts.length === 2 && uuid.test(parts[0]) && ["memories", "archive"].includes(parts[1]));
-  return parts.length === 2 && uuid.test(parts[0]) && parts[1] === "display-name";
+  return parts.length === 2 && uuid.test(parts[0]) &&
+    ["display-name", "legal-identifier"].includes(parts[1]);
 }
 
 async function proxy(req: NextRequest, params: Promise<{ path: string[] }>,

@@ -63,8 +63,10 @@ async function proxy(req: NextRequest, ctx: Context, method: "GET" | "POST") {
       signal: AbortSignal.timeout(20000)
     });
     if (!upstream.ok) {
+      if (upstream.status === 429)
+        return reply(429, { error: "rate_limited" });
       const data = await upstream.json().catch(() => null);
-      return reply([400, 401, 403, 404, 409, 413, 415, 429, 503].includes(upstream.status) ?
+      return reply([400, 401, 403, 404, 409, 413, 415, 503].includes(upstream.status) ?
         upstream.status : 502, { error: allowErrors.has(data?.error) ? data.error : "service_unavailable" });
     }
     const data = await upstream.json();

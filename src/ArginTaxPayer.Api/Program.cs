@@ -20,6 +20,7 @@ using System.Text.Json;
 using ArginTaxPayer.Infrastructure.Signing.Import;
 using ArginTaxPayer.Infrastructure.Signing.Generation;
 using ArginTaxPayer.Infrastructure.Signing.Connection;
+using ArginTaxPayer.Infrastructure.Signing.Protection;
 using ArginTaxPayer.Infrastructure.Signing.Review;
 using ArginTaxPayer.Infrastructure.Persistence.Signing;
 using System.Threading.RateLimiting;
@@ -50,6 +51,12 @@ if (identityDevelopmentEnabled)
         .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
         { AllowAutoRedirect = false, UseCookies = false });
     builder.Services.AddPhase09AuthorityConnection(builder.Configuration);
+    builder.Services.AddHttpClient("phase10-sandbox-authority", client =>
+        client.Timeout = TimeSpan.FromSeconds(18))
+        .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+        { AllowAutoRedirect = false, UseCookies = false });
+    builder.Services.AddPhase09KeyProtection(builder.Configuration);
+    builder.Services.AddPhase10SandboxConnection();
     builder.Services.AddScoped<EfSigningOperationRepository>();
     builder.Services.AddScoped<ISigningChangeRequestSubmission, EfSigningChangeRequestSubmission>();
     builder.Services.AddScoped<ISigningAdminReviewWorkflow, EfSigningAdminReviewWorkflow>();
@@ -63,7 +70,7 @@ if (identityDevelopmentEnabled)
         };
         options.AddPolicy("signing-import", http => RateLimitPartition.GetFixedWindowLimiter(
             Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
-                http.Request.Headers.Authorization.ToString()))), _ => new FixedWindowRateLimiterOptions
+                $"{http.Request.Headers.Authorization}|{http.Request.Method}|{http.Request.Path}"))), _ => new FixedWindowRateLimiterOptions
             { PermitLimit = 12, Window = TimeSpan.FromMinutes(1), QueueLimit = 0, AutoReplenishment = true }));
     });
     builder.Services.AddSingleton<IdentityProtectionService>();
@@ -101,7 +108,31 @@ if (identityDevelopmentEnabled)
     builder.Services.AddScoped<TaxpayerScopeService>();
     builder.Services.AddScoped<InvoiceDraftApplicationService>();
     builder.Services.AddScoped<InvoiceReviewCommandService>();
+    builder.Services.AddScoped<Phase10ReviewReadService>();
+    builder.Services.AddScoped<Phase10InternalInvoiceValidationService>();
+    builder.Services.AddScoped<Phase10InvoiceFinalizationService>();
+    builder.Services.AddScoped<Phase10LegacyInvoicePreparationService>();
+    builder.Services.AddScoped<Phase10InvoiceDispatchReadService>();
+    builder.Services.AddScoped<Phase10InvoicePrintPreviewService>();
+    builder.Services.AddScoped<Phase10OneClickSandboxSubmissionService>();
+    builder.Services.AddScoped<Phase10InvoiceLineageReadService>();
+    builder.Services.AddScoped<Phase10CancellationEligibilityService>();
+    builder.Services.AddScoped<LegacyAuthorityReportRepository>();
+    builder.Services.AddScoped<Phase10SandboxCancellationService>();
+    builder.Services.AddScoped<Phase10SandboxCorrectionService>();
+    builder.Services.AddScoped<Phase10SandboxSalesReturnService>();
+    builder.Services.AddScoped<Phase10DispatchEvidenceRepository>();
+    builder.Services.AddScoped<Phase10LegacyUidInquiryService>();
+    builder.Services.AddScoped<Phase10LegacyReferenceInquiryService>();
+    builder.Services.AddScoped<LegacyInvoiceCorrectionDraftService>();
+    builder.Services.AddScoped<Phase10DispatchArmService>();
+    builder.Services.AddScoped<Phase10LiveSendReadinessService>();
+    builder.Services.AddScoped<Phase10InvoiceCalculationAuditService>();
+    builder.Services.AddScoped<Phase10SandboxSubmissionAdmissionService>();
+    builder.Services.AddScoped<Phase10InvoiceDispatchHistoryService>();
+    builder.Services.AddScoped<ArginTaxPayer.Infrastructure.Persistence.Signing.SandboxFiscalMemoryMetadataService>();
     builder.Services.AddScoped<InvoiceEntryWorkspaceService>();
+    builder.Services.AddScoped<InvoiceWorkspacePromotionService>();
     builder.Services.AddScoped<InvoiceValidationReferenceService>();
     builder.Services.AddScoped<FiscalCertificateMetadataService>();
     builder.Services.AddScoped<IIdentityResourceOwnershipResolver, IdentityResourceOwnershipResolver>();
@@ -169,6 +200,7 @@ if (app.Environment.IsDevelopment())
         app.MapSigningImportRecoveryEndpoints();
         app.MapSigningGenerationEndpoints();
         app.MapSigningConnectionEndpoints();
+        app.MapSandboxFiscalMemoryDevelopmentEndpoints();
         app.MapSigningChangeRequestEndpoints();
         app.MapSigningAdminReviewEndpoints();
         app.MapPartyDevelopmentEndpoints();
@@ -176,6 +208,7 @@ if (app.Environment.IsDevelopment())
         app.MapInvoiceParticipantEndpoints();
         app.MapInvoiceDraftDevelopmentEndpoints();
         app.MapInvoiceReviewDevelopmentEndpoints();
+        app.MapPhase10InvoiceDispatchDevelopmentEndpoints();
         app.MapCustomerProfileDevelopmentEndpoints();
         app.MapCustomerTaxpayerMembershipEndpoints();
         app.MapCustomerSelfServiceEndpoints();

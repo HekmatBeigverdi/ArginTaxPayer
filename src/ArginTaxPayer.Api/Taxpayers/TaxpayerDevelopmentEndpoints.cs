@@ -134,6 +134,23 @@ public static class TaxpayerDevelopmentEndpoints
             };
         }).WithTags("Taxpayer Scope (Development)");
 
+        routes.MapPatch("/api/dev/taxpayers/{taxpayerId:guid}/legal-identifier", async (
+            Guid taxpayerId, [FromBody] ScopedIdentifierRequest request,
+            HttpContext http, TaxpayerScopeService service, CancellationToken ct) =>
+        {
+            if (!IsLocal(http)) return Results.NotFound();
+            var result = await service.ChangeIdentifierAsync(Bearer(http), taxpayerId, request, ct);
+            return result.Decision switch
+            {
+                TaxpayerScopeDecision.Unauthenticated => Results.Unauthorized(),
+                TaxpayerScopeDecision.Forbidden => Results.StatusCode(403),
+                TaxpayerScopeDecision.NotFound => Results.NotFound(),
+                TaxpayerScopeDecision.Conflict => Results.Conflict(new { error = "conflict_or_issued_invoices" }),
+                TaxpayerScopeDecision.Invalid => Results.BadRequest(new { error = "invalid_legal_identifier" }),
+                _ => Results.Ok(result.Profile)
+            };
+        }).WithTags("Taxpayer Scope (Development)");
+
         routes.MapGet("/api/dev/taxpayers/{taxpayerId:guid}", async (
             Guid taxpayerId, HttpContext http, TaxpayerScopeService service, CancellationToken ct) =>
         {

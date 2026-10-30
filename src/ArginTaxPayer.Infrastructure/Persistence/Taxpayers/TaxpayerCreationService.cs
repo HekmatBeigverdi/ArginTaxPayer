@@ -1,6 +1,7 @@
 using ArginTaxPayer.Domain.Taxpayers;
 using ArginTaxPayer.Infrastructure.Persistence.Identity;
 using ArginTaxPayer.Infrastructure.Persistence.Parties;
+using ArginTaxPayer.Infrastructure.Persistence.Customers;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 
@@ -58,6 +59,17 @@ public sealed class TaxpayerCreationService(
                 if (!await scope.CanManageAsync(actor.Value, request.CustomerUserId.Value, ct))
                     return new CreateTaxpayerResult(CreateTaxpayerStatus.Forbidden);
                 db.TaxpayerProfiles.Add(profile);
+                // Initial owner membership is created atomically with the taxpayer.
+                // Later explicit unlink operations remain authoritative.
+                db.CustomerTaxpayerMemberships.Add(new CustomerTaxpayerMembership
+                {
+                    Id = Guid.NewGuid(),
+                    CustomerUserId = request.CustomerUserId.Value,
+                    TaxpayerId = profile.Id,
+                    LinkedByUserId = actor.Value,
+                    LinkedAtUtc = now,
+                    Revision = 1
+                });
                 await db.SaveChangesAsync(ct);
                 await transaction.CommitAsync(ct);
                 return new CreateTaxpayerResult(CreateTaxpayerStatus.Created,
