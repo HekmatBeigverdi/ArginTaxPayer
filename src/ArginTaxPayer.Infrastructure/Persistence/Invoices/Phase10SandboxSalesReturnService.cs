@@ -88,7 +88,7 @@ public sealed class Phase10SandboxSalesReturnService(
         {
             return new(InvoiceApiDecision.NotFound, "not_found");
         }
-        if (original.State != InvoiceLifecycleState.Finalized || original.Subject == InvoiceSubject.Cancellation)
+        if (original.State != InvoiceLifecycleState.Finalized || original.Subject != InvoiceSubject.Original)
         {
             return new(InvoiceApiDecision.Conflict, "invalid_predecessor");
         }
@@ -354,6 +354,8 @@ public sealed class Phase10SandboxSalesReturnService(
 
         var original = await db.InvoiceDocuments.AsNoTracking().FirstAsync(x =>
             x.Id == predecessorId && x.TaxpayerId == taxpayerId && x.CustomerUserId == owner.Value, ct);
+        if (original.Subject != InvoiceSubject.Original || original.State != InvoiceLifecycleState.Finalized)
+            return new(InvoiceApiDecision.Conflict, "invalid_predecessor");
         var root = JsonNode.Parse(savedDraft.Json)!.AsObject();
         using var origDoc = JsonDocument.Parse(original.SnapshotJson);
         var originalLines = JsonSerializer.Deserialize<InvoiceEntryLine[]>(
