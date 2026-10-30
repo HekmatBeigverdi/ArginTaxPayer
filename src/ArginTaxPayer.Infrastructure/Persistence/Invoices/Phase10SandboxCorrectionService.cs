@@ -5,6 +5,7 @@ using System.Text.Json.Nodes;
 using ArginTaxPayer.Domain.Invoices;
 using ArginTaxPayer.Infrastructure.Persistence.Taxpayers;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Npgsql;
 
 namespace ArginTaxPayer.Infrastructure.Persistence.Invoices;
@@ -12,7 +13,7 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Invoices;
 public sealed record CorrectionEditLine(decimal Quantity, decimal UnitPriceRial, decimal DiscountPerUnitRial);
 public sealed record CorrectionSaveRequest(long ExpectedRevision,CorrectionEditLine[] Lines,
  int SettlementMethod,decimal CashAmountRial,decimal CreditAmountRial,
- bool ReductionCorrectsOriginalMistake=false);
+ bool ReductionCorrectsOriginalMistake=false,string? ReductionEvidenceReference=null);
 public sealed record CorrectionDraftView(Guid WorkspaceId,Guid PredecessorInvoiceId,long Revision,
  InvoiceEntryLine[] Lines,int SettlementMethod,decimal CashAmountRial,decimal CreditAmountRial);
 public sealed record CorrectionOperationResult(InvoiceApiDecision Decision,string Code,
@@ -22,7 +23,7 @@ public sealed record CorrectionOperationResult(InvoiceApiDecision Decision,strin
 /// <summary>Independent V7.9 correction draft, immutable predecessor, one send operation.</summary>
 public sealed class Phase10SandboxCorrectionService(ArginTaxPayerDbContext db,
  TaxpayerScopeService scope,Phase10LegacyReferenceInquiryService inquiry,
- Phase10OneClickSandboxSubmissionService sender)
+ Phase10OneClickSandboxSubmissionService sender,IConfiguration config)
 {
  private async Task<Guid?> Owner(string? bearer,Guid taxpayerId,CancellationToken ct)
  {
@@ -135,6 +136,9 @@ VALUES({id},{owner.Value},{taxpayerId},{predecessorId},{taxid},
   using var originalDoc=JsonDocument.Parse(source.SnapshotJson);
   var baseline=JsonSerializer.Deserialize<InvoiceEntryLine[]>(
    originalDoc.RootElement.GetProperty("lines").GetRawText())??[];
+  if(input.ReductionCorrectsOriginalMistake &&
+   (string.IsNullOrWhiteSpace(input.ReductionEvidenceReference)||input.ReductionEvidenceReference.Length>256))
+   return new(InvoiceApiDecision.Invalid,"original_mistake_evidence_required");
   var edited=baseline.Select((x,i)=>i<input.Lines.Length?x with{
    Quantity=input.Lines[i].Quantity,UnitPriceRial=input.Lines[i].UnitPriceRial,
    DiscountPerUnitRial=input.Lines[i].DiscountPerUnitRial}:x).ToArray();
@@ -170,6 +174,7 @@ VALUES({id},{owner.Value},{taxpayerId},{predecessorId},{taxid},
    financial.BeforeDiscountRial,financial.DiscountRial,financial.AfterDiscountRial,
    financial.VatRial??0m,financial.GrandTotalRial??0m));
   root["reductionCorrectsOriginalMistake"]=input.ReductionCorrectsOriginalMistake;
+  root["reductionEvidenceReference"]=input.ReductionCorrectsOriginalMistake?input.ReductionEvidenceReference:null;
   var json=root.ToJsonString();var now=DateTime.UtcNow;
   var rows=await db.Database.ExecuteSqlInterpolatedAsync($"""
 UPDATE sandbox_invoice_correction_workspaces
@@ -215,6 +220,13 @@ WHERE customer_user_id={owner.Value} AND taxpayer_id={taxpayerId}
   var reduced=(bool?)root["reductionCorrectsOriginalMistake"]??false;
   if(!Phase10CorrectionValidation.AllowedLines(originalLines,changedLines,reduced))
    return new(InvoiceApiDecision.Invalid,"invalid_correction_lines");
+  if(reduced && string.IsNullOrWhiteSpace((string?)root["reductionEvidenceReference"]))
+   return new(InvoiceApiDecision.Invalid,"original_mistake_evidence_required");
+  if(config["SandboxInvoiceLegacy:Enabled"]!="true"||
+   config["SandboxInvoiceLegacy:OperatorApprovedEndpoint"]!="true")
+   return new(InvoiceApiDecision.Invalid,"sandbox_send_disabled");
+  var database=await db.Database.SqlQueryRaw<string>("SELECT current_database() AS \"Value\"").SingleAsync(ct);
+  if(database!="argintaxpayer_test")return new(InvoiceApiDecision.Forbidden,"sandbox_database_required");
   var now=DateTime.UtcNow;var invoiceId=Guid.NewGuid();
   root["sourceWorkspaceId"]=invoiceId.ToString("D");
   root["sourceRevision"]=1;
