@@ -160,7 +160,7 @@ export default function InvoiceSalesReturnModal({taxpayerId,invoiceId,onClose,on
        onClick={()=>setStage(t.id)} aria-pressed={stage===t.id}><InvoiceActionIcon name={t.id==="items"?"items":t.id==="settlement"?"settlement":"review"}/>{t.text}</button>)}
     </div>
     {stage==="items"&&<div className="table-scroll"><table className="console-table">
-     <thead><tr><th>شرح</th><th>شناسه رسمی</th><th>تعداد</th><th>قیمت واحد (ریال)</th><th>تخفیف واحد</th><th>نرخ مالیات</th></tr></thead>
+     <thead><tr><th>شرح</th><th>شناسه رسمی</th><th>تعداد</th><th>قیمت ثابت (ریال)</th><th>تخفیف ثابت</th><th>نرخ مالیات</th></tr></thead>
      <tbody>{draft.lines.map((line,i)=><tr key={i}>
       <td>{line.description}</td><td><bdi dir="ltr">{line.officialIdentifierSnapshot??"—"}</bdi></td>
       {(["quantity"] as const).map(k=><td key={k}>
@@ -168,6 +168,7 @@ export default function InvoiceSalesReturnModal({taxpayerId,invoiceId,onClose,on
         style={{width:110}} disabled={busy} value={entries[i]?.[k]??0}
         onChange={e=>change(i,k,Number(e.target.value))}/>
       </td>)}
+      <td>{fa(line.unitPriceRial)}</td><td>{fa(line.discountPerUnitRial)}</td>
       <td>{line.vatRatePercent??"—"}٪</td>
      </tr>)}</tbody>
     </table>
