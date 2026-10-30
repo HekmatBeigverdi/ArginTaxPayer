@@ -14,7 +14,7 @@ test('invoice modal has formal header, scrollable line table and footer',()=>{
 });
 test('inquiry report is expandable and old report is not fetched on modal open',()=>{
  const s=read('apps/web/app/invoices/invoice-send-readiness-panel.tsx');
- assert.ok(s.includes('<details aria-label="استعلام و گزارش سازمان"'));
+ assert.ok(/<details[^>]*aria-label="استعلام و گزارش سازمان"/.test(s));
  assert.ok(s.includes('onToggle={event=>'));
  assert.ok(!s.includes('void loadAuthorityReport(controller.signal);\n  return()=>controller.abort()'));
 });
@@ -22,7 +22,7 @@ test('row actions require authoritative success; cancellation does not mutate or
  const s=read('apps/web/app/invoices/workspace.tsx');
  assert.ok(s.includes('authorityStatus={detail.authorityStatus}'));
  const preview=read('apps/web/app/invoices/invoice-formal-preview.tsx');
- assert.ok(preview.includes('authorityStatus==="SUCCESS"'));
+ assert.ok(preview.includes('if(authorityStatus!=="SUCCESS" || subject?.toLowerCase()==="cancellation")return null;'));
  const b=read('apps/web/app/api/invoice-dispatch/[taxpayerId]/[invoiceId]/print-preview/route.ts');
  assert.ok(b.includes('ACCESS_COOKIE'));
  assert.ok(b.includes('no-store'));

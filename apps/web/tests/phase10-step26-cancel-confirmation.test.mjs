@@ -14,3 +14,11 @@ test("cancellation submission is wired to authenticated backend endpoint",()=>{
  const api=read("src/ArginTaxPayer.Api/Invoices/Phase10InvoiceDispatchDevelopmentEndpoints.cs");
  assert.ok(api.includes('MapPost("/cancel-and-inquire"'));
 });
+test("successful cancellation rows are visually distinct and hide legal actions",()=>{
+ const workspace=read("apps/web/app/invoices/workspace.tsx");
+ const preview=read("apps/web/app/invoices/invoice-formal-preview.tsx");
+ assert.match(workspace,/item\.subject\s*===\s*\"Cancellation\"/);
+ assert.match(preview,/subject\?\.toLowerCase\(\)===\"cancellation\"/);
+ assert.match(preview,/cancelSucceeded/);
+ assert.match(preview,/نتیجه استعلام سند ابطالی/);
+});

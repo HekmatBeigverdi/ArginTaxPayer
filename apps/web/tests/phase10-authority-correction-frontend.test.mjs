@@ -5,6 +5,7 @@ import {createRequire} from 'node:module';
 import {runInNewContext} from 'node:vm';
 import ts from 'typescript';
 import {isSameLocalOrigin} from '../lib/identity-origin.mjs';
+import {loadTsx} from './helpers/load-tsx.mjs';
 const require=createRequire(import.meta.url);
 const {NextRequest}=require('next/server');
 const id='11111111-1111-1111-1111-111111111111';
@@ -64,12 +65,13 @@ test('correction validates UUID and safe flag, forwards auth and refuses cross-o
  const r=route('correction-draft',{workspaceId:id,authoritySubmitted:false},(url,options)=>{
  assert.ok(url.endsWith('/dispatch/correction-draft'));assert.equal(options.method,'POST');
  assert.equal(options.headers.Authorization,'Bearer token');});
- assert.deepEqual(await (await r.POST(request(),context)).json(),{workspaceId:id,authoritySubmitted:false});
+ assert.deepEqual(await (await r.POST(request(),context)).json(),{workspaceId:id,authoritySubmitted:false,issueDateAdjusted:false});
  assert.equal((await r.POST(request('POST',{body:''}),context)).status,200);
  assert.equal((await r.POST(request('POST',{origin:'https://evil.test'}),context)).status,403);
  assert.equal((await r.POST(request('POST',{token:false}),context)).status,401);
  assert.equal((await r.POST(request('POST',{body:'{}'}),context)).status,400);
- for(const p of [{workspaceId:'javascript:bad',authoritySubmitted:false},{workspaceId:id,authoritySubmitted:true},null]){
+ for(const p of [{workspaceId:'javascript:bad',authoritySubmitted:false},{workspaceId:id,authoritySubmitted:true},
+  {workspaceId:id,authoritySubmitted:false,issueDateAdjusted:'true'},null]){
  assert.equal((await route('correction-draft',p).POST(request(),context)).status,502);
  }
 });
@@ -77,7 +79,6 @@ test('UI loads persisted report, renders text and offers only explicitly authori
  const ui=readFileSync(new URL('../app/invoices/invoice-send-readiness-panel.tsx',import.meta.url),'utf8');
  assert.match(ui,/loadAuthorityReport/);
  assert.ok(ui.includes('authorityResult.status==="FAILED"&&authorityResult.canPrepareCorrection'));
- assert.ok(ui.includes('ایجاد پیش‌نویس برای اصلاح و ارسال مجدد'));
  assert.ok(ui.includes('/invoices?workspaceId='));
  assert.ok(ui.includes('{item.message}'));
  assert.ok(!ui.includes('dangerouslySetInnerHTML'));
@@ -104,25 +105,29 @@ test('inquiry auth, upstream access denial, unknown states and projected fields 
  }
 });
 test('rendered authority messages are escaped and only failed authorized reports expose correction',()=>{
- const source=readFileSync(new URL('../app/invoices/invoice-send-readiness-panel.tsx',import.meta.url),'utf8');
- const compiled=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText;
  const React=require('react');
  const {renderToStaticMarkup}=require('react-dom/server');
  for(const status of ['FAILED','SUCCESS','PENDING','UNKNOWN']){
  for(const allowed of [true,false]){
  let stateIndex=0;
- const exports={};
- runInNewContext(compiled,{exports,require(name){
- if(name==='react')return {...React,
+ const component=loadTsx(new URL('../app/invoices/invoice-send-readiness-panel.tsx',import.meta.url),{modules:{react:{...React,
  useState(initial){const i=stateIndex++;return [i===10?{scope:id+'/'+id,result:{...report,status,canPrepareCorrection:allowed},referenceNumber:'REF_1'}:initial,()=>{}];},
- useCallback:fn=>fn,useEffect:()=>{},useRef:value=>({current:value})};
- return require(name);
- }});
- const html=renderToStaticMarkup(React.createElement(exports.default,{invoiceId:id,taxpayerId:id,isWorkspace:false}));
+ useCallback:fn=>fn,useEffect:()=>{},useRef:value=>({current:value})}}});
+ const html=renderToStaticMarkup(React.createElement(component.default,{invoiceId:id,taxpayerId:id,isWorkspace:false,hideHistory:true}));
  assert.ok(html.includes('&lt;script&gt;unsafe&lt;/script&gt;'));
  assert.ok(!html.includes('<script>unsafe</script>'));
- assert.equal(html.includes('ایجاد پیش‌نویس برای اصلاح و ارسال مجدد'),status==='FAILED'&&allowed);
+ assert.equal(html.includes('بازگشت به پیش‌نویس اصلاحی'),status==='FAILED'&&allowed);
  if(status==='PENDING'||status==='UNKNOWN')assert.ok(html.includes('ارسال را تکرار نکنید'));
  }
+ }
+});
+
+test('correction preserves the date-adjustment flag while projecting private fields away',async()=>{
+ for(const adjusted of [true,false]){
+  const response=await route('correction-draft',{
+   workspaceId:id,authoritySubmitted:false,issueDateAdjusted:adjusted,privateKey:'must-not-leak'
+  }).POST(request(),context);
+  assert.equal(response.status,200);
+  assert.deepEqual(await response.json(),{workspaceId:id,authoritySubmitted:false,issueDateAdjusted:adjusted});
  }
 });

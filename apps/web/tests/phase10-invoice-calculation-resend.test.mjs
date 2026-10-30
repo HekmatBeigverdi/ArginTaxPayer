@@ -9,22 +9,23 @@ test("calculation audit BFF allowlists organization error codes",()=>{
  assert.match(route,/calculation-audit/);assert.match(route,/response_too_large/);
 });
 
-test("invoice readiness UI exposes a guarded calculation resend action",()=>{
+test("invoice readiness displays bounded calculation findings before explicit send",()=>{
  const ui=read("app/invoices/invoice-send-readiness-panel.tsx");
- assert.match(ui,/بررسی محاسبات و آماده‌سازی ارسال مجدد/);
+ assert.match(ui,/خطاهای محاسباتی و فیلدهای اجباری/);
+ assert.match(ui,/calculationAudit\.findings\.map/);
  assert.match(ui,/calculation-audit/);
- assert.match(ui,/Acknowledged/);assert.match(ui,/Indeterminate/);
- assert.match(ui,/canResend/);
+ assert.match(ui,/Number\.isSafeInteger\(data\.invoiceRevision\)/);
+ assert.match(ui,/onClick=\{\(\)=>void oneClickSend\(\)\}/);
 });
 
-test("legacy resend shows the exact wire JSON and requires review before sending",()=>{
- const ui=read("app/invoices/invoice-send-readiness-panel.tsx");
+test("one-click preparation validates audited payload before signing and sending",()=>{
  const api=read("app/api/invoice-dispatch/[taxpayerId]/[invoiceId]/prepare-legacy/route.ts");
  const service=read("../../src/ArginTaxPayer.Infrastructure/Persistence/Invoices/Phase10LegacyInvoicePreparationService.cs");
+ const flow=read("../../src/ArginTaxPayer.Infrastructure/Persistence/Invoices/Phase10OneClickSandboxSubmissionService.cs");
  assert.match(service,/WirePreviewJson/);
  assert.match(api,/wirePreviewJson/);
- assert.match(ui,/مقادیر نهایی ارسالی/);
- assert.match(ui,/کپی JSON/);
- assert.match(ui,/reviewedWirePreview/);
- assert.match(ui,/!reviewedWirePreview/);
+ assert.match(service,/invoice_calculation_audit_failed/);
+ assert.ok(flow.indexOf('preparation.PrepareAsync')<flow.indexOf('worker.ProcessInvoiceAsync'));
+ assert.match(flow,/if\(prepared.Decision!=InvoiceApiDecision.Success\)/);
+ assert.match(flow,/return Stop\(prepared.SafeCode,prepared.Decision\)/);
 });

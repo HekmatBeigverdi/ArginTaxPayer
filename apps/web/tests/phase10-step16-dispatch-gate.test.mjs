@@ -9,13 +9,21 @@ const service = read("src/ArginTaxPayer.Infrastructure/Persistence/Invoices/Phas
 const bff = read("apps/web/app/api/invoice-dispatch/[taxpayerId]/[invoiceId]/route.ts");
 const startup = read("src/ArginTaxPayer.Api/Program.cs");
 
-test("Step16 API never registers operational authority transport", () => {
+test("dispatch API scopes authenticated Sandbox sends before checking both operator gates", () => {
   assert.match(api, /MapGet\("\/status"/);
   assert.match(api, /MapPost\("\/send"/);
   assert.match(api, /Local\(http\)/);
   assert.match(api, /invoice_dispatch_not_enabled/);
   assert.match(api, /StatusCodes\.Status503ServiceUnavailable/);
-  assert.doesNotMatch(api, /HttpClient|SendAsync\(/);
+  const send = api.slice(api.indexOf('group.MapPost("/send",'));
+  assert.match(send, /IPhase10LegacyOutboxWorker worker/);
+  assert.match(send, /SandboxInvoiceLegacy:Enabled/);
+  assert.match(send, /SandboxInvoiceLegacy:OperatorApprovedEndpoint/);
+  assert.ok(send.indexOf("service.GetAsync") < send.indexOf('configuration["SandboxInvoiceLegacy:Enabled"]'));
+  assert.ok(send.indexOf("invoice_dispatch_not_enabled") < send.indexOf("worker.ProcessInvoiceAsync"));
+  assert.match(send, /worker\.ProcessInvoiceAsync\(taxpayerId, invoiceId, ct\)/);
+  assert.match(send, /"Indeterminate" => Results\.Conflict/);
+  assert.match(send, /fiscalAccepted = false/);
 });
 test("Step16 scopes every dispatch lookup to current actor and invoice owner", () => {
   assert.match(service, /scope\.ResolveAsync\(bearer/);

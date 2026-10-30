@@ -36,6 +36,7 @@ type InvoiceFormalPreviewProps = {
   invoiceId: string;
   reference: string;
   authorityStatus?: string;
+  subject?: string;
   readOnly?: boolean;
   onCancellationCompleted?:()=>void;
 };
@@ -230,10 +231,10 @@ function InvoiceTotals({ invoice }: { invoice: Invoice }) {
   );
 }
 
-function AuthorityActions({authorityStatus,onCancel}:{
- authorityStatus?:string;onCancel:()=>void
+function AuthorityActions({authorityStatus,subject,onCancel}:{
+ authorityStatus?:string;subject?:string;onCancel:()=>void
 }){
- if(authorityStatus!=="SUCCESS")return null;
+ if(authorityStatus!=="SUCCESS" || subject?.toLowerCase()==="cancellation")return null;
  return <div style={actionsStyle}>
   <button type="button" className="identity-secondary" disabled title="مسیر اصلاحی در گام بعدی تکمیل می‌شود">اصلاح</button>
   <button type="button" className="identity-secondary" onClick={onCancel}>ابطال</button>
@@ -246,6 +247,7 @@ export default function InvoiceFormalPreview({
   invoiceId,
   reference,
   authorityStatus,
+  subject,
   readOnly = false,
   onCancellationCompleted,
 }: InvoiceFormalPreviewProps) {
@@ -257,6 +259,8 @@ export default function InvoiceFormalPreview({
   const [cancelSubmitting,setCancelSubmitting]=useState(false);
   const [cancelEligible,setCancelEligible]=useState(false);
   const [cancelOutcome,setCancelOutcome]=useState("");
+  const [cancelSucceeded,setCancelSucceeded]=useState(false);
+  const [cancelInquiry,setCancelInquiry]=useState<{status:string;reference:string;code:string}>({status:"",reference:"",code:""});
 
   useEffect(() => {
     const controller = new AbortController();
@@ -307,31 +311,32 @@ export default function InvoiceFormalPreview({
        <p>ابطال پس از پذیرش سازمان غیرقابل بازگشت است. سند اصلی نباید حذف یا ویرایش شود؛ سند ابطالی با شناسه مالیاتی جدید و ارجاع قانونی صادر می‌شود.</p>
        <p>شناسه مرجع: <bdi dir="ltr">{invoice?.uniqueInvoiceId??"نامشخص"}</bdi></p>
        {cancelChecking&&<p role="status">در حال بررسی سند مرجع…</p>}
-       {cancelEligibility&&<p role="status">{cancelEligibility}</p>}
-       {cancelOutcome&&<p role="status">{cancelOutcome}</p>}
-       <div style={{display:"flex",gap:8}}><button type="button" className="identity-secondary" onClick={()=>setCancelOpen(false)}>بازگشت</button><button type="button" className="identity-primary" disabled={!cancelEligible||cancelChecking||cancelSubmitting}
+       {!cancelSucceeded&&cancelEligibility&&<p role="status">{cancelEligibility}</p>}
+       {cancelSucceeded ? <>
+         <p role="status">ابطال صورتحساب با موفقیت انجام شد.</p>
+         <p role="status">نتیجه استعلام سند ابطالی: <strong>{cancelInquiry.status||"در انتظار بررسی"}</strong>؛ رهگیری: <bdi dir="ltr">{cancelInquiry.reference||"در انتظار بررسی"}</bdi>{cancelInquiry.code&&<>؛ کد استعلام: <bdi dir="ltr">{cancelInquiry.code}</bdi></>}</p>
+       </> : cancelOutcome&&<p role="status">{cancelOutcome}</p>}
+       {!cancelSucceeded&&<div style={{display:"flex",gap:8}}><button type="button" className="identity-secondary" onClick={()=>setCancelOpen(false)}>بازگشت</button><button type="button" className="identity-primary" disabled={!cancelEligible||cancelChecking||cancelSubmitting}
         onClick={()=>{if(cancelSubmitting||!cancelEligible)return;setCancelSubmitting(true);setCancelOutcome("در حال صدور و ارسال سند ابطالی…");
          void fetch("/api/invoice-dispatch/"+encodeURIComponent(taxpayerId)+"/"+encodeURIComponent(invoiceId)+"/cancel-and-inquire",
           {method:"POST",credentials:"same-origin",cache:"no-store"})
           .then(async response=>{const data=await response.json() as Record<string,unknown>;
            if(!response.ok)throw Error(String(data.error??response.status));
            setCancelEligible(false);
-           setCancelOutcome("سند ابطالی با شناسه داخلی "+String(data.invoiceId??"—")+
-             " ثبت شد. وضعیت ارسال: "+String(data.status??"نامشخص")+
-             "؛ رهگیری: "+String(data.referenceNumber??"در انتظار بررسی")+
-             ". برای تأیید قطعی سازمان، نتیجه استعلام سند ابطالی را بررسی کنید.");
+           setCancelInquiry({status:String(data.status??"نامشخص"),reference:String(data.referenceNumber??"در انتظار بررسی"),code:String(data.inquiryCode??"")});
+           setCancelSucceeded(true);
            onCancellationCompleted?.();
           })
           .catch(e=>{setCancelEligible(false);setCancelOutcome("وضعیت ابطال نیازمند بررسی است: "+(e as Error).message+"؛ درخواست را تکرار نکنید.");})
-          .finally(()=>setCancelSubmitting(false));}}> {cancelSubmitting?"در حال ارسال…":"تأیید و ارسال ابطال"}</button></div>
+          .finally(()=>setCancelSubmitting(false));}}> {cancelSubmitting?"در حال ارسال…":"تأیید و ارسال ابطال"}</button></div>}
       </div>}
       {invoice && (
         <>
           <InvoiceHeader invoice={invoice} reference={reference} />
           <InvoiceLines lines={invoice.lines} />
           <InvoiceTotals invoice={invoice} />
-          {!readOnly && <AuthorityActions authorityStatus={authorityStatus} onCancel={()=>{
-            setCancelOpen(true);setCancelChecking(true);setCancelEligibility("");setCancelEligible(false);setCancelOutcome("");
+          {!readOnly && <AuthorityActions authorityStatus={authorityStatus} subject={subject} onCancel={()=>{
+            setCancelOpen(true);setCancelChecking(true);setCancelEligibility("");setCancelEligible(false);setCancelOutcome("");setCancelSucceeded(false);setCancelInquiry({status:"",reference:"",code:""});
             void fetch("/api/invoice-dispatch/"+encodeURIComponent(taxpayerId)+"/"+encodeURIComponent(invoiceId)+"/cancellation-eligibility",{cache:"no-store",credentials:"same-origin"})
               .then(async response=>{const value=await response.json();setCancelEligible(response.ok&&value.eligible===true);setCancelEligibility(response.ok&&value.eligible===true?"سند مرجع برای درخواست ابطال معتبر است.":"امکان ابطال تأیید نشد: "+String(value.code??value.error??response.status));})
               .catch(()=>setCancelEligibility("بررسی امکان ابطال در دسترس نیست."))

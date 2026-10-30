@@ -2,9 +2,9 @@ import {test} from "node:test";
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 
-const panel=readFileSync("app/invoices/invoice-dispatch-panel.tsx","utf8");
-const workspace=readFileSync("app/invoices/workspace.tsx","utf8");
-const css=readFileSync("app/globals.css","utf8");
+const panel=readFileSync(new URL("../app/invoices/invoice-dispatch-panel.tsx",import.meta.url),"utf8");
+const workspace=readFileSync(new URL("../app/invoices/workspace.tsx",import.meta.url),"utf8");
+const css=readFileSync(new URL("../app/globals.css",import.meta.url),"utf8");
 
 test("step17 dispatch panel uses scoped BFF status and guarded send",()=>{
   assert.match(panel,/\/api\/invoice-dispatch\//);
@@ -25,11 +25,11 @@ test("step17 enables only guarded Sandbox sending",()=>{
   assert.match(panel,/disabled\s+title="سرویس استعلام/);
   assert.match(panel,/محیط \{data\?\.environment/);
 });
-test("step17 uses existing invoice details without adding new data mutations",()=>{
-  assert.match(workspace,/import InvoiceDispatchPanel/);
-  assert.match(workspace,/<InvoiceDispatchPanel key=\{detail\.id\}/);
-  assert.match(workspace,/taxpayerId=\{detail\.taxpayerId\}/);
-  assert.match(workspace,/مشاهده و وضعیت ارسال/);
+test("invoice details use scoped one-click readiness and dedicated history",()=>{
+  assert.match(workspace,/import InvoiceSendReadinessPanel/);
+  assert.match(workspace,/<InvoiceSendReadinessPanel key=\{"readiness:"\+detail\.id\}/);
+  assert.match(workspace,/invoiceId=\{detail\.effectiveInvoiceId \?\? detail\.id\} taxpayerId=\{detail\.taxpayerId\}/);
+  assert.match(workspace,/isWorkspace=\{detail\.kind === "workspace"\} hideHistory=\{true\}/);
+  assert.match(workspace,/<InvoiceDispatchHistory taxpayerId=\{detail\.taxpayerId\}/);
   assert.match(css,/\.invoice-dispatch-ui__grid/);
-  assert.match(css,/max-width:520px/);
 });

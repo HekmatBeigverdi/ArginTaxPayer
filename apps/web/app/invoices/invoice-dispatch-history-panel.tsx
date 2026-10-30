@@ -5,7 +5,7 @@ import {useCallback,useEffect,useState} from "react";
 type Attempt={number:number;startedAtUtc:string;endedAtUtc:string|null;result:string};
 type Receipt={kind:"InitialReceipt"|"InquiryEvidence";observedAtUtc:string;hasAuthorityReference:boolean};
 type History={
-  environment:"Mock";submissionEnabled:false;fiscalAccepted:false;
+  environment:"Sandbox";submissionEnabled:false;fiscalAccepted:false;
   signedPreviewAvailable:false;invoiceRevision:number|null;
   state:string;lastUpdatedAtUtc:string|null;attempts:Attempt[];receipts:Receipt[];
   recoveryAction:string;recoveryCode:string;mayRetry:false;mayInquire:false;
@@ -53,7 +53,7 @@ export default function InvoiceDispatchHistoryPanel({
       if(!value||typeof value!=="object"||Array.isArray(value))
         throw Error("پاسخ تاریخچه نامعتبر است.");
       const row=value as Record<string,unknown>;
-      if(row.environment!=="Mock"||row.submissionEnabled!==false||
+      if(row.environment!=="Sandbox"||row.submissionEnabled!==false||
         row.fiscalAccepted!==false||row.signedPreviewAvailable!==false||
         row.mayRetry!==false||row.mayInquire!==false||
         !Array.isArray(row.attempts)||!Array.isArray(row.receipts)||
@@ -88,7 +88,7 @@ export default function InvoiceDispatchHistoryPanel({
         <span>در حال دریافت تاریخچه و رسیدها…</span>
       </div>:error?<p className="form-error" role="alert">{error}</p>:data&&<>
         <div className="invoice-dispatch-history__facts">
-          <div><span>محیط عملیات</span><strong>Mock (شبیه‌سازی)</strong></div>
+          <div><span>محیط عملیات</span><strong>Sandbox (آزمایشی)</strong></div>
           <div><span>نسخه صورتحساب</span><strong>{data.invoiceRevision??"هنوز آماده نشده"}</strong></div>
           <div><span>وضعیت ثبت‌شده</span><strong>{data.state}</strong></div>
           <div><span>آخرین تغییر</span><strong>{date(data.lastUpdatedAtUtc)}</strong></div>

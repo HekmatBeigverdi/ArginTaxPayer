@@ -24,9 +24,12 @@ test("snapshot promotion uses live session, scoped tenant, row lock, serializabl
   assert.match(service,/InvoiceDocumentRevisions\.Add/);
   assert.match(service,/await tx\.CommitAsync/);
 });
-test("official item and memory evidence are rechecked in DB and never sent",()=>{
-  assert.match(service,/CatalogOfficialMappings\.AsNoTracking/);
-  assert.match(service,/CatalogReferenceReleases\.Any/);
+test("snapshot rechecks tenant-owned items, 13-digit identifiers and key-ready memory without dispatch",()=>{
+  assert.match(service,/x\.CustomerUserId==draft\.CustomerUserId/);
+  assert.match(service,/item\.BaseUnitId!=line\.UnitId/);
+  assert.match(service,/OfficialIdentifierSnapshot is not \{ Length: 13 \} code/);
+  assert.match(service,/!code\.All\(char\.IsAsciiDigit\)/);
+  assert.match(service,/official_item_identifier_invalid/);
   assert.match(service,/CustomerCatalogItems\.AsNoTracking/);
   assert.match(service,/FROM sandbox_fiscal_memories/);
   assert.match(service,/private_envelope_json IS NOT NULL/);

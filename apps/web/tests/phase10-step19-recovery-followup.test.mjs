@@ -17,7 +17,7 @@ test("terminal, unknown and transient dispatch statuses never authorize blind re
 test("recovery advice is returned only from scoped read-only dispatch history",()=>{
  assert.match(service,/InvoiceDocuments.AsNoTracking/);
  assert.match(service,/Phase10InvoiceRecoveryAdvice/);
- assert.match(service,/new\("Mock",false,false,false/);
+ assert.match(service,/new\("Sandbox",false,false,false/);
  assert.match(service,/next.MayRetry,next.MayInquire/);
  assert.match(endpoint,/MapGet\("\/history"/);
  assert.match(bff,/mayRetry:false,mayInquire:false/);

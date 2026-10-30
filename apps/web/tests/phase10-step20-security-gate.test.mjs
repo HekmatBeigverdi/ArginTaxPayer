@@ -31,7 +31,7 @@ test("Step20: stale-revision, duplicate, cross-tenant and concurrent promotion f
     /FOR UPDATE/,
     /InvoiceDocuments\.AsNoTracking/,
     /workspace_already_bound_to_other_document/,
-    /official_item_mapping_changed_or_invalid/,
+    /official_item_identifier_invalid/,
     /sandbox_memory_not_ready/,
     /customer_user_id=@owner/
   ])assert.match(prepare,code);
@@ -57,11 +57,13 @@ test("Step20: HTTP draft preparation requires session, same origin and exact JSO
   assert.match(api,/InvoiceWorkspacePromotionService/);
   assert.doesNotMatch(prepare,/Console\.WriteLine|ILogger\.LogDebug/);
 });
-test("Step20: reference IDs are validated against authoritative catalog release",()=>{
-  assert.match(prepare,/CatalogOfficialMappings\.AsNoTracking/);
+test("Step20: snapshot checks identifier shape and owner item without treating local catalog as authority",()=>{
   assert.match(prepare,/CustomerCatalogItems\.AsNoTracking/);
-  assert.match(prepare,/CatalogReferenceReleases\.Any/);
-  assert.match(prepare,/Code\.Length==13/);
-  assert.match(prepare,/EffectiveFromUtc<=draft\.IssueDateUtc/);
-  assert.match(prepare,/candidates\.Length!=1/);
+  assert.match(prepare,/x\.CustomerUserId==draft\.CustomerUserId/);
+  assert.match(prepare,/x\.Status==1/);
+  assert.match(prepare,/ownerItems\.Count!=itemIds\.Length/);
+  assert.match(prepare,/item\.BaseUnitId!=line\.UnitId/);
+  assert.match(prepare,/OfficialIdentifierSnapshot is not \{ Length: 13 \} code/);
+  assert.match(prepare,/!code\.All\(char\.IsAsciiDigit\)/);
+  assert.match(prepare,/official_item_identifier_invalid/);
 });

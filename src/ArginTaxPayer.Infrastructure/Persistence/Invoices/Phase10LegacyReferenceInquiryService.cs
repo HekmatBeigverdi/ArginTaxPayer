@@ -9,6 +9,7 @@ using ArginTaxPayer.Infrastructure.Signing.Connection;
 using ArginTaxPayer.Infrastructure.Signing.Offline;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace ArginTaxPayer.Infrastructure.Persistence.Invoices;
 
@@ -22,7 +23,7 @@ public sealed record Phase10ReferenceInquiryResult(InvoiceApiDecision Decision,
 public sealed class Phase10LegacyReferenceInquiryService(
     ArginTaxPayerDbContext db, TaxpayerScopeService scope,
     IConfiguration config, SandboxLegacySigningKeyLoader keys,
-    Phase10DispatchEvidenceRepository evidence)
+    Phase10DispatchEvidenceRepository evidence, IServiceProvider services)
 {
     public async Task<Phase10ReferenceInquiryResult> ReadAsync(
         string? bearer,Guid taxpayerId,Guid invoiceId,CancellationToken ct)
@@ -132,7 +133,7 @@ WHERE operation_id=@operation ORDER BY attempt_number DESC LIMIT 1
 
         using var key=await keys.RecoverAsync(owner.Value,taxpayerId,memoryId,ct);
         if(key is null)return new(InvoiceApiDecision.Invalid,"sandbox_signing_key_unavailable");
-        var tokenClient=new LegacyInvoiceAccessTokenClient(config);
+        var tokenClient=services.GetRequiredService<LegacyInvoiceAccessTokenClient>();
         var token=await tokenClient.RequestAsync(memoryCode,key.PrivateKey,key.PublicSpkiDer,ct);
         if(!token.Authenticated||token.AccessToken is null)
             return new(InvoiceApiDecision.Invalid,"sandbox_inquiry_token_unavailable");

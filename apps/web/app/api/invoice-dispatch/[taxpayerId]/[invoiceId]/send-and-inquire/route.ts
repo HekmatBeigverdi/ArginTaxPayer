@@ -15,7 +15,8 @@ export async function POST(request:NextRequest,context:Context){
  const token=request.cookies.get(ACCESS_COOKIE)?.value;
  if(!token)return fail(401,"unauthorized");
  try{
-  // Exactly one backend API call. Backend owns all transitions and inquiry.
+  // Exactly one backend API call for preparation and send. Inquiry is a separate request.
+  // The existing URL is retained for compatibility; it now returns the durable receipt.
   const response=await fetch(identityApiOrigin()+"/api/dev/taxpayers/"+
    taxpayerId+"/invoices/"+invoiceId+"/dispatch/send-and-inquire",{
    method:"POST",cache:"no-store",redirect:"manual",

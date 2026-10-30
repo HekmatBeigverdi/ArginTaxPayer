@@ -15,7 +15,7 @@ test("successful invoice has inquiry without redundant preparation and yellow ba
 test("legal actions hidden for non-success and rejection offers correction draft",()=>{
  const preview=read("apps/web/app/invoices/invoice-formal-preview.tsx");
  const inquiry=read("apps/web/app/invoices/invoice-send-readiness-panel.tsx");
- assert.ok(preview.includes('authorityStatus==="SUCCESS"&&<div'));
+ assert.ok(preview.includes('if(authorityStatus!=="SUCCESS" || subject?.toLowerCase()==="cancellation")return null;'));
  assert.ok(inquiry.includes('authorityResult.status==="FAILED"&&authorityResult.canPrepareCorrection'));
  assert.ok(inquiry.includes("بازگشت به پیش‌نویس اصلاحی"));
 });
@@ -37,4 +37,28 @@ test("invoice accordion visually matches buyer seller dossier",()=>{
  assert.equal((ui.match(/className="fiscal-section-content invoice-detail-section__content"/g)||[]).length,4);
  for(const token of [".fiscal-section > summary",".invoice-detail-section > summary","background:#f0f7f6","border-radius:8px"])
   assert.ok(css.includes(token),token);
+});
+
+import {createRequire} from 'node:module';
+import {runInNewContext} from 'node:vm';
+const require=createRequire(import.meta.url);
+test('legal actions render only for exact authoritative SUCCESS on a non-cancellation invoice',()=>{
+ const ts=require('typescript');const React=require('react');
+ const {renderToStaticMarkup}=require('react-dom/server');
+ const source=read('apps/web/app/invoices/invoice-formal-preview.tsx');
+ const actions=source.slice(source.indexOf('function AuthorityActions('),source.indexOf('export default function InvoiceFormalPreview'));
+ const exports={};
+ runInNewContext(ts.transpileModule(actions+'\nexports.Actions=AuthorityActions;',{
+  compilerOptions:{jsx:ts.JsxEmit.ReactJSX,module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}
+ }).outputText,{exports,require,React,actionsStyle:{}});
+ for(const authorityStatus of [undefined,'SUCCESS','Acknowledged','ACKNOWLEDGED','FAILED','PENDING','UNKNOWN','success']){
+  for(const subject of ['Original','Cancellation','cancellation']){
+   const html=renderToStaticMarkup(React.createElement(exports.Actions,{authorityStatus,subject,onCancel:()=>{}}));
+   assert.equal(html.includes('>ابطال</button>'),authorityStatus==='SUCCESS'&&subject==='Original',String(authorityStatus)+' '+subject);
+   if(authorityStatus==='SUCCESS'&&subject==='Original'){
+    assert.match(html,/disabled=""[^>]*>اصلاح<\/button>/);
+    assert.match(html,/disabled=""[^>]*>برگشت از فروش<\/button>/);
+   }else assert.equal(html,'');
+  }
+ }
 });

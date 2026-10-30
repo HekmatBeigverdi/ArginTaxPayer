@@ -12,8 +12,8 @@ test("compact formal invoice shows busy spinner and operations live inside invoi
  const p=read("apps/web/app/invoices/invoice-formal-preview.tsx");
  const page=read("apps/web/app/invoices/workspace.tsx");
  assert.ok(p.includes("argin-loader-spinner"));
- assert.ok(p.includes("maxHeight:300"));
- for(const label of ["اصلاح صورتحساب","ابطال صورتحساب","برگشت از فروش"])assert.ok(p.includes(label));
+ assert.ok(/maxHeight:\s*300/.test(p));
+ for(const label of [">اصلاح</button>",">ابطال</button>",">برگشت از فروش</button>"])assert.ok(p.includes(label));
  assert.ok(page.includes("authorityStatus={detail.authorityStatus}"));
  assert.ok(!page.includes(">ابطال</button>"));
 });

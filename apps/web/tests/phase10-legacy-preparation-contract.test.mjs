@@ -39,5 +39,9 @@ test('Preparation is available only through same-origin authenticated action',()
  assert.ok(api.includes('/prepare-legacy'));
  for(const x of ['isSameLocalOrigin','ACCESS_COOKIE','authoritySubmitted:false'])
   assert.ok(bff.includes(x),x);
- assert.ok(ui.includes('امضا و آماده‌سازی بسته Legacy برای Sandbox'));
+ assert.ok(ui.includes('/send-and-inquire'));
+ const service=read('src/ArginTaxPayer.Infrastructure/Persistence/Invoices/Phase10OneClickSandboxSubmissionService.cs');
+ assert.ok(service.includes('preparation.PrepareAsync(bearer,taxpayerId,invoiceId,ct)'));
+ const oneClick=read('apps/web/app/api/invoice-dispatch/[taxpayerId]/[invoiceId]/send-and-inquire/route.ts');
+ for(const x of ['isSameLocalOrigin','ACCESS_COOKIE','cache:"no-store"'])assert.ok(oneClick.includes(x),x);
 });

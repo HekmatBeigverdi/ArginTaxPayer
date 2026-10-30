@@ -163,7 +163,10 @@ public sealed class Phase10LegacyInvoicePreparationService(
         using var key=await loader.RecoverAsync(owner.Value,taxpayerId,memoryId,ct);
         if(key is null)return Denied("sandbox_legacy_key_unavailable");
         var auth=services.GetRequiredService<LegacyInvoiceAccessTokenClient>();
-        var token=await auth.RequestAsync(memoryCode,key.PrivateKey,key.PublicSpkiDer,ct);
+        var encryptionClient=services.GetRequiredService<LegacySandboxServerEncryptionKeyClient>();
+        using var credentials=await LegacyInvoicePreparationCredentials.RequestAsync(
+            auth,encryptionClient,memoryCode,key.PrivateKey,key.PublicSpkiDer,ct);
+        var token=credentials.Token;
         if(!token.Authenticated || token.AccessToken is null)
             return Denied(token.SafeCode);
 
@@ -171,9 +174,7 @@ public sealed class Phase10LegacyInvoicePreparationService(
         var trace=Guid.NewGuid();
         var timestamp=DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
             .ToString(System.Globalization.CultureInfo.InvariantCulture);
-        var encryptionClient=services.GetRequiredService<LegacySandboxServerEncryptionKeyClient>();
-        using var authorityKey=await encryptionClient.RequestAsync(
-            memoryCode,key.PrivateKey,key.PublicSpkiDer,ct);
+        var authorityKey=credentials.EncryptionKey;
         if(authorityKey is null)
             return Denied("sandbox_legacy_authority_encryption_key_unavailable");
         var packet=LegacyInvoiceSubmissionPacketBuilder.BuildEncrypted(operationId,

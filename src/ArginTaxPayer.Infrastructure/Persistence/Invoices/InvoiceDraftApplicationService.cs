@@ -21,7 +21,8 @@ public sealed record InvoiceDraftView(
     long Revision, string State, string Subject, DateTime IssueDateUtc,
     DateTime UpdatedAtUtc, string? Kind = null, int? LastCompletedStep = null,
     string? ReviewState = null, string? SystemCode = null,
-    string? SellerName = null, string? BuyerName = null, string? AuthorityStatus = null);
+    string? SellerName = null, string? BuyerName = null, string? AuthorityStatus = null,
+    Guid? EffectiveInvoiceId = null);
 
 public sealed record InvoiceDraftResult(InvoiceApiDecision Decision,
     InvoiceDraftView? Invoice = null);
@@ -288,6 +289,7 @@ FROM sandbox_invoice_legal_relations
         var internalSnapshots = new HashSet<Guid>();
         var workspaceReviews = new Dictionary<Guid,string>();
         var buyers = new Dictionary<Guid, string?>();
+        var buyerPartyIdsByInvoice = new Dictionary<Guid, Guid>();
         foreach (var row in rows)
         {
             var json = row.Source == 1
@@ -310,8 +312,25 @@ FROM sandbox_invoice_legal_relations
                 else if (root.TryGetProperty("buyer", out var buyer) &&
                     buyer.ValueKind == JsonValueKind.String)
                     buyers[row.Id] = buyer.GetString();
+                if (!buyers.ContainsKey(row.Id) &&
+                    (root.TryGetProperty("buyerPartyId", out var buyerPartyId) ||
+                     root.TryGetProperty("BuyerPartyId", out buyerPartyId)) &&
+                    buyerPartyId.ValueKind == JsonValueKind.String &&
+                    buyerPartyId.TryGetGuid(out var parsedBuyerPartyId))
+                    buyerPartyIdsByInvoice[row.Id] = parsedBuyerPartyId;
             }
             catch (JsonException) { /* Historical malformed snapshot: no display name. */ }
+        }
+        if (buyerPartyIdsByInvoice.Count > 0)
+        {
+            var partyIds = buyerPartyIdsByInvoice.Values.Distinct().ToArray();
+            var partyNames = await db.Parties.AsNoTracking()
+                .Where(p => partyIds.Contains(p.Id))
+                .Select(p => new { p.Id, p.DisplayName })
+                .ToDictionaryAsync(p => p.Id, p => p.DisplayName, ct);
+            foreach (var (invoiceId, partyId) in buyerPartyIdsByInvoice)
+                if (partyNames.TryGetValue(partyId, out var partyName))
+                    buyers[invoiceId] = partyName;
         }
         // Read only statuses belonging to the 15 scoped invoice rows.
         // The authority report is not interchangeable with the initial enqueue receipt.
@@ -372,7 +391,7 @@ ORDER BY d.invoice_revision DESC,d.created_at_utc DESC
         // Overlay the newest related legal document on its original row, keeping
         // the original human reference and root invoice ID. Related documents
         // never appear as additional main-table rows.
-        var effectiveByRoot=new Dictionary<Guid,(string Subject,DateTime Date,string Status)>();
+        var effectiveByRoot=new Dictionary<Guid,(Guid InvoiceId,string Subject,DateTime Date,string Status)>();
         if(ids.Length>0)
         {
             var conn=db.Database.GetDbConnection();
@@ -382,7 +401,7 @@ ORDER BY d.invoice_revision DESC,d.created_at_utc DESC
             {
                 await using var cmd=conn.CreateCommand();
                 cmd.CommandText="""
-SELECT r.predecessor_invoice_id, d.subject, d.issue_date_utc,
+SELECT r.predecessor_invoice_id, d.id, d.subject, d.issue_date_utc,
  COALESCE((SELECT ar.report_json->>'Status'
    FROM sandbox_authority_inquiry_reports ar
    WHERE ar.invoice_id=d.id AND ar.taxpayer_id=r.taxpayer_id
@@ -396,6 +415,11 @@ JOIN invoice_documents d ON d.id=r.successor_invoice_id
  AND d.customer_user_id=r.customer_user_id AND d.taxpayer_id=r.taxpayer_id
 WHERE r.predecessor_invoice_id=ANY(@ids)
  AND r.customer_user_id=ANY(@owners) AND r.taxpayer_id=ANY(@taxpayers)
+ AND COALESCE((SELECT ar.report_json->>'Status'
+   FROM sandbox_authority_inquiry_reports ar
+   WHERE ar.invoice_id=d.id AND ar.taxpayer_id=r.taxpayer_id
+    AND ar.customer_user_id=r.customer_user_id
+   ORDER BY ar.observed_at_utc DESC, ar.id DESC LIMIT 1),'')='SUCCESS'
 ORDER BY r.created_at_utc DESC
 """;
                 foreach(var (name,value) in new (string,object)[]{
@@ -407,8 +431,8 @@ ORDER BY r.created_at_utc DESC
                 {
                     var root=reader.GetGuid(0);
                     if(effectiveByRoot.ContainsKey(root))continue;
-                    var subject=((InvoiceSubject)reader.GetInt32(1)).ToString();
-                    effectiveByRoot[root]=(subject,reader.GetDateTime(2),reader.GetString(3));
+                    var subject=((InvoiceSubject)reader.GetInt32(2)).ToString();
+                    effectiveByRoot[root]=(reader.GetGuid(1),subject,reader.GetDateTime(3),reader.GetString(4));
                 }
             }
             finally{if(opened)await conn.CloseAsync();}
@@ -428,7 +452,8 @@ ORDER BY r.created_at_utc DESC
                 names.GetValueOrDefault(x.TaxpayerId),
                 buyers.GetValueOrDefault(x.Id),
                 effectiveByRoot.TryGetValue(x.Id,out var effectiveStatus)?effectiveStatus.Status:
-                    authorityByInvoice.GetValueOrDefault(x.Id,"NOT_SENT"))).ToArray());
+                    authorityByInvoice.GetValueOrDefault(x.Id,"NOT_SENT"),
+                effectiveByRoot.TryGetValue(x.Id,out var effectiveInvoice)?effectiveInvoice.InvoiceId:null)).ToArray());
     }
 
     private static InvoiceDraftView View(StoredInvoice invoice) =>

@@ -1,7 +1,7 @@
 import {test} from "node:test";
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
-const read=(p)=>readFileSync(p,"utf8");
+const read=(p)=>readFileSync(new URL("../"+p,import.meta.url),"utf8");
 const service=read("../../src/ArginTaxPayer.Infrastructure/Persistence/Invoices/Phase10LiveSendReadinessService.cs");
 const api=read("../../src/ArginTaxPayer.Api/Invoices/Phase10InvoiceDispatchDevelopmentEndpoints.cs");
 const bff=read("app/api/invoice-dispatch/[taxpayerId]/[invoiceId]/readiness/route.ts");
@@ -30,11 +30,15 @@ test("step22: BFF only enables readiness on a verified signed blocker-free Sandb
  assert.match(api,/invoice_dispatch_not_enabled/);
  assert.match(transport,/DisabledInvoiceSubmissionTransport/);
 });
-test("step22: visual readiness is informative only",()=>{
+test("readiness refresh is read-only while explicit action invokes server-owned send",()=>{
  assert.match(root,/InvoiceSendReadinessPanel/);
  assert.match(ui,/بازبینی آمادگی/);
- assert.match(ui,/آماده ارسال آزمایشی به Sandbox/);
+ assert.match(ui,/ارسال به سامانه مؤدیان و استعلام/);
  assert.match(ui,/validate-internal/);
  assert.match(ui,/method:"POST"/);
- assert.doesNotMatch(ui,/\/send/);
+ const refresh=ui.slice(ui.indexOf('const refresh='),ui.indexOf('const loadReview='));
+ assert.match(refresh,/\/readiness/);
+ assert.doesNotMatch(refresh,/method:"(?:POST|PUT|PATCH|DELETE)"/);
+ assert.doesNotMatch(refresh,/method:"POST"/);
+ assert.match(ui,/\/send-and-inquire/);
 });

@@ -732,7 +732,9 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
   box-shadow:0 8px 25px #173d5629; font-size:12px; line-height:1.9;
   white-space:normal;
 }
-.invoice-register__loading { z-index:5; display:flex; }
+.invoice-register__table-stage { position:relative; min-height:220px; }
+.invoice-register__table-stage[aria-busy="true"] { overflow:hidden; }
+.invoice-register__loading { z-index:5; display:flex; height:100%; min-height:100%; }
 .argin-modal-close{border-radius:10px!important;font-size:18px!important;line-height:1;display:grid;place-items:center}.argin-modal-close:hover{background:#eaf5f5;border-color:#8fc4c7}.argin-modal-close:focus-visible{outline:3px solid #24a5a3;outline-offset:2px}
 .taxpayer-workspace-single{display:block}.taxpayer-workspace-single>.taxpayer-main{min-width:0}.taxpayer-workspace-single .taxpayer-panel{padding:15px}.taxpayer-workspace-single .taxpayer-facts{margin-bottom:14px}
 
@@ -1057,3 +1059,16 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
   outline-offset:-2px;
   box-shadow:0 0 0 3px rgba(32,92,96,.14);
 }
+
+/* Live invoice submission and authority inquiry progress. */
+.invoice-send-progress{display:flex;align-items:flex-start;gap:16px;padding:20px;margin:16px 0;border:1px solid #b9dfe1;border-radius:14px;background:linear-gradient(135deg,#f0faf9,#f7fbff);color:#173d56;box-shadow:0 4px 16px #173d5608}
+.invoice-send-progress>.argin-loader-spinner{flex:none;width:30px;height:30px;margin-top:3px}
+.invoice-send-progress__body{flex:1;min-width:0}
+.invoice-send-progress__body>strong{font-size:15px;line-height:1.9}
+.invoice-send-progress__body>p{margin:6px 0;font-size:13px;line-height:1.9;color:#526c7e}
+.invoice-send-progress__body>.invoice-send-progress__success{color:#147148;font-weight:600;overflow-wrap:anywhere}
+.invoice-send-progress__steps{display:flex;flex-wrap:wrap;gap:8px;list-style:none;padding:0;margin:14px 0 0;font-size:12px}
+.invoice-send-progress__steps li{padding:6px 12px;border-radius:8px;background:#e9eef2;color:#677b8b}
+.invoice-send-progress__steps li[aria-current="step"]{background:#d7eeee;color:#096f74;font-weight:700;box-shadow:inset 0 0 0 1px #9dd0d2}
+.invoice-send-progress__steps li[data-complete="true"]{background:#e1f3e8;color:#147148}
+@media(max-width:540px){.invoice-send-progress{padding:14px;gap:10px}.invoice-send-progress>.argin-loader-spinner{width:24px;height:24px;border-width:3px}}

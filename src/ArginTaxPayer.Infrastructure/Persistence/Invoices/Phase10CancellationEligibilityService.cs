@@ -44,7 +44,15 @@ public sealed class Phase10CancellationEligibilityService(
 SELECT f.fiscal_tax_id,
  EXISTS(SELECT 1 FROM sandbox_invoice_legal_relations r
   WHERE r.predecessor_invoice_id=@invoice AND r.taxpayer_id=@taxpayer
-   AND r.customer_user_id=@owner AND r.subject=3 AND r.state IN (1,2,4))
+   AND r.customer_user_id=@owner AND r.subject=3 AND r.state IN (1,2,4)
+   AND NOT EXISTS (SELECT 1 FROM sandbox_authority_inquiry_reports ar
+    WHERE ar.invoice_id=r.successor_invoice_id
+     AND ar.taxpayer_id=r.taxpayer_id AND ar.customer_user_id=r.customer_user_id
+     AND ar.report_json->>'Status'='FAILED'
+     AND ar.observed_at_utc=(SELECT MAX(ar2.observed_at_utc)
+      FROM sandbox_authority_inquiry_reports ar2
+      WHERE ar2.invoice_id=ar.invoice_id AND ar2.taxpayer_id=ar.taxpayer_id
+       AND ar2.customer_user_id=ar.customer_user_id)))
 FROM sandbox_invoice_fiscal_reservations f
 WHERE f.invoice_id=@invoice AND f.taxpayer_id=@taxpayer
  AND f.customer_user_id=@owner ORDER BY f.created_at_utc DESC LIMIT 1

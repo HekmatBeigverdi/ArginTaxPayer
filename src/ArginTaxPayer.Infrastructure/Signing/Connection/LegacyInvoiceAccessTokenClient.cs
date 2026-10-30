@@ -17,8 +17,14 @@ internal sealed record LegacyInvoiceAccessTokenResult(
 /// held in memory and is never included in an Outbox payload or log entry.
 /// </summary>
 internal sealed class LegacyInvoiceAccessTokenClient(
-    IConfiguration configuration, Func<HttpClient>? testClientFactory = null)
+    IConfiguration configuration, Func<HttpClient>? testClientFactory = null,
+    TimeProvider? timeProvider = null)
 {
+    // DI registers this client as scoped: tokens never cross request/worker scopes.
+    // Keep reuse short even if an authority returns an opaque token without expiry.
+    private readonly TimeProvider clock = timeProvider ?? TimeProvider.System;
+    private readonly Dictionary<(Uri Endpoint, string FiscalId, string PublicKey),
+        (LegacyInvoiceAccessTokenResult Result, DateTimeOffset ReuseUntil)> tokens = new();
     private const int MaxResponseBytes = 262_144;
     private static readonly JsonSerializerOptions LegacyJsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -36,6 +42,8 @@ internal sealed class LegacyInvoiceAccessTokenClient(
         if (expectedPublicSpki.Length is < 1 or > 4096)
             return new(false, "sandbox_legacy_token_invalid");
 
+        ct.ThrowIfCancellationRequested();
+        var requestedAt = clock.GetUtcNow();
         var trace = Guid.NewGuid().ToString("D");
         var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
             .ToString(System.Globalization.CultureInfo.InvariantCulture);
@@ -57,6 +65,11 @@ internal sealed class LegacyInvoiceAccessTokenClient(
             .SignatureBase64;
 
         var endpoint = new Uri(baseUri, "self-tsp/sync/GET_TOKEN");
+        // Sign first so reuse cannot bypass private/public key integrity checks.
+        var identity = (endpoint, fiscalId, Convert.ToHexString(SHA256.HashData(expectedPublicSpki.Span)));
+        if (tokens.TryGetValue(identity, out var cached) && requestedAt < cached.ReuseUntil)
+            return cached.Result;
+        tokens.Remove(identity);
         using var client = testClientFactory?.Invoke() ?? NewClient();
         using var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
         {
@@ -88,7 +101,9 @@ internal sealed class LegacyInvoiceAccessTokenClient(
             using var document = await ParseBoundedAsync(response, ct);
             if (!TryReadToken(document, out var token))
                 return new(false, "sandbox_legacy_token_rejected");
-            return new(true, "sandbox_legacy_token_received", token);
+            var result = new LegacyInvoiceAccessTokenResult(true, "sandbox_legacy_token_received", token);
+            tokens[identity] = (result, requestedAt.AddSeconds(30));
+            return result;
         }
         catch (HttpRequestException)
         {

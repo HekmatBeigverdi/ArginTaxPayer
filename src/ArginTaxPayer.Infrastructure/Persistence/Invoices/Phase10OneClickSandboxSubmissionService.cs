@@ -1,6 +1,8 @@
 using ArginTaxPayer.Application.Invoices;
 using ArginTaxPayer.Domain.Invoices;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
+using System.Diagnostics;
 
 namespace ArginTaxPayer.Infrastructure.Persistence.Invoices;
 
@@ -23,8 +25,8 @@ public sealed class Phase10OneClickSandboxSubmissionService(
     Phase10LegacyInvoicePreparationService preparation,
     Phase10DispatchArmService arm,
     IPhase10LegacyOutboxWorker worker,
-    Phase10LegacyReferenceInquiryService inquiry,
-    IConfiguration configuration)
+    IConfiguration configuration,
+    ILogger<Phase10OneClickSandboxSubmissionService> logger)
 {
     private static Phase10OneClickResult Stop(string code,
         InvoiceApiDecision decision=InvoiceApiDecision.Conflict)=>
@@ -33,6 +35,7 @@ public sealed class Phase10OneClickSandboxSubmissionService(
     public async Task<Phase10OneClickResult> SendAsync(
         string? bearer,Guid taxpayerId,Guid invoiceId,CancellationToken ct)
     {
+        var elapsed=Stopwatch.StartNew();
         var current=await dispatch.GetAsync(bearer,taxpayerId,invoiceId,ct);
         if(current.Decision!=InvoiceApiDecision.Success)
             return Stop("invoice_access_denied",current.Decision);
@@ -58,7 +61,9 @@ public sealed class Phase10OneClickSandboxSubmissionService(
             var validated=await validation.ValidateAsync(bearer,taxpayerId,invoiceId,revision,ct);
             if(validated.Decision!=InvoiceApiDecision.Success)
                 return Stop(validated.Code,validated.Decision);
-            info=(await readiness.ReadAsync(bearer,taxpayerId,invoiceId,ct)).Readiness!;
+            // Validation committed this exact immutable revision; the next command
+            // rechecks live ownership/revision itself. Avoid reloading the full UI report.
+            info=info with {InvoiceState="Validated"};
         }
         if(info.InvoiceState=="Validated")
         {
@@ -88,7 +93,9 @@ public sealed class Phase10OneClickSandboxSubmissionService(
             var finalized=await finalization.FinalizeAsync(bearer,taxpayerId,invoiceId,revision,ct);
             if(finalized.Decision!=InvoiceApiDecision.Success)
                 return Stop(finalized.Code,finalized.Decision);
-            info=(await readiness.ReadAsync(bearer,taxpayerId,invoiceId,ct)).Readiness!;
+            // Finalization confirmed the same revision. Serial reservation and preparation
+            // enforce their own live state and scope guards before writing or sending.
+            info=info with {InvoiceState="Finalized"};
         }
         if(info.InvoiceState!="Finalized")return Stop("invoice_not_finalized");
 
@@ -113,22 +120,17 @@ public sealed class Phase10OneClickSandboxSubmissionService(
             if(armed.Decision!=InvoiceApiDecision.Success)
                 return Stop(armed.Code,armed.Decision);
         }
+        logger.LogInformation("Sandbox submission preparation completed in {ElapsedMs} ms", elapsed.ElapsedMilliseconds);
+        var preparationMs=elapsed.ElapsedMilliseconds;
         // One send attempt. Worker handles locking and indeterminate outcomes.
         var sent=await worker.ProcessInvoiceAsync(taxpayerId,invoiceId,ct);
+        logger.LogInformation("Sandbox submission receipt completed in {SendMs} ms; total {ElapsedMs} ms; status {Status}",
+            elapsed.ElapsedMilliseconds-preparationMs,elapsed.ElapsedMilliseconds,sent.Status);
         if(sent.Status!="Acknowledged"||string.IsNullOrWhiteSpace(sent.ReferenceNumber))
             return new(InvoiceApiDecision.Conflict,sent.SafeCode,sent.Status);
-        string inquiryCode;
-        try
-        {
-            var result=await inquiry.InquireAsync(bearer,taxpayerId,invoiceId,ct);
-            inquiryCode=result.Decision==InvoiceApiDecision.Success
-                ?result.SafeCode:"inquiry_unavailable";
-        }
-        catch(Exception)when(!ct.IsCancellationRequested)
-        {
-            inquiryCode="inquiry_unavailable";
-        }
+        // Return the durable receipt immediately. Inquiry has its own authenticated request,
+        // so a slow or unavailable inquiry cannot turn a successful send into a timeout.
         return new(InvoiceApiDecision.Success,"acknowledged","Acknowledged",
-            sent.ReferenceNumber,inquiryCode);
+            sent.ReferenceNumber);
     }
 }

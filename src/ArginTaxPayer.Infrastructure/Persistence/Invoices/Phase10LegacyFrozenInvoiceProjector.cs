@@ -40,19 +40,6 @@ public static class Phase10LegacyFrozenInvoiceProjector
             root.GetProperty("pattern").GetInt32() != 1)
             throw new NotSupportedException("Only a finalized Sandbox Type1/Pattern1 snapshot is supported.");
 
-        if(invoice.Subject==InvoiceSubject.Cancellation)
-        {
-            if(!root.TryGetProperty("referenceTaxId",out var refField) ||
-               refField.ValueKind!=JsonValueKind.String ||
-               refField.GetString() is not {Length:22} predecessor ||
-               predecessor==fiscalTaxId)
-                throw new ArgumentException("Verified cancellation predecessor is required.");
-            return Phase10CancellationWireFactory.Project(
-                fiscalTaxId,predecessor,sellerTaxIdentifier,
-                new DateTimeOffset(invoice.IssueDateUtc).ToUnixTimeMilliseconds(),
-                new InvoiceTypePattern(ElectronicInvoiceType.First,1));
-        }
-
         var entries = JsonSerializer.Deserialize<InvoiceEntryLine[]>(
             root.GetProperty("lines").GetRawText()) ?? [];
         if (entries.Length == 0 || entries.Length > 150)
@@ -98,6 +85,25 @@ public static class Phase10LegacyFrozenInvoiceProjector
         catch (Exception exception) when (exception is ArgumentException or OverflowException)
         {
             throw new ArgumentException("Snapshot monetary calculation is invalid.", exception);
+        }
+
+        if (invoice.Subject == InvoiceSubject.Cancellation)
+        {
+            if (!root.TryGetProperty("referenceTaxId", out var refField) ||
+                refField.ValueKind != JsonValueKind.String ||
+                refField.GetString() is not { Length: 22 } predecessor ||
+                predecessor == fiscalTaxId)
+                throw new ArgumentException("Verified cancellation predecessor is required.");
+            return Phase10CancellationWireFactory.Project(
+                fiscalTaxId, predecessor, sellerTaxIdentifier,
+                new DateTimeOffset(invoice.IssueDateUtc).ToUnixTimeMilliseconds(),
+                new InvoiceTypePattern(ElectronicInvoiceType.First, 1),
+                CheckedRial(financial.BeforeDiscountRial),
+                CheckedRial(financial.DiscountRial),
+                CheckedRial(financial.AfterDiscountRial),
+                CheckedRial(financial.VatRial ?? 0),
+                CheckedRial((financial.GrandTotalRial ?? 0) + otherTaxAndLegalFees.Value),
+                otherTaxAndLegalFees.Value);
         }
 
         var lines = new List<InvoiceWireLine>(entries.Length);

@@ -25,3 +25,10 @@ test("search expands and help button opens real tooltip", () => {
   assert.match(css, /\.invoice-register__search input#invoice-list-search/);
   assert.match(css, /max-width:none/);
 });
+
+test("invoice loading overlay clips the full table viewport", () => {
+  assert.match(ui, /invoice-register__table-stage.*aria-busy=\{loading\}/s);
+  assert.match(css, /\.invoice-register__table-stage\[aria-busy=\"true\"\]/);
+  assert.match(css, /overflow:hidden/);
+  assert.match(css, /\.invoice-register__loading[^}]*height:100%/s);
+});

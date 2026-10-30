@@ -14,12 +14,11 @@ test("printed tax identity comes from reserved 22-character fiscal taxid, never 
  assert.ok(preview.includes("شناسه یکتای مالیاتی"));
  assert.ok(preview.includes("در انتظار تخصیص"));
 });
-test("invoice list refreshes after ack and closing detail modal",()=>{
+test("invoice list wires the completion callback and refreshes when closing detail modal",()=>{
  const list=read("apps/web/app/invoices/workspace.tsx");
- const sender=read("apps/web/app/invoices/invoice-send-readiness-panel.tsx");
  assert.ok(list.includes("onCompleted={()=>void reload()}"));
  assert.ok(list.includes("setDetail(null);void reload();"));
- assert.ok(sender.includes('if(result.status==="Acknowledged")onCompleted?.();'));
+ // Completion after acknowledgement and inquiry failure is exercised by phase10-dispatch-arm-contract.
 });
 test("subject labels correspond to the four legal subject enums",()=>{
  const domain=read("src/ArginTaxPayer.Domain/Invoices/InvoiceSubjects.cs");

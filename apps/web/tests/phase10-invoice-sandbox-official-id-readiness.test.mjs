@@ -15,14 +15,15 @@ test("internal product code and official 13-digit sstid remain distinct",()=>{
   assert.match(catalog,/کد داخلی \(صرفاً شناسه داخل نرم‌افزار/);
   assert.match(catalog,/نگاشت شناسه رسمی/);
   assert.match(entry,/OfficialIdentifierSnapshot/);
-  assert.match(entry,/validOfficialMappings/);
-  assert.match(entry,/CatalogOfficialMappings/);
-  assert.match(entry,/OfficialGoodsServiceEntries/);
+  assert.match(entry,/line\.OfficialIdentifierSnapshot is \{ Length: 13 \} supplied/);
+  assert.match(entry,/supplied\.All\(char\.IsAsciiDigit\)/);
+  assert.match(entry,/previous\?\.OfficialIdentifierSnapshot/);
+  assert.match(entry,/CatalogCodeSnapshot = code/);
   assert.match(entry,/OfficialIdentifierSnapshot = officialCode/);
-  assert.match(ui,/sstid:/);
+  assert.match(ui,/officialIdentifierSnapshot:r\.officialIdentifierSnapshot\?\?null/);
   assert.match(ui,/شناسه رسمی ۱۳ رقمی/);
-  assert.match(ui,/invoice-register__sstid-status/);
-  assert.match(ui,/شناسه رسمی ثبت نشده/);
+  assert.match(ui,/value=\{row\.officialIdentifierSnapshot\?\?""\}/);
+  assert.match(ui,/inputMode="numeric" maxLength=\{13\}/);
 });
 test("Sandbox selection is owner scoped and never passed as Production memory FK",()=>{
   assert.match(options,/FROM sandbox_fiscal_memories/);

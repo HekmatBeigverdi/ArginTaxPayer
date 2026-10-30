@@ -72,10 +72,13 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
  const [calculationAuditError,setCalculationAuditError]=useState("");
  const [wirePreviewJson,setWirePreviewJson]=useState("");
  const [reviewedWirePreview,setReviewedWirePreview]=useState(false);
+ const [sendProgress,setSendProgress]=useState<{stage:"sending"|"inquiring";referenceNumber?:string}|null>(null);
  const authorityScope=taxpayerId+"/"+invoiceId;
  const authorityResult=authority?.scope===authorityScope?authority.result:null;
  const authorityController=useRef<AbortController|null>(null);
  const authoritySequence=useRef(0);
+ const inquiryDetailsRef=useRef<HTMLDetailsElement|null>(null);
+ const inquiryController=useRef<AbortController|null>(null);
  const loadAuthorityReport=useCallback(async(signal:AbortSignal)=>{
   if(isWorkspace)return;
   setAuthorityLoading(true);
@@ -120,9 +123,9 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
  useEffect(()=>{
   const controller=new AbortController();authorityController.current=controller;
   setAuthority(null);setAuthorityError("");setCorrectionUrl("");setActionBusy(false);setNotice("");
-  setWirePreviewJson("");setReviewedWirePreview(false);
+  setWirePreviewJson("");setReviewedWirePreview(false);setSendProgress(null);
   // The authority inquiry report is fetched only when the user opens its section.
-  return()=>controller.abort();
+  return()=>{controller.abort();inquiryController.current?.abort();};
  },[loadAuthorityReport]);
  const prepareCorrection=useCallback(async()=>{
   if(actionBusy||authorityResult?.status!=="FAILED"||!authorityResult.canPrepareCorrection)return;
@@ -246,25 +249,74 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
   }catch(e){setError((e as Error).message);}
   finally{setActionBusy(false);}
  },[actionBusy,dispatch,report,taxpayerId,invoiceId,loadDispatch,refresh]);
+ const deferInquiry=useCallback(()=>{
+  if(!inquiryController.current)return;
+  inquiryController.current.abort();inquiryController.current=null;
+  setSendProgress(null);setActionBusy(false);setAuthorityError("");
+  setNotice(current=>(current?current+" — ":"")+"انتظار استعلام متوقف شد؛ بعداً می‌توانید به‌صورت دستی استعلام بگیرید.");
+ },[]);
  const oneClickSend=useCallback(async()=>{
   if(actionBusy||isWorkspace||dispatchLoading||dispatch?.status==="Indeterminate"||
     dispatch?.status==="Sending"||dispatch?.status==="Acknowledged")return;
-  setActionBusy(true);setError("");setNotice("در حال اعتبارسنجی و ارسال…");
+  const signal=authorityController.current?.signal;
+  const base="/api/invoice-dispatch/"+encodeURIComponent(taxpayerId)+"/"+encodeURIComponent(invoiceId);
+  setActionBusy(true);setError("");setNotice("");setAuthorityError("");
+  setSendProgress({stage:"sending"});
+  let referenceNumber:string|null=null;
+  let inquiryRequest:AbortController|null=null;
   try{
-   const response=await fetch("/api/invoice-dispatch/"+encodeURIComponent(taxpayerId)+"/"+
-    encodeURIComponent(invoiceId)+"/send-and-inquire",{method:"POST",cache:"no-store",
-    credentials:"same-origin"});
-   const value:unknown=await response.json();
-   const result=value&&typeof value==="object"&&!Array.isArray(value)?value as Record<string,unknown>:{};
-   if(!response.ok)throw Error("فرآیند متوقف شد: "+String(result.error??response.status));
-   if(result.status==="Acknowledged")
-    setNotice("صورتحساب با شماره رهگیری "+String(result.referenceNumber??"—")+
-      " ارسال شد. نتیجه استعلام: "+String(result.safeCode??"در انتظار بررسی"));
-   else setError("نتیجه ارسال مشخص نیست؛ ارسال را تکرار نکنید. "+String(result.safeCode??""));
-   await loadDispatch();await refresh();await loadReview();
-   if(result.status==="Acknowledged")onCompleted?.();
-  }catch(e){setError((e as Error).message+"؛ پیش از تلاش دیگر وضعیت را تازه کنید.");await loadDispatch();}
-  finally{setActionBusy(false);}
+   try{
+    const response=await fetch(base+"/send-and-inquire",{method:"POST",cache:"no-store",
+     credentials:"same-origin",signal});
+    const result=await response.json();
+    if(signal?.aborted)return;
+    if(!response.ok)throw Error("send_response_unavailable");
+    if(result.status==="Acknowledged"&&typeof result.referenceNumber==="string"&&result.referenceNumber)
+     referenceNumber=result.referenceNumber;
+   }catch{
+    if(signal?.aborted)return;
+    // Recover a lost response from durable state; never retry the send POST.
+    const response=await fetch(base,{method:"GET",cache:"no-store",credentials:"same-origin",signal});
+    const state=await response.json();
+    if(signal?.aborted)return;
+    if(response.ok&&state.status==="Acknowledged"&&typeof state.referenceNumber==="string"&&state.referenceNumber)
+     referenceNumber=state.referenceNumber;
+   }
+   if(!referenceNumber){
+    setError("نتیجه ارسال هنوز مشخص نیست؛ ارسال را تکرار نکنید. وضعیت عملیات را به‌روزرسانی کنید.");
+    await loadDispatch();return;
+   }
+   setDispatch({status:"Acknowledged",referenceNumber,submissionEnabled:true,fiscalAccepted:false});
+   setNotice("فاکتور با موفقیت ارسال شد. شماره رهگیری: "+referenceNumber);
+   onCompleted?.();
+   inquiryRequest=new AbortController();inquiryController.current=inquiryRequest;
+   setSendProgress({stage:"inquiring",referenceNumber});
+   ++authoritySequence.current;setAuthority(null);
+   if(inquiryDetailsRef.current)inquiryDetailsRef.current.open=true;
+   try{
+    const response=await fetch(base+"/inquiry-by-reference",{method:"POST",cache:"no-store",
+     credentials:"same-origin",signal:AbortSignal.any([inquiryRequest.signal,...(signal?[signal]:[]),AbortSignal.timeout(40000)])});
+    const data=await response.json();
+    if(signal?.aborted||inquiryRequest.signal.aborted)return;
+    if(!response.ok)throw Error("inquiry_unavailable");
+    setAuthority({scope:taxpayerId+"/"+invoiceId,result:data.authorityResult??null,
+     referenceNumber:data.referenceNumber??referenceNumber});
+    setNotice("فاکتور با موفقیت ارسال شد. شماره رهگیری: "+referenceNumber+
+     (data.authorityResult?" — نتیجه استعلام: "+authorityLabels[(data.authorityResult as AuthorityResult).status]:
+      " — نتیجه نهایی سازمان هنوز آماده نیست؛ می‌توانید دوباره استعلام بگیرید."));
+   }catch{
+    if(!signal?.aborted&&!inquiryRequest.signal.aborted)setAuthorityError("ارسال موفق بود، اما نتیجه استعلام در دسترس نیست. بدون ارسال مجدد فاکتور، دوباره استعلام بگیرید.");
+   }
+  }catch{
+   if(!signal?.aborted)setError("پاسخ ارسال و وضعیت ثبت‌شده در دسترس نیست؛ ارسال را تکرار نکنید. وضعیت عملیات را به‌روزرسانی کنید.");
+  }finally{
+   if(!signal?.aborted){
+    if(!inquiryRequest||inquiryController.current===inquiryRequest){
+     inquiryController.current=null;setSendProgress(null);setActionBusy(false);
+    }
+    void Promise.all([loadDispatch(),refresh(),loadReview()]);
+   }
+  }
  },[actionBusy,isWorkspace,dispatchLoading,dispatch,taxpayerId,invoiceId,loadDispatch,refresh,loadReview,onCompleted]);
  const readyExisting=useCallback(async()=>{
   if(actionBusy||!report||calculationAudit?.invoiceRevision!==report.invoiceRevision||!calculationAudit.canResend||report.invoiceState!=="Finalized"||
@@ -331,9 +383,13 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
  },[actionBusy,dispatch,taxpayerId,invoiceId]);
  const inquireByReference=useCallback(async()=>{
   if(actionBusy||dispatch?.status!=="Acknowledged")return;
-  const signal=authorityController.current?.signal;
+  const scopeSignal=authorityController.current?.signal;
+  const controller=new AbortController();inquiryController.current=controller;
+  const signal=AbortSignal.any([controller.signal,...(scopeSignal?[scopeSignal]:[]),AbortSignal.timeout(40000)]);
   ++authoritySequence.current;setAuthority(null);setAuthorityError("");
-  setActionBusy(true);setError("");setNotice("");
+  setActionBusy(true);setError("");
+  setNotice("فاکتور قبلاً ارسال شده است. شماره رهگیری: "+String(dispatch.referenceNumber??"—"));
+  setSendProgress({stage:"inquiring",referenceNumber:dispatch.referenceNumber});
   try{
    const response=await fetch("/api/invoice-dispatch/"+
     encodeURIComponent(taxpayerId)+"/"+encodeURIComponent(invoiceId)+"/inquiry-by-reference",{
@@ -349,8 +405,14 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
    setNotice("نتیجه استعلام شماره رهگیری: "+String(data.safeCode??"نامشخص")+
     (typeof data.referenceNumber==="string"?" — شماره مرجع: "+data.referenceNumber:"")+
     " — وضعیت پذیرش قطعی مالیاتی هنوز تأیید نشده است.");
-  }catch(e){if(!signal?.aborted)setError((e as Error).message);}
-  finally{if(!signal?.aborted)setActionBusy(false);}
+  }catch{
+   if(!scopeSignal?.aborted&&!controller.signal.aborted)
+    setAuthorityError("ارسال فاکتور ثبت شده است، اما نتیجه استعلام در دسترس نیست؛ چند دقیقه بعد دوباره استعلام بگیرید.");
+  }finally{
+   if(!scopeSignal?.aborted&&inquiryController.current===controller){
+    inquiryController.current=null;setSendProgress(null);setActionBusy(false);
+   }
+  }
  },[actionBusy,dispatch,taxpayerId,invoiceId,onCompleted]);
  const inquireByUid=useCallback(async()=>{
   if(actionBusy||dispatch?.status!=="Indeterminate")return;
@@ -540,6 +602,19 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
   </div>
   }
   {error&&<p role="alert" className="form-error">{error}</p>}
+  {sendProgress&&<div className="invoice-send-progress" role="status" aria-live="polite" aria-atomic="true" aria-busy="true">
+   <span className="argin-loader-spinner" aria-hidden="true"/>
+   <div className="invoice-send-progress__body">
+    <strong>{sendProgress.stage==="sending"?"در حال آماده‌سازی و ارسال فاکتور…":"در حال استعلام نتیجه از سامانه مؤدیان…"}</strong>
+    {sendProgress.stage==="inquiring"&&<p className="invoice-send-progress__success">✓ فاکتور با موفقیت ارسال شد؛ شماره رهگیری: <bdi dir="ltr">{sendProgress.referenceNumber}</bdi></p>}
+    <p>{sendProgress.stage==="sending"?"اطلاعات فاکتور بررسی و برای سامانه مؤدیان ارسال می‌شود. لطفاً منتظر بمانید.":"دریافت نتیجه بسته به پاسخ‌گویی سامانه مؤدیان ممکن است زمان‌بر باشد؛ معمولاً چند دقیقه پس از ارسال، نتیجه آماده می‌شود. می‌توانید از انتظار خارج شوید و بعداً دستی استعلام بگیرید."}</p>
+    {sendProgress.stage==="inquiring"&&<button type="button" className="identity-secondary" onClick={deferInquiry}>بعداً دستی استعلام می‌کنم</button>}
+    <ol className="invoice-send-progress__steps" aria-label="مراحل ارسال فاکتور">
+     <li aria-current={sendProgress.stage==="sending"?"step":undefined} data-complete={sendProgress.stage==="inquiring"}>۱. ارسال فاکتور</li>
+     <li aria-current={sendProgress.stage==="inquiring"?"step":undefined}>۲. استعلام نتیجه</li>
+    </ol>
+   </div>
+  </div>}
   {notice&&<p role="status" className="field-hint">{notice}</p>}
   {dispatch?.status!=="Acknowledged"&&<button type="button" className="identity-secondary" disabled={busy||actionBusy||dispatchLoading}
    onClick={()=>void loadDispatch()}>{dispatchLoading?"در حال دریافت وضعیت…":"به‌روزرسانی وضعیت عملیات ارسال"}</button>}
@@ -554,8 +629,8 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
     {item.actual!==null&&<>؛ مقدار فعلی: <bdi dir="ltr">{item.actual}</bdi></>}
    </li>)}</ul>
   </section>:null}
-  <details className="fiscal-section invoice-inquiry-section" aria-label="استعلام و گزارش سازمان" onToggle={event=>{
-    if(event.currentTarget.open&&dispatch?.status==="Acknowledged"){
+  <details ref={inquiryDetailsRef} className="fiscal-section invoice-inquiry-section" aria-label="استعلام و گزارش سازمان" onToggle={event=>{
+    if(event.currentTarget.open&&!actionBusy&&dispatch?.status==="Acknowledged"){
      const controller=authorityController.current;
      if(controller&&!controller.signal.aborted)void loadAuthorityReport(controller.signal);
     }
@@ -597,7 +672,7 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
    dispatch?.status!=="Acknowledged"&&dispatch?.status!=="Indeterminate"&&
    dispatch?.status!=="Sending"&&
    <button type="button" className="identity-primary" disabled={actionBusy||busy||dispatchLoading}
-    onClick={()=>void oneClickSend()}>{actionBusy?"در حال پردازش…":"ارسال به سامانه مؤدیان و استعلام"}</button>}
+    onClick={()=>void oneClickSend()}>{sendProgress?.stage==="inquiring"?"در حال استعلام نتیجه…":sendProgress?"در حال ارسال فاکتور…":actionBusy?"در حال پردازش…":"ارسال به سامانه مؤدیان و استعلام"}</button>}
   {dispatch?.status==="Indeterminate"&&<p role="alert" className="form-error">
     نتیجه ارسال قبلی مشخص نیست؛ ارسال مجدد خودکار انجام نمی‌شود.
    </p>}

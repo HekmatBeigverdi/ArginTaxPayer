@@ -37,6 +37,7 @@ type Invoice = {
   sellerName?: string | null;
   buyerName?: string | null;
   authorityStatus?: string;
+  effectiveInvoiceId?: string | null;
 };
 
 type CatalogItem = {
@@ -772,17 +773,18 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
     </div>
     {error && !modal && <p role="alert" className="form-error">{error}</p>}
     {notice && <p role="status" className="auth-info">{notice}</p>}
-    <div className="console-table-scroll invoice-register__table-wrap" aria-busy={loading} style={{position:"relative",minHeight:"220px"}}>
+    <div className="invoice-register__table-stage" aria-busy={loading}>
       {loading && <div className="argin-loader argin-loader-overlay invoice-register__loading" role="status" aria-live="polite">
         <span className="argin-loader-spinner" aria-hidden="true" />
         <strong>در حال بارگذاری صورتحساب‌ها…</strong>
         <span className="argin-loader-subtitle">لطفاً تا دریافت اطلاعات منتظر بمانید</span>
       </div>}
+      <div className="console-table-scroll invoice-register__table-wrap">
       <table className="console-table">
         <thead><tr><th>شناسه سیستمی</th>{isAdmin && <th>مشتری</th>}<th>مؤدی فروشنده</th><th>خریدار</th><th>تاریخ صدور</th><th>موضوع</th>
           <th>وضعیت داخلی</th><th>وضعیت سازمان</th><th>نسخه</th><th>عملیات</th></tr></thead>
         <tbody>{filtered.length === 0 ? <tr><td colSpan={isAdmin ? 10 : 9}>صورتحسابی برای نمایش وجود ندارد.</td></tr> :
-          filtered.map(item => <tr key={item.id} style={{backgroundColor:item.authorityStatus==="SUCCESS"?"rgba(22,163,74,.10)":undefined}}>
+          filtered.map(item => <tr key={item.id} style={{backgroundColor:item.subject === "Cancellation" ? "rgba(220,38,38,.10)" : item.authorityStatus==="SUCCESS"?"rgba(22,163,74,.10)":undefined}}>
             <td><button type="button" className="console-row-action" title="کپی شناسه برای پشتیبانی" disabled={!item.systemCode} onClick={() => {void navigator.clipboard.writeText(item.systemCode || "").then(()=>setNotice("شناسه سیستمی کپی شد."));}}><bdi dir="ltr">{item.systemCode || "در انتظار تخصیص"}</bdi> ⧉</button></td>
             {isAdmin && <td>{accounts.find(a=>a.customerUserId===item.customerUserId)?.companyName ||
               accounts.find(a=>a.customerUserId===item.customerUserId)?.personName || "حساب مشتری"}</td>}
@@ -816,6 +818,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
               </span>}</td>
           </tr>)}</tbody>
       </table>
+      </div>
     </div>
     <footer className="console-table-footer invoice-register__pager" aria-label="صفحه‌بندی صورتحساب‌ها">
       <span>{invoices.length} رکورد در صفحه جاری</span>
@@ -841,7 +844,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
         </div>
         <details name="invoice-detail-sections" className="fiscal-section invoice-detail-section" open key={"invoice-section:"+detail.id}><summary><span>صورتحساب فروش</span><span className="invoice-detail-section__summary-action">مشاهده جزئیات</span></summary>
         <div className="fiscal-section-content invoice-detail-section__content">
-        <InvoiceFormalPreview key={"formal:"+detail.id} taxpayerId={detail.taxpayerId} invoiceId={detail.id} reference={detail.systemCode??""} authorityStatus={detail.authorityStatus} onCancellationCompleted={()=>void reload()}/>
+        <InvoiceFormalPreview key={"formal:"+detail.id} taxpayerId={detail.taxpayerId} invoiceId={detail.id} reference={detail.systemCode??""} authorityStatus={detail.authorityStatus} subject={detail.subject} onCancellationCompleted={()=>void reload()}/>
         </div>
         </details>
         <details name="invoice-detail-sections" className="fiscal-section invoice-detail-section"><summary><span>مشخصات داخلی و فنی صورتحساب</span><span className="invoice-detail-section__summary-action">مشاهده جزئیات</span></summary>
@@ -863,13 +866,13 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
         <details name="invoice-detail-sections" className="fiscal-section invoice-detail-section"><summary><span>{detail.authorityStatus==="SUCCESS"||detail.authorityStatus==="FAILED"||detail.authorityStatus==="PENDING"||detail.authorityStatus==="ACKNOWLEDGED"?"استعلام و نتیجه سازمان":"ارسال به سامانه مؤدیان"}</span><span className="invoice-detail-section__summary-action">مشاهده جزئیات</span></summary>
         <div className="fiscal-section-content invoice-detail-section__content">
         <InvoiceSendReadinessPanel key={"readiness:"+detail.id}
-          invoiceId={detail.id} taxpayerId={detail.taxpayerId}
+          invoiceId={detail.effectiveInvoiceId ?? detail.id} taxpayerId={detail.taxpayerId}
           isWorkspace={detail.kind === "workspace"} hideHistory={true} onCompleted={()=>void reload()}/>
         </div>
         </details>
         <details name="invoice-detail-sections" className="fiscal-section invoice-detail-section"><summary><span>تاریخچه ارسال و استعلام</span><span className="invoice-detail-section__summary-action">مشاهده جزئیات</span></summary>
           <div className="fiscal-section-content invoice-detail-section__content">
-          <InvoiceDispatchHistory taxpayerId={detail.taxpayerId} invoiceId={detail.id}/>
+          <InvoiceDispatchHistory taxpayerId={detail.taxpayerId} invoiceId={detail.effectiveInvoiceId ?? detail.id}/>
           </div>
         </details>
       </div>

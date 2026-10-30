@@ -10,7 +10,10 @@ public static class Phase10CancellationWireFactory
     public static InvoiceWireProjection Project(
         string newlyReservedTaxId, string predecessorTaxId,
         string sellerEconomicCode, long issueUnixMilliseconds,
-        InvoiceTypePattern originalClassification)
+        InvoiceTypePattern originalClassification,
+        long totalBeforeDiscountRial, long totalDiscountRial,
+        long totalAfterDiscountRial, long totalVatRial, long totalBillRial,
+        long totalOtherTaxAndLegalFeesRial = 0)
     {
         if (newlyReservedTaxId == predecessorTaxId)
             throw new ArgumentException("Cancellation must use a new fiscal tax ID.");
@@ -20,8 +23,10 @@ public static class Phase10CancellationWireFactory
         var input = new InvoiceWireInput(
             originalClassification, InvoiceSubject.Cancellation,
             newlyReservedTaxId,issueUnixMilliseconds,sellerEconomicCode,
-            Array.Empty<InvoiceWireLine>(),0,0,0,0,0,
+            Array.Empty<InvoiceWireLine>(),totalBeforeDiscountRial,totalDiscountRial,
+            totalAfterDiscountRial,totalVatRial,totalBillRial,
             ReferenceTaxId:predecessorTaxId,
+            TotalOtherTaxAndLegalFeesRial:totalOtherTaxAndLegalFeesRial,
             InvoiceNumber:newlyReservedTaxId.Length==22?newlyReservedTaxId.Substring(11,10):null);
         return Phase10InvoiceWireMapper.Project(input);
     }
