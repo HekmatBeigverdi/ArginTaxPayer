@@ -388,6 +388,30 @@ ORDER BY d.invoice_revision DESC,d.created_at_utc DESC
             }
             finally{if(opened)await connection.CloseAsync();}
         }
+        var correctionInProgress=new HashSet<Guid>();
+        if(ids.Length>0)
+        {
+            var conn=db.Database.GetDbConnection();
+            var opened=conn.State!=System.Data.ConnectionState.Open;
+            if(opened)await conn.OpenAsync(ct);
+            try
+            {
+                await using var cmd=conn.CreateCommand();
+                cmd.CommandText="""
+SELECT predecessor_invoice_id
+FROM sandbox_invoice_correction_workspaces
+WHERE predecessor_invoice_id=ANY(@ids)
+ AND customer_user_id=ANY(@owners) AND taxpayer_id=ANY(@taxpayers)
+ AND state=1
+""";
+                foreach(var (name,value) in new (string,object)[]{
+                    ("ids",ids),("owners",rows.Select(x=>x.CustomerUserId).Distinct().ToArray()),
+                    ("taxpayers",taxpayerIds)})
+                {var p=cmd.CreateParameter();p.ParameterName=name;p.Value=value;cmd.Parameters.Add(p);}
+                await using var reader=await cmd.ExecuteReaderAsync(ct);
+                while(await reader.ReadAsync(ct))correctionInProgress.Add(reader.GetGuid(0));
+            }finally{if(opened)await conn.CloseAsync();}
+        }
         // Overlay the newest related legal document on its original row, keeping
         // the original human reference and root invoice ID. Related documents
         // never appear as additional main-table rows.
