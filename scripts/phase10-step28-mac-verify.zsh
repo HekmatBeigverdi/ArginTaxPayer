@@ -20,6 +20,8 @@ fi
 nc -z 127.0.0.1 15432 || { print -u2 "AutoSSH tunnel is unavailable"; exit 1; }
 dotnet build ArginTaxPayer.sln
 dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --filter "FullyQualifiedName~Phase10Step28"
+node --test apps/web/tests/phase10-step28-sales-return-flow.test.mjs
+(cd apps/web && npm run typecheck && npm run build)
 dotnet ef migrations list --project src/ArginTaxPayer.Infrastructure --startup-project src/ArginTaxPayer.Api
 dotnet ef database update --project src/ArginTaxPayer.Infrastructure --startup-project src/ArginTaxPayer.Api
 print "Step28 persistence migration and quantity unit tests done. Sandbox submission NOT tested."
