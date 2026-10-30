@@ -28,7 +28,7 @@ public static class Phase10LegacyFrozenInvoiceProjector
             !fiscalTaxId.AsSpan(11, 10).ToString().All(Uri.IsHexDigit))
             throw new ArgumentException("Invalid reserved fiscal invoice serial.");
         if (invoice.State != InvoiceLifecycleState.Finalized ||
-            invoice.Subject is not (InvoiceSubject.Original or InvoiceSubject.Cancellation) ||
+            invoice.Subject is not (InvoiceSubject.Original or InvoiceSubject.Correction or InvoiceSubject.Cancellation) ||
             invoice.Revision < 1 || invoice.IssueDateUtc.Kind != DateTimeKind.Utc)
             throw new ArgumentException("Invoice is not a finalized UTC revision.");
         using var source = JsonDocument.Parse(invoice.SnapshotJson);
@@ -132,14 +132,17 @@ public static class Phase10LegacyFrozenInvoiceProjector
         var credit = CheckedRial(root.GetProperty("creditAmountRial").GetDecimal());
         var wire = new InvoiceWireInput(
             new InvoiceTypePattern(ElectronicInvoiceType.First,1),
-            InvoiceSubject.Original,fiscalTaxId,
+            invoice.Subject,fiscalTaxId,
             new DateTimeOffset(invoice.IssueDateUtc).ToUnixTimeMilliseconds(),
             sellerTaxIdentifier,lines,
             CheckedRial(financial.BeforeDiscountRial),CheckedRial(financial.DiscountRial),
             CheckedRial(financial.AfterDiscountRial),
             CheckedRial(financial.VatRial ?? 0),
             CheckedRial((financial.GrandTotalRial ?? 0) + otherTaxAndLegalFees.Value),
-            BuyerTaxId:buyerTaxIdentifier,SettlementMethod:settlement,
+            BuyerTaxId:buyerTaxIdentifier,
+            ReferenceTaxId:invoice.Subject==InvoiceSubject.Correction
+                ?root.GetProperty("referenceTaxId").GetString():null,
+            SettlementMethod:settlement,
             // The internal display number is not the authority's 10-hex-digit serial.
             CashAmountRial:cash,CreditAmountRial:credit,InvoiceNumber:fiscalTaxId.Substring(11,10),
             BuyerPersonType:buyerPersonType,
