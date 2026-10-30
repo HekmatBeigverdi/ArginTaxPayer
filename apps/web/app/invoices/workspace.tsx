@@ -9,6 +9,7 @@ import InvoiceValidationPanel from "./invoice-validation-panel";
 import InvoiceHistoryPanel from "./invoice-history-panel";
 import InvoiceSendReadinessPanel from "./invoice-send-readiness-panel";
 import InvoiceFormalPreview from "./invoice-formal-preview";
+import InvoiceCorrectionModal from "./invoice-correction-modal";
 import InvoiceDispatchHistory from "./invoice-dispatch-history";
 import InvoiceLineageModal from "./invoice-lineage-modal";
 import InvoiceImportPanel, {type ImportValues} from "./invoice-import-panel";
@@ -38,6 +39,7 @@ type Invoice = {
   buyerName?: string | null;
   authorityStatus?: string;
   effectiveInvoiceId?: string | null;
+  correctionInProgress?: boolean;
 };
 
 type CatalogItem = {
@@ -280,6 +282,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   const [otherTaxInput,setOtherTaxInput] = useState("0");
   const nextKey = useRef(0);
   const [detail, setDetail] = useState<Invoice | null>(null);
+  const [correctionTarget,setCorrectionTarget]=useState<Invoice|null>(null);
   const [lineage, setLineage] = useState<Invoice | null>(null);
 
   useEffect(() => {
@@ -791,7 +794,8 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
             <td>{item.sellerName || taxpayers.find(t=>t.id===item.taxpayerId)?.displayName || "مؤدی ثبت‌شده"}</td>
             <td>{item.buyerName || "ثبت نشده"}</td>
             <td>{toFaDate(item.issueDateUtc)}</td><td>{({Original:"اصلی",Correction:"اصلاحی",Corrective:"اصلاحی",Cancellation:"ابطالی",Cancel:"ابطالی",SalesReturn:"برگشت از فروش",ReturnFromSale:"برگشت از فروش",Return:"برگشت از فروش"} as Record<string,string>)[item.subject]??item.subject}</td>
-            <td>{item.reviewState === "WorkingDraft" ? "در حال تکمیل" :
+            <td>{item.correctionInProgress ? "در حال ویرایش اصلاحی" :
+              item.reviewState === "WorkingDraft" ? "در حال تکمیل" :
               item.reviewState === "InReview" ? "در انتظار بازبینی" :
               item.reviewState === "ChangesRequested" ? "نیازمند اصلاح" :
               item.reviewState === "Approved" ? "تأیید داخلی" : "پیش‌نویس داخلی"}</td>
@@ -811,6 +815,8 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
               onClick={() => void editDraft(item)}>ویرایش و ادامه</button> :
               <span style={{display:"inline-flex",gap:5,alignItems:"center",flexWrap:"wrap"}}>
                <button type="button" className="console-row-action" onClick={()=>setDetail(item)}>مشاهده</button>
+               {item.correctionInProgress&&<button type="button" className="console-row-action"
+                onClick={()=>setCorrectionTarget(item)}>ادامه ویرایش</button>}
                {["ACKNOWLEDGED","SUCCESS","FAILED","PENDING","INDETERMINATE","SENDING"].includes(item.authorityStatus??"")&&
                 <button type="button" className="console-row-action" title="نمایش سوابق و شناسه‌های مالیاتی" onClick={()=>setLineage(item)}>
                  ⛓ زنجیره
@@ -831,6 +837,8 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
       </div>
     </footer>
     {bulkOpen && <BulkInvoiceImportPanel onClose={()=>setBulkOpen(false)} onChanged={()=>void reload()}/>}
+    {correctionTarget&&<InvoiceCorrectionModal taxpayerId={correctionTarget.taxpayerId}
+      invoiceId={correctionTarget.id} onClose={()=>setCorrectionTarget(null)} onChanged={()=>void reload()}/>}
     {lineage&&<InvoiceLineageModal taxpayerId={lineage.taxpayerId} invoiceId={lineage.id} onClose={()=>setLineage(null)}/>}
     {detail && <div className="invoice-register__overlay" onMouseDown={e => {
       if (e.currentTarget === e.target) {setDetail(null);void reload();}
@@ -844,7 +852,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
         </div>
         <details name="invoice-detail-sections" className="fiscal-section invoice-detail-section" open key={"invoice-section:"+detail.id}><summary><span>صورتحساب فروش</span><span className="invoice-detail-section__summary-action">مشاهده جزئیات</span></summary>
         <div className="fiscal-section-content invoice-detail-section__content">
-        <InvoiceFormalPreview key={"formal:"+detail.id} taxpayerId={detail.taxpayerId} invoiceId={detail.id} reference={detail.systemCode??""} authorityStatus={detail.authorityStatus} subject={detail.subject} onCancellationCompleted={()=>void reload()}/>
+        <InvoiceFormalPreview key={"formal:"+detail.id} taxpayerId={detail.taxpayerId} invoiceId={detail.id} reference={detail.systemCode??""} authorityStatus={detail.authorityStatus} subject={detail.subject} onCancellationCompleted={()=>void reload()} onCorrectionCompleted={()=>void reload()}/>
         </div>
         </details>
         <details name="invoice-detail-sections" className="fiscal-section invoice-detail-section"><summary><span>مشخصات داخلی و فنی صورتحساب</span><span className="invoice-detail-section__summary-action">مشاهده جزئیات</span></summary>
