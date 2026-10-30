@@ -59,6 +59,46 @@ public static class Phase10InvoiceDispatchDevelopmentEndpoints
             http.Response.Headers.CacheControl="no-store";
             return CorrectionResult(await service.SubmitAsync(Token(http),taxpayerId,invoiceId,ct));
         });
+        static IResult SalesReturnResult(SalesReturnOperationResult result)=>
+            result.Decision switch {
+                InvoiceApiDecision.Success=>Results.Ok(result),
+                InvoiceApiDecision.Unauthenticated=>Results.Unauthorized(),
+                InvoiceApiDecision.Forbidden=>Results.StatusCode(403),
+                InvoiceApiDecision.NotFound=>Results.NotFound(),
+                InvoiceApiDecision.Conflict=>Results.Conflict(result),
+                _=>Results.BadRequest(result)
+            };
+        group.MapPost("/sales-return-draft",async(Guid taxpayerId,Guid invoiceId,
+            HttpContext http,Phase10SandboxSalesReturnService service,CancellationToken ct)=>{
+            if(!Local(http))return Results.NotFound();
+            http.Response.Headers.CacheControl="no-store";
+            return SalesReturnResult(await service.OpenAsync(Token(http),taxpayerId,invoiceId,ct));
+        });
+        group.MapGet("/sales-return-draft",async(Guid taxpayerId,Guid invoiceId,
+            HttpContext http,Phase10SandboxSalesReturnService service,CancellationToken ct)=>{
+            if(!Local(http))return Results.NotFound();
+            http.Response.Headers.CacheControl="no-store";
+            return SalesReturnResult(await service.ReadAsync(Token(http),taxpayerId,invoiceId,ct));
+        });
+        group.MapPut("/sales-return-draft",async(Guid taxpayerId,Guid invoiceId,
+            SalesReturnSaveRequest input,HttpContext http,
+            Phase10SandboxSalesReturnService service,CancellationToken ct)=>{
+            if(!Local(http))return Results.NotFound();
+            http.Response.Headers.CacheControl="no-store";
+            return SalesReturnResult(await service.SaveAsync(Token(http),taxpayerId,invoiceId,input,ct));
+        });
+        group.MapDelete("/sales-return-draft",async(Guid taxpayerId,Guid invoiceId,
+            HttpContext http,Phase10SandboxSalesReturnService service,CancellationToken ct)=>{
+            if(!Local(http))return Results.NotFound();
+            http.Response.Headers.CacheControl="no-store";
+            return SalesReturnResult(await service.DiscardAsync(Token(http),taxpayerId,invoiceId,ct));
+        });
+        group.MapPost("/sales-return-send-and-inquire",async(Guid taxpayerId,Guid invoiceId,
+            HttpContext http,Phase10SandboxSalesReturnService service,CancellationToken ct)=>{
+            if(!Local(http))return Results.NotFound();
+            http.Response.Headers.CacheControl="no-store";
+            return SalesReturnResult(await service.SubmitAsync(Token(http),taxpayerId,invoiceId,ct));
+        });
         group.MapPost("/cancel-and-inquire",async(Guid taxpayerId,Guid invoiceId,
             HttpContext http,Phase10SandboxCancellationService service,CancellationToken ct)=>{
             if(!Local(http))return Results.NotFound();
