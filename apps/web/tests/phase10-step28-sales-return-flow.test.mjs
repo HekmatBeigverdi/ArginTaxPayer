@@ -3,7 +3,7 @@ import {test} from "node:test";
 import {readFileSync} from "node:fs";
 import {fileURLToPath} from "node:url";
 import {resolve,dirname} from "node:path";
-const root=resolve(dirname(fileURLToPath(import.meta.url)),"../..");
+const root=resolve(dirname(fileURLToPath(import.meta.url)),"..");
 const read=(path)=>readFileSync(resolve(root,path),"utf8");
 
 test("sales-return draft proxy is authenticated and same-origin",()=>{
