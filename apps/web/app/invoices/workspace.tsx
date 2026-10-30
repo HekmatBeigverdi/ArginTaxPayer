@@ -10,6 +10,7 @@ import InvoiceHistoryPanel from "./invoice-history-panel";
 import InvoiceSendReadinessPanel from "./invoice-send-readiness-panel";
 import InvoiceFormalPreview from "./invoice-formal-preview";
 import InvoiceCorrectionModal from "./invoice-correction-modal";
+import InvoiceSalesReturnModal from "./invoice-sales-return-modal";
 import InvoiceDispatchHistory from "./invoice-dispatch-history";
 import InvoiceLineageModal from "./invoice-lineage-modal";
 import InvoiceImportPanel, {type ImportValues} from "./invoice-import-panel";
@@ -283,6 +284,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   const nextKey = useRef(0);
   const [detail, setDetail] = useState<Invoice | null>(null);
   const [correctionTarget,setCorrectionTarget]=useState<Invoice|null>(null);
+  const [returnTarget,setReturnTarget]=useState<Invoice|null>(null);
   const [lineage, setLineage] = useState<Invoice | null>(null);
 
   useEffect(() => {
@@ -815,6 +817,8 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
               onClick={() => void editDraft(item)}>ویرایش و ادامه</button> :
               <span style={{display:"inline-flex",gap:5,alignItems:"center",flexWrap:"wrap"}}>
                <button type="button" className="console-row-action" onClick={()=>setDetail(item)}>مشاهده</button>
+               {item.authorityStatus==="SUCCESS"&&item.subject==="Original"&&
+                <button type="button" className="console-row-action" onClick={()=>setReturnTarget(item)}>برگشت از فروش</button>}
                {item.correctionInProgress&&<button type="button" className="console-row-action"
                 onClick={()=>setCorrectionTarget(item)}>ادامه ویرایش</button>}
                {["ACKNOWLEDGED","SUCCESS","FAILED","PENDING","INDETERMINATE","SENDING"].includes(item.authorityStatus??"")&&
@@ -837,6 +841,8 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
       </div>
     </footer>
     {bulkOpen && <BulkInvoiceImportPanel onClose={()=>setBulkOpen(false)} onChanged={()=>void reload()}/>}
+    {returnTarget&&<InvoiceSalesReturnModal taxpayerId={returnTarget.taxpayerId}
+      invoiceId={returnTarget.effectiveInvoiceId ?? returnTarget.id} onClose={()=>setReturnTarget(null)} onChanged={()=>void reload()}/>}
     {correctionTarget&&<InvoiceCorrectionModal taxpayerId={correctionTarget.taxpayerId}
       invoiceId={correctionTarget.effectiveInvoiceId ?? correctionTarget.id} onClose={()=>setCorrectionTarget(null)} onChanged={()=>void reload()}/>}
     {lineage&&<InvoiceLineageModal taxpayerId={lineage.taxpayerId} invoiceId={lineage.id} onClose={()=>setLineage(null)}/>}
