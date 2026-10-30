@@ -23,7 +23,8 @@ public sealed record CorrectionOperationResult(InvoiceApiDecision Decision,strin
 /// <summary>Independent V7.9 correction draft, immutable predecessor, one send operation.</summary>
 public sealed class Phase10SandboxCorrectionService(ArginTaxPayerDbContext db,
  TaxpayerScopeService scope,Phase10LegacyReferenceInquiryService inquiry,
- Phase10OneClickSandboxSubmissionService sender,IConfiguration config)
+ Phase10OneClickSandboxSubmissionService sender,IConfiguration config,
+ LegacyAuthorityReportRepository authorityReports)
 {
  private async Task<Guid?> Owner(string? bearer,Guid taxpayerId,CancellationToken ct)
  {
@@ -279,6 +280,20 @@ VALUES({Guid.NewGuid()},{owner.Value},{taxpayerId},{predecessorId},{invoiceId},
    return new(InvoiceApiDecision.Conflict,"correction_conflict");
   }
   var result=await sender.SendAsync(bearer,taxpayerId,invoiceId,ct);
+  var report=await authorityReports.ReadAsync(owner.Value,taxpayerId,invoiceId,ct);
+  if(report?.Report.Status is "SUCCESS" or "FAILED")
+  {
+   var succeeded=report.Report.Status=="SUCCESS";
+   var evidence=succeeded?report.ReferenceNumber:
+    "authority_failed:"+(report.Report.Errors.FirstOrDefault()?.Code??"unknown");
+   await db.Database.ExecuteSqlInterpolatedAsync($"""
+UPDATE sandbox_invoice_legal_relations
+SET state={succeeded?2:3},evidence_reference={evidence},
+ confirmed_at_utc={succeeded?(DateTime?)DateTime.UtcNow:null}
+WHERE customer_user_id={owner.Value} AND taxpayer_id={taxpayerId}
+ AND successor_invoice_id={invoiceId} AND subject=2 AND state=1
+""",ct);
+  }
   return new(result.Decision,result.Code,null,invoiceId,result.Status,
    result.ReferenceNumber,result.InquiryCode);
  }
