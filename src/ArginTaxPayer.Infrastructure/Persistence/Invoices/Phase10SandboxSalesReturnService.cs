@@ -29,6 +29,7 @@ public sealed record SalesReturnDraftView(
     Guid PredecessorInvoiceId,
     long Revision,
     InvoiceEntryLine[] Lines,
+    decimal[] OriginalQuantities,
     int SettlementMethod,
     decimal CashAmountRial,
     decimal CreditAmountRial);
@@ -130,6 +131,8 @@ public sealed class Phase10SandboxSalesReturnService(
         snapshot["referenceTaxId"] = referenceTaxId;
         snapshot["predecessorInvoiceId"] = predecessorId.ToString("D");
         snapshot["legalSubject"] = 4;
+        var invoiceLines = JsonSerializer.Deserialize<InvoiceEntryLine[]>(snapshot["lines"]!.ToJsonString()) ?? [];
+        snapshot["originalQuantities"] = JsonSerializer.SerializeToNode(invoiceLines.Select(x => x.Quantity).ToArray());
         snapshot["otherTaxAndLegalFeesRial"] = 0;
         if (snapshot["lines"] is JsonArray zeroLines)
             foreach (var line in zeroLines) if (line is JsonObject item)
@@ -629,6 +632,8 @@ public sealed class Phase10SandboxSalesReturnService(
             predecessorInvoiceId,
             revision,
             lines,
+            root.TryGetProperty("originalQuantities", out var quantities)
+                ? JsonSerializer.Deserialize<decimal[]>(quantities.GetRawText()) ?? [] : [],
             root.GetProperty("settlementMethod").GetInt32(),
             root.GetProperty("cashAmountRial").GetDecimal(),
             root.GetProperty("creditAmountRial").GetDecimal());
