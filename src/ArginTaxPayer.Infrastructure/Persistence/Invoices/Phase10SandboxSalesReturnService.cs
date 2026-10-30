@@ -49,7 +49,8 @@ internal sealed record SalesReturnSuccessorWrite(
     StoredInvoice Invoice,
     StoredInvoiceRevision Revision,
     StoredInvoiceReview Review,
-    string ReferenceTaxId);
+    string ReferenceTaxId,
+    InvoiceEntryLine[] PredecessorLines);
 
 /// <summary>Independent V7.9 sales return draft, immutable predecessor, one send operation.</summary>
 public sealed class Phase10SandboxSalesReturnService(
@@ -237,7 +238,7 @@ public sealed class Phase10SandboxSalesReturnService(
         InvoiceFinancialPreview financial;
         try
         {
-            financial = InvoiceFinancialCalculator.Preview(edited.Select(x => new InvoiceFinancialInput(
+            financial = InvoiceFinancialCalculator.Preview(edited.Where(x => x.Quantity > 0).Select(x => new InvoiceFinancialInput(
                 x.CatalogItemId ?? Guid.Empty, x.Quantity, x.UnitPriceRial,
                 decimal.Truncate(x.Quantity * x.DiscountPerUnitRial), x.VatRatePercent)).ToArray(),
                 new InvoiceTypePattern(ElectronicInvoiceType.First, 1),
@@ -433,7 +434,7 @@ public sealed class Phase10SandboxSalesReturnService(
         };
         var write = new SalesReturnSuccessorWrite(
             savedDraft.Id, savedDraft.Revision, predecessorId,
-            successor, successorRevision, successorReview, (string?)root["referenceTaxId"] ?? "");
+            successor, successorRevision, successorReview, (string?)root["referenceTaxId"] ?? "", originalLines);
         var persistenceResult = await PersistSuccessorAsync(write, ct);
         if (persistenceResult is not null)
         {
@@ -482,6 +483,36 @@ public sealed class Phase10SandboxSalesReturnService(
             return await db.Database.CreateExecutionStrategy().ExecuteAsync<SalesReturnOperationResult?>(async () =>
             {
                 await using var tx = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, ct);
+                // Serialize all returns of the same predecessor before reserving quantities.
+                await db.Database.ExecuteSqlInterpolatedAsync($"""
+                    UPDATE invoice_documents SET updated_at_utc=updated_at_utc
+                    WHERE id={write.PredecessorInvoiceId} AND taxpayer_id={taxpayerId}
+                      AND customer_user_id={owner}
+                    """, ct);
+                using var returnDocument = JsonDocument.Parse(write.Invoice.SnapshotJson);
+                var returnLines = JsonSerializer.Deserialize<InvoiceEntryLine[]>(
+                    returnDocument.RootElement.GetProperty("lines").GetRawText()) ?? [];
+                var used = new decimal[write.PredecessorLines.Length];
+                for (var i = 0; i < used.Length; i++)
+                {
+                    var index = i + 1;
+                    used[i] = await db.Database.SqlQueryRaw<decimal>($"""
+                        SELECT COALESCE(SUM((items.value->>'quantity')::numeric),0) AS "Value"
+                        FROM sandbox_invoice_legal_relations rel
+                        JOIN invoice_documents successor
+                          ON successor.id=rel.successor_invoice_id
+                         AND successor.taxpayer_id=rel.taxpayer_id
+                         AND successor.customer_user_id=rel.customer_user_id
+                        CROSS JOIN LATERAL jsonb_array_elements(successor.snapshot_json::jsonb->'lines')
+                          WITH ORDINALITY AS items(value,position)
+                        WHERE rel.customer_user_id='{owner}' AND rel.taxpayer_id='{taxpayerId}'
+                          AND rel.predecessor_invoice_id='{write.PredecessorInvoiceId}'
+                          AND rel.subject=4 AND rel.state IN (1,2,4)
+                          AND items.position={index}
+                        """).SingleAsync(ct);
+                }
+                if (!Phase10SalesReturnValidation.AllowedLines(write.PredecessorLines,returnLines,used))
+                    return new(InvoiceApiDecision.Conflict,"return_quantity_exceeded");
                 var updated = await db.Database.ExecuteSqlInterpolatedAsync($"""
                     UPDATE sandbox_invoice_sales_return_workspaces SET state=2,updated_at_utc={now}
                     WHERE id={write.WorkspaceId} AND revision={write.ExpectedRevision} AND state=1
