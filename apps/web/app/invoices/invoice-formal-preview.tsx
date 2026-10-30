@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import InvoiceCorrectionModal from "./invoice-correction-modal";
 
 type Line = {
   description: string;
@@ -39,6 +40,7 @@ type InvoiceFormalPreviewProps = {
   subject?: string;
   readOnly?: boolean;
   onCancellationCompleted?:()=>void;
+  onCorrectionCompleted?:()=>void;
 };
 
 const money = (value: number) =>
@@ -231,12 +233,12 @@ function InvoiceTotals({ invoice }: { invoice: Invoice }) {
   );
 }
 
-function AuthorityActions({authorityStatus,subject,onCancel}:{
- authorityStatus?:string;subject?:string;onCancel:()=>void
+function AuthorityActions({authorityStatus,subject,onCancel,onCorrect}:{
+ authorityStatus?:string;subject?:string;onCancel:()=>void;onCorrect:()=>void
 }){
  if(authorityStatus!=="SUCCESS" || subject?.toLowerCase()==="cancellation")return null;
  return <div style={actionsStyle}>
-  <button type="button" className="identity-secondary" disabled title="مسیر اصلاحی در گام بعدی تکمیل می‌شود">اصلاح</button>
+  <button type="button" className="identity-secondary" onClick={onCorrect}>اصلاح</button>
   <button type="button" className="identity-secondary" onClick={onCancel}>ابطال</button>
   <button type="button" className="identity-secondary" disabled title="مسیر برگشت از فروش در گام بعدی تکمیل می‌شود">برگشت از فروش</button>
  </div>;
@@ -250,10 +252,12 @@ export default function InvoiceFormalPreview({
   subject,
   readOnly = false,
   onCancellationCompleted,
+  onCorrectionCompleted,
 }: InvoiceFormalPreviewProps) {
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [error, setError] = useState("");
   const [cancelOpen,setCancelOpen]=useState(false);
+  const [correctionOpen,setCorrectionOpen]=useState(false);
   const [cancelEligibility,setCancelEligibility]=useState<string>("");
   const [cancelChecking,setCancelChecking]=useState(false);
   const [cancelSubmitting,setCancelSubmitting]=useState(false);
@@ -330,12 +334,15 @@ export default function InvoiceFormalPreview({
           .catch(e=>{setCancelEligible(false);setCancelOutcome("وضعیت ابطال نیازمند بررسی است: "+(e as Error).message+"؛ درخواست را تکرار نکنید.");})
           .finally(()=>setCancelSubmitting(false));}}> {cancelSubmitting?"در حال ارسال…":"تأیید و ارسال ابطال"}</button></div>}
       </div>}
+      {correctionOpen&&<InvoiceCorrectionModal taxpayerId={taxpayerId} invoiceId={invoiceId}
+       onClose={()=>setCorrectionOpen(false)} onChanged={()=>onCorrectionCompleted?.()}/>}
       {invoice && (
         <>
           <InvoiceHeader invoice={invoice} reference={reference} />
           <InvoiceLines lines={invoice.lines} />
           <InvoiceTotals invoice={invoice} />
-          {!readOnly && <AuthorityActions authorityStatus={authorityStatus} subject={subject} onCancel={()=>{
+          {!readOnly && <AuthorityActions authorityStatus={authorityStatus} subject={subject}
+           onCorrect={()=>setCorrectionOpen(true)} onCancel={()=>{
             setCancelOpen(true);setCancelChecking(true);setCancelEligibility("");setCancelEligible(false);setCancelOutcome("");setCancelSucceeded(false);setCancelInquiry({status:"",reference:"",code:""});
             void fetch("/api/invoice-dispatch/"+encodeURIComponent(taxpayerId)+"/"+encodeURIComponent(invoiceId)+"/cancellation-eligibility",{cache:"no-store",credentials:"same-origin"})
               .then(async response=>{const value=await response.json();setCancelEligible(response.ok&&value.eligible===true);setCancelEligibility(response.ok&&value.eligible===true?"سند مرجع برای درخواست ابطال معتبر است.":"امکان ابطال تأیید نشد: "+String(value.code??value.error??response.status));})
