@@ -132,7 +132,8 @@ public sealed class Phase10SandboxSalesReturnService(
         snapshot["legalSubject"] = 4;
         snapshot["otherTaxAndLegalFeesRial"] = 0;
         if (snapshot["lines"] is JsonArray zeroLines)
-            foreach (var line in zeroLines) if (line is JsonObject item) item["quantity"] = 0;
+            foreach (var line in zeroLines) if (line is JsonObject item)
+                item[item.ContainsKey("Quantity") ? "Quantity" : "quantity"] = 0;
         var json = snapshot.ToJsonString();
         try
         {
