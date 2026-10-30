@@ -32,8 +32,16 @@ record() { printf '%s\t%s\t%s\n' "$1" "$2" "$3" >> "$manifest"; }
 check() {
  local name="$1";shift
  local output="$dir/$name.log"
- if "$@" > "$output" 2>&1; then record "$name" PASS "$output"
- else local code="$?";record "$name" "FAIL($code)" "$output";failures=$((failures+1));fi
+ echo "[START] $name $(date -u +%FT%TZ) — log: $output"
+ if "$@" > "$output" 2>&1; then
+   record "$name" PASS "$output"; echo "[PASS] $name"
+ else
+   local code="$?"
+   record "$name" "FAIL($code)" "$output"
+   failures=$((failures+1))
+   echo "[FAIL] $name (exit=$code); last 30 log lines:"
+   tail -n 30 "$output" || true
+ fi
 }
 check dotnet-restore dotnet restore ArginTaxPayer.sln
 check dotnet-release-build dotnet build ArginTaxPayer.sln -c Release --no-restore
