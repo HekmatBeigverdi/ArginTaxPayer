@@ -9,16 +9,16 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations;
 public sealed class AlignSingleTaxpayerCommercialPlans : Migration
 {
     protected override void Up(MigrationBuilder migrationBuilder) => migrationBuilder.Sql("""
-        ALTER TABLE subscription_plan_catalog DROP CONSTRAINT ck_subscription_plan_kind;
+        ALTER TABLE subscription_plan_catalog DROP CONSTRAINT IF EXISTS ck_subscription_plan_kind;
         ALTER TABLE subscription_plan_catalog ADD CONSTRAINT ck_subscription_plan_kind CHECK (kind IN (1,2,3));
-        ALTER TABLE subscription_plan_catalog DROP CONSTRAINT ck_subscription_plan_units;
+        ALTER TABLE subscription_plan_catalog DROP CONSTRAINT IF EXISTS ck_subscription_plan_units;
         ALTER TABLE subscription_plan_catalog ADD CONSTRAINT ck_subscription_plan_units CHECK
           ((kind IN (1,3) AND invoice_unit_limit IS NULL) OR (kind=2 AND invoice_unit_limit > 0));
         ALTER TABLE subscription_plan_catalog ADD CONSTRAINT ck_subscription_month_days CHECK
           (kind<>3 OR validity_days BETWEEN 28 AND 31);
-        ALTER TABLE customer_subscriptions DROP CONSTRAINT ck_customer_subscription_kind;
+        ALTER TABLE customer_subscriptions DROP CONSTRAINT IF EXISTS ck_customer_subscription_kind;
         ALTER TABLE customer_subscriptions ADD CONSTRAINT ck_customer_subscription_kind CHECK (kind IN (1,2,3));
-        ALTER TABLE customer_subscriptions DROP CONSTRAINT ck_customer_subscription_units;
+        ALTER TABLE customer_subscriptions DROP CONSTRAINT IF EXISTS ck_customer_subscription_units;
         ALTER TABLE customer_subscriptions ADD CONSTRAINT ck_customer_subscription_units CHECK
           ((kind IN (1,3) AND invoice_unit_limit IS NULL) OR (kind=2 AND invoice_unit_limit > 0));
         ALTER TABLE customer_subscriptions ADD CONSTRAINT ck_customer_subscription_month_days CHECK
@@ -50,15 +50,15 @@ public sealed class AlignSingleTaxpayerCommercialPlans : Migration
           END IF;
         END $fn$;
         ALTER TABLE customer_subscriptions DROP CONSTRAINT ck_customer_subscription_month_days;
-        ALTER TABLE customer_subscriptions DROP CONSTRAINT ck_customer_subscription_kind;
+        ALTER TABLE customer_subscriptions DROP CONSTRAINT IF EXISTS ck_customer_subscription_kind;
         ALTER TABLE customer_subscriptions ADD CONSTRAINT ck_customer_subscription_kind CHECK(kind IN (1,2));
-        ALTER TABLE customer_subscriptions DROP CONSTRAINT ck_customer_subscription_units;
+        ALTER TABLE customer_subscriptions DROP CONSTRAINT IF EXISTS ck_customer_subscription_units;
         ALTER TABLE customer_subscriptions ADD CONSTRAINT ck_customer_subscription_units CHECK
           ((kind=1 AND invoice_unit_limit IS NULL) OR (kind=2 AND invoice_unit_limit>0));
         ALTER TABLE subscription_plan_catalog DROP CONSTRAINT ck_subscription_month_days;
-        ALTER TABLE subscription_plan_catalog DROP CONSTRAINT ck_subscription_plan_kind;
+        ALTER TABLE subscription_plan_catalog DROP CONSTRAINT IF EXISTS ck_subscription_plan_kind;
         ALTER TABLE subscription_plan_catalog ADD CONSTRAINT ck_subscription_plan_kind CHECK(kind IN (1,2));
-        ALTER TABLE subscription_plan_catalog DROP CONSTRAINT ck_subscription_plan_units;
+        ALTER TABLE subscription_plan_catalog DROP CONSTRAINT IF EXISTS ck_subscription_plan_units;
         ALTER TABLE subscription_plan_catalog ADD CONSTRAINT ck_subscription_plan_units CHECK
           ((kind=1 AND invoice_unit_limit IS NULL) OR (kind=2 AND invoice_unit_limit>0));
         """);
