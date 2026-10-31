@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore.Storage;
 using System.Data;
 using ArginTaxPayer.Domain.Subscriptions;
 using Microsoft.EntityFrameworkCore;
@@ -25,16 +26,30 @@ public sealed class SubscriptionCreditLedgerService(ArginTaxPayerDbContext db)
         if (!Enum.IsDefined(action)) throw new ArgumentException("Invalid action.");
         await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
         // Lock the balance row so competing requests cannot over-reserve or double-consume.
-        var account = await db.Database.SqlQueryRaw<CreditBalanceRow>(
-            "SELECT granted_units AS \"Granted\", available_units AS \"Available\", reserved_units AS \"Reserved\", consumed_units AS \"Consumed\" FROM subscription_credit_accounts WHERE subscription_id={0} AND customer_user_id={1} FOR UPDATE",
-            subscriptionId, customerId).SingleOrDefaultAsync(ct)
-            ?? throw new InvalidOperationException("Credit account missing.");
+        var conn = db.Database.GetDbConnection();
+        await using var lockCommand = conn.CreateCommand();
+        lockCommand.Transaction = db.Database.CurrentTransaction!.GetDbTransaction();
+        lockCommand.CommandText = """
+            SELECT granted_units,available_units,reserved_units,consumed_units
+            FROM subscription_credit_accounts
+            WHERE subscription_id=@sub AND customer_user_id=@customer FOR UPDATE
+            """;
+        Add(lockCommand,"sub",subscriptionId);
+        Add(lockCommand,"customer",customerId);
+        CreditBalanceRow account;
+        await using(var locked=await lockCommand.ExecuteReaderAsync(ct))
+        {
+            if(!await locked.ReadAsync(ct)) throw new InvalidOperationException("Credit account missing.");
+            account=new CreditBalanceRow {
+                Granted=locked.GetInt64(0),Available=locked.GetInt64(1),
+                Reserved=locked.GetInt64(2),Consumed=locked.GetInt64(3)
+            };
+        }
         var sub = await db.CustomerSubscriptions.AsNoTracking()
             .SingleOrDefaultAsync(x => x.Id == subscriptionId && x.CustomerUserId == customerId, ct)
             ?? throw new InvalidOperationException("Subscription not found.");
         SubscriptionBindingPolicy.RequireEligible(sub.Kind, sub.State, sub.ActivatedAtUtc, sub.ExpiresAtUtc, nowUtc);
         if (sub.Kind != SubscriptionPlanKind.Quantity) throw new InvalidOperationException("Not a quantity plan.");
-        var conn = db.Database.GetDbConnection();
         await using var cmd = conn.CreateCommand();
         cmd.Transaction = db.Database.CurrentTransaction!.GetDbTransaction();
         cmd.CommandText = """
