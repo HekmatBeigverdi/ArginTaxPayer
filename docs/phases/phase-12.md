@@ -180,3 +180,13 @@ Credit ledger foundations committed:
 - Step04 signoff requires race/idempotent duplicate operation testing, duplicate key with changed payload rejection, insufficient balance rollback, expiry, cross-customer denial, crash-retry and snapshot invariant checks, and operator acceptance. If any check fails, Step04 remains open.
 
 **CAUTION:** Legacy Step03 plan SQL uses later additive migrations; never rewrite already applied migration history, and do not run production database update.
+
+## Step 04 — owner sign-off
+
+Owner explicitly confirmed Step 04 and authorized starting Step 05. The confirmation is recorded; evidence limitations previously listed remain preserved.
+
+## Step 05 — commercial orders, internal financial invoices and receivables
+
+Committed new `SubscriptionBilling` domain records and tests, `20261101020000_AddPhase12CommercialOrders` for customer-scoped commercial order and append-only JSON financial invoice snapshots, and internal `CommercialOrderService` for issuing order+invoice in one serializable transaction with idempotency key and purchase-time price snapshot. Amounts use IRR. **Not** a tax-authority invoice; no calls to tax.gov.ir; no payments booked, captured, or inferred. The receivable balance supports partial collections in domain policy, while actual collection posting is Step06. Newly created orders are never automatic proof of paid subscription or credit grant.
+
+**Outstanding acceptance / implementation risks:** No local .NET or PostgreSQL runtime available; Step05 code is not compiled, migrated or integration tested. Review post-transaction retry and idempotency behavior under price-version changes, same-key conflicting payloads, FK/customer ownership and race conditions before exposing endpoint. A fully secured public order API/UI, receivable read model and immutable order snapshot consistency checks are not yet complete. Do not claim Step05 operational completion or apply migrations before verifying target `argintaxpayer_test` and reviewing SQL. Local Mac acceptance and Ubuntu Step11 sequencing apply.
