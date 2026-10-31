@@ -28,7 +28,7 @@ public static class Phase11AuthorityResultProjection
             "FAILED" => new("ReportedFailure", "inquiry_reported_failure"),
             "PENDING" => new("Pending", "inquiry_reported_pending"),
             _ => new("Unconfirmed", "inquiry_report_unrecognized")
-        }
+        };
     }
 }
 
@@ -37,4 +37,4 @@ public sealed record Phase11AuthorityResultDecision(string DisplayState, string 
     public bool IsFiscalAccepted => false;
     public bool MayResendInvoice => false;
     public bool MayChangeLegalInvoice => false;
-};
+}
