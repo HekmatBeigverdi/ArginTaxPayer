@@ -19,7 +19,7 @@ public sealed record AnnualSubscriptionBinding(Guid SubscriptionId, Guid Custome
 
 public static class SubscriptionBindingPolicy
 {
-    public static bool IsSingleTaxpayer(SubscriptionPlanKind kind) => kind is SubscriptionPlanKind.AnnualSingleTaxpayer or SubscriptionPlanKind.MonthlySingleTaxpayer;
+    public static bool IsSingleTaxpayer(SubscriptionPlanKind kind) => kind is SubscriptionPlanKind.AnnualSingleTaxpayer or SubscriptionPlanKind.MonthlySingleTaxpayer or SubscriptionPlanKind.QuarterlySingleTaxpayer or SubscriptionPlanKind.SemiAnnualSingleTaxpayer;
 
     public static void RequireEligible(SubscriptionPlanKind kind, SubscriptionLifecycle state,
         DateTime? activatedUtc, DateTime? expiresUtc, DateTime atUtc)
