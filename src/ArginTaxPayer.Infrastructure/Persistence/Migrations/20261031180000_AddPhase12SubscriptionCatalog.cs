@@ -40,6 +40,32 @@ public sealed class AddPhase12SubscriptionCatalog : Migration
           CONSTRAINT ck_subscription_price_window CHECK (
             effective_until_utc IS NULL OR effective_until_utc > effective_from_utc)
         );
+        CREATE OR REPLACE FUNCTION phase12_guard_price_version()
+        RETURNS trigger LANGUAGE plpgsql AS $fn$
+        BEGIN
+          IF TG_OP = 'DELETE' OR TG_OP = 'UPDATE' THEN
+            RAISE EXCEPTION 'Price versions are immutable';
+          END IF;
+          -- Lock a stable parent row: serializes overlapping inserts for a plan,
+          -- including concurrent sessions that would both pass a plain SELECT.
+          PERFORM 1 FROM subscription_plan_catalog WHERE id = NEW.plan_id FOR UPDATE;
+          IF EXISTS (
+            SELECT 1 FROM subscription_price_versions p
+            WHERE p.plan_id = NEW.plan_id
+              AND p.root_admin_user_id = NEW.root_admin_user_id
+              AND p.partner_user_id IS NOT DISTINCT FROM NEW.partner_user_id
+              AND p.audience = NEW.audience
+              AND tstzrange(p.effective_from_utc, p.effective_until_utc, '[)')
+                  && tstzrange(NEW.effective_from_utc, NEW.effective_until_utc, '[)')
+          ) THEN
+            RAISE EXCEPTION 'Overlapping price version';
+          END IF;
+          RETURN NEW;
+        END
+        $fn$;
+        CREATE TRIGGER trg_phase12_guard_price_version
+        BEFORE INSERT OR UPDATE OR DELETE ON subscription_price_versions
+        FOR EACH ROW EXECUTE FUNCTION phase12_guard_price_version();
         CREATE INDEX ix_subscription_price_owner ON subscription_price_versions
           (root_admin_user_id,partner_user_id,plan_id,effective_from_utc);
         CREATE TABLE customer_subscriptions (
@@ -78,5 +104,6 @@ public sealed class AddPhase12SubscriptionCatalog : Migration
         DROP TABLE IF EXISTS customer_subscriptions;
         DROP TABLE IF EXISTS subscription_price_versions;
         DROP TABLE IF EXISTS subscription_plan_catalog;
+        DROP FUNCTION IF EXISTS phase12_guard_price_version();
         """);
 }
