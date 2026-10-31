@@ -276,3 +276,23 @@ Step10 source delivery:
 - Added source-regression tests `phase12-step10-finance-ui.test.mjs` and styles.
 - **Known incompleteness:** The current catalog API only creates inactive plans; price-version creation/activation and customer-facing purchase remain unimplemented. The duration-plan UI currently requests the legacy `validityDays` backend contract, despite calendar-month expiry domain functions; must consolidate before live sales. No full UI for revenue-share terms/cost approval, customer subscription attachment, or SMS wallet exists. The page should not be marketed as live subscription selling. Real PSP adapters are also incomplete.
 - No direct macOS runtime, browser or .NET/PostgreSQL in assistant tool execution; frontend typecheck/build/tests and end-to-end checks have not been run. Step10 remains OPEN pending owner-run acceptance and completion of the gaps above. Ubuntu only Step11.
+
+## Step10 remediation — tariff, paid activation and SMS wallet (2026-11-01)
+
+Additional source delivered following owner's request:
+- Scoped `SubscriptionPriceAdministrationService` with live role+MFA, server-selected root/partner price owner, `POST /api/dev/subscriptions/prices`; separate Level1-only `POST /api/dev/subscriptions/plans/activate` requires root price version.
+- `CommercialSubscriptionActivationService` + additive `20261101070000_AddPhase12SubscriptionActivation`: a Level1 operator may activate a **positive, fully collected and receipt-reconciled** order exactly once. Purchase-time price/owner snapshot is preserved. Quantity credits are granted atomically with the new subscription and immutable order/subscription link. New order produces new subscription; no historical mutation.
+- `SmsWalletService` + additive `20261101060000_AddPhase12SmsWallet`: isolated per-customer balance, append-only grant/spend journal, idempotent operation keys, root-only explicit credit grant, authorized read, internal-only confirmed SMS spend; routed through local-only dev API and authenticated web proxy.
+- RTL UI includes partner-scoped price creation, Level1 plan activation, Level1 paid-order activation, SMS balance and root grant. Browser source tests expanded.
+- `scripts/phase12-step10-finance-audit.sql`: read-only test-DB SQL audit; expected PASS is not evidence until user actually executes the SQL against seeded relevant rows.
+
+**Important open acceptance blockers — do NOT mark Step10 fully complete:**
+1. No local Mac .NET build, npm typecheck/build/test, PostgreSQL migration or browser E2E ran in this execution. New code may require fixes upon testing.
+2. No full customer-facing catalogue purchase flow or authenticated searchable selectors; current development forms use IDs. The existing plan contract still stores `ValidityDays`, while expiration uses calendar months; quantity expiration is currently fixed at 12 months and needs product-level selectable expiry ≤12 months.
+3. For single-taxpayer subscriptions, activation currently creates a commercial subscription but does NOT atomically bind the selected taxpayer (legacy binding requires fiscal memory). The tenant/taxpayer entitlement enforcement must be integrated before paid customer access.
+4. Real SEP/Zarinpal provider initiation+server verification is still missing; manual verified collections are the only implemented payment path. Do not enable general checkout.
+5. SMS send coordinator is not wired to the internal confirmed-spend operation; financial SMS charge must not occur before confirmed delivery. No full wallet history UI or SMS pricing workflow yet.
+6. Singleton Level1 role remains a documented owner rule but is not yet globally enforced at the database level. Full tenant isolation and concurrent retry tests remain due.
+7. UI finance controls are development-only, and Level1 plan catalog activation is separate from paid customer subscription activation. Further production hardening/permission tests required.
+
+Owner can run Mac smoke checks on the branch: `zsh scripts/dev-up.zsh`; `dotnet build ArginTaxPayer.sln -c Release`; `dotnet test ArginTaxPayer.sln -c Release`; `cd apps/web && npm run typecheck && npm test && npm run build`. Inspect migrations and generated SQL before any test DB update, including `20261101060000_AddPhase12SmsWallet` and `20261101070000_AddPhase12SubscriptionActivation`. After verifying the real PostgreSQL target is `argintaxpayer_test`, apply reviewed migrations, then execute `scripts/phase12-step10-finance-audit.sql` with psql. Ubuntu remains Step11.
