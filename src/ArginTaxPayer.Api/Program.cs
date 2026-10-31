@@ -220,6 +220,7 @@ if (app.Environment.IsDevelopment())
         app.MapPhase12CommercialOrderEndpoints();
         app.MapPhase12CollectionEndpoints();
         app.MapPhase12PartnerLedgerEndpoints();
+        app.MapPhase12PartnerSettlementEndpoints();
         app.MapSigningChangeRequestEndpoints();
         app.MapSigningAdminReviewEndpoints();
         app.MapPartyDevelopmentEndpoints();
