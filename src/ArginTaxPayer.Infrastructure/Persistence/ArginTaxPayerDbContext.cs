@@ -19,6 +19,8 @@ namespace ArginTaxPayer.Infrastructure.Persistence;
 public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbContext> options)
     : DbContext(options)
 {
+    public DbSet<StoredAnnualBinding> AnnualSubscriptionBindings => Set<StoredAnnualBinding>();
+    public DbSet<StoredBindingException> SubscriptionBindingExceptions => Set<StoredBindingException>();
     public DbSet<StoredSubscriptionPlan> SubscriptionPlans => Set<StoredSubscriptionPlan>();
     public DbSet<StoredSubscriptionPrice> SubscriptionPrices => Set<StoredSubscriptionPrice>();
     public DbSet<StoredCustomerSubscription> CustomerSubscriptions => Set<StoredCustomerSubscription>();
@@ -92,6 +94,7 @@ public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbConte
         base.OnModelCreating(modelBuilder);
         CatalogModelConfiguration.Apply(modelBuilder);
         SubscriptionCatalogConfiguration.Apply(modelBuilder);
+        SubscriptionBindingConfiguration.Apply(modelBuilder);
         InvoicePersistenceModelConfiguration.Apply(modelBuilder);
         InvoiceReviewPersistenceConfiguration.Apply(modelBuilder);
         var support = modelBuilder.Entity<InvoiceHumanReference>();
