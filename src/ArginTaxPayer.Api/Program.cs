@@ -100,6 +100,7 @@ if (identityDevelopmentEnabled)
     builder.Services.AddScoped<ArginTaxPayer.Infrastructure.Persistence.Subscriptions.PartnerRevenueLedgerReadService>();
     builder.Services.AddScoped<ArginTaxPayer.Infrastructure.Persistence.Subscriptions.CommercialReceivableReadService>();
     builder.Services.AddScoped<ArginTaxPayer.Infrastructure.Persistence.Subscriptions.SubscriptionPlanAdministrationService>();
+    builder.Services.AddScoped<ArginTaxPayer.Infrastructure.Persistence.Subscriptions.SubscriptionPriceAdministrationService>();
     builder.Services.AddScoped<CustomerSelfServiceService>();
     builder.Services.AddScoped<SoftwareUserProfileService>();
     builder.Services.AddScoped<CustomerTaxpayerMembershipService>();
@@ -218,6 +219,7 @@ if (app.Environment.IsDevelopment())
         app.MapSigningConnectionEndpoints();
         app.MapSandboxFiscalMemoryDevelopmentEndpoints();
         app.MapPhase12PlanAdministrationEndpoints();
+        app.MapPhase12PriceEndpoints();
         app.MapPhase12CommercialOrderEndpoints();
         app.MapPhase12CollectionEndpoints();
         app.MapPhase12PartnerLedgerEndpoints();
