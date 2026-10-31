@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 11: Queue, Inquiry & Reconciliation
 
-**Status:** Step 01 owner-approved. Steps 01–02 owner-approved; Step 03 owner-approved. Step 04 inquiry-only bounded retry policy committed; execution tests pending.
+**Status:** Step 01 owner-approved. Steps 01–02 owner-approved; Step 03 owner-approved. Step 04 owner-approved; Step 05 read-only reconciliation projection and unit tests committed; operator tests pending.
 **Base:** Phase 10 merge commit `3d297c50451971f8b7ff6c292b7d1df431699fc9` on `main`; reported Phase 10 release `phase-10-v1.0.0`.
 **Branch:** `phase/11-inquiry-reconciliation`
 **Target release:** `phase-11-v1.0.0`.
@@ -107,3 +107,21 @@ Each step: inspect actual code first; identify dependencies and impacted files, 
 **Remaining operational boundary:** No durable retry dispatcher or crash recovery has been activated. This requires a separate safe background inquiry execution path with leases and service authentication; do not claim automated recovery is running. The approved eight-step phase separates source-compatible policy (Step04) and reconciliation/processing integration (Step05+), but the end-to-end Step04 objective is only partially satisfied until connected and tested.
 
 **Rollback:** revert policy/test commits, or simply keep policy unused. No database rollback necessary.
+
+## Step 05 — Safe reconciliation result projection (2026-10-31)
+
+**Owner-approved predecessor:** Step 04. The owner has confirmed actual Sandbox success for original invoice submission, correction, cancellation, sales return and inquiry. Their Phase 10 workflows remain unchanged.
+
+**Inspected:** `Phase10InquiryReconciliation` already checks UID, fiscal identifier, packet type and reference, and deliberately cannot certify a legal final state. `LegacyAuthorityInquiryReportParser` distinguishes `SUCCESS`, `FAILED`, `PENDING`, `UNKNOWN` as report-level values, not guaranteed legal final acceptance.
+
+**Added:** `src/ArginTaxPayer.Application/Invoices/Phase11AuthorityResultProjection.cs` provides a pure, read-only projection for correlated reports: ReportedSuccess, ReportedFailure, Pending, Unconfirmed, Conflict. It rejects missing/mismatched references and never authorizes fiscal acceptance, invoice resend, or legal document mutation. `tests/ArginTaxPayer.Tests/Phase11AuthorityResultProjectionTests.cs` covers success/failure/pending/unknown, wrong reference, missing report and conflicting evidence.
+
+**No runtime wiring:** Existing invoice send, correction, cancellation, return, inquiry, UI, API, database and Outbox are **unmodified**. This projection is not attached to an automated status transition. `ReportedSuccess` is explicitly only an inquiry *report* status. Reliable terminal fiscal transitions require separately approved official semantics/signature verification; this step does not silently declare them.
+
+**Test status:** GitHub code committed; no available macOS/Ubuntu shell or provider session to execute tests. Operator macOS commands:
+`dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj -c Release --filter 'FullyQualifiedName~Phase11AuthorityResultProjectionTests'`;
+`dotnet build ArginTaxPayer.sln -c Release`;
+`dotnet test ArginTaxPayer.sln -c Release --no-build`.
+No migration. Ubuntu deferred to final phase acceptance.
+
+**Rollback:** revert Phase 11 projection and test commits; no DB or runtime rollback. Actual automated legal status transition remains out of scope pending verified regulatory protocol.
