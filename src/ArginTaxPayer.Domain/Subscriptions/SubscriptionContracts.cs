@@ -1,6 +1,6 @@
 namespace ArginTaxPayer.Domain.Subscriptions;
 
-public enum SubscriptionPlanKind { AnnualSingleTaxpayer = 1, Quantity = 2 }
+public enum SubscriptionPlanKind { AnnualSingleTaxpayer = 1, Quantity = 2, MonthlySingleTaxpayer = 3 }
 public enum SubscriptionLifecycle { PendingPayment = 1, Active = 2, Expired = 3, Cancelled = 4 }
 public enum PriceAudience { RootDirect = 1, Partner = 2 }
 
@@ -12,9 +12,12 @@ public sealed record SubscriptionPlanTerms(
     {
         if (PlanId == Guid.Empty) throw new ArgumentException("Plan identifier required.");
         if (ValidityDays is <= 0 or > 366) throw new ArgumentOutOfRangeException(nameof(ValidityDays));
-        if (Kind == SubscriptionPlanKind.AnnualSingleTaxpayer &&
-            (InvoiceUnitLimit is not null || ValidityDays > 366))
-            throw new ArgumentException("Annual plans must have unlimited invoice units.");
+        if (Kind is SubscriptionPlanKind.AnnualSingleTaxpayer or SubscriptionPlanKind.MonthlySingleTaxpayer)
+        {
+            if (InvoiceUnitLimit is not null) throw new ArgumentException("Single-taxpayer plans do not count invoices.");
+            if (Kind == SubscriptionPlanKind.MonthlySingleTaxpayer && ValidityDays is < 28 or > 31)
+                throw new ArgumentException("Monthly validity must reflect a calendar month.");
+        }
         if (Kind == SubscriptionPlanKind.Quantity && InvoiceUnitLimit is not > 0)
             throw new ArgumentException("Quantity plans require a positive unit limit.");
         if (!Enum.IsDefined(Kind)) throw new ArgumentException("Unsupported plan kind.");
