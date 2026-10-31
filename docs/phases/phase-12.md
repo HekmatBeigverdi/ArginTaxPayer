@@ -87,3 +87,15 @@ Do not renumber without explicit owner-approved plan amendment. In each step rep
 **Rollback:** revert the Step 01 documentation commit on the phase branch; no database rollback needed. All runtime and financial functionality remains for later owner-approved steps.
 
 **Owner signoff:** PENDING.
+
+
+## Step 02 — Plan and pricing foundation (2026-10-31)
+
+**State: IMPLEMENTATION PARTIAL; NOT ACCEPTED.** Following owner approval of Step 01, the phase branch adds:
+- `src/ArginTaxPayer.Domain/Subscriptions/SubscriptionContracts.cs`: annual unlimited vs quantity bounded unit terms, UTC price windows, partner vs Root direct audience, immutable purchase snapshot contracts.
+- `tests/ArginTaxPayer.Tests/Phase12SubscriptionContractTests.cs`: focused invariant cases (not executed).
+- `src/ArginTaxPayer.Infrastructure/Persistence/Migrations/20261031180000_AddPhase12SubscriptionCatalog.cs`: SQL schema for plans, immutable price versions and customer subscriptions, default inactive/pending, scoped owner identifiers and check constraints. **Migration NOT APPLIED**.
+
+**Open before Step 02 signoff:** inspect SQL with a genuine test DB; confirm migration compatibility and any existing subscription schema; add persistence mapping, scoped command/query services, non-overlapping active price window validation, renewal/upgrade/add-on workflow and concurrency tests; run local .NET and Web regression. Do not report these as complete. There is no paid activation, finance ledger, API, UI or production change. Current schema migration is reviewed for syntax only, not verified by executing PostgreSQL. Backout is revert commits on phase branch; if applied to test DB later, use reviewed Down migration only after backup/ownership verification.
+
+**Evidence:** remote source inspection and GitHub commits PASS; local .NET build/test NOT_RUN; Mac DB/migration NOT_RUN; Web build/test NOT_RUN; Ubuntu NOT_RUN; owner approval PENDING.
