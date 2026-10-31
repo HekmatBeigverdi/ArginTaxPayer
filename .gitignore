@@ -33,3 +33,7 @@ artifacts/phase09-step25-acceptance.json
 
 # Local Phase 10 Step21 acceptance evidence (may contain host metadata)
 artifacts/phase10-step21-*/
+
+# Local Phase 11 acceptance output (manifests and generated command logs)
+artifacts/phase11-step07/
+artifacts/phase11-step08/
