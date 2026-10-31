@@ -125,3 +125,7 @@ Each step: inspect actual code first; identify dependencies and impacted files, 
 No migration. Ubuntu deferred to final phase acceptance.
 
 **Rollback:** revert Phase 11 projection and test commits; no DB or runtime rollback. Actual automated legal status transition remains out of scope pending verified regulatory protocol.
+
+## Step 06 — History evidence visibility
+
+Owner approved Step 05. The existing RTL invoice history panel now shows the most recent recorded evidence timestamp and evidence count, derived exclusively from the existing scoped history GET response. No new sending, inquiry, cancellation, correction, sales-return, database, or API behavior was added. One offline regression test was added: `apps/web/tests/phase11-step06-history-evidence.test.mjs`. macOS tests are operator-pending; Ubuntu remains the final-phase gate. No migration. Rollback by reverting Step 06 UI and test commits.
