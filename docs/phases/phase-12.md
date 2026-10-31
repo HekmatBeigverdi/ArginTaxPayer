@@ -136,3 +136,15 @@ The owner explicitly rejects tax-authority connectivity/evidence as a subscripti
 - Implementation keeps Phase10 invoice send and Phase11 status logic untouched.
 
 **Important evidence limits:** GitHub source edits and commit only; no macOS build, EF migration, integration tests, or Ubuntu runs performed by assistant. Owner-reported previous macOS tests applied to prior SHA, not new commits. Do not mark Step03 fully verified before same-SHA local acceptance, EF snapshot check, test DB migration, unique taxpayer/active membership checks and existing Level1 memory-approval regression. Specifically, selecting an existing taxpayer via repository is not yet a fully exposed subscription onboarding flow.
+
+
+## Owner correction — five commercial plan categories (2026-10-31)
+
+This **supersedes** all previous Phase12 assumptions that there are only annual/monthly/quantity plans.
+
+1. **Monthly (1 calendar month), quarterly (3 calendar months), semiannual (6 calendar months), annual (12 calendar months):** each is a single-company/single-taxpayer entitlement, unlimited invoice count during the valid paid period. Multiple taxpayer registrations against the same active entitlement must be rejected server-side.
+2. **Quantity:** configurable positive invoice-unit package size (examples 50, 100, etc.); permitted for multiple customer-owned taxpayers, subject to the purchased balance and configured validity no longer than one year.
+3. Level1 or Level2 can define a quantity-based **commercial package and selling price** within their ownership and permissions. A Level2-created package must be scoped to that Level2; it must not mutate a global Level1 catalog or another partner's prices. Package creation does not waive financial ownership, approvals, or audit requirements.
+4. Time entitlement expiry must be computed with calendar-month arithmetic from the authorized activation instant and an explicit agreed timezone/time-of-day convention; `30 * months` is not equivalent. Preserve exact periods and purchase terms in immutable snapshots.
+5. Fiscal-memory code changes remain governed solely by the pre-existing Level1 approval process; this phase does not make new tax authority calls or introduce another approval process.
+6. **Implementation gate:** current `SubscriptionPlanKind` exposes only Annual=1, Quantity=2, Monthly=3, and current schema relies on `validity_days`. Quarterly and semiannual contracts, period-month persistence, admin package creation/scoping and comprehensive regression tests are **not yet implemented**. Do not mark Step03 complete or issue an unreviewed migration; design a forward-only migration preserving existing records and the prior applied migration history. No database write was performed for this amendment.
