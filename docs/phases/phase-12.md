@@ -222,3 +222,15 @@ Before full Step06 acceptance implement durable payment attempts linked to comme
 ## Owner confirmation — singleton Level 1 and SEP terminal (2026-11-01)
 
 The owner explicitly confirms there is **exactly one Level 1 administrator** in this installation, and that account is the system owner. All other administrator accounts are **Level 2**. This invariant must be enforced at the role-grant and database levels, not merely reflected in the UI. No new or second Level1 assignment is allowed, including concurrency and imports; ensure bootstrap/recovery does not silently create a second root. The owner possesses SEP merchant terminal connection information; do not ask them to paste merchant secrets into chat or commit them to Git. SEP remains primary and Zarinpal secondary. Provider-specific adapter and verified test payments still required before Step06 can close.
+
+## Step 06 — owner acceptance (2026-11-01)
+
+Owner explicitly approved Step 06 and authorized moving to Step 07. SEP remains primary, Zarinpal fallback, and real PSP adapters remain outstanding in Step06 evidence; approval does not imply live payment gateway tests.
+
+## Step 07 — segregated root / partner accounting: source implementation (2026-11-01)
+
+Source commits introduce `PartnerRevenuePolicy`, `PartnerRevenueAllocationService`, `PartnerRevenueApprovalService`, domain unit tests, DI wiring and additive `20261101040000_AddPhase12PartnerAccounting` migration. The ledger uses **verified collections only**, frozen partner attribution on commercial orders, optional Level1-approved costs and approved partner revenue-share terms (basis points). Direct Level1 collections have zero partner share. Appends one allocation per collection, root/partner scoped read indexes; finance allocation, approved cost and share rate terms are append-only at DB level.
+
+Level1-only roles + MFA are checked server-side when approving costs or rates and posting allocations. For partner arrangements, exactly one effective time-window is required; no implicit share percentage. Collection row is locked during allocation and cost approval to avoid simultaneous edits. No automated settlements in this step (Step08).
+
+**NOT YET VERIFIED:** No .NET/PostgreSQL runtime was run here. Step07 API/UI read endpoints, independent root/partner ledger reporting, full purchase lifecycle and realistic concurrent PostgreSQL integration tests remain outstanding. The singleton Level1 invariant was documented but still needs database enforcement. Operator must run Mac same-SHA build/complete tests, inspect pending migrations and SQL, verify actual `argintaxpayer_test`, and execute the new migration only with explicit approval. Ubuntu only Step11. Do not call Step07 complete or publish share calculations as payable before validations and role-scope tests pass.
