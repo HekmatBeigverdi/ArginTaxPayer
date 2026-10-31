@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 11: Queue, Inquiry & Reconciliation
 
-**Status:** Step 01 owner-approved. Steps 01–02 owner-approved; Step 03 source audit and regression guard committed, awaiting macOS test evidence and owner acceptance.
+**Status:** Step 01 owner-approved. Steps 01–02 owner-approved; Step 03 owner-approved. Step 04 inquiry-only bounded retry policy committed; execution tests pending.
 **Base:** Phase 10 merge commit `3d297c50451971f8b7ff6c292b7d1df431699fc9` on `main`; reported Phase 10 release `phase-10-v1.0.0`.
 **Branch:** `phase/11-inquiry-reconciliation`
 **Target release:** `phase-11-v1.0.0`.
@@ -91,3 +91,19 @@ Each step: inspect actual code first; identify dependencies and impacted files, 
 **Rollback:** Revert the Step03 test-only commit; no runtime rollback necessary.
 
 **Step 03:** Implementation complete as a no-runtime-change compatibility audit; automated tests and owner acceptance pending.
+
+## Step 04 — Bounded inquiry-only retry safety policy (2026-10-31)
+
+**Owner approval:** Step 03 accepted. Live Sandbox original/correction/cancellation/return and their current inquiry flows remain frozen and untouched.
+
+**Added:** `src/ArginTaxPayer.Application/Invoices/Phase11InquiryRetryPolicy.cs` pure decision policy, and `tests/ArginTaxPayer.Tests/Phase11InquiryRetryPolicyTests.cs` covering transient errors, non-transient failures, capped exponential backoff, input validation and the invariant `MayResendInvoice == false`. A decision grants only permission to initiate a later **read-only inquiry**, never an invoice POST.
+
+**Classification:** retryable: `inquiry_timeout`, `inquiry_network_unavailable`, HTTP 429/502/503/504. No automatic retry for 401/403/404, conflicting evidence, malformed results or provider rejections. At most six completed attempts with deterministic 1/2/4/8/16/30-minute delays. A future durable queue must persist counters and acquire a lease before scheduling; no concurrency claim is made today.
+
+**Non-changes:** No modifications to Phase10 production code, signed packets, dispatch state, SDK, HTTP inquiry services, browser UI or DB. No migration, Sandbox request, Ubuntu test or Production activation.
+
+**Evidence:** GitHub commit verified. macOS `dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj -c Release --filter FullyQualifiedName~Phase11InquiryRetryPolicyTests` NOT_RUN; full build/regression NOT_RUN. The added policy is intentionally not wired to the existing accepted live inquiry path.
+
+**Remaining operational boundary:** No durable retry dispatcher or crash recovery has been activated. This requires a separate safe background inquiry execution path with leases and service authentication; do not claim automated recovery is running. The approved eight-step phase separates source-compatible policy (Step04) and reconciliation/processing integration (Step05+), but the end-to-end Step04 objective is only partially satisfied until connected and tested.
+
+**Rollback:** revert policy/test commits, or simply keep policy unused. No database rollback necessary.
