@@ -2653,6 +2653,170 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Subscriptions.StoredCustomerSubscription", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime?>("ActivatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("activated_at_utc");
+
+                    b.Property<Guid>("CustomerUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("customer_user_id");
+
+                    b.Property<DateTime?>("ExpiresAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at_utc");
+
+                    b.Property<long?>("InvoiceUnitLimit")
+                        .HasColumnType("bigint")
+                        .HasColumnName("invoice_unit_limit");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("integer")
+                        .HasColumnName("kind");
+
+                    b.Property<Guid?>("PartnerUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("partner_user_id");
+
+                    b.Property<Guid>("PlanId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("plan_id");
+
+                    b.Property<long>("PriceIrr")
+                        .HasColumnType("bigint")
+                        .HasColumnName("price_irr");
+
+                    b.Property<Guid>("PriceVersionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("price_version_id");
+
+                    b.Property<DateTime>("PurchasedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("purchased_at_utc");
+
+                    b.Property<long>("Revision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint")
+                        .HasColumnName("revision");
+
+                    b.Property<Guid>("RootAdminUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("root_admin_user_id");
+
+                    b.Property<int>("State")
+                        .HasColumnType("integer")
+                        .HasColumnName("state");
+
+                    b.Property<int>("ValidityDays")
+                        .HasColumnType("integer")
+                        .HasColumnName("validity_days");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PlanId");
+
+                    b.HasIndex("PriceVersionId");
+
+                    b.HasIndex("CustomerUserId", "PurchasedAtUtc");
+
+                    b.ToTable("customer_subscriptions", (string)null);
+                });
+
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Subscriptions.StoredSubscriptionPlan", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("code");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<long?>("InvoiceUnitLimit")
+                        .HasColumnType("bigint")
+                        .HasColumnName("invoice_unit_limit");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("integer")
+                        .HasColumnName("kind");
+
+                    b.Property<int>("ValidityDays")
+                        .HasColumnType("integer")
+                        .HasColumnName("validity_days");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("subscription_plan_catalog", (string)null);
+                });
+
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Subscriptions.StoredSubscriptionPrice", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("Audience")
+                        .HasColumnType("integer")
+                        .HasColumnName("audience");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<DateTime>("EffectiveFromUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("effective_from_utc");
+
+                    b.Property<DateTime?>("EffectiveUntilUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("effective_until_utc");
+
+                    b.Property<Guid?>("PartnerUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("partner_user_id");
+
+                    b.Property<Guid>("PlanId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("plan_id");
+
+                    b.Property<long>("PriceIrr")
+                        .HasColumnType("bigint")
+                        .HasColumnName("price_irr");
+
+                    b.Property<Guid>("RootAdminUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("root_admin_user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PlanId");
+
+                    b.HasIndex("RootAdminUserId", "PartnerUserId", "PlanId", "EffectiveFromUtc");
+
+                    b.ToTable("subscription_price_versions", (string)null);
+                });
+
             modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Taxpayers.CustomerCommercialOwner", b =>
                 {
                     b.Property<Guid>("CustomerUserId")
@@ -3659,6 +3823,30 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_p09_op_taxpayer_id");
+                });
+
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Subscriptions.StoredCustomerSubscription", b =>
+                {
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Subscriptions.StoredSubscriptionPlan", null)
+                        .WithMany()
+                        .HasForeignKey("PlanId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Subscriptions.StoredSubscriptionPrice", null)
+                        .WithMany()
+                        .HasForeignKey("PriceVersionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Subscriptions.StoredSubscriptionPrice", b =>
+                {
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Subscriptions.StoredSubscriptionPlan", null)
+                        .WithMany()
+                        .HasForeignKey("PlanId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Taxpayers.CustomerCommercialOwner", b =>
