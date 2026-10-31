@@ -45,8 +45,10 @@ public sealed class SubscriptionPriceAdministrationService(
         var actor=await identity.CurrentUserIdAsync(bearer,ct)
             ?? throw new UnauthorizedAccessException("Authentication required.");
         var roles=await identity.GetCurrentRolesAsync(bearer,ct) ?? [];
-        if(!roles.Contains(IdentityRoleNames.Level1))
-            throw new UnauthorizedAccessException("Only root can activate global catalog entries.");
+        if(!roles.Contains(IdentityRoleNames.Level1) ||
+            !await db.IdentityUsers.AsNoTracking().AnyAsync(u=>u.Id==actor && u.IsActive &&
+                db.IdentityMfaStates.Any(m=>m.UserId==actor && m.EnabledAtUtc!=null),ct))
+            throw new UnauthorizedAccessException("Only active root with MFA may activate catalog entries.");
         var plan=await db.SubscriptionPlans.SingleOrDefaultAsync(x=>x.Id==planId,ct)
             ?? throw new InvalidOperationException("Plan missing.");
         if(!await db.SubscriptionPrices.AnyAsync(p=>p.PlanId==planId && p.RootAdminUserId==actor,ct))
