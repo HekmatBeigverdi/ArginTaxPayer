@@ -264,3 +264,15 @@ Implemented:
 ### Step08 settlement reporting follow-up
 
 Added scoped `PartnerSettlementReadService` and development-only `GET /api/dev/subscriptions/settlements/balances` with Level1 root-wide and Level2 own-only visibility. Totals calculated from immutable settlement payment/reversal history. The endpoint is loopback-only, token protected and not cached. Service registered in API DI. Do not treat this as a substitute for PostgreSQL tenant integration QA and authenticated UI checks. Step08 remains awaiting owner-run tests and formal signoff.
+
+## Step09 owner sign-off and Step10 frontend work (2026-11-01)
+
+Owner states Step09 is approved and requests Step10. This records the owner's sign-off only; the repository as inspected did not show a completed SMS wallet backend or corresponding Step09 migration. Do not infer operational SMS-wallet completion from the owner's declaration. Explicit evidence remains necessary.
+
+Step10 source delivery:
+- Added `/subscriptions` role-gated Next.js admin page and nav/dashboard link for Level1/Level2.
+- Added responsive RTL tabbed UI: inactive plan definition, financial order issue, manually confirmed cash/bank collections, scoped root/partner revenue read, partner settlement balances and Level1-only settlement/reversal entry. UI is a development workspace; it does not perform fund transfers, merchant processing or automatic activation.
+- Next.js `/api/phase12/[...parts]` same-origin proxy reads the existing HttpOnly identity cookie server-side, checks role, enforces backend allowlist and restricted Level1 settlement mutation, and forwards to local-only .NET API. No user-supplied backend URL.
+- Added source-regression tests `phase12-step10-finance-ui.test.mjs` and styles.
+- **Known incompleteness:** The current catalog API only creates inactive plans; price-version creation/activation and customer-facing purchase remain unimplemented. The duration-plan UI currently requests the legacy `validityDays` backend contract, despite calendar-month expiry domain functions; must consolidate before live sales. No full UI for revenue-share terms/cost approval, customer subscription attachment, or SMS wallet exists. The page should not be marketed as live subscription selling. Real PSP adapters are also incomplete.
+- No direct macOS runtime, browser or .NET/PostgreSQL in assistant tool execution; frontend typecheck/build/tests and end-to-end checks have not been run. Step10 remains OPEN pending owner-run acceptance and completion of the gaps above. Ubuntu only Step11.
