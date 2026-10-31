@@ -1,0 +1,171 @@
+# ArginTaxPayer — Phase 11: Queue, Inquiry & Reconciliation
+
+**Status:** Steps 01–07 accepted by owner (Step07 macOS offline suite 8/8 PASS at a0d5458a81153ee2b8ec56f62f3ef6045a25407d). Step08 documentation and Ubuntu release gate prepared; Ubuntu tests, PR/merge/tag/release not yet performed.
+**Base:** Phase 10 merge commit `3d297c50451971f8b7ff6c292b7d1df431699fc9` on `main`; reported Phase 10 release `phase-10-v1.0.0`.
+**Branch:** `phase/11-inquiry-reconciliation`
+**Target release:** `phase-11-v1.0.0`.
+**Reference:** `docs/roadmap/18-phases.md` (Phase 11: durable queue, asynchronous inquiry/reconciliation, safe retries and terminal results).
+
+## Scope freeze and non-regression contract
+
+Owner reports Sandbox acceptance for original submission, correction, cancellation and sales return in Phase 10. Preserve these behaviors, the invoice chain, immutable snapshots, fiscal identifiers, signing, existing Outbox and the one-request send/inquire entry points. Do **not** reimplement invoice dispatch or alter legal workflows without a proved defect and separate owner approval. Do not infer successful live Sandbox execution from offline tests alone.
+
+Phase 11 should extend only demonstrably missing **asynchronous inquiry, restart-safe recovery, bounded retry of inquiry, trusted terminal authority mapping, and scoped operational visibility**. No automatic resend of an indeterminate invoice. No change to Production deployment and no subscription or cash-ledger implementation (Phase 12). Keep Sandbox/Production credentials, records and endpoints isolated.
+
+## Fixed owner-proposed eight-step acceptance plan
+
+| Step | Goal | Acceptance gate |
+|---|---|---|
+| 01 | Audit Phase 10 implementation and evidence | Inventory existing Outbox, inquiry, Worker, transitions, security and tests; identify unknowns without touching runtime or database |
+| 02 | Audit/complement worker and durable queue | Background inquiry without browser; restart and concurrent-worker behavior demonstrated, no duplicate sends |
+| 03 | Audit/complement automated authority inquiry | Verified official reference/UID rules and source-version mapping; do not weaken existing manual inquiry |
+| 04 | Recover timeouts and transient failures | Bounded backoff for inquiry; crash-safe resumption; indeterminate remains protected |
+| 05 | Reconciliation and final-result projection | Only trusted and correlated official evidence may update terminal outcomes; append-only history and legal chain intact |
+| 06 | Existing UI/API status presentation | Small compatible changes only, RTL and scoped endpoints, no raw JSON; preserve current invoice operations |
+| 07 | Security, regression and authorized Sandbox acceptance | Re-test original, correction, cancellation and sales return, isolation, duplicate prevention; record actual provider results separately from mocks |
+| 08 | macOS/Ubuntu same-SHA acceptance and closeout | Explicitly disposition automated inquiry processing, restart recovery and multi-worker coordination as implemented and verified or owner-approved deferrals; then same-SHA macOS/Ubuntu build/test, DB audit, migration review if applicable, clean Git evidence and final audit. Release is owner-gated and must not claim operational readiness for deferred or unverified runtime features; no implicit deployment |
+
+Each step: inspect actual code first; identify dependencies and impacted files, Backend/Frontend and migration needs; security/legal constraints; tests and real results (PASS/FAIL/NOT_RUN), risks and rollback; stop for explicit owner acceptance. macOS is primary development/migration host; Ubuntu is independent test host. Only `argintaxpayer_test` may receive approved test migrations, after actual-database verification.
+
+## Step 01 — Read-only baseline audit (2026-10-31)
+
+**Inspected GitHub sources at Phase 10 base:**
+- `docs/roadmap/18-phases.md` and `docs/phases/phase-10.md`. Caution: Phase 10 master plan still contains early 24-step planning notes; current merged commit explicitly refers to accepted Step 29.
+- `scripts/phase10-step29-acceptance.sh`: release build, .NET tests, sales return tests, web tests/typecheck/build. The script marks PostgreSQL audit, live Sandbox send/inquiry, browser acceptance and production isolation `MANUAL_PENDING`; passing the offline script is not live proof.
+- `src/ArginTaxPayer.Infrastructure/Persistence/Invoices/Phase10SandboxOutboxService.cs`: durable encrypted descriptor, deduplication key and `automaticRetry=false`; no authority HTTP call in preparation.
+- `src/ArginTaxPayer.Infrastructure/Persistence/Invoices/Phase10DispatchEvidenceRepository.cs`: append-only inquiry/initial receipt, scoped row lock/CAS state revision; inquiry evidence alone does not advance to fiscal acceptance. Current code guards `current_database() = argintaxpayer_test`; assess later, **do not relax in Step 01**.
+- `src/ArginTaxPayer.Application/Invoices/Phase10InquiryReconciliation.cs`: conservative result correlation, `MayAutomaticallyResend=false`, never treats status text as legal acceptance. Contains a default disabled inquiry boundary; check current DI wiring and later adapters in next read-only inventory.
+- `apps/web/app/invoices/invoice-send-readiness-panel.tsx` and current BFF routes including `inquiry-by-reference`, `inquiry-by-uid`, `send-and-inquire`, `cancel-and-inquire`, `correction-send-and-inquire`, `sales-return-send-and-inquire` were confirmed from Phase 10 merge file inventory and prior implementation history; behavioral tests were not run here.
+
+**What exists:** preparation Outbox, idempotency fields, provider receipt/evidence recording, conservative reconciliation contract, manual inquiry endpoints and Phase 10 legal flow UI/API are already implemented. They are inherited, not Step 11 features to rebuild.
+
+**What is not yet independently verified for Phase 11:** fully registered asynchronous inquiry worker, job scheduling and leasing, actual database schema/invariants, crash recovery, terminal-result authority signature/semantics, reference-vs-UID fallback rules, current runtime DI, and live Sandbox end-to-end evidence from Step 29. These are *verification gaps*, not proven absent features.
+
+**Evidence level:** remote GitHub source inspection and prior owner acceptance report only. No macOS/Ubuntu shell access, build, tests, runtime operation, database connection, Sandbox POST, migration, or local Git cleanliness verification was performed in this step.
+
+**Safety/rollback:** documentation-only commit; no runtime behavior, DB change, secrets, Production access or external invoice request. Revert this documentation commit if needed. Phase 10 base remains unchanged.
+
+**Owner decision:** Step 01 explicitly approved; Step 02 authorized by owner with a strict no-regression constraint. Later step design must be revised if read-only code audit proves its target already complete.
+
+## Step 02 — Worker/queue safety audit and regression guard (2026-10-31)
+
+**Owner constraint:** Four Phase 10 legal flows (original, correction, cancellation, sales return) have been manually exercised in Sandbox and accepted. They must remain untouched. This step made NO changes to their runtime APIs, domain, persistence, UI, sending, or database schema.
+
+**Source finding:** `src/ArginTaxPayer.Infrastructure/Persistence/Invoices/Phase10LegacyOutboxWorker.cs` is an **explicitly invoked sender**, not a background-hosted inquiry loop. It starts a send only after checking `Reserved` and recording the attempt, then persists either initial receipt or indeterminate outcome. Automatically scheduling this worker would be unsafe because it can submit original packets. `Phase10SandboxOutboxService` already supplies deduplication keys and `automaticRetry=false`. `Phase10InquiryReconciliation` explicitly disallows automatic resending or equating a status string with legal acceptance. `Phase10DispatchEvidenceRepository` uses scoped revision checks and stores inquiry evidence append-only.
+
+**Implementation in this step:** added `apps/web/tests/phase11-step02-dispatch-regression.test.mjs`, four read-only source-contract regression checks over the above Phase 10 files. These provide an early alarm against unintentional conversion to auto-sending, weakening indeterminate safety, or removing evidence guards. This is **test-only optimization**, not an operational inquiry scheduler.
+
+**Outstanding Step 02 acceptance criteria:** demonstrate a separate, read-only background inquiry scheduler with authenticated scoped service identity, durable leasing/claim ownership, crash/restart and concurrent-worker behavior. No such runtime implementation was added, since applying automatic scheduling to the Phase 10 sender would threaten proven fiscal flows. Evaluate/add a separate inquiry-only worker in a follow-on owner-approved change, after deciding the service-identity and official Inquiry contract. Thus full Step 02 operational criterion is **NOT MET** yet.
+
+**Tests:** GitHub-only source edit; no macOS or Ubuntu runtime available in this execution. Automated test result `NOT_RUN`; use `node --test apps/web/tests/phase11-step02-dispatch-regression.test.mjs`. No migration, DB query, worker execution, Sandbox contact, or invoice POST occurred.
+
+**Risk/rollback:** Zero runtime surface changed. Remove the test-only commit if a false-positive contract becomes obsolete; never change the Phase 10 worker into an automatic sender. Next actions remain owner gated.
+
+### Step 02 continuation: opt-in read-only queue observer (2026-10-31)
+
+- Added `src/ArginTaxPayer.Api/Invoices/Phase11InquiryQueueObserver.cs` as a scoped, one-minute, read-only development background observer of existing dispatch operations in states Acknowledged (5) and Indeterminate (6). It explicitly checks the actual database name, logs only a count, and makes **no authority HTTP call or invoice mutation**.
+- Added explicit opt-in `Phase11:EnableReadOnlyQueueObserver` in `src/ArginTaxPayer.Api/Program.cs`, behind `identityDevelopmentEnabled`; default disabled, no effect on Phase 10 release flows.
+- Added `apps/web/tests/phase11-step02-queue-observer.test.mjs` for a static safety contract, in addition to the existing `phase11-step02-dispatch-regression.test.mjs`.
+- **No change** to the Phase 10 sender, legal invoice routes, keys, payloads, Outbox persistence, database schema or migration. No automatic sending.
+- This does **not yet deliver real automatic inquiry**: it observes pending work but does not claim/lease or query the Tax Authority. Authorized, durable inquiry execution and cross-worker coordination remain a documented functional gap; do not label operational completion until proven. The later dedicated inquiry step must address it, preserving all Phase 10 behavior.
+- Test execution: GitHub source changes only; macOS build, web tests, browser acceptance, database observation, restart test and Ubuntu test are **NOT_RUN**. Operator can run `node --test apps/web/tests/phase11-step02-*.test.mjs` and `dotnet build ArginTaxPayer.sln -c Release` locally. Ubuntu remains the final-phase gate unless infrastructure changes require earlier verification.
+- Rollback: disable the opt-in flag (or revert the two implementation commits); no DB changes to reverse.
+
+## Step 03 — Phase 10 Reference/UID inquiry compatibility (2026-10-31)
+
+**Owner acceptance inherited:** The owner states that existing Sandbox reference/UID inquiries operate correctly. Existing original/correction/cancellation/return and their inquiry workflows remain frozen; do not replace their APIs, HTTP packets, signing, database writes or UI.
+
+**Source audit:**
+- `Phase10LegacyReferenceInquiryService.InquireAsync` selects only a scoped Acknowledged (state 5) dispatch with a prior receipt/reference and sends `INQUIRY_BY_REFERENCE_NUMBER`. It preserves report/evidence history.
+- `Phase10LegacyUidInquiryService.InquireAsync` selects a scoped Indeterminate (state 6) operation and sends `INQUIRY_BY_UID`. It does not initiate an invoice send.
+- `Phase10InquiryReconciliation` checks identity correlation and does not infer fiscal acceptance, non-delivery or authorization to resend from incomplete results.
+- The two existing Next.js BFF routes enforce session cookie, origin/payload checks, no-store, scoped upstream resource identity and safe response shapes. Their behavior is left unchanged.
+- In this step neither route was changed; reference and UID are independent supported paths, not an implicit fallback that could silently change fiscal semantics.
+
+**Code change:** Added only `apps/web/tests/phase11-step03-inquiry-regression.test.mjs` with four static contract tests to guard the accepted source contracts. No runtime, DB, migration, production or external Sandbox change. No additional automatic inquiry transport is needed in this step: actual background execution, durable scheduling and backoff remain in later approved tasks. Step 02's read-only observer must never be interpreted as an automatic authority inquiry.
+
+**Test evidence:** GitHub source inspected, test file committed. macOS Node/TypeScript/.NET tests and Sandbox operator runs were NOT_RUN by assistant. Owner's prior live acceptance is reported separately, not represented as a new run.
+
+**macOS acceptance:** `node --test apps/web/tests/phase11-step03-inquiry-regression.test.mjs apps/web/tests/phase11-step02-dispatch-regression.test.mjs apps/web/tests/phase11-step02-queue-observer.test.mjs`, `dotnet build ArginTaxPayer.sln -c Release`, `dotnet test ArginTaxPayer.sln -c Release`, frontend `npm test && npm run typecheck && npm run build`. No Migration. Ubuntu acceptance deferred to final phase gate per owner.
+
+**Rollback:** Revert the Step03 test-only commit; no runtime rollback necessary.
+
+**Step 03:** Implementation complete as a no-runtime-change compatibility audit; automated tests and owner acceptance pending.
+
+## Step 04 — Bounded inquiry-only retry safety policy (2026-10-31)
+
+**Owner approval:** Step 03 accepted. Live Sandbox original/correction/cancellation/return and their current inquiry flows remain frozen and untouched.
+
+**Added:** `src/ArginTaxPayer.Application/Invoices/Phase11InquiryRetryPolicy.cs` pure decision policy, and `tests/ArginTaxPayer.Tests/Phase11InquiryRetryPolicyTests.cs` covering transient errors, non-transient failures, capped exponential backoff, input validation and the invariant `MayResendInvoice == false`. A decision grants only permission to initiate a later **read-only inquiry**, never an invoice POST.
+
+**Classification:** retryable: `inquiry_timeout`, `inquiry_network_unavailable`, HTTP 429/502/503/504. No automatic retry for 401/403/404, conflicting evidence, malformed results or provider rejections. At most six completed attempts with deterministic 1/2/4/8/16/30-minute delays. A future durable queue must persist counters and acquire a lease before scheduling; no concurrency claim is made today.
+
+**Non-changes:** No modifications to Phase10 production code, signed packets, dispatch state, SDK, HTTP inquiry services, browser UI or DB. No migration, Sandbox request, Ubuntu test or Production activation.
+
+**Evidence:** GitHub commit verified. macOS `dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj -c Release --filter FullyQualifiedName~Phase11InquiryRetryPolicyTests` NOT_RUN; full build/regression NOT_RUN. The added policy is intentionally not wired to the existing accepted live inquiry path.
+
+**Remaining operational boundary:** No durable retry dispatcher or crash recovery has been activated. This requires a separate safe background inquiry execution path with leases and service authentication; do not claim automated recovery is running. The approved eight-step phase separates source-compatible policy (Step04) and reconciliation/processing integration (Step05+), but the end-to-end Step04 objective is only partially satisfied until connected and tested.
+
+**Rollback:** revert policy/test commits, or simply keep policy unused. No database rollback necessary.
+
+## Step 05 — Safe reconciliation result projection (2026-10-31)
+
+**Owner-approved predecessor:** Step 04. The owner has confirmed actual Sandbox success for original invoice submission, correction, cancellation, sales return and inquiry. Their Phase 10 workflows remain unchanged.
+
+**Inspected:** `Phase10InquiryReconciliation` already checks UID, fiscal identifier, packet type and reference, and deliberately cannot certify a legal final state. `LegacyAuthorityInquiryReportParser` distinguishes `SUCCESS`, `FAILED`, `PENDING`, `UNKNOWN` as report-level values, not guaranteed legal final acceptance.
+
+**Added:** `src/ArginTaxPayer.Application/Invoices/Phase11AuthorityResultProjection.cs` provides a pure, read-only projection for correlated reports: ReportedSuccess, ReportedFailure, Pending, Unconfirmed, Conflict. It rejects missing/mismatched references and never authorizes fiscal acceptance, invoice resend, or legal document mutation. `tests/ArginTaxPayer.Tests/Phase11AuthorityResultProjectionTests.cs` covers success/failure/pending/unknown, wrong reference, missing report and conflicting evidence.
+
+**No runtime wiring:** Existing invoice send, correction, cancellation, return, inquiry, UI, API, database and Outbox are **unmodified**. This projection is not attached to an automated status transition. `ReportedSuccess` is explicitly only an inquiry *report* status. Reliable terminal fiscal transitions require separately approved official semantics/signature verification; this step does not silently declare them.
+
+**Test status:** GitHub code committed; no available macOS/Ubuntu shell or provider session to execute tests. Operator macOS commands:
+`dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj -c Release --filter 'FullyQualifiedName~Phase11AuthorityResultProjectionTests'`;
+`dotnet build ArginTaxPayer.sln -c Release`;
+`dotnet test ArginTaxPayer.sln -c Release --no-build`.
+No migration. Ubuntu deferred to final phase acceptance.
+
+**Rollback:** revert Phase 11 projection and test commits; no DB or runtime rollback. Actual automated legal status transition remains out of scope pending verified regulatory protocol.
+
+## Step 06 — History evidence visibility
+
+Owner approved Step 05. The existing RTL invoice history panel now shows the most recent recorded evidence timestamp and evidence count, derived exclusively from the existing scoped history GET response. No new sending, inquiry, cancellation, correction, sales-return, database, or API behavior was added. One offline regression test was added: `apps/web/tests/phase11-step06-history-evidence.test.mjs`. macOS tests are operator-pending; Ubuntu remains the final-phase gate. No migration. Rollback by reverting Step 06 UI and test commits.
+
+## Step 07 — Security and Sandbox regression gate (2026-10-31)
+
+Owner approved Step 06. To protect the four Phase 10 legal workflows and existing inquiry protocols, this step changes **no runtime code, schema, endpoint or submission behavior**.
+
+- Added `scripts/phase11-step07-macos-acceptance.sh`: macOS/clean-branch SHA gate, .NET restore/build/tests, Phase 10 legal and inquiry source tests, Phase 11 regression tests, complete web tests/typecheck/build, sanitized manifest; command logs remain under ignored `artifacts/phase11-step07/`. The offline script never calls the Tax Authority or applies a migration.
+- Added `docs/phases/phase-11-step07-sandbox-checklist.md` with 12 manual PASS/FAIL/NOT_RUN cases for original/correction/cancellation/sales-return, reference and UID inquiry, tenant scoping, restart durability, duplicate-prevention, error paths and Production isolation.
+- **Verification required:** user must execute `bash scripts/phase11-step07-macos-acceptance.sh` on macOS and separately report real Sandbox results. This environment cannot execute the user's local .NET, web, Postgres or Sandbox tests. No fabricated PASS status.
+- **Ubuntu:** deferred to Step 08 as explicitly agreed. **Migration:** none. **Rollback:** remove only the two added acceptance files; Phase10 operation unaffected.
+- **Open issue for final review:** Phase11 currently contains a read-only queue observer, pure retry policy and report projection, but no enabled automated inquiry processing/lease. Do not imply that running the offline gate establishes those operational Phase11 goals.
+
+## Owner-approved deferrals and phase closeout — 2026-10-31
+
+The owner approved Step07, reports that all four fiscal workflows and reference/UID inquiries function correctly in Sandbox, and deliberately **defers** the following to a future development priority:
+
+1. **Automatic post-submission inquiry:** the app currently depends on manual inquiry; the Phase11 read-only queue observer is not an authority-inquiry scheduler.
+2. **Restart-safe pending-job recovery:** no operational durable inquiry job execution or recovery semantics have been established; do not claim crash/restart guarantees for automatic inquiry.
+3. **Multi-worker coordination:** simultaneous workers/leases are not supported or accepted. Operate only the existing explicitly invoked Phase10 sender, not a cluster of autonomous workers.
+
+**Future backlog acceptance:** provide separate inquiry-only worker with scoped service identity, persisted leasing/attempt state and bounded retry, query via official confirmed Reference/UID methods, protect indeterminate against resend, prove restart/concurrency and regression against four Phase10 legal flows, first in macOS/Sandbox then Ubuntu. Requires separate approved phase/step; do not silently enable any of these features.
+
+**Scope outcome:** Phase11 closes as a *non-breaking inquiry safety, reporting and regression-hardening phase*, **not** a complete implementation of the original roadmap's asynchronous queue/reconciliation ambitions. Earlier Step02/04/05 unmet operational gates are explicitly waived/deferred by owner, not mislabeled as implemented.
+
+**Step07 evidence:** owner-supplied local macOS gate manifest at SHA `a0d5458a81153ee2b8ec56f62f3ef6045a25407d`: dotnet restore/build/tests, phase11 web contracts, phase10 legal web contracts, web tests/typecheck/build all PASS (8/8), zero failures. Live Sandbox checklist for this SHA still PENDING; Phase10 owner manual acceptance is baseline.
+
+**Final Step08 release gate:** run full tests on Ubuntu on the exact final documentation SHA, verify branch and clean tree, compare macOS build/test output at the same SHA (the prior macOS run was on pre-closeout SHA), and perform read-only test DB audit. Do not run database migrations or live fiscal POST as part of the offline release gate. Only after operator evidence and explicit merge/release approval may `main` be updated and tag `phase-11-v1.0.0` created. Until then status is **release pending**, not released.
+
+**Final offline runner:** `scripts/phase11-step08-acceptance.sh` was added for both macOS and Ubuntu. It does not issue fiscal HTTP requests, run migrations or perform an automatic DB audit. Operator must provide paired same-SHA manifests and a separately guarded read-only DB audit before release.
+
+## Step 08 — Closeout gates and current verification (2026-10-31)
+
+The three runtime criteria have an explicit owner-approved disposition in the closeout section above: they are deferred and must not be represented as operationally ready. Their implementation and runtime proof remain prerequisites for any later claim of asynchronous operational readiness:
+
+- **Automated inquiry processing:** prove a separately authorized inquiry-only worker can claim durable work and make the correctly scoped authority inquiry without invoking invoice submission; otherwise record the feature as deferred and do not claim Phase 11 operational readiness.
+- **Restart recovery:** demonstrate that a process restart resumes eligible inquiry work from durable state without losing evidence or resending an invoice.
+- **Multi-worker coordination:** demonstrate atomic claim/lease ownership and safe concurrent execution, including lease expiry/recovery, without duplicate inquiry side effects or invoice sends.
+
+For the limited Phase 11 closeout scope, run independent Ubuntu acceptance against the exact final documentation commit SHA, pair it with macOS evidence at that same SHA, complete the guarded read-only database audit and final clean-tree review, and retain the separately recorded Sandbox evidence. A source-only/offline PASS cannot substitute for these gates. Release remains pending until operator evidence and explicit merge/release approval; the deferred runtime criteria must remain visible in release scope and must not be represented as operationally ready.
+
+**Additional local macOS offline evidence (2026-10-31):** `bash scripts/phase11-step07-macos-acceptance.sh` passed on commit `a0d5458a81153ee2b8ec56f62f3ef6045a25407d`. Restore, Release build, .NET tests, Phase 11 regressions, Phase 10 legal regressions, complete web tests, typecheck and web build all passed. Logs and manifest: `artifacts/phase11-step07/a0d5458a81153ee2b8ec56f62f3ef6045a25407d/macos-20261031T130215Z/`. This is offline macOS evidence only and was run before the current closeout commit; same-SHA Ubuntu/macOS pair, database audit, release and deployment remain pending. No migration was performed.

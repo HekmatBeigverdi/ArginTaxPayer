@@ -38,6 +38,10 @@ builder.Services.AddArginTaxPayerApplication();
 builder.Services.AddArginTaxPayerInfrastructure();
 builder.Services.AddArginTaxPayerConfiguration(builder.Configuration, builder.Environment.IsProduction());
 builder.Services.AddArginTaxPayerPersistence(builder.Configuration, builder.Environment.IsProduction());
+// Explicit opt-in; observation only, never invoice sending or authority inquiry.
+if (identityDevelopmentEnabled &&
+    builder.Configuration.GetValue<bool>("Phase11:EnableReadOnlyQueueObserver"))
+    builder.Services.AddHostedService<Phase11InquiryQueueObserver>();
 
 // OpenAPI document generation is registered for API contract development.
 builder.Services.AddOpenApi();
