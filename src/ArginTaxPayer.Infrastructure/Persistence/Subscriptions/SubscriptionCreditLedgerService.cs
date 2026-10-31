@@ -118,6 +118,52 @@ public sealed class SubscriptionCreditLedgerService(ArginTaxPayerDbContext db)
         return new(account.Granted,available,reserved,consumed);
     }
 
+    /// <summary>Called by a trusted, confirmed purchase activation workflow only.
+    /// The caller must verify payment and subscription ownership before invoking this method.</summary>
+    public async Task<CreditBalance> InitializeAsync(Guid customerId, Guid subscriptionId,
+        string grantKey, DateTime nowUtc, CancellationToken ct = default)
+    {
+        if(customerId==Guid.Empty || subscriptionId==Guid.Empty || nowUtc.Kind!=DateTimeKind.Utc ||
+            string.IsNullOrWhiteSpace(grantKey) || grantKey.Length>160)
+            throw new ArgumentException("Invalid grant initialization.");
+        await using var tx=await db.Database.BeginTransactionAsync(IsolationLevel.Serializable,ct);
+        var sub=await db.CustomerSubscriptions.AsNoTracking().SingleOrDefaultAsync(x =>
+            x.Id==subscriptionId && x.CustomerUserId==customerId,ct)
+            ?? throw new InvalidOperationException("Subscription not found.");
+        SubscriptionBindingPolicy.RequireEligible(sub.Kind,sub.State,sub.ActivatedAtUtc,sub.ExpiresAtUtc,nowUtc);
+        if(sub.Kind!=SubscriptionPlanKind.Quantity || sub.InvoiceUnitLimit is not >0)
+            throw new InvalidOperationException("Quantity subscription with positive units required.");
+        var conn=db.Database.GetDbConnection();
+        await using var cmd=conn.CreateCommand();
+        cmd.Transaction=db.Database.CurrentTransaction!.GetDbTransaction();
+        cmd.CommandText="""
+            INSERT INTO subscription_credit_accounts
+                (subscription_id,customer_user_id,granted_units,available_units,reserved_units,consumed_units)
+            VALUES (@sub,@customer,@units,@units,0,0)
+            ON CONFLICT(subscription_id) DO NOTHING
+            """;
+        Add(cmd,"sub",subscriptionId);Add(cmd,"customer",customerId);Add(cmd,"units",sub.InvoiceUnitLimit.Value);
+        var inserted=await cmd.ExecuteNonQueryAsync(ct);
+        if(inserted==1)
+        {
+            await using var entry=conn.CreateCommand();
+            entry.Transaction=cmd.Transaction;
+            entry.CommandText="""
+                INSERT INTO subscription_credit_entries
+                (id,subscription_id,customer_user_id,operation_key,operation_type,reservation_key,units,recorded_at_utc)
+                VALUES(@id,@sub,@customer,@key,'grant',NULL,@units,@now)
+                """;
+            Add(entry,"id",Guid.NewGuid());Add(entry,"sub",subscriptionId);
+            Add(entry,"customer",customerId);Add(entry,"key",grantKey);
+            Add(entry,"units",sub.InvoiceUnitLimit.Value);Add(entry,"now",nowUtc);
+            await entry.ExecuteNonQueryAsync(ct);
+        }
+        await tx.CommitAsync(ct);
+        if(inserted==0)
+            throw new InvalidOperationException("Credit account already initialized; never grant twice.");
+        return new(sub.InvoiceUnitLimit.Value,sub.InvoiceUnitLimit.Value,0,0);
+    }
+
     private static void Add(System.Data.Common.DbCommand command,string name,object value)
     {
         var parameter=command.CreateParameter();
