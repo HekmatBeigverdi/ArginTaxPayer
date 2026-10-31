@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 11: Queue, Inquiry & Reconciliation
 
-**Status:** Step 01 owner-approved. Step 02 opt-in read-only queue observer and regression guards committed; macOS runtime acceptance NOT_RUN.
+**Status:** Step 01 owner-approved. Steps 01–02 owner-approved; Step 03 source audit and regression guard committed, awaiting macOS test evidence and owner acceptance.
 **Base:** Phase 10 merge commit `3d297c50451971f8b7ff6c292b7d1df431699fc9` on `main`; reported Phase 10 release `phase-10-v1.0.0`.
 **Branch:** `phase/11-inquiry-reconciliation`
 **Target release:** `phase-11-v1.0.0`.
@@ -70,3 +70,24 @@ Each step: inspect actual code first; identify dependencies and impacted files, 
 - This does **not yet deliver real automatic inquiry**: it observes pending work but does not claim/lease or query the Tax Authority. Authorized, durable inquiry execution and cross-worker coordination remain a documented functional gap; do not label operational completion until proven. The later dedicated inquiry step must address it, preserving all Phase 10 behavior.
 - Test execution: GitHub source changes only; macOS build, web tests, browser acceptance, database observation, restart test and Ubuntu test are **NOT_RUN**. Operator can run `node --test apps/web/tests/phase11-step02-*.test.mjs` and `dotnet build ArginTaxPayer.sln -c Release` locally. Ubuntu remains the final-phase gate unless infrastructure changes require earlier verification.
 - Rollback: disable the opt-in flag (or revert the two implementation commits); no DB changes to reverse.
+
+## Step 03 — Phase 10 Reference/UID inquiry compatibility (2026-10-31)
+
+**Owner acceptance inherited:** The owner states that existing Sandbox reference/UID inquiries operate correctly. Existing original/correction/cancellation/return and their inquiry workflows remain frozen; do not replace their APIs, HTTP packets, signing, database writes or UI.
+
+**Source audit:**
+- `Phase10LegacyReferenceInquiryService.InquireAsync` selects only a scoped Acknowledged (state 5) dispatch with a prior receipt/reference and sends `INQUIRY_BY_REFERENCE_NUMBER`. It preserves report/evidence history.
+- `Phase10LegacyUidInquiryService.InquireAsync` selects a scoped Indeterminate (state 6) operation and sends `INQUIRY_BY_UID`. It does not initiate an invoice send.
+- `Phase10InquiryReconciliation` checks identity correlation and does not infer fiscal acceptance, non-delivery or authorization to resend from incomplete results.
+- The two existing Next.js BFF routes enforce session cookie, origin/payload checks, no-store, scoped upstream resource identity and safe response shapes. Their behavior is left unchanged.
+- In this step neither route was changed; reference and UID are independent supported paths, not an implicit fallback that could silently change fiscal semantics.
+
+**Code change:** Added only `apps/web/tests/phase11-step03-inquiry-regression.test.mjs` with four static contract tests to guard the accepted source contracts. No runtime, DB, migration, production or external Sandbox change. No additional automatic inquiry transport is needed in this step: actual background execution, durable scheduling and backoff remain in later approved tasks. Step 02's read-only observer must never be interpreted as an automatic authority inquiry.
+
+**Test evidence:** GitHub source inspected, test file committed. macOS Node/TypeScript/.NET tests and Sandbox operator runs were NOT_RUN by assistant. Owner's prior live acceptance is reported separately, not represented as a new run.
+
+**macOS acceptance:** `node --test apps/web/tests/phase11-step03-inquiry-regression.test.mjs apps/web/tests/phase11-step02-dispatch-regression.test.mjs apps/web/tests/phase11-step02-queue-observer.test.mjs`, `dotnet build ArginTaxPayer.sln -c Release`, `dotnet test ArginTaxPayer.sln -c Release`, frontend `npm test && npm run typecheck && npm run build`. No Migration. Ubuntu acceptance deferred to final phase gate per owner.
+
+**Rollback:** Revert the Step03 test-only commit; no runtime rollback necessary.
+
+**Step 03:** Implementation complete as a no-runtime-change compatibility audit; automated tests and owner acceptance pending.
