@@ -5,6 +5,8 @@ import { ACCESS_COOKIE, currentIdentity, identityApiOrigin, identityUiEnabled } 
 export const dynamic = "force-dynamic";
 const actions = new Map<string, "GET" | "POST">([
   ["subscriptions/plans", "POST"],
+  ["subscriptions/prices", "POST"],
+  ["subscriptions/plans/activate", "POST"],
   ["subscriptions/commercial-orders", "POST"],
   ["subscriptions/collections/manual", "POST"],
   ["subscriptions/revenue-ledger", "GET"],
@@ -22,7 +24,7 @@ async function proxy(request: NextRequest, context: RouteContext) {
   const path = (await context.params).parts.join("/");
   const method = actions.get(path);
   if (!method || method !== request.method) return NextResponse.json({ error: "not_found" }, { status: 404 });
-  if (["subscriptions/settlements/record", "subscriptions/settlements/reverse"].includes(path) &&
+  if (["subscriptions/settlements/record", "subscriptions/settlements/reverse", "subscriptions/plans/activate"].includes(path) &&
       !actor.roles.includes("Level1")) return NextResponse.json({ error: "forbidden" }, { status: 403 });
   const token = (await cookies()).get(ACCESS_COOKIE)?.value;
   if (!token) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
