@@ -62,6 +62,16 @@ public static class Phase12PartnerSettlementEndpoints
             catch(ArgumentException){return Results.BadRequest();}
             catch(InvalidOperationException){return Results.Conflict();}
         }).ExcludeFromDescription().RequireRateLimiting("signing-import");
+        routes.MapGet("/api/dev/subscriptions/settlements/balances",async(
+            HttpContext http,PartnerSettlementReadService service,CancellationToken ct)=>
+        {
+            if(!Loopback(http))return Results.NotFound();
+            http.Response.Headers.CacheControl="no-store";
+            var token=Token(http);
+            if(string.IsNullOrWhiteSpace(token))return Results.Unauthorized();
+            try { return Results.Json(await service.GetBalancesAsync(token,ct)); }
+            catch(UnauthorizedAccessException){return Results.StatusCode(403);}
+        }).ExcludeFromDescription().RequireRateLimiting("signing-import");
         return routes;
     }
 }
