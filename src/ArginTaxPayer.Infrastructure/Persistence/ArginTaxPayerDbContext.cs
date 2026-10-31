@@ -8,6 +8,7 @@ using ArginTaxPayer.Infrastructure.Persistence.Taxpayers;
 using ArginTaxPayer.Infrastructure.Persistence.Parties;
 using ArginTaxPayer.Infrastructure.Persistence.Customers;
 using ArginTaxPayer.Infrastructure.Persistence.Catalog;
+using ArginTaxPayer.Infrastructure.Persistence.Subscriptions;
 
 namespace ArginTaxPayer.Infrastructure.Persistence;
 
@@ -18,6 +19,9 @@ namespace ArginTaxPayer.Infrastructure.Persistence;
 public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbContext> options)
     : DbContext(options)
 {
+    public DbSet<StoredSubscriptionPlan> SubscriptionPlans => Set<StoredSubscriptionPlan>();
+    public DbSet<StoredSubscriptionPrice> SubscriptionPrices => Set<StoredSubscriptionPrice>();
+    public DbSet<StoredCustomerSubscription> CustomerSubscriptions => Set<StoredCustomerSubscription>();
     public DbSet<DbSigningKeyEnvelope> DbSigningKeyEnvelopes => Set<DbSigningKeyEnvelope>();
     public DbSet<SigningOperation> SigningOperations => Set<SigningOperation>();
     public DbSet<SigningConsent> SigningConsents => Set<SigningConsent>();
@@ -87,6 +91,7 @@ public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbConte
             .HasName("jsonb_extract_path_text").IsBuiltIn();
         base.OnModelCreating(modelBuilder);
         CatalogModelConfiguration.Apply(modelBuilder);
+        SubscriptionCatalogConfiguration.Apply(modelBuilder);
         InvoicePersistenceModelConfiguration.Apply(modelBuilder);
         InvoiceReviewPersistenceConfiguration.Apply(modelBuilder);
         var support = modelBuilder.Entity<InvoiceHumanReference>();
