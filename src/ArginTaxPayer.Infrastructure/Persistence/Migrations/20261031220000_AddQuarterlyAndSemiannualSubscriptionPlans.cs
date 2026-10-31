@@ -9,9 +9,9 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations;
 public sealed class AddQuarterlyAndSemiannualSubscriptionPlans : Migration
 {
     protected override void Up(MigrationBuilder migrationBuilder) => migrationBuilder.Sql("""
-        ALTER TABLE subscription_plan_catalog DROP CONSTRAINT ck_subscription_plan_kind;
+        ALTER TABLE subscription_plan_catalog DROP CONSTRAINT IF EXISTS ck_subscription_plan_kind;
         ALTER TABLE subscription_plan_catalog ADD CONSTRAINT ck_subscription_plan_kind CHECK (kind IN (1,2,3,4,5));
-        ALTER TABLE subscription_plan_catalog DROP CONSTRAINT ck_subscription_plan_units;
+        ALTER TABLE subscription_plan_catalog DROP CONSTRAINT IF EXISTS ck_subscription_plan_units;
         ALTER TABLE subscription_plan_catalog ADD CONSTRAINT ck_subscription_plan_units CHECK
           ((kind IN (1,3,4,5) AND invoice_unit_limit IS NULL) OR (kind=2 AND invoice_unit_limit > 0));
         ALTER TABLE subscription_plan_catalog ADD CONSTRAINT ck_subscription_term_days CHECK
@@ -20,9 +20,9 @@ public sealed class AddQuarterlyAndSemiannualSubscriptionPlans : Migration
            (kind=3 AND validity_days BETWEEN 28 AND 31) OR
            (kind=4 AND validity_days BETWEEN 89 AND 92) OR
            (kind=5 AND validity_days BETWEEN 181 AND 184));
-        ALTER TABLE customer_subscriptions DROP CONSTRAINT ck_customer_subscription_kind;
+        ALTER TABLE customer_subscriptions DROP CONSTRAINT IF EXISTS ck_customer_subscription_kind;
         ALTER TABLE customer_subscriptions ADD CONSTRAINT ck_customer_subscription_kind CHECK (kind IN (1,2,3,4,5));
-        ALTER TABLE customer_subscriptions DROP CONSTRAINT ck_customer_subscription_units;
+        ALTER TABLE customer_subscriptions DROP CONSTRAINT IF EXISTS ck_customer_subscription_units;
         ALTER TABLE customer_subscriptions ADD CONSTRAINT ck_customer_subscription_units CHECK
           ((kind IN (1,3,4,5) AND invoice_unit_limit IS NULL) OR (kind=2 AND invoice_unit_limit > 0));
         ALTER TABLE customer_subscriptions ADD CONSTRAINT ck_customer_subscription_term_days CHECK
@@ -57,15 +57,15 @@ public sealed class AddQuarterlyAndSemiannualSubscriptionPlans : Migration
           END IF;
         END $fn$;
         ALTER TABLE customer_subscriptions DROP CONSTRAINT ck_customer_subscription_term_days;
-        ALTER TABLE customer_subscriptions DROP CONSTRAINT ck_customer_subscription_kind;
+        ALTER TABLE customer_subscriptions DROP CONSTRAINT IF EXISTS ck_customer_subscription_kind;
         ALTER TABLE customer_subscriptions ADD CONSTRAINT ck_customer_subscription_kind CHECK (kind IN (1,2,3));
-        ALTER TABLE customer_subscriptions DROP CONSTRAINT ck_customer_subscription_units;
+        ALTER TABLE customer_subscriptions DROP CONSTRAINT IF EXISTS ck_customer_subscription_units;
         ALTER TABLE customer_subscriptions ADD CONSTRAINT ck_customer_subscription_units CHECK
           ((kind IN (1,3) AND invoice_unit_limit IS NULL) OR (kind=2 AND invoice_unit_limit > 0));
         ALTER TABLE subscription_plan_catalog DROP CONSTRAINT ck_subscription_term_days;
-        ALTER TABLE subscription_plan_catalog DROP CONSTRAINT ck_subscription_plan_kind;
+        ALTER TABLE subscription_plan_catalog DROP CONSTRAINT IF EXISTS ck_subscription_plan_kind;
         ALTER TABLE subscription_plan_catalog ADD CONSTRAINT ck_subscription_plan_kind CHECK (kind IN (1,2,3));
-        ALTER TABLE subscription_plan_catalog DROP CONSTRAINT ck_subscription_plan_units;
+        ALTER TABLE subscription_plan_catalog DROP CONSTRAINT IF EXISTS ck_subscription_plan_units;
         ALTER TABLE subscription_plan_catalog ADD CONSTRAINT ck_subscription_plan_units CHECK
           ((kind IN (1,3) AND invoice_unit_limit IS NULL) OR (kind=2 AND invoice_unit_limit > 0));
         """);
