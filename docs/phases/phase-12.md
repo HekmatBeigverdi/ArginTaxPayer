@@ -260,3 +260,7 @@ Implemented:
 - Loopback-only administrative testing routes `POST /api/dev/subscriptions/settlements/record` and `/reverse`, domain unit tests, registration in API DI, and read-only `scripts/phase12-step08-settlement-audit.sql` for test PostgreSQL consistency.
 
 **Remaining for Step08 full signoff:** read-only settlement history / partner balance reporting (preferably with explicit root/partner scope), PostgreSQL seeded integration and concurrent idempotent requests, manual acceptance on macOS, app lifecycle/UI integration, and owner acceptance. No .NET SDK or test PostgreSQL was available to run them in this assistant execution; builds or migrations must not be claimed as PASS. Before applying the new migration, verify connection is truly `argintaxpayer_test`, review pending migration history and generated idempotent SQL. Ubuntu remains Step11. Do not run production financial commands from unverified development endpoints.
+
+### Step08 settlement reporting follow-up
+
+Added scoped `PartnerSettlementReadService` and development-only `GET /api/dev/subscriptions/settlements/balances` with Level1 root-wide and Level2 own-only visibility. Totals calculated from immutable settlement payment/reversal history. The endpoint is loopback-only, token protected and not cached. Service registered in API DI. Do not treat this as a substitute for PostgreSQL tenant integration QA and authenticated UI checks. Step08 remains awaiting owner-run tests and formal signoff.
