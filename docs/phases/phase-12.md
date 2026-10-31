@@ -196,3 +196,19 @@ Committed new `SubscriptionBilling` domain records and tests, `20261101020000_Ad
 The order issue route `POST /api/dev/subscriptions/commercial-orders` is loopback-only, bearer-protected, Origin-rejecting and rate-limited, with an internal administrative role/ownership check. Retried operation keys now attempt an existing order lookup before price quotation to preserve historic pricing. `CommercialReceivableReadService` supports scoped, read-only due/collected balances. These are source changes only, not integration-tested; possible live DB mapping and concurrency behavior must be verified during Mac acceptance. No payment posting endpoint exists yet (Step06). The invoice snapshot is an internal financial artifact, not a fiscal invoice.
 
 **Step05 outstanding acceptance:** validate compiled .NET API, migration and real database, idempotency races (including changed amounts and version rollover), scoped Level1/Level2 authentication, legitimate order read after ownership reassignment, historical immutability and allowed partial-payments state in the follow-on Step06. Until proven, this step is NOT fully accepted.
+
+## Step 05 — owner acceptance
+
+Owner approved Step05 and authorized Step06. Previous limitations remain transparent in acceptance evidence.
+
+## Step 06 — verified collections implementation and acceptance boundary
+
+Committed:
+- `PaymentCollectionPolicy.cs` specifies Cash/BankTransfer/Gateway, positive IRR amounts, unique external receipt reference and explicit trustworthy provider-verification predicates.
+- Migration `20261101030000_AddPhase12VerifiedCollections` creates append-only `commercial_collections`, duplicate detection via unique (channel, external_reference), manual verifier actor, gateway verification provenance, and foreign keys.
+- `VerifiedCollectionService` checks live Level1/Level2 role, active account, MFA and commercial customer ownership for manual collections, then serializes on the commercial-order row and inserts collection + adjusts collected amount/status atomically. Rejects mismatched duplicate references, overcollection, voided orders, missing scope. Internal gateway posting method is deliberately non-public and must only be called after trustworthy provider server-to-server verification.
+- Loopback-only POST `/api/dev/subscriptions/collections/manual` supports explicit admin-verified cash and bank transfer; never accepts gateway mode. Phase 10 invoice dispatch unaffected. Unit tests cover partial/full, overpayment, invalid payment shape and gateway proof predicates.
+
+**Critical uncompleted items:** An actual PSP gateway integration, merchant credentials, signed/server-side verification, callbacks, webhook reconciliation and gateway test transactions are **NOT implemented**; no provider has been designated. Even the manual workflow has not been compiled or PostgreSQL integration-tested in this assistant context. No customer-facing payment page or partial-payment UI exists yet. This is NOT full Step06 acceptance until provider selection and verified PSP integration plus Mac database and race/idempotency/authorization QA. Do not activate subscriptions or allocate invoice credits based on unverified callbacks, redirect parameters or preliminary intents.
+
+**Local acceptance:** On macOS run `zsh scripts/dev-up.zsh`, .NET restore/build/test, `dotnet ef migrations has-pending-model-changes`, list and review all pending migrations, verify actual connection is `argintaxpayer_test`, then apply only approved migrations. Test duplicate reference same/different payload, concurrent partial collection, overpayment, failed gateway verification, cross-owner access, and journal immutability. Ubuntu only Step11.
