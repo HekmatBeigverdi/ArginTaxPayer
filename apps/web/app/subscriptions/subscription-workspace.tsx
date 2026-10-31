@@ -1,5 +1,6 @@
-import "./subscription-workspace.css";
 "use client";
+
+import "./subscription-workspace.css";
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 
