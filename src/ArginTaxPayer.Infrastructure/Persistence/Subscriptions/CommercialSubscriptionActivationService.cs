@@ -69,7 +69,7 @@ public sealed class CommercialSubscriptionActivationService(ArginTaxPayerDbConte
         if(collections.TotalIrr!=gross)
             throw new InvalidOperationException("Verified receipts do not match amount paid.");
         var selectedKind=(SubscriptionPlanKind)kind;
-        var duration=selectedKind==SubscriptionPlanKind.Quantity?12:null as int?;
+        int? duration=selectedKind==SubscriptionPlanKind.Quantity?12:null;
         var expires=SubscriptionCalendar.ExpirationUtc(selectedKind,atUtc,duration);
         var subscriptionId=Guid.NewGuid();
         await using var insert=conn.CreateCommand();
@@ -98,6 +98,32 @@ public sealed class CommercialSubscriptionActivationService(ArginTaxPayerDbConte
         Add(link,"order",orderId);Add(link,"subscription",subscriptionId);
         Add(link,"actor",actor);Add(link,"now",atUtc);
         await link.ExecuteNonQueryAsync(ct);
+        if(selectedKind==SubscriptionPlanKind.Quantity)
+        {
+            if(limit is not >0)throw new InvalidOperationException("Missing quantity entitlement.");
+            await using var credit=conn.CreateCommand();
+            credit.Transaction=lockOrder.Transaction;
+            credit.CommandText="""
+                INSERT INTO subscription_credit_accounts
+                (subscription_id,customer_user_id,granted_units,available_units,reserved_units,consumed_units)
+                VALUES(@subscription,@customer,@units,@units,0,0)
+                """;
+            Add(credit,"subscription",subscriptionId);Add(credit,"customer",customer);
+            Add(credit,"units",limit.Value);
+            await credit.ExecuteNonQueryAsync(ct);
+            await using var journal=conn.CreateCommand();
+            journal.Transaction=lockOrder.Transaction;
+            journal.CommandText="""
+                INSERT INTO subscription_credit_entries
+                (id,subscription_id,customer_user_id,operation_key,operation_type,
+                 reservation_key,units,recorded_at_utc)
+                VALUES(@id,@subscription,@customer,@operation,'grant',NULL,@units,@at)
+                """;
+            Add(journal,"id",Guid.NewGuid());Add(journal,"subscription",subscriptionId);
+            Add(journal,"customer",customer);Add(journal,"operation","activation-"+orderId.ToString("N"));
+            Add(journal,"units",limit.Value);Add(journal,"at",atUtc);
+            await journal.ExecuteNonQueryAsync(ct);
+        }
         await tx.CommitAsync(ct);
         return subscriptionId;
     }
