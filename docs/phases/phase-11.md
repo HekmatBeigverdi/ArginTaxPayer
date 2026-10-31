@@ -23,7 +23,7 @@ Phase 11 should extend only demonstrably missing **asynchronous inquiry, restart
 | 05 | Reconciliation and final-result projection | Only trusted and correlated official evidence may update terminal outcomes; append-only history and legal chain intact |
 | 06 | Existing UI/API status presentation | Small compatible changes only, RTL and scoped endpoints, no raw JSON; preserve current invoice operations |
 | 07 | Security, regression and authorized Sandbox acceptance | Re-test original, correction, cancellation and sales return, isolation, duplicate prevention; record actual provider results separately from mocks |
-| 08 | macOS/Ubuntu same-SHA acceptance and closeout | Build/test, DB audit, migration review if applicable, clean Git evidence, owner-gated PR/merge/tag/release; no implicit deployment |
+| 08 | macOS/Ubuntu same-SHA acceptance and closeout | Explicitly disposition automated inquiry processing, restart recovery and multi-worker coordination as implemented and verified or owner-approved deferrals; then same-SHA macOS/Ubuntu build/test, DB audit, migration review if applicable, clean Git evidence and final audit. Release is owner-gated and must not claim operational readiness for deferred or unverified runtime features; no implicit deployment |
 
 Each step: inspect actual code first; identify dependencies and impacted files, Backend/Frontend and migration needs; security/legal constraints; tests and real results (PASS/FAIL/NOT_RUN), risks and rollback; stop for explicit owner acceptance. macOS is primary development/migration host; Ubuntu is independent test host. Only `argintaxpayer_test` may receive approved test migrations, after actual-database verification.
 
@@ -157,3 +157,15 @@ The owner approved Step07, reports that all four fiscal workflows and reference/
 **Final Step08 release gate:** run full tests on Ubuntu on the exact final documentation SHA, verify branch and clean tree, compare macOS build/test output at the same SHA (the prior macOS run was on pre-closeout SHA), and perform read-only test DB audit. Do not run database migrations or live fiscal POST as part of the offline release gate. Only after operator evidence and explicit merge/release approval may `main` be updated and tag `phase-11-v1.0.0` created. Until then status is **release pending**, not released.
 
 **Final offline runner:** `scripts/phase11-step08-acceptance.sh` was added for both macOS and Ubuntu. It does not issue fiscal HTTP requests, run migrations or perform an automatic DB audit. Operator must provide paired same-SHA manifests and a separately guarded read-only DB audit before release.
+
+## Step 08 — Closeout gates and current verification (2026-10-31)
+
+The three runtime criteria have an explicit owner-approved disposition in the closeout section above: they are deferred and must not be represented as operationally ready. Their implementation and runtime proof remain prerequisites for any later claim of asynchronous operational readiness:
+
+- **Automated inquiry processing:** prove a separately authorized inquiry-only worker can claim durable work and make the correctly scoped authority inquiry without invoking invoice submission; otherwise record the feature as deferred and do not claim Phase 11 operational readiness.
+- **Restart recovery:** demonstrate that a process restart resumes eligible inquiry work from durable state without losing evidence or resending an invoice.
+- **Multi-worker coordination:** demonstrate atomic claim/lease ownership and safe concurrent execution, including lease expiry/recovery, without duplicate inquiry side effects or invoice sends.
+
+For the limited Phase 11 closeout scope, run independent Ubuntu acceptance against the exact final documentation commit SHA, pair it with macOS evidence at that same SHA, complete the guarded read-only database audit and final clean-tree review, and retain the separately recorded Sandbox evidence. A source-only/offline PASS cannot substitute for these gates. Release remains pending until operator evidence and explicit merge/release approval; the deferred runtime criteria must remain visible in release scope and must not be represented as operationally ready.
+
+**Additional local macOS offline evidence (2026-10-31):** `bash scripts/phase11-step07-macos-acceptance.sh` passed on commit `a0d5458a81153ee2b8ec56f62f3ef6045a25407d`. Restore, Release build, .NET tests, Phase 11 regressions, Phase 10 legal regressions, complete web tests, typecheck and web build all passed. Logs and manifest: `artifacts/phase11-step07/a0d5458a81153ee2b8ec56f62f3ef6045a25407d/macos-20261031T130215Z/`. This is offline macOS evidence only and was run before the current closeout commit; same-SHA Ubuntu/macOS pair, database audit, release and deployment remain pending. No migration was performed.
