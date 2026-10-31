@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 11: Queue, Inquiry & Reconciliation
 
-**Status:** Step 01 baseline audit recorded; owner approval pending for Step 01 and every subsequent step.
+**Status:** Step 01 owner-approved. Step 02 safety audit and static regression guards committed; runtime acceptance NOT_RUN / completion pending.
 **Base:** Phase 10 merge commit `3d297c50451971f8b7ff6c292b7d1df431699fc9` on `main`; reported Phase 10 release `phase-10-v1.0.0`.
 **Branch:** `phase/11-inquiry-reconciliation`
 **Target release:** `phase-11-v1.0.0`.
@@ -45,4 +45,18 @@ Each step: inspect actual code first; identify dependencies and impacted files, 
 
 **Safety/rollback:** documentation-only commit; no runtime behavior, DB change, secrets, Production access or external invoice request. Revert this documentation commit if needed. Phase 10 base remains unchanged.
 
-**Owner decision:** Step 01 awaits review. Do not begin Step 02 before approval. Later step design must be revised if read-only code audit proves its target already complete.
+**Owner decision:** Step 01 explicitly approved; Step 02 authorized by owner with a strict no-regression constraint. Later step design must be revised if read-only code audit proves its target already complete.
+
+## Step 02 — Worker/queue safety audit and regression guard (2026-10-31)
+
+**Owner constraint:** Four Phase 10 legal flows (original, correction, cancellation, sales return) have been manually exercised in Sandbox and accepted. They must remain untouched. This step made NO changes to their runtime APIs, domain, persistence, UI, sending, or database schema.
+
+**Source finding:** `src/ArginTaxPayer.Infrastructure/Persistence/Invoices/Phase10LegacyOutboxWorker.cs` is an **explicitly invoked sender**, not a background-hosted inquiry loop. It starts a send only after checking `Reserved` and recording the attempt, then persists either initial receipt or indeterminate outcome. Automatically scheduling this worker would be unsafe because it can submit original packets. `Phase10SandboxOutboxService` already supplies deduplication keys and `automaticRetry=false`. `Phase10InquiryReconciliation` explicitly disallows automatic resending or equating a status string with legal acceptance. `Phase10DispatchEvidenceRepository` uses scoped revision checks and stores inquiry evidence append-only.
+
+**Implementation in this step:** added `apps/web/tests/phase11-step02-dispatch-regression.test.mjs`, four read-only source-contract regression checks over the above Phase 10 files. These provide an early alarm against unintentional conversion to auto-sending, weakening indeterminate safety, or removing evidence guards. This is **test-only optimization**, not an operational inquiry scheduler.
+
+**Outstanding Step 02 acceptance criteria:** demonstrate a separate, read-only background inquiry scheduler with authenticated scoped service identity, durable leasing/claim ownership, crash/restart and concurrent-worker behavior. No such runtime implementation was added, since applying automatic scheduling to the Phase 10 sender would threaten proven fiscal flows. Evaluate/add a separate inquiry-only worker in a follow-on owner-approved change, after deciding the service-identity and official Inquiry contract. Thus full Step 02 operational criterion is **NOT MET** yet.
+
+**Tests:** GitHub-only source edit; no macOS or Ubuntu runtime available in this execution. Automated test result `NOT_RUN`; use `node --test apps/web/tests/phase11-step02-dispatch-regression.test.mjs`. No migration, DB query, worker execution, Sandbox contact, or invoice POST occurred.
+
+**Risk/rollback:** Zero runtime surface changed. Remove the test-only commit if a false-positive contract becomes obsolete; never change the Phase 10 worker into an automatic sender. Next actions remain owner gated.
