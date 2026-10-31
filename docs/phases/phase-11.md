@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 11: Queue, Inquiry & Reconciliation
 
-**Status:** Step 01 owner-approved. Step 02 safety audit and static regression guards committed; runtime acceptance NOT_RUN / completion pending.
+**Status:** Step 01 owner-approved. Step 02 opt-in read-only queue observer and regression guards committed; macOS runtime acceptance NOT_RUN.
 **Base:** Phase 10 merge commit `3d297c50451971f8b7ff6c292b7d1df431699fc9` on `main`; reported Phase 10 release `phase-10-v1.0.0`.
 **Branch:** `phase/11-inquiry-reconciliation`
 **Target release:** `phase-11-v1.0.0`.
@@ -60,3 +60,13 @@ Each step: inspect actual code first; identify dependencies and impacted files, 
 **Tests:** GitHub-only source edit; no macOS or Ubuntu runtime available in this execution. Automated test result `NOT_RUN`; use `node --test apps/web/tests/phase11-step02-dispatch-regression.test.mjs`. No migration, DB query, worker execution, Sandbox contact, or invoice POST occurred.
 
 **Risk/rollback:** Zero runtime surface changed. Remove the test-only commit if a false-positive contract becomes obsolete; never change the Phase 10 worker into an automatic sender. Next actions remain owner gated.
+
+### Step 02 continuation: opt-in read-only queue observer (2026-10-31)
+
+- Added `src/ArginTaxPayer.Api/Invoices/Phase11InquiryQueueObserver.cs` as a scoped, one-minute, read-only development background observer of existing dispatch operations in states Acknowledged (5) and Indeterminate (6). It explicitly checks the actual database name, logs only a count, and makes **no authority HTTP call or invoice mutation**.
+- Added explicit opt-in `Phase11:EnableReadOnlyQueueObserver` in `src/ArginTaxPayer.Api/Program.cs`, behind `identityDevelopmentEnabled`; default disabled, no effect on Phase 10 release flows.
+- Added `apps/web/tests/phase11-step02-queue-observer.test.mjs` for a static safety contract, in addition to the existing `phase11-step02-dispatch-regression.test.mjs`.
+- **No change** to the Phase 10 sender, legal invoice routes, keys, payloads, Outbox persistence, database schema or migration. No automatic sending.
+- This does **not yet deliver real automatic inquiry**: it observes pending work but does not claim/lease or query the Tax Authority. Authorized, durable inquiry execution and cross-worker coordination remain a documented functional gap; do not label operational completion until proven. The later dedicated inquiry step must address it, preserving all Phase 10 behavior.
+- Test execution: GitHub source changes only; macOS build, web tests, browser acceptance, database observation, restart test and Ubuntu test are **NOT_RUN**. Operator can run `node --test apps/web/tests/phase11-step02-*.test.mjs` and `dotnet build ArginTaxPayer.sln -c Release` locally. Ubuntu remains the final-phase gate unless infrastructure changes require earlier verification.
+- Rollback: disable the opt-in flag (or revert the two implementation commits); no DB changes to reverse.
