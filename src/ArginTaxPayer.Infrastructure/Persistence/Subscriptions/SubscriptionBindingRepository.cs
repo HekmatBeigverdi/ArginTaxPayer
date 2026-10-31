@@ -4,8 +4,7 @@ using Microsoft.EntityFrameworkCore;
 namespace ArginTaxPayer.Infrastructure.Persistence.Subscriptions;
 
 /// <summary>
-/// Internal persistence boundary only. No public endpoint is exposed until
-/// a verified authority-evidence adapter and role authorization are wired.
+/// Internal persistence boundary only. Subscription assignment is an internal commercial action, not a tax authority connection test.
 /// </summary>
 public sealed class SubscriptionBindingRepository(ArginTaxPayerDbContext db)
 {
@@ -28,7 +27,7 @@ public sealed class SubscriptionBindingRepository(ArginTaxPayerDbContext db)
             ?? throw new InvalidOperationException("Subscription not found.");
         SubscriptionBindingPolicy.RequireEligible(s.Kind, s.State,
             s.ActivatedAtUtc, s.ExpiresAtUtc, nowUtc);
-        if (s.Kind == SubscriptionPlanKind.AnnualSingleTaxpayer)
+        if (SubscriptionBindingPolicy.IsSingleTaxpayer(s.Kind))
         {
             var binding = await ReadAnnualBindingAsync(customerId, subscriptionId, ct);
             SubscriptionBindingPolicy.RequireAnnualMatch(binding, customerId, taxpayerId, memoryId);
@@ -44,21 +43,19 @@ public sealed class SubscriptionBindingRepository(ArginTaxPayerDbContext db)
         }
     }
 
-    public async Task<StoredAnnualBinding> RegisterVerifiedAnnualBindingAsync(
+    public async Task<StoredAnnualBinding> RegisterSingleTaxpayerBindingAsync(
         Guid customerId, Guid subscriptionId, Guid taxpayerId, Guid memoryId,
-        DateTime verifiedAtUtc, string evidenceReference, CancellationToken ct = default)
+        DateTime selectedAtUtc, CancellationToken ct = default)
     {
-        if (verifiedAtUtc.Kind != DateTimeKind.Utc ||
-            string.IsNullOrWhiteSpace(evidenceReference) || evidenceReference.Length > 128)
-            throw new ArgumentException("Trusted authority evidence is required.");
-        // Caller MUST be a trusted server-side authority-evidence adapter, never browser input.
+        if (selectedAtUtc.Kind != DateTimeKind.Utc)
+            throw new ArgumentException("Selection timestamp must be UTC.");
         var s = await db.CustomerSubscriptions.AsNoTracking().SingleOrDefaultAsync(
             x => x.Id == subscriptionId && x.CustomerUserId == customerId, ct)
             ?? throw new InvalidOperationException("Subscription not found.");
         SubscriptionBindingPolicy.RequireEligible(s.Kind, s.State,
-            s.ActivatedAtUtc, s.ExpiresAtUtc, verifiedAtUtc);
-        if (s.Kind != SubscriptionPlanKind.AnnualSingleTaxpayer)
-            throw new InvalidOperationException("Only annual plans can be permanently bound.");
+            s.ActivatedAtUtc, s.ExpiresAtUtc, selectedAtUtc);
+        if (!SubscriptionBindingPolicy.IsSingleTaxpayer(s.Kind))
+            throw new InvalidOperationException("Only single-taxpayer plans can be bound.");
         var match = await db.TaxpayerProfiles.AsNoTracking()
             .AnyAsync(x => x.Id == taxpayerId && x.CustomerUserId == customerId, ct);
         var memory = await db.FiscalMemories.AsNoTracking()
@@ -67,7 +64,7 @@ public sealed class SubscriptionBindingRepository(ArginTaxPayerDbContext db)
         var binding = new StoredAnnualBinding {
             SubscriptionId = subscriptionId, CustomerUserId = customerId,
             TaxpayerId = taxpayerId, FiscalMemoryId = memoryId,
-            VerifiedConnectedAtUtc = verifiedAtUtc, EvidenceReference = evidenceReference.Trim()
+            VerifiedConnectedAtUtc = selectedAtUtc, EvidenceReference = "internal-plan-selection"
         };
         db.AnnualSubscriptionBindings.Add(binding);
         await db.SaveChangesAsync(ct); // primary key + database trigger prevent rebinding
