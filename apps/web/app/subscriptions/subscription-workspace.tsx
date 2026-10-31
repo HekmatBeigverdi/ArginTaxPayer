@@ -29,6 +29,9 @@ export default function SubscriptionWorkspace({level1}:{level1:boolean}) {
   const [busy,setBusy]=useState(false);
   const [notice,setNotice]=useState<ResultState>(null);
   const [planCode,setPlanCode]=useState("");
+  const [pricePlanId,setPricePlanId]=useState("");
+  const [priceIrr,setPriceIrr]=useState("");
+  const [activationId,setActivationId]=useState("");
   const [planKind,setPlanKind]=useState(1);
   const [validity,setValidity]=useState(365);
   const [units,setUnits]=useState(100);
@@ -104,6 +107,23 @@ export default function SubscriptionWorkspace({level1}:{level1:boolean}) {
         value={units} onChange={e=>setUnits(Number(e.target.value))}/></label>}
       <p>مدت تقویمی در مدل دامنه تعریف شده؛ تا یکپارچه‌سازی کامل، اعتبار روزانه قرارداد فعلی Backend همچنان لازم است.</p>
       <button type="submit" disabled={busy}>{busy?"در حال ثبت...":"ایجاد پلن"}</button>
+    </form>}
+    {tab==="plans" && <form onSubmit={e=>void submit(e,()=>request("prices","POST",{
+      planId:pricePlanId,priceIrr:Number(priceIrr),
+      effectiveFromUtc:new Date().toISOString(),effectiveUntilUtc:null
+    }),"نسخه تعرفه برای محدوده مدیریتی شما ثبت شد.")}>
+      <h3>تعرفه اختصاصی مدیر</h3>
+      <p>قیمت‌ها بر حسب ریال ثبت می‌شوند و با تعرفه سایر مدیران Level 2 مستقل‌اند.</p>
+      <label>شناسه پلن<input required value={pricePlanId} onChange={e=>setPricePlanId(e.target.value)}/></label>
+      <label>قیمت (ریال)<input required type="number" min={0} step={1} value={priceIrr} onChange={e=>setPriceIrr(e.target.value)}/></label>
+      <button type="submit" disabled={busy}>ثبت نسخه تعرفه</button>
+    </form>}
+    {tab==="plans" && level1 && <form onSubmit={e=>void submit(e,()=>request("plans/activate","POST",{
+      planId:activationId
+    }),"پلن کاتالوگ فعال شد؛ اشتراک مشتری هنوز فعال نشده است.")}>
+      <h3>فعال‌سازی پلن کاتالوگ توسط Level 1</h3>
+      <label>شناسه پلن<input required value={activationId} onChange={e=>setActivationId(e.target.value)}/></label>
+      <button type="submit" disabled={busy}>فعال‌سازی پلن</button>
     </form>}
     {tab==="orders" && <form onSubmit={e=>void submit(e,async()=>{
       const result=await request("commercial-orders","POST",{
