@@ -75,7 +75,7 @@ export default function SubscriptionWorkspace({level1}:{level1:boolean}) {
     catch(error){setNotice({kind:"error",text:error instanceof Error?error.message:"خطای ارتباط"});}
     finally {setBusy(false);}
   }
-  return <section className="console-settings-card" dir="rtl">
+  return <section className="console-settings-card phase12-finance" dir="rtl">
     <div className="console-settings-card-title"><h2>عملیات مالی</h2>
       <p>این محیط مخصوص توسعه است؛ هیچ پرداخت بانکی از این صفحه انجام نمی‌شود.</p></div>
     <div role="tablist" aria-label="بخش‌های مالی" style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:16}}>
@@ -92,7 +92,7 @@ export default function SubscriptionWorkspace({level1}:{level1:boolean}) {
     }),"پلن غیرفعال ایجاد شد؛ فعال‌سازی و قیمت‌گذاری هنوز به API تکمیلی نیاز دارند.")}>
       <h3>تعریف پلن جدید</h3>
       <label>کد پلن (انگلیسی)<input required value={planCode} onChange={e=>setPlanCode(e.target.value)} maxLength={50}/></label>
-      <label>نوع پلن<select value={planKind} onChange={e=>setPlanKind(Number(e.target.value))}>
+      <label>نوع پلن<select value={planKind} onChange={e=>{const k=Number(e.target.value);setPlanKind(k);setValidity(k===3?30:k===4?90:k===5?182:365);}}>
         <option value={3}>ماهانه تک‌مؤدی</option><option value={4}>سه‌ماهه تک‌مؤدی</option>
         <option value={5}>شش‌ماهه تک‌مؤدی</option><option value={1}>سالانه تک‌مؤدی</option>
         <option value={2}>بسته تعدادی</option></select></label>
