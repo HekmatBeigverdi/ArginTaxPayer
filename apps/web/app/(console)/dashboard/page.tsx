@@ -18,7 +18,7 @@ const adminModules: Tile[] = [
   { title: "خریداران و مؤدیان", description: "ثبت مشتری، اشخاص حقیقی و حقوقی و مؤدیان متعلق به هر حساب", href: "/parties", symbol: "اش", meta: "مدیریت" },
   { title: "مالکیت تجاری مشتریان", description: "انتساب مشتری به ادمین و پیگیری محدوده دسترسی", href: "/users", symbol: "مل", meta: "مدیریت" },
   { title: "پیش‌نویس صورتحساب‌ها", description: "مشاهده و ایجاد پیش‌نویس برای مؤدیان مجاز", href: "/invoices", symbol: "فا", meta: "پیش‌نویس" },
-  { title: "اشتراک‌ها و تراکنش‌ها", description: "مدیریت پلن‌ها، پرداخت‌ها و تمدیدها", symbol: "اش", meta: "در فاز مالی" },
+  { title: "اشتراک‌ها و تراکنش‌ها", description: "مدیریت پلن‌ها، پرداخت‌های دستی و مانده تسویه", href: "/subscriptions", symbol: "اش", meta: "توسعه" },
   { title: "تنظیمات و امنیت", description: "نشست‌ها، امنیت و تأیید دومرحله‌ای", href: "/account", symbol: "ام", meta: "فعال" }
 ];
 
