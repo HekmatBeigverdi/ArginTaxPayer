@@ -32,6 +32,11 @@ export default function SubscriptionWorkspace({level1}:{level1:boolean}) {
   const [pricePlanId,setPricePlanId]=useState("");
   const [priceIrr,setPriceIrr]=useState("");
   const [activationId,setActivationId]=useState("");
+  const [smsCustomer,setSmsCustomer]=useState("");
+  const [smsUnits,setSmsUnits]=useState("");
+  const [smsEvidence,setSmsEvidence]=useState("");
+  const [smsOperationKey,setSmsOperationKey]=useState(uuid);
+  const [smsBalance,setSmsBalance]=useState<{granted:number;spent:number;available:number}|null>(null);
   const [planKind,setPlanKind]=useState(1);
   const [validity,setValidity]=useState(365);
   const [units,setUnits]=useState(100);
@@ -155,8 +160,32 @@ export default function SubscriptionWorkspace({level1}:{level1:boolean}) {
     </form>}
     {tab==="sms" && <section>
       <h3>کیف پول پیامک</h3>
-      <p>اعتبار پیامک مستقل از سهمیه صورتحساب است. مدل مانده و قواعد جلوگیری از منفی‌شدن موجودی اضافه شده‌اند.</p>
-      <p role="status">اتصال موجودی، شارژ و تاریخچه پیامک به Backend هنوز فعال نیست؛ از این صفحه امکان شارژ یا کسر واقعی وجود ندارد.</p>
+      <p>اعتبار پیامک مستقل از سهمیه صورتحساب و درآمد است. شارژ اعتباری فقط با مجوز Level 1 انجام می‌شود.</p>
+      <label>شناسه مشتری<input required value={smsCustomer} onChange={e=>setSmsCustomer(e.target.value)}/></label>
+      <button type="button" disabled={busy||!smsCustomer} onClick={()=>void (async()=>{
+        setBusy(true);setNotice(null);
+        try {
+          const result=await request("sms-wallet/"+encodeURIComponent(smsCustomer)) as {granted:number;spent:number;available:number};
+          setSmsBalance(result);
+        } catch(error) {setNotice({kind:"error",text:error instanceof Error?error.message:"خطای موجودی"});}
+        finally {setBusy(false);}
+      })()}>مشاهده موجودی</button>
+      {smsBalance && <p role="status">اعتبار کل: {smsBalance.granted} | مصرف‌شده: {smsBalance.spent} | قابل‌استفاده: {smsBalance.available}</p>}
+      {level1 && <form onSubmit={e=>void submit(e,async()=>{
+        const result=await request("sms-wallet/grant","POST",{
+          customerUserId:smsCustomer,units:Number(smsUnits),
+          operationKey:smsOperationKey,evidence:smsEvidence
+        }) as {granted:number;spent:number;available:number};
+        setSmsBalance(result);
+      },"شارژ اعتباری ثبت شد.")}>
+        <h3>شارژ کیف پول با تأیید مدیر اصلی</h3>
+        <label>تعداد پیامک<input required type="number" min={1} step={1} value={smsUnits} onChange={e=>setSmsUnits(e.target.value)}/></label>
+        <label>مستند تأیید شارژ<input required value={smsEvidence} onChange={e=>setSmsEvidence(e.target.value)}/></label>
+        <label>شناسه یکتای عملیات<input required value={smsOperationKey} onChange={e=>setSmsOperationKey(e.target.value)}/></label>
+        <button type="submit" disabled={busy}>ثبت شارژ</button>
+        <button type="button" onClick={()=>setSmsOperationKey(uuid())}>عملیات جدید</button>
+      </form>}
+      <p>کسر اعتبار پس از ارسال تأییدشده پیامک به هماهنگی با سرویس ارسال نیاز دارد و از این صفحه انجام نمی‌شود.</p>
     </section>}
     {tab==="revenue" && <section>
       <h3>گزارش درآمد و تخصیص</h3>
