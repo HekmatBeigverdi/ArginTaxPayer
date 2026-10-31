@@ -246,3 +246,17 @@ Level1-only roles + MFA are checked server-side when approving costs or rates an
 Owner requested completion of missing integration tests and separated ledger reporting **before treating Step07 as technically finished**. Added `PartnerRevenueLedgerReadService` and `GET /api/dev/subscriptions/revenue-ledger`, loopback-only, bearer-authorized, with server-side SQL scope to root vs partner. Level2 partner data excludes root-only amounts. Root sees the root portfolio; partners see only their own collection allocations. `Phase12PartnerLedgerReportingTests` covers pagination and summary aggregation. `scripts/phase12-step07-ledger-audit.sql` is a read-only integration SQL check for actual PostgreSQL allocations, attribution, no duplicate collection allocations and cash conservation; it refuses any database other than `argintaxpayer_test`.
 
 **Still unverified:** Assistant did not execute Mac .NET tests, psql script, authenticated Level1/Level2 API requests, or verify seeded allocation data. Thus this is a committed implementation and a repeatable integration-test instrument, not observed PASS of end-to-end tests. Approval of Step07 was recorded earlier, but the *technical* verification gate remains open until actual macOS evidence of API tenant isolation, duplicate concurrent allocation, cost approval authorization and rate effective-window scenarios. No Ubuntu testing before Step11.
+
+## Step 07 acceptance — renewed owner confirmation (2026-11-01)
+
+Owner again confirmed Step07 is accepted and authorized Step08. Existing unexecuted regression and tenant-isolation tests remain documented honestly; this approval is not a substitute for their runtime results.
+
+## Step 08 — partial partner settlements and financial reversal foundation
+
+Implemented:
+- `PartnerSettlementPolicy`: deterministic outstanding/net-paid accounting; prohibits negative, overpaid and over-reversed balances.
+- `20261101050000_AddPhase12PartnerSettlements`: append-only settlement events with payment/reversal types, immutable history, unique bank/operator reference per root, and one full reversal per original payment.
+- `PartnerSettlementService`: Level1-with-MFA only, scopes each allocation to root owner, serializable transaction and `FOR UPDATE` row lock, idempotent record and reversal, rejects overpayment and double reversal. The service only records **independently verified** bank transfers; it does not initiate or execute a payment. Corrections use linked reversal and a new settlement; original receipts are never deleted.
+- Loopback-only administrative testing routes `POST /api/dev/subscriptions/settlements/record` and `/reverse`, domain unit tests, registration in API DI, and read-only `scripts/phase12-step08-settlement-audit.sql` for test PostgreSQL consistency.
+
+**Remaining for Step08 full signoff:** read-only settlement history / partner balance reporting (preferably with explicit root/partner scope), PostgreSQL seeded integration and concurrent idempotent requests, manual acceptance on macOS, app lifecycle/UI integration, and owner acceptance. No .NET SDK or test PostgreSQL was available to run them in this assistant execution; builds or migrations must not be claimed as PASS. Before applying the new migration, verify connection is truly `argintaxpayer_test`, review pending migration history and generated idempotent SQL. Ubuntu remains Step11. Do not run production financial commands from unverified development endpoints.
