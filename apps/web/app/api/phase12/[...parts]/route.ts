@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { ACCESS_COOKIE, currentIdentity, identityApiOrigin, identityUiEnabled } from "../../../../../lib/identity";
+import { ACCESS_COOKIE, currentIdentity, identityApiOrigin, identityUiEnabled } from "../../../../lib/identity";
 
 export const dynamic = "force-dynamic";
 const actions = new Map<string, "GET" | "POST">([
