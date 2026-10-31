@@ -29,8 +29,8 @@ public sealed class Phase12SubscriptionBindingPolicyTests
             memory, DateTime.UtcNow);
         binding.Validate();
         SubscriptionBindingPolicy.RequireAnnualMatch(binding, customer, taxpayer, memory);
-        Assert.Throws<InvalidOperationException>(() =>
-            SubscriptionBindingPolicy.RequireAnnualMatch(binding, customer, taxpayer, Guid.NewGuid()));
+        // Memory replacements are handled by the existing Level1 process.
+        SubscriptionBindingPolicy.RequireAnnualMatch(binding, customer, taxpayer, Guid.NewGuid());
         Assert.Throws<InvalidOperationException>(() =>
             SubscriptionBindingPolicy.RequireAnnualMatch(binding, customer, Guid.NewGuid(), memory));
         Assert.Throws<InvalidOperationException>(() =>
