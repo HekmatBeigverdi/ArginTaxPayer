@@ -81,7 +81,7 @@ public sealed class VerifiedCollectionService(ArginTaxPayerDbContext db, Identit
             if(await rd.ReadAsync(ct))
             {
                 if(rd.GetGuid(0)!=collection.OrderId || rd.GetGuid(1)!=collection.CustomerUserId
-                   || rd.GetInt64(2)!=collection.AmountIrr)
+                   || rd.GetInt64(2)!=collection.AmountIrr || rd.GetString(3)!=proof)
                     throw new InvalidOperationException("Payment reference reused with different details.");
                 await rd.DisposeAsync();
                 await tx.CommitAsync(ct);
