@@ -91,7 +91,7 @@ Do not renumber without explicit owner-approved plan amendment. In each step rep
 
 ## Step 02 — Plan and pricing foundation (2026-10-31)
 
-**State: IMPLEMENTATION PARTIAL; NOT ACCEPTED.** Following owner approval of Step 01, the phase branch adds:
+**State: SOURCE IMPLEMENTATION EXPANDED; LOCAL BUILD/DB VERIFICATION PENDING; NOT ACCEPTED.** Following owner approval of Step 01, the phase branch adds:
 - `src/ArginTaxPayer.Domain/Subscriptions/SubscriptionContracts.cs`: annual unlimited vs quantity bounded unit terms, UTC price windows, partner vs Root direct audience, immutable purchase snapshot contracts.
 - `tests/ArginTaxPayer.Tests/Phase12SubscriptionContractTests.cs`: focused invariant cases (not executed).
 - `src/ArginTaxPayer.Infrastructure/Persistence/Migrations/20261031180000_AddPhase12SubscriptionCatalog.cs`: SQL schema for plans, immutable price versions and customer subscriptions, default inactive/pending, scoped owner identifiers and check constraints. **Migration NOT APPLIED**.
@@ -99,3 +99,11 @@ Do not renumber without explicit owner-approved plan amendment. In each step rep
 **Open before Step 02 signoff:** inspect SQL with a genuine test DB; confirm migration compatibility and any existing subscription schema; add persistence mapping, scoped command/query services, non-overlapping active price window validation, renewal/upgrade/add-on workflow and concurrency tests; run local .NET and Web regression. Do not report these as complete. There is no paid activation, finance ledger, API, UI or production change. Current schema migration is reviewed for syntax only, not verified by executing PostgreSQL. Backout is revert commits on phase branch; if applied to test DB later, use reviewed Down migration only after backup/ownership verification.
 
 **Evidence:** remote source inspection and GitHub commits PASS; local .NET build/test NOT_RUN; Mac DB/migration NOT_RUN; Web build/test NOT_RUN; Ubuntu NOT_RUN; owner approval PENDING.
+
+### Step 02 continuation — persistent EF catalog, pricing guard, instructions
+
+GitHub source commits add `Subscriptions/SubscriptionCatalogPersistence.cs` (EF model mapping, plan creation, non-overlapping price creation and customer-scoped root/partner quote), register its entities in `ArginTaxPayerDbContext`, strengthen DB migration with a transaction-serialized price-overlap trigger and immutable price-version UPDATE/DELETE rejection, and add negative unit-test cases. No routes expose these repository actions; the caller authorization layer and payment activation are intentionally not enabled. Database guard is authoritative against concurrent inserts.
+
+**BLOCKER before acceptance / migration:** model snapshot `ArginTaxPayerDbContextModelSnapshot.cs` has not been regenerated; EF model/schema parity, SQL migrations on the approved test database, real .NET build/tests and lifecycle/renewal/add-on integration tests remain unverified. Schema is not yet production-ready. Do not execute migration blindly; local operator must review its SQL, obtain parity evidence and verify `argintaxpayer_test` before any database mutation. Explicitly distinguish schema foundations from full purchase/renewal/upgrade functionality. Any owner acceptance of missing items requires an express scope change, not silent closure.
+
+**Operational test cadence:** start Mac environment only with `zsh scripts/dev-up.zsh`; source `.env.dev.local` into the migration shell and validate actual DB via psql before any `dotnet ef database update`. Ubuntu exclusively Step 11. All local build/migration tests still NOT_RUN here.
