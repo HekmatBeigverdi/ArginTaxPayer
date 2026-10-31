@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 11: Queue, Inquiry & Reconciliation
 
-**Status:** Step 01 owner-approved. Steps 01–02 owner-approved; Step 03 owner-approved. Step 04 owner-approved; Step 05 read-only reconciliation projection and unit tests committed; operator tests pending.
+**Status:** Steps 01–06 owner-approved; Step 07 automated acceptance script/checklist delivered; macOS tests and live Sandbox evidence pending.
 **Base:** Phase 10 merge commit `3d297c50451971f8b7ff6c292b7d1df431699fc9` on `main`; reported Phase 10 release `phase-10-v1.0.0`.
 **Branch:** `phase/11-inquiry-reconciliation`
 **Target release:** `phase-11-v1.0.0`.
@@ -129,3 +129,13 @@ No migration. Ubuntu deferred to final phase acceptance.
 ## Step 06 — History evidence visibility
 
 Owner approved Step 05. The existing RTL invoice history panel now shows the most recent recorded evidence timestamp and evidence count, derived exclusively from the existing scoped history GET response. No new sending, inquiry, cancellation, correction, sales-return, database, or API behavior was added. One offline regression test was added: `apps/web/tests/phase11-step06-history-evidence.test.mjs`. macOS tests are operator-pending; Ubuntu remains the final-phase gate. No migration. Rollback by reverting Step 06 UI and test commits.
+
+## Step 07 — Security and Sandbox regression gate (2026-10-31)
+
+Owner approved Step 06. To protect the four Phase 10 legal workflows and existing inquiry protocols, this step changes **no runtime code, schema, endpoint or submission behavior**.
+
+- Added `scripts/phase11-step07-macos-acceptance.sh`: macOS/clean-branch SHA gate, .NET restore/build/tests, Phase 10 legal and inquiry source tests, Phase 11 regression tests, complete web tests/typecheck/build, sanitized manifest; command logs remain under ignored `artifacts/phase11-step07/`. The offline script never calls the Tax Authority or applies a migration.
+- Added `docs/phases/phase-11-step07-sandbox-checklist.md` with 12 manual PASS/FAIL/NOT_RUN cases for original/correction/cancellation/sales-return, reference and UID inquiry, tenant scoping, restart durability, duplicate-prevention, error paths and Production isolation.
+- **Verification required:** user must execute `bash scripts/phase11-step07-macos-acceptance.sh` on macOS and separately report real Sandbox results. This environment cannot execute the user's local .NET, web, Postgres or Sandbox tests. No fabricated PASS status.
+- **Ubuntu:** deferred to Step 08 as explicitly agreed. **Migration:** none. **Rollback:** remove only the two added acceptance files; Phase10 operation unaffected.
+- **Open issue for final review:** Phase11 currently contains a read-only queue observer, pure retry policy and report projection, but no enabled automated inquiry processing/lease. Do not imply that running the offline gate establishes those operational Phase11 goals.
