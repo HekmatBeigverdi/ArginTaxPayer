@@ -26,6 +26,20 @@ public sealed class Phase12SubscriptionContractTests
     }
 
     [Fact]
+    public void Invalid_price_and_plan_terms_fail_closed()
+    {
+        var now = new DateTime(2026, 10, 31, 0, 0, 0, DateTimeKind.Utc);
+        var planId = Guid.NewGuid();
+        Assert.Throws<ArgumentException>(() => new SubscriptionPlanTerms(planId, (SubscriptionPlanKind)99, 365, 1).Validate());
+        var p = new SubscriptionPriceVersion(Guid.NewGuid(), planId, Guid.NewGuid(), null, PriceAudience.RootDirect, 1000, now, null);
+        Assert.Throws<ArgumentOutOfRangeException>(() => (p with { PriceIrr = -1 }).Validate());
+        Assert.Throws<ArgumentException>(() => (p with { EffectiveFromUtc = DateTime.SpecifyKind(now, DateTimeKind.Unspecified) }).Validate());
+        Assert.Throws<ArgumentException>(() => (p with { EffectiveUntilUtc = now }).Validate());
+        Assert.Throws<ArgumentException>(() => (p with { Audience = PriceAudience.Partner }).Validate());
+        Assert.Throws<ArgumentException>(() => (p with { PartnerUserId = Guid.NewGuid() }).Validate());
+    }
+
+    [Fact]
     public void Purchase_snapshots_terms_and_price()
     {
         var now = new DateTime(2026, 10, 31, 0, 0, 0, DateTimeKind.Utc);
