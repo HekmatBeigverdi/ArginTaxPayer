@@ -211,6 +211,7 @@ if (app.Environment.IsDevelopment())
         app.MapSigningConnectionEndpoints();
         app.MapSandboxFiscalMemoryDevelopmentEndpoints();
         app.MapPhase12PlanAdministrationEndpoints();
+        app.MapPhase12CommercialOrderEndpoints();
         app.MapSigningChangeRequestEndpoints();
         app.MapSigningAdminReviewEndpoints();
         app.MapPartyDevelopmentEndpoints();
