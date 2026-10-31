@@ -1,0 +1,21 @@
+✔ proven Phase 10 worker is explicitly invoked, not silently scheduled to send (0.359959ms)
+✔ Outbox retains immutable identity and disables automatic resend (0.069459ms)
+✔ inconclusive inquiry never authorizes resend or final fiscal acceptance (0.063166ms)
+✔ evidence updates require scoped revision comparison and preserve append-only inquiry (0.613084ms)
+✔ observer is explicit opt-in in development only (0.366042ms)
+✔ observer only reads test database state and does not send or mutate (0.094667ms)
+✔ Phase 10 sender remains explicitly invoked (0.0515ms)
+✔ reference inquiry only selects acknowledged invoicing and queries using receipt reference (0.385625ms)
+✔ UID inquiry targets indeterminate operations without original packet retransmission (0.065458ms)
+✔ correlation is conservative and may not authorize a resend or fiscal acceptance (0.402208ms)
+✔ both BFF inquiry routes require scoped session and do not accept invoice payloads (0.095416ms)
+✔ existing history only displays recorded evidence; no automatic inquiry or resend (0.379708ms)
+✔ scoped history remains a no-store GET under existing endpoints (0.096917ms)
+ℹ tests 13
+ℹ suites 0
+ℹ pass 13
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 37.036208

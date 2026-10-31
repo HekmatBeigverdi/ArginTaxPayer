@@ -1,0 +1,21 @@
+✔ correction send forwards once to the submit endpoint and returns the receipt (28.05175ms)
+✔ correction send denies missing login, foreign origin and bodies before calling backend (5.609917ms)
+✔ correction send preserves created invoice identity on backend conflict (4.656333ms)
+✔ correction send rejects malformed upstream responses and does not retry network errors (17.220417ms)
+✔ reference inquiry requires acknowledged dispatch and stored authority reference (0.417334ms)
+✔ reference inquiry is scoped, same-origin and gated by acknowledged UI state (4.127667ms)
+✔ persisted reference is available after page refresh (0.292167ms)
+✔ UID inquiry scopes existing Indeterminate operation without submission (0.43775ms)
+✔ same-origin UID inquiry UI only appears for Indeterminate (2.801792ms)
+✔ sales-return draft proxy is authenticated and same-origin (2.373167ms)
+✔ submission uses separate one-attempt endpoint (0.277792ms)
+✔ return editor does not allow price or VAT changes (0.593042ms)
+✔ list exposes return action on accepted invoice and keeps original identity (0.826625ms)
+ℹ tests 13
+ℹ suites 0
+ℹ pass 13
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 218.585458
