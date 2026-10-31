@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 11: Queue, Inquiry & Reconciliation
 
-**Status:** Steps 01–06 owner-approved; Step 07 automated acceptance script/checklist delivered; macOS tests and live Sandbox evidence pending.
+**Status:** Steps 01–07 accepted by owner (Step07 macOS offline suite 8/8 PASS at a0d5458a81153ee2b8ec56f62f3ef6045a25407d). Step08 documentation and Ubuntu release gate prepared; Ubuntu tests, PR/merge/tag/release not yet performed.
 **Base:** Phase 10 merge commit `3d297c50451971f8b7ff6c292b7d1df431699fc9` on `main`; reported Phase 10 release `phase-10-v1.0.0`.
 **Branch:** `phase/11-inquiry-reconciliation`
 **Target release:** `phase-11-v1.0.0`.
@@ -139,3 +139,19 @@ Owner approved Step 06. To protect the four Phase 10 legal workflows and existin
 - **Verification required:** user must execute `bash scripts/phase11-step07-macos-acceptance.sh` on macOS and separately report real Sandbox results. This environment cannot execute the user's local .NET, web, Postgres or Sandbox tests. No fabricated PASS status.
 - **Ubuntu:** deferred to Step 08 as explicitly agreed. **Migration:** none. **Rollback:** remove only the two added acceptance files; Phase10 operation unaffected.
 - **Open issue for final review:** Phase11 currently contains a read-only queue observer, pure retry policy and report projection, but no enabled automated inquiry processing/lease. Do not imply that running the offline gate establishes those operational Phase11 goals.
+
+## Owner-approved deferrals and phase closeout — 2026-10-31
+
+The owner approved Step07, reports that all four fiscal workflows and reference/UID inquiries function correctly in Sandbox, and deliberately **defers** the following to a future development priority:
+
+1. **Automatic post-submission inquiry:** the app currently depends on manual inquiry; the Phase11 read-only queue observer is not an authority-inquiry scheduler.
+2. **Restart-safe pending-job recovery:** no operational durable inquiry job execution or recovery semantics have been established; do not claim crash/restart guarantees for automatic inquiry.
+3. **Multi-worker coordination:** simultaneous workers/leases are not supported or accepted. Operate only the existing explicitly invoked Phase10 sender, not a cluster of autonomous workers.
+
+**Future backlog acceptance:** provide separate inquiry-only worker with scoped service identity, persisted leasing/attempt state and bounded retry, query via official confirmed Reference/UID methods, protect indeterminate against resend, prove restart/concurrency and regression against four Phase10 legal flows, first in macOS/Sandbox then Ubuntu. Requires separate approved phase/step; do not silently enable any of these features.
+
+**Scope outcome:** Phase11 closes as a *non-breaking inquiry safety, reporting and regression-hardening phase*, **not** a complete implementation of the original roadmap's asynchronous queue/reconciliation ambitions. Earlier Step02/04/05 unmet operational gates are explicitly waived/deferred by owner, not mislabeled as implemented.
+
+**Step07 evidence:** owner-supplied local macOS gate manifest at SHA `a0d5458a81153ee2b8ec56f62f3ef6045a25407d`: dotnet restore/build/tests, phase11 web contracts, phase10 legal web contracts, web tests/typecheck/build all PASS (8/8), zero failures. Live Sandbox checklist for this SHA still PENDING; Phase10 owner manual acceptance is baseline.
+
+**Final Step08 release gate:** run full tests on Ubuntu on the exact final documentation SHA, verify branch and clean tree, compare macOS build/test output at the same SHA (the prior macOS run was on pre-closeout SHA), and perform read-only test DB audit. Do not run database migrations or live fiscal POST as part of the offline release gate. Only after operator evidence and explicit merge/release approval may `main` be updated and tag `phase-11-v1.0.0` created. Until then status is **release pending**, not released.
