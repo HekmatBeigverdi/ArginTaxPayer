@@ -37,6 +37,7 @@ const statusNames: Record<string, string> = {
   Indeterminate: "نتیجه نامشخص",
   RetryEligible: "نیازمند بررسی ارسال مجدد",
   FailedTerminal: "خطای نهایی",
+  Signed: "امضاشده",
 };
 
 const formatDate = (value: string | null) =>
@@ -137,6 +138,15 @@ function HistoryContent({ history }: { history: History }) {
           نیست.
         </p>
       )}
+
+      <p className="field-hint" role="status">
+        آخرین شاهد ثبت‌شده: {history.receipts.length
+          ? formatDate(history.receipts.reduce((latest, item) =>
+              item.observedAtUtc > latest ? item.observedAtUtc : latest,
+              history.receipts[0].observedAtUtc))
+          : "هنوز شاهدی ثبت نشده"}
+        {" — "}تعداد شواهد: {history.receipts.length}
+      </p>
 
       <h4 style={{ margin: "10px 0 5px", fontSize: 12 }}>
         تلاش‌های ارسال ({history.attempts.length})
