@@ -9,6 +9,9 @@ public sealed class Phase12SubscriptionContractTests
     public void Annual_is_unlimited_and_quantity_requires_units()
     {
         new SubscriptionPlanTerms(Guid.NewGuid(), SubscriptionPlanKind.AnnualSingleTaxpayer, 365, null).Validate();
+        new SubscriptionPlanTerms(Guid.NewGuid(), SubscriptionPlanKind.MonthlySingleTaxpayer, 30, null).Validate();
+        Assert.Throws<ArgumentException>(() => new SubscriptionPlanTerms(Guid.NewGuid(), SubscriptionPlanKind.MonthlySingleTaxpayer, 30, 10).Validate());
+        Assert.Throws<ArgumentException>(() => new SubscriptionPlanTerms(Guid.NewGuid(), SubscriptionPlanKind.MonthlySingleTaxpayer, 45, null).Validate());
         Assert.Throws<ArgumentException>(() => new SubscriptionPlanTerms(Guid.NewGuid(), SubscriptionPlanKind.AnnualSingleTaxpayer, 365, 1).Validate());
         Assert.Throws<ArgumentException>(() => new SubscriptionPlanTerms(Guid.NewGuid(), SubscriptionPlanKind.Quantity, 365, null).Validate());
         Assert.Throws<ArgumentOutOfRangeException>(() => new SubscriptionPlanTerms(Guid.NewGuid(), SubscriptionPlanKind.Quantity, 367, 3).Validate());
