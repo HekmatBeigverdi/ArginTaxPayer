@@ -14,7 +14,7 @@ public sealed record AnnualSubscriptionBinding(Guid SubscriptionId, Guid Custome
     }
 
     public bool Matches(Guid customerId, Guid taxpayerId, Guid fiscalMemoryId) =>
-        CustomerUserId == customerId && TaxpayerId == taxpayerId && FiscalMemoryId == fiscalMemoryId;
+        CustomerUserId == customerId && TaxpayerId == taxpayerId;
 }
 
 public static class SubscriptionBindingPolicy
@@ -35,6 +35,6 @@ public static class SubscriptionBindingPolicy
         Guid customerId, Guid taxpayerId, Guid memoryId)
     {
         if (binding is null || !binding.Matches(customerId, taxpayerId, memoryId))
-            throw new InvalidOperationException("Single-taxpayer subscription is restricted to its selected taxpayer and memory.");
+            throw new InvalidOperationException("Single-taxpayer subscription is restricted to its selected taxpayer. Fiscal-memory changes follow the existing Level1 workflow.");
     }
 }
