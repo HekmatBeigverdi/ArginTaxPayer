@@ -1,3 +1,4 @@
+using ArginTaxPayer.Api.Subscriptions;
 using ArginTaxPayer.Api.Invoices;
 using ArginTaxPayer.Infrastructure.Persistence.Invoices;
 using ArginTaxPayer.Api.Health;
@@ -88,6 +89,7 @@ if (identityDevelopmentEnabled)
             client.Timeout = TimeSpan.FromSeconds(12));
     builder.Services.AddScoped<IdentityPhoneService>();
     builder.Services.AddScoped<IdentityAuthorizationService>();
+    builder.Services.AddScoped<ArginTaxPayer.Infrastructure.Persistence.Subscriptions.SubscriptionExceptionReviewService>();
     builder.Services.AddScoped<CustomerSelfServiceService>();
     builder.Services.AddScoped<SoftwareUserProfileService>();
     builder.Services.AddScoped<CustomerTaxpayerMembershipService>();
@@ -205,6 +207,7 @@ if (app.Environment.IsDevelopment())
         app.MapSigningGenerationEndpoints();
         app.MapSigningConnectionEndpoints();
         app.MapSandboxFiscalMemoryDevelopmentEndpoints();
+        app.MapPhase12SubscriptionExceptionEndpoints();
         app.MapSigningChangeRequestEndpoints();
         app.MapSigningAdminReviewEndpoints();
         app.MapPartyDevelopmentEndpoints();
