@@ -4,10 +4,10 @@ import "./subscription-workspace.css";
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 
-type Tab = "plans" | "orders" | "collections" | "revenue" | "settlements";
+type Tab = "plans" | "orders" | "collections" | "revenue" | "settlements" | "sms";
 const names: Record<Tab,string> = {
   plans:"تعریف پلن", orders:"سفارش مالی", collections:"ثبت دریافت",
-  revenue:"گزارش درآمد", settlements:"تسویه شرکا"
+  revenue:"گزارش درآمد", settlements:"تسویه شرکا", sms:"کیف پول پیامک"
 };
 type ResultState = { kind:"success"|"error"; text:string } | null;
 type RevenueRow = {
@@ -153,6 +153,11 @@ export default function SubscriptionWorkspace({level1}:{level1:boolean}) {
       <label>مرجع رسید<input required value={receiptRef} onChange={e=>setReceiptRef(e.target.value)}/></label>
       <button type="submit" disabled={busy}>تأیید و ثبت دریافت</button>
     </form>}
+    {tab==="sms" && <section>
+      <h3>کیف پول پیامک</h3>
+      <p>اعتبار پیامک مستقل از سهمیه صورتحساب است. مدل مانده و قواعد جلوگیری از منفی‌شدن موجودی اضافه شده‌اند.</p>
+      <p role="status">اتصال موجودی، شارژ و تاریخچه پیامک به Backend هنوز فعال نیست؛ از این صفحه امکان شارژ یا کسر واقعی وجود ندارد.</p>
+    </section>}
     {tab==="revenue" && <section>
       <h3>گزارش درآمد و تخصیص</h3>
       <button type="button" disabled={busy} onClick={()=>void load()}>بازخوانی گزارش</button>
