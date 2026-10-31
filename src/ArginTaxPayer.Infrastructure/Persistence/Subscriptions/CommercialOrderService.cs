@@ -31,6 +31,28 @@ public sealed class CommercialOrderService(ArginTaxPayerDbContext db, IdentityAu
         if (actor != ownership.RootLevel1UserId && actor != ownership.PartnerLevel2UserId)
             throw new UnauthorizedAccessException("Customer outside administrator scope.");
         var partner = actor == ownership.PartnerLevel2UserId ? actor : (Guid?)null;
+        // Return a previously issued order before consulting today's pricing.
+        // Price windows may change after the first request.
+        var existing = await db.Database.SqlQueryRaw<ExistingCommercialOrder>(
+            """
+            SELECT id AS "Id", plan_id AS "PlanId",
+                   price_version_id AS "PriceVersionId",
+                   root_admin_user_id AS "RootAdminUserId",
+                   partner_user_id AS "PartnerUserId",
+                   gross_amount_irr AS "GrossAmountIrr",
+                   issued_at_utc AS "IssuedAtUtc"
+            FROM commercial_orders
+            WHERE customer_user_id={0} AND idempotency_key={1}
+            """, customerId, idempotencyKey).SingleOrDefaultAsync(ct);
+        if(existing is not null)
+        {
+            if(existing.PlanId!=planId || existing.RootAdminUserId!=ownership.RootLevel1UserId ||
+                existing.PartnerUserId!=partner)
+                throw new InvalidOperationException("Idempotency conflict.");
+            return new CommercialOrderSnapshot(existing.Id,customerId,existing.PlanId,
+                existing.PriceVersionId,existing.RootAdminUserId,existing.PartnerUserId,
+                existing.GrossAmountIrr,existing.IssuedAtUtc);
+        }
         var quote = await catalog.QuoteAsync(customerId, planId,
             ownership.RootLevel1UserId, partner, atUtc, ct);
         // A retry must not recalculate or change the original price.
@@ -88,6 +110,17 @@ public sealed class CommercialOrderService(ArginTaxPayerDbContext db, IdentityAu
         await invoice.ExecuteNonQueryAsync(ct);
         await tx.CommitAsync(ct);
         return snapshot;
+    }
+
+    private sealed class ExistingCommercialOrder
+    {
+        public Guid Id {get;set;}
+        public Guid PlanId {get;set;}
+        public Guid PriceVersionId {get;set;}
+        public Guid RootAdminUserId {get;set;}
+        public Guid? PartnerUserId {get;set;}
+        public long GrossAmountIrr {get;set;}
+        public DateTime IssuedAtUtc {get;set;}
     }
 
     private static void Add(System.Data.Common.DbCommand cmd,string name,object value)
