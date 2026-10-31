@@ -10,7 +10,7 @@ public sealed record AnnualSubscriptionBinding(Guid SubscriptionId, Guid Custome
         if (SubscriptionId == Guid.Empty || CustomerUserId == Guid.Empty ||
             TaxpayerId == Guid.Empty || FiscalMemoryId == Guid.Empty ||
             VerifiedConnectedAtUtc.Kind != DateTimeKind.Utc)
-            throw new ArgumentException("Annual binding needs verified connection and complete IDs.");
+            throw new ArgumentException("Single-taxpayer binding requires complete IDs and UTC registration.");
     }
 
     public bool Matches(Guid customerId, Guid taxpayerId, Guid fiscalMemoryId) =>
@@ -19,6 +19,8 @@ public sealed record AnnualSubscriptionBinding(Guid SubscriptionId, Guid Custome
 
 public static class SubscriptionBindingPolicy
 {
+    public static bool IsSingleTaxpayer(SubscriptionPlanKind kind) => kind is SubscriptionPlanKind.AnnualSingleTaxpayer or SubscriptionPlanKind.MonthlySingleTaxpayer;
+
     public static void RequireEligible(SubscriptionPlanKind kind, SubscriptionLifecycle state,
         DateTime? activatedUtc, DateTime? expiresUtc, DateTime atUtc)
     {
@@ -33,6 +35,6 @@ public static class SubscriptionBindingPolicy
         Guid customerId, Guid taxpayerId, Guid memoryId)
     {
         if (binding is null || !binding.Matches(customerId, taxpayerId, memoryId))
-            throw new InvalidOperationException("Annual subscription is locked to its verified taxpayer and memory.");
+            throw new InvalidOperationException("Single-taxpayer subscription is restricted to its selected taxpayer and memory.");
     }
 }
