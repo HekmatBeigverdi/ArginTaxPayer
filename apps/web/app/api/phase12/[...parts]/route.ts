@@ -6,6 +6,7 @@ export const dynamic = "force-dynamic";
 const actions = new Map<string, "GET" | "POST">([
   ["subscriptions/plans", "POST"],
   ["subscriptions/prices", "POST"],
+  ["subscriptions/sms-wallet/grant", "POST"],
   ["subscriptions/plans/activate", "POST"],
   ["subscriptions/commercial-orders", "POST"],
   ["subscriptions/collections/manual", "POST"],
@@ -22,9 +23,9 @@ async function proxy(request: NextRequest, context: RouteContext) {
   if (!actor.roles.includes("Level1") && !actor.roles.includes("Level2"))
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   const path = (await context.params).parts.join("/");
-  const method = actions.get(path);
+  const method = actions.get(path) ?? (/^subscriptions\\/sms-wallet\\/[0-9a-fA-F-]{36}$/.test(path) ? "GET" : undefined);
   if (!method || method !== request.method) return NextResponse.json({ error: "not_found" }, { status: 404 });
-  if (["subscriptions/settlements/record", "subscriptions/settlements/reverse", "subscriptions/plans/activate"].includes(path) &&
+  if (["subscriptions/settlements/record", "subscriptions/settlements/reverse", "subscriptions/plans/activate", "subscriptions/sms-wallet/grant"].includes(path) &&
       !actor.roles.includes("Level1")) return NextResponse.json({ error: "forbidden" }, { status: 403 });
   const token = (await cookies()).get(ACCESS_COOKIE)?.value;
   if (!token) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
