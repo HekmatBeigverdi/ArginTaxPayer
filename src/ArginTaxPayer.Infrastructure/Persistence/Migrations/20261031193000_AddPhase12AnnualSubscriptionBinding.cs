@@ -1,12 +1,9 @@
-using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 namespace ArginTaxPayer.Infrastructure.Persistence.Migrations;
 
-[DbContext(typeof(ArginTaxPayerDbContext))]
-[Migration("20261031193000_AddPhase12AnnualSubscriptionBinding")]
-public sealed class AddPhase12AnnualSubscriptionBinding : Migration
+public sealed partial class AddPhase12AnnualSubscriptionBinding : Migration
 {
     protected override void Up(MigrationBuilder migrationBuilder) => migrationBuilder.Sql("""
         CREATE TABLE subscription_annual_bindings (

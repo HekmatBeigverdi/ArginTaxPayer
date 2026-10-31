@@ -2653,6 +2653,95 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Subscriptions.StoredAnnualBinding", b =>
+                {
+                    b.Property<Guid>("SubscriptionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("subscription_id");
+
+                    b.Property<Guid>("CustomerUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("customer_user_id");
+
+                    b.Property<string>("EvidenceReference")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("evidence_reference");
+
+                    b.Property<Guid>("FiscalMemoryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("fiscal_memory_id");
+
+                    b.Property<Guid>("TaxpayerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("taxpayer_id");
+
+                    b.Property<DateTime>("VerifiedConnectedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("verified_connected_at_utc");
+
+                    b.HasKey("SubscriptionId");
+
+                    b.ToTable("subscription_annual_bindings", (string)null);
+                });
+
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Subscriptions.StoredBindingException", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("CustomerUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("customer_user_id");
+
+                    b.Property<Guid>("ProposedMemoryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("proposed_memory_id");
+
+                    b.Property<Guid>("ProposedTaxpayerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("proposed_taxpayer_id");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("reason");
+
+                    b.Property<DateTime>("RequestedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("requested_at_utc");
+
+                    b.Property<Guid>("RequesterUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("requester_user_id");
+
+                    b.Property<DateTime?>("ReviewedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("reviewed_at_utc");
+
+                    b.Property<Guid?>("ReviewerUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reviewer_user_id");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer")
+                        .HasColumnName("status");
+
+                    b.Property<Guid>("SubscriptionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("subscription_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SubscriptionId", "RequestedAtUtc");
+
+                    b.ToTable("subscription_binding_exceptions", (string)null);
+                });
+
             modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Subscriptions.StoredCustomerSubscription", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3823,6 +3912,24 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_p09_op_taxpayer_id");
+                });
+
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Subscriptions.StoredAnnualBinding", b =>
+                {
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Subscriptions.StoredCustomerSubscription", null)
+                        .WithOne()
+                        .HasForeignKey("ArginTaxPayer.Infrastructure.Persistence.Subscriptions.StoredAnnualBinding", "SubscriptionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Subscriptions.StoredBindingException", b =>
+                {
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Subscriptions.StoredCustomerSubscription", null)
+                        .WithMany()
+                        .HasForeignKey("SubscriptionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Subscriptions.StoredCustomerSubscription", b =>
