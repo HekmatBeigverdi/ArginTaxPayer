@@ -164,3 +164,19 @@ The authoritative model should use calendar months (1/3/6/12) for the four durat
 - The two additive migration sources (20261031210000 and 20261031220000) now use `DROP CONSTRAINT IF EXISTS` when replacing optional old check constraints: the EF-generated Phase12 catalog migration did not create those named constraints.
 - The owner requires **five** plan types: 1/3/6/12 month single-taxpayer unlimited and quantity multiple-taxpayer with count limit and expiration <=1 year. Memory-code changes remain under the pre-existing Level1 process; no authority connectivity or evidence dependency.
 - **Sign-off blockers:** No local dotnet runtime or PostgreSQL is available in this assistant execution context, therefore current GitHub SHA has NOT been compiled/tested or migrated here. Owner must verify Mac build, migration SQL and `argintaxpayer_test` updates, all backend tests and Level1/Level2/Customer negative auth tests. Do NOT apply pending migrations to any database other than the verified test database; check `has-pending-model-changes` first. Further live subscription assignment and active-use enforcement require authenticated plan-purchase workflow and cannot truthfully be considered delivered by this catalog API alone. Ubuntu remains Step11.
+
+## Step 03 — owner acceptance (2026-10-31)
+
+Owner explicitly approved Step 03 and authorized moving to Step 04. Approved scope: five commercial plans; monthly/quarterly/semiannual/annual are each single taxpayer with unlimited invoices, quantity plans have configurable positive invoice count and <=12-month validity; separate Level1/Level2 commercial pricing. No new tax-authority connectivity. Earlier migration / UI / end-to-end limitations remain documented as outstanding technical risks rather than silently represented as tested.
+
+## Step 04 — immutable credit ledger (implementation in progress)
+
+Credit ledger foundations committed:
+- `20261101010000_AddPhase12CreditLedger` creates one balance per subscription and append-only journal; checks balance conservation, non-negative quantities, unique subscription/operation idempotency key; a database trigger rejects entry UPDATE/DELETE.
+- `SubscriptionCreditLedgerService` exposes server-internal initialization (quantity only, active scoped subscription), reserve, consume, release; serializable transaction with account-row FOR UPDATE lock and journal append within same transaction.
+- `SubscriptionCreditPolicy` unit-tests quantity conservation and invalid transitions; registration in API DI, but **no public credit increment endpoint**.
+- The existing invoice-send workflow is intentionally not modified in Step04. A successful monetary payment, activation, or purchase authority adapter is NOT implemented in Step04 and must not be implied by a public grant.
+- No .NET SDK or Postgres available in assistant runtime; current SHA source not compiled, integration tested, or migrated here. Current code requires Mac .NET Build and scoped integration QA; database migration must first be SQL-reviewed on verified `argintaxpayer_test`. Ubuntu is reserved for Step11.
+- Step04 signoff requires race/idempotent duplicate operation testing, duplicate key with changed payload rejection, insufficient balance rollback, expiry, cross-customer denial, crash-retry and snapshot invariant checks, and operator acceptance. If any check fails, Step04 remains open.
+
+**CAUTION:** Legacy Step03 plan SQL uses later additive migrations; never rewrite already applied migration history, and do not run production database update.
