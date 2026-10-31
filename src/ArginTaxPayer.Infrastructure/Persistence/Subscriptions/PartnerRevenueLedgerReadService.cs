@@ -16,6 +16,19 @@ public sealed record PartnerRevenueLedgerPage(
 public sealed class PartnerRevenueLedgerReadService(ArginTaxPayerDbContext db,
     IdentityAuthorizationService identity)
 {
+    public static PartnerRevenueLedgerPage ComposePage(IEnumerable<PartnerRevenueLedgerRow> scopedRows,
+        int page, int pageSize)
+    {
+        if(page<1 || pageSize is <1 or >100)
+            throw new ArgumentOutOfRangeException(nameof(page));
+        var ordered=scopedRows.OrderByDescending(x=>x.PostedAtUtc)
+            .ThenBy(x=>x.AllocationId).ToArray();
+        return new PartnerRevenueLedgerPage(
+            ordered.Skip((page-1)*pageSize).Take(pageSize).ToArray(),
+            ordered.Sum(x=>x.GrossCollectedIrr),ordered.Sum(x=>x.ApprovedCostIrr),
+            ordered.Sum(x=>x.PartnerShareIrr),ordered.Sum(x=>x.RootShareIrr),page,pageSize);
+    }
+
     public async Task<PartnerRevenueLedgerPage> ReadAsync(string? bearer,
         int page=1, int pageSize=15, CancellationToken ct=default)
     {
@@ -44,17 +57,12 @@ public sealed class PartnerRevenueLedgerReadService(ArginTaxPayerDbContext db,
             WHERE ({0} AND root_user_id={1}) OR ({2} AND partner_user_id={1})
             """,root,actor,!root && partner)
             .AsNoTracking().ToListAsync(ct);
-        var ordered=rows.OrderByDescending(x=>x.PostedAtUtc)
-            .ThenBy(x=>x.AllocationId).ToArray();
-        return new PartnerRevenueLedgerPage(
-            ordered.Skip((page-1)*pageSize).Take(pageSize)
-                .Select(x=>new PartnerRevenueLedgerRow(x.AllocationId,x.CollectionId,
-                    x.RootUserId,x.PartnerUserId,x.GrossCollectedIrr,
-                    x.ApprovedCostIrr,x.PartnerShareIrr,x.RootShareIrr,x.PostedAtUtc))
-                .ToArray(),
-            ordered.Sum(x=>x.GrossCollectedIrr),ordered.Sum(x=>x.ApprovedCostIrr),
-            ordered.Sum(x=>x.PartnerShareIrr),ordered.Sum(x=>x.RootShareIrr),
-            page,pageSize);
+        // Level2 sees only its own partner entitlement; root's share is not exposed.
+        var scoped=rows.Select(x=>new PartnerRevenueLedgerRow(x.AllocationId,x.CollectionId,
+            x.RootUserId,x.PartnerUserId,root?x.GrossCollectedIrr:0,
+            root?x.ApprovedCostIrr:0,x.PartnerShareIrr,
+            root?x.RootShareIrr:0,x.PostedAtUtc));
+        return ComposePage(scoped,page,pageSize);
     }
 
     private sealed class LedgerRow
