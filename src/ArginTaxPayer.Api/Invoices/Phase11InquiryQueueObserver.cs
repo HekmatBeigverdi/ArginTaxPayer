@@ -5,7 +5,7 @@ namespace ArginTaxPayer.Api.Invoices;
 
 /// <summary>
 /// Phase 11 read-only queue observer. This is intentionally NOT the Phase 10
-/// sending worker and must never invoke its ProcessInvoiceAsync method.
+/// sending worker and must never invoke invoice dispatch processing.
 /// The later inquiry phase will add separately authorized inquiry processing.
 /// </summary>
 internal sealed class Phase11InquiryQueueObserver(
