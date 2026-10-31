@@ -18,6 +18,24 @@ public sealed class Phase12SubscriptionCalendarTests
     }
 
     [Fact]
+    public void Midmonth_uses_anniversary_day_and_keeps_time()
+    {
+        var from = new DateTime(2026, 1, 15, 23, 59, 58, DateTimeKind.Utc);
+        Assert.Equal(new DateTime(2026, 4, 15, 23, 59, 58, DateTimeKind.Utc),
+            SubscriptionCalendar.ExpirationUtc(SubscriptionPlanKind.QuarterlySingleTaxpayer, from));
+    }
+
+    [Fact]
+    public void Rejects_wrong_duration_and_non_utc()
+    {
+        Assert.Throws<ArgumentException>(() =>
+            SubscriptionCalendar.ExpirationUtc(SubscriptionPlanKind.MonthlySingleTaxpayer,
+                DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Unspecified)));
+        Assert.Throws<ArgumentException>(() =>
+            SubscriptionCalendar.ExpirationUtc(SubscriptionPlanKind.AnnualSingleTaxpayer, DateTime.UtcNow, 12));
+    }
+
+    [Fact]
     public void Quantity_never_exceeds_twelve_months()
     {
         var now = new DateTime(2026,11,30,10,0,0,DateTimeKind.Utc);
