@@ -24,7 +24,7 @@ async function proxy(request: NextRequest, context: RouteContext) {
   if (!actor.roles.includes("Level1") && !actor.roles.includes("Level2"))
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   const path = (await context.params).parts.join("/");
-  const method = actions.get(path) ?? (/^subscriptions\\/sms-wallet\\/[0-9a-fA-F-]{36}$/.test(path) ? "GET" : undefined);
+  const method = actions.get(path) ?? (/^subscriptions\/sms-wallet\/[0-9a-fA-F-]{36}$/.test(path) ? "GET" : undefined);
   if (!method || method !== request.method) return NextResponse.json({ error: "not_found" }, { status: 404 });
   if (["subscriptions/settlements/record", "subscriptions/settlements/reverse", "subscriptions/plans/activate", "subscriptions/sms-wallet/grant", "subscriptions/paid-orders/activate"].includes(path) &&
       !actor.roles.includes("Level1")) return NextResponse.json({ error: "forbidden" }, { status: 403 });
