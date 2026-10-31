@@ -10,6 +10,10 @@ public sealed class Phase12SubscriptionContractTests
     {
         new SubscriptionPlanTerms(Guid.NewGuid(), SubscriptionPlanKind.AnnualSingleTaxpayer, 365, null).Validate();
         new SubscriptionPlanTerms(Guid.NewGuid(), SubscriptionPlanKind.MonthlySingleTaxpayer, 30, null).Validate();
+        new SubscriptionPlanTerms(Guid.NewGuid(), SubscriptionPlanKind.QuarterlySingleTaxpayer, 91, null).Validate();
+        new SubscriptionPlanTerms(Guid.NewGuid(), SubscriptionPlanKind.SemiAnnualSingleTaxpayer, 182, null).Validate();
+        Assert.Throws<ArgumentException>(() => new SubscriptionPlanTerms(Guid.NewGuid(), SubscriptionPlanKind.QuarterlySingleTaxpayer, 60, null).Validate());
+        Assert.Throws<ArgumentException>(() => new SubscriptionPlanTerms(Guid.NewGuid(), SubscriptionPlanKind.SemiAnnualSingleTaxpayer, 120, null).Validate());
         Assert.Throws<ArgumentException>(() => new SubscriptionPlanTerms(Guid.NewGuid(), SubscriptionPlanKind.MonthlySingleTaxpayer, 30, 10).Validate());
         Assert.Throws<ArgumentException>(() => new SubscriptionPlanTerms(Guid.NewGuid(), SubscriptionPlanKind.MonthlySingleTaxpayer, 45, null).Validate());
         Assert.Throws<ArgumentException>(() => new SubscriptionPlanTerms(Guid.NewGuid(), SubscriptionPlanKind.AnnualSingleTaxpayer, 365, 1).Validate());
