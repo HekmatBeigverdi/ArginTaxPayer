@@ -32,8 +32,10 @@ public sealed class SubscriptionBindingRepository(ArginTaxPayerDbContext db)
             var binding = await ReadAnnualBindingAsync(customerId, subscriptionId, ct);
             SubscriptionBindingPolicy.RequireAnnualMatch(binding, customerId, taxpayerId, memoryId);
         }
-        else
+        // Fiscal-memory identity may change through the existing Level1-approved
+        // lifecycle; never freeze it as an additional commercial plan condition.
         {
+
             var taxpayerOwned = await db.TaxpayerProfiles.AsNoTracking()
                 .AnyAsync(x => x.Id == taxpayerId && x.CustomerUserId == customerId, ct);
             var memoryOwned = await db.FiscalMemories.AsNoTracking()
