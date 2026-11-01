@@ -1,6 +1,7 @@
 "use client";
 
 import "./subscription-workspace.css";
+import PlanCatalog from "./plan-catalog";
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 
@@ -97,39 +98,7 @@ export default function SubscriptionWorkspace({level1}:{level1:boolean}) {
             cursor:"pointer"}}>{names[key]}</button>)}
     </div>
     {notice && <p role="status" style={{color:notice.kind==="error"?"#a93030":"#176c4e"}}>{notice.text}</p>}
-    {tab==="plans" && <form onSubmit={e=>void submit(e,()=>request("plans","POST",{
-      code:planCode,kind:planKind,validityDays:validity,invoiceUnitLimit:planKind===2?units:null
-    }),"پلن غیرفعال ایجاد شد؛ فعال‌سازی و قیمت‌گذاری هنوز به API تکمیلی نیاز دارند.")}>
-      <h3>تعریف پلن جدید</h3>
-      <label>کد پلن (انگلیسی)<input required value={planCode} onChange={e=>setPlanCode(e.target.value)} maxLength={50}/></label>
-      <label>نوع پلن<select value={planKind} onChange={e=>{const k=Number(e.target.value);setPlanKind(k);setValidity(k===3?30:k===4?90:k===5?182:365);}}>
-        <option value={3}>ماهانه تک‌مؤدی</option><option value={4}>سه‌ماهه تک‌مؤدی</option>
-        <option value={5}>شش‌ماهه تک‌مؤدی</option><option value={1}>سالانه تک‌مؤدی</option>
-        <option value={2}>بسته تعدادی</option></select></label>
-      <label>اعتبار پایه (روز مطابق قرارداد فعلی Backend)<input type="number" min={1} max={366}
-        value={validity} onChange={e=>setValidity(Number(e.target.value))} required/></label>
-      {planKind===2 && <label>تعداد صورتحساب<input type="number" min={1} step={1}
-        value={units} onChange={e=>setUnits(Number(e.target.value))}/></label>}
-      <p>مدت تقویمی در مدل دامنه تعریف شده؛ تا یکپارچه‌سازی کامل، اعتبار روزانه قرارداد فعلی Backend همچنان لازم است.</p>
-      <button type="submit" disabled={busy}>{busy?"در حال ثبت...":"ایجاد پلن"}</button>
-    </form>}
-    {tab==="plans" && <form onSubmit={e=>void submit(e,()=>request("prices","POST",{
-      planId:pricePlanId,priceIrr:Number(priceIrr),
-      effectiveFromUtc:new Date().toISOString(),effectiveUntilUtc:null
-    }),"نسخه تعرفه برای محدوده مدیریتی شما ثبت شد.")}>
-      <h3>تعرفه اختصاصی مدیر</h3>
-      <p>قیمت‌ها بر حسب ریال ثبت می‌شوند و با تعرفه سایر مدیران Level 2 مستقل‌اند.</p>
-      <label>شناسه پلن<input required value={pricePlanId} onChange={e=>setPricePlanId(e.target.value)}/></label>
-      <label>قیمت (ریال)<input required type="number" min={0} step={1} value={priceIrr} onChange={e=>setPriceIrr(e.target.value)}/></label>
-      <button type="submit" disabled={busy}>ثبت نسخه تعرفه</button>
-    </form>}
-    {tab==="plans" && level1 && <form onSubmit={e=>void submit(e,()=>request("plans/activate","POST",{
-      planId:activationId
-    }),"پلن کاتالوگ فعال شد؛ اشتراک مشتری هنوز فعال نشده است.")}>
-      <h3>فعال‌سازی پلن کاتالوگ توسط Level 1</h3>
-      <label>شناسه پلن<input required value={activationId} onChange={e=>setActivationId(e.target.value)}/></label>
-      <button type="submit" disabled={busy}>فعال‌سازی پلن</button>
-    </form>}
+    {tab==="plans" && <PlanCatalog level1={level1}/>}
     {tab==="orders" && <form onSubmit={e=>void submit(e,async()=>{
       const result=await request("commercial-orders","POST",{
         customerUserId:customerId,planId:orderPlanId,idempotencyKey:orderKey
