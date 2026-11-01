@@ -48,5 +48,5 @@ test("Step10 includes scoped tariffs, paid activation, SMS wallet balance and gr
   assert.match(proxy,/subscriptions\/prices/);
   assert.match(proxy,/subscriptions\/paid-orders\/activate/);
   assert.match(proxy,/subscriptions\/sms-wallet\/grant/);
-  assert.match(proxy,/subscriptions\/sms-wallet\/\[/);
+  assert.match(proxy,/subscriptions\\\/sms-wallet\\\/\[/);
 });

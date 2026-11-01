@@ -11,6 +11,29 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Identity;
 public sealed class IdentityMfaService(ArginTaxPayerDbContext db, IdentityMfaCrypto crypto,
     IdentitySessionService sessions)
 {
+    /// <summary>Serialize public enrollment against operator reset, then recheck the live session.</summary>
+    public async Task<MfaEnrollment?> BeginEnrollmentForSessionAsync(string? bearer, CancellationToken ct = default)
+    {
+        var userId = await sessions.AuthenticateAsync(bearer, ct);
+        if (userId is null) return null;
+        return await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+        {
+            await using var tx = await db.Database.BeginTransactionAsync(ct);
+            // Reset uses the same user-row lock. An in-flight, pre-reset request cannot
+            // mint a replacement factor after the reset revokes its credentials.
+            await db.Database.ExecuteSqlInterpolatedAsync(
+                $"SELECT id FROM identity_users WHERE id = {userId.Value} FOR UPDATE", ct);
+            if (await sessions.AuthenticateAsync(bearer, ct) != userId ||
+                !await db.IdentityUserRoles.AnyAsync(r => r.UserId == userId &&
+                    (r.Role == IdentityRoleNames.Level1 || r.Role == IdentityRoleNames.Level2 ||
+                     r.Role == IdentityRoleNames.PendingLevel1 || r.Role == IdentityRoleNames.PendingLevel2), ct))
+                return null;
+            var result = await BeginEnrollmentAsync(userId.Value, ct);
+            if (result is not null) await tx.CommitAsync(ct);
+            return result;
+        });
+    }
+
     public async Task<MfaEnrollment?> BeginEnrollmentAsync(Guid userId, CancellationToken ct = default)
     {
         var user = await db.IdentityUsers.AsNoTracking()

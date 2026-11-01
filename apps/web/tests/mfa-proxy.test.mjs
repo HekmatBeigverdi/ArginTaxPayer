@@ -78,3 +78,24 @@ test("Successful MFA confirmation clears both revoked session cookies and never 
   assert.equal(response.cookies.get("argin_identity_refresh").value, "");
   assert.deepEqual(await response.json(), { codes: ["test-recovery-code"] });
 });
+
+test("Level2 MFA reset requires a session and same-origin request before reaching the API", async () => {
+  const route = proxy(async () => { assert.fail("unauthorized reset must not reach the backend"); });
+  const path = "mfa/level2/reset";
+  assert.equal((await route.POST(request(path, { token: false, body: { targetUserId: "target" } }), context(path))).status, 401);
+  assert.equal((await route.POST(request(path, { origin: "https://untrusted.invalid", body: { targetUserId: "target" } }), context(path))).status, 403);
+});
+
+test("Level2 MFA reset forwards the target with server-held credentials and preserves conflicts", async () => {
+  const path = "mfa/level2/reset";
+  const targetUserId = "00000000-0000-0000-0000-000000000123";
+  const route = proxy(async (backendPath, options) => {
+    assert.equal(backendPath, path);
+    assert.equal(options.headers.Authorization, "Bearer example-token");
+    assert.deepEqual(JSON.parse(options.body), { targetUserId });
+    return Response.json({ error: "mfa_reset_conflict" }, { status: 409 });
+  });
+  const response = await route.POST(request(path, { body: { targetUserId } }), context(path));
+  assert.equal(response.status, 409);
+  assert.equal(response.headers.get("cache-control"), "no-store");
+});

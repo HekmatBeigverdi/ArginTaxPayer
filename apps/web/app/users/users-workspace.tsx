@@ -8,6 +8,7 @@ type Account = {
   customerUserId: string; rootLevel1UserId: string | null; partnerLevel2UserId: string | null;
   acquisitionChannel: number; revision: number; mobile: string | null; email: string | null;
   createdAtUtc: string; isActive: boolean; taxpayerCount: number;
+  roles?: string[]; mfaEnabled?: boolean; hasMfaState?: boolean;
   personName?: string | null; companyName?: string | null; profileComplete?: boolean;
 };
 type Partner = { userId: string; mobile: string | null; email: string | null };
@@ -32,6 +33,12 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
   const [selected, setSelected] = useState<Account | null>(null);
   const [search, setSearch] = useState("");
   const [ownershipFilter, setOwnershipFilter] = useState("all");
+  const [roleFilter, setRoleFilter] = useState("all");
+  const [resetTarget, setResetTarget] = useState<Account | null>(null);
+  const [resetting, setResetting] = useState(false);
+  const [resetError, setResetError] = useState("");
+  const [resetNotice, setResetNotice] = useState("");
+  const resetDialogRef = useRef<HTMLDialogElement>(null);
   const [pageSize, setPageSize] = useState(10);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -54,6 +61,7 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
       const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
       if (search.trim()) params.set("query", search.trim());
       if (ownershipFilter !== "all") params.set("ownership", ownershipFilter);
+      if (roleFilter !== "all") params.set("role", roleFilter);
       const result = await load<AccountPage>("/api/customer-owners/accounts/page?" + params);
       setAccounts(result.items); setTotal(result.total);
       // A revoked partner must not keep a customer's information in a previously opened dialog.
@@ -68,7 +76,7 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
       setAccounts([]); setTotal(0); setSelected(null); dialogRef.current?.close();
       setError((e as Error).message);
     } finally { setLoading(false); }
-  }, [page, pageSize, search, ownershipFilter]);
+  }, [page, pageSize, search, ownershipFilter, roleFilter]);
 
   useEffect(() => {
     if (level1) void load<Partner[]>("/api/customer-owners/partners")
@@ -83,6 +91,33 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
       document.removeEventListener("visibilitychange", visibility);
     };
   }, [refresh]);
+
+  function requestMfaReset(account: Account) {
+    setResetTarget(account); setResetError(""); setResetNotice("");
+    resetDialogRef.current?.showModal();
+  }
+
+  async function resetMfa(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!resetTarget || resetting) return;
+    setResetting(true); setResetError("");
+    try {
+      const response = await fetch("/api/identity/mfa/level2/reset", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetUserId: resetTarget.customerUserId }),
+      });
+      if (!response.ok) {
+        setResetError(response.status === 409 ? "وضعیت حساب تغییر کرده یا MFA قبلاً ریست شده است. فهرست را بازخوانی کنید."
+          : response.status === 403 ? "ریست فقط توسط مدیر سطح ۱ و برای حساب ادمین سطح ۲ مجاز است."
+          : response.status === 404 ? "حساب ادمین مقصد یافت نشد." : "ریست MFA انجام نشد؛ وضعیت ورود و ارتباط را بررسی کنید.");
+        return;
+      }
+      resetDialogRef.current?.close(); setResetTarget(null);
+      setResetNotice("MFA ریست شد و نشست‌های قبلی باطل شدند. کاربر باید با رمز عبور وارد شود و Authenticator را دوباره تنظیم کند تا دسترسی سطح ۲ فعال شود.");
+      await refresh();
+    } catch { setResetError("ارتباط با سرور برقرار نشد. پیش از تلاش دوباره فهرست را بازخوانی کنید."); }
+    finally { setResetting(false); }
+  }
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const activePage = Math.min(page, totalPages);
@@ -157,6 +192,13 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
         <input type="search" placeholder="نام کاربری، موبایل، ایمیل یا شناسه"
           value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}/>
       </label>
+      {level1 && <label>نقش کاربر
+        <select value={roleFilter} onChange={e => { setRoleFilter(e.target.value); setPage(1); }}>
+          <option value="all">همه نقش‌ها</option>
+          <option value="customer">کاربران عادی</option>
+          <option value="level2">ادمین‌های سطح ۲</option>
+        </select>
+      </label>}
       {level1 && <label>مالکیت تجاری
         <select value={ownershipFilter} onChange={e => { setOwnershipFilter(e.target.value); setPage(1); }}>
           <option value="all">همه کاربران</option>
@@ -173,28 +215,36 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
     </div>
 
     {error && <p role="alert" className="form-error">{error}</p>}
+    {resetNotice && <p role="status">{resetNotice}</p>}
     <div className="users-table-scroll">
       <table className="users-table">
         <thead><tr>
           <th scope="col">نام شخص / شرکت</th><th scope="col">ایمیل / موبایل</th><th scope="col">وضعیت</th>
           <th scope="col">مالکیت تجاری</th>
           <th scope="col">ثبت‌نام</th><th scope="col">عملیات</th>
+          {level1 && <th scope="col">ریست MFA</th>}
         </tr></thead>
         <tbody>
-          {loading ? <tr><td colSpan={6}><ConsoleLoader label="در حال دریافت کاربران…" /></td></tr> :
-            pageRows.length === 0 ? <tr><td colSpan={6}>کاربری با این معیارها پیدا نشد.</td></tr> :
+          {loading ? <tr><td colSpan={level1 ? 7 : 6}><ConsoleLoader label="در حال دریافت کاربران…" /></td></tr> :
+            pageRows.length === 0 ? <tr><td colSpan={level1 ? 7 : 6}>کاربری با این معیارها پیدا نشد.</td></tr> :
             pageRows.map((a, i) => <tr key={a.customerUserId}>
               <td><strong>{a.companyName || a.personName || "پروفایل تکمیل‌نشده"}</strong>
                 {!a.profileComplete && <small>هنوز وارد نشده / تکمیل‌نشده</small>}</td>
               <td><span className="users-contact-truncated" title={[a.mobile,a.email].filter(Boolean).join(" / ")} dir="ltr">{a.mobile || a.email || "فاقد اطلاعات تماس"}</span></td>
               <td><span className={a.isActive ? "users-state" : "users-state users-state-muted"}>
-                {a.isActive ? "فعال" : "غیرفعال"}</span></td>
+                {a.isActive ? "فعال" : "غیرفعال"}</span>
+                {a.roles?.includes("PendingLevel2") ? <small>ادمین سطح ۲ — منتظر تنظیم MFA</small>
+                  : a.roles?.includes("Level2") ? <small>ادمین سطح ۲</small> : null}</td>
               <td><span className={!a.rootLevel1UserId ? "users-state users-state-warning" : ""}>
                 {ownerLabel(a)}</span></td>
               <td>{new Date(a.createdAtUtc).toLocaleDateString("fa-IR")}</td>
               <td><button className="users-action" type="button" onClick={() => void open(a)}>
                 مشاهده پرونده
               </button></td>
+              {level1 && <td>{a.roles?.some(role => ["Level2", "PendingLevel2"].includes(role))
+                && !a.roles.includes("Level1") ? <button className="users-action" type="button"
+                  disabled={!a.isActive || resetting || (!a.hasMfaState && a.roles.includes("PendingLevel2"))}
+                  onClick={() => requestMfaReset(a)}>ریست MFA</button> : "—"}</td>}
             </tr>)}
         </tbody>
       </table>
@@ -208,6 +258,20 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
         <button type="button" disabled={activePage >= totalPages || loading} onClick={() => setPage(p => p + 1)}>بعدی</button>
       </div>
     </div>
+
+    {level1 && <dialog className="users-dialog" ref={resetDialogRef} dir="rtl"
+      aria-labelledby="mfa-reset-heading" onCancel={event => { if (resetting) event.preventDefault(); }}
+      onClose={() => { setResetTarget(null); setResetError(""); }}>
+      <form className="identity-form users-dialog-content" onSubmit={resetMfa}>
+        <h2 id="mfa-reset-heading">تأیید ریست MFA ادمین سطح ۲</h2>
+        <p>حساب مقصد: <bdi dir="ltr">{resetTarget?.mobile || resetTarget?.email || resetTarget?.customerUserId}</bdi></p>
+        <p>Authenticator و کدهای بازیابی قبلی و تمام نشست‌های ورود این حساب باطل می‌شوند.
+          کاربر باید با رمز عبور وارد شود و MFA را دوباره تنظیم کند؛ تا آن زمان دسترسی مدیریتی غیرفعال است.</p>
+        {resetError && <p role="alert" className="form-error">{resetError}</p>}
+        <button className="identity-primary" disabled={resetting}>{resetting ? "در حال ریست…" : "تأیید و ریست MFA"}</button>
+        <button type="button" className="users-button" disabled={resetting} onClick={() => resetDialogRef.current?.close()}>انصراف</button>
+      </form>
+    </dialog>}
 
     <dialog className="users-dialog" ref={dialogRef} onClose={close}
       onClick={event => {
