@@ -8,7 +8,7 @@ namespace ArginTaxPayer.Api.Subscriptions;
 public static class Phase12PlanAdministrationEndpoints
 {
     public sealed record CreatePlanRequest(string Code, SubscriptionPlanKind Kind,
-        int ValidityDays, long? InvoiceUnitLimit);
+        int ValidityDays, long? InvoiceUnitLimit, long? PriceIrr = null);
 
     public static IEndpointRouteBuilder MapPhase12PlanAdministrationEndpoints(this IEndpointRouteBuilder routes)
     {
@@ -21,6 +21,7 @@ public static class Phase12PlanAdministrationEndpoints
             try {http.Response.Headers.CacheControl="no-store";
                 return Results.Json(await service.ListAsync(token,ct));}
             catch(UnauthorizedAccessException){return Results.StatusCode(403);}
+            catch(InvalidOperationException){return Results.Conflict();}
         }).ExcludeFromDescription().RequireRateLimiting("signing-import");
         routes.MapPut("/api/dev/subscriptions/plans/{id:guid}", async (
             HttpContext http,Guid id,[FromBody] CreatePlanRequest input,
@@ -64,7 +65,7 @@ public static class Phase12PlanAdministrationEndpoints
             try
             {
                 var plan = await service.CreateAsync(bearer, input.Code, input.Kind,
-                    input.ValidityDays, input.InvoiceUnitLimit, ct);
+                    input.ValidityDays, input.InvoiceUnitLimit, ct, input.PriceIrr);
                 return Results.Json(new {plan.Id, plan.Code, plan.Kind, plan.ValidityDays,
                     plan.InvoiceUnitLimit, plan.IsActive}, statusCode: 201);
             }

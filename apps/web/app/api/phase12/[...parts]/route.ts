@@ -15,6 +15,7 @@ type RouteContext = { params: Promise<{ parts: string[] }> };
 const actions = new Map<string, ProxyMethod>([
   ["subscriptions/plans", "POST"],
   ["subscriptions/prices", "POST"],
+  ["subscriptions/prices/history", "GET"],
   ["subscriptions/sms-wallet/grant", "POST"],
   ["subscriptions/plans/activate", "POST"],
   ["subscriptions/paid-orders/activate", "POST"],
@@ -92,12 +93,16 @@ async function proxy(request: NextRequest, context: RouteContext) {
 
   const query = new URLSearchParams();
   if (method === "GET") {
-    for (const key of ["page", "pageSize"]) {
+    for (const key of ["page", "pageSize", "planId", "partnerUserId"]) {
       const value = request.nextUrl.searchParams.get(key);
-      if (value !== null && /^\d{1,3}$/.test(value)) {
+      if (value !== null && (key === "planId" || key === "partnerUserId"
+        ? /^[0-9a-fA-F-]{36}$/.test(value)
+        : /^\d{1,3}$/.test(value))) {
         query.set(key, value);
       }
     }
+    const ownPrice = request.nextUrl.searchParams.get("ownPrice");
+    if (ownPrice === "true" || ownPrice === "false") query.set("ownPrice", ownPrice);
   }
 
   try {

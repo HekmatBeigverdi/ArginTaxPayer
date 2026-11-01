@@ -149,6 +149,46 @@ public sealed class SubscriptionCatalogRepository(ArginTaxPayerDbContext db)
         return item;
     }
 
+    public async Task<StoredSubscriptionPrice> ReplaceCurrentPriceAsync(
+        SubscriptionPriceVersion version, CancellationToken cancellationToken = default)
+    {
+        version.Validate();
+        if (version.EffectiveUntilUtc is not null)
+            throw new ArgumentException("Replacement prices must have an open-ended window.");
+        if(db.Database.CurrentTransaction is null)
+            throw new InvalidOperationException("Price replacement requires an active serializable transaction.");
+        var planExists = await db.SubscriptionPlans.AnyAsync(x => x.Id == version.PlanId, cancellationToken);
+        if (!planExists) throw new KeyNotFoundException("Plan not found.");
+
+        var scope = db.SubscriptionPrices.Where(x => x.PlanId == version.PlanId &&
+            x.RootAdminUserId == version.RootAdminUserId && x.PartnerUserId == version.PartnerUserId &&
+            x.Audience == version.Audience);
+        var nextScheduledStart = await scope.Where(x => x.EffectiveFromUtc > version.EffectiveFromUtc)
+            .OrderBy(x => x.EffectiveFromUtc).Select(x => (DateTime?)x.EffectiveFromUtc)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var current = await scope.Where(x => x.EffectiveFromUtc <= version.EffectiveFromUtc &&
+            (x.EffectiveUntilUtc == null || x.EffectiveUntilUtc > version.EffectiveFromUtc))
+            .ToListAsync(cancellationToken);
+        if (current.Count > 1) throw new InvalidOperationException("Price scope has overlapping current versions.");
+        if (current.Count == 1)
+        {
+            if (current[0].EffectiveFromUtc >= version.EffectiveFromUtc)
+                throw new InvalidOperationException("Current price window cannot be replaced at this instant.");
+            current[0].EffectiveUntilUtc = version.EffectiveFromUtc;
+        }
+
+        var item = new StoredSubscriptionPrice {
+            Id = version.Id, PlanId = version.PlanId, RootAdminUserId = version.RootAdminUserId,
+            PartnerUserId = version.PartnerUserId, Audience = version.Audience,
+            PriceIrr = version.PriceIrr, EffectiveFromUtc = version.EffectiveFromUtc,
+            EffectiveUntilUtc = nextScheduledStart, CreatedAtUtc = DateTime.UtcNow
+        };
+        db.SubscriptionPrices.Add(item);
+        await db.SaveChangesAsync(cancellationToken);
+        return item;
+    }
+
     public async Task<SubscriptionPurchaseSnapshot> QuoteAsync(
         Guid customerId, Guid planId, Guid rootId, Guid? partnerId, DateTime atUtc,
         CancellationToken cancellationToken = default)

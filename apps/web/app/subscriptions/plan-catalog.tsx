@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useId, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 type Plan = {
   id: string;
@@ -10,16 +11,73 @@ type Plan = {
   invoiceUnitLimit: number | null;
   isActive: boolean;
   createdAtUtc: string;
+  isOwnedByActor: boolean;
+  basePriceIrr: number | null;
+  ownPriceIrr: number | null;
+  partnerPriceCount: number;
+  ownerMobile: string | null;
+  partnerPrices: { partnerUserId: string; mobile: string | null; priceIrr: number | null }[];
+};
+type PriceHistory = {
+  id: string; priceIrr: number; partnerUserId: string | null; partnerMobile: string | null;
+  effectiveFromUtc: string; effectiveUntilUtc: string | null; isCurrent: boolean; isUpcoming: boolean;
 };
 
 type ModalMode = "create" | "edit" | "view" | "archive";
-type FinanceAction = "price" | "activation";
+type FinanceAction = "price" | "activation" | "history";
 
 type PlanCatalogProps = {
   level1: boolean;
 };
 
+function formatPriceDate(value: string) {
+  return new Intl.DateTimeFormat("fa-IR", {
+    timeZone: "Asia/Tehran", dateStyle: "short", timeStyle: "short",
+  }).format(new Date(value));
+}
+
+type PlanActionIcon = "price" | "history" | "activate" | "view" | "edit" | "archive";
+
+function ActionIcon({ name }: { name: PlanActionIcon }) {
+  const paths: Record<PlanActionIcon, ReactNode> = {
+    price: <><path d="m20.6 13.4-7.2 7.2a2 2 0 0 1-2.8 0L3 13V4h9l8.6 8.6a.6.6 0 0 1 0 .8Z" /><circle cx="7.5" cy="8.5" r="1.2" /></>,
+    history: <><path d="M3.5 8a6.5 6.5 0 1 0 2-4.7L3.5 5.5" /><path d="M3.5 2.5v3h3" /><path d="M10 5v4l2.7 1.6" /></>,
+    activate: <><circle cx="12" cy="12" r="9" /><path d="m7.5 12.2 3 3 6-6.3" /></>,
+    view: <><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" /><circle cx="12" cy="12" r="2.5" /></>,
+    edit: <><path d="m4 16.5-.8 4.3 4.3-.8L19 8.5 15.5 5 4 16.5Z" /><path d="m13.8 6.7 3.5 3.5M4 20.5h16" /></>,
+    archive: <><path d="M3 7h18v13H3zM2 3h20v4H2z" /><path d="M9 11h6" /></>,
+  };
+
+  return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{paths[name]}</svg>;
+}
+
+function TooltipActionButton({ name, label, disabled, onClick }: {
+  name: PlanActionIcon; label: string; disabled?: boolean; onClick: () => void;
+}) {
+  const tooltipId = useId();
+  const [position, setPosition] = useState<{ left: number; top: number } | null>(null);
+  const show = (button: HTMLButtonElement) => {
+    const rect = button.getBoundingClientRect();
+    setPosition({ left: rect.left + rect.width / 2, top: Math.max(8, rect.top - 8) });
+  };
+
+  return <span className="phase12-tooltip-anchor"
+    onMouseEnter={event => show(event.currentTarget.querySelector("button")!)}
+    onMouseLeave={() => setPosition(null)}
+    onFocus={event => show(event.currentTarget.querySelector("button")!)}
+    onBlur={() => setPosition(null)}>
+    <button type="button" className="phase12-icon-action" aria-label={label}
+      aria-describedby={position ? tooltipId : undefined} disabled={disabled} onClick={onClick}>
+      <ActionIcon name={name} />
+    </button>
+    {position && createPortal(<span id={tooltipId} role="tooltip" className="phase12-action-tooltip"
+      style={{ left: position.left, top: position.top }}>{label}</span>, document.body)}
+  </span>;
+}
+
 const PLANS_API = "/api/phase12/subscriptions/plans";
+const PRICES_API = "/api/phase12/subscriptions/prices";
 
 const PLAN_KIND_LABELS: Record<number, string> = {
   1: "سالانه",
@@ -62,8 +120,11 @@ async function submitRequest(
 
   if (!response.ok) {
     if (response.status === 409) {
+      const result = await response.json().catch(() => null) as { error?: unknown } | null;
+      if (typeof result?.error === "string") throw Error(result.error);
       throw Error(conflictMessage);
     }
+    if (response.status === 404) throw Error("پلن دیگر در فهرست موجود نیست؛ جدول را بازخوانی کنید.");
     throw Error("عملیات ناموفق بود (HTTP " + response.status + ")");
   }
 
@@ -86,8 +147,12 @@ export default function PlanCatalog({ level1 }: PlanCatalogProps) {
   const [invoiceUnitLimit, setInvoiceUnitLimit] = useState(100);
 
   const [priceIrr, setPriceIrr] = useState("");
-  const [pricePlanId, setPricePlanId] = useState("");
-  const [activationPlanId, setActivationPlanId] = useState("");
+  const [financePlan, setFinancePlan] = useState<Plan | null>(null);
+  const [financeAction, setFinanceAction] = useState<FinanceAction | null>(null);
+  const [createPriceIrr, setCreatePriceIrr] = useState("");
+  const [historyScope, setHistoryScope] = useState("base");
+  const [priceHistory, setPriceHistory] = useState<PriceHistory[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   const refreshPlans = useCallback(async () => {
     setLoading(true);
@@ -96,7 +161,9 @@ export default function PlanCatalog({ level1 }: PlanCatalogProps) {
     try {
       const response = await fetch(PLANS_API, { cache: "no-store" });
       if (!response.ok) {
-        throw Error("خطای دریافت پلن‌ها: " + response.status);
+        throw Error(response.status === 409
+          ? "برای این حساب سطح ۲، مدیر سطح ۱ یکتایی ثبت نشده است."
+          : "خطای دریافت پلن‌ها: " + response.status);
       }
 
       const result = (await response.json()) as Plan[];
@@ -111,6 +178,33 @@ export default function PlanCatalog({ level1 }: PlanCatalogProps) {
   useEffect(() => {
     void refreshPlans();
   }, [refreshPlans]);
+
+  useEffect(() => {
+    if (financeAction !== "history" || !financePlan) return;
+    const own = !level1 && historyScope === "own";
+    const partnerId = level1 && historyScope !== "base" ? historyScope : "";
+    const params = new URLSearchParams({ planId: financePlan.id, ownPrice: String(own) });
+    if (partnerId) params.set("partnerUserId", partnerId);
+    let cancelled = false;
+    setHistoryLoading(true);
+    setError("");
+    fetch(PRICES_API + "/history?" + params, { cache: "no-store" })
+      .then(async response => {
+        if (!response.ok) throw Error(response.status === 403
+          ? "دسترسی به این تاریخچه مجاز نیست."
+          : "خطای دریافت تاریخچه تعرفه: " + response.status);
+        return await response.json() as PriceHistory[];
+      })
+      .then(items => { if (!cancelled) setPriceHistory(items); })
+      .catch(cause => {
+        if (!cancelled) {
+          setPriceHistory([]);
+          setError(cause instanceof Error ? cause.message : "خطای دریافت تاریخچه");
+        }
+      })
+      .finally(() => { if (!cancelled) setHistoryLoading(false); });
+    return () => { cancelled = true; };
+  }, [financeAction, financePlan, historyScope, level1]);
 
   const filteredPlans = useMemo(
     () =>
@@ -129,9 +223,20 @@ export default function PlanCatalog({ level1 }: PlanCatalogProps) {
     setModalMode(nextMode);
     setError("");
     setPlanCode(plan?.code ?? "");
-    setPlanKind(plan?.kind ?? 1);
+    setPlanKind(plan?.kind ?? (level1 ? 1 : 2));
     setValidityDays(plan?.validityDays ?? 365);
     setInvoiceUnitLimit(plan?.invoiceUnitLimit ?? 100);
+    setCreatePriceIrr("");
+  }
+
+  function openFinance(action: FinanceAction, plan: Plan) {
+    setFinancePlan(plan);
+    setFinanceAction(action);
+    setError("");
+    setPriceIrr("");
+    setPriceHistory([]);
+    setHistoryScope(level1 && plan.partnerPrices.length
+      ? plan.partnerPrices[0].partnerUserId : "base");
   }
 
   function changePlanKind(value: string) {
@@ -148,6 +253,9 @@ export default function PlanCatalog({ level1 }: PlanCatalogProps) {
     setError("");
 
     try {
+      if (!level1 && modalMode === "create" && !Number.isSafeInteger(Number(createPriceIrr))) {
+        throw Error("مبلغ باید عدد صحیح و در محدودهٔ قابل ثبت باشد.");
+      }
       if (modalMode === "archive" && selectedPlan) {
         await submitRequest(
           PLANS_API + "/" + selectedPlan.id,
@@ -165,10 +273,13 @@ export default function PlanCatalog({ level1 }: PlanCatalogProps) {
           kind: planKind,
           validityDays,
           invoiceUnitLimit: planKind === 2 ? invoiceUnitLimit : null,
+          ...(!level1 && isCreating ? { priceIrr: Number(createPriceIrr) } : {}),
         }, isCreating
-          ? "این کد پلن قبلاً ثبت شده است. اگر پلن بایگانی شده، آن را از بخش تعرفه و فعال‌سازی دوباره فعال کنید."
+          ? "کد پلن تکراری است یا مدیر سطح ۱ یکتایی برای این حساب ثبت نشده است."
           : "این پلن به‌دلیل داشتن تعرفه یا اشتراک، قابل ویرایش نیست.");
-        setNotice(isCreating ? "پلن جدید ثبت شد." : "پلن به‌روزرسانی شد.");
+        setNotice(isCreating && !level1
+          ? "پلن تعدادی و تعرفه اختصاصی ثبت شد؛ برای تعیین تعرفه پایه و فعال‌سازی به مدیر سطح ۱ ارسال شد."
+          : isCreating ? "پلن جدید ثبت شد." : "پلن به‌روزرسانی شد.");
       }
 
       setModalMode(null);
@@ -182,25 +293,30 @@ export default function PlanCatalog({ level1 }: PlanCatalogProps) {
 
   async function saveFinance(event: FormEvent, action: FinanceAction) {
     event.preventDefault();
+    if (action === "history" || !financePlan) return;
     setSaving(true);
     setError("");
 
     try {
       if (action === "price") {
-        await submitRequest("/api/phase12/subscriptions/prices", "POST", {
-          planId: pricePlanId,
+        if (!Number.isSafeInteger(Number(priceIrr))) {
+          throw Error("مبلغ باید عدد صحیح و در محدودهٔ قابل ثبت باشد.");
+        }
+        const saved = await submitRequest(PRICES_API, "POST", {
+          planId: financePlan!.id,
           priceIrr: Number(priceIrr),
-          effectiveFromUtc: new Date().toISOString(),
-          effectiveUntilUtc: null,
-        });
-        setNotice("تعرفه اختصاصی ثبت شد.");
-      } else {
+        }) as { effectiveUntilUtc?: string | null };
+        setNotice(saved.effectiveUntilUtc
+          ? "تعرفه ثبت شد و تا شروع تعرفهٔ زمان‌بندی‌شدهٔ بعدی معتبر است؛ آن تعرفه در زمان خود اعمال می‌شود."
+          : "تعرفه از همین لحظه ثبت شد و نسخه قبلی در تاریخچه باقی ماند.");
+      } else if (action === "activation") {
         await submitRequest(PLANS_API + "/activate", "POST", {
-          planId: activationPlanId,
+          planId: financePlan!.id,
         });
         setNotice("پلن فعال شد.");
-        await refreshPlans();
       }
+      setFinanceAction(null);
+      await refreshPlans();
     } catch (error) {
       setError(error instanceof Error ? error.message : "خطا");
     } finally {
@@ -230,9 +346,15 @@ export default function PlanCatalog({ level1 }: PlanCatalogProps) {
       </div>
 
       {notice && <p role="status" className="phase12-plan-success">{notice}</p>}
-      {error && !modalMode && <p role="alert">{error}</p>}
+      {error && !modalMode && !financeAction && <p role="alert">{error}</p>}
 
-      <div className="console-table-scroll phase12-plan-table">
+      <div className="console-table-stage phase12-plan-stage" aria-busy={loading}>
+        {loading && <div className="argin-loader argin-loader-overlay" role="status" aria-live="polite">
+          <span className="argin-loader-spinner" aria-hidden="true" />
+          <strong>در حال بارگذاری پلن‌ها…</strong>
+          <span className="argin-loader-subtitle">لطفاً تا دریافت اطلاعات منتظر بمانید</span>
+        </div>}
+        <div className="console-table-scroll phase12-plan-table">
         <table className="console-table">
           <thead>
             <tr>
@@ -240,15 +362,15 @@ export default function PlanCatalog({ level1 }: PlanCatalogProps) {
               <th>نوع</th>
               <th>اعتبار</th>
               <th>سهمیه</th>
+              <th>{level1 ? "تعرفه پایه" : "مبنای مدیر سطح ۱"}</th>
+              <th>{level1 ? "تعرفه‌های اختصاصی" : "تعرفه من"}</th>
               <th>وضعیت</th>
               <th>عملیات</th>
             </tr>
           </thead>
           <tbody>
-            {loading ? (
-              <tr><td colSpan={6}>در حال بارگذاری...</td></tr>
-            ) : filteredPlans.length === 0 ? (
-              <tr><td colSpan={6}>پلنی یافت نشد.</td></tr>
+            {!loading && filteredPlans.length === 0 ? (
+              <tr><td colSpan={8}>پلنی یافت نشد.</td></tr>
             ) : (
               filteredPlans.map(plan => (
                 <tr key={plan.id}>
@@ -260,75 +382,52 @@ export default function PlanCatalog({ level1 }: PlanCatalogProps) {
                       ? plan.invoiceUnitLimit?.toLocaleString("fa-IR")
                       : "نامحدود"}
                   </td>
-                  <td>{plan.isActive ? "فعال" : "غیرفعال"}</td>
+                  <td>{plan.basePriceIrr == null
+                    ? "تعرفه تعریف نشده"
+                    : plan.basePriceIrr.toLocaleString("fa-IR") + " ریال"}</td>
+                  <td>{level1 ? (
+                    <details className="phase12-partner-prices">
+                      <summary>{plan.partnerPriceCount
+                        ? plan.partnerPriceCount.toLocaleString("fa-IR") + " تعرفه"
+                        : "بدون تعرفه"}</summary>
+                      <ul>{plan.partnerPrices.map(item => <li key={item.partnerUserId}>
+                        <button type="button" onClick={() => {
+                          openFinance("history", plan);
+                          setHistoryScope(item.partnerUserId);
+                        }}>{item.mobile ?? item.partnerUserId}: {item.priceIrr == null
+                          ? "تعریف نشده" : item.priceIrr.toLocaleString("fa-IR") + " ریال"}</button>
+                      </li>)}</ul>
+                    </details>
+                  ) : plan.ownPriceIrr == null
+                    ? "تعرفه تعریف نشده"
+                    : plan.ownPriceIrr.toLocaleString("fa-IR") + " ریال"}</td>
+                  <td>{plan.isActive ? "فعال" : level1
+                    ? !plan.isOwnedByActor && plan.basePriceIrr == null
+                      ? "در انتظار تعرفه پایه" : "آماده فعال‌سازی"
+                    : "در انتظار تأیید مدیر سطح ۱"}</td>
                   <td className="phase12-plan-actions">
-                    <button type="button" onClick={() => openModal("view", plan)}>
-                      مشاهده
-                    </button>
-                    <button type="button" onClick={() => openModal("edit", plan)}>
-                      ویرایش
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => openModal("archive", plan)}
-                      disabled={!plan.isActive}
-                    >
-                      حذف
-                    </button>
+                    <TooltipActionButton name="price" onClick={() => openFinance("price", plan)}
+                      label="تعرفه پلن" />
+                    <TooltipActionButton name="history" onClick={() => openFinance("history", plan)}
+                      label="تاریخچه تعرفه" />
+                    {level1 && !plan.isActive && <TooltipActionButton name="activate"
+                      onClick={() => openFinance("activation", plan)} disabled={plan.basePriceIrr == null}
+                      label={plan.basePriceIrr == null ? "ابتدا تعرفه پلن را تعریف کنید" : "فعال‌سازی پلن"} />}
+                    <TooltipActionButton name="view" onClick={() => openModal("view", plan)}
+                      label="مشاهده پلن" />
+                    {level1 && plan.isOwnedByActor && <TooltipActionButton name="edit"
+                      onClick={() => openModal("edit", plan)} label="ویرایش پلن" />}
+                    {plan.isOwnedByActor && <TooltipActionButton name="archive"
+                      onClick={() => openModal("archive", plan)} disabled={!plan.isActive}
+                      label={!plan.isActive ? "پلن غیرفعال است" : "بایگانی پلن"} />}
                   </td>
                 </tr>
               ))
             )}
           </tbody>
         </table>
+        </div>
       </div>
-
-      <details className="phase12-plan-extra">
-        <summary>تعرفه و فعال‌سازی پلن</summary>
-        <form onSubmit={event => void saveFinance(event, "price")}>
-          <label>
-            پلن
-            <select
-              required
-              value={pricePlanId}
-              onChange={event => setPricePlanId(event.target.value)}
-            >
-              <option value="">انتخاب پلن</option>
-              {plans.map(plan => <option key={plan.id} value={plan.id}>{plan.code}</option>)}
-            </select>
-          </label>
-          <label>
-            قیمت (ریال)
-            <input
-              type="number"
-              required
-              min={0}
-              value={priceIrr}
-              onChange={event => setPriceIrr(event.target.value)}
-            />
-          </label>
-          <button disabled={saving}>ثبت تعرفه مستقل</button>
-        </form>
-
-        {level1 && (
-          <form onSubmit={event => void saveFinance(event, "activation")}>
-            <label>
-              پلن
-              <select
-                required
-                value={activationPlanId}
-                onChange={event => setActivationPlanId(event.target.value)}
-              >
-                <option value="">انتخاب پلن</option>
-                {plans.filter(plan => !plan.isActive).map(plan => (
-                  <option key={plan.id} value={plan.id}>{plan.code}</option>
-                ))}
-              </select>
-            </label>
-            <button disabled={saving}>فعال‌سازی پلن</button>
-          </form>
-        )}
-      </details>
 
       {modalMode && (
         <div
@@ -380,7 +479,7 @@ export default function PlanCatalog({ level1 }: PlanCatalogProps) {
                       value={planKind}
                       onChange={event => changePlanKind(event.target.value)}
                     >
-                      {PLAN_KIND_ORDER.map(kind => (
+                      {(level1 ? PLAN_KIND_ORDER : [planKind]).map(kind => (
                         <option key={kind} value={kind}>{PLAN_KIND_LABELS[kind]}</option>
                       ))}
                     </select>
@@ -410,6 +509,14 @@ export default function PlanCatalog({ level1 }: PlanCatalogProps) {
                       />
                     </label>
                   )}
+                  {!level1 && modalMode === "create" && (
+                    <label>
+                      تعرفه اختصاصی اولیه (ریال)
+                      <input type="number" required min={0} value={createPriceIrr}
+                        onChange={event => setCreatePriceIrr(event.target.value)} />
+                      <small>پلن تا تعیین تعرفه پایه و فعال‌سازی مدیر سطح ۱ در انتظار می‌ماند.</small>
+                    </label>
+                  )}
                   {selectedPlan && <p>شناسه: <code dir="ltr">{selectedPlan.id}</code></p>}
                 </>
               )}
@@ -421,11 +528,73 @@ export default function PlanCatalog({ level1 }: PlanCatalogProps) {
                 </button>
                 {!isReadOnly && (
                   <button type="submit" disabled={saving}>
-                    {saving ? "در حال ثبت..." : modalMode === "archive" ? "تأیید حذف" : "ذخیره"}
+                    {saving ? "در حال ثبت..." : modalMode === "archive" ? "تأیید بایگانی" : "ذخیره"}
                   </button>
                 )}
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {financeAction && financePlan && (
+        <div className="phase12-plan-overlay" role="presentation"
+          onMouseDown={event => {
+            if (event.target === event.currentTarget && !saving) setFinanceAction(null);
+          }}>
+          <div className="phase12-plan-modal" role="dialog" aria-modal="true"
+            aria-label={financeAction === "history" ? "تاریخچه تعرفه" : financeAction === "price" ? "تعریف تعرفه" : "فعال‌سازی پلن"}>
+            <div className="phase12-plan-modal-header">
+              <h3>{financeAction === "history" ? "تاریخچه تعرفه" : financeAction === "price" ? "تعریف یا تغییر تعرفه" : "فعال‌سازی پلن"}</h3>
+              <button type="button" aria-label="بستن" disabled={saving} onClick={() => setFinanceAction(null)}>×</button>
+            </div>
+            <p>پلن <strong>{financePlan.code}</strong></p>
+            {financeAction === "history" ? <>
+              <label>محدوده تعرفه
+                <select value={historyScope} onChange={event => setHistoryScope(event.target.value)}>
+                  <option value="base">تعرفه پایه مدیر سطح ۱</option>
+                  {!level1 && <option value="own">تعرفه اختصاصی من</option>}
+                  {level1 && financePlan.partnerPrices.map(partner => <option key={partner.partnerUserId} value={partner.partnerUserId}>
+                    {partner.mobile ?? partner.partnerUserId}
+                  </option>)}
+                </select>
+              </label>
+              {historyLoading ? <p>در حال دریافت تاریخچه...</p> : priceHistory.length === 0
+                ? <p>برای این محدوده سابقه‌ای ثبت نشده است.</p>
+                : <div className="console-table-scroll phase12-price-history"><table className="console-table">
+                  <thead><tr><th>مبلغ</th><th>شروع اعتبار</th><th>پایان اعتبار</th><th>وضعیت</th></tr></thead>
+                  <tbody>{priceHistory.map(item => <tr key={item.id}>
+                    <td>{item.priceIrr.toLocaleString("fa-IR")} ریال</td>
+                    <td>{formatPriceDate(item.effectiveFromUtc)}</td>
+                    <td>{item.effectiveUntilUtc ? formatPriceDate(item.effectiveUntilUtc) : "بدون پایان"}</td>
+                    <td>{item.isCurrent ? "در حال اجرا" : item.isUpcoming ? "آینده" : "پایان‌یافته"}</td>
+                  </tr>)}</tbody>
+                </table></div>}
+            </> : <form onSubmit={event => void saveFinance(event, financeAction)}>
+              {financeAction === "price" ? <>
+                <p>{level1 ? "تعرفه پایه فعلی" : "مبنای مدیر سطح ۱"}: {financePlan.basePriceIrr == null
+                  ? "تعرفه تعریف نشده" : financePlan.basePriceIrr.toLocaleString("fa-IR") + " ریال"}</p>
+                {!level1 && <p>تعرفه فعلی من: {financePlan.ownPriceIrr == null
+                  ? "تعرفه تعریف نشده" : financePlan.ownPriceIrr.toLocaleString("fa-IR") + " ریال"}</p>}
+                <label>{level1 ? "تعرفه پایه جدید (ریال)" : "تعرفه اختصاصی جدید (ریال)"}
+                  <input type="number" required min={0} value={priceIrr}
+                    onChange={event => setPriceIrr(event.target.value)} />
+                </label>
+                <p>تعرفه از لحظه ثبت مؤثر می‌شود؛ بازه قبلی بسته شده و در تاریخچه باقی می‌ماند.</p>
+              </> : <p>پلن با تعرفه پایه فعلی <strong>{financePlan.basePriceIrr == null
+                ? "تعرفه تعریف نشده" : financePlan.basePriceIrr.toLocaleString("fa-IR") + " ریال"}</strong> فعال می‌شود. ادامه می‌دهید؟</p>}
+              {error && <p role="alert">{error}</p>}
+              <div className="phase12-plan-modal-footer">
+                <button type="button" onClick={() => setFinanceAction(null)} disabled={saving}>انصراف</button>
+                <button type="submit" disabled={saving || (financeAction === "activation" && financePlan.basePriceIrr == null)}>
+                  {saving ? "در حال ثبت..." : financeAction === "price" ? "ثبت تعرفه" : "تأیید فعال‌سازی"}
+                </button>
+              </div>
+            </form>}
+            {financeAction === "history" && error && <p role="alert">{error}</p>}
+            {financeAction === "history" && <div className="phase12-plan-modal-footer">
+              <button type="button" onClick={() => setFinanceAction(null)}>بستن</button>
+            </div>}
           </div>
         </div>
       )}
