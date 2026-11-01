@@ -89,15 +89,12 @@ export default function SubscriptionWorkspace({level1}:{level1:boolean}) {
   return <section className="console-settings-card phase12-finance" dir="rtl">
     <div className="console-settings-card-title"><h2>عملیات مالی</h2>
       <p>این محیط مخصوص توسعه است؛ هیچ پرداخت بانکی از این صفحه انجام نمی‌شود.</p></div>
-    <div role="tablist" aria-label="بخش‌های مالی" style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:16}}>
+    <div className="phase12-finance-tabs" role="tablist" aria-label="بخش‌های مالی">
       {(Object.keys(names) as Tab[]).map(key=>
         <button key={key} type="button" role="tab" aria-selected={tab===key}
-          onClick={()=>{setTab(key);setNotice(null);}} disabled={busy}
-          style={{padding:"8px 14px",borderRadius:9,border:"1px solid #b3c7be",
-            background:tab===key?"#176c4e":"transparent",color:tab===key?"white":"inherit",
-            cursor:"pointer"}}>{names[key]}</button>)}
+          onClick={()=>{setTab(key);setNotice(null);}} disabled={busy}>{names[key]}</button>)}
     </div>
-    {notice && <p role="status" style={{color:notice.kind==="error"?"#a93030":"#176c4e"}}>{notice.text}</p>}
+    {notice && <p role="status" className={`phase12-finance-notice phase12-finance-notice-${notice.kind}`}>{notice.text}</p>}
     {tab==="plans" && <PlanCatalog level1={level1}/>}
     {tab==="orders" && <form onSubmit={e=>void submit(e,async()=>{
       const result=await request("commercial-orders","POST",{
@@ -169,7 +166,7 @@ export default function SubscriptionWorkspace({level1}:{level1:boolean}) {
       <button type="button" disabled={busy} onClick={()=>void load()}>بازخوانی گزارش</button>
       {revenue && <><p>سهم Level 2: {amount(revenue.totalPartnerShareIrr)}
         {level1 && <> | سهم Level 1: {amount(revenue.totalRootShareIrr)}</>}</p>
-        <div style={{overflowX:"auto"}}><table style={{width:"100%",textAlign:"right"}}>
+        <div className="console-table-scroll phase12-finance-report"><table className="console-table">
           <thead><tr><th>تخصیص</th><th>شریک</th><th>سهم شریک</th>{level1&&<th>سهم مدیر اصلی</th>}</tr></thead>
           <tbody>{revenue.items.map(x=><tr key={x.allocationId}>
             <td><code>{x.allocationId.slice(0,8)}</code></td><td>{x.partnerUserId?.slice(0,8)||"مستقیم"}</td>
@@ -181,7 +178,7 @@ export default function SubscriptionWorkspace({level1}:{level1:boolean}) {
       <button type="button" disabled={busy} onClick={()=>void load()}>به‌روزرسانی</button>
       {settlements && <><p>کل سهم: {amount(settlements.totalEarnedIrr)} | تسویه‌شده:
         {amount(settlements.totalSettledIrr)} | مانده: {amount(settlements.totalOutstandingIrr)}</p>
-        <div style={{overflowX:"auto"}}><table style={{width:"100%",textAlign:"right"}}>
+        <div className="console-table-scroll phase12-finance-report"><table className="console-table">
           <thead><tr><th>شناسه تخصیص</th><th>شریک</th><th>سهم</th><th>مانده</th></tr></thead>
           <tbody>{settlements.items.map(x=><tr key={x.allocationId}>
             <td><code>{x.allocationId.slice(0,8)}</code></td><td>{x.partnerUserId.slice(0,8)}</td>

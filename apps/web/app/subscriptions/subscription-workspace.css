@@ -1,2 +1,335 @@
-.phase12-finance form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:end;margin:16px 0 28px}.phase12-finance form h3,.phase12-finance form p{grid-column:1/-1}.phase12-finance label{display:flex;flex-direction:column;gap:7px;font-weight:600;font-size:.92rem}.phase12-finance input,.phase12-finance select{width:100%;min-height:42px;padding:8px 10px;border:1px solid #c4d6ce;border-radius:9px;background:var(--background,#fff);color:inherit;direction:rtl}.phase12-finance input:focus,.phase12-finance select:focus{outline:2px solid #17865e;outline-offset:1px}.phase12-finance form button,.phase12-finance section>button{min-height:40px;border-radius:9px;padding:8px 14px;background:#176c4e;color:#fff;border:0;cursor:pointer;justify-self:start}.phase12-finance button:disabled{opacity:.55;cursor:not-allowed}.phase12-finance table{border-collapse:collapse;font-size:.86rem;margin-top:14px}.phase12-finance th,.phase12-finance td{padding:10px 12px;border-bottom:1px solid #d6e1dc}.phase12-finance code{direction:ltr;unicode-bidi:isolate;font-size:.85rem}@media(max-width:700px){.phase12-finance form{grid-template-columns:1fr}}
-.phase12-plan-catalog{width:100%}.phase12-plan-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 12px}.phase12-plan-toolbar>div{margin-inline-end:auto}.phase12-plan-toolbar h3{margin:0;font-size:1rem}.phase12-plan-toolbar small{color:#6c7d74}.phase12-plan-toolbar input{width:min(300px,100%);min-height:34px}.phase12-plan-toolbar button,.phase12-plan-actions button,.phase12-plan-modal-footer button{border:1px solid #a9c6b9;border-radius:7px;padding:6px 11px;background:#fff;color:#176c4e;cursor:pointer}.phase12-plan-toolbar button:first-of-type,.phase12-plan-modal-footer button[type=submit]{background:#176c4e;color:#fff}.phase12-plan-table{overflow:auto;max-height:55vh}.phase12-plan-table table{width:100%;border-collapse:collapse;white-space:nowrap;font-size:.86rem}.phase12-plan-table th,.phase12-plan-table td{padding:9px 10px;text-align:right;border-bottom:1px solid #e4eae6}.phase12-plan-table th{background:#f2f7f4;position:sticky;top:0}.phase12-plan-actions{display:flex;gap:5px}.phase12-plan-actions button{font-size:.78rem;padding:4px 8px}.phase12-plan-actions button:disabled{opacity:.4}.phase12-plan-extra{margin-top:16px;border:1px solid #d5e5dd;border-radius:9px;padding:10px}.phase12-plan-extra summary{cursor:pointer;font-weight:600}.phase12-plan-extra form{margin:10px 0;gap:9px}.phase12-plan-overlay{position:fixed;inset:0;z-index:1500;background:rgba(0,0,0,.48);display:flex;align-items:center;justify-content:center;padding:16px}.phase12-plan-modal{width:min(490px,100%);max-height:90vh;overflow:auto;background:#fff;color:#1a3024;border-radius:13px;padding:16px;box-shadow:0 15px 60px #0003}.phase12-plan-modal-header{display:flex;align-items:center;justify-content:space-between}.phase12-plan-modal-header h3{margin:0}.phase12-plan-modal-header button{border:0;background:transparent;font-size:24px;cursor:pointer}.phase12-finance .phase12-plan-modal form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:12px 0 0}.phase12-plan-modal form p,.phase12-plan-modal-footer{grid-column:1/-1}.phase12-plan-modal-footer{display:flex;justify-content:flex-end;gap:8px}.phase12-plan-success{color:#176c4e}@media(max-width:700px){.phase12-plan-modal form{grid-template-columns:1fr!important}.phase12-plan-toolbar input{width:100%}}
+.console-page.console-subscriptions-page {
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  margin-inline: 0;
+}
+
+/* Keep subscription screens at the same density and palette as the console. */
+.phase12-finance {
+  padding: 12px 14px;
+  color: var(--argin-text);
+  background: var(--argin-surface);
+  border-color: var(--argin-line);
+  font-size: 12px;
+}
+
+.phase12-finance .console-settings-card-title {
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+}
+
+.phase12-finance h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 750;
+}
+
+.phase12-finance p {
+  margin: 6px 0;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+
+.phase12-finance button {
+  min-height: 32px;
+  padding: 5px 10px;
+  border: 1px solid var(--argin-line);
+  border-radius: 7px;
+  background: var(--argin-surface);
+  color: var(--argin-text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.phase12-finance button:hover:not(:disabled) {
+  background: var(--argin-page);
+  border-color: var(--argin-primary);
+}
+
+.phase12-finance button:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
+.phase12-finance :is(button, input, select, summary):focus-visible {
+  outline: 2px solid var(--argin-primary);
+  outline-offset: 2px;
+}
+
+.phase12-finance-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-bottom: 12px;
+}
+
+.phase12-finance-tabs button {
+  padding: 5px 11px;
+  background: var(--argin-page);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.phase12-finance-tabs button[aria-selected="true"] {
+  background: var(--argin-dark);
+  border-color: var(--argin-dark);
+  color: var(--argin-surface);
+}
+
+.phase12-finance-tabs button[aria-selected="true"]:hover:not(:disabled) {
+  background: var(--argin-dark);
+}
+
+.phase12-finance form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: end;
+  gap: 10px;
+  margin: 10px 0 16px;
+}
+
+.phase12-finance form + form {
+  padding-top: 12px;
+  border-top: 1px solid var(--argin-line);
+}
+
+.phase12-finance form h3,
+.phase12-finance form p {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.phase12-finance form p {
+  color: var(--argin-muted);
+  font-size: 11px;
+}
+
+.phase12-finance label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 650;
+  color: var(--argin-muted);
+}
+
+.phase12-finance input,
+.phase12-finance select {
+  width: 100%;
+  min-width: 0;
+  min-height: 34px;
+  padding: 6px 9px;
+  border: 1px solid var(--argin-line);
+  border-radius: 7px;
+  background: var(--argin-surface);
+  color: var(--argin-text);
+  font: inherit;
+  font-size: 12px;
+  direction: rtl;
+}
+
+.phase12-finance form button {
+  justify-self: start;
+  max-width: 100%;
+}
+
+.phase12-finance form button:not([type="button"]),
+.phase12-finance .phase12-plan-toolbar button:first-of-type {
+  background: var(--argin-primary);
+  border-color: var(--argin-primary);
+  color: var(--argin-surface);
+}
+
+.phase12-finance form button:not([type="button"]):hover:not(:disabled),
+.phase12-finance .phase12-plan-toolbar button:first-of-type:hover:not(:disabled) {
+  background: var(--argin-dark);
+  border-color: var(--argin-dark);
+}
+
+.phase12-finance code {
+  direction: ltr;
+  unicode-bidi: isolate;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.phase12-finance .console-table {
+  margin: 0;
+}
+
+.phase12-finance .console-table :is(th, td) {
+  padding: 7px 10px;
+  font-size: 12px;
+}
+
+.phase12-finance-report {
+  margin-top: 10px;
+}
+
+.phase12-plan-catalog {
+  width: 100%;
+  min-width: 0;
+}
+
+.phase12-plan-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.phase12-plan-toolbar > div {
+  margin-inline-end: auto;
+}
+
+.phase12-plan-toolbar h3 {
+  margin: 0;
+}
+
+.phase12-plan-toolbar small {
+  color: var(--argin-muted);
+  font-size: 11px;
+}
+
+.phase12-plan-toolbar input {
+  width: min(260px, 100%);
+}
+
+.phase12-plan-table {
+  max-height: 55vh;
+}
+
+.phase12-finance .phase12-plan-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.phase12-plan-actions button {
+  min-height: 28px;
+  padding: 3px 8px;
+  font-size: 11px;
+}
+
+.phase12-plan-extra {
+  margin-top: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--argin-line);
+  border-radius: 8px;
+  background: var(--argin-page);
+}
+
+.phase12-plan-extra summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.phase12-finance .phase12-plan-extra form {
+  margin: 10px 0 0;
+}
+
+.phase12-plan-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: #0b1b3170;
+}
+
+.phase12-plan-modal {
+  width: min(490px, 100%);
+  max-height: 90dvh;
+  overflow: auto;
+  padding: 14px;
+  border: 1px solid var(--argin-line);
+  border-radius: 12px;
+  background: var(--argin-surface);
+  color: var(--argin-text);
+  box-shadow: 0 22px 70px #0f284333;
+}
+
+.phase12-plan-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--argin-line);
+}
+
+.phase12-plan-modal-header h3 {
+  margin: 0;
+}
+
+.phase12-plan-modal-header button {
+  padding: 0 8px;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.phase12-finance .phase12-plan-modal form {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 10px 0 0;
+}
+
+.phase12-plan-modal-footer {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  padding-top: 10px;
+  border-top: 1px solid var(--argin-line);
+}
+
+.phase12-finance-notice,
+.phase12-plan-success {
+  padding: 7px 10px;
+  border: 1px solid var(--argin-line);
+  border-radius: 7px;
+  font-size: 12px;
+}
+
+.phase12-finance-notice-success,
+.phase12-plan-success {
+  background: #e4f5ec;
+  color: #216444;
+}
+
+.phase12-finance-notice-error {
+  background: #fff1f1;
+  border-color: #f0c5c5;
+  color: #9c3030;
+}
+
+@media (min-width: 1100px) {
+  .phase12-finance form {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  .phase12-finance {
+    padding: 10px;
+  }
+
+  .phase12-finance form,
+  .phase12-finance .phase12-plan-modal form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .phase12-plan-toolbar > div,
+  .phase12-plan-toolbar input {
+    width: 100%;
+  }
+
+  .phase12-finance-tabs button {
+    flex: 1 0 auto;
+  }
+}

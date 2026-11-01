@@ -1,6 +1,7 @@
 using ArginTaxPayer.Domain.Subscriptions;
 using ArginTaxPayer.Infrastructure.Persistence.Identity;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace ArginTaxPayer.Infrastructure.Persistence.Subscriptions;
 
@@ -26,7 +27,19 @@ public sealed class SubscriptionPlanAdministrationService(
             throw new ArgumentException("Invalid plan code.");
         new SubscriptionPlanTerms(Guid.NewGuid(), kind, validityDays, invoiceUnits).Validate();
         var scopedCode = $"{actor:N}-{code}";
-        return await catalog.AddPlanAsync(scopedCode, kind, validityDays, invoiceUnits, ct);
+        if (await db.SubscriptionPlans.AnyAsync(plan => plan.Code == scopedCode, ct))
+            throw new InvalidOperationException("A plan with this code already exists.");
+
+        try
+        {
+            return await catalog.AddPlanAsync(scopedCode, kind, validityDays, invoiceUnits, ct);
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException
+            { SqlState: PostgresErrorCodes.UniqueViolation, ConstraintName: "IX_subscription_plan_catalog_code" })
+        {
+            // Keep duplicate-code races on the same friendly 409 path as the preflight check.
+            throw new InvalidOperationException("A plan with this code already exists.", ex);
+        }
     }
     private async Task<Guid> RequireAdminAsync(string? token,CancellationToken ct)
     {

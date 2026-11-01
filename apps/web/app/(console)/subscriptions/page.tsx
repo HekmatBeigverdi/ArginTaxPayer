@@ -10,7 +10,7 @@ export default async function SubscriptionsPage() {
   if (!actor) redirect("/identity");
   const level1 = actor.roles.includes("Level1");
   if (!level1 && !actor.roles.includes("Level2")) redirect("/dashboard");
-  return <div className="console-page">
+  return <div className="console-page console-settings-page console-subscriptions-page">
     <div className="console-page-heading"><div>
       <p className="app-kicker">مدیریت مالی و اشتراک‌ها</p>
       <h1>پلن‌ها، سفارش‌ها و تسویه‌ها</h1>

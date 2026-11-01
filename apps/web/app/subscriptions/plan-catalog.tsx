@@ -50,6 +50,7 @@ async function submitRequest(
   url: string,
   method: "POST" | "PUT" | "DELETE",
   body?: object,
+  conflictMessage = "وضعیت پلن تغییر کرده یا این عملیات به‌دلیل محدودیت پلن ممکن نیست. فهرست را بازخوانی کنید.",
 ) {
   const response = await fetch(url, {
     method,
@@ -60,6 +61,9 @@ async function submitRequest(
   });
 
   if (!response.ok) {
+    if (response.status === 409) {
+      throw Error(conflictMessage);
+    }
     throw Error("عملیات ناموفق بود (HTTP " + response.status + ")");
   }
 
@@ -145,7 +149,12 @@ export default function PlanCatalog({ level1 }: PlanCatalogProps) {
 
     try {
       if (modalMode === "archive" && selectedPlan) {
-        await submitRequest(PLANS_API + "/" + selectedPlan.id, "DELETE");
+        await submitRequest(
+          PLANS_API + "/" + selectedPlan.id,
+          "DELETE",
+          undefined,
+          "این پلن به‌دلیل داشتن تعرفه یا اشتراک، قابل بایگانی نیست.",
+        );
         setNotice("پلن بایگانی شد؛ اطلاعات مالی پیشین محفوظ است.");
       } else if (modalMode === "create" || modalMode === "edit") {
         const isCreating = modalMode === "create";
@@ -156,7 +165,9 @@ export default function PlanCatalog({ level1 }: PlanCatalogProps) {
           kind: planKind,
           validityDays,
           invoiceUnitLimit: planKind === 2 ? invoiceUnitLimit : null,
-        });
+        }, isCreating
+          ? "این کد پلن قبلاً ثبت شده است. اگر پلن بایگانی شده، آن را از بخش تعرفه و فعال‌سازی دوباره فعال کنید."
+          : "این پلن به‌دلیل داشتن تعرفه یا اشتراک، قابل ویرایش نیست.");
         setNotice(isCreating ? "پلن جدید ثبت شد." : "پلن به‌روزرسانی شد.");
       }
 
@@ -221,8 +232,8 @@ export default function PlanCatalog({ level1 }: PlanCatalogProps) {
       {notice && <p role="status" className="phase12-plan-success">{notice}</p>}
       {error && !modalMode && <p role="alert">{error}</p>}
 
-      <div className="phase12-plan-table">
-        <table>
+      <div className="console-table-scroll phase12-plan-table">
+        <table className="console-table">
           <thead>
             <tr>
               <th>کد پلن</th>
