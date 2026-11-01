@@ -362,3 +362,16 @@ CRITICAL: Do not claim full eight-point acceptance or live checkout. No Mac test
 5. Renewal and quantity add-ons need persisted order purpose and atomic credit inheritance; do not just extend time for an add-on.
 6. Trial usage counters and multi-pack summary require authoritative dispatch accounting; current dashboard trial counter is *illustrative* and must be corrected.
 7. Database integration, effective price under concurrency, tenant isolation, idempotency, manual approval and browser QA must all run on a test DB before signoff.
+
+## Checkout implementation increment and migration (2026-11-01)
+
+Added migration `20261101220000_AddPhase12CheckoutSettings`:
+- Level1-root VAT setting (basis points) for future software-sale invoices.
+- Immutable `commercial_checkout_order_options` with purchase purpose, future add-on linkage, official-invoice choice, locked base/VAT/gross IRR, and payment method. Existing orders are not backfilled; historic invoices remain separate.
+- Root-MFA-only rate read/write service and local settings API with a Level1 UI.
+- Customer cash checkout now calculates VAT from the root's trusted setting; customers cannot choose a rate. Payment continues as **cash pending** until the owning administrator independently verifies receipt. No automatic payment success.
+- Read-only `scripts/phase12-checkout-audit.sql` validates order/option totals after applying the migration on `argintaxpayer_test`.
+
+**CRITICAL unresolved**: Checkout idempotency for preexisting purchases needs verified immutable-option comparisons (not just price/version), and concurrent initial reads must be integration tested. This migration does not make live provider payments possible. No encrypted SEP/Zarinpal credential custody or per-Level2 terminal binding, PSP initiate/verify, taxpayer creation limit, or final-dispatch atomic trial accounting has been added yet. Purchase purposes are recorded as initial purchase for current cash checkout; quantity repeat/add-on flow is not operational. Header trial count is illustrative. Do not approve all checklist gates.
+
+Before migration, check actual test DB, review generated SQL and pending migrations; no Mac or Ubuntu tests were executed in this connector session. Test results must be supplied by operator.
