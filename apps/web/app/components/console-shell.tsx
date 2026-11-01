@@ -13,6 +13,7 @@ const base: Item[] = [
   { title: "کالاها و خدمات", path: "/catalog", glyph: "▤" },
   { title: "صورتحساب‌ها", path: "/invoices", glyph: "▣" },
   { title: "پروفایل و حساب من", path: "/profile", glyph: "♙" },
+  { title: "گزارشات مالی", path: "/financial-history", glyph: "▤" },
   { title: "حساب و امنیت", path: "/account", glyph: "⚙" }
 ];
 
