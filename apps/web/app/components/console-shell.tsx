@@ -1,5 +1,6 @@
-import SubscriptionStatus from "./subscription-status";
 "use client";
+
+import SubscriptionStatus from "./subscription-status";
 
 import Link from "next/link";
 import Image from "next/image";
