@@ -335,3 +335,13 @@ Implemented this turn:
 - Customer history does not yet provide trustworthy labels for purchase/renewal/add-on because the existing order table has no immutable purchase-purpose field. It shows actual order and subscription data without making up the subtype.
 - Header/dashboard subscription status and remaining quantity have not been implemented; test isolated vs actual send pipeline before enabling.
 - No actual .NET runtime, PostgreSQL migration, tests or browser execution by assistant. Owner macOS QA and integration/concurrency/tenant tests required. No claim of closing the eight-item checkout initiative until the above are addressed.
+
+## Combined checkout acceptance request — consolidated progress
+
+Owner requests a single delivery that closes the complete subscription checklist. Changes introduced in this batch:
+- `CustomerSubscriptionOverviewService` provides a strictly current-user-scoped active subscription, expiry and quantity-plan available balance read model; `/api/dev/subscriptions/customer-overview/me` via the same-origin authenticated Next proxy.
+- `SubscriptionStatus` renders the plan next to customer header/profile navigation and on the dashboard. Trial label is informational only; the counter shown for trials is NOT yet authoritative, and **must never be used to authorize dispatch**.
+- Customer profile now links to financial history and clearly marks new checkout as unavailable until validated.
+No real commercial checkout was enabled in this batch.
+
+**Blocking implementation acceptance (OPEN):** durable trial quota/reservations integrated with real taxpayer registration and send; self-service owned-plan catalog + transactional purchase order; immutable VAT invoice choice and source-calculated totals; encrypted Level1 merchant configuration and per-Level2 per-VAT toggles; SEP/Zarinpal server verify integration with idempotent callbacks; cash pending requests and owning Level2 authorization to confirm+activate in a single customer workflow; quantity add-on credit ledger attachment and exact base expiry inheritance; financial history immutable purchase purpose/payment-method breakdown; truthful trial usage and multiple active quantity packs summary; end-to-end macOS DB, API, frontend, and PSP sandbox checks. The root singleton invariant and official invoice legal requirements also require a verified gate. A successful UI build alone does not close this list.
