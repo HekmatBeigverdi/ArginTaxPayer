@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { ACCESS_COOKIE, currentIdentity, identityApiOrigin, identityUiEnabled } from "../../../../lib/identity";
 
 export const dynamic = "force-dynamic";
-const actions = new Map<string, "GET" | "POST">([
+const actions = new Map<string, "GET" | "POST" | "PUT" | "DELETE">([
   ["subscriptions/plans", "POST"],
   ["subscriptions/prices", "POST"],
   ["subscriptions/sms-wallet/grant", "POST"],
@@ -24,14 +24,17 @@ async function proxy(request: NextRequest, context: RouteContext) {
   if (!actor.roles.includes("Level1") && !actor.roles.includes("Level2"))
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   const path = (await context.params).parts.join("/");
-  const method = actions.get(path) ?? (/^subscriptions\/sms-wallet\/[0-9a-fA-F-]{36}$/.test(path) ? "GET" : undefined);
+  const planRecord = /^subscriptions\\/plans\\/[0-9a-fA-F-]{36}$/.test(path);
+  const method = (path === "subscriptions/plans" && request.method === "GET") ? "GET" :
+    (planRecord && ["PUT","DELETE"].includes(request.method)) ? request.method as "PUT"|"DELETE" :
+    actions.get(path) ?? (/^subscriptions\/sms-wallet\/[0-9a-fA-F-]{36}$/.test(path) ? "GET" : undefined);
   if (!method || method !== request.method) return NextResponse.json({ error: "not_found" }, { status: 404 });
   if (["subscriptions/settlements/record", "subscriptions/settlements/reverse", "subscriptions/plans/activate", "subscriptions/sms-wallet/grant", "subscriptions/paid-orders/activate"].includes(path) &&
       !actor.roles.includes("Level1")) return NextResponse.json({ error: "forbidden" }, { status: 403 });
   const token = (await cookies()).get(ACCESS_COOKIE)?.value;
   if (!token) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
   let body: string | undefined;
-  if (method === "POST") {
+  if (method === "POST" || method === "PUT") {
     body = await request.text();
     if (body.length > 2000) return NextResponse.json({ error: "too_large" }, { status: 413 });
     try { JSON.parse(body); } catch { return NextResponse.json({ error: "invalid_json" }, { status: 400 }); }
@@ -60,6 +63,8 @@ async function proxy(request: NextRequest, context: RouteContext) {
   }
 }
 export async function GET(request: NextRequest, context: RouteContext) { return proxy(request, context); }
+export async function PUT(request: NextRequest, context: RouteContext) { return proxy(request, context); }
+export async function DELETE(request: NextRequest, context: RouteContext) { return proxy(request, context); }
 export async function POST(request: NextRequest, context: RouteContext) {
   const origin = request.headers.get("origin");
   if (origin && origin !== request.nextUrl.origin)
