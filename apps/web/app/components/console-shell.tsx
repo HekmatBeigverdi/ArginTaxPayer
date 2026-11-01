@@ -126,6 +126,7 @@ export default function ConsoleShell({ roles, userId, children }:
             <p className="console-menu-identity">شناسه حساب <bdi dir="ltr">{userId.slice(0, 8)}…</bdi></p>
             <Link role="menuitem" href="/profile" onClick={() => setMenuOpen(false)}>پروفایل و حساب من</Link>
             <Link role="menuitem" href="/account" onClick={() => setMenuOpen(false)}>حساب و امنیت</Link>
+            {roles.includes("Level1") && <Link role="menuitem" href="/admin-settings" onClick={() => setMenuOpen(false)}>تنظیمات مدیریت</Link>}
             <div className="console-menu-divider"/>
             <button role="menuitem" type="button" onClick={() => void logout()} disabled={exiting}>
               {exiting ? "در حال خروج…" : "خروج از حساب"}
