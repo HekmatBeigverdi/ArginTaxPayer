@@ -41,12 +41,20 @@ test("Step10 navigation exposes subscriptions to administrators", () => {
 
 test("Step10 includes scoped tariffs, paid activation, SMS wallet balance and grant", () => {
   const ui = read("app/subscriptions/subscription-workspace.tsx");
-  for (const value of ["تعرفه اختصاصی مدیر", "prices", "plans/activate",
-    "paid-orders/activate", "sms-wallet/grant", "مشاهده موجودی"])
+  for (const value of ["PlanCatalog", "paid-orders/activate", "sms-wallet/grant", "مشاهده موجودی"])
     assert.ok(ui.includes(value), value);
   const proxy = read("app/api/phase12/[...parts]/route.ts");
   assert.match(proxy,/subscriptions\/prices/);
   assert.match(proxy,/subscriptions\/paid-orders\/activate/);
   assert.match(proxy,/subscriptions\/sms-wallet\/grant/);
   assert.match(proxy,/subscriptions\\\/sms-wallet\\\/\[/);
+});
+
+test("Plan catalog has backend-backed compact search, modal and protected CRUD",()=>{
+  const catalog=read("app/subscriptions/plan-catalog.tsx");
+  for(const term of ["جست‌وجوی پلن","افزودن پلن","مشاهده","ویرایش","حذف","role=\"dialog\"","DELETE","PUT","بازخوانی"])
+    assert.ok(catalog.includes(term),term);
+  const proxy=read("app/api/phase12/[...parts]/route.ts");
+  assert.match(proxy,/request.method === "GET"/);
+  assert.match(proxy,/request.method as "PUT"\|"DELETE"/);
 });
