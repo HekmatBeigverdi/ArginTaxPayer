@@ -45,6 +45,14 @@ export default function SubscriptionWorkspace({level1}:{level1:boolean}) {
   const [orderPlanId,setOrderPlanId]=useState("");
   const [orderKey,setOrderKey]=useState(uuid);
   const [orderId,setOrderId]=useState("");
+  const [pendingOrders,setPendingOrders]=useState<Array<{orderId:string;customerUserId:string;planCode:string;grossIrr:number;collectedIrr:number}>>([]);
+  const [pendingLoading,setPendingLoading]=useState(false);
+  async function loadPending(){
+    setPendingLoading(true);setNotice(null);
+    try{setPendingOrders(await request("cash-pending") as typeof pendingOrders);}
+    catch(e){setNotice({kind:"error",text:e instanceof Error?e.message:"خطای سفارش‌ها"});}
+    finally{setPendingLoading(false);}
+  }
   const [receiptRef,setReceiptRef]=useState("");
   const [receiptAmount,setReceiptAmount]=useState("");
   const [channel,setChannel]=useState(1);
@@ -117,6 +125,23 @@ export default function SubscriptionWorkspace({level1}:{level1:boolean}) {
       <label>شناسه سفارش تسویه‌شده<input required value={orderId} onChange={e=>setOrderId(e.target.value)}/></label>
       <button type="submit" disabled={busy}>ایجاد اشتراک از سفارش پرداخت‌شده</button>
     </form>}
+    {tab==="collections" && <section>
+      <h3>درخواست‌های نقدی مشتریان</h3>
+      <button type="button" onClick={()=>void loadPending()} disabled={pendingLoading}>
+        {pendingLoading?"در حال دریافت...":"بازخوانی سفارش‌های در انتظار"}
+      </button>
+      <div style={{overflowX:"auto"}}><table style={{width:"100%",fontSize:13}}>
+        <thead><tr><th>پلن</th><th>مشتری</th><th>مانده ریال</th><th>انتخاب</th></tr></thead>
+        <tbody>{pendingOrders.map(o=><tr key={o.orderId}>
+          <td>{o.planCode}</td><td>{o.customerUserId.slice(0,8)}</td>
+          <td>{amount(o.grossIrr-o.collectedIrr)}</td>
+          <td><button type="button" onClick={()=>{
+            setOrderId(o.orderId);setCustomerId(o.customerUserId);
+            setReceiptAmount(String(o.grossIrr-o.collectedIrr));
+          }}>انتخاب</button></td>
+        </tr>)}</tbody>
+      </table></div>
+    </section>}
     {tab==="collections" && <form onSubmit={e=>void submit(e,()=>request("collections/manual","POST",{
       orderId,customerUserId:customerId,channel,amountIrr:Number(receiptAmount),
       receiptReference:receiptRef
