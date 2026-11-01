@@ -1,3 +1,4 @@
+import SubscriptionStatus from "./subscription-status";
 "use client";
 
 import Link from "next/link";
@@ -110,6 +111,7 @@ export default function ConsoleShell({ roles, userId, children }:
       <footer className="app-sidebar-footer"><span>نسخه توسعه</span><p>دسترسی‌ها براساس نقش و مالکیت کنترل می‌شوند.</p></footer>
     </aside>
     <div className="app-main">
+      {!admin && <div style={{padding:"6px 14px",display:"flex",justifyContent:"flex-end"}}><SubscriptionStatus compact/></div>}
       <header className="app-topbar">
         <div className="console-crumb">پنل آرگین / <strong>{activeName}</strong></div>
         <div ref={menuRef} className="console-account">
