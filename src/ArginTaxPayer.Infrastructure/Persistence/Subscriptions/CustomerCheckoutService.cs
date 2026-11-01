@@ -51,13 +51,19 @@ public sealed class CustomerCheckoutService(ArginTaxPayerDbContext db,
             .SingleOrDefaultAsync(x=>x.CustomerUserId==customer,ct)
             ?? throw new InvalidOperationException("Commercial owner not assigned.");
         var partner=owner.PartnerLevel2UserId;
-        // VAT must come from trusted root configuration. Until that source is implemented,
-        // fail closed for official-invoice checkout rather than accepting client rates.
-        if(wantsOfficialInvoice || vatBasisPoints!=0)
-            throw new InvalidOperationException("Official invoice VAT settings are not configured.");
+        // Client VAT inputs must never choose the tax rate.
+        if(vatBasisPoints!=0) throw new ArgumentException("Client tax rate not accepted.");
+        var taxSetting=await db.Database.SqlQueryRaw<TaxSettingRow>(
+            """
+            SELECT vat_basis_points AS "BasisPoints"
+            FROM commercial_checkout_tax_settings WHERE root_user_id={0}
+            """,owner.RootLevel1UserId).SingleOrDefaultAsync(ct);
+        if(wantsOfficialInvoice && taxSetting is null)
+            throw new InvalidOperationException("Official checkout VAT not configured.");
         var quote=await catalog.QuoteAsync(customer,planId,
             owner.RootLevel1UserId,partner,DateTime.UtcNow,ct);
-        var cost=new SubscriptionCheckoutQuote(quote.PriceIrr,0,false);
+        var cost=new SubscriptionCheckoutQuote(quote.PriceIrr,
+            wantsOfficialInvoice?taxSetting!.BasisPoints:0,wantsOfficialInvoice);
         var now=DateTime.UtcNow;
         await using var tx=await db.Database.BeginTransactionAsync(IsolationLevel.Serializable,ct);
         var conn=db.Database.GetDbConnection();
@@ -89,9 +95,22 @@ public sealed class CustomerCheckoutService(ArginTaxPayerDbContext db,
             Add(invoice,"json",JsonSerializer.Serialize(new {
                 PlanId=planId,PriceVersionId=quote.PriceVersionId,BaseIrr=cost.BaseAmountIrr,
                 VatIrr=cost.TaxAmountIrr,GrossIrr=cost.TotalIrr,
-                OfficialInvoiceRequested=false,PaymentMethod="cash",CustomerUserId=customer
+                OfficialInvoiceRequested=wantsOfficialInvoice,PaymentMethod="cash",CustomerUserId=customer
             }));Add(invoice,"at",now);
             await invoice.ExecuteNonQueryAsync(ct);
+        }
+            await using var options=conn.CreateCommand();
+            options.Transaction=cmd.Transaction;
+            options.CommandText="""
+                INSERT INTO commercial_checkout_order_options
+                  (order_id,official_invoice_requested,vat_basis_points,base_amount_irr,
+                   vat_amount_irr,total_amount_irr,payment_method,purchase_purpose)
+                VALUES(@id,@official,@rate,@base,@vat,@total,1,1)
+                """;
+            Add(options,"id",id);Add(options,"official",wantsOfficialInvoice);
+            Add(options,"rate",cost.VatBasisPoints);Add(options,"base",cost.BaseAmountIrr);
+            Add(options,"vat",cost.TaxAmountIrr);Add(options,"total",cost.TotalIrr);
+            await options.ExecuteNonQueryAsync(ct);
         }
         else
         {
@@ -112,8 +131,9 @@ public sealed class CustomerCheckoutService(ArginTaxPayerDbContext db,
         }
         await tx.CommitAsync(ct);
         return new CashCheckout(id,cost.BaseAmountIrr,cost.TaxAmountIrr,
-            cost.TotalIrr,false,"AwaitingCashConfirmation");
+            cost.TotalIrr,wantsOfficialInvoice,"AwaitingCashConfirmation");
     }
+    private sealed class TaxSettingRow { public int BasisPoints {get;set;} }
     private async Task<Guid> CurrentCustomerAsync(string? bearer,CancellationToken ct)
     {
         var user=await identity.CurrentUserIdAsync(bearer,ct)
