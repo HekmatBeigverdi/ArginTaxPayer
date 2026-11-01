@@ -98,7 +98,6 @@ public sealed class CustomerCheckoutService(ArginTaxPayerDbContext db,
                 OfficialInvoiceRequested=wantsOfficialInvoice,PaymentMethod="cash",CustomerUserId=customer
             }));Add(invoice,"at",now);
             await invoice.ExecuteNonQueryAsync(ct);
-        }
             await using var options=conn.CreateCommand();
             options.Transaction=cmd.Transaction;
             options.CommandText="""
