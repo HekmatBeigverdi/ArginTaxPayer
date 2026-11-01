@@ -345,3 +345,20 @@ Owner requests a single delivery that closes the complete subscription checklist
 No real commercial checkout was enabled in this batch.
 
 **Blocking implementation acceptance (OPEN):** durable trial quota/reservations integrated with real taxpayer registration and send; self-service owned-plan catalog + transactional purchase order; immutable VAT invoice choice and source-calculated totals; encrypted Level1 merchant configuration and per-Level2 per-VAT toggles; SEP/Zarinpal server verify integration with idempotent callbacks; cash pending requests and owning Level2 authorization to confirm+activate in a single customer workflow; quantity add-on credit ledger attachment and exact base expiry inheritance; financial history immutable purchase purpose/payment-method breakdown; truthful trial usage and multiple active quantity packs summary; end-to-end macOS DB, API, frontend, and PSP sandbox checks. The root singleton invariant and official invoice legal requirements also require a verified gate. A successful UI build alone does not close this list.
+
+## Customer cash-checkout integration slice — 2026-11-01
+
+This change set adds:
+- `CustomerCheckoutService` + local API: authenticated customer-owned available-plan listing (only effective price for current assigned root/partner), immutable cash-pending order insert and invoice snapshot with idempotency key. This route does NOT accept buyer-supplied price or owner and does not post verified collections.
+- Next server-side token proxy `/api/customer-checkout`, customer-only `/customer-plans` page, profile link; explicit fail-closed official VAT and gateway choices until real root tax settings and PSP server verification exist.
+- Owning-admin `CommercialPendingCashService` / `/api/dev/subscriptions/cash-pending` and finance inbox selecting an order for manual verification.
+- Unit/source tests for checkout UI; current-user subscription balance read model in header/dashboard is informational.
+
+CRITICAL: Do not claim full eight-point acceptance or live checkout. No Mac tests or real PSP verification have run. The following remain release blockers:
+1. Trial quota persisted atomic reservation for 2 confirmed sends, and one-taxpayer create enforcement in actual Phase10/party services.
+2. Optional official purchase tax invoice with protected current VAT setting, immutable tax arithmetic; separate VAT/no-VAT merchant config encrypted by Level1 and per-partner enablement.
+3. SEP/Zarinpal initiation/verification via documented provider APIs and replay-safe callback reconciliation. Do not enable a payment initiation button until verified.
+4. Cash approval must bind the customer cash declaration, verified reference, and independent evidence to immutable ledger and activate only after full receipt confirmation. Existing finance UI remains manual.
+5. Renewal and quantity add-ons need persisted order purpose and atomic credit inheritance; do not just extend time for an add-on.
+6. Trial usage counters and multi-pack summary require authoritative dispatch accounting; current dashboard trial counter is *illustrative* and must be corrected.
+7. Database integration, effective price under concurrency, tenant isolation, idempotency, manual approval and browser QA must all run on a test DB before signoff.
