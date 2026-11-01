@@ -26,10 +26,23 @@ public sealed class VerifiedCollectionService(ArginTaxPayerDbContext db, Identit
              u.Roles.Any(r => r.Role == IdentityRoleNames.Level2)) &&
             db.IdentityMfaStates.Any(m => m.UserId == actor && m.EnabledAtUtc != null),ct);
         if (!authorized) throw new UnauthorizedAccessException("Active admin MFA required.");
-        var scope = await db.CustomerCommercialOwners.AsNoTracking().AnyAsync(o =>
-            o.CustomerUserId == collection.CustomerUserId &&
-            (o.RootLevel1UserId == actor || o.PartnerLevel2UserId == actor),ct);
-        if (!scope) throw new UnauthorizedAccessException("Outside commercial ownership.");
+        // A partner can confirm cash for its own attributed order without Level1
+        // approval. A root cannot silently substitute for a partner-owned receipt.
+        var ownership = await db.CustomerCommercialOwners.AsNoTracking()
+            .SingleOrDefaultAsync(o => o.CustomerUserId == collection.CustomerUserId,ct)
+            ?? throw new UnauthorizedAccessException("Customer commercial ownership missing.");
+        var isRoot = ownership.RootLevel1UserId == actor;
+        var isPartner = ownership.PartnerLevel2UserId == actor;
+        if (!(isPartner || (ownership.PartnerLevel2UserId == null && isRoot)))
+            throw new UnauthorizedAccessException("Cash confirmation belongs to the current commercial owner.");
+        var matchesOrder = await db.Database.SqlQueryRaw<OrderAttribution>(
+            """
+            SELECT root_admin_user_id AS "RootId",partner_user_id AS "PartnerId"
+            FROM commercial_orders WHERE id={0} AND customer_user_id={1}
+            """,collection.OrderId,collection.CustomerUserId).SingleOrDefaultAsync(ct);
+        if (matchesOrder is null || matchesOrder.RootId != ownership.RootLevel1UserId ||
+            matchesOrder.PartnerId != ownership.PartnerLevel2UserId)
+            throw new UnauthorizedAccessException("Order attribution differs from current commercial owner.");
         return await PostVerifiedAsync(collection, actor, "admin-confirmed", ct);
     }
 
@@ -117,6 +130,8 @@ public sealed class VerifiedCollectionService(ArginTaxPayerDbContext db, Identit
         await tx.CommitAsync(ct);
         return next;
     }
+
+    private sealed class OrderAttribution { public Guid RootId {get;set;} public Guid? PartnerId {get;set;} }
 
     private static void Add(DbCommand cmd,string name,object value)
     {
