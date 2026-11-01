@@ -1,129 +1,423 @@
 "use client";
+
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
-type Plan={id:string;code:string;kind:number;validityDays:number;invoiceUnitLimit:number|null;isActive:boolean;createdAtUtc:string};
-const labels:Record<number,string>={1:"سالانه",2:"تعدادی",3:"ماهانه",4:"سه‌ماهه",5:"شش‌ماهه"};
-const days:Record<number,number>={1:365,2:365,3:30,4:90,5:182};
-const api="/api/phase12/subscriptions/plans";
-type Mode="create"|"edit"|"view"|"archive";
-export default function PlanCatalog({level1}:{level1:boolean}){
- const [items,setItems]=useState<Plan[]>([]);
- const [loading,setLoading]=useState(true);
- const [saving,setSaving]=useState(false);
- const [error,setError]=useState("");
- const [query,setQuery]=useState("");
- const [mode,setMode]=useState<Mode|null>(null);
- const [selected,setSelected]=useState<Plan|null>(null);
- const [code,setCode]=useState("");
- const [kind,setKind]=useState(1);
- const [validity,setValidity]=useState(365);
- const [units,setUnits]=useState(100);
- const [price,setPrice]=useState("");
- const [pricePlan,setPricePlan]=useState("");
- const [activation,setActivation]=useState("");
- const [notice,setNotice]=useState("");
- const refresh=useCallback(async()=>{
-   setLoading(true);setError("");
-   try{const r=await fetch(api,{cache:"no-store"});if(!r.ok)throw Error("خطای دریافت پلن‌ها: "+r.status);
-     const result=await r.json() as Plan[];setItems(result);}
-   catch(e){setError(e instanceof Error?e.message:"خطای ناشناخته");}
-   finally{setLoading(false);}
- },[]);
- useEffect(()=>{void refresh();},[refresh]);
- const filtered=useMemo(()=>items.filter(x=>
-   (x.code+" "+labels[x.kind]).toLocaleLowerCase().includes(query.toLocaleLowerCase())),[items,query]);
- function open(next:Mode,plan?:Plan){
-   setSelected(plan??null);setMode(next);setError("");
-   setCode(plan?.code??"");setKind(plan?.kind??1);
-   setValidity(plan?.validityDays??365);setUnits(plan?.invoiceUnitLimit??100);
- }
- async function action(url:string,method:"POST"|"PUT"|"DELETE",body?:object){
-   const r=await fetch(url,{method,credentials:"same-origin",cache:"no-store",
-     headers:body?{"Content-Type":"application/json"}:undefined,
-     body:body?JSON.stringify(body):undefined});
-   if(!r.ok)throw Error("عملیات ناموفق بود (HTTP "+r.status+")");
-   return r.status===204?null:r.json();
- }
- async function save(e:FormEvent){
-   e.preventDefault();if(saving)return;setSaving(true);setError("");
-   try{
-     if(mode==="archive"&&selected){
-       await action(api+"/"+selected.id,"DELETE");
-       setNotice("پلن بایگانی شد؛ اطلاعات مالی پیشین محفوظ است.");
-     }else if(mode==="create"||mode==="edit"){
-       await action(mode==="create"?api:api+"/"+selected!.id,mode==="create"?"POST":"PUT",{
-         code,kind,validityDays:validity,invoiceUnitLimit:kind===2?units:null
-       });
-       setNotice(mode==="create"?"پلن جدید ثبت شد.":"پلن به‌روزرسانی شد.");
-     }
-     setMode(null);await refresh();
-   }catch(e){setError(e instanceof Error?e.message:"خطای ذخیره‌سازی");}
-   finally{setSaving(false);}
- }
- async function finance(e:FormEvent,which:"price"|"activation"){
-   e.preventDefault();setSaving(true);setError("");
-   try{
-     if(which==="price"){
-       await action("/api/phase12/subscriptions/prices","POST",{
-         planId:pricePlan,priceIrr:Number(price),
-         effectiveFromUtc:new Date().toISOString(),effectiveUntilUtc:null
-       });setNotice("تعرفه اختصاصی ثبت شد.");
-     }else{
-       await action(api+"/activate","POST",{planId:activation});
-       setNotice("پلن فعال شد.");await refresh();
-     }
-   }catch(e){setError(e instanceof Error?e.message:"خطا");}
-   finally{setSaving(false);}
- }
- return <section className="phase12-plan-catalog" aria-label="فهرست پلن‌ها">
-  <div className="phase12-plan-toolbar">
-   <div><h3>پلن‌های اشتراک</h3><small>نمایش {filtered.length} پلن</small></div>
-   <input aria-label="جست‌وجوی پلن" placeholder="جست‌وجوی نام یا نوع پلن..." value={query} onChange={e=>setQuery(e.target.value)}/>
-   <button type="button" onClick={()=>open("create")}>+ افزودن پلن</button>
-   <button type="button" onClick={()=>void refresh()} disabled={loading}>بازخوانی</button>
-  </div>
-  {notice&&<p role="status" className="phase12-plan-success">{notice}</p>}
-  {error&&!mode&&<p role="alert">{error}</p>}
-  <div className="phase12-plan-table"><table><thead><tr><th>کد پلن</th><th>نوع</th><th>اعتبار</th><th>سهمیه</th><th>وضعیت</th><th>عملیات</th></tr></thead>
-  <tbody>{loading?<tr><td colSpan={6}>در حال بارگذاری...</td></tr>:
-   filtered.length===0?<tr><td colSpan={6}>پلنی یافت نشد.</td></tr>:filtered.map(p=><tr key={p.id}>
-    <td>{p.code}</td><td>{labels[p.kind]??"نامشخص"}</td><td>{p.validityDays} روز</td>
-    <td>{p.kind===2?p.invoiceUnitLimit?.toLocaleString("fa-IR"):"نامحدود"}</td>
-    <td>{p.isActive?"فعال":"غیرفعال"}</td><td className="phase12-plan-actions">
-     <button type="button" onClick={()=>open("view",p)}>مشاهده</button>
-     <button type="button" onClick={()=>open("edit",p)}>ویرایش</button>
-     <button type="button" onClick={()=>open("archive",p)} disabled={!p.isActive}>حذف</button>
-    </td>
-   </tr>)}</tbody></table></div>
-  <details className="phase12-plan-extra"><summary>تعرفه و فعال‌سازی پلن</summary>
-   <form onSubmit={e=>void finance(e,"price")}>
-    <label>پلن<select required value={pricePlan} onChange={e=>setPricePlan(e.target.value)}>
-     <option value="">انتخاب پلن</option>{items.map(p=><option key={p.id} value={p.id}>{p.code}</option>)}
-    </select></label><label>قیمت (ریال)<input type="number" required min={0} value={price} onChange={e=>setPrice(e.target.value)}/></label>
-    <button disabled={saving}>ثبت تعرفه مستقل</button>
-   </form>
-   {level1&&<form onSubmit={e=>void finance(e,"activation")}>
-    <label>پلن<select required value={activation} onChange={e=>setActivation(e.target.value)}>
-     <option value="">انتخاب پلن</option>{items.filter(p=>!p.isActive).map(p=><option key={p.id} value={p.id}>{p.code}</option>)}
-    </select></label><button disabled={saving}>فعال‌سازی پلن</button>
-   </form>}
-  </details>
-  {mode&&<div className="phase12-plan-overlay" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget&&!saving)setMode(null);}}>
-   <div className="phase12-plan-modal" role="dialog" aria-modal="true" aria-label={mode==="create"?"افزودن پلن":mode==="edit"?"ویرایش پلن":mode==="view"?"مشاهده پلن":"حذف پلن"}>
-    <div className="phase12-plan-modal-header"><h3>{mode==="create"?"افزودن پلن جدید":mode==="edit"?"ویرایش پلن":mode==="view"?"مشخصات پلن":"بایگانی پلن"}</h3>
-     <button type="button" aria-label="بستن" disabled={saving} onClick={()=>setMode(null)}>×</button></div>
-    <form onSubmit={e=>void save(e)}>
-     {mode==="archive"?<p>پلن «{selected?.code}» غیرفعال می‌شود؛ اطلاعات سفارش‌ها و اشتراک‌های قبلی باقی می‌مانند. ادامه می‌دهید؟</p>:<>
-      <label>کد پلن<input required readOnly={mode==="view"} value={code} maxLength={50} onChange={e=>setCode(e.target.value)}/></label>
-      <label>نوع پلن<select disabled={mode==="view"} value={kind} onChange={e=>{let k=Number(e.target.value);setKind(k);setValidity(days[k]);}}>
-       {[3,4,5,1,2].map(k=><option key={k} value={k}>{labels[k]}</option>)}</select></label>
-      <label>اعتبار (روز)<input type="number" required readOnly={mode==="view"} min={1} max={366} value={validity} onChange={e=>setValidity(Number(e.target.value))}/></label>
-      {kind===2&&<label>سهمیه صورتحساب<input type="number" min={1} required readOnly={mode==="view"} value={units} onChange={e=>setUnits(Number(e.target.value))}/></label>}
-      {selected&&<p>شناسه: <code dir="ltr">{selected.id}</code></p>}
-     </>}
-     {error&&<p role="alert">{error}</p>}
-     <div className="phase12-plan-modal-footer"><button type="button" onClick={()=>setMode(null)} disabled={saving}>بستن</button>
-      {mode!=="view"&&<button type="submit" disabled={saving}>{saving?"در حال ثبت...":mode==="archive"?"تأیید حذف":"ذخیره"}</button>}</div>
-    </form>
-   </div></div>}
- </section>;
+
+type Plan = {
+  id: string;
+  code: string;
+  kind: number;
+  validityDays: number;
+  invoiceUnitLimit: number | null;
+  isActive: boolean;
+  createdAtUtc: string;
+};
+
+type ModalMode = "create" | "edit" | "view" | "archive";
+type FinanceAction = "price" | "activation";
+
+type PlanCatalogProps = {
+  level1: boolean;
+};
+
+const PLANS_API = "/api/phase12/subscriptions/plans";
+
+const PLAN_KIND_LABELS: Record<number, string> = {
+  1: "سالانه",
+  2: "تعدادی",
+  3: "ماهانه",
+  4: "سه‌ماهه",
+  5: "شش‌ماهه",
+};
+
+const VALIDITY_DAYS_BY_KIND: Record<number, number> = {
+  1: 365,
+  2: 365,
+  3: 30,
+  4: 90,
+  5: 182,
+};
+
+const PLAN_KIND_ORDER = [3, 4, 5, 1, 2];
+
+const MODAL_LABELS: Record<ModalMode, { title: string; ariaLabel: string }> = {
+  create: { title: "افزودن پلن جدید", ariaLabel: "افزودن پلن" },
+  edit: { title: "ویرایش پلن", ariaLabel: "ویرایش پلن" },
+  view: { title: "مشخصات پلن", ariaLabel: "مشاهده پلن" },
+  archive: { title: "بایگانی پلن", ariaLabel: "حذف پلن" },
+};
+
+async function submitRequest(
+  url: string,
+  method: "POST" | "PUT" | "DELETE",
+  body?: object,
+) {
+  const response = await fetch(url, {
+    method,
+    credentials: "same-origin",
+    cache: "no-store",
+    headers: body ? { "Content-Type": "application/json" } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+
+  if (!response.ok) {
+    throw Error("عملیات ناموفق بود (HTTP " + response.status + ")");
+  }
+
+  return response.status === 204 ? null : response.json();
+}
+
+export default function PlanCatalog({ level1 }: PlanCatalogProps) {
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [query, setQuery] = useState("");
+
+  const [modalMode, setModalMode] = useState<ModalMode | null>(null);
+  const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
+  const [planCode, setPlanCode] = useState("");
+  const [planKind, setPlanKind] = useState(1);
+  const [validityDays, setValidityDays] = useState(365);
+  const [invoiceUnitLimit, setInvoiceUnitLimit] = useState(100);
+
+  const [priceIrr, setPriceIrr] = useState("");
+  const [pricePlanId, setPricePlanId] = useState("");
+  const [activationPlanId, setActivationPlanId] = useState("");
+
+  const refreshPlans = useCallback(async () => {
+    setLoading(true);
+    setError("");
+
+    try {
+      const response = await fetch(PLANS_API, { cache: "no-store" });
+      if (!response.ok) {
+        throw Error("خطای دریافت پلن‌ها: " + response.status);
+      }
+
+      const result = (await response.json()) as Plan[];
+      setPlans(result);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "خطای ناشناخته");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshPlans();
+  }, [refreshPlans]);
+
+  const filteredPlans = useMemo(
+    () =>
+      plans.filter(plan =>
+        (plan.code + " " + PLAN_KIND_LABELS[plan.kind])
+          .toLocaleLowerCase()
+          .includes(query.toLocaleLowerCase()),
+      ),
+    [plans, query],
+  );
+
+  const isReadOnly = modalMode === "view";
+
+  function openModal(nextMode: ModalMode, plan?: Plan) {
+    setSelectedPlan(plan ?? null);
+    setModalMode(nextMode);
+    setError("");
+    setPlanCode(plan?.code ?? "");
+    setPlanKind(plan?.kind ?? 1);
+    setValidityDays(plan?.validityDays ?? 365);
+    setInvoiceUnitLimit(plan?.invoiceUnitLimit ?? 100);
+  }
+
+  function changePlanKind(value: string) {
+    const nextKind = Number(value);
+    setPlanKind(nextKind);
+    setValidityDays(VALIDITY_DAYS_BY_KIND[nextKind]);
+  }
+
+  async function savePlan(event: FormEvent) {
+    event.preventDefault();
+    if (saving) return;
+
+    setSaving(true);
+    setError("");
+
+    try {
+      if (modalMode === "archive" && selectedPlan) {
+        await submitRequest(PLANS_API + "/" + selectedPlan.id, "DELETE");
+        setNotice("پلن بایگانی شد؛ اطلاعات مالی پیشین محفوظ است.");
+      } else if (modalMode === "create" || modalMode === "edit") {
+        const isCreating = modalMode === "create";
+        const url = isCreating ? PLANS_API : PLANS_API + "/" + selectedPlan!.id;
+
+        await submitRequest(url, isCreating ? "POST" : "PUT", {
+          code: planCode,
+          kind: planKind,
+          validityDays,
+          invoiceUnitLimit: planKind === 2 ? invoiceUnitLimit : null,
+        });
+        setNotice(isCreating ? "پلن جدید ثبت شد." : "پلن به‌روزرسانی شد.");
+      }
+
+      setModalMode(null);
+      await refreshPlans();
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "خطای ذخیره‌سازی");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function saveFinance(event: FormEvent, action: FinanceAction) {
+    event.preventDefault();
+    setSaving(true);
+    setError("");
+
+    try {
+      if (action === "price") {
+        await submitRequest("/api/phase12/subscriptions/prices", "POST", {
+          planId: pricePlanId,
+          priceIrr: Number(priceIrr),
+          effectiveFromUtc: new Date().toISOString(),
+          effectiveUntilUtc: null,
+        });
+        setNotice("تعرفه اختصاصی ثبت شد.");
+      } else {
+        await submitRequest(PLANS_API + "/activate", "POST", {
+          planId: activationPlanId,
+        });
+        setNotice("پلن فعال شد.");
+        await refreshPlans();
+      }
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "خطا");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section className="phase12-plan-catalog" aria-label="فهرست پلن‌ها">
+      <div className="phase12-plan-toolbar">
+        <div>
+          <h3>پلن‌های اشتراک</h3>
+          <small>نمایش {filteredPlans.length} پلن</small>
+        </div>
+        <input
+          aria-label="جست‌وجوی پلن"
+          placeholder="جست‌وجوی نام یا نوع پلن..."
+          value={query}
+          onChange={event => setQuery(event.target.value)}
+        />
+        <button type="button" onClick={() => openModal("create")}>
+          + افزودن پلن
+        </button>
+        <button type="button" onClick={() => void refreshPlans()} disabled={loading}>
+          بازخوانی
+        </button>
+      </div>
+
+      {notice && <p role="status" className="phase12-plan-success">{notice}</p>}
+      {error && !modalMode && <p role="alert">{error}</p>}
+
+      <div className="phase12-plan-table">
+        <table>
+          <thead>
+            <tr>
+              <th>کد پلن</th>
+              <th>نوع</th>
+              <th>اعتبار</th>
+              <th>سهمیه</th>
+              <th>وضعیت</th>
+              <th>عملیات</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr><td colSpan={6}>در حال بارگذاری...</td></tr>
+            ) : filteredPlans.length === 0 ? (
+              <tr><td colSpan={6}>پلنی یافت نشد.</td></tr>
+            ) : (
+              filteredPlans.map(plan => (
+                <tr key={plan.id}>
+                  <td>{plan.code}</td>
+                  <td>{PLAN_KIND_LABELS[plan.kind] ?? "نامشخص"}</td>
+                  <td>{plan.validityDays} روز</td>
+                  <td>
+                    {plan.kind === 2
+                      ? plan.invoiceUnitLimit?.toLocaleString("fa-IR")
+                      : "نامحدود"}
+                  </td>
+                  <td>{plan.isActive ? "فعال" : "غیرفعال"}</td>
+                  <td className="phase12-plan-actions">
+                    <button type="button" onClick={() => openModal("view", plan)}>
+                      مشاهده
+                    </button>
+                    <button type="button" onClick={() => openModal("edit", plan)}>
+                      ویرایش
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openModal("archive", plan)}
+                      disabled={!plan.isActive}
+                    >
+                      حذف
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <details className="phase12-plan-extra">
+        <summary>تعرفه و فعال‌سازی پلن</summary>
+        <form onSubmit={event => void saveFinance(event, "price")}>
+          <label>
+            پلن
+            <select
+              required
+              value={pricePlanId}
+              onChange={event => setPricePlanId(event.target.value)}
+            >
+              <option value="">انتخاب پلن</option>
+              {plans.map(plan => <option key={plan.id} value={plan.id}>{plan.code}</option>)}
+            </select>
+          </label>
+          <label>
+            قیمت (ریال)
+            <input
+              type="number"
+              required
+              min={0}
+              value={priceIrr}
+              onChange={event => setPriceIrr(event.target.value)}
+            />
+          </label>
+          <button disabled={saving}>ثبت تعرفه مستقل</button>
+        </form>
+
+        {level1 && (
+          <form onSubmit={event => void saveFinance(event, "activation")}>
+            <label>
+              پلن
+              <select
+                required
+                value={activationPlanId}
+                onChange={event => setActivationPlanId(event.target.value)}
+              >
+                <option value="">انتخاب پلن</option>
+                {plans.filter(plan => !plan.isActive).map(plan => (
+                  <option key={plan.id} value={plan.id}>{plan.code}</option>
+                ))}
+              </select>
+            </label>
+            <button disabled={saving}>فعال‌سازی پلن</button>
+          </form>
+        )}
+      </details>
+
+      {modalMode && (
+        <div
+          className="phase12-plan-overlay"
+          role="presentation"
+          onMouseDown={event => {
+            if (event.target === event.currentTarget && !saving) {
+              setModalMode(null);
+            }
+          }}
+        >
+          <div
+            className="phase12-plan-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label={MODAL_LABELS[modalMode].ariaLabel}
+          >
+            <div className="phase12-plan-modal-header">
+              <h3>{MODAL_LABELS[modalMode].title}</h3>
+              <button
+                type="button"
+                aria-label="بستن"
+                disabled={saving}
+                onClick={() => setModalMode(null)}
+              >
+                ×
+              </button>
+            </div>
+
+            <form onSubmit={event => void savePlan(event)}>
+              {modalMode === "archive" ? (
+                <p>پلن «{selectedPlan?.code}» غیرفعال می‌شود؛ اطلاعات سفارش‌ها و اشتراک‌های قبلی باقی می‌مانند. ادامه می‌دهید؟</p>
+              ) : (
+                <>
+                  <label>
+                    کد پلن
+                    <input
+                      required
+                      readOnly={isReadOnly}
+                      value={planCode}
+                      maxLength={50}
+                      onChange={event => setPlanCode(event.target.value)}
+                    />
+                  </label>
+                  <label>
+                    نوع پلن
+                    <select
+                      disabled={isReadOnly}
+                      value={planKind}
+                      onChange={event => changePlanKind(event.target.value)}
+                    >
+                      {PLAN_KIND_ORDER.map(kind => (
+                        <option key={kind} value={kind}>{PLAN_KIND_LABELS[kind]}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    اعتبار (روز)
+                    <input
+                      type="number"
+                      required
+                      readOnly={isReadOnly}
+                      min={1}
+                      max={366}
+                      value={validityDays}
+                      onChange={event => setValidityDays(Number(event.target.value))}
+                    />
+                  </label>
+                  {planKind === 2 && (
+                    <label>
+                      سهمیه صورتحساب
+                      <input
+                        type="number"
+                        min={1}
+                        required
+                        readOnly={isReadOnly}
+                        value={invoiceUnitLimit}
+                        onChange={event => setInvoiceUnitLimit(Number(event.target.value))}
+                      />
+                    </label>
+                  )}
+                  {selectedPlan && <p>شناسه: <code dir="ltr">{selectedPlan.id}</code></p>}
+                </>
+              )}
+
+              {error && <p role="alert">{error}</p>}
+              <div className="phase12-plan-modal-footer">
+                <button type="button" onClick={() => setModalMode(null)} disabled={saving}>
+                  بستن
+                </button>
+                {!isReadOnly && (
+                  <button type="submit" disabled={saving}>
+                    {saving ? "در حال ثبت..." : modalMode === "archive" ? "تأیید حذف" : "ذخیره"}
+                  </button>
+                )}
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </section>
+  );
 }

@@ -56,5 +56,5 @@ test("Plan catalog has backend-backed compact search, modal and protected CRUD",
     assert.ok(catalog.includes(term),term);
   const proxy=read("app/api/phase12/[...parts]/route.ts");
   assert.match(proxy,/request.method === "GET"/);
-  assert.match(proxy,/request.method as "PUT"\|"DELETE"/);
+  assert.match(proxy,/request.method as "PUT"\s*\|\s*"DELETE"/);
 });
