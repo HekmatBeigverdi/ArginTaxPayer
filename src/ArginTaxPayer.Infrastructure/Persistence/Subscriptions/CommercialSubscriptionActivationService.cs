@@ -21,9 +21,10 @@ public sealed class CommercialSubscriptionActivationService(ArginTaxPayerDbConte
         var actor=await identity.CurrentUserIdAsync(bearer,ct)
             ?? throw new UnauthorizedAccessException("Authentication required.");
         var allowed=await db.IdentityUsers.AsNoTracking().AnyAsync(u=>u.Id==actor && u.IsActive &&
-            u.Roles.Any(r=>r.Role==IdentityRoleNames.Level1) &&
+            (u.Roles.Any(r=>r.Role==IdentityRoleNames.Level1) ||
+             u.Roles.Any(r=>r.Role==IdentityRoleNames.Level2)) &&
             db.IdentityMfaStates.Any(m=>m.UserId==actor && m.EnabledAtUtc!=null),ct);
-        if(!allowed)throw new UnauthorizedAccessException("Level1 MFA required.");
+        if(!allowed)throw new UnauthorizedAccessException("Authorized administrator MFA required.");
         await using var tx=await db.Database.BeginTransactionAsync(IsolationLevel.Serializable,ct);
         var conn=db.Database.GetDbConnection();
         await using var lockOrder=conn.CreateCommand();
@@ -49,7 +50,7 @@ public sealed class CommercialSubscriptionActivationService(ArginTaxPayerDbConte
             purchased=reader.GetDateTime(8);kind=reader.GetInt32(9);validity=reader.GetInt32(10);
             limit=reader.IsDBNull(11)?null:reader.GetInt64(11);
         }
-        if(root!=actor)throw new UnauthorizedAccessException("Order outside root scope.");
+        if((partner ?? root)!=actor)throw new UnauthorizedAccessException("Order outside commercial owner scope.");
         await using var existing=conn.CreateCommand();
         existing.Transaction=lockOrder.Transaction;
         existing.CommandText="SELECT subscription_id FROM commercial_order_activations WHERE order_id=@order";
