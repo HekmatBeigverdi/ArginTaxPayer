@@ -55,8 +55,8 @@ public sealed class CustomerCheckoutService(ArginTaxPayerDbContext db,
         if(vatBasisPoints!=0) throw new ArgumentException("Client tax rate not accepted.");
         var taxSetting=await db.Database.SqlQueryRaw<TaxSettingRow>(
             """
-            SELECT vat_basis_points AS "BasisPoints"
-            FROM commercial_checkout_tax_settings WHERE root_user_id={0}
+            SELECT (value_json->>'basis_points')::integer AS "BasisPoints"
+            FROM application_settings WHERE scope_user_id={0} AND setting_key='checkout.vat'
             """,owner.RootLevel1UserId).SingleOrDefaultAsync(ct);
         if(wantsOfficialInvoice && taxSetting is null)
             throw new InvalidOperationException("Official checkout VAT not configured.");
