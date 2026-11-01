@@ -22,6 +22,7 @@ const actions = new Map<string, ProxyMethod>([
   ["subscriptions/commercial-orders", "POST"],
   ["subscriptions/collections/manual", "POST"],
   ["subscriptions/revenue-ledger", "GET"],
+  ["subscriptions/cash-pending", "GET"],
   ["subscriptions/settlements/balances", "GET"],
   ["subscriptions/settlements/record", "POST"],
   ["subscriptions/settlements/reverse", "POST"],
