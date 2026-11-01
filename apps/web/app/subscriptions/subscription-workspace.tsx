@@ -2,7 +2,6 @@
 
 import "./subscription-workspace.css";
 import PlanCatalog from "./plan-catalog";
-import CheckoutTaxSettings from "./checkout-tax-settings";
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 
@@ -104,7 +103,7 @@ export default function SubscriptionWorkspace({level1}:{level1:boolean}) {
           onClick={()=>{setTab(key);setNotice(null);}} disabled={busy}>{names[key]}</button>)}
     </div>
     {notice && <p role="status" className={`phase12-finance-notice phase12-finance-notice-${notice.kind}`}>{notice.text}</p>}
-    {tab==="plans" && <><PlanCatalog level1={level1}/>{level1&&<CheckoutTaxSettings/>}</>}
+    {tab==="plans" && <PlanCatalog level1={level1}/>}
     {tab==="orders" && <form onSubmit={e=>void submit(e,async()=>{
       const result=await request("commercial-orders","POST",{
         customerUserId:customerId,planId:orderPlanId,idempotencyKey:orderKey
