@@ -317,3 +317,21 @@ These eight requirements supersede assumptions that only administrators purchase
 8. **Dashboard:** active plan, expiry in calendar days and invoice credits when quantity-limited; trial used/remaining counters if unsubscribed. Display must be sourced from an authenticated server-scoped read model.
 
 Code already added in this workstream: `SubscriptionCheckoutPolicy.cs` and `Phase12CheckoutTrialPolicyTests.cs` (trial domain rules, integer VAT quotation, scoped merchant routing). **They are policy foundations only**: no persistence, actual trial send gate, checkout flow, merchant configuration UI or payment adapter yet. Existing Step10 administrative UI and current commercial order service must be refactored for client purchases and source-calculated VAT; currently admin-only order creation and Level1-only paid activation are incompatible with complete owner-requested flow. Release is blocked on these changes plus macOS tests, PostgreSQL concurrency integration and real PSP sandbox tests. No secrets should be posted to chat.
+
+## Owner amendment — Level2 independent cash verification; customer finance; quantity replenishment (2026-11-01)
+
+Owner clarification: an active Level2 administrator may independently confirm an actual cash/bank receipt for **their own customer's own attributed commercial order**, without Level1 pre-approval. Such confirmations must remain auditable and must not affect Level1 partner-settlement approval rights. Receipt confirmation is a financial action distinct from an unverified self-reported cash-payment choice.
+
+Implemented this turn:
+- Tightened `VerifiedCollectionService.RecordManualAsync` to current commercial owner and order attribution. In partner-managed orders, a root administrator cannot bypass the partner as cashier. Requires active admin and enabled MFA; verified-collection journal remains append-only.
+- `CommercialSubscriptionActivationService` now permits the commercial owner Level2 to activate its own **already fully paid, receipt-reconciled** order, without root approval. Activation remains unique per order; no authority invoice dispatch changes.
+- `CustomerFinancialHistoryService`, local-only customer report API, Next server-side cookie proxy, RTL `/financial-history` page, and navigation/dashboard link. Reads order history scoped by the authenticated identity (no customer-id parameter); reports amounts, collection status, commercial invoice number, activated subscription and expiry.
+- `SubscriptionRenewalPolicy`: distinguishes new, renewal, repurchase and quantity add-on. An add-on must carry the base active quantity subscription's **exact expiry**. A new/repeat pack uses its own bounded plan validity. Unit tests cover this pure policy.
+
+**NOT FINISHED / blocked before live checkout:**
+- Purchase purpose, add-on base subscription, expiry inheritance and credit grant are NOT YET persisted/attached to the actual commercial order and activation services. Domain policy alone does not enable an add-on purchase. Existing activation still uses the hardcoded 12-month quantity expiration and requires correction.
+- Customer self-service checkout with optional official purchase invoice VAT, cash-pending approval request workflow and linked merchant routing (SEP/Zarinpal with VAT/no-VAT merchant credentials) are not wired. PSP credentials must be protected and verified via server-to-server PSP API.
+- Trial 1 taxpayer / 2 confirmed sends must be enforced within the actual taxpayer creation and final send transaction; domain test does not enforce real limits.
+- Customer history does not yet provide trustworthy labels for purchase/renewal/add-on because the existing order table has no immutable purchase-purpose field. It shows actual order and subscription data without making up the subtype.
+- Header/dashboard subscription status and remaining quantity have not been implemented; test isolated vs actual send pipeline before enabling.
+- No actual .NET runtime, PostgreSQL migration, tests or browser execution by assistant. Owner macOS QA and integration/concurrency/tenant tests required. No claim of closing the eight-item checkout initiative until the above are addressed.
