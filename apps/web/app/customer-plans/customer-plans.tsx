@@ -15,12 +15,12 @@ export default function CustomerPlans(){
   return()=>ctrl.abort();
  },[]);
  async function buy(){
-  if(!selected||busy||official||!cash)return;
+  if(!selected||busy||!cash)return;
   setBusy(true);setError("");setNotice("");
   try{
    const response=await fetch("/api/customer-checkout",{method:"POST",cache:"no-store",
     headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({planId:selected,wantsOfficialInvoice:false,operationKey:operation})});
+    body:JSON.stringify({planId:selected,wantsOfficialInvoice:official,operationKey:operation})});
    if(!response.ok)throw Error("ثبت درخواست ناموفق بود (HTTP "+response.status+")");
    const result=await response.json() as {orderId:string};
    setNotice("درخواست پرداخت نقدی ثبت شد. شماره سفارش: "+result.orderId+
@@ -45,9 +45,9 @@ export default function CustomerPlans(){
    <label><input type="radio" checked={cash} onChange={()=>setCash(true)}/> پرداخت نقدی</label>
    <label><input type="radio" checked={!cash} onChange={()=>setCash(false)}/> پرداخت از درگاه</label>
   </div>
-  {official&&<p role="alert">صدور فاکتور رسمی پس از ثبت نرخ ارزش افزوده توسط مدیر اصلی فعال خواهد شد.</p>}
+  {official&&<p>ارزش افزوده بر اساس تنظیمات مدیر اصلی روی سرور محاسبه می‌شود؛ مبلغ قطعی در پاسخ سفارش ثبت خواهد شد.</p>}
   {!cash&&<p role="alert">درگاه آنلاین هنوز آماده تأیید سروری نیست؛ امکان شروع پرداخت غیرفعال است.</p>}
-  <button type="button" disabled={!selected||busy||official||!cash} onClick={()=>void buy()}
+  <button type="button" disabled={!selected||busy||!cash} onClick={()=>void buy()}
     style={{padding:"10px 18px",border:0,borderRadius:9,marginTop:14,background:"#176c4e",color:"white"}}>
     {busy?"در حال ثبت...":"ثبت درخواست خرید نقدی"}
   </button>
