@@ -1,3 +1,4 @@
+import SubscriptionStatus from "../../components/subscription-status";
 import Link from "next/link";
 import Image from "next/image";
 import { currentIdentity } from "../../../lib/identity";
@@ -45,6 +46,7 @@ export default async function DashboardPage() {
           <div><small>حوزه دسترسی</small><strong>{level1 ? "مدیریت سطح یک" : level2 ? "مشتریان زیرمجموعه" : "حساب شخصی"}</strong></div>
           <div><small>وضعیت پنل</small><strong>محیط توسعه</strong></div>
         </section>
+        {customer && <SubscriptionStatus/>}
         <div className="app-section-title"><div><h2>بخش‌های سامانه</h2>
           <p>ماژول‌های فعال و قابلیت‌های برنامه‌ریزی‌شده</p></div></div>
         <section className="app-module-grid" aria-label="ماژول‌های سامانه">
