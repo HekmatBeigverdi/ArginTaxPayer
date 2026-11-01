@@ -109,7 +109,7 @@ export default function SubscriptionWorkspace({level1}:{level1:boolean}) {
       <button type="button" onClick={()=>setOrderKey(uuid())}>سفارش جدید</button>
       {orderId && <p>شناسه سفارش: <code dir="ltr">{orderId}</code></p>}
     </form>}
-    {tab==="orders" && level1 && <form onSubmit={e=>void submit(e,()=>request("paid-orders/activate","POST",{
+    {tab==="orders" && <form onSubmit={e=>void submit(e,()=>request("paid-orders/activate","POST",{
       orderId
     }),"اشتراک سفارش پرداخت‌شده ایجاد شد. شماره اشتراک را از پاسخ API بررسی کنید.")}>
       <h3>فعال‌سازی اشتراک سفارش تسویه‌شده</h3>
