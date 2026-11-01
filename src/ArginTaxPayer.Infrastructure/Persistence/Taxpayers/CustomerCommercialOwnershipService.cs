@@ -222,6 +222,7 @@ public sealed class CustomerCommercialOwnershipService(
         var safeQuery = query?.Trim();
         var mobileQuery = IranianMobileNumber.TryNormalize(safeQuery, out var normalizedMobile) ? normalizedMobile : null;
         var normalizedQuery = safeQuery ?? string.Empty;
+        var normalizedEmailQuery = normalizedQuery.ToUpperInvariant();
         var scoped =
             from u in db.IdentityUsers.AsNoTracking()
             where u.Roles.Any(r => r.Role == IdentityRoleNames.Customer ||
@@ -234,7 +235,7 @@ public sealed class CustomerCommercialOwnershipService(
         if (!string.IsNullOrWhiteSpace(safeQuery))
             scoped = scoped.Where(x => (mobileQuery != null && x.u.NormalizedMobile == mobileQuery) ||
                 (x.u.NormalizedMobile ?? string.Empty).Contains(normalizedQuery) ||
-                (x.u.NormalizedEmail ?? string.Empty).Contains(normalizedQuery) ||
+                (x.u.NormalizedEmail ?? string.Empty).ToUpper().Contains(normalizedEmailQuery) ||
                 x.u.Id.ToString().Contains(normalizedQuery) ||
                 db.SoftwareUserProfiles.Any(p => p.UserId == x.u.Id &&
                     ((p.FirstName + " " + p.LastName).Contains(normalizedQuery) ||
