@@ -11,7 +11,7 @@ const customerModules: Tile[] = [
   { title: "پیش‌نویس صورتحساب", description: "ساخت و مشاهده پیش‌نویس داخلی، بدون ارسال مالیاتی", href: "/invoices", symbol: "فا", meta: "پیش‌نویس" },
   { title: "تنظیمات", description: "تنظیمات مالیاتی و ترجیحات حساب", symbol: "تن", meta: "در انتظار تعریف" },
   { title: "پروفایل و اشتراک", description: "اطلاعات خریدار پنل؛ انتخاب و خرید پلن پس از فعال‌شدن فروش", href: "/account", symbol: "پر", meta: "پروفایل فعال" },
-  { title: "تراکنش‌های مالی", description: "سوابق خرید، پرداخت و تمدید", symbol: "ما", meta: "در فاز مالی" }
+  { title: "تراکنش‌های مالی", description: "سوابق خرید، پرداخت و تمدید اشتراک", href: "/financial-history", symbol: "ما", meta: "فعال در توسعه" }
 ];
 const adminModules: Tile[] = [
   { title: "کاربران نرم‌افزار", description: "ایجاد و مدیریت حساب‌های ورود و نقش‌های سامانه", href: "/users", symbol: "کا", meta: "مدیریت" },
