@@ -9,7 +9,7 @@ test("Customer cash checkout is server-owned and fail-closed for VAT/PSP",()=>{
  assert.match(backend,/ACCESS_COOKIE/);
  assert.match(backend,/identityApiOrigin/);
  assert.match(backend,/invalid_origin/);
- assert.match(page,/wantsOfficialInvoice:false/);
+ assert.match(page,/wantsOfficialInvoice:official/);
  assert.match(page,/!cash/);
  assert.match(page,/official/);
  assert.match(page,/customer-checkout/);
