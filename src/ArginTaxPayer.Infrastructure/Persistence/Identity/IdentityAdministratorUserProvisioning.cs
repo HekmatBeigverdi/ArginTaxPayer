@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using ArginTaxPayer.Infrastructure.Persistence.Taxpayers;
 using Microsoft.Extensions.Logging;
 using Npgsql;
+using ArginTaxPayer.Infrastructure.Persistence.Subscriptions;
 
 namespace ArginTaxPayer.Infrastructure.Persistence.Identity;
 
@@ -14,7 +15,7 @@ public enum AdminUserCreationStatus { Created, Invalid, Unauthenticated, Forbidd
 public sealed class IdentityAdministratorUserProvisioning(
     ArginTaxPayerDbContext db, IdentitySessionService sessions,
     ILogger<IdentityAdministratorUserProvisioning> logger,
-    CustomerCommercialOwnershipService ownership)
+    CustomerCommercialOwnershipService ownership, SmsCreditService? smsCredit = null)
 {
     public async Task<AdminUserCreationStatus> CreateCustomerAsync(
         string? bearer, string? mobileInput, string? emailInput,
@@ -61,7 +62,10 @@ public sealed class IdentityAdministratorUserProvisioning(
         });
         try
         {
+            await using var transaction = await db.Database.BeginTransactionAsync(ct);
             await db.SaveChangesAsync(ct);
+            if(smsCredit is not null) await smsCredit.GrantInitialCustomerCreditWithinTransactionAsync(userId, now, ct);
+            await transaction.CommitAsync(ct);
             logger.LogInformation("IDENTITY_ADMIN_CUSTOMER_CREATED; trusted_manual_mobile_onboarding=true");
             return AdminUserCreationStatus.Created;
         }

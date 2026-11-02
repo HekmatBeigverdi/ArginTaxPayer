@@ -38,6 +38,7 @@ export default function ConsoleShell({ roles, userId, children }:
     { title: "اشتراک‌ها و امور مالی", path: "/subscriptions", glyph: "▥" }, base[4]] : base;
   const accountNavigation: Item[] = admin ? [] : [
     ...(roles.includes("Customer") ? [{ title: "پلن‌های نرم‌افزار", path: "/customer-plans", glyph: "▣" }] : []),
+    ...(roles.includes("Customer") ? [{ title: "اعتبار پیامک", path: "/sms-credit", glyph: "✉" }] : []),
     { title: "پرداخت‌ها و اشتراک‌ها", path: "/financial-history", glyph: "▤" }
   ];
   useEffect(() => { setMenuOpen(false); setNavigatingTo(null); }, [pathname]);
@@ -141,6 +142,7 @@ export default function ConsoleShell({ roles, userId, children }:
             </div>}
           </div>
           {roles.includes("Customer") && !admin && <SubscriptionStatus compact/>}
+          {roles.includes("Customer") && !admin && <Link href="/sms-credit" className="subscription-status-compact">خرید اعتبار پیامک</Link>}
         </div>
       </header>
       <div className="app-content console-content-host" id="console-content" aria-busy={Boolean(navigatingTo)}>

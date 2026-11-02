@@ -8,13 +8,14 @@ import PartnerSettlementWorkspace from "./partner-settlement-workspace";
 import PlanSalesReport from "./plan-sales-report";
 import { amount, planName } from "./finance-format";
 import InvoiceActionToast from "../invoices/invoice-action-toast";
+import SmsTopupAction from "./sms-topup-action";
 
 import { Fragment, useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 
 type Tab = "plans" | "collections" | "revenue" | "settlements" | "sms";
 const names: Record<Tab,string> = {
   plans:"تعریف پلن", collections:"ثبت دریافت",
-  revenue:"گزارش درآمد", settlements:"تسویه شرکا", sms:"کیف پول پیامک"
+  revenue:"گزارش درآمد", settlements:"تسویه شرکا", sms:"گزارش پیامک"
 };
 type ResultState = { kind:"success"|"error"; text:string } | null;
 type PendingOrder = {
@@ -37,11 +38,11 @@ export default function SubscriptionWorkspace({level1}:{level1:boolean}) {
   const [pricePlanId,setPricePlanId]=useState("");
   const [priceIrr,setPriceIrr]=useState("");
   const [activationId,setActivationId]=useState("");
-  const [smsCustomer,setSmsCustomer]=useState("");
-  const [smsUnits,setSmsUnits]=useState("");
-  const [smsEvidence,setSmsEvidence]=useState("");
-  const [smsOperationKey,setSmsOperationKey]=useState(uuid);
-  const [smsBalance,setSmsBalance]=useState<{granted:number;spent:number;available:number}|null>(null);
+  const [smsPartner,setSmsPartner]=useState("");
+  const [smsPage,setSmsPage]=useState(1);
+  const [smsReport,setSmsReport]=useState<{items:{dispatchId:string;purpose:string;customerUserId:string|null;customerContact:string|null;partnerLevel2UserId:string|null;providerCostIrr:number;customerChargeIrr:number;recordedAtUtc:string;status:string}[];totalCount:number;providerCostTotalIrr:number;customerChargeTotalIrr:number}|null>(null);
+  const [smsLoading,setSmsLoading]=useState(false);
+  const [smsPartners,setSmsPartners]=useState<{userId:string;mobile:string|null;email:string|null}[]>([]);
   const [planKind,setPlanKind]=useState(1);
   const [validity,setValidity]=useState(365);
   const [units,setUnits]=useState(100);
@@ -85,6 +86,16 @@ export default function SubscriptionWorkspace({level1}:{level1:boolean}) {
     if(tab==="collections")void loadPending();
     return ()=>{pendingRequest.current++;};
   },[tab,loadPending]);
+  useEffect(()=>{
+    if(tab!=="sms")return;
+    let active=true;setSmsLoading(true);
+    const query=new URLSearchParams({page:String(smsPage)});if(smsPartner)query.set("partnerUserId",smsPartner);
+    request("sms-usage?"+query.toString()).then(r=>{if(active)setSmsReport(r as typeof smsReport);})
+      .catch(e=>{if(active)setNotice({kind:"error",text:e instanceof Error?e.message:"خطای گزارش پیامک"});})
+      .finally(()=>{if(active)setSmsLoading(false);});
+    return()=>{active=false;};
+  },[tab,smsPage,smsPartner,request]);
+  useEffect(()=>{if(tab!=="sms"||!level1)return;let active=true;request("sms-partners").then(x=>{if(active)setSmsPartners(x as typeof smsPartners)}).catch(()=>{});return()=>{active=false}},[tab,level1,request]);
 
   async function runAction(action:()=>Promise<unknown>, success:string) {
     if(busy)return;
@@ -190,33 +201,17 @@ export default function SubscriptionWorkspace({level1}:{level1:boolean}) {
       {!pendingLoading&&pendingOrders.length===0&&notice?.kind!=="error"&&<p className="phase12-finance-empty">درخواستی برای تأیید یا مانده‌ای برای دریافت وجود ندارد.</p>}
     </section>}
     {tab==="sms" && <section>
-      <h3>کیف پول پیامک</h3>
-      <p>اعتبار پیامک مستقل از سهمیه صورتحساب و درآمد است. شارژ اعتباری فقط با مجوز Level 1 انجام می‌شود.</p>
-      <label>شناسه مشتری<input required value={smsCustomer} onChange={e=>setSmsCustomer(e.target.value)}/></label>
-      <button type="button" disabled={busy||!smsCustomer} onClick={()=>void (async()=>{
-        setBusy(true);setNotice(null);
-        try {
-          const result=await request("sms-wallet/"+encodeURIComponent(smsCustomer)) as {granted:number;spent:number;available:number};
-          setSmsBalance(result);
-        } catch(error) {setNotice({kind:"error",text:error instanceof Error?error.message:"خطای موجودی"});}
-        finally {setBusy(false);}
-      })()}>مشاهده موجودی</button>
-      {smsBalance && <p role="status">اعتبار کل: {smsBalance.granted} | مصرف‌شده: {smsBalance.spent} | قابل‌استفاده: {smsBalance.available}</p>}
-      {level1 && <form onSubmit={e=>void submit(e,async()=>{
-        const result=await request("sms-wallet/grant","POST",{
-          customerUserId:smsCustomer,units:Number(smsUnits),
-          operationKey:smsOperationKey,evidence:smsEvidence
-        }) as {granted:number;spent:number;available:number};
-        setSmsBalance(result);
-      },"شارژ اعتباری ثبت شد.")}>
-        <h3>شارژ کیف پول با تأیید مدیر اصلی</h3>
-        <label>تعداد پیامک<input required type="number" min={1} step={1} value={smsUnits} onChange={e=>setSmsUnits(e.target.value)}/></label>
-        <label>مستند تأیید شارژ<input required value={smsEvidence} onChange={e=>setSmsEvidence(e.target.value)}/></label>
-        <label>شناسه یکتای عملیات<input required value={smsOperationKey} onChange={e=>setSmsOperationKey(e.target.value)}/></label>
-        <button type="submit" disabled={busy}>ثبت شارژ</button>
-        <button type="button" onClick={()=>setSmsOperationKey(uuid())}>عملیات جدید</button>
-      </form>}
-      <p>کسر اعتبار پس از ارسال تأییدشده پیامک به هماهنگی با سرویس ارسال نیاز دارد و از این صفحه انجام نمی‌شود.</p>
+      <div className="phase12-collection-heading"><div><h3>گزارش مصرف و هزینه پیامک</h3><p>هزینه واقعی قاصدک و مبلغ کسرشده از اعتبار کاربران ثبت می‌شود.</p></div>
+        {level1?<label>ادمین سطح ۲<select value={smsPartner} onChange={e=>{setSmsPage(1);setSmsPartner(e.target.value);}}><option value="">همه ادمین‌ها</option>{smsPartners.map(p=><option key={p.userId} value={p.userId}>{p.email||p.mobile||p.userId}</option>)}</select></label>:<span>گزارش محدود به ادمین سطح ۲ شماست.</span>}
+      </div>
+      <div className="phase12-finance-summary"><span>هزینه واقعی سرویس: {amount(smsReport?.providerCostTotalIrr??0)}</span><span>جمع کسر از اعتبار کاربران: {amount(smsReport?.customerChargeTotalIrr??0)}</span></div>
+      <div className="console-table-scroll phase12-finance-report"><table className="console-table" aria-busy={smsLoading}>
+        <thead><tr><th>زمان</th><th>کاربر</th><th>ادمین سطح ۲</th><th>نوع</th><th>هزینه قاصدک</th><th>کسر از اعتبار</th><th>وضعیت</th><th>شارژ</th></tr></thead><tbody>
+        {smsLoading&&<tr><td colSpan={8}><p className="phase12-finance-loading" role="status"><span/>در حال دریافت…</p></td></tr>}
+        {!smsLoading&&smsReport?.items.map(x=><tr key={x.dispatchId}><td>{new Intl.DateTimeFormat("fa-IR",{dateStyle:"short",timeStyle:"short",timeZone:"Asia/Tehran"}).format(new Date(x.recordedAtUtc))}</td><td dir="ltr">{x.customerContact??x.customerUserId??"—"}</td><td dir="ltr">{x.partnerLevel2UserId??"—"}</td><td>{x.purpose}</td><td>{amount(x.providerCostIrr)}</td><td>{amount(x.customerChargeIrr)}</td><td>{x.status}</td><td>{x.customerUserId?<SmsTopupAction customerUserId={x.customerUserId}/>:"—"}</td></tr>)}
+        {!smsLoading&&smsReport?.items.length===0&&<tr><td colSpan={8}>داده‌ای برای نمایش وجود ندارد.</td></tr>}
+        </tbody></table></div>
+      <FinancePagination page={smsPage} totalCount={smsReport?.totalCount??0} loading={smsLoading} onPageChange={setSmsPage}/>
     </section>}
     {tab==="revenue" && <section>
       <PlanSalesReport request={request}/>

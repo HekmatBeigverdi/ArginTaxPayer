@@ -214,6 +214,9 @@ public static class IdentityDevelopmentEndpoints
                         statusCode: StatusCodes.Status429TooManyRequests),
                 PhoneOtpRequestStatus.Invalid =>
                     Results.BadRequest(new { error = "invalid_phone_request" }),
+                PhoneOtpRequestStatus.InsufficientCredit =>
+                    Results.Json(new { error = "insufficient_sms_credit" },
+                        statusCode: StatusCodes.Status402PaymentRequired),
                 _ => Results.Json(new { error = "otp_unavailable" },
                     statusCode: StatusCodes.Status503ServiceUnavailable)
             };

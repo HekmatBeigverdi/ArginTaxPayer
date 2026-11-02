@@ -1,11 +1,13 @@
 using Microsoft.EntityFrameworkCore;
 using ArginTaxPayer.Infrastructure.Persistence.Taxpayers;
+using ArginTaxPayer.Infrastructure.Persistence.Subscriptions;
 using Npgsql;
 
 namespace ArginTaxPayer.Infrastructure.Persistence.Identity;
 
 /// <summary>Development-only credential proof; session issuance is implemented in Step 03.</summary>
-public sealed class IdentityCredentialService(ArginTaxPayerDbContext db, CustomerCommercialOwnershipService ownership)
+public sealed class IdentityCredentialService(ArginTaxPayerDbContext db,
+    CustomerCommercialOwnershipService ownership, SmsCreditService? smsCredit = null)
 {
     public async Task<IdentityRegistrationResult> RegisterCustomerAsync(
         string? email, string? password, CancellationToken cancellationToken = default)
@@ -44,7 +46,11 @@ public sealed class IdentityCredentialService(ArginTaxPayerDbContext db, Custome
         });
         try
         {
+            await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
             await db.SaveChangesAsync(cancellationToken);
+            if(smsCredit is not null) await smsCredit.GrantInitialCustomerCreditWithinTransactionAsync(id, now,
+                cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
             return IdentityRegistrationResult.Created;
         }
         catch (DbUpdateException ex) when (ex.InnerException is PostgresException

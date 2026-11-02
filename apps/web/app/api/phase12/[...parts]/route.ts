@@ -16,7 +16,6 @@ const actions = new Map<string, ProxyMethod>([
   ["subscriptions/plans", "POST"],
   ["subscriptions/prices", "POST"],
   ["subscriptions/prices/history", "GET"],
-  ["subscriptions/sms-wallet/grant", "POST"],
   ["subscriptions/plans/activate", "POST"],
   ["subscriptions/orders/approve", "POST"],
   ["subscriptions/orders/reject", "POST"],
@@ -28,6 +27,10 @@ const actions = new Map<string, ProxyMethod>([
   ["subscriptions/cash-pending", "GET"],
   ["subscriptions/sales-report", "GET"],
   ["subscriptions/checkout-tax", "GET"],
+  ["subscriptions/sms-usage", "GET"],
+  ["subscriptions/sms-partners", "GET"],
+  ["subscriptions/sms-sep-admins", "GET"],
+  ["subscriptions/sms-topups/start", "POST"],
   ["subscriptions/settlements/balances", "GET"],
   ["subscriptions/settlements/partners", "GET"],
   ["subscriptions/settlements/terms", "PUT"],
@@ -46,12 +49,14 @@ const LEVEL1_ONLY_ACTIONS = new Set([
   "subscriptions/settlements/expenses",
   "subscriptions/settlements/reverse",
   "subscriptions/plans/activate",
-  "subscriptions/sms-wallet/grant",
   "subscriptions/checkout-tax",
+  "subscriptions/sms-settings",
+  "subscriptions/sms-sep-settings",
 ]);
 
 const PLAN_RECORD_PATH = /^subscriptions\/plans\/[0-9a-fA-F-]{36}$/;
-const SMS_WALLET_PATH = /^subscriptions\/sms-wallet\/[0-9a-fA-F-]{36}$/;
+const SMS_TOPUP_PATH = /^subscriptions\/sms-topups\/[0-9a-fA-F-]{36}$/;
+const SMS_TOPUP_RECONCILE_PATH = /^subscriptions\/sms-topups\/[0-9a-fA-F-]{36}\/reconcile$/;
 
 async function proxy(request: NextRequest, context: RouteContext) {
   if (!identityUiEnabled()) {
@@ -63,14 +68,14 @@ async function proxy(request: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
   }
 
-  const isLevel1 = actor.roles.includes("Level1");
-  const isLevel2 = actor.roles.includes("Level2");
-  if (!isLevel1 && !isLevel2) {
-    return NextResponse.json({ error: "forbidden" }, { status: 403 });
-  }
-
   const { parts } = await context.params;
   const path = parts.join("/");
+  const isLevel1 = actor.roles.includes("Level1");
+  const isLevel2 = actor.roles.includes("Level2");
+  const isCustomerTopupRoute = path === "subscriptions/sms-topups/start" || SMS_TOPUP_PATH.test(path);
+  if (!isLevel1 && !isLevel2 && !(actor.roles.includes("Customer") && isCustomerTopupRoute)) {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
   let method: ProxyMethod | undefined;
 
   if (path === "subscriptions/settlements/batches" && request.method === "POST") {
@@ -79,10 +84,14 @@ async function proxy(request: NextRequest, context: RouteContext) {
     method = "GET";
   } else if (path === "subscriptions/checkout-tax" && ["GET", "PUT"].includes(request.method)) {
     method = request.method as "GET" | "PUT";
+  } else if (path === "subscriptions/sms-settings" && ["GET", "PUT"].includes(request.method)) {
+    method = request.method as "GET" | "PUT";
+  } else if (path === "subscriptions/sms-sep-settings" && ["GET", "PUT"].includes(request.method)) {
+    method = request.method as "GET" | "PUT";
   } else if (PLAN_RECORD_PATH.test(path) && ["PUT", "DELETE"].includes(request.method)) {
     method = request.method as "PUT" | "DELETE";
   } else {
-    method = actions.get(path) ?? (SMS_WALLET_PATH.test(path) ? "GET" : undefined);
+    method = actions.get(path) ?? (SMS_TOPUP_PATH.test(path) ? "GET" : SMS_TOPUP_RECONCILE_PATH.test(path) ? "POST" : undefined);
   }
 
   if (!method || method !== request.method) {

@@ -326,10 +326,21 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 .checkout-tax-settings>p{margin:0;color:var(--argin-muted);font-size:12px;line-height:1.8}
 .checkout-tax-settings__controls{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;margin-top:4px}
 .checkout-tax-settings__controls label{display:grid;gap:6px;width:min(100%,280px);color:#395468;font-size:12px;font-weight:700}
-.checkout-tax-settings__controls input{width:100%;min-height:38px;padding:7px 10px;border:1px solid #c9d8e2;border-radius:8px;background:#fff;color:var(--argin-text);font:inherit;font-size:13px}
-.checkout-tax-settings__controls input:focus-visible{border-color:var(--argin-primary)}
+.checkout-tax-settings__controls :is(input,select){width:100%;min-height:38px;padding:7px 10px;border:1px solid #c9d8e2;border-radius:8px;background:#fff;color:var(--argin-text);font:inherit;font-size:13px}
+.checkout-tax-settings__controls :is(input,select):focus-visible{border-color:var(--argin-primary)}
 .checkout-tax-settings__controls button{min-height:38px}
 .checkout-tax-settings__status{margin:2px 0 0;color:#395468;font-size:12px}
+.sms-billing-toggle{display:flex;align-items:flex-start;gap:9px;margin-top:8px;padding:11px 12px;border:1px solid #dfe8ed;border-radius:8px;background:#fff;color:#395468;font-size:12px;cursor:pointer}
+.sms-billing-toggle input[type=checkbox]{width:17px;height:17px;min-height:17px;margin:1px 0 0;accent-color:var(--argin-primary);flex:0 0 auto}
+.sms-billing-toggle span{display:grid;gap:3px}
+.sms-billing-toggle strong{color:var(--argin-text)}
+.sms-billing-toggle small{color:var(--argin-muted);font-size:11px;font-weight:400;line-height:1.7}
+.sms-credit-panel{margin-top:0}
+.sms-credit-panel form{margin:0}
+.sms-credit-balance{margin:0;padding:9px 12px;border:1px solid #dfe8ed;border-radius:8px;background:#fff;color:#395468;font-size:13px}
+.sms-credit-balance strong{color:var(--argin-text)}
+.sms-credit-topup-status{display:grid;gap:5px;padding-top:8px;border-top:1px solid #e7edf1}
+.sms-credit-topup-status p{margin:0;color:#395468;font-size:12px}
 .console-settings-page .console-page-heading{margin-bottom:12px}
 .console-settings-page .console-page-heading h1{font-size:20px;margin-bottom:3px}
 .console-settings-page .console-page-heading p:last-child{font-size:12px}

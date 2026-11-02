@@ -325,6 +325,11 @@ export default function IdentityFlow() {
           return;
         }
 
+        if (response.status === 402 && result.error === "insufficient_sms_credit") {
+          setError("اعتبار پیامک شما کافی نیست. پس از شارژ اعتبار دوباره تلاش کنید.");
+          return;
+        }
+
         if (response.status !== 202) {
           setError(
             response.status === 503

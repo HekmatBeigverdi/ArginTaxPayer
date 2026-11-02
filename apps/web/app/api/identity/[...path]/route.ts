@@ -100,6 +100,8 @@ async function callIdentity(operation: string, req: NextRequest, method: "GET" |
       return errorResult(409, "mobile_already_registered");
     if (operation === "phone/request" && response.status === 503)
       return errorResult(503, "otp_unavailable");
+    if (operation === "phone/request" && response.status === 402)
+      return errorResult(402, "insufficient_sms_credit");
     const result = await response.text();
     // Never expose raw upstream diagnostics; for enrollment only, explicitly return
     // the one-time provisioning secret to an authenticated local development user.

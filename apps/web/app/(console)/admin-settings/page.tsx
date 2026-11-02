@@ -1,6 +1,8 @@
 import {redirect} from "next/navigation";
 import {currentIdentity,identityUiEnabled} from "../../../lib/identity";
 import CheckoutTaxSettings from "../../subscriptions/checkout-tax-settings";
+import SmsServiceSettings from "../../subscriptions/sms-service-settings";
+import SmsSepSettings from "../../subscriptions/sms-sep-settings";
 
 export const dynamic="force-dynamic";
 export default async function AdminSettingsPage(){
@@ -20,6 +22,14 @@ export default async function AdminSettingsPage(){
     <p>این مقادیر توسط مدیر سطح یک تعیین می‌شوند.</p>
    </div>
    <CheckoutTaxSettings/>
+  </section>
+  <section className="console-settings-card">
+   <div className="console-settings-card-title"><h2>تنظیمات پیامک</h2><p>هزینه پیامک مشتری برابر هزینه واقعی قاصدک به‌علاوه این درصد است.</p></div>
+   <SmsServiceSettings/>
+  </section>
+  <section className="console-settings-card">
+   <div className="console-settings-card-title"><h2>درگاه SEP پیامک</h2><p>شماره ترمینال و ادمین مسئول پرداخت را برای مشتریان این مجموعه تعیین کنید.</p></div>
+   <SmsSepSettings/>
   </section>
  </div>;
 }
