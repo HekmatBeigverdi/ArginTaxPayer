@@ -24,7 +24,7 @@ public static class Phase12CustomerCheckoutEndpoints
             try{http.Response.Headers.CacheControl="no-store";
                 return Results.Json(await service.OffersAsync(token,ct));}
             catch(UnauthorizedAccessException){return Results.StatusCode(403);}
-            catch(InvalidOperationException){return Results.Conflict();}
+            catch(InvalidOperationException ex){return Results.Conflict(new {message=ex.Message});}
         }).ExcludeFromDescription().RequireRateLimiting("signing-import");
         routes.MapPost("/api/dev/subscriptions/customer-checkout/cash",async(
             HttpContext http,[FromBody] CashRequest input,CustomerCheckoutService service,
@@ -37,7 +37,7 @@ public static class Phase12CustomerCheckoutEndpoints
                 input.WantsOfficialInvoice,0,input.OperationKey,ct),statusCode:201);}
             catch(UnauthorizedAccessException){return Results.StatusCode(403);}
             catch(ArgumentException){return Results.BadRequest();}
-            catch(InvalidOperationException){return Results.Conflict();}
+            catch(InvalidOperationException ex){return Results.Conflict(new {message=ex.Message});}
         }).ExcludeFromDescription().RequireRateLimiting("signing-import");
         return routes;
     }

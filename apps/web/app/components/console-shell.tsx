@@ -15,7 +15,6 @@ const base: Item[] = [
   { title: "کالاها و خدمات", path: "/catalog", glyph: "▤" },
   { title: "صورتحساب‌ها", path: "/invoices", glyph: "▣" },
   { title: "پروفایل و حساب من", path: "/profile", glyph: "♙" },
-  { title: "گزارشات مالی", path: "/financial-history", glyph: "▤" },
   { title: "حساب و امنیت", path: "/account", glyph: "⚙" }
 ];
 
@@ -37,6 +36,10 @@ export default function ConsoleShell({ roles, userId, children }:
     ...(roles.includes("Level1") ? [{ title: "تأیید تغییر کلید", path: "/signing-approvals", glyph: "✓" }] : []),
     base[1], base[2], base[3],
     { title: "اشتراک‌ها و امور مالی", path: "/subscriptions", glyph: "▥" }, base[4]] : base;
+  const accountNavigation: Item[] = admin ? [] : [
+    ...(roles.includes("Customer") ? [{ title: "پلن‌های نرم‌افزار", path: "/customer-plans", glyph: "▣" }] : []),
+    { title: "پرداخت‌ها و اشتراک‌ها", path: "/financial-history", glyph: "▤" }
+  ];
   useEffect(() => { setMenuOpen(false); setNavigatingTo(null); }, [pathname]);
   const requiresProfile = roles.includes("Customer");
   // Read the verified profile once per signed-in user (or explicit retry), NOT once
@@ -96,7 +99,8 @@ export default function ConsoleShell({ roles, userId, children }:
       alert("خروج از حساب انجام نشد؛ اتصال را بررسی کنید.");
     }
   }
-  const activeName = navigation.find(n => pathname === n.path || pathname.startsWith(n.path + "/"))?.title ?? "پنل";
+  const activeName = [...navigation, ...accountNavigation]
+    .find(n => pathname === n.path || pathname.startsWith(n.path + "/"))?.title ?? "پنل";
   return <div className="app-shell argin-console" dir="rtl" lang="fa">
     <aside className="app-sidebar">
       <Link href="/dashboard" onClick={() => { if (pathname !== "/dashboard") setNavigatingTo("/dashboard"); }} className="app-brand"><Image className="argin-brand-logo argin-sidebar-logo" src="/brand/argin-logo.png" width={46} height={46} alt="نشان آرگین" priority unoptimized />
@@ -112,26 +116,31 @@ export default function ConsoleShell({ roles, userId, children }:
       <footer className="app-sidebar-footer"><span>نسخه توسعه</span><p>دسترسی‌ها براساس نقش و مالکیت کنترل می‌شوند.</p></footer>
     </aside>
     <div className="app-main">
-      {!admin && <div style={{padding:"6px 14px",display:"flex",justifyContent:"flex-end"}}><SubscriptionStatus compact/></div>}
       <header className="app-topbar">
         <div className="console-crumb">پنل آرگین / <strong>{activeName}</strong></div>
-        <div ref={menuRef} className="console-account">
-          <button type="button" className="console-account-trigger" aria-haspopup="menu"
-            aria-expanded={menuOpen} onClick={() => setMenuOpen(v => !v)}>
-            <Image className="argin-brand-logo argin-header-logo" src="/brand/argin-logo.png" width={39} height={39} alt="" aria-hidden="true" unoptimized />
-            <span className="console-account-name"><strong>حساب من</strong><small>{role}</small></span>
-            <span aria-hidden="true">⌄</span>
-          </button>
-          {menuOpen && <div className="console-account-dropdown" role="menu" aria-label="حساب کاربری">
-            <p className="console-menu-identity">شناسه حساب <bdi dir="ltr">{userId.slice(0, 8)}…</bdi></p>
-            <Link role="menuitem" href="/profile" onClick={() => setMenuOpen(false)}>پروفایل و حساب من</Link>
-            <Link role="menuitem" href="/account" onClick={() => setMenuOpen(false)}>حساب و امنیت</Link>
-            {roles.includes("Level1") && <Link role="menuitem" href="/admin-settings" onClick={() => setMenuOpen(false)}>تنظیمات مدیریت</Link>}
-            <div className="console-menu-divider"/>
-            <button role="menuitem" type="button" onClick={() => void logout()} disabled={exiting}>
-              {exiting ? "در حال خروج…" : "خروج از حساب"}
+        <div className="console-account-actions">
+          <div ref={menuRef} className="console-account">
+            <button type="button" className="console-account-trigger" aria-haspopup="menu"
+              aria-expanded={menuOpen} onClick={() => setMenuOpen(v => !v)}>
+              <Image className="argin-brand-logo argin-header-logo" src="/brand/argin-logo.png" width={39} height={39} alt="" aria-hidden="true" unoptimized />
+              <span className="console-account-name"><strong>حساب من</strong><small>{role}</small></span>
+              <span aria-hidden="true">⌄</span>
             </button>
-          </div>}
+            {menuOpen && <div className="console-account-dropdown" role="menu" aria-label="حساب کاربری">
+              <p className="console-menu-identity">شناسه حساب <bdi dir="ltr">{userId.slice(0, 8)}…</bdi></p>
+              <Link role="menuitem" href="/profile" onClick={() => setMenuOpen(false)}>پروفایل و حساب من</Link>
+              <Link role="menuitem" href="/account" onClick={() => setMenuOpen(false)}>حساب و امنیت</Link>
+              {accountNavigation.map(item => <Link key={item.path} role="menuitem" href={item.path}
+                aria-current={pathname === item.path ? "page" : undefined}
+                onClick={() => setMenuOpen(false)}>{item.title}</Link>)}
+              {roles.includes("Level1") && <Link role="menuitem" href="/admin-settings" onClick={() => setMenuOpen(false)}>تنظیمات مدیریت</Link>}
+              <div className="console-menu-divider"/>
+              <button role="menuitem" type="button" onClick={() => void logout()} disabled={exiting}>
+                {exiting ? "در حال خروج…" : "خروج از حساب"}
+              </button>
+            </div>}
+          </div>
+          {roles.includes("Customer") && !admin && <SubscriptionStatus compact/>}
         </div>
       </header>
       <div className="app-content console-content-host" id="console-content" aria-busy={Boolean(navigatingTo)}>

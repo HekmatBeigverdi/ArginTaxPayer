@@ -20,7 +20,15 @@ public sealed class CustomerSubscriptionOverviewService(ArginTaxPayerDbContext d
         var now=DateTime.UtcNow;
         var row=await db.Database.SqlQueryRaw<Row>(
             """
-            SELECT s.id AS "SubscriptionId",p.code AS "PlanName",
+            SELECT s.id AS "SubscriptionId",
+                CASE s.kind
+                    WHEN 1 THEN 'یک‌ساله'
+                    WHEN 2 THEN 'بسته ' || to_char(COALESCE(s.invoice_unit_limit,0),'FM99999999999999999999') || ' تایی'
+                    WHEN 3 THEN 'یک‌ماهه'
+                    WHEN 4 THEN 'سه‌ماهه'
+                    WHEN 5 THEN 'شش‌ماهه'
+                    ELSE 'پلن نرم‌افزار'
+                END AS "PlanName",
                 s.kind AS "PlanKind",s.expires_at_utc AS "ExpiresAtUtc",
                 CASE WHEN s.kind=2 THEN COALESCE(c.available_units,0)
                      ELSE NULL END AS "RemainingInvoices"

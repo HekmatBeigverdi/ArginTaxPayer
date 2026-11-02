@@ -9,7 +9,7 @@ export default async function CustomerFinancialHistoryPage(){
   if(!actor)redirect("/identity");
   return <div className="console-page">
     <div className="console-page-heading"><div>
-      <p className="app-kicker">حساب من</p><h1>گزارشات مالی</h1>
+      <p className="app-kicker">حساب من</p><h1>پرداخت‌ها و اشتراک‌ها</h1>
       <p>سوابق سفارش و پرداخت بابت خرید و تمدید اشتراک نرم‌افزار</p>
     </div></div>
     <CustomerFinancialHistory/>

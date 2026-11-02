@@ -16,8 +16,8 @@ export default function SubscriptionStatus({compact=false}:{compact?:boolean}){
  },[]);
  if(failed)return compact?null:<p>وضعیت اشتراک فعلاً در دسترس نیست.</p>;
  if(!status)return compact?null:<p>در حال دریافت وضعیت اشتراک...</p>;
- const name=status.hasActivePlan?status.planName.split("-").slice(1).join("-")||status.planName:"نسخه آزمایشی";
- if(compact)return <Link href="/profile" aria-label="وضعیت اشتراک" style={{fontSize:12,padding:"5px 9px",border:"1px solid #bcd6c7",borderRadius:9}}>
+ const name=status.hasActivePlan?status.planName:"نسخه آزمایشی";
+ if(compact)return <Link href="/customer-plans" className="subscription-status-compact" aria-label="وضعیت اشتراک و مشاهده پلن‌ها">
   {name}{status.planKind===2&&status.remainingInvoices!==null?" · "+status.remainingInvoices.toLocaleString("fa-IR")+" فاکتور":""}
  </Link>;
  return <section className="app-summary" aria-label="اشتراک نرم‌افزار">

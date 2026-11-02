@@ -2,15 +2,26 @@
 
 import "./subscription-workspace.css";
 import PlanCatalog from "./plan-catalog";
+import InvoiceActionToast from "../invoices/invoice-action-toast";
 
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { Fragment, useCallback, useEffect, useState, type FormEvent } from "react";
 
-type Tab = "plans" | "orders" | "collections" | "revenue" | "settlements" | "sms";
+type Tab = "plans" | "collections" | "revenue" | "settlements" | "sms";
 const names: Record<Tab,string> = {
-  plans:"تعریف پلن", orders:"سفارش مالی", collections:"ثبت دریافت",
+  plans:"تعریف پلن", collections:"ثبت دریافت",
   revenue:"گزارش درآمد", settlements:"تسویه شرکا", sms:"کیف پول پیامک"
 };
 type ResultState = { kind:"success"|"error"; text:string } | null;
+type PendingOrder = {
+  orderId:string; customerUserId:string; planCode:string; planKind:number;
+  invoiceUnitLimit:number|null; issuedAtUtc:string; grossIrr:number;
+  collectedIrr:number; customerDisplayName:string|null; customerContact:string|null;
+  isActivated:boolean; collections?:CollectionHistory[];
+};
+type CollectionHistory = {
+  collectionId:string; amountIrr:number; channel:number;
+  receiptReference:string; receivedAtUtc:string;
+};
 type RevenueRow = {
   allocationId:string; collectionId:string; partnerUserId:string|null;
   grossCollectedIrr:number; approvedCostIrr:number; partnerShareIrr:number;
@@ -23,10 +34,14 @@ type SettlementRow = { allocationId:string; partnerUserId:string;
 type SettlementReport = { items:SettlementRow[];totalEarnedIrr:number;
   totalSettledIrr:number;totalOutstandingIrr:number };
 const amount = (n:number) => new Intl.NumberFormat("fa-IR").format(n)+" ریال";
+const temporalPlanNames:Record<number,string>={1:"یک‌ساله",3:"یک‌ماهه",4:"سه‌ماهه",5:"شش‌ماهه"};
+const planName = (kind:number,units:number|null) => kind===2
+  ? `بسته ${new Intl.NumberFormat("fa-IR").format(units??0)} تایی`
+  : (temporalPlanNames[kind]??"پلن نرم‌افزار");
 const uuid = () => globalThis.crypto.randomUUID();
 
 export default function SubscriptionWorkspace({level1}:{level1:boolean}) {
-  const [tab,setTab]=useState<Tab>("plans");
+  const [tab,setTab]=useState<Tab>("collections");
   const [busy,setBusy]=useState(false);
   const [notice,setNotice]=useState<ResultState>(null);
   const [planCode,setPlanCode]=useState("");
@@ -41,21 +56,11 @@ export default function SubscriptionWorkspace({level1}:{level1:boolean}) {
   const [planKind,setPlanKind]=useState(1);
   const [validity,setValidity]=useState(365);
   const [units,setUnits]=useState(100);
-  const [customerId,setCustomerId]=useState("");
-  const [orderPlanId,setOrderPlanId]=useState("");
-  const [orderKey,setOrderKey]=useState(uuid);
-  const [orderId,setOrderId]=useState("");
-  const [pendingOrders,setPendingOrders]=useState<Array<{orderId:string;customerUserId:string;planCode:string;grossIrr:number;collectedIrr:number}>>([]);
+  const [pendingOrders,setPendingOrders]=useState<PendingOrder[]>([]);
+  const [rejectConfirmation,setRejectConfirmation]=useState<PendingOrder|null>(null);
   const [pendingLoading,setPendingLoading]=useState(false);
-  async function loadPending(){
-    setPendingLoading(true);setNotice(null);
-    try{setPendingOrders(await request("cash-pending") as typeof pendingOrders);}
-    catch(e){setNotice({kind:"error",text:e instanceof Error?e.message:"خطای سفارش‌ها"});}
-    finally{setPendingLoading(false);}
-  }
-  const [receiptRef,setReceiptRef]=useState("");
-  const [receiptAmount,setReceiptAmount]=useState("");
-  const [channel,setChannel]=useState(1);
+  const [receiptOrderId,setReceiptOrderId]=useState<string|null>(null);
+  const [receiptDrafts,setReceiptDrafts]=useState<Record<string,{amount:string;reference:string;channel:number}>>({});
   const [allocationId,setAllocationId]=useState("");
   const [settlementAmount,setSettlementAmount]=useState("");
   const [bankRef,setBankRef]=useState("");
@@ -70,9 +75,18 @@ export default function SubscriptionWorkspace({level1}:{level1:boolean}) {
       headers:data?{"Content-Type":"application/json"}:undefined,
       body:data?JSON.stringify(data):undefined
     });
-    if(!response.ok) throw new Error("عملیات ناموفق بود (HTTP "+response.status+").");
+    if(!response.ok) {
+      const details=await response.json().catch(()=>null) as {message?:string}|null;
+      throw new Error(details?.message||"عملیات ناموفق بود (HTTP "+response.status+").");
+    }
     return response.json();
   },[]);
+  const loadPending = useCallback(async()=>{
+    setPendingLoading(true);setNotice(null);
+    try{setPendingOrders(await request("cash-pending") as PendingOrder[]);}
+    catch(e){setNotice({kind:"error",text:e instanceof Error?e.message:"خطای سفارش‌ها"});}
+    finally{setPendingLoading(false);}
+  },[request]);
   const load = useCallback(async () => {
     setBusy(true);setNotice(null);
     try {
@@ -85,14 +99,20 @@ export default function SubscriptionWorkspace({level1}:{level1:boolean}) {
       setNotice({kind:"error",text:error instanceof Error?error.message:"خطای دریافت گزارش"});
     } finally {setBusy(false);}
   },[request]);
-  useEffect(()=>{if(tab==="revenue"||tab==="settlements")void load();},[tab,load]);
+  useEffect(()=>{
+    if(tab==="revenue"||tab==="settlements")void load();
+    if(tab==="collections")void loadPending();
+  },[tab,load,loadPending]);
 
-  async function submit(event:FormEvent,action:()=>Promise<unknown>, success:string) {
-    event.preventDefault();if(busy)return;
+  async function runAction(action:()=>Promise<unknown>, success:string) {
+    if(busy)return;
     setBusy(true);setNotice(null);
     try {await action();setNotice({kind:"success",text:success});}
     catch(error){setNotice({kind:"error",text:error instanceof Error?error.message:"خطای ارتباط"});}
     finally {setBusy(false);}
+  }
+  async function submit(event:FormEvent,action:()=>Promise<unknown>, success:string) {
+    event.preventDefault();await runAction(action,success);
   }
   return <section className="console-settings-card phase12-finance" dir="rtl">
     <div className="console-settings-card-title"><h2>عملیات مالی</h2>
@@ -104,59 +124,94 @@ export default function SubscriptionWorkspace({level1}:{level1:boolean}) {
     </div>
     {notice && <p role="status" className={`phase12-finance-notice phase12-finance-notice-${notice.kind}`}>{notice.text}</p>}
     {tab==="plans" && <PlanCatalog level1={level1}/>}
-    {tab==="orders" && <form onSubmit={e=>void submit(e,async()=>{
-      const result=await request("commercial-orders","POST",{
-        customerUserId:customerId,planId:orderPlanId,idempotencyKey:orderKey
-      }) as {orderId:string};setOrderId(result.orderId);
-    },"سفارش و صورتحساب مالی داخلی ثبت شد.")}>
-      <h3>صدور سفارش مالی</h3>
-      <label>شناسه مشتری<input required value={customerId} onChange={e=>setCustomerId(e.target.value)}/></label>
-      <label>شناسه پلن فعال<input required value={orderPlanId} onChange={e=>setOrderPlanId(e.target.value)}/></label>
-      <label>کلید یکتای سفارش<input required value={orderKey} onChange={e=>setOrderKey(e.target.value)}/></label>
-      <button type="submit" disabled={busy}>ثبت سفارش</button>
-      <button type="button" onClick={()=>setOrderKey(uuid())}>سفارش جدید</button>
-      {orderId && <p>شناسه سفارش: <code dir="ltr">{orderId}</code></p>}
-    </form>}
-    {tab==="orders" && <form onSubmit={e=>void submit(e,()=>request("paid-orders/activate","POST",{
-      orderId
-    }),"اشتراک سفارش پرداخت‌شده ایجاد شد. شماره اشتراک را از پاسخ API بررسی کنید.")}>
-      <h3>فعال‌سازی اشتراک سفارش تسویه‌شده</h3>
-      <p>این عملیات فقط پس از تأیید کامل وصول وجه مجاز است؛ سفارش بدون وصول قطعی رد می‌شود.</p>
-      <label>شناسه سفارش تسویه‌شده<input required value={orderId} onChange={e=>setOrderId(e.target.value)}/></label>
-      <button type="submit" disabled={busy}>ایجاد اشتراک از سفارش پرداخت‌شده</button>
-    </form>}
     {tab==="collections" && <section>
-      <h3>درخواست‌های نقدی مشتریان</h3>
-      <button type="button" onClick={()=>void loadPending()} disabled={pendingLoading}>
-        {pendingLoading?"در حال دریافت...":"بازخوانی سفارش‌های در انتظار"}
-      </button>
-      <div style={{overflowX:"auto"}}><table style={{width:"100%",fontSize:13}}>
-        <thead><tr><th>پلن</th><th>مشتری</th><th>مانده ریال</th><th>انتخاب</th></tr></thead>
-        <tbody>{pendingOrders.map(o=><tr key={o.orderId}>
-          <td>{o.planCode}</td><td>{o.customerUserId.slice(0,8)}</td>
-          <td>{amount(o.grossIrr-o.collectedIrr)}</td>
-          <td><button type="button" onClick={()=>{
-            setOrderId(o.orderId);setCustomerId(o.customerUserId);
-            setReceiptAmount(String(o.grossIrr-o.collectedIrr));
-          }}>انتخاب</button></td>
-        </tr>)}</tbody>
+      <div className="phase12-collection-heading">
+        <div><h3>درخواست پلن و مدیریت دریافت</h3>
+          <p>فعال‌سازی با تأیید مدیر انجام می‌شود؛ ماندهٔ پرداخت پس از فعال‌سازی نیز قابل پیگیری است.</p></div>
+        <button type="button" onClick={()=>void loadPending()} disabled={pendingLoading}>
+          {pendingLoading?"در حال دریافت...":"بازخوانی"}
+        </button>
+      </div>
+      <div className="console-table-scroll phase12-finance-report">
+      <table className="console-table phase12-collection-table">
+        <thead><tr><th>کاربر</th><th>نام پلن</th><th>تاریخ ثبت</th><th>مبلغ کل</th><th>دریافتی</th><th>مانده</th><th>وضعیت</th><th>عملیات</th></tr></thead>
+        <tbody>
+        {pendingLoading&&<tr><td colSpan={8}><p className="phase12-finance-loading" role="status" aria-live="polite">
+          <span aria-hidden="true"/>در حال دریافت درخواست‌ها…
+        </p></td></tr>}
+        {pendingOrders.map(o=>{
+          const outstanding=Math.max(0,o.grossIrr-o.collectedIrr);
+          const collections=o.collections??[];
+          const draft=receiptDrafts[o.orderId]??{amount:String(outstanding),reference:"",channel:1};
+          return <Fragment key={o.orderId}>
+            <tr>
+              <td className="phase12-customer-cell" dir="auto" title={o.customerContact??o.customerUserId}>
+                <strong>{o.customerDisplayName||"پروفایل تکمیل‌نشده"}</strong>
+                {o.customerContact&&<small dir="ltr">{o.customerContact}</small>}
+              </td>
+              <td>{planName(o.planKind,o.invoiceUnitLimit)}</td>
+              <td>{new Intl.DateTimeFormat("fa-IR",{dateStyle:"short"}).format(new Date(o.issuedAtUtc))}</td>
+              <td>{amount(o.grossIrr)}</td><td>{amount(o.collectedIrr)}</td><td>{amount(outstanding)}</td>
+              <td><span className={o.isActivated?"phase12-order-status phase12-order-status-active":"phase12-order-status"}>
+                {o.isActivated?"فعال":"در انتظار تأیید"}</span></td>
+              <td className="phase12-collection-actions">
+                {!o.isActivated && <button type="button" disabled={busy} onClick={()=>void runAction(
+                  async()=>{await request("paid-orders/activate","POST",{orderId:o.orderId});
+                    setPendingOrders(await request("cash-pending") as PendingOrder[]);},
+                  "پلن تأیید و فعال شد؛ ماندهٔ پرداخت در همین فهرست قابل پیگیری است."
+                )}>تأیید و فعال‌سازی</button>}
+                {!o.isActivated && o.collectedIrr===0 && <button type="button" disabled={busy}
+                  title="رد، سفارش را لغو می‌کند و از فهرست دریافت خارج می‌شود"
+                  onClick={()=>setRejectConfirmation(o)}>رد درخواست</button>}
+                {(outstanding>0||o.collectedIrr>0) && <button type="button" disabled={busy}
+                  aria-expanded={receiptOrderId===o.orderId}
+                  onClick={()=>{
+                    if(receiptOrderId===o.orderId){setReceiptOrderId(null);return;}
+                    setReceiptOrderId(o.orderId);
+                  }}>
+                  {receiptOrderId===o.orderId?"بستن جزئیات":"مدیریت پرداخت"}
+                </button>}
+              </td>
+            </tr>
+            {receiptOrderId===o.orderId && <tr className="phase12-collection-detail">
+              <td colSpan={8}><form onSubmit={e=>void submit(e,async()=>{
+                if(outstanding<=0) return;
+                await request("collections/manual","POST",{
+                  orderId:o.orderId,customerUserId:o.customerUserId,channel:draft.channel,
+                  amountIrr:Number(draft.amount),receiptReference:draft.reference
+                });
+                setPendingOrders(await request("cash-pending") as PendingOrder[]);
+                setReceiptDrafts(v=>{const next={...v};delete next[o.orderId];return next;});
+              },"دریافت ثبت شد و مانده به‌روزرسانی شد.")}>
+                {collections.length>0 ? <div className="phase12-collection-history">
+                    <strong>تاریخچه دریافت‌ها</strong>
+                    <div className="console-table-scroll"><table className="console-table">
+                      <thead><tr><th>تاریخ</th><th>روش</th><th>مرجع رسید</th><th>مبلغ</th></tr></thead>
+                      <tbody>{collections.map(item=><tr key={item.collectionId}>
+                        <td>{new Intl.DateTimeFormat("fa-IR",{dateStyle:"short",timeStyle:"short"}).format(new Date(item.receivedAtUtc))}</td>
+                        <td>{item.channel===1?"نقدی":item.channel===2?"واریز بانکی":"درگاه"}</td>
+                        <td>{item.receiptReference}</td><td>{amount(item.amountIrr)}</td>
+                      </tr>)}</tbody>
+                    </table></div>
+                  </div> : <p>هنوز دریافتی برای این سفارش ثبت نشده است.</p>}
+                {outstanding>0 && <>
+                  <strong>ثبت مرحلهٔ جدید دریافت برای {planName(o.planKind,o.invoiceUnitLimit)}</strong>
+                  <span>مانده فعلی: {amount(outstanding)}</span>
+                  <label>روش دریافت<select value={draft.channel} onChange={e=>setReceiptDrafts(v=>({...v,[o.orderId]:{...draft,channel:Number(e.target.value)}}))}>
+                    <option value={1}>نقدی</option><option value={2}>واریز بانکی</option></select></label>
+                  <label>مبلغ (ریال)<input required type="number" min={1} max={outstanding}
+                    value={draft.amount} onChange={e=>setReceiptDrafts(v=>({...v,[o.orderId]:{...draft,amount:e.target.value}}))}/></label>
+                  <label>مرجع رسید<input required value={draft.reference}
+                    onChange={e=>setReceiptDrafts(v=>({...v,[o.orderId]:{...draft,reference:e.target.value}}))}/></label>
+                  <button type="submit" disabled={busy}>ثبت دریافت</button>
+                </>}
+              </form></td>
+            </tr>}
+          </Fragment>;
+        })}</tbody>
       </table></div>
+      {!pendingLoading&&pendingOrders.length===0&&notice?.kind!=="error"&&<p className="phase12-finance-empty">درخواستی برای تأیید یا مانده‌ای برای دریافت وجود ندارد.</p>}
     </section>}
-    {tab==="collections" && <form onSubmit={e=>void submit(e,()=>request("collections/manual","POST",{
-      orderId,customerUserId:customerId,channel,amountIrr:Number(receiptAmount),
-      receiptReference:receiptRef
-    }),"دریافت تأییدشده توسط مدیر ثبت شد.")}>
-      <h3>ثبت دریافت تأییدشده</h3>
-      <p>ابتدا مستقل از سامانه، وصول وجه را بررسی کنید. ثبت این فرم به معنی تأیید حسابداری است.</p>
-      <label>شناسه سفارش<input required value={orderId} onChange={e=>setOrderId(e.target.value)}/></label>
-      <label>شناسه مشتری<input required value={customerId} onChange={e=>setCustomerId(e.target.value)}/></label>
-      <label>روش دریافت<select value={channel} onChange={e=>setChannel(Number(e.target.value))}>
-        <option value={1}>نقدی</option><option value={2}>واریز بانکی</option></select></label>
-      <label>مبلغ (ریال)<input required type="number" min={1} value={receiptAmount}
-        onChange={e=>setReceiptAmount(e.target.value)}/></label>
-      <label>مرجع رسید<input required value={receiptRef} onChange={e=>setReceiptRef(e.target.value)}/></label>
-      <button type="submit" disabled={busy}>تأیید و ثبت دریافت</button>
-    </form>}
     {tab==="sms" && <section>
       <h3>کیف پول پیامک</h3>
       <p>اعتبار پیامک مستقل از سهمیه صورتحساب و درآمد است. شارژ اعتباری فقط با مجوز Level 1 انجام می‌شود.</p>
@@ -231,5 +286,20 @@ export default function SubscriptionWorkspace({level1}:{level1:boolean}) {
         <button type="submit" disabled={busy}>ثبت برگشت</button>
       </form>}
     </section>}
+    {rejectConfirmation && <InvoiceActionToast
+      title="رد درخواست پلن"
+      description={`درخواست «${planName(rejectConfirmation.planKind,rejectConfirmation.invoiceUnitLimit)}» رد و سفارش لغو شود؟`}
+      confirmLabel="رد و لغو درخواست"
+      icon="discard"
+      onCancel={()=>setRejectConfirmation(null)}
+      onConfirm={()=>{
+        const order=rejectConfirmation;
+        setRejectConfirmation(null);
+        void runAction(async()=>{
+          await request("orders/reject","POST",{orderId:order.orderId});
+          setPendingOrders(await request("cash-pending") as PendingOrder[]);
+        },"درخواست رد و لغو شد.");
+      }}
+    />}
   </section>;
 }

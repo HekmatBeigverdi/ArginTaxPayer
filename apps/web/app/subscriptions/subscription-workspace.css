@@ -82,6 +82,139 @@
   background: var(--argin-dark);
 }
 
+.phase12-collection-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.phase12-collection-heading h3,
+.phase12-collection-heading p {
+  margin: 0;
+}
+
+.phase12-collection-heading p,
+.phase12-finance-empty {
+  color: var(--argin-muted);
+}
+
+.phase12-finance-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  margin: 0;
+  padding: 16px;
+  color: var(--argin-muted);
+}
+
+.phase12-finance-loading span {
+  width: 15px;
+  height: 15px;
+  border: 2px solid #d7e4eb;
+  border-top-color: var(--argin-teal);
+  border-radius: 50%;
+  animation: phase12-finance-spin 0.8s linear infinite;
+}
+
+@keyframes phase12-finance-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .phase12-finance-loading span { animation: none; }
+}
+
+.phase12-collection-table {
+  min-width: 760px;
+}
+
+.phase12-customer-cell {
+  min-width: 150px;
+  max-width: 240px;
+}
+
+.phase12-customer-cell strong,
+.phase12-customer-cell small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.phase12-customer-cell small {
+  margin-top: 2px;
+  color: var(--argin-muted);
+  font-size: 10px;
+}
+
+.phase12-collection-actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.phase12-order-status {
+  display: inline-flex;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: #fff4dc;
+  color: #865c11;
+  white-space: nowrap;
+}
+
+.phase12-order-status-active {
+  background: #e5f5ef;
+  color: #167158;
+}
+
+.phase12-collection-detail > td {
+  padding: 8px 12px;
+  background: var(--argin-page);
+}
+
+.phase12-finance .phase12-collection-detail form {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(120px, 1fr));
+  gap: 8px;
+  align-items: end;
+  margin: 0;
+  padding: 0;
+}
+
+.phase12-finance .phase12-collection-detail form > strong,
+.phase12-finance .phase12-collection-detail form > p,
+.phase12-finance .phase12-collection-history {
+  grid-column: 1 / -1;
+}
+
+.phase12-collection-detail form > span {
+  align-self: center;
+  color: var(--argin-muted);
+}
+
+.phase12-collection-history {
+  display: grid;
+  gap: 5px;
+  margin-bottom: 4px;
+}
+
+.phase12-collection-history .console-table {
+  min-width: 560px;
+}
+
+@media (max-width: 720px) {
+  .phase12-collection-heading {
+    align-items: flex-start;
+  }
+
+  .phase12-finance .phase12-collection-detail form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 .phase12-finance form {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

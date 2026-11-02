@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { currentIdentity, identityUiEnabled } from "../../../lib/identity";
 import SoftwareProfileForm from "../../account/software-profile-form";
@@ -14,7 +13,6 @@ export default async function ProfilePage() {
       <h1>پروفایل و حساب من</h1>
       <p>اطلاعات فردی، نشانی و لوگوی مورد استفاده در فاکتور</p>
     </div></div>
-    {actor.roles.includes("Customer") && <section className="console-settings-card"><div className="console-settings-card-title"><h2>پلن‌های نرم‌افزار</h2><p>وضعیت اشتراک و سوابق خرید خود را بررسی کنید.</p></div><Link href="/customer-plans">انتخاب و خرید پلن نرم‌افزار</Link><p><Link href="/financial-history">گزارش پرداخت‌ها و اشتراک‌ها</Link></p><p>فعلاً ثبت درخواست نقدی فعال است؛ پرداخت از درگاه پس از تکمیل تأیید سروری فعال می‌شود.</p></section>}
     <SoftwareProfileForm required={actor.roles.includes("Customer")}/>
   </div>;
 }

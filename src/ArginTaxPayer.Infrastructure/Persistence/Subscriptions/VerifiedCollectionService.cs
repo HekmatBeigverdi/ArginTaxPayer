@@ -26,23 +26,21 @@ public sealed class VerifiedCollectionService(ArginTaxPayerDbContext db, Identit
              u.Roles.Any(r => r.Role == IdentityRoleNames.Level2)) &&
             db.IdentityMfaStates.Any(m => m.UserId == actor && m.EnabledAtUtc != null),ct);
         if (!authorized) throw new UnauthorizedAccessException("Active admin MFA required.");
-        // A partner can confirm cash for its own attributed order without Level1
-        // approval. A root cannot silently substitute for a partner-owned receipt.
-        var ownership = await db.CustomerCommercialOwners.AsNoTracking()
-            .SingleOrDefaultAsync(o => o.CustomerUserId == collection.CustomerUserId,ct)
-            ?? throw new UnauthorizedAccessException("Customer commercial ownership missing.");
-        var isRoot = ownership.RootLevel1UserId == actor;
-        var isPartner = ownership.PartnerLevel2UserId == actor;
-        if (!(isPartner || (ownership.PartnerLevel2UserId == null && isRoot)))
-            throw new UnauthorizedAccessException("Cash confirmation belongs to the current commercial owner.");
+        // Level 1 can manage its root snapshot or customers currently owned by it;
+        // Level 2 remains limited to orders attributed to that partner.
         var matchesOrder = await db.Database.SqlQueryRaw<OrderAttribution>(
             """
             SELECT root_admin_user_id AS "RootId",partner_user_id AS "PartnerId"
             FROM commercial_orders WHERE id={0} AND customer_user_id={1}
             """,collection.OrderId,collection.CustomerUserId).SingleOrDefaultAsync(ct);
-        if (matchesOrder is null || matchesOrder.RootId != ownership.RootLevel1UserId ||
-            matchesOrder.PartnerId != ownership.PartnerLevel2UserId)
-            throw new UnauthorizedAccessException("Order attribution differs from current commercial owner.");
+        var currentRootOwnsCustomer=matchesOrder is not null &&
+            await db.IdentityUsers.AsNoTracking().AnyAsync(u=>u.Id==actor &&
+                u.Roles.Any(r=>r.Role==IdentityRoleNames.Level1) &&
+                db.CustomerCommercialOwners.Any(o=>o.CustomerUserId==collection.CustomerUserId &&
+                    o.RootLevel1UserId==actor),ct);
+        if (matchesOrder is null || (matchesOrder.RootId != actor && matchesOrder.PartnerId != actor &&
+            !currentRootOwnsCustomer))
+            throw new UnauthorizedAccessException("Cash confirmation belongs to the current commercial owner.");
         return await PostVerifiedAsync(collection, actor, "admin-confirmed", ct);
     }
 

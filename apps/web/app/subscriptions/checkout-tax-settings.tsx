@@ -18,17 +18,22 @@ export default function CheckoutTaxSettings(){
     method:"PUT",headers:{"Content-Type":"application/json"},
     body:JSON.stringify({vatBasisPoints:Math.round(n*100)})
    });
-   if(!r.ok)throw Error("HTTP "+r.status);
+   if(!r.ok){setStatus(`ثبت نرخ ارزش افزوده ناموفق بود (HTTP ${r.status}).`);return;}
    setStatus("نرخ ارزش افزوده خرید نرم‌افزار ذخیره شد.");
   }catch{setStatus("ثبت نرخ ارزش افزوده ناموفق بود.");}
   finally{setBusy(false);}
  }
- return <section style={{marginTop:16,padding:12,border:"1px solid #ceded4",borderRadius:9}}>
+ return <section className="checkout-tax-settings">
   <h3>تنظیمات ارزش افزوده صورتحساب خرید نرم‌افزار</h3>
   <p>نرخ فقط برای سفارش‌های جدید اعمال می‌شود و به سوابق قبلی تسری نمی‌یابد.</p>
-  <label>درصد ارزش افزوده <input type="number" min={0} max={100} step=".01"
-    value={basis} onChange={e=>setBasis(e.target.value)} style={{width:100,marginInline:9}}/></label>
-  <button type="button" disabled={busy||basis===""} onClick={()=>void save()}>ذخیره نرخ</button>
-  {status&&<p role="status">{status}</p>}
+  <div className="checkout-tax-settings__controls">
+   <label htmlFor="checkout-vat-rate">درصد ارزش افزوده
+    <input id="checkout-vat-rate" type="number" min={0} max={100} step=".01"
+     value={basis} onChange={e=>setBasis(e.target.value)}/>
+   </label>
+   <button className="identity-primary" type="button" disabled={busy||basis===""}
+    onClick={()=>void save()}>{busy?"در حال ذخیره…":"ذخیره نرخ"}</button>
+  </div>
+  {status&&<p className="checkout-tax-settings__status" role="status" aria-live="polite">{status}</p>}
  </section>;
 }

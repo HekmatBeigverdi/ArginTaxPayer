@@ -24,10 +24,11 @@ test("Step10 API proxy uses cookie identity, allowlisted destinations, local bac
   assert.doesNotMatch(route, /fetch\(request\.nextUrl/);
 });
 
-test("Step10 renders five finance sections and never enables PSP settlement from callback", () => {
+test("Step10 keeps approval and collections together and never enables PSP settlement from callback", () => {
   const ui = read("app/subscriptions/subscription-workspace.tsx");
-  for (const name of ["تعریف پلن", "سفارش مالی", "ثبت دریافت", "گزارش درآمد", "تسویه شرکا"])
+  for (const name of ["تعریف پلن", "ثبت دریافت", "گزارش درآمد", "تسویه شرکا", "کیف پول پیامک"])
     assert.ok(ui.includes(name), name);
+  assert.doesNotMatch(ui, /سفارش مالی/);
   assert.match(ui, /level1 && <form/);
   assert.match(ui, /role="tablist"/);
   assert.match(ui, /fetch\("\/api\/phase12\/subscriptions\/"/);
@@ -39,9 +40,9 @@ test("Step10 navigation exposes subscriptions to administrators", () => {
   assert.match(read("app/(console)/dashboard/page.tsx"), /href: "\/subscriptions"/);
 });
 
-test("Step10 includes scoped tariffs, paid activation, SMS wallet balance and grant", () => {
+test("Step10 includes scoped tariffs, admin approval, staged collection history, and SMS wallet", () => {
   const ui = read("app/subscriptions/subscription-workspace.tsx");
-  for (const value of ["PlanCatalog", "paid-orders/activate", "sms-wallet/grant", "مشاهده موجودی"])
+  for (const value of ["PlanCatalog", "paid-orders/activate", "collections.map(item", "customerDisplayName", "sms-wallet/grant", "مشاهده موجودی"])
     assert.ok(ui.includes(value), value);
   const proxy = read("app/api/phase12/[...parts]/route.ts");
   assert.match(proxy,/subscriptions\/prices/);

@@ -40,12 +40,19 @@ public sealed class CustomerCheckoutService(ArginTaxPayerDbContext db,
         }).OrderBy(x=>x.PriceIrr).ToArray();
     }
 
-    public async Task<CashCheckout> RequestCashAsync(string? bearer,Guid planId,
+    public Task<CashCheckout> RequestCashAsync(string? bearer,Guid planId,
         bool wantsOfficialInvoice,int vatBasisPoints,string operationKey,CancellationToken ct=default)
     {
         if(planId==Guid.Empty || string.IsNullOrWhiteSpace(operationKey) ||
             operationKey.Length>150 || vatBasisPoints is <0 or >10000)
             throw new ArgumentException("Invalid checkout.");
+        return db.Database.CreateExecutionStrategy().ExecuteAsync(
+            () => RequestCashCoreAsync(bearer,planId,wantsOfficialInvoice,vatBasisPoints,operationKey,ct));
+    }
+
+    private async Task<CashCheckout> RequestCashCoreAsync(string? bearer,Guid planId,
+        bool wantsOfficialInvoice,int vatBasisPoints,string operationKey,CancellationToken ct)
+    {
         var customer=await CurrentCustomerAsync(bearer,ct);
         var owner=await db.CustomerCommercialOwners.AsNoTracking()
             .SingleOrDefaultAsync(x=>x.CustomerUserId==customer,ct)
@@ -67,6 +74,63 @@ public sealed class CustomerCheckoutService(ArginTaxPayerDbContext db,
         var now=DateTime.UtcNow;
         await using var tx=await db.Database.BeginTransactionAsync(IsolationLevel.Serializable,ct);
         var conn=db.Database.GetDbConnection();
+        await using(var customerLock=conn.CreateCommand())
+        {
+            customerLock.Transaction=db.Database.CurrentTransaction!.GetDbTransaction();
+            customerLock.CommandText="SELECT id FROM identity_users WHERE id=@customer FOR UPDATE";
+            Add(customerLock,"customer",customer);
+            await customerLock.ExecuteScalarAsync(ct);
+        }
+        await using(var previous=conn.CreateCommand())
+        {
+            previous.Transaction=db.Database.CurrentTransaction!.GetDbTransaction();
+            previous.CommandText="""
+                SELECT o.id,o.plan_id,x.official_invoice_requested,x.base_amount_irr,
+                       x.vat_amount_irr,x.total_amount_irr
+                FROM commercial_orders o JOIN commercial_checkout_order_options x
+                  ON x.order_id=o.id
+                WHERE o.customer_user_id=@customer AND o.idempotency_key=@key
+                FOR UPDATE OF o
+                """;
+            Add(previous,"customer",customer);Add(previous,"key",operationKey);
+            await using var reader=await previous.ExecuteReaderAsync(ct);
+            if(await reader.ReadAsync(ct))
+            {
+                if(reader.GetGuid(1)!=planId || reader.GetBoolean(2)!=wantsOfficialInvoice)
+                    throw new InvalidOperationException("Checkout idempotency conflict.");
+                var replay=new CashCheckout(reader.GetGuid(0),reader.GetInt64(3),
+                    reader.GetInt64(4),reader.GetInt64(5),reader.GetBoolean(2),
+                    "AwaitingCashConfirmation");
+                await reader.DisposeAsync();
+                await tx.CommitAsync(ct);
+                return replay;
+            }
+        }
+        var requestedKind=await db.SubscriptionPlans.AsNoTracking()
+            .Where(x=>x.Id==planId && x.IsActive).Select(x=>x.Kind).SingleAsync(ct);
+        var activeKinds=await db.CustomerSubscriptions.AsNoTracking()
+            .Where(x=>x.CustomerUserId==customer && x.State==SubscriptionLifecycle.Active &&
+                x.ActivatedAtUtc!=null && x.ActivatedAtUtc<=now &&
+                x.ExpiresAtUtc!=null && x.ExpiresAtUtc>now)
+            .Select(x=>x.Kind).Distinct().ToArrayAsync(ct);
+        if(activeKinds.Any(kind=>kind!=requestedKind) ||
+           (requestedKind!=SubscriptionPlanKind.Quantity && activeKinds.Length>0))
+            throw new InvalidOperationException("اشتراک فعلی شما هنوز فعال است؛ درخواست پلن جدید پس از پایان آن امکان‌پذیر است.");
+        await using(var pendingPlanOrder=conn.CreateCommand())
+        {
+            pendingPlanOrder.Transaction=db.Database.CurrentTransaction!.GetDbTransaction();
+            pendingPlanOrder.CommandText="""
+                SELECT EXISTS(
+                  SELECT 1 FROM commercial_orders o
+                  JOIN subscription_plan_catalog p ON p.id=o.plan_id
+                  LEFT JOIN commercial_order_activations a ON a.order_id=o.id
+                  WHERE o.customer_user_id=@customer AND o.status<>4 AND a.order_id IS NULL
+                    AND (@kind<>2 OR p.kind<>2))
+                """;
+            Add(pendingPlanOrder,"customer",customer);Add(pendingPlanOrder,"kind",(int)requestedKind);
+            if(await pendingPlanOrder.ExecuteScalarAsync(ct) is true)
+                throw new InvalidOperationException("درخواست قبلی شما هنوز در انتظار بررسی است؛ تا تعیین وضعیت آن درخواست ناسازگار دیگری ثبت نکنید.");
+        }
         await using var cmd=conn.CreateCommand();
         cmd.Transaction=db.Database.CurrentTransaction!.GetDbTransaction();
         cmd.CommandText="""

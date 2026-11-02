@@ -8,7 +8,7 @@ export default async function AdminSettingsPage(){
  const actor=await currentIdentity();
  if(!actor)redirect("/identity");
  if(!actor.roles.includes("Level1"))redirect("/dashboard");
- return <div className="console-page console-settings-page">
+ return <div className="console-page console-settings-page console-admin-settings-page">
   <div className="console-page-heading"><div>
    <p className="app-kicker">مدیریت سامانه</p>
    <h1>تنظیمات مدیریت</h1>

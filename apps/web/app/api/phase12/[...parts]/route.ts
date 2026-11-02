@@ -18,6 +18,8 @@ const actions = new Map<string, ProxyMethod>([
   ["subscriptions/prices/history", "GET"],
   ["subscriptions/sms-wallet/grant", "POST"],
   ["subscriptions/plans/activate", "POST"],
+  ["subscriptions/orders/approve", "POST"],
+  ["subscriptions/orders/reject", "POST"],
   ["subscriptions/paid-orders/activate", "POST"],
   ["subscriptions/commercial-orders", "POST"],
   ["subscriptions/collections/manual", "POST"],
@@ -34,7 +36,7 @@ const LEVEL1_ONLY_ACTIONS = new Set([
   "subscriptions/settlements/reverse",
   "subscriptions/plans/activate",
   "subscriptions/sms-wallet/grant",
-  "subscriptions/paid-orders/activate",
+  "subscriptions/checkout-tax",
 ]);
 
 const PLAN_RECORD_PATH = /^subscriptions\/plans\/[0-9a-fA-F-]{36}$/;
@@ -62,6 +64,8 @@ async function proxy(request: NextRequest, context: RouteContext) {
 
   if (path === "subscriptions/plans" && request.method === "GET") {
     method = "GET";
+  } else if (path === "subscriptions/checkout-tax" && ["GET", "PUT"].includes(request.method)) {
+    method = request.method as "GET" | "PUT";
   } else if (PLAN_RECORD_PATH.test(path) && ["PUT", "DELETE"].includes(request.method)) {
     method = request.method as "PUT" | "DELETE";
   } else {
@@ -123,7 +127,9 @@ async function proxy(request: NextRequest, context: RouteContext) {
     });
 
     const data = await backend.text();
-    return new NextResponse(data, {
+    // Response forbids a body on 204/205/304. The API uses 204 for successful
+    // writes, so preserve the empty body instead of turning it into a proxy 502.
+    return new NextResponse(backend.body === null ? null : data, {
       status: backend.status,
       headers: {
         "Content-Type": backend.headers.get("content-type") || "application/json",
@@ -140,6 +146,11 @@ export async function GET(request: NextRequest, context: RouteContext) {
 }
 
 export async function PUT(request: NextRequest, context: RouteContext) {
+  const origin = request.headers.get("origin");
+  if (origin && origin !== request.nextUrl.origin) {
+    return NextResponse.json({ error: "invalid_origin" }, { status: 403 });
+  }
+
   return proxy(request, context);
 }
 

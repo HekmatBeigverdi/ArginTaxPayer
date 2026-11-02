@@ -6,8 +6,9 @@ export function InvoiceActionIcon({name}:{name:"save"|"send"|"discard"|"close"|"
  return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[name]}/></svg>;
 }
 
-export default function InvoiceActionToast({title,description,confirmLabel,onConfirm,onCancel}:{
- title:string;description:string;confirmLabel:string;onConfirm:()=>void;onCancel:()=>void
+export default function InvoiceActionToast({title,description,confirmLabel,onConfirm,onCancel,icon="send"}:{
+ title:string;description:string;confirmLabel:string;onConfirm:()=>void;onCancel:()=>void;
+ icon?:"save"|"send"|"discard"|"close"|"check"|"items"|"settlement"|"review"
 }){
  const cancel=useRef<HTMLButtonElement>(null);
  useEffect(()=>{
@@ -18,7 +19,7 @@ export default function InvoiceActionToast({title,description,confirmLabel,onCon
   return()=>{document.removeEventListener("keydown",escape);previous?.focus();};
  },[onCancel]);
  return <aside className="invoice-action-toast" dir="rtl" role="alertdialog" aria-label={title}>
-  <div className="invoice-action-toast__icon"><InvoiceActionIcon name="send"/></div>
+  <div className="invoice-action-toast__icon"><InvoiceActionIcon name={icon}/></div>
   <div className="invoice-action-toast__body"><strong>{title}</strong><p>{description}</p>
    <div className="invoice-action-toast__actions">
     <button type="button" className="identity-primary invoice-action-button" onClick={onConfirm}><InvoiceActionIcon name="check"/>{confirmLabel}</button>
