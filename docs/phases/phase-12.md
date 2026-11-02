@@ -384,6 +384,68 @@ Owner confirmed checkout settings migration `20261101220000_AddPhase12CheckoutSe
 
 - In «ثبت دریافت», admins can approve and activate a customer subscription regardless of whether the order has no receipts, partial receipts, or full receipts. Approval does not change the order total or collected amount.
 - Level 1 can approve and collect orders under its root, including partner-attributed orders. Level 2 can approve and collect only orders attributed to that partner. Admin MFA remains required for approval and manual receipt recording.
-- An order remains in the inbox until it is both approved and fully settled. Each manual cash/bank receipt is individually recorded with its amount, method, reference, timestamp, and admin; history is shown in the row's payment details.
+- The inbox displays the current responsible Level 2 administrator name (or «فروش مستقیم»). An order remains in the inbox until it is both approved and fully settled; its sale remains visible in the revenue report afterward. Each manual cash/bank receipt is individually recorded with its amount, method, reference, timestamp, and admin; history is shown in the row's payment details.
 - `20261101230000_RenameSubscriptionApprover` renames the activation audit actor to the role-neutral `approved_by_user_id`. `/orders/approve` is the explicit approval route; the previous paid-activation path remains as an alias.
 - The standalone «سفارش مالی» tab has been removed from this workflow. The manual order API is retained for compatibility. No test or build commands were run for this change; database migration and browser behavior still require environment-level verification.
+
+
+## Plan sales and period receivables report — 2026-11-02
+
+- «گزارش درآمد» now starts with a paged plan-sales report including fully paid orders, partially paid orders, and unpaid requests with their activation state. Voided/rejected orders are excluded. The revenue-allocation view was removed from this tab at the owner’s request; settlement remains in its own tab.
+- `GET /api/dev/subscriptions/sales-report` accepts `period=month` (default) or `period=year`, `page` (default 1) and a fixed page size of 10. The authenticated Next proxy allowlists the route and period; the backend independently validates period, pagination, active admin and ownership scope.
+- Period selection uses the order issue date, the Persian calendar and Tehran time: the current month or the current year from its first day through the current instant. Level 2 sees only orders attributed to itself; Level 1 sees matching root snapshots or current root customer ownership, consistent with the collections inbox.
+- Columns show customer, current responsible Level 2 administrator, plan, sale date, gross price, cumulative verified receipts, remaining receivable, payment state and activation state. Partner profile names fall back to email/mobile/identity; direct sales show «فروش مستقیم».
+- Totals cover every matching sale before pagination: gross sales, cumulative collected amount, and outstanding receivables. Collections use the commercial-order counter maintained atomically by verified receipts. They include all receipts to date for sales issued in the selected period, including cash/bank receipts; this is not a report grouped by receipt date. Previous-period orders/debts are excluded.
+- No schema migration is needed. Automated verification covers Persian/Tehran boundaries, paid/partial/unpaid totals across pages, rendered sale rows, request cleanup and authenticated proxy query forwarding. Live PostgreSQL and browser acceptance require the running environment.
+
+- Verification on 2026-11-02: backend 1,352 passed / 28 skipped; finance/report web tests 10 passed; TypeScript and production build passed. Full web suite has 509 passes and one unchanged checkout source-regex failure (`Customer cash checkout is server-owned and fail-closed for VAT/PSP`). PostgreSQL integration was not enabled and browser acceptance was not run.
+
+
+### Finance report corrections — 2026-11-02
+
+- Removed the allocation report UI and its ledger/settlement background reads from the revenue tab. Settlements are requested only when opening their own tab.
+- The running local API was serving an older binary without `/sales-report` (404); the local API was restarted with the current build and the route now returns 401 for unauthenticated access (rather than 404), with readiness 200.
+- The Level 2 name now follows current customer commercial ownership within the visible root; historical order attribution is a fallback only when no current ownership is available in scope. Names fall back to company, email, mobile and identity ID. This is display-only: financial snapshots and authorization scope are unchanged.
+- Inbox loading replaces stale rows inside a full-width table cell. The table marks `aria-busy` and keeps a centered, reserved loading area.
+- Read-only execution of the actual inbox SQL against the dedicated test database verified both visible orders resolve to the current Level 2 name. No database rows were changed.
+
+- Follow-up verification: 12 finance/report UI tests passed, backend suite 1,352 passed / 28 skipped, and TypeScript passed. Full web suite: 511 passed and the same pre-existing checkout source-regex failure. The local API restart preserved the existing configuration; no migration was applied.
+
+
+## Server pagination for finance tables — 2026-11-02
+
+- All tables in the subscriptions finance workspace now request ten rows per server page: plan catalog, manual collections inbox, plan sales, partner settlement balances, order receipt history, and plan-price history. SMS wallet has no table.
+- Sales and inbox execute a scoped SQL aggregation for total count/financial totals and a deterministic `LIMIT 10 OFFSET ...` data query. The old 100-order inbox cap and in-memory sales slicing are removed. Settlements aggregate full-scope positions and page only the visible allocation rows in SQL.
+- Plan catalog applies role scope and code/Persian plan-kind search in SQL before counting and paging, and only loads price summaries for the ten visible plans. Price history applies plan/root/partner filters before paging. Existing catalog/history callers without `page` retain their array responses; the finance UI always sends `page` and consumes the page envelope.
+- `cash-pending?page=1`, `sales-report?period=month&page=1` and `settlements/balances?page=1` return `items`, `totalCount`, `page`, `pageSize=10`, plus existing financial totals where relevant. `collections/history?orderId=...&page=1` authorizes the order before exposing receipt counts/references and returns its own page envelope. The proxy validates and forwards page, order ID and catalog search.
+- Every pager displays the full row count and previous/next controls. Page/search/period changes request new data from the server; loading displays the table shell and spinner. The sales filter and refresh button share the same baseline and control height. Financial totals remain for the whole selected scope/period rather than the visible ten rows.
+- No schema change or migration is required. PostgreSQL acceptance uses transaction-local synthetic fixtures and rollback; existing financial records remain unchanged.
+
+- Verification for server pagination: four live PostgreSQL integration tests passed using rollback fixtures; full backend suite 1,364 passed / 28 skipped; TypeScript passed. Web suite 518 passed with the unchanged checkout source-regex failure. Race-condition regressions cover out-of-order inbox/settlement responses and sales-page correction after total count shrinks. Updated local API readiness is 200; no migration was applied.
+
+
+### Revenue Level 2 administrator filter — 2026-11-02
+
+- The revenue toolbar includes «ادمین سطح ۲» with «همه ادمین‌ها» and scoped administrator options. Changing this selection resets the sale page to 1 and retains the selected Persian month/year filter.
+- `sales-report` accepts optional `partnerUserId` (GUID). This filters the same current responsible Level 2 identity displayed in the table, with the historical snapshot fallback already described above. SQL applies the filter before total count, financial aggregation and `LIMIT 10 OFFSET` paging; no browser-only row filtering is used.
+- Filter choices are returned as `partners` (`partnerUserId`, `displayName`) from the caller's permitted non-voided sales through the report instant, independent of selected period/partner. Choices are not derived from only the current ten rows. Role/root ownership predicates apply to both choices and report rows; selecting another UUID cannot broaden access.
+
+- Verification: the selected-partner PostgreSQL integration test passed with rollback fixtures, including full-scope totals, empty foreign selection and scoped filter options. Seven sales-report frontend tests and TypeScript passed. Full backend suite: 1,365 passed / 28 skipped. Full frontend suite: 519 passed and the unchanged `Customer cash checkout is server-owned and fail-closed for VAT/PSP` source-regex failure. The local API was restarted with the filter enabled and readiness is 200.
+
+
+## Partner-selected batch settlement vouchers — 2026-11-02
+
+This section replaces the old allocation-payment UI described in Step08. The legacy journal remains immutable and readable for historical reconciliation; it is not relabeled as incoming Level2→Level1 money.
+
+- Mandatory Level2 selection identifies the counterparty before preview or registration. A dedicated compact workspace uses the existing table/loading style and ten-row database pagination for history, previews and saved details.
+- The source is verified cash/bank receipts, not order totals/debts or sale dates. New receipts on old plan orders participate. Cash/bank are treated as held by Level2 regardless of which admin verified them, per owner clarification. Gateway ownership/configuration is deferred: verified gateway rows are shown in a pending-ownership count and remain unclaimed.
+- First coverage resolves current customer commercial ownership with historical-order fallback; direct-root receipts are excluded until a partner is assigned. First coverage freezes the root, partner, rate and customer/plan display snapshot. Later ownership/profile/rate changes never rewrite existing vouchers.
+- Level1 explicitly configures the partner percentage using `application_settings` key `settlement.partner.<partner UUID>`. Existing effective approved terms may provide a fallback. Missing percentages block registration; no default rate is invented. UI percentages are 0–100, converted to basis points only at the API boundary.
+- Operating expenses are approved against a verified receipt, with explicit payer (Level1 or Level2), evidence reference and note. Costs cannot exceed that receipt's collected amount. Shares divide net receipts after costs. Net owed to Level1 equals its share plus costs it paid. Level2-paid costs are retained/reimbursed on the Level2 side. Existing approved costs count as Level1-paid.
+- Every subsequent batch captures only changes since the previous cumulative receipt snapshot. A newly received installment contributes its actual new receipt; a later expense contributes only the changed cost/share/net, with zero new gross receipt. Negative net reverses payer/receiver; zero net is recorded as no fund movement. This is recording of independently confirmed transfers, not automated bank payment.
+- `partner_settlement_batches`, `partner_settlement_batch_lines` and `partner_settlement_expenses` are additive immutable tables. Unique coverage inputs, shared partner/root advisory locks, receipt locks, serializable transactions/retries, exact-payload operation keys and server-recomputed preview fingerprints prevent duplicate or stale posting. Legacy mutation guards prohibit claiming a batch-covered receipt again; receipts with preexisting legacy events are excluded and counted for reconciliation.
+- Each voucher stores its own header and line snapshots. Printable detail reads every saved line, independent of ten-row interactive pagination, with payer/receiver, customer, plan, source receipt/date/channel, cumulative amounts, new amounts, costs, both percentages/shares and net. Future rates or profile edits do not change printed history.
+- New local-only endpoints: `GET settlements/partners`, `PUT settlements/terms`, `GET settlements/preview`, `GET/POST settlements/batches`, `POST settlements/expenses`, `GET settlements/batch` and `GET settlements/print`. Writes require active Level1 and MFA. Level2 reads only its own counterpart history/preview; historical batches remain accessible after root changes. The cookie proxy allowlists routes and denies Level2 writes independently.
+- Additive migration `20261102020000_AddPartnerBatchSettlements` was reviewed and applied alone to the verified dedicated `argintaxpayer_test` database. No previous migration, financial row or production environment was modified. Read-only audit: `scripts/phase12-batch-settlement-audit.sql`.
+
+- Verification: 16 policy tests and seven real PostgreSQL rollback-only tests passed, with both review regressions rerun successfully after fixes. Full backend suite: 1,388 passed / 28 skipped. Settlement UI/proxy tests and TypeScript passed. Full web suite: 528 passed with the unchanged checkout source-regex failure. Read-only batch audit found no mismatches and no synthetic financial data remained. The updated API is ready (200), new routes are guarded (401 unauthenticated). Interactive browser printing was not exercised; immutable full-detail output and escaping were tested.

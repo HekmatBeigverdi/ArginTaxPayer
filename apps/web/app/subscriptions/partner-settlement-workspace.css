@@ -1,0 +1,34 @@
+.partner-settlement { min-width:0; }
+.partner-settlement .partner-settlement-toolbar { display:flex; align-items:end; gap:10px; flex-wrap:wrap; margin-block:10px; }
+.partner-settlement label { display:flex; flex-direction:column; gap:5px; font-size:11px; }
+.partner-settlement input,.partner-settlement select,.partner-settlement button { min-height:34px; padding:6px 10px; border:1px solid var(--argin-line,#d5dbe5); border-radius:7px; font:inherit; background:var(--argin-surface,#fff); color:inherit; }
+.partner-settlement button { cursor:pointer; }
+.partner-settlement button:disabled { opacity:.5; cursor:default; }
+.partner-settlement small { display:block; margin-top:4px; font-size:10px; }
+.partner-settlement td { vertical-align:top; }
+.partner-settlement .console-table-scroll { overflow:auto; }
+.partner-settlement-totals { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:10px; margin-block:16px; }
+.partner-settlement-totals>div { border:1px solid var(--argin-line,#d5dbe5); border-radius:7px; padding:10px; display:flex; flex-direction:column; gap:7px; }
+.partner-settlement-totals p { grid-column:1/-1; margin:0; font-weight:600; }
+.partner-settlement-overlay { position:fixed; inset:0; z-index:150; background:#0007; display:flex; align-items:center; justify-content:center; padding:20px; }
+.partner-settlement-dialog { background:var(--argin-surface,#fff); color:var(--argin-text,#172033); border-radius:12px; padding:20px; max-height:90vh; width:min(1350px,96vw); overflow:auto; box-shadow:0 16px 70px #0004; }
+.partner-settlement-dialog h2 { margin:0; flex:1; font-size:1.1rem; }
+.partner-settlement-expense { border:1px solid var(--argin-line,#d5dbe5); padding:12px; border-radius:8px; display:flex; gap:10px; align-items:end; flex-wrap:wrap; margin-block:12px; }
+.partner-settlement-expense p,.partner-settlement-expense h3 { flex-basis:100%; margin:0; }
+.partner-settlement [role=alert] { color:#b42318; }
+.partner-settlement [role=status] { display:block; padding:24px; text-align:center; }
+@media(max-width:650px) { .partner-settlement-overlay {padding:6px}.partner-settlement-dialog{padding:10px;max-height:96vh}.partner-settlement-toolbar label{width:100%} }
+
+.partner-settlement .phase12-finance-loading[role=status] {
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:9px;
+}
+.partner-settlement .partner-settlement-expense {
+  display:flex;
+}
+.partner-settlement .partner-settlement-toolbar > :is(input,select,button),
+.partner-settlement .partner-settlement-toolbar label > :is(input,select) {
+  height:34px;
+}

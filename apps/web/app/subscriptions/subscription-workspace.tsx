@@ -1,10 +1,15 @@
 "use client";
 
 import "./subscription-workspace.css";
+import FinancePagination from "./finance-pagination";
+import CollectionHistoryTable from "./collection-history-table";
 import PlanCatalog from "./plan-catalog";
+import PartnerSettlementWorkspace from "./partner-settlement-workspace";
+import PlanSalesReport from "./plan-sales-report";
+import { amount, planName } from "./finance-format";
 import InvoiceActionToast from "../invoices/invoice-action-toast";
 
-import { Fragment, useCallback, useEffect, useState, type FormEvent } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 
 type Tab = "plans" | "collections" | "revenue" | "settlements" | "sms";
 const names: Record<Tab,string> = {
@@ -16,28 +21,12 @@ type PendingOrder = {
   orderId:string; customerUserId:string; planCode:string; planKind:number;
   invoiceUnitLimit:number|null; issuedAtUtc:string; grossIrr:number;
   collectedIrr:number; customerDisplayName:string|null; customerContact:string|null;
-  isActivated:boolean; collections?:CollectionHistory[];
+  isActivated:boolean; partnerDisplayName:string|null; collections?:CollectionHistory[];
 };
 type CollectionHistory = {
   collectionId:string; amountIrr:number; channel:number;
   receiptReference:string; receivedAtUtc:string;
 };
-type RevenueRow = {
-  allocationId:string; collectionId:string; partnerUserId:string|null;
-  grossCollectedIrr:number; approvedCostIrr:number; partnerShareIrr:number;
-  rootShareIrr:number; postedAtUtc:string;
-};
-type RevenueReport = { items:RevenueRow[]; totalGrossIrr:number;
-  totalPartnerShareIrr:number; totalRootShareIrr:number };
-type SettlementRow = { allocationId:string; partnerUserId:string;
-  earnedIrr:number; settledIrr:number; outstandingIrr:number };
-type SettlementReport = { items:SettlementRow[];totalEarnedIrr:number;
-  totalSettledIrr:number;totalOutstandingIrr:number };
-const amount = (n:number) => new Intl.NumberFormat("fa-IR").format(n)+" ریال";
-const temporalPlanNames:Record<number,string>={1:"یک‌ساله",3:"یک‌ماهه",4:"سه‌ماهه",5:"شش‌ماهه"};
-const planName = (kind:number,units:number|null) => kind===2
-  ? `بسته ${new Intl.NumberFormat("fa-IR").format(units??0)} تایی`
-  : (temporalPlanNames[kind]??"پلن نرم‌افزار");
 const uuid = () => globalThis.crypto.randomUUID();
 
 export default function SubscriptionWorkspace({level1}:{level1:boolean}) {
@@ -58,18 +47,17 @@ export default function SubscriptionWorkspace({level1}:{level1:boolean}) {
   const [units,setUnits]=useState(100);
   const [pendingOrders,setPendingOrders]=useState<PendingOrder[]>([]);
   const [rejectConfirmation,setRejectConfirmation]=useState<PendingOrder|null>(null);
-  const [pendingLoading,setPendingLoading]=useState(false);
+  const [pendingLoading,setPendingLoading]=useState(true);
   const [receiptOrderId,setReceiptOrderId]=useState<string|null>(null);
   const [receiptDrafts,setReceiptDrafts]=useState<Record<string,{amount:string;reference:string;channel:number}>>({});
-  const [allocationId,setAllocationId]=useState("");
-  const [settlementAmount,setSettlementAmount]=useState("");
-  const [bankRef,setBankRef]=useState("");
-  const [settlementReason,setSettlementReason]=useState("");
-  const [originalEventId,setOriginalEventId]=useState("");
-  const [revenue,setRevenue]=useState<RevenueReport|null>(null);
-  const [settlements,setSettlements]=useState<SettlementReport|null>(null);
 
-  const request = useCallback(async (path:string, method:"GET"|"POST"="GET", data?:object) => {
+  const [pendingPage,setPendingPage]=useState(1);
+  const [pendingCount,setPendingCount]=useState(0);
+  const [receiptRevision,setReceiptRevision]=useState(0);
+
+  const pendingRequest=useRef(0);
+
+  const request = useCallback(async (path:string, method:"GET"|"POST"|"PUT"="GET", data?:object) => {
     const response=await fetch("/api/phase12/subscriptions/"+path,{
       method,credentials:"same-origin",cache:"no-store",
       headers:data?{"Content-Type":"application/json"}:undefined,
@@ -82,27 +70,21 @@ export default function SubscriptionWorkspace({level1}:{level1:boolean}) {
     return response.json();
   },[]);
   const loadPending = useCallback(async()=>{
+    const version=++pendingRequest.current;
     setPendingLoading(true);setNotice(null);
-    try{setPendingOrders(await request("cash-pending") as PendingOrder[]);}
-    catch(e){setNotice({kind:"error",text:e instanceof Error?e.message:"خطای سفارش‌ها"});}
-    finally{setPendingLoading(false);}
-  },[request]);
-  const load = useCallback(async () => {
-    setBusy(true);setNotice(null);
-    try {
-      const [r,s] = await Promise.all([
-        request("revenue-ledger?page=1&pageSize=15"),
-        request("settlements/balances")
-      ]);
-      setRevenue(r as RevenueReport);setSettlements(s as SettlementReport);
-    } catch(error) {
-      setNotice({kind:"error",text:error instanceof Error?error.message:"خطای دریافت گزارش"});
-    } finally {setBusy(false);}
-  },[request]);
+    try{
+      const result=await request(`cash-pending?page=${pendingPage}&pageSize=10`) as {items:PendingOrder[];totalCount:number};
+      if(version!==pendingRequest.current)return;
+      setPendingOrders(result.items);setPendingCount(result.totalCount);
+      if(result.items.length===0&&pendingPage>1)setPendingPage(v=>v-1);
+    }
+    catch(e){if(version===pendingRequest.current){setPendingOrders([]);setNotice({kind:"error",text:e instanceof Error?e.message:"خطای سفارش‌ها"});}}
+    finally{if(version===pendingRequest.current)setPendingLoading(false);}
+  },[request,pendingPage]);
   useEffect(()=>{
-    if(tab==="revenue"||tab==="settlements")void load();
     if(tab==="collections")void loadPending();
-  },[tab,load,loadPending]);
+    return ()=>{pendingRequest.current++;};
+  },[tab,loadPending]);
 
   async function runAction(action:()=>Promise<unknown>, success:string) {
     if(busy)return;
@@ -120,7 +102,10 @@ export default function SubscriptionWorkspace({level1}:{level1:boolean}) {
     <div className="phase12-finance-tabs" role="tablist" aria-label="بخش‌های مالی">
       {(Object.keys(names) as Tab[]).map(key=>
         <button key={key} type="button" role="tab" aria-selected={tab===key}
-          onClick={()=>{setTab(key);setNotice(null);}} disabled={busy}>{names[key]}</button>)}
+          onClick={()=>{
+            if(key!==tab&&key==="collections")setPendingLoading(true);
+            setTab(key);setNotice(null);
+          }} disabled={busy}>{names[key]}</button>)}
     </div>
     {notice && <p role="status" className={`phase12-finance-notice phase12-finance-notice-${notice.kind}`}>{notice.text}</p>}
     {tab==="plans" && <PlanCatalog level1={level1}/>}
@@ -133,31 +118,31 @@ export default function SubscriptionWorkspace({level1}:{level1:boolean}) {
         </button>
       </div>
       <div className="console-table-scroll phase12-finance-report">
-      <table className="console-table phase12-collection-table">
-        <thead><tr><th>کاربر</th><th>نام پلن</th><th>تاریخ ثبت</th><th>مبلغ کل</th><th>دریافتی</th><th>مانده</th><th>وضعیت</th><th>عملیات</th></tr></thead>
+      <table className="console-table phase12-collection-table" aria-busy={pendingLoading}>
+        <thead><tr><th>کاربر</th><th>ادمین سطح ۲</th><th>نام پلن</th><th>تاریخ ثبت</th><th>مبلغ کل</th><th>دریافتی</th><th>مانده</th><th>وضعیت</th><th>عملیات</th></tr></thead>
         <tbody>
-        {pendingLoading&&<tr><td colSpan={8}><p className="phase12-finance-loading" role="status" aria-live="polite">
+        {pendingLoading&&<tr><td colSpan={9}><p className="phase12-finance-loading" role="status" aria-live="polite">
           <span aria-hidden="true"/>در حال دریافت درخواست‌ها…
         </p></td></tr>}
-        {pendingOrders.map(o=>{
+        {!pendingLoading&&pendingOrders.map(o=>{
           const outstanding=Math.max(0,o.grossIrr-o.collectedIrr);
-          const collections=o.collections??[];
           const draft=receiptDrafts[o.orderId]??{amount:String(outstanding),reference:"",channel:1};
           return <Fragment key={o.orderId}>
-            <tr>
+            <tr style={{backgroundColor:outstanding===0?"rgba(22,163,74,.10)":undefined}}>
               <td className="phase12-customer-cell" dir="auto" title={o.customerContact??o.customerUserId}>
                 <strong>{o.customerDisplayName||"پروفایل تکمیل‌نشده"}</strong>
                 {o.customerContact&&<small dir="ltr">{o.customerContact}</small>}
               </td>
+              <td dir="auto">{o.partnerDisplayName||"فروش مستقیم"}</td>
               <td>{planName(o.planKind,o.invoiceUnitLimit)}</td>
-              <td>{new Intl.DateTimeFormat("fa-IR",{dateStyle:"short"}).format(new Date(o.issuedAtUtc))}</td>
+              <td>{new Intl.DateTimeFormat("fa-IR",{dateStyle:"short",timeZone:"Asia/Tehran"}).format(new Date(o.issuedAtUtc))}</td>
               <td>{amount(o.grossIrr)}</td><td>{amount(o.collectedIrr)}</td><td>{amount(outstanding)}</td>
               <td><span className={o.isActivated?"phase12-order-status phase12-order-status-active":"phase12-order-status"}>
                 {o.isActivated?"فعال":"در انتظار تأیید"}</span></td>
               <td className="phase12-collection-actions">
                 {!o.isActivated && <button type="button" disabled={busy} onClick={()=>void runAction(
                   async()=>{await request("paid-orders/activate","POST",{orderId:o.orderId});
-                    setPendingOrders(await request("cash-pending") as PendingOrder[]);},
+                    await loadPending();setReceiptRevision(v=>v+1);},
                   "پلن تأیید و فعال شد؛ ماندهٔ پرداخت در همین فهرست قابل پیگیری است."
                 )}>تأیید و فعال‌سازی</button>}
                 {!o.isActivated && o.collectedIrr===0 && <button type="button" disabled={busy}
@@ -174,26 +159,16 @@ export default function SubscriptionWorkspace({level1}:{level1:boolean}) {
               </td>
             </tr>
             {receiptOrderId===o.orderId && <tr className="phase12-collection-detail">
-              <td colSpan={8}><form onSubmit={e=>void submit(e,async()=>{
+              <td colSpan={9}><form onSubmit={e=>void submit(e,async()=>{
                 if(outstanding<=0) return;
                 await request("collections/manual","POST",{
                   orderId:o.orderId,customerUserId:o.customerUserId,channel:draft.channel,
                   amountIrr:Number(draft.amount),receiptReference:draft.reference
                 });
-                setPendingOrders(await request("cash-pending") as PendingOrder[]);
+                await loadPending();setReceiptRevision(v=>v+1);
                 setReceiptDrafts(v=>{const next={...v};delete next[o.orderId];return next;});
               },"دریافت ثبت شد و مانده به‌روزرسانی شد.")}>
-                {collections.length>0 ? <div className="phase12-collection-history">
-                    <strong>تاریخچه دریافت‌ها</strong>
-                    <div className="console-table-scroll"><table className="console-table">
-                      <thead><tr><th>تاریخ</th><th>روش</th><th>مرجع رسید</th><th>مبلغ</th></tr></thead>
-                      <tbody>{collections.map(item=><tr key={item.collectionId}>
-                        <td>{new Intl.DateTimeFormat("fa-IR",{dateStyle:"short",timeStyle:"short"}).format(new Date(item.receivedAtUtc))}</td>
-                        <td>{item.channel===1?"نقدی":item.channel===2?"واریز بانکی":"درگاه"}</td>
-                        <td>{item.receiptReference}</td><td>{amount(item.amountIrr)}</td>
-                      </tr>)}</tbody>
-                    </table></div>
-                  </div> : <p>هنوز دریافتی برای این سفارش ثبت نشده است.</p>}
+                <CollectionHistoryTable key={`${o.orderId}:${receiptRevision}`} orderId={o.orderId} request={request}/>
                 {outstanding>0 && <>
                   <strong>ثبت مرحلهٔ جدید دریافت برای {planName(o.planKind,o.invoiceUnitLimit)}</strong>
                   <span>مانده فعلی: {amount(outstanding)}</span>
@@ -210,6 +185,8 @@ export default function SubscriptionWorkspace({level1}:{level1:boolean}) {
           </Fragment>;
         })}</tbody>
       </table></div>
+      <FinancePagination page={pendingPage} totalCount={pendingCount} loading={pendingLoading}
+        onPageChange={next=>{setPendingLoading(true);setReceiptOrderId(null);setPendingPage(next);}}/>
       {!pendingLoading&&pendingOrders.length===0&&notice?.kind!=="error"&&<p className="phase12-finance-empty">درخواستی برای تأیید یا مانده‌ای برای دریافت وجود ندارد.</p>}
     </section>}
     {tab==="sms" && <section>
@@ -242,50 +219,9 @@ export default function SubscriptionWorkspace({level1}:{level1:boolean}) {
       <p>کسر اعتبار پس از ارسال تأییدشده پیامک به هماهنگی با سرویس ارسال نیاز دارد و از این صفحه انجام نمی‌شود.</p>
     </section>}
     {tab==="revenue" && <section>
-      <h3>گزارش درآمد و تخصیص</h3>
-      <button type="button" disabled={busy} onClick={()=>void load()}>بازخوانی گزارش</button>
-      {revenue && <><p>سهم Level 2: {amount(revenue.totalPartnerShareIrr)}
-        {level1 && <> | سهم Level 1: {amount(revenue.totalRootShareIrr)}</>}</p>
-        <div className="console-table-scroll phase12-finance-report"><table className="console-table">
-          <thead><tr><th>تخصیص</th><th>شریک</th><th>سهم شریک</th>{level1&&<th>سهم مدیر اصلی</th>}</tr></thead>
-          <tbody>{revenue.items.map(x=><tr key={x.allocationId}>
-            <td><code>{x.allocationId.slice(0,8)}</code></td><td>{x.partnerUserId?.slice(0,8)||"مستقیم"}</td>
-            <td>{amount(x.partnerShareIrr)}</td>{level1&&<td>{amount(x.rootShareIrr)}</td>}
-          </tr>)}</tbody>
-        </table></div></>}
+      <PlanSalesReport request={request}/>
     </section>}
-    {tab==="settlements" && <section><h3>مانده تسویه شرکا</h3>
-      <button type="button" disabled={busy} onClick={()=>void load()}>به‌روزرسانی</button>
-      {settlements && <><p>کل سهم: {amount(settlements.totalEarnedIrr)} | تسویه‌شده:
-        {amount(settlements.totalSettledIrr)} | مانده: {amount(settlements.totalOutstandingIrr)}</p>
-        <div className="console-table-scroll phase12-finance-report"><table className="console-table">
-          <thead><tr><th>شناسه تخصیص</th><th>شریک</th><th>سهم</th><th>مانده</th></tr></thead>
-          <tbody>{settlements.items.map(x=><tr key={x.allocationId}>
-            <td><code>{x.allocationId.slice(0,8)}</code></td><td>{x.partnerUserId.slice(0,8)}</td>
-            <td>{amount(x.earnedIrr)}</td><td>{amount(x.outstandingIrr)}</td></tr>)}</tbody></table></div></>}
-      {level1 && <form onSubmit={e=>void submit(e,()=>request("settlements/record","POST",{
-        allocationId,amountIrr:Number(settlementAmount),bankReference:bankRef,reason:settlementReason
-      }),"سند تسویه ثبت شد. گزارش را بازخوانی کنید.")}>
-        <h3>ثبت تسویه تأییدشده</h3>
-        <label>شناسه تخصیص<input required value={allocationId} onChange={e=>setAllocationId(e.target.value)}/></label>
-        <label>مبلغ (ریال)<input type="number" required min={1} value={settlementAmount}
-          onChange={e=>setSettlementAmount(e.target.value)}/></label>
-        <label>شماره پیگیری بانکی<input required value={bankRef} onChange={e=>setBankRef(e.target.value)}/></label>
-        <label>شرح<input required value={settlementReason} onChange={e=>setSettlementReason(e.target.value)}/></label>
-        <button type="submit" disabled={busy}>ثبت سند تسویه</button>
-      </form>}
-      {level1 && <form onSubmit={e=>void submit(e,()=>request("settlements/reverse","POST",{
-        allocationId,originalPaymentId:originalEventId,
-        reversalReference:bankRef,reason:settlementReason
-      }),"سند برگشت ثبت شد. گزارش را بازخوانی کنید.")}>
-        <h3>برگشت سند تسویه</h3>
-        <label>شناسه تخصیص<input required value={allocationId} onChange={e=>setAllocationId(e.target.value)}/></label>
-        <label>شناسه سند اصلی<input required value={originalEventId} onChange={e=>setOriginalEventId(e.target.value)}/></label>
-        <label>مرجع برگشت<input required value={bankRef} onChange={e=>setBankRef(e.target.value)}/></label>
-        <label>دلیل برگشت<input required value={settlementReason} onChange={e=>setSettlementReason(e.target.value)}/></label>
-        <button type="submit" disabled={busy}>ثبت برگشت</button>
-      </form>}
-    </section>}
+    {tab==="settlements" && <PartnerSettlementWorkspace level1={level1} request={request}/>}
     {rejectConfirmation && <InvoiceActionToast
       title="رد درخواست پلن"
       description={`درخواست «${planName(rejectConfirmation.planKind,rejectConfirmation.invoiceUnitLimit)}» رد و سفارش لغو شود؟`}
@@ -297,7 +233,7 @@ export default function SubscriptionWorkspace({level1}:{level1:boolean}) {
         setRejectConfirmation(null);
         void runAction(async()=>{
           await request("orders/reject","POST",{orderId:order.orderId});
-          setPendingOrders(await request("cash-pending") as PendingOrder[]);
+          await loadPending();setReceiptRevision(v=>v+1);
         },"درخواست رد و لغو شد.");
       }}
     />}

@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useId, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import FinancePagination from "./finance-pagination";
 
 type Plan = {
   id: string;
@@ -22,6 +23,8 @@ type PriceHistory = {
   id: string; priceIrr: number; partnerUserId: string | null; partnerMobile: string | null;
   effectiveFromUtc: string; effectiveUntilUtc: string | null; isCurrent: boolean; isUpcoming: boolean;
 };
+
+type PageResult<T> = { items: T[]; totalCount: number; page: number; pageSize: number };
 
 type ModalMode = "create" | "edit" | "view" | "archive";
 type FinanceAction = "price" | "activation" | "history";
@@ -138,6 +141,9 @@ export default function PlanCatalog({ level1 }: PlanCatalogProps) {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const plansRequest = useRef(0);
 
   const [modalMode, setModalMode] = useState<ModalMode | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
@@ -153,27 +159,39 @@ export default function PlanCatalog({ level1 }: PlanCatalogProps) {
   const [historyScope, setHistoryScope] = useState("base");
   const [priceHistory, setPriceHistory] = useState<PriceHistory[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyTotalCount, setHistoryTotalCount] = useState(0);
 
   const refreshPlans = useCallback(async () => {
+    const request = ++plansRequest.current;
     setLoading(true);
     setError("");
 
     try {
-      const response = await fetch(PLANS_API, { cache: "no-store" });
+      const params = new URLSearchParams({ page: String(page), search: query });
+      const response = await fetch(PLANS_API + "?" + params, { cache: "no-store" });
       if (!response.ok) {
         throw Error(response.status === 409
           ? "برای این حساب سطح ۲، مدیر سطح ۱ یکتایی ثبت نشده است."
           : "خطای دریافت پلن‌ها: " + response.status);
       }
 
-      const result = (await response.json()) as Plan[];
-      setPlans(result);
+      const result = (await response.json()) as PageResult<Plan>;
+      if (request !== plansRequest.current) return;
+      setTotalCount(result.totalCount);
+      const lastPage = Math.max(1, Math.ceil(result.totalCount / 10));
+      if (page > lastPage) { setPage(lastPage); return; }
+      setPlans(result.items);
     } catch (error) {
-      setError(error instanceof Error ? error.message : "خطای ناشناخته");
+      if (request === plansRequest.current) {
+        setPlans([]);
+        setTotalCount(0);
+        setError(error instanceof Error ? error.message : "خطای ناشناخته");
+      }
     } finally {
-      setLoading(false);
+      if (request === plansRequest.current) setLoading(false);
     }
-  }, []);
+  }, [page, query]);
 
   useEffect(() => {
     void refreshPlans();
@@ -183,7 +201,7 @@ export default function PlanCatalog({ level1 }: PlanCatalogProps) {
     if (financeAction !== "history" || !financePlan) return;
     const own = !level1 && historyScope === "own";
     const partnerId = level1 && historyScope !== "base" ? historyScope : "";
-    const params = new URLSearchParams({ planId: financePlan.id, ownPrice: String(own) });
+    const params = new URLSearchParams({ planId: financePlan.id, ownPrice: String(own), page: String(historyPage) });
     if (partnerId) params.set("partnerUserId", partnerId);
     let cancelled = false;
     setHistoryLoading(true);
@@ -193,28 +211,25 @@ export default function PlanCatalog({ level1 }: PlanCatalogProps) {
         if (!response.ok) throw Error(response.status === 403
           ? "دسترسی به این تاریخچه مجاز نیست."
           : "خطای دریافت تاریخچه تعرفه: " + response.status);
-        return await response.json() as PriceHistory[];
+        return await response.json() as PageResult<PriceHistory>;
       })
-      .then(items => { if (!cancelled) setPriceHistory(items); })
+      .then(result => {
+        if (cancelled) return;
+        setHistoryTotalCount(result.totalCount);
+        const lastPage = Math.max(1, Math.ceil(result.totalCount / 10));
+        if (historyPage > lastPage) { setHistoryPage(lastPage); return; }
+        setPriceHistory(result.items);
+      })
       .catch(cause => {
         if (!cancelled) {
           setPriceHistory([]);
+          setHistoryTotalCount(0);
           setError(cause instanceof Error ? cause.message : "خطای دریافت تاریخچه");
         }
       })
       .finally(() => { if (!cancelled) setHistoryLoading(false); });
     return () => { cancelled = true; };
-  }, [financeAction, financePlan, historyScope, level1]);
-
-  const filteredPlans = useMemo(
-    () =>
-      plans.filter(plan =>
-        (plan.code + " " + PLAN_KIND_LABELS[plan.kind])
-          .toLocaleLowerCase()
-          .includes(query.toLocaleLowerCase()),
-      ),
-    [plans, query],
-  );
+  }, [financeAction, financePlan, historyScope, historyPage, level1]);
 
   const isReadOnly = modalMode === "view";
 
@@ -235,6 +250,8 @@ export default function PlanCatalog({ level1 }: PlanCatalogProps) {
     setError("");
     setPriceIrr("");
     setPriceHistory([]);
+    setHistoryPage(1);
+    setHistoryTotalCount(0);
     setHistoryScope(level1 && plan.partnerPrices.length
       ? plan.partnerPrices[0].partnerUserId : "base");
   }
@@ -329,13 +346,14 @@ export default function PlanCatalog({ level1 }: PlanCatalogProps) {
       <div className="phase12-plan-toolbar">
         <div>
           <h3>پلن‌های اشتراک</h3>
-          <small>نمایش {filteredPlans.length} پلن</small>
+          <small>نمایش {totalCount.toLocaleString("fa-IR")} پلن</small>
         </div>
         <input
           aria-label="جست‌وجوی پلن"
+          maxLength={100}
           placeholder="جست‌وجوی نام یا نوع پلن..."
           value={query}
-          onChange={event => setQuery(event.target.value)}
+          onChange={event => { setQuery(event.target.value); setPage(1); }}
         />
         <button type="button" onClick={() => openModal("create")}>
           + افزودن پلن
@@ -369,10 +387,10 @@ export default function PlanCatalog({ level1 }: PlanCatalogProps) {
             </tr>
           </thead>
           <tbody>
-            {!loading && filteredPlans.length === 0 ? (
+            {!loading && plans.length === 0 ? (
               <tr><td colSpan={8}>پلنی یافت نشد.</td></tr>
             ) : (
-              filteredPlans.map(plan => (
+              plans.map(plan => (
                 <tr key={plan.id}>
                   <td>{plan.code}</td>
                   <td>{PLAN_KIND_LABELS[plan.kind] ?? "نامشخص"}</td>
@@ -428,6 +446,8 @@ export default function PlanCatalog({ level1 }: PlanCatalogProps) {
         </table>
         </div>
       </div>
+
+      <FinancePagination page={page} totalCount={totalCount} loading={loading} onPageChange={setPage} />
 
       {modalMode && (
         <div
@@ -551,7 +571,7 @@ export default function PlanCatalog({ level1 }: PlanCatalogProps) {
             <p>پلن <strong>{financePlan.code}</strong></p>
             {financeAction === "history" ? <>
               <label>محدوده تعرفه
-                <select value={historyScope} onChange={event => setHistoryScope(event.target.value)}>
+                <select value={historyScope} onChange={event => { setHistoryScope(event.target.value); setHistoryPage(1); }}>
                   <option value="base">تعرفه پایه مدیر سطح ۱</option>
                   {!level1 && <option value="own">تعرفه اختصاصی من</option>}
                   {level1 && financePlan.partnerPrices.map(partner => <option key={partner.partnerUserId} value={partner.partnerUserId}>
@@ -559,17 +579,25 @@ export default function PlanCatalog({ level1 }: PlanCatalogProps) {
                   </option>)}
                 </select>
               </label>
-              {historyLoading ? <p>در حال دریافت تاریخچه...</p> : priceHistory.length === 0
-                ? <p>برای این محدوده سابقه‌ای ثبت نشده است.</p>
-                : <div className="console-table-scroll phase12-price-history"><table className="console-table">
+              <div className="console-table-stage phase12-price-history" aria-busy={historyLoading}>
+                {historyLoading && <div className="argin-loader argin-loader-overlay" role="status" aria-live="polite">
+                  <span className="argin-loader-spinner" aria-hidden="true" />
+                  <strong>در حال دریافت تاریخچه...</strong>
+                </div>}
+                <div className="console-table-scroll"><table className="console-table">
                   <thead><tr><th>مبلغ</th><th>شروع اعتبار</th><th>پایان اعتبار</th><th>وضعیت</th></tr></thead>
-                  <tbody>{priceHistory.map(item => <tr key={item.id}>
+                  <tbody>{!historyLoading && priceHistory.length === 0
+                    ? <tr><td colSpan={4}>برای این محدوده سابقه‌ای ثبت نشده است.</td></tr>
+                    : priceHistory.map(item => <tr key={item.id}>
                     <td>{item.priceIrr.toLocaleString("fa-IR")} ریال</td>
                     <td>{formatPriceDate(item.effectiveFromUtc)}</td>
                     <td>{item.effectiveUntilUtc ? formatPriceDate(item.effectiveUntilUtc) : "بدون پایان"}</td>
                     <td>{item.isCurrent ? "در حال اجرا" : item.isUpcoming ? "آینده" : "پایان‌یافته"}</td>
                   </tr>)}</tbody>
-                </table></div>}
+                </table></div>
+              </div>
+              <FinancePagination page={historyPage} totalCount={historyTotalCount}
+                loading={historyLoading} onPageChange={setHistoryPage} />
             </> : <form onSubmit={event => void saveFinance(event, financeAction)}>
               {financeAction === "price" ? <>
                 <p>{level1 ? "تعرفه پایه فعلی" : "مبنای مدیر سطح ۱"}: {financePlan.basePriceIrr == null

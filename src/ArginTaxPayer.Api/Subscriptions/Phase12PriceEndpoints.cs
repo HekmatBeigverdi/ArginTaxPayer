@@ -50,7 +50,8 @@ public static class Phase12PriceEndpoints
         }).RequireRateLimiting("signing-import").ExcludeFromDescription();
         endpoints.MapGet("/api/dev/subscriptions/prices/history",async(
             HttpContext http,[FromQuery] Guid planId,[FromQuery] bool ownPrice,
-            [FromQuery] Guid? partnerUserId,SubscriptionPriceAdministrationService service,
+            [FromQuery] Guid? partnerUserId,[FromQuery] int? page,
+            SubscriptionPriceAdministrationService service,
             CancellationToken ct)=>
         {
             if(!Allowed(http))return Results.StatusCode(403);
@@ -58,6 +59,8 @@ public static class Phase12PriceEndpoints
             if(string.IsNullOrEmpty(token))return Results.Unauthorized();
             try {
                 http.Response.Headers.CacheControl="no-store";
+                if(page is { } requested)
+                    return Results.Json(await service.HistoryPageAsync(token,planId,ownPrice,partnerUserId,requested,ct));
                 return Results.Json(await service.HistoryAsync(token,planId,ownPrice,partnerUserId,ct));
             } catch(UnauthorizedAccessException){return Results.StatusCode(403);}
               catch(ArgumentException){return Results.BadRequest();}

@@ -87,7 +87,38 @@ public sealed class SubscriptionPlanAdministrationService(
         return actor;
     }
     public async Task<object[]> ListAsync(string? bearer,CancellationToken ct=default)
+        => (await ListCoreAsync(bearer,null,null,ct)).Items;
+
+    public Task<SubscriptionPage<object>> ListPageAsync(string? bearer,int page=1,
+        string? search=null,CancellationToken ct=default)
+        => ListCoreAsync(bearer,page,search,ct);
+
+    internal static IQueryable<StoredSubscriptionPlan> CatalogQuery(
+        IQueryable<StoredSubscriptionPlan> source,Guid actor,string[] prefixes,
+        bool isPartner,string? search)
     {
+        var actorPrefix=actor.ToString("N")+"-";
+        var query=source.Where(p=>prefixes.Contains(p.Code.Substring(0,33)) &&
+            (!isPartner || p.Code.StartsWith(actorPrefix) || p.IsActive));
+        if(!string.IsNullOrWhiteSpace(search))
+        {
+            var term=search.Trim().ToLowerInvariant();
+            var kinds=new (SubscriptionPlanKind Kind,string Label)[]{
+                (SubscriptionPlanKind.AnnualSingleTaxpayer,"سالانه"),
+                (SubscriptionPlanKind.Quantity,"تعدادی"),
+                (SubscriptionPlanKind.MonthlySingleTaxpayer,"ماهانه"),
+                (SubscriptionPlanKind.QuarterlySingleTaxpayer,"سه‌ماهه"),
+                (SubscriptionPlanKind.SemiAnnualSingleTaxpayer,"شش‌ماهه")}
+                .Where(x=>x.Label.Contains(term)).Select(x=>x.Kind).ToArray();
+            query=query.Where(p=>p.Code.Substring(33).ToLower().Contains(term) || kinds.Contains(p.Kind));
+        }
+        return query;
+    }
+
+    private async Task<SubscriptionPage<object>> ListCoreAsync(string? bearer,int? page,
+        string? search,CancellationToken ct)
+    {
+        var offset=page is { } requested ? SubscriptionPaging.Offset(requested) : 0;
         var actor=await RequireAdminAsync(bearer,ct);
         var roles=await identity.GetCurrentRolesAsync(bearer,ct) ?? [];
         var isRoot=roles.Contains(IdentityRoleNames.Level1);
@@ -108,10 +139,11 @@ public sealed class SubscriptionPlanAdministrationService(
 
         var prefixes=new[]{actor.ToString("N")+"-",root.ToString("N")+"-"}
             .Concat(partnerIds.Select(x=>x.ToString("N")+"-" )).Distinct().ToArray();
-        var allPlans=await db.SubscriptionPlans.AsNoTracking()
-            .OrderByDescending(p=>p.CreatedAtUtc).ToArrayAsync(ct);
-        var plans=allPlans.Where(p=>prefixes.Any(prefix=>p.Code.StartsWith(prefix,StringComparison.Ordinal)) &&
-            (!isPartner || p.Code.StartsWith(actor.ToString("N")+"-",StringComparison.Ordinal) || p.IsActive)).ToArray();
+        var query=CatalogQuery(db.SubscriptionPlans.AsNoTracking(),actor,prefixes,isPartner,search);
+        var totalCount=await query.CountAsync(ct);
+        var ordered=query.OrderByDescending(p=>p.CreatedAtUtc).ThenBy(p=>p.Id);
+        var plans=await (page.HasValue ? ordered.Skip(offset).Take(SubscriptionPaging.PageSize) : ordered)
+            .ToArrayAsync(ct);
         var planIds=plans.Select(p=>p.Id).ToArray();
         var now=DateTime.UtcNow;
         var prices=await db.SubscriptionPrices.AsNoTracking().Where(p=>planIds.Contains(p.PlanId) &&
@@ -129,7 +161,7 @@ public sealed class SubscriptionPlanAdministrationService(
             .Select(x=>x.PartnerUserId!.Value).Distinct().ToArrayAsync(ct):[];
         var partnerMobiles=await db.IdentityUsers.AsNoTracking().Where(u=>partnerOwnerIds.Contains(u.Id))
             .Select(u=>new{u.Id,u.NormalizedMobile}).ToDictionaryAsync(u=>u.Id,u=>u.NormalizedMobile,ct);
-        return plans.Select(p=>
+        var items=plans.Select(p=>
         {
             var rows=prices.Where(x=>x.PlanId==p.Id).ToArray();
             var planOwner=p.Code.Length>=32 && Guid.TryParseExact(p.Code[..32],"N",out var parsedOwner)?parsedOwner:Guid.Empty;
@@ -144,6 +176,7 @@ public sealed class SubscriptionPlanAdministrationService(
                     .Select(partner=>new SubscriptionPartnerPriceSummary(partner,
                         partnerMobiles.GetValueOrDefault(partner),rows.SingleOrDefault(x=>x.PartnerUserId==partner)?.PriceIrr)).ToArray():[]);
         }).ToArray();
+        return new SubscriptionPage<object>(items,totalCount,page ?? 1);
     }
     public async Task<StoredSubscriptionPlan> UpdateAsync(string? bearer,Guid id,string code,
         SubscriptionPlanKind kind,int validityDays,long? invoiceUnits,CancellationToken ct=default)

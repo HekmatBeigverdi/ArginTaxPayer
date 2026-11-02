@@ -20,7 +20,14 @@ public sealed class PartnerSettlementService(ArginTaxPayerDbContext db,
         Guid originalPaymentId,string reversalReference,string explanation,CancellationToken ct=default)
         => await PostAsync(bearer,allocationId,0,reversalReference,explanation,originalPaymentId,ct);
 
-    private async Task<Guid> PostAsync(string? bearer,Guid allocationId,long requestedAmount,
+    private Task<Guid> PostAsync(string? bearer,Guid allocationId,long requestedAmount,
+        string reference,string explanation,Guid? originalId,CancellationToken ct)
+        => db.Database.CurrentTransaction is not null
+            ? PostCoreAsync(bearer,allocationId,requestedAmount,reference,explanation,originalId,ct)
+            : db.Database.CreateExecutionStrategy().ExecuteAsync(() =>
+                PostCoreAsync(bearer,allocationId,requestedAmount,reference,explanation,originalId,ct));
+
+    private async Task<Guid> PostCoreAsync(string? bearer,Guid allocationId,long requestedAmount,
         string reference,string explanation,Guid? originalId,CancellationToken ct)
     {
         if(allocationId==Guid.Empty || (originalId is null && requestedAmount<=0) ||
@@ -33,24 +40,52 @@ public sealed class PartnerSettlementService(ArginTaxPayerDbContext db,
             u.Roles.Any(r=>r.Role==IdentityRoleNames.Level1) &&
             db.IdentityMfaStates.Any(m=>m.UserId==actor && m.EnabledAtUtc!=null),ct);
         if(!permitted)throw new UnauthorizedAccessException("Level1 with MFA required.");
-        await using var tx=await db.Database.BeginTransactionAsync(IsolationLevel.Serializable,ct);
+        if(db.Database.CurrentTransaction is { } outer && outer.GetDbTransaction().IsolationLevel!=IsolationLevel.Serializable)
+            throw new InvalidOperationException("A serializable transaction is required.");
+        await using var tx=db.Database.CurrentTransaction is null
+            ? await db.Database.BeginTransactionAsync(IsolationLevel.Serializable,ct) : null;
         var conn=db.Database.GetDbConnection();
         await using var locked=conn.CreateCommand();
         locked.Transaction=db.Database.CurrentTransaction!.GetDbTransaction();
         locked.CommandText="""
-            SELECT root_user_id,partner_user_id,partner_share_irr
+            SELECT root_user_id,partner_user_id,partner_share_irr,collection_id
             FROM commercial_revenue_allocations WHERE id=@allocation FOR UPDATE
             """;
         Add(locked,"allocation",allocationId);
-        Guid root,partner;long earned;
+        Guid root,partner,collection;long earned;
         await using(var reader=await locked.ExecuteReaderAsync(ct))
         {
             if(!await reader.ReadAsync(ct))throw new InvalidOperationException("Allocation not found.");
             root=reader.GetGuid(0);
             if(reader.IsDBNull(1))throw new InvalidOperationException("Direct root revenue has no partner settlement.");
-            partner=reader.GetGuid(1);earned=reader.GetInt64(2);
+            partner=reader.GetGuid(1);earned=reader.GetInt64(2);collection=reader.GetGuid(3);
         }
         if(root!=actor)throw new UnauthorizedAccessException("Root scope mismatch.");
+
+        // Share the batch workflow's lock order before either journal can claim this receipt.
+        await using(var scopeLock=conn.CreateCommand())
+        {
+            scopeLock.Transaction=locked.Transaction;
+            scopeLock.CommandText="SELECT pg_advisory_xact_lock(hashtextextended(@key,0))";
+            Add(scopeLock,"key","partner-batch:"+partner);
+            await scopeLock.ExecuteNonQueryAsync(ct);
+            scopeLock.Parameters.Clear();Add(scopeLock,"key","partner-batch-root:"+root);
+            await scopeLock.ExecuteNonQueryAsync(ct);
+        }
+        await using(var receiptLock=conn.CreateCommand())
+        {
+            receiptLock.Transaction=locked.Transaction;
+            receiptLock.CommandText="SELECT id FROM commercial_collections WHERE id=@collection FOR UPDATE";
+            Add(receiptLock,"collection",collection);await receiptLock.ExecuteNonQueryAsync(ct);
+        }
+        await using(var claimed=conn.CreateCommand())
+        {
+            claimed.Transaction=locked.Transaction;
+            claimed.CommandText="SELECT EXISTS(SELECT 1 FROM partner_settlement_batch_lines WHERE collection_id=@collection)";
+            Add(claimed,"collection",collection);
+            if((bool)(await claimed.ExecuteScalarAsync(ct)??false))
+                throw new InvalidOperationException("Receipt is already covered by an immutable settlement batch.");
+        }
 
         // The unique reference is scoped to the one root. A repeat returns the first entry,
         // but conflicting parameters cannot silently mutate a settled amount.
@@ -73,7 +108,7 @@ public sealed class PartnerSettlementService(ArginTaxPayerDbContext db,
                    (originalId.HasValue && (reader.IsDBNull(4) || reader.GetGuid(4)!=originalId.Value)))
                     throw new InvalidOperationException("Settlement reference conflict.");
                 await reader.DisposeAsync();
-                await tx.CommitAsync(ct);
+                if(tx is not null)await tx.CommitAsync(ct);
                 return id;
             }
         }
@@ -132,7 +167,7 @@ public sealed class PartnerSettlementService(ArginTaxPayerDbContext db,
         Add(insert,"actor",actor);Add(insert,"reason",explanation.Trim());
         Add(insert,"now",DateTime.UtcNow);
         await insert.ExecuteNonQueryAsync(ct);
-        await tx.CommitAsync(ct);
+        if(tx is not null)await tx.CommitAsync(ct);
         return newId;
     }
 

@@ -547,3 +547,55 @@
     flex: 1 0 auto;
   }
 }
+
+.phase12-sales-report {
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--argin-line);
+}
+
+.phase12-sales-totals,
+.phase12-sales-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.phase12-sales-totals p {
+  padding: 8px 12px;
+  border: 1px solid var(--argin-line);
+  border-radius: 7px;
+  background: var(--argin-page);
+}
+
+.phase12-sales-pagination { margin-top: 10px; }
+.phase12-plan-kind { display: block; color: var(--argin-muted); }
+
+.phase12-collection-table td:has(> .phase12-finance-loading) {
+  height: 150px;
+  vertical-align: middle;
+}
+
+.phase12-sales-toolbar {
+  align-items: flex-end;
+}
+.phase12-sales-toolbar > div {
+  align-self: center;
+}
+.phase12-sales-toolbar > label {
+  width: 150px;
+}
+.phase12-sales-toolbar > button,
+.phase12-sales-toolbar > label select {
+  min-height: 34px;
+  height: 34px;
+  margin: 0;
+}
+.phase12-finance table td:has(> .phase12-finance-loading) {
+  height: 150px;
+  vertical-align: middle;
+}
+.phase12-collection-history .phase12-sales-pagination {
+  grid-column: 1 / -1;
+}

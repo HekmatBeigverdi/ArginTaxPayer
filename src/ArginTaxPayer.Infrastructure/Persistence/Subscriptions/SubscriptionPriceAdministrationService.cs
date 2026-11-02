@@ -80,7 +80,20 @@ public sealed class SubscriptionPriceAdministrationService(
 
     public async Task<object[]> HistoryAsync(string? bearer, Guid planId,
         bool ownPrice=false, Guid? partnerUserId=null, CancellationToken ct=default)
+        => (await HistoryCoreAsync(bearer,planId,ownPrice,partnerUserId,null,ct)).Items;
+
+    public Task<SubscriptionPage<object>> HistoryPageAsync(string? bearer,Guid planId,
+        bool ownPrice=false,Guid? partnerUserId=null,int page=1,CancellationToken ct=default)
+        => HistoryCoreAsync(bearer,planId,ownPrice,partnerUserId,page,ct);
+
+    internal static IQueryable<StoredSubscriptionPrice> HistoryQuery(
+        IQueryable<StoredSubscriptionPrice> source,Guid planId,Guid root,Guid? partnerScope)
+        => source.Where(x=>x.PlanId==planId && x.RootAdminUserId==root && x.PartnerUserId==partnerScope);
+
+    private async Task<SubscriptionPage<object>> HistoryCoreAsync(string? bearer,Guid planId,
+        bool ownPrice,Guid? partnerUserId,int? page,CancellationToken ct)
     {
+        var offset=page is { } requested ? SubscriptionPaging.Offset(requested) : 0;
         var actor=await identity.CurrentUserIdAsync(bearer,ct)
             ??throw new UnauthorizedAccessException("Authentication required.");
         var roles=await identity.GetCurrentRolesAsync(bearer,ct) ?? [];
@@ -122,20 +135,23 @@ public sealed class SubscriptionPriceAdministrationService(
                 .AnyAsync(x=>x.RootLevel1UserId==actor && x.PartnerLevel2UserId==selectedPartner,ct))
                 throw new UnauthorizedAccessException("Partner outside root scope.");
         }
-        var history=await db.SubscriptionPrices.AsNoTracking().Where(x=>x.PlanId==planId &&
-            x.RootAdminUserId==root && x.PartnerUserId==partnerScope)
-            .OrderByDescending(x=>x.EffectiveFromUtc).ToArrayAsync(ct);
+        var query=HistoryQuery(db.SubscriptionPrices.AsNoTracking(),planId,root,partnerScope);
+        var totalCount=await query.CountAsync(ct);
+        var ordered=query.OrderByDescending(x=>x.EffectiveFromUtc).ThenBy(x=>x.Id);
+        var history=await (page.HasValue ? ordered.Skip(offset).Take(SubscriptionPaging.PageSize) : ordered)
+            .ToArrayAsync(ct);
         var now=DateTime.UtcNow;
         string? mobile=null;
         if(partnerScope is { } partnerId)
             mobile=await db.IdentityUsers.AsNoTracking().Where(x=>x.Id==partnerId)
                 .Select(x=>x.NormalizedMobile).SingleOrDefaultAsync(ct);
-        return history.Select(x=>(object)new{
+        var items=history.Select(x=>(object)new{
             x.Id,x.PlanId,x.PriceIrr,x.Audience,x.PartnerUserId,PartnerMobile=mobile,
             x.EffectiveFromUtc,x.EffectiveUntilUtc,
             IsCurrent=x.EffectiveFromUtc<=now && (x.EffectiveUntilUtc==null || x.EffectiveUntilUtc>now),
             IsUpcoming=x.EffectiveFromUtc>now
         }).ToArray();
+        return new SubscriptionPage<object>(items,totalCount,page ?? 1);
     }
 
     public Task<StoredSubscriptionPlan> ActivatePlanAsync(string? bearer,Guid planId,

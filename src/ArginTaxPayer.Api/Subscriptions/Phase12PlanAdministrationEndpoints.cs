@@ -13,13 +13,17 @@ public static class Phase12PlanAdministrationEndpoints
     public static IEndpointRouteBuilder MapPhase12PlanAdministrationEndpoints(this IEndpointRouteBuilder routes)
     {
         routes.MapGet("/api/dev/subscriptions/plans", async (
-            HttpContext http, SubscriptionPlanAdministrationService service, CancellationToken ct) =>
+            HttpContext http, [FromQuery] int? page, [FromQuery] string? search,
+            SubscriptionPlanAdministrationService service, CancellationToken ct) =>
         {
             if(!IsLocal(http))return Results.NotFound();
             var token=AccessToken(http);
             if(token is null)return Results.Unauthorized();
             try {http.Response.Headers.CacheControl="no-store";
+                if(page is { } requested)
+                    return Results.Json(await service.ListPageAsync(token,requested,search,ct));
                 return Results.Json(await service.ListAsync(token,ct));}
+            catch(ArgumentException){return Results.BadRequest();}
             catch(UnauthorizedAccessException){return Results.StatusCode(403);}
             catch(InvalidOperationException){return Results.Conflict();}
         }).ExcludeFromDescription().RequireRateLimiting("signing-import");

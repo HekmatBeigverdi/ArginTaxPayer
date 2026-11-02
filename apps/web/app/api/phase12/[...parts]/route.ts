@@ -23,16 +23,27 @@ const actions = new Map<string, ProxyMethod>([
   ["subscriptions/paid-orders/activate", "POST"],
   ["subscriptions/commercial-orders", "POST"],
   ["subscriptions/collections/manual", "POST"],
+  ["subscriptions/collections/history", "GET"],
   ["subscriptions/revenue-ledger", "GET"],
   ["subscriptions/cash-pending", "GET"],
+  ["subscriptions/sales-report", "GET"],
   ["subscriptions/checkout-tax", "GET"],
   ["subscriptions/settlements/balances", "GET"],
+  ["subscriptions/settlements/partners", "GET"],
+  ["subscriptions/settlements/terms", "PUT"],
+  ["subscriptions/settlements/preview", "GET"],
+  ["subscriptions/settlements/batches", "GET"],
+  ["subscriptions/settlements/batch", "GET"],
+  ["subscriptions/settlements/print", "GET"],
+  ["subscriptions/settlements/expenses", "POST"],
   ["subscriptions/settlements/record", "POST"],
   ["subscriptions/settlements/reverse", "POST"],
 ]);
 
 const LEVEL1_ONLY_ACTIONS = new Set([
   "subscriptions/settlements/record",
+  "subscriptions/settlements/terms",
+  "subscriptions/settlements/expenses",
   "subscriptions/settlements/reverse",
   "subscriptions/plans/activate",
   "subscriptions/sms-wallet/grant",
@@ -62,7 +73,9 @@ async function proxy(request: NextRequest, context: RouteContext) {
   const path = parts.join("/");
   let method: ProxyMethod | undefined;
 
-  if (path === "subscriptions/plans" && request.method === "GET") {
+  if (path === "subscriptions/settlements/batches" && request.method === "POST") {
+    method = "POST";
+  } else if (path === "subscriptions/plans" && request.method === "GET") {
     method = "GET";
   } else if (path === "subscriptions/checkout-tax" && ["GET", "PUT"].includes(request.method)) {
     method = request.method as "GET" | "PUT";
@@ -75,7 +88,7 @@ async function proxy(request: NextRequest, context: RouteContext) {
   if (!method || method !== request.method) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
-  if (LEVEL1_ONLY_ACTIONS.has(path) && !isLevel1) {
+  if ((LEVEL1_ONLY_ACTIONS.has(path) || path === "subscriptions/settlements/batches" && method === "POST") && !isLevel1) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
@@ -99,14 +112,23 @@ async function proxy(request: NextRequest, context: RouteContext) {
 
   const query = new URLSearchParams();
   if (method === "GET") {
-    for (const key of ["page", "pageSize", "planId", "partnerUserId"]) {
+    for (const key of ["page", "pageSize", "planId", "partnerUserId", "orderId", "batchId"]) {
       const value = request.nextUrl.searchParams.get(key);
-      if (value !== null && (key === "planId" || key === "partnerUserId"
+      if (value !== null && (key === "planId" || key === "partnerUserId" || key === "orderId" || key === "batchId"
         ? /^[0-9a-fA-F-]{36}$/.test(value)
-        : /^\d{1,3}$/.test(value))) {
+        : /^\d{1,9}$/.test(value))) {
         query.set(key, value);
       }
     }
+    const period = request.nextUrl.searchParams.get("period");
+    if (path === "subscriptions/sales-report" && period !== null) {
+      if (period !== "month" && period !== "year") {
+        return NextResponse.json({ error: "invalid_period" }, { status: 400 });
+      }
+      query.set("period", period);
+    }
+    const search = request.nextUrl.searchParams.get("search");
+    if (path === "subscriptions/plans" && search !== null) query.set("search", search.slice(0, 100));
     const ownPrice = request.nextUrl.searchParams.get("ownPrice");
     if (ownPrice === "true" || ownPrice === "false") query.set("ownPrice", ownPrice);
   }

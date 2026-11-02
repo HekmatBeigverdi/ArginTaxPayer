@@ -42,7 +42,7 @@ test("Step10 navigation exposes subscriptions to administrators", () => {
 
 test("Step10 includes scoped tariffs, admin approval, staged collection history, and SMS wallet", () => {
   const ui = read("app/subscriptions/subscription-workspace.tsx");
-  for (const value of ["PlanCatalog", "paid-orders/activate", "collections.map(item", "customerDisplayName", "sms-wallet/grant", "مشاهده موجودی"])
+  for (const value of ["PlanCatalog", "paid-orders/activate", "CollectionHistoryTable", "customerDisplayName", "sms-wallet/grant", "مشاهده موجودی"])
     assert.ok(ui.includes(value), value);
   const proxy = read("app/api/phase12/[...parts]/route.ts");
   assert.match(proxy,/subscriptions\/prices/);

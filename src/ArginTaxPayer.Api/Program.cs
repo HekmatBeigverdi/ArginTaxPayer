@@ -97,6 +97,7 @@ if (identityDevelopmentEnabled)
     builder.Services.AddScoped<ArginTaxPayer.Infrastructure.Persistence.Subscriptions.PartnerRevenueAllocationService>();
     builder.Services.AddScoped<ArginTaxPayer.Infrastructure.Persistence.Subscriptions.PartnerRevenueApprovalService>();
     builder.Services.AddScoped<ArginTaxPayer.Infrastructure.Persistence.Subscriptions.PartnerSettlementService>();
+    builder.Services.AddScoped<ArginTaxPayer.Infrastructure.Persistence.Subscriptions.PartnerBatchSettlementService>();
     builder.Services.AddScoped<ArginTaxPayer.Infrastructure.Persistence.Subscriptions.PartnerSettlementReadService>();
     builder.Services.AddScoped<ArginTaxPayer.Infrastructure.Persistence.Subscriptions.PartnerRevenueLedgerReadService>();
     builder.Services.AddScoped<ArginTaxPayer.Infrastructure.Persistence.Subscriptions.CommercialReceivableReadService>();
@@ -239,6 +240,7 @@ if (app.Environment.IsDevelopment())
         app.MapPhase12CollectionEndpoints();
         app.MapPhase12PartnerLedgerEndpoints();
         app.MapPhase12PartnerSettlementEndpoints();
+        app.MapPhase12PartnerBatchSettlementEndpoints();
         app.MapSigningChangeRequestEndpoints();
         app.MapSigningAdminReviewEndpoints();
         app.MapPartyDevelopmentEndpoints();
