@@ -81,8 +81,10 @@ public sealed class CommercialSubscriptionActivationService(ArginTaxPayerDbConte
             await tx.CommitAsync(ct);
             return prior;
         }
-        if(gross<=0 || status==(int)CommercialOrderStatus.Voided)
-            throw new InvalidOperationException("Only a valid, non-voided order can be approved.");
+        // Approval grants the entitlement even when payment is still outstanding.
+        // It never modifies the amount collected or fabricates a receipt.
+        CommercialActivationApprovalPolicy.RequireApprovable(
+            gross,collected,(CommercialOrderStatus)status);
         var collections=await db.Database.SqlQueryRaw<CollectionProofRow>(
             """
             SELECT COALESCE(SUM(amount_irr),0) AS "TotalIrr"
