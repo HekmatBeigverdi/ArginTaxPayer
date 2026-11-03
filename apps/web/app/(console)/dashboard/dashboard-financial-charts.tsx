@@ -32,10 +32,14 @@ function FinanceLineChart({items,metric}:{items:Bucket[];metric:Metric}){
   const id=useId().replace(/:/g,"");
   const data=useMemo(()=>{
     if(!items.length)return "";
-    const max=Math.max(1,...items.map(x=>Math.abs(x[metric]??0)));
+    // Signed range: reversal-driven negative settlement days must appear below zero.
+    const values=items.map(x=>x[metric]??0);
+    const min=Math.min(0,...values);
+    const max=Math.max(0,...values);
+    const span=Math.max(1,max-min);
     return items.map((x,i)=>{
       const px=items.length===1?180:12+(336*i/(items.length-1));
-      const y=154-((x[metric]??0)/max)*130;
+      const y=154-((x[metric]??0)-min)/span*130;
       return px.toFixed(1)+","+Math.max(12,Math.min(154,y)).toFixed(1);
     }).join(" ");
   },[items,metric]);
