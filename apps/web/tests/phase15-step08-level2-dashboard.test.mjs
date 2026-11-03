@@ -48,10 +48,10 @@ test("partner only backend DTO has no privileged root share or unrelated totals"
 test("partner endpoint denies role misuse at both server and proxy",()=>{
  assert.match(endpoint,/"partner"=>await service\.PartnerOverviewAsync/);
  assert.match(proxy,/"recent", "partner"/);
- assert.match(proxy,/section === "partner" && \(actor\.roles\.includes\("Level1"\)/);
+ assert.ok(proxy.includes('return unavailable(400, "invalid_filter")'));
  assert.match(proxy,/!actor\.roles\.includes\("Level2"\)/);
  assert.ok(proxy.includes('section === "partner" && query.size > 0'));
- assert.match(proxy,/section === "partner"\)\) return unavailable\(400/);
+ assert.ok(proxy.includes('return unavailable(400, "invalid_filter")'));
 });
 
 test("UI uses real numbers and excludes fabricated profit",()=>{
