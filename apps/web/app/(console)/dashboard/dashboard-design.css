@@ -221,3 +221,17 @@
 .argin-dashboard__finance-skeleton svg{height:170px;display:block}
 .argin-dashboard__finance-section .argin-dashboard__table-wrap{margin-top:10px;max-height:310px;overflow:auto}
 @media(max-width:580px){.argin-dashboard__finance-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%}.argin-dashboard__finance-tabs button{padding:8px 6px;font-size:11px}}
+
+/* Phase15 Step11: renewal and quota watchlist */
+.argin-dashboard__watch{margin-block:20px;min-width:0}
+.argin-dashboard__watch-head{display:flex;gap:16px;align-items:start;justify-content:space-between;flex-wrap:wrap;margin-bottom:15px}
+.argin-dashboard__watch-head h2{margin-bottom:5px}
+.argin-dashboard__watch-head p{font-size:12px;color:var(--dashboard-muted);line-height:1.7;margin:0}
+.argin-dashboard__watch-head>a{color:var(--dashboard-accent);text-decoration:none;font-size:12px;font-weight:800;white-space:nowrap}
+.argin-dashboard__watch-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:15px}
+.argin-dashboard__watch-stat{background:#f6fafb;border:1px solid var(--dashboard-line);border-radius:12px;padding:13px;display:flex;justify-content:space-between;align-items:center;gap:8px;min-width:0}
+.argin-dashboard__watch-stat span{font-size:12px;color:var(--dashboard-muted)}
+.argin-dashboard__watch-stat strong{font-size:20px;font-weight:800;font-variant-numeric:tabular-nums}
+.argin-dashboard__watch-loading svg{max-height:126px;display:block}
+@media(max-width:1000px){.argin-dashboard__watch-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:500px){.argin-dashboard__watch-stats{grid-template-columns:minmax(0,1fr)}}
