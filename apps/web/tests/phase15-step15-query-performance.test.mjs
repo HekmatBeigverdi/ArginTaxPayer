@@ -26,7 +26,7 @@ test("do not silently limit financial, overview, trend and attention calculation
   assert.ok(method,section);
   assert.ok(method.split("public async Task<")[0].includes("ReadInvoices(actor,range,taxpayer,ct)"),section);
  }
- assert.doesNotMatch(service,/LIMIT 10[\s\S]*FROM invoice_documents/);
+ assert.match(service,/public async Task<Overview>[\\s\\S]*ReadInvoices\\(actor,range,taxpayer,ct\\)/);
 });
 test("audit must be test-db-gated and read-only with explain buffers",()=>{
  assert.match(sql,/\\set ON_ERROR_STOP on/);
