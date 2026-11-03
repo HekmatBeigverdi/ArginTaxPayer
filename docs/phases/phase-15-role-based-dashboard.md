@@ -441,3 +441,12 @@ For browser checks, run the API/Web services through the existing `scripts/dev-u
 ### Documentation policy
 
 Continue appending future phase steps to this file only; do not create new `docs/phases/phase-15-stepXX*.md` files.
+
+
+### Step 04 audit hotfix — 2026-11-03
+
+- User-reported PostgreSQL syntax error at line 8: `DO $ BEGIN` / `END $` had an invalid dollar-quoted delimiter. This was a script-authoring defect; the transaction stopped before integrity queries.
+- Replaced the procedural block with a standard read-only SQL gate: `SELECT 1 / (CASE WHEN current_database() = 'argintaxpayer_test' THEN 1 ELSE 0 END) AS test_database_gate;`.
+- The SQL file now requires no procedural code; `ON_ERROR_STOP` continues to abort the audit on any SQL failure. Gate returns 1 on the designated test DB and fails on other databases.
+- Fix commit: `507e15c4055f42d255455199b339bb73a730ec9e`.
+- Runtime test still pending a new macOS execution; no PASS claim.
