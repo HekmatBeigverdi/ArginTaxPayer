@@ -86,3 +86,12 @@
 .argin-dashboard__quick a{font-size:12px;display:inline-block;padding:10px 14px;background:var(--dashboard-accent-soft);border:1px solid #cde8e3;color:#176d6a;border-radius:10px;text-decoration:none;font-weight:700}
 .argin-dashboard__table caption{font-size:11px;color:var(--dashboard-muted);text-align:right;margin-block:12px}
 .argin-dashboard__chart-label{margin-block:6px}
+
+.argin-dashboard__legacy{border:1px solid var(--argin-line,#dae6ed);background:#fff;border-radius:14px;padding:14px 16px;margin-top:18px}
+.argin-dashboard__legacy>summary{cursor:pointer;font-size:13px;font-weight:800;color:#176d6a;display:flex;align-items:center;justify-content:space-between;gap:12px;list-style:none}
+.argin-dashboard__legacy>summary::-webkit-details-marker{display:none}
+.argin-dashboard__legacy>summary span{font-size:11px;color:#6b7b8f;font-weight:500}
+.argin-dashboard__legacy[open]>summary{margin-bottom:16px}
+.argin-dashboard__legacy .app-module-grid{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+.argin-dashboard__legacy .app-module{min-height:160px}
+.argin-dashboard__legacy .app-help{margin-top:14px}
