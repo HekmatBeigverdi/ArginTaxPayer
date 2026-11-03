@@ -270,7 +270,9 @@ public sealed class Phase15DashboardReadService(
             COALESCE(SUM(o.gross_amount_irr-o.collected_amount_irr),0)::bigint AS "OutstandingIrr"
           FROM commercial_orders o WHERE o.status<>4
             AND o.issued_at_utc>={0} AND o.issued_at_utc<{1}
-            AND (({2} AND o.root_admin_user_id={3}) OR ({4} AND o.partner_user_id={3}))
+            AND (({2} AND o.root_admin_user_id={3}) OR ({4} AND o.partner_user_id={3}
+              AND EXISTS (SELECT 1 FROM customer_commercial_owners own
+                WHERE own.customer_user_id=o.customer_user_id AND own.partner_level2_user_id={3})))
             AND ({5}::uuid IS NULL OR o.partner_user_id={5})
           """;
         var sales=await db.Database.SqlQueryRaw<FinanceRow>(salesSql,
@@ -293,8 +295,12 @@ public sealed class Phase15DashboardReadService(
             COALESCE(SUM(a.root_share_irr),0)::bigint AS "CollectedIrr",
             0::bigint AS "OutstandingIrr"
           FROM commercial_revenue_allocations a
+          JOIN commercial_collections rc ON rc.id=a.collection_id
+          JOIN commercial_orders ro ON ro.id=rc.order_id
           WHERE a.posted_at_utc>={0} AND a.posted_at_utc<{1}
-            AND (({2} AND a.root_user_id={3}) OR ({4} AND a.partner_user_id={3}))
+            AND (({2} AND a.root_user_id={3}) OR ({4} AND a.partner_user_id={3}
+              AND EXISTS (SELECT 1 FROM customer_commercial_owners own
+                  WHERE own.customer_user_id=ro.customer_user_id AND own.partner_level2_user_id={3})))
             AND ({5}::uuid IS NULL OR a.partner_user_id={5})
           """;
         var shares=await db.Database.SqlQueryRaw<FinanceRow>(sharesSql,
@@ -305,8 +311,12 @@ public sealed class Phase15DashboardReadService(
                  WHEN e.kind=2 THEN -e.amount_irr ELSE 0 END),0)::bigint AS "Amount"
           FROM partner_settlement_events e JOIN commercial_revenue_allocations a
              ON a.id=e.allocation_id
-          WHERE e.occurred_at_utc>={0} AND e.occurred_at_utc<{1}
-            AND (({2} AND a.root_user_id={3}) OR ({4} AND a.partner_user_id={3}))
+          JOIN commercial_collections rc ON rc.id=a.collection_id
+          JOIN commercial_orders ro ON ro.id=rc.order_id
+          WHERE e.recorded_at_utc>={0} AND e.recorded_at_utc<{1}
+            AND (({2} AND a.root_user_id={3}) OR ({4} AND a.partner_user_id={3}
+              AND EXISTS (SELECT 1 FROM customer_commercial_owners own
+                  WHERE own.customer_user_id=ro.customer_user_id AND own.partner_level2_user_id={3})))
             AND ({5}::uuid IS NULL OR a.partner_user_id={5})
           """;
         var settled=await db.Database.SqlQueryRaw<AmountRow>(settlementSql,
