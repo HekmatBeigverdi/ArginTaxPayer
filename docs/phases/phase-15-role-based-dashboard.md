@@ -707,3 +707,75 @@ Manual role acceptance on running local API/Web/DB: login as Level2, view `/dash
 - Added `tests/ArginTaxPayer.Tests/Phase15PartnerDashboardContractsTests.cs` to assert the Level2 response DTO and JSON contain only partner-scoped totals, not root share or approved costs, and to cover settled-minus-reversal arithmetic.
 - Corrected Next.js partner query rejection precedence so `/api/dashboard/partner?partnerUserId=...` and any other filter produce HTTP 400 for Level2; unauthorized Level1/Customer still get 403. Verified source-level against the new proxy regression cases.
 - Latest Step08 code is on the existing `phase/15-role-based-dashboard` branch. Actual .NET/Node/PostgreSQL runtime PASS remains dependent on execution in the owner's environment.
+
+---
+
+## STEP 09 — Dedicated Level1 root-wide dashboard (2026-11-03)
+
+**Implementation committed to `phase/15-role-based-dashboard`; macOS runtime acceptance remains pending.**
+
+### Functional scope
+
+- Keep the Step06 main Level1 commercial KPI row (gross subscription orders, verified collections posted during selected period, outstanding on the order cohort, and root share from allocations). No taxpayer fiscal invoice face value is counted as software revenue.
+- Add an explicitly Level1-only, read-only `root` dashboard:
+  - Distinct current active customer count under the authenticated Level1 root.
+  - Active subscriptions and active subscriptions expiring in the next 30 days.
+  - Count of distinct Level2 partners with assigned active customers.
+  - **As-of** partner share earned, net settled (transfer less reversal), and remaining payable, restricted to customers *currently* owned under this root and partner.
+  - Up to 10 partner performance entries ranked by verified customer cash collections during the selected calendar period. Each shows active customer count, verified collections in period, allocated partner share in period, and current outstanding settlement share.
+  - Each item is attributed via actual `commercial_orders`, `commercial_collections`, `commercial_revenue_allocations`, `partner_settlement_events` with current `customer_commercial_owners` and root checks; no artificial sample amounts.
+- Lifetime settlement balance is **not filtered by the date picker**; partner performance cash/allocated-share figures **are**. The UI labels this distinction.
+- A customer reassigned to another partner or another root no longer contributes to previous owner's **current-scope dashboard**; historical audit records are unaffected.
+- All SQL parameters are server-supplied resolved Level1 actor + a validated Tehran period, not client-supplied tenant IDs.
+
+### Files
+
+| File | Action |
+| --- | --- |
+| `src/ArginTaxPayer.Api/Dashboard/Phase15DashboardReadService.cs` | Added `RootOverviewAsync`, `RootOverview` and `PartnerPerformance` projections; authorized root SQL and current-ownership scoped aggregates |
+| `src/ArginTaxPayer.Api/Dashboard/Phase15DashboardEndpoints.cs` | Registered `GET /api/dev/dashboard/root` in the existing localhost-only read-only route; prohibits taxpayer/partner selectors |
+| `apps/web/app/api/dashboard/[section]/route.ts` | Allows `/api/dashboard/root` for Level1 only; unauthorized users receive 403, blocked tenant selectors receive 400 |
+| `apps/web/app/(console)/dashboard/root-dashboard-details.tsx` | Level1-only cards, lifetime settlement report, top-partner ranked bars and details with independent loading/error states |
+| `apps/web/app/(console)/dashboard/dashboard-analytics.tsx` | Mount root UI only for effective role Level1, pass selected period |
+| `apps/web/app/(console)/dashboard/dashboard-design.css` | Responsive, compact grid and comparison-bar design |
+| `apps/web/tests/phase15-step09-level1-dashboard.test.mjs` | Role isolation, source SQL scope, amount/date semantics, responsive UI and TSX transpilation contract tests |
+| `tests/ArginTaxPayer.Tests/Phase15RootDashboardContractsTests.cs` | Root summary and partner performance DTO/JSON shape and reversal arithmetic tests |
+
+Existing Step08 tests were updated to match the strict `partner` endpoint query validation; no change to Step08 functionality.
+
+### Explicit non-goals
+
+- No automatic invoicing, tax-authority API call, new background worker, ledger mutation, database migration, or invoice resend.
+- No P&L claim; gross sales and verified collections are different time dimensions, and earned revenue allocation is not accounting net profit.
+- The financial **time-series charts** of sales and collection by day are Step10, not falsely represented here by invoice-issue trend.
+- The top 10 table is not an exhaustive export; an authorized link to existing subscriptions is provided for more detailed review.
+- Root user is identified exclusively from the validated bearer on the backend.
+
+### Local macOS validation
+
+```bash
+cd ~/projects/ArginTaxPayer
+git fetch origin
+git switch phase/15-role-based-dashboard
+git pull --ff-only origin phase/15-role-based-dashboard
+
+dotnet restore ArginTaxPayer.sln
+dotnet build ArginTaxPayer.sln -c Release --no-restore
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj -c Release --no-restore --filter "FullyQualifiedName~Phase15RootDashboardContractsTests|FullyQualifiedName~Phase15PartnerDashboardContractsTests"
+
+cd apps/web
+npm ci
+node --test tests/phase15-step09-level1-dashboard.test.mjs tests/phase15-step08-level2-dashboard.test.mjs tests/phase15-step03-dashboard-proxy.test.mjs tests/phase15-step07-customer-ux.test.mjs
+npm run typecheck
+npm run build
+```
+
+Manual acceptance: log in as Level1, open `/dashboard`, verify root metrics, top partners, same-period receipt comparisons, current ownership and lifetime partner settlement. Test zero customers, no partners, reversals, changed ownership, delayed API, date switching. Log in as Level2 and Customer, confirm the root block is absent and `/api/dashboard/root` returns HTTP 403. For Level1, attempts to pass foreign `taxpayerId` or `partnerUserId` must return 400 and disclose no totals.
+
+### Acceptance status
+
+- GitHub code, stylesheet, tests, and single-file documentation committed: **complete**.
+- .NET compilation, Node runtime, TypeScript typecheck, PostgreSQL reconciliation, and real browser visual acceptance: **not executed by assistant in this environment**. Owner-run results are needed before asserting runtime PASS.
+- Next Phase15 Step10: commercial sales, collections, receivables and settlement **time-series charts**, preserving role-scope semantics.
+
+**Documentation policy:** keep this as the single Phase15 document under `docs/phases`.
