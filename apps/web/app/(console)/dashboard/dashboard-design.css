@@ -121,3 +121,21 @@
 @media(prefers-reduced-motion:reduce) {
   .argin-dashboard__skeleton-bar,.argin-dashboard__skeleton-chart-line {animation:none}
 }
+
+/* Phase 15 Step08 — Level2 dashboard; scoped to partner role only */
+.argin-dashboard__partner{margin-block:20px 24px;min-width:0}
+.argin-dashboard__partner-heading{display:flex;justify-content:space-between;align-items:end;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+.argin-dashboard__partner-heading h2{font-size:18px;margin:3px 0 6px}
+.argin-dashboard__partner-heading p{font-size:12px;color:var(--dashboard-muted);margin:0;line-height:1.8}
+.argin-dashboard__partner-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--dashboard-gap);margin-bottom:var(--dashboard-gap)}
+.argin-dashboard__partner-value{font-size:24px;font-weight:800;display:block;line-height:1.6;font-variant-numeric:tabular-nums;margin-bottom:4px}
+.argin-dashboard__partner-finance{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--dashboard-gap);align-items:start}
+.argin-dashboard__partner-amounts{margin:0;display:grid;gap:0}
+.argin-dashboard__partner-amounts>div{display:flex;justify-content:space-between;gap:14px;align-items:center;padding:12px 0;border-bottom:1px solid var(--dashboard-line)}
+.argin-dashboard__partner-amounts dt{color:var(--dashboard-muted);font-size:12px}
+.argin-dashboard__partner-amounts dd{margin:0;font-size:13px;font-weight:800;direction:rtl;font-variant-numeric:tabular-nums;text-align:left;overflow-wrap:anywhere}
+.argin-dashboard__partner-outstanding dt,.argin-dashboard__partner-outstanding dd{color:var(--dashboard-accent);font-weight:800}
+.argin-dashboard__partner-shimmer{width:100%;max-width:240px}
+.argin-dashboard__partner-shimmer svg{height:auto}
+@media(max-width:950px){.argin-dashboard__partner-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.argin-dashboard__partner-finance{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:580px){.argin-dashboard__partner-grid{grid-template-columns:minmax(0,1fr)}.argin-dashboard__partner-amounts>div{align-items:flex-start;flex-direction:column;gap:6px}.argin-dashboard__partner-amounts dd{text-align:right}}
