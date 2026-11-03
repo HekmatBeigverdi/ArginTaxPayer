@@ -30,7 +30,7 @@
 .argin-dashboard__kpi-note {display:block;font-size:11px;color:var(--dashboard-muted);line-height:1.8;margin-block-start:6px}
 .argin-dashboard__charts {display:grid;grid-template-columns:minmax(0,1.65fr) minmax(260px,1fr);gap:var(--dashboard-gap);margin-block-end:18px}
 .argin-dashboard__section-title {margin:0 0 15px;font-size:16px;line-height:1.6}
-.argin-dashboard__footer-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--dashboard-gap)}
+.argin-dashboard__footer-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--dashboard-gap);align-items:start}
 .argin-dashboard__empty,.argin-dashboard__error,.argin-dashboard__loading {padding:24px;text-align:center;font-size:13px;line-height:1.9;color:var(--dashboard-muted)}
 .argin-dashboard__error {color:var(--dashboard-danger)}
 .argin-dashboard__table-wrap {max-width:100%;overflow-x:auto}
@@ -95,3 +95,29 @@
 .argin-dashboard__legacy .app-module-grid{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
 .argin-dashboard__legacy .app-module{min-height:160px}
 .argin-dashboard__legacy .app-help{margin-top:14px}
+
+/* Phase 15 Step07: content-sized quick access, stable independent panel skeletons */
+.argin-dashboard__footer-grid {align-items:start;grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr)}
+.argin-dashboard__footer-grid>.argin-dashboard__card {align-self:start}
+.argin-dashboard__side {min-width:0;align-self:start}
+.argin-dashboard__side>.argin-dashboard__card {height:auto;min-height:0}
+.argin-dashboard__quick {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.argin-dashboard__quick a {min-height:44px;display:flex;align-items:center;justify-content:center;text-align:center;padding:10px 8px}
+.argin-dashboard__subscription-waiting {margin-block-start:12px;padding-block-start:8px;border-block-start:1px solid var(--dashboard-line)}
+.argin-dashboard__more {display:inline-flex;margin-block-start:14px;color:var(--dashboard-accent);font-size:12px;font-weight:800;text-decoration:none}
+.argin-dashboard__kpi-error {margin-block-end:18px;min-height:126px}
+.argin-dashboard__skeleton {width:100%;min-width:0;display:block;opacity:.93}
+.argin-dashboard__skeleton svg {display:block;height:auto;max-height:190px}
+.argin-dashboard__skeleton-bar,.argin-dashboard__skeleton-chart-line {animation:argin-dashboard-skeleton 1.6s ease-in-out infinite}
+.argin-dashboard__sr-only {position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
+@keyframes argin-dashboard-skeleton {0%,100%{opacity:.45}50%{opacity:1}}
+@media(max-width:900px) {
+  .argin-dashboard__footer-grid {grid-template-columns:minmax(0,1fr)}
+  .argin-dashboard__quick {grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@media(max-width:480px) {
+  .argin-dashboard__quick {grid-template-columns:minmax(0,1fr)}
+}
+@media(prefers-reduced-motion:reduce) {
+  .argin-dashboard__skeleton-bar,.argin-dashboard__skeleton-chart-line {animation:none}
+}
