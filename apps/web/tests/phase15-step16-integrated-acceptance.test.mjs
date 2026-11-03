@@ -20,6 +20,8 @@ const css=read("app/(console)/dashboard/dashboard-design.css");
 const backend=readRoot("src/ArginTaxPayer.Api/Dashboard/Phase15DashboardReadService.cs");
 const endpoints=readRoot("src/ArginTaxPayer.Api/Dashboard/Phase15DashboardEndpoints.cs");
 const runner=readRoot("scripts/phase15-step15-dashboard-load.mjs");
+const smoke=readRoot("scripts/phase15-step16-role-smoke.mjs");
+const acceptance=readRoot("scripts/phase15-step16-integrated-acceptance.sh");
 
 function proxy({roles=["Customer"],loggedIn=true,cookie=true,upstreamStatus=200,networkFailure=false}={}){
  const transpiled=ts.transpileModule(route,{fileName:"route.ts",
@@ -153,4 +155,34 @@ test("non-mutating bounded API benchmark cannot silently become a send workflow"
  assert.ok(runner.includes('concurrency>4'));
  assert.ok(!runner.includes('method:"POST"'));
  assert.ok(!runner.includes('JSON.stringify(body)'));
+});
+
+test("three-account role probe is bounded, localhost-only, read-only and redacts payloads",()=>{
+ assert.ok(smoke.includes("PHASE15_LEVEL1_TOKEN"));
+ assert.ok(smoke.includes("PHASE15_LEVEL2_TOKEN"));
+ assert.ok(smoke.includes("PHASE15_CUSTOMER_TOKEN"));
+ assert.ok(smoke.includes('new Set(actors.map(([,token])=>token)).size!==3'));
+ assert.ok(smoke.includes('method:"GET"'));
+ assert.ok(smoke.includes('redirect:"manual"'));
+ assert.ok(smoke.includes('cache:"no-store"'));
+ assert.ok(smoke.includes('"127.0.0.1"'));
+ assert.ok(smoke.includes("root"));
+ assert.ok(smoke.includes("partner"));
+ assert.ok(smoke.includes("subscriptions-watch"));
+ assert.ok(!smoke.includes("console.log(token)"));
+ assert.ok(!smoke.includes("console.log(payload)"));
+});
+test("macOS runner is fail-closed and emits same-SHA private evidence with manual gates",()=>{
+ assert.ok(acceptance.includes('uname -s'));
+ assert.ok(acceptance.includes('phase/15-role-based-dashboard'));
+ assert.ok(acceptance.includes('git status --porcelain --untracked-files=no'));
+ assert.ok(acceptance.includes('git rev-parse HEAD'));
+ assert.ok(acceptance.includes('umask 077'));
+ assert.ok(acceptance.includes('dotnet test ArginTaxPayer.sln'));
+ assert.ok(acceptance.includes('npm test'));
+ assert.ok(acceptance.includes('npm run typecheck'));
+ assert.ok(acceptance.includes('npm run build'));
+ assert.ok(acceptance.includes("MANUAL_PENDING"));
+ assert.ok(acceptance.includes('"manualAcceptance":"PENDING"'));
+ assert.ok(!acceptance.includes('dotnet ef database update'));
 });
