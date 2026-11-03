@@ -1,0 +1,62 @@
+/* Phase 15 / Step 05: dashboard-only design contract.
+   Ready for Step06 components. Not loaded globally until UI integration. */
+.argin-dashboard {
+  --dashboard-accent:var(--argin-primary,#177f81);
+  --dashboard-accent-soft:#e8f5f2;
+  --dashboard-ink:var(--argin-text,#20344b);
+  --dashboard-muted:var(--argin-muted,#64788c);
+  --dashboard-surface:var(--argin-surface,#fff);
+  --dashboard-line:var(--argin-line,#dae6ed);
+  --dashboard-danger:#a83d46;
+  --dashboard-warning:#92640b;
+  --dashboard-success:#197451;
+  --dashboard-radius:16px;
+  --dashboard-gap:16px;
+  direction:rtl;
+  min-width:0;
+  color:var(--dashboard-ink);
+}
+.argin-dashboard *, .argin-dashboard *::before, .argin-dashboard *::after {box-sizing:border-box}
+.argin-dashboard__header {display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:16px;margin-block-end:20px}
+.argin-dashboard__eyebrow {color:var(--dashboard-accent);font-size:12px;font-weight:800}
+.argin-dashboard__title {margin:4px 0 6px;font-size:clamp(21px,2.4vw,30px);line-height:1.5}
+.argin-dashboard__subtitle {color:var(--dashboard-muted);font-size:13px;line-height:1.9;margin:0}
+.argin-dashboard__filters {display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.argin-dashboard__filters button, .argin-dashboard__filters select {min-height:40px;font:inherit;font-size:12px;border:1px solid var(--dashboard-line);background:var(--dashboard-surface);color:var(--dashboard-ink);border-radius:10px;padding:8px 12px}
+.argin-dashboard__filters [aria-pressed="true"] {background:var(--dashboard-accent-soft);border-color:var(--dashboard-accent);color:#135c5b;font-weight:800}
+.argin-dashboard__kpis {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--dashboard-gap);margin-block-end:18px}
+.argin-dashboard__card {min-width:0;border:1px solid var(--dashboard-line);border-radius:var(--dashboard-radius);padding:18px;background:var(--dashboard-surface)}
+.argin-dashboard__kpi-label {display:block;color:var(--dashboard-muted);font-size:12px;line-height:1.7;margin-block-end:12px}
+.argin-dashboard__kpi-value {font-size:clamp(20px,2.1vw,28px);line-height:1.4;font-weight:800;display:block;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.argin-dashboard__kpi-note {display:block;font-size:11px;color:var(--dashboard-muted);line-height:1.8;margin-block-start:6px}
+.argin-dashboard__charts {display:grid;grid-template-columns:minmax(0,1.65fr) minmax(260px,1fr);gap:var(--dashboard-gap);margin-block-end:18px}
+.argin-dashboard__section-title {margin:0 0 15px;font-size:16px;line-height:1.6}
+.argin-dashboard__footer-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--dashboard-gap)}
+.argin-dashboard__empty,.argin-dashboard__error,.argin-dashboard__loading {padding:24px;text-align:center;font-size:13px;line-height:1.9;color:var(--dashboard-muted)}
+.argin-dashboard__error {color:var(--dashboard-danger)}
+.argin-dashboard__table-wrap {max-width:100%;overflow-x:auto}
+.argin-dashboard__table {width:100%;border-collapse:collapse;font-size:12px;text-align:right}
+.argin-dashboard__table th,.argin-dashboard__table td {padding:12px;border-block-end:1px solid var(--dashboard-line);white-space:nowrap}
+.argin-dashboard__table th {color:var(--dashboard-muted);font-weight:700}
+.argin-dashboard__status {display:inline-flex;align-items:center;gap:5px;font-size:11px;border-radius:999px;padding:4px 9px;background:#edf2f6;color:#476276}
+.argin-dashboard__status[data-tone="success"] {background:#e7f6ed;color:var(--dashboard-success)}
+.argin-dashboard__status[data-tone="warning"] {background:#fff5dc;color:var(--dashboard-warning)}
+.argin-dashboard__status[data-tone="danger"] {background:#fcecee;color:var(--dashboard-danger)}
+.argin-dashboard__chart {min-height:240px;min-width:0}
+.argin-dashboard__chart-label {color:var(--dashboard-muted);font-size:12px}
+.argin-dashboard :focus-visible {outline:3px solid #18888c;outline-offset:3px}
+@media(max-width:1100px){
+  .argin-dashboard__kpis {grid-template-columns:repeat(2,minmax(0,1fr))}
+  .argin-dashboard__charts {grid-template-columns:minmax(0,1fr)}
+}
+@media(max-width:640px){
+  .argin-dashboard {--dashboard-gap:12px}
+  .argin-dashboard__header {flex-direction:column}
+  .argin-dashboard__filters {width:100%}
+  .argin-dashboard__kpis {grid-template-columns:repeat(2,minmax(0,1fr))}
+  .argin-dashboard__card {padding:14px}
+  .argin-dashboard__kpi-value {font-size:20px}
+  .argin-dashboard__footer-grid {grid-template-columns:minmax(0,1fr)}
+}
+@media(max-width:380px){.argin-dashboard__kpis {grid-template-columns:minmax(0,1fr)}}
+@media(prefers-reduced-motion:reduce){.argin-dashboard * {scroll-behavior:auto!important;transition:none!important;animation:none!important}}
