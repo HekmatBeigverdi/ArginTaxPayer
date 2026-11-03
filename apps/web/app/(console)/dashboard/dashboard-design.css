@@ -302,3 +302,9 @@
 .argin-dashboard__kpi-detail dd{font-size:14px;font-weight:800;margin:0;overflow-wrap:anywhere}
 @media(max-width:900px){.argin-dashboard__period-box{justify-content:flex-start}.argin-dashboard__kpi-detail dl{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:540px){.argin-dashboard__period-box{width:100%}.argin-dashboard__custom-range{width:100%}.argin-dashboard__date-range{max-width:none}.argin-dashboard__kpi-detail dl{grid-template-columns:minmax(0,1fr)}.argin-dashboard__kpi-button{padding:14px}}
+
+/* Step14 opt-in refresh for a live, never-persisted subscription snapshot */
+.argin-dashboard__watch-controls{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.argin-dashboard__watch-controls button,.argin-dashboard__action-refresh{font:inherit;cursor:pointer;color:var(--dashboard-accent);background:var(--dashboard-accent-soft);border:1px solid var(--dashboard-line);border-radius:8px;font-size:12px;min-height:35px;padding:7px 10px}
+.argin-dashboard__watch-controls a{text-decoration:none;font-size:12px;font-weight:700;color:var(--dashboard-accent)}
+.argin-dashboard__watch-controls button:focus-visible,.argin-dashboard__action-refresh:focus-visible{outline:2px solid var(--dashboard-accent);outline-offset:2px}
