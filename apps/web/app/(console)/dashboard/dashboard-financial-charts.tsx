@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useMemo, useState } from "react";
 
-type Period = "7d" | "30d" | "90d" | "year";
+type Period = string;
 type Role = "Level1" | "Level2";
 type Status = "loading" | "ready" | "error";
 
