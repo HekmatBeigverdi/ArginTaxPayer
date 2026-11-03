@@ -1,3 +1,4 @@
+import SubscriptionStatus from "../../components/subscription-status";
 import Link from "next/link";
 import Image from "next/image";
 import { currentIdentity } from "../../../lib/identity";
@@ -11,14 +12,14 @@ const customerModules: Tile[] = [
   { title: "پیش‌نویس صورتحساب", description: "ساخت و مشاهده پیش‌نویس داخلی، بدون ارسال مالیاتی", href: "/invoices", symbol: "فا", meta: "پیش‌نویس" },
   { title: "تنظیمات", description: "تنظیمات مالیاتی و ترجیحات حساب", symbol: "تن", meta: "در انتظار تعریف" },
   { title: "پروفایل و اشتراک", description: "اطلاعات خریدار پنل؛ انتخاب و خرید پلن پس از فعال‌شدن فروش", href: "/account", symbol: "پر", meta: "پروفایل فعال" },
-  { title: "تراکنش‌های مالی", description: "سوابق خرید، پرداخت و تمدید", symbol: "ما", meta: "در فاز مالی" }
+  { title: "تراکنش‌های مالی", description: "سوابق خرید، پرداخت و تمدید اشتراک", href: "/financial-history", symbol: "ما", meta: "فعال در توسعه" }
 ];
 const adminModules: Tile[] = [
   { title: "کاربران نرم‌افزار", description: "ایجاد و مدیریت حساب‌های ورود و نقش‌های سامانه", href: "/users", symbol: "کا", meta: "مدیریت" },
   { title: "خریداران و مؤدیان", description: "ثبت مشتری، اشخاص حقیقی و حقوقی و مؤدیان متعلق به هر حساب", href: "/parties", symbol: "اش", meta: "مدیریت" },
   { title: "مالکیت تجاری مشتریان", description: "انتساب مشتری به ادمین و پیگیری محدوده دسترسی", href: "/users", symbol: "مل", meta: "مدیریت" },
   { title: "پیش‌نویس صورتحساب‌ها", description: "مشاهده و ایجاد پیش‌نویس برای مؤدیان مجاز", href: "/invoices", symbol: "فا", meta: "پیش‌نویس" },
-  { title: "اشتراک‌ها و تراکنش‌ها", description: "مدیریت پلن‌ها، پرداخت‌ها و تمدیدها", symbol: "اش", meta: "در فاز مالی" },
+  { title: "اشتراک‌ها و تراکنش‌ها", description: "مدیریت پلن‌ها، پرداخت‌های دستی و مانده تسویه", href: "/subscriptions", symbol: "اش", meta: "توسعه" },
   { title: "تنظیمات و امنیت", description: "نشست‌ها، امنیت و تأیید دومرحله‌ای", href: "/account", symbol: "ام", meta: "فعال" }
 ];
 
@@ -45,6 +46,7 @@ export default async function DashboardPage() {
           <div><small>حوزه دسترسی</small><strong>{level1 ? "مدیریت سطح یک" : level2 ? "مشتریان زیرمجموعه" : "حساب شخصی"}</strong></div>
           <div><small>وضعیت پنل</small><strong>محیط توسعه</strong></div>
         </section>
+        {customer && <SubscriptionStatus/>}
         <div className="app-section-title"><div><h2>بخش‌های سامانه</h2>
           <p>ماژول‌های فعال و قابلیت‌های برنامه‌ریزی‌شده</p></div></div>
         <section className="app-module-grid" aria-label="ماژول‌های سامانه">

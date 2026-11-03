@@ -3,6 +3,8 @@ using ArginTaxPayer.Domain.Invoices;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
+using Microsoft.EntityFrameworkCore;
+using ArginTaxPayer.Infrastructure.Persistence.Subscriptions;
 
 namespace ArginTaxPayer.Infrastructure.Persistence.Invoices;
 
@@ -15,6 +17,8 @@ public sealed record Phase10OneClickResult(InvoiceApiDecision Decision,string Co
     string Status="Blocked",string? ReferenceNumber=null,string? InquiryCode=null);
 
 public sealed class Phase10OneClickSandboxSubmissionService(
+    ArginTaxPayerDbContext db,
+    InvoiceSubscriptionGate subscriptions,
     Phase10InvoiceDispatchReadService dispatch,
     Phase10LiveSendReadinessService readiness,
     Phase10InternalInvoiceValidationService validation,
@@ -43,6 +47,11 @@ public sealed class Phase10OneClickSandboxSubmissionService(
         if(state=="Acknowledged")
             return new(InvoiceApiDecision.Success,"already_acknowledged","Acknowledged",
                 current.Overview?.ReferenceNumber);
+        var owner = await db.InvoiceDocuments.AsNoTracking()
+            .Where(x => x.Id == invoiceId && x.TaxpayerId == taxpayerId)
+            .Select(x => x.CustomerUserId).SingleAsync(ct);
+        var subscriptionError = await subscriptions.CheckAsync(owner, ct);
+        if (subscriptionError is not null) return Stop(subscriptionError);
         if(state is not ("NotPrepared" or "Prepared" or "Reserved"))
             return Stop("existing_dispatch_requires_reconciliation");
         if(configuration["SandboxInvoiceLegacy:Enabled"]!="true"||

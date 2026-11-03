@@ -7,6 +7,7 @@ const operations = new Set(["register", "login", "logout", "mfa/challenge", "mfa
 const cookieOptions = { httpOnly: true, sameSite: "strict" as const, secure: false, path: "/" };
 operations.add("mfa/status");
 operations.add("roles/level2/nominate");
+operations.add("mfa/level2/reset");
 const errorResult = (code: number, message: string) =>
   NextResponse.json({ error: message }, { status: code, headers: { "Cache-Control": "no-store" } });
 
@@ -45,7 +46,7 @@ async function callIdentity(operation: string, req: NextRequest, method: "GET" |
     register: "register", login: "login", refresh: "refresh", me: "authorization/me",
     "mfa/challenge": "mfa/challenge", "mfa/complete": "mfa/complete",
     "mfa/enroll": "mfa/enroll", "mfa/confirm": "mfa/confirm",
-    "mfa/status": "mfa/status", "roles/level2/nominate": "roles/level2/nominate",
+    "mfa/level2/reset": "mfa/level2/reset", "mfa/status": "mfa/status", "roles/level2/nominate": "roles/level2/nominate",
     sessions: "resources/sessions",
     "phone/request": "phone/request",
     "phone/register/complete": "phone/register/complete",
@@ -61,7 +62,7 @@ async function callIdentity(operation: string, req: NextRequest, method: "GET" |
   }
   const path = backendPath[operation];
   if (!path) return errorResult(404, "unavailable");
-  if (["me", "sessions", "mfa/enroll", "mfa/confirm", "mfa/status", "roles/level2/nominate", "sessions/revoke", "admin/customers"].includes(operation) && !token)
+  if (["me", "sessions", "mfa/enroll", "mfa/confirm", "mfa/status", "roles/level2/nominate", "sessions/revoke", "admin/customers", "mfa/level2/reset"].includes(operation) && !token)
     return errorResult(401, "unauthorized");
 
   let payload: unknown = undefined;
@@ -99,6 +100,8 @@ async function callIdentity(operation: string, req: NextRequest, method: "GET" |
       return errorResult(409, "mobile_already_registered");
     if (operation === "phone/request" && response.status === 503)
       return errorResult(503, "otp_unavailable");
+    if (operation === "phone/request" && response.status === 402)
+      return errorResult(402, "insufficient_sms_credit");
     const result = await response.text();
     // Never expose raw upstream diagnostics; for enrollment only, explicitly return
     // the one-time provisioning secret to an authenticated local development user.

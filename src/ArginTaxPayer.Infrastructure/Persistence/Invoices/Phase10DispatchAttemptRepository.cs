@@ -1,4 +1,5 @@
 using System.Data;
+using ArginTaxPayer.Infrastructure.Persistence.Subscriptions;
 using System.Data.Common;
 using ArginTaxPayer.Domain.Invoices;
 using Microsoft.EntityFrameworkCore;
@@ -9,14 +10,16 @@ public enum Phase10DispatchAttemptStartStatus
 {
     Started = 1,
     StaleOrWrongScope = 2,
-    Invalid = 3
+    Invalid = 3,
+    SubscriptionBlocked = 4
 }
 
 public sealed record Phase10DispatchAttemptStartResult(
     Phase10DispatchAttemptStartStatus Status,
     Guid? AttemptId = null,
     long? NewStateRevision = null,
-    int? AttemptNumber = null);
+    int? AttemptNumber = null,
+    string? BlockingCode = null);
 
 public sealed record Phase10DispatchOperationState(
     Guid OperationId, Guid CustomerUserId, Guid TaxpayerId,
@@ -80,6 +83,15 @@ RETURNING state_revision
                 {
                     await tx.RollbackAsync(CancellationToken.None);
                     return new(Phase10DispatchAttemptStartStatus.StaleOrWrongScope);
+                }
+
+                var subscriptionError = await InvoiceSubscriptionGate.ReserveAsync(
+                    connection, tx, customerUserId, operationId, ct);
+                if (subscriptionError is not null)
+                {
+                    await tx.RollbackAsync(CancellationToken.None);
+                    return new(Phase10DispatchAttemptStartStatus.SubscriptionBlocked,
+                        BlockingCode: subscriptionError);
                 }
 
                 await using var numberCommand = Command(connection, tx, """

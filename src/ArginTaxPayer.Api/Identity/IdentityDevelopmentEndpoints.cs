@@ -126,7 +126,7 @@ public static class IdentityDevelopmentEndpoints
             if (roles is null || !roles.Any(IdentityRoleNames.CanEnrollMfa)) return Results.StatusCode(403);
             var identity = provider.GetService<IdentityMfaService>();
             if (identity is null) return Results.Json(new { error = "mfa_not_configured" }, statusCode: 503);
-            var enrollment = await identity.BeginEnrollmentAsync(userId.Value, ct);
+            var enrollment = await identity.BeginEnrollmentForSessionAsync(ReadBearer(http), ct);
             return enrollment is null ? Results.BadRequest(new { error = "mfa_unavailable" }) : Results.Ok(enrollment);
         });
 
@@ -144,6 +144,22 @@ public static class IdentityDevelopmentEndpoints
             if (identity is null) return Results.Json(new { error = "mfa_not_configured" }, statusCode: 503);
             var codes = await identity.ConfirmEnrollmentAsync(userId.Value, request.Code, ct);
             return codes is null ? Results.Unauthorized() : Results.Ok(codes);
+        });
+
+        group.MapPost("/mfa/level2/reset", async ([FromBody] Level2MfaResetRequest request,
+            HttpContext http, IdentityLevel2MfaResetService service, CancellationToken ct) =>
+        {
+            if (!IsLoopback(http)) return Results.NotFound();
+            http.Response.Headers.CacheControl = "no-store";
+            var result = await service.ResetAsync(ReadBearer(http), request.TargetUserId, ct);
+            return result switch
+            {
+                Level2MfaResetResult.Unauthenticated => Results.Unauthorized(),
+                Level2MfaResetResult.Forbidden => Results.StatusCode(403),
+                Level2MfaResetResult.NotFound => Results.NotFound(),
+                Level2MfaResetResult.Conflict => Results.Conflict(new { error = "mfa_reset_conflict" }),
+                _ => Results.Ok(new { status = "mfa_reset", enrollmentRequired = true })
+            };
         });
 
         group.MapPost("/mfa/challenge", async ([FromBody] IdentityCredentials request,
@@ -198,6 +214,9 @@ public static class IdentityDevelopmentEndpoints
                         statusCode: StatusCodes.Status429TooManyRequests),
                 PhoneOtpRequestStatus.Invalid =>
                     Results.BadRequest(new { error = "invalid_phone_request" }),
+                PhoneOtpRequestStatus.InsufficientCredit =>
+                    Results.Json(new { error = "insufficient_sms_credit" },
+                        statusCode: StatusCodes.Status402PaymentRequired),
                 _ => Results.Json(new { error = "otp_unavailable" },
                     statusCode: StatusCodes.Status503ServiceUnavailable)
             };
@@ -415,3 +434,5 @@ public sealed record PhoneRegisterComplete(string? Mobile, string? Code, string?
 public sealed record PhoneResetComplete(string? Mobile, string? Code, string? NewPassword);
 
 public sealed record AdminCreateCustomerRequest(string? Mobile, string? Email, string? Password);
+
+public sealed record Level2MfaResetRequest(Guid TargetUserId);

@@ -81,6 +81,10 @@ This cross-phase requirement extends the existing numbered roadmap **without add
 
 Business contract: a future price may be created now for activation at a specified `Asia/Tehran` local date/time and stored in UTC; for each provider panel + charge category exactly one price applies at any instant. Customer-facing SMS tariff and actual Ghasedak provider expense are independent IRR amounts, each auditable. Missing current rate blocks paid send, never silently falls back to zero. Level 1 controls price schedules; past send snapshots are immutable. Real SMS sends and deductions stay disabled until the responsible phases are implemented and explicitly accepted.
 
+### Owner clarification — SMS cost basis, 2026-11-02
+
+For the current Phase 12 SMS-wallet implementation, the earlier scheduled customer-tariff model above is superseded: customer charge is the actual normalized Ghasedak cost plus the Level 1 configured service-cost percentage, snapshotted per dispatch. A customer starts with 2,000,000 IRR; Level 1/2 have unlimited SMS. Level 1 can disable customer wallet enforcement for future dispatches; provider costs remain reported. SEP top-up source implementation is present as Stage 2, with terminal/admin configuration, server-side verification and idempotent credit posting. Migration `20261102040000_AddSepSmsTopups` is applied to `argintaxpayer_test`; the customer-credit toggle migration `20261102050000_AddSmsCustomerBillingEnforcement` is applied to `argintaxpayer_test` after owner approval. SEP payments remain disabled by default pending merchant sandbox verification. See `docs/superpowers/specs/2026-11-02-sms-wallet-and-sep-topups-design.md` and `docs/phases/phase-12.md` for current implementation status and migration gate.
+
 ## Canonical macOS PostgreSQL Test Tunnel (Owner-Mandated, 2026-10-12)
 
 Use `autossh`, **not plain `ssh -N`**, for every ArginTaxPayer phase's macOS-to-Ubuntu PostgreSQL tunnel. Keep it open in a dedicated local terminal. Do not alter the target or database without explicit owner instruction:

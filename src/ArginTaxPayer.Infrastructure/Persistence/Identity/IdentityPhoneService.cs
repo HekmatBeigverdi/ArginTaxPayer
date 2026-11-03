@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
 using ArginTaxPayer.Infrastructure.Persistence.Taxpayers;
+using ArginTaxPayer.Infrastructure.Persistence.Subscriptions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
@@ -13,7 +14,8 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Identity;
 /// </summary>
 public sealed class IdentityPhoneService(ArginTaxPayerDbContext db, IIdentityOtpSender sender,
     IdentitySessionService sessions, IConfiguration configuration, ILogger<IdentityPhoneService> logger,
-    CustomerCommercialOwnershipService ownership)
+    CustomerCommercialOwnershipService ownership, SmsCreditService? smsCredit = null,
+    SmsDispatchCoordinator? smsDispatch = null)
 {
     private static readonly TimeSpan Lifetime = TimeSpan.FromMinutes(3);
     private static readonly TimeSpan Cooldown = TimeSpan.FromMinutes(3);
@@ -116,8 +118,12 @@ public sealed class IdentityPhoneService(ArginTaxPayerDbContext db, IIdentityOtp
         });
         await db.SaveChangesAsync(ct);
         logger.LogInformation("OTP_REQUEST_DISPATCH_STARTED purpose={OtpPurpose}", purpose);
-        var delivered = await sender.SendAsync(mobile, code, purpose, id, ct);
-        if (!delivered)
+        var dispatch = smsDispatch is not null
+            ? await smsDispatch.SendOtpAsync(actor?.Id,mobile,code,purpose,id,ct)
+            : await SendLegacyAsync(mobile,code,purpose,id,ct);
+        if(dispatch.Status==SmsDispatchStatus.InsufficientCredit)
+            return new(PhoneOtpRequestStatus.InsufficientCredit);
+        if (!dispatch.ProviderAccepted)
         {
             logger.LogWarning("OTP_REQUEST_DISPATCH_FAILED purpose={OtpPurpose}", purpose);
             return new(PhoneOtpRequestStatus.Unavailable);
@@ -129,6 +135,9 @@ public sealed class IdentityPhoneService(ArginTaxPayerDbContext db, IIdentityOtp
 
     private static int RemainingSeconds(DateTime untilUtc, DateTime nowUtc)
         => Math.Max(1, (int)Math.Ceiling((untilUtc - nowUtc).TotalSeconds));
+
+    private async Task<SmsDispatchOutcome> SendLegacyAsync(string mobile,string code,string purpose,Guid id,CancellationToken ct)
+    { var accepted=await sender.SendAsync(mobile,code,purpose,id,ct);return new(accepted?SmsDispatchStatus.Accepted:SmsDispatchStatus.Rejected,id,accepted); }
 
     private async Task<IdentityPhoneChallenge?> ConsumeAsync(string? mobileInput, string purpose,
         string? code, CancellationToken ct)
@@ -184,7 +193,15 @@ public sealed class IdentityPhoneService(ArginTaxPayerDbContext db, IIdentityOtp
                 UserId = id, Role = IdentityRoleNames.Customer, AssignedAtUtc = now
             } }
         });
-        try { await db.SaveChangesAsync(ct); return true; }
+        try
+        {
+            await using var transaction = await db.Database.BeginTransactionAsync(ct);
+            await db.SaveChangesAsync(ct);
+            if(smsCredit is not null) await smsCredit.GrantInitialCustomerCreditWithinTransactionAsync(id, now, ct);
+            if(smsDispatch is not null) await smsDispatch.LinkRegistrationDispatchWithinTransactionAsync(id,proof.Mobile,ct);
+            await transaction.CommitAsync(ct);
+            return true;
+        }
         catch (DbUpdateException error) when (error.InnerException is Npgsql.PostgresException
             { SqlState: Npgsql.PostgresErrorCodes.UniqueViolation })
         { db.ChangeTracker.Clear(); return false; }
@@ -226,6 +243,7 @@ public enum PhoneOtpRequestStatus
     Invalid,
     AlreadyRegistered,
     RateLimited,
+    InsufficientCredit,
     Unavailable
 }
 

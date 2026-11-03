@@ -69,3 +69,26 @@ QR secret stability, wrong-code rejection, role activation and session revocatio
 against the dedicated PostgreSQL test database. `mfa-proxy.test.mjs` exercises the
 actual Next.js handler with a mocked backend, including empty enrollment POSTs,
 same-origin checks, secret-response caching and removal of revoked session cookies.
+
+## Level1 recovery of Level2 from Software Users
+
+A signed-in Level1 with enabled MFA can open Software Users, select the Level2
+role filter (including pending Level2 enrollment), and use the «ریست MFA» column.
+The confirmation identifies the account and explains the temporary loss of
+administrative access. Authorization is role-based, not tied to a phone number.
+
+`POST /api/dev/identity/mfa/level2/reset` accepts `{ "targetUserId": "<uuid>" }`.
+The API revalidates the live actor session, Level1 role and enabled MFA inside a
+serializable transaction. It rejects self, Level1, ordinary customer, inactive,
+unverified and passwordless targets. It deletes old MFA/challenges/recovery
+codes, revokes target sessions, and changes Level2 to PendingLevel2. Ownership,
+passwords and fiscal grants are preserved. A completed operation produces the
+structured `IDENTITY_LEVEL2_MFA_RESET` log with actor and target IDs, without
+secrets. An already-reset account returns 409; an in-progress pending enrollment
+can be reset again. Enrollment and reset share a user-row lock and public
+enrollment rechecks the session after acquiring it.
+
+The target signs in with the existing password and configures a new Authenticator
+in Account and Security. Successful proof restores Level2 and invalidates the
+pending login session. No SMS bypass or administrator access is granted before
+that proof. These endpoints retain the existing Development/loopback boundary.

@@ -11,28 +11,31 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Identity;
 /// </summary>
 public sealed class LocalFileOtpSender(IConfiguration configuration) : IIdentityOtpSender
 {
-    public async Task<bool> SendAsync(string normalizedMobile, string code, string purpose, Guid deliveryId,
+    public async Task<bool> SendAsync(string normalizedMobile,string code,string purpose,Guid deliveryId,CancellationToken cancellationToken=default)
+        => (await SendWithCostAsync(normalizedMobile,code,purpose,deliveryId,cancellationToken)).Accepted;
+
+    public async Task<SmsProviderSendResult> SendWithCostAsync(string normalizedMobile, string code, string purpose, Guid deliveryId,
         CancellationToken cancellationToken = default)
     {
         if (configuration["Identity:OtpDeliveryMode"] != "LocalFile" ||
             !IranianMobileNumber.TryNormalize(normalizedMobile, out _) ||
             code is not { Length: 6 } || !code.All(char.IsAsciiDigit))
-            return false;
+            return new(false,false,true,null,null,null,null,null);
 
         var path = configuration["Identity:OtpLocalFile"];
         if (string.IsNullOrWhiteSpace(path) || !Path.IsPathFullyQualified(path))
-            return false;
+            return new(false,false,true,null,null,null,null,null);
 
         var dir = Path.GetDirectoryName(path);
         if (string.IsNullOrWhiteSpace(dir) || !Directory.Exists(dir))
-            return false;
+            return new(false,false,true,null,null,null,null,null);
 
         // CreateNew first, and refuse symlink destinations on subsequent writes.
         // Never write to repository-tracked source or world-readable temp artifacts.
         if (File.Exists(path))
         {
             if ((File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0)
-                return false;
+                return new(false,false,true,null,null,null,null,null);
         }
         else
         {
@@ -49,6 +52,6 @@ public sealed class LocalFileOtpSender(IConfiguration configuration) : IIdentity
         await File.WriteAllTextAsync(path, body, new UTF8Encoding(false), cancellationToken);
         if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(path,
             UnixFileMode.UserRead | UnixFileMode.UserWrite);
-        return true;
+        return new(true,false,true,null,null,null,null,DateTime.UtcNow);
     }
 }

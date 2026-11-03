@@ -1,3 +1,4 @@
+using ArginTaxPayer.Api.Subscriptions;
 using ArginTaxPayer.Api.Invoices;
 using ArginTaxPayer.Infrastructure.Persistence.Invoices;
 using ArginTaxPayer.Api.Health;
@@ -76,10 +77,15 @@ if (identityDevelopmentEnabled)
             Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
                 $"{http.Request.Headers.Authorization}|{http.Request.Method}|{http.Request.Path}"))), _ => new FixedWindowRateLimiterOptions
             { PermitLimit = 12, Window = TimeSpan.FromMinutes(1), QueueLimit = 0, AutoReplenishment = true }));
+        options.AddPolicy("sep-payment-callback", http => RateLimitPartition.GetFixedWindowLimiter(
+            Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
+                http.Connection.RemoteIpAddress?.ToString() ?? "unknown"))), _ => new FixedWindowRateLimiterOptions
+            { PermitLimit = 60, Window = TimeSpan.FromMinutes(1), QueueLimit = 0, AutoReplenishment = true }));
     });
     builder.Services.AddSingleton<IdentityProtectionService>();
     builder.Services.AddScoped<IdentityCredentialService>();
     builder.Services.AddScoped<IdentityAdministratorUserProvisioning>();
+    builder.Services.AddScoped<IdentityLevel2MfaResetService>();
     builder.Services.AddScoped<IdentitySessionService>();
     if (builder.Configuration["Identity:OtpDeliveryMode"] == "LocalFile")
         builder.Services.AddScoped<IIdentityOtpSender, LocalFileOtpSender>();
@@ -88,6 +94,34 @@ if (identityDevelopmentEnabled)
             client.Timeout = TimeSpan.FromSeconds(12));
     builder.Services.AddScoped<IdentityPhoneService>();
     builder.Services.AddScoped<IdentityAuthorizationService>();
+    builder.Services.AddScoped<ArginTaxPayer.Infrastructure.Persistence.Subscriptions.SubscriptionCatalogRepository>();
+    builder.Services.AddScoped<ArginTaxPayer.Infrastructure.Persistence.Subscriptions.SubscriptionCreditLedgerService>();
+    builder.Services.AddScoped<ArginTaxPayer.Infrastructure.Persistence.Subscriptions.CommercialOrderService>();
+    builder.Services.AddScoped<ArginTaxPayer.Infrastructure.Persistence.Subscriptions.VerifiedCollectionService>();
+    builder.Services.AddScoped<ArginTaxPayer.Infrastructure.Persistence.Subscriptions.PartnerRevenueAllocationService>();
+    builder.Services.AddScoped<ArginTaxPayer.Infrastructure.Persistence.Subscriptions.PartnerRevenueApprovalService>();
+    builder.Services.AddScoped<ArginTaxPayer.Infrastructure.Persistence.Subscriptions.PartnerSettlementService>();
+    builder.Services.AddScoped<ArginTaxPayer.Infrastructure.Persistence.Subscriptions.PartnerBatchSettlementService>();
+    builder.Services.AddScoped<ArginTaxPayer.Infrastructure.Persistence.Subscriptions.PartnerSettlementReadService>();
+    builder.Services.AddScoped<ArginTaxPayer.Infrastructure.Persistence.Subscriptions.PartnerRevenueLedgerReadService>();
+    builder.Services.AddScoped<ArginTaxPayer.Infrastructure.Persistence.Subscriptions.CommercialReceivableReadService>();
+    builder.Services.AddScoped<ArginTaxPayer.Infrastructure.Persistence.Subscriptions.SubscriptionPlanAdministrationService>();
+    builder.Services.AddScoped<ArginTaxPayer.Infrastructure.Persistence.Subscriptions.SubscriptionPriceAdministrationService>();
+    builder.Services.AddScoped<ArginTaxPayer.Infrastructure.Persistence.Subscriptions.SmsWalletService>();
+    builder.Services.AddScoped<ArginTaxPayer.Infrastructure.Persistence.Subscriptions.SmsCreditService>();
+    builder.Services.AddScoped<ArginTaxPayer.Infrastructure.Persistence.Subscriptions.SmsServiceSettingsService>();
+    builder.Services.AddScoped<ArginTaxPayer.Infrastructure.Persistence.Subscriptions.SmsUsageReadService>();
+    builder.Services.AddScoped<ArginTaxPayer.Infrastructure.Persistence.Subscriptions.SmsDispatchCoordinator>();
+    builder.Services.AddScoped<ArginTaxPayer.Infrastructure.Persistence.Subscriptions.SmsSepSettingsService>();
+    builder.Services.AddScoped<ArginTaxPayer.Infrastructure.Persistence.Subscriptions.SmsSepTopupService>();
+    builder.Services.AddHttpClient("sep-sms", client => client.Timeout = TimeSpan.FromSeconds(20))
+        .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false });
+    builder.Services.AddScoped<ArginTaxPayer.Infrastructure.Persistence.Subscriptions.CommercialSubscriptionActivationService>();
+    builder.Services.AddScoped<ArginTaxPayer.Infrastructure.Persistence.Subscriptions.CustomerFinancialHistoryService>();
+    builder.Services.AddScoped<ArginTaxPayer.Infrastructure.Persistence.Subscriptions.CustomerSubscriptionOverviewService>();
+    builder.Services.AddScoped<ArginTaxPayer.Infrastructure.Persistence.Subscriptions.CustomerCheckoutService>();
+    builder.Services.AddScoped<ArginTaxPayer.Infrastructure.Persistence.Subscriptions.CommercialPendingCashService>();
+    builder.Services.AddScoped<ArginTaxPayer.Infrastructure.Persistence.Subscriptions.CommercialCheckoutTaxSettingsService>();
     builder.Services.AddScoped<CustomerSelfServiceService>();
     builder.Services.AddScoped<SoftwareUserProfileService>();
     builder.Services.AddScoped<CustomerTaxpayerMembershipService>();
@@ -205,6 +239,22 @@ if (app.Environment.IsDevelopment())
         app.MapSigningGenerationEndpoints();
         app.MapSigningConnectionEndpoints();
         app.MapSandboxFiscalMemoryDevelopmentEndpoints();
+        app.MapPhase12PlanAdministrationEndpoints();
+        app.MapPhase12PriceEndpoints();
+        app.MapPhase12ActivationEndpoints();
+        app.MapPhase12CustomerFinanceEndpoints();
+        app.MapPhase12CustomerOverviewEndpoints();
+        app.MapPhase12CustomerCheckoutEndpoints();
+        app.MapPhase12PendingCashEndpoints();
+        app.MapPhase12CheckoutTaxEndpoints();
+        app.MapPhase12SmsEndpoints();
+        app.MapPhase12SmsTopupEndpoints();
+        app.MapSepSmsCallbackEndpoint();
+        app.MapPhase12CommercialOrderEndpoints();
+        app.MapPhase12CollectionEndpoints();
+        app.MapPhase12PartnerLedgerEndpoints();
+        app.MapPhase12PartnerSettlementEndpoints();
+        app.MapPhase12PartnerBatchSettlementEndpoints();
         app.MapSigningChangeRequestEndpoints();
         app.MapSigningAdminReviewEndpoints();
         app.MapPartyDevelopmentEndpoints();

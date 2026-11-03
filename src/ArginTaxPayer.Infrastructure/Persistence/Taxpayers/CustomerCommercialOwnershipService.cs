@@ -18,7 +18,7 @@ public sealed record CommercialPartnerListResponse(CustomerOwnershipDecision Dec
 public sealed record CustomerAccountSummary(Guid CustomerUserId, Guid? RootLevel1UserId,
     Guid? PartnerLevel2UserId, CustomerAcquisitionChannel AcquisitionChannel,
     long Revision, string? Mobile, string? Email, DateTime CreatedAtUtc, bool IsActive,
-    int TaxpayerCount, string? PersonName = null, string? CompanyName = null, bool ProfileComplete = false);
+    int TaxpayerCount, string? PersonName = null, string? CompanyName = null, bool ProfileComplete = false, string[]? Roles = null, bool MfaEnabled = false, bool HasMfaState = false);
 
 public sealed record CustomerAccountListResponse(CustomerOwnershipDecision Decision,
     CustomerAccountSummary[]? Customers = null);
@@ -196,41 +196,55 @@ public sealed class CustomerCommercialOwnershipService(
                 db.SoftwareUserProfiles.Where(p => p.UserId == u.Id)
                     .Select(p => p.CompanyName).FirstOrDefault(),
                 db.SoftwareUserProfiles.Any(p => p.UserId == u.Id &&
-                    p.FirstName.Length >= 2 && p.LastName.Length >= 2 && p.Address.Length >= 2))
+                    p.FirstName.Length >= 2 && p.LastName.Length >= 2 && p.Address.Length >= 2),
+                u.Roles.Select(r => r.Role).ToArray(),
+                db.IdentityMfaStates.Any(m => m.UserId == u.Id && m.EnabledAtUtc != null),
+                db.IdentityMfaStates.Any(m => m.UserId == u.Id))
         ).ToArrayAsync(ct);
         return new(CustomerOwnershipDecision.Success, rows);
     }
 
     public async Task<PagedCustomerAccountListResponse> ListCustomerAccountsPageAsync(
         string? bearer, int page, int pageSize, string? query, string? ownership,
-        CancellationToken ct = default)
+        CancellationToken ct = default, string? role = null)
     {
         var actor = await identity.CurrentUserIdAsync(bearer, ct);
         if (actor is null) return new(CustomerOwnershipDecision.Unauthenticated, [], page, pageSize, 0);
         if (page < 1 || pageSize is < 1 or > 100 || query?.Length > 100 ||
-            ownership is not (null or "all" or "root" or "partner" or "unresolved"))
+            ownership is not (null or "all" or "root" or "partner" or "unresolved") ||
+            role is not (null or "all" or "customer" or "level2"))
             return new(CustomerOwnershipDecision.Invalid, [], page, pageSize, 0);
         var root = await IsScopedAdministratorAsync(actor.Value, IdentityRoleNames.Level1, ct);
         var partner = await IsScopedAdministratorAsync(actor.Value, IdentityRoleNames.Level2, ct);
         if (!root && !partner) return new(CustomerOwnershipDecision.Forbidden, [], page, pageSize, 0);
 
+        if (!root && role == "level2") return new(CustomerOwnershipDecision.Forbidden, [], page, pageSize, 0);
         var safeQuery = query?.Trim();
+        var mobileQuery = IranianMobileNumber.TryNormalize(safeQuery, out var normalizedMobile) ? normalizedMobile : null;
         var normalizedQuery = safeQuery ?? string.Empty;
+        var normalizedEmailQuery = normalizedQuery.ToUpperInvariant();
         var scoped =
             from u in db.IdentityUsers.AsNoTracking()
-            where u.Roles.Any(role => role.Role == IdentityRoleNames.Customer)
+            where u.Roles.Any(r => r.Role == IdentityRoleNames.Customer ||
+                root && (r.Role == IdentityRoleNames.Level2 || r.Role == IdentityRoleNames.PendingLevel2))
             join assignment in db.CustomerCommercialOwners.AsNoTracking()
                 on u.Id equals assignment.CustomerUserId into matches
             from o in matches.DefaultIfEmpty()
             where root || partner && o != null && o.PartnerLevel2UserId == actor.Value
             select new { u, o };
         if (!string.IsNullOrWhiteSpace(safeQuery))
-            scoped = scoped.Where(x => (x.u.NormalizedMobile ?? string.Empty).Contains(normalizedQuery) ||
-                (x.u.NormalizedEmail ?? string.Empty).Contains(normalizedQuery) ||
+            scoped = scoped.Where(x => (mobileQuery != null && x.u.NormalizedMobile == mobileQuery) ||
+                (x.u.NormalizedMobile ?? string.Empty).Contains(normalizedQuery) ||
+                (x.u.NormalizedEmail ?? string.Empty).ToUpper().Contains(normalizedEmailQuery) ||
                 x.u.Id.ToString().Contains(normalizedQuery) ||
                 db.SoftwareUserProfiles.Any(p => p.UserId == x.u.Id &&
                     ((p.FirstName + " " + p.LastName).Contains(normalizedQuery) ||
                      (p.CompanyName ?? string.Empty).Contains(normalizedQuery))));
+        if (role == "level2") scoped = scoped.Where(x =>
+            x.u.Roles.Any(r => r.Role == IdentityRoleNames.Level2 || r.Role == IdentityRoleNames.PendingLevel2) &&
+            !x.u.Roles.Any(r => r.Role == IdentityRoleNames.Level1 || r.Role == IdentityRoleNames.PendingLevel1));
+        if (role == "customer") scoped = scoped.Where(x =>
+            x.u.Roles.All(r => r.Role == IdentityRoleNames.Customer));
         if (ownership == "root") scoped = scoped.Where(x => x.o != null && x.o.RootLevel1UserId == actor.Value && x.o.PartnerLevel2UserId == null);
         if (ownership == "partner") scoped = scoped.Where(x => x.o != null && x.o.PartnerLevel2UserId != null);
         if (ownership == "unresolved") scoped = scoped.Where(x => x.o == null);
@@ -250,7 +264,10 @@ public sealed class CustomerCommercialOwnershipService(
                 db.SoftwareUserProfiles.Where(p => p.UserId == x.u.Id)
                     .Select(p => p.CompanyName).FirstOrDefault(),
                 db.SoftwareUserProfiles.Any(p => p.UserId == x.u.Id &&
-                    p.FirstName.Length >= 2 && p.LastName.Length >= 2 && p.Address.Length >= 2)))
+                    p.FirstName.Length >= 2 && p.LastName.Length >= 2 && p.Address.Length >= 2),
+                x.u.Roles.Select(r => r.Role).ToArray(),
+                db.IdentityMfaStates.Any(m => m.UserId == x.u.Id && m.EnabledAtUtc != null),
+                db.IdentityMfaStates.Any(m => m.UserId == x.u.Id)))
             .ToArrayAsync(ct);
         return new(CustomerOwnershipDecision.Success, items, page, pageSize, total);
     }
@@ -285,7 +302,10 @@ public sealed class CustomerCommercialOwnershipService(
                 db.SoftwareUserProfiles.Where(p => p.UserId == u.Id)
                     .Select(p => p.CompanyName).FirstOrDefault(),
                 db.SoftwareUserProfiles.Any(p => p.UserId == u.Id &&
-                    p.FirstName.Length >= 2 && p.LastName.Length >= 2 && p.Address.Length >= 2))
+                    p.FirstName.Length >= 2 && p.LastName.Length >= 2 && p.Address.Length >= 2),
+                u.Roles.Select(r => r.Role).ToArray(),
+                db.IdentityMfaStates.Any(m => m.UserId == u.Id && m.EnabledAtUtc != null),
+                db.IdentityMfaStates.Any(m => m.UserId == u.Id))
         ).ToArrayAsync(ct);
 
         var permittedCustomerIds = accounts

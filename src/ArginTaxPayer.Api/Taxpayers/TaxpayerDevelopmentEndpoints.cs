@@ -273,12 +273,12 @@ public static class TaxpayerDevelopmentEndpoints
         }).WithTags("Customer Accounts (Development)");
 
         routes.MapGet("/api/dev/customer-owners/accounts/page", async (
-            int? page, int? pageSize, string? query, string? ownership,
+            int? page, int? pageSize, string? query, string? ownership, string? role,
             HttpContext http, CustomerCommercialOwnershipService service, CancellationToken ct) =>
         {
             if (!IsLocal(http)) return Results.NotFound();
             var result = await service.ListCustomerAccountsPageAsync(
-                Bearer(http), page ?? 1, pageSize ?? 10, query, ownership, ct);
+                Bearer(http), page ?? 1, pageSize ?? 10, query, ownership, ct, role);
             return result.Decision switch
             {
                 CustomerOwnershipDecision.Unauthenticated => Results.Unauthorized(),

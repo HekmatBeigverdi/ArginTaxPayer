@@ -1,0 +1,471 @@
+# ArginTaxPayer — Phase 12: Subscriptions, Billing & Settlements
+
+**Status:** Step 01 documentation baseline committed; owner acceptance pending. Steps 02–12 NOT STARTED.
+**Date:** 2026-10-31
+**Repository:** HekmatBeigverdi/ArginTaxPayer
+**Branch:** `phase/12-subscriptions-billing-settlements`
+**Baseline:** `main` SHA `4c0c16d3499e4310ff834c2729d59af249c8fcda`, Phase 11 release `phase-11-v1.0.0`.
+**Target release:** `phase-12-v1.0.0`.
+**Authority:** `docs/roadmap/18-phases.md` and applicable owner-approved Phase 03/04/10/11 plans. This is the single evolving master plan; do not create ordinary per-step report files.
+
+## Scope and non-regression contract
+
+Deliver annual/quantity subscriptions, customer-level entitlements, immutable credit/accounting ledgers, sales/orders/receivables, verified cash/gateway allocations, direct-root and independently scoped partner financial books, partner settlement, SMS wallets and scheduled SMS tariffs. No production charge, gateway activation, paid SMS send or production migration without separate owner approval. Existing Phase 10 original/correction/cancellation/return sending and Phase 11 inquiry behavior must not change.
+
+Phase 11 release has owner-approved deferrals: automatic inquiry, restart-safe recovery, multi-worker coordination. Keep them prominently deferred; this phase cannot claim to implement them or silently schedule invoice sending. Ensure future reconciliation can adjust reservations safely and idempotently.
+
+## Step 01 source inspection and evidence boundary
+
+**Confirmed remotely in GitHub:** Phase 11 release `phase-11-v1.0.0` targets baseline SHA above; Phase 12 branch exists and equals main (no commits ahead/behind at inspection); `docs/roadmap/18-phases.md` defines annual/quantity plans, customer-level partner ownership, cash-collection-based sharing, SMS wallet/promo and scheduled tariffs; `docs/phases/phase-04.md` defines customer ownership and historical reassignment; `docs/phases/phase-11.md` records safe invoice-dispatch boundaries. `apps/web/package.json` exposes `test`, `typecheck`, `build`.
+
+**Not verified:** local macOS Git/worktree, .NET compile/test, Next.js test/build, current PostgreSQL schema/migration catalog, live API/UI, existing entities/services beyond inspected plans, GitHub CI, secrets or provider connections. GitHub code-search attempts for Subscription, CommercialOwner, InvoiceCredit, SmsWallet and Settlement returned no indexed matches; absence of search hits is not evidence of absent implementation. Step 02 must perform targeted repository source inventory and schema audit before adding entities or migrations.
+
+**Step 01 implementation:** documentation only; no application code, migration, database, external service calls, invoice submissions or charge activity. No Ubuntu test in this step.
+
+## Domain and financial architecture freeze
+
+### Ownership and boundaries
+- Customer account is the commercial owner relation; each customer can have multiple taxpayer profiles. Level 2 owns the customer relationship, **never** taxpayer cryptographic custody. Level 1 direct customer has no partner share. Reassignment is authorized by Level 1, append-only and prospective only.
+- Distinct bounded contexts: Plan Catalog & Price Versions; Subscription & Taxpayer/Memory Binding; Invoice-Unit Entitlement & Reservation; Orders & Receivables; Payments & Verified Collections; Financial Ledger; Partner Agreement & Settlement; SMS Wallet, Tariffs & Provider Expense.
+- Tax document, authority status, customer billing order, payment receipt, credit reservation and partner settlement are distinct identifiers and state machines. No status-only inference of monetary collection or fiscal finality.
+- Level 1/2 prices may differ; commercial deal captures owner/partner ID, agreed profit percentage, customer, payer, product, currency, tax/cost policy and effective-at snapshots at purchase time. No retroactive re-pricing.
+- Accounting uses append-only balanced postings, immutable source snapshots, idempotency keys, external-reference uniqueness, scoped ownership and audit actor/correlation. Fix historical errors with linked compensating entries; do not edit/delete settled postings. Require explicit IRR rounding/currency and amount-sign conventions before implementation.
+
+### Subscription and credit contract
+- Annual: one locked taxpayer and fiscal-memory binding after verified successful authority connection; unlimited eligible invoice sends during paid validity; no customer self-switch. Level 2 exception request and Level 1 approval cannot rewrite paid period or invoice linkage.
+- Quantity: one or more taxpayers under authorized account, finite invoice-unit balance and validity <= 1 year. Determine exactly which fiscal events consume one unit in Step 03/04 before enabling billing; leave unknown/indeterminate sends reserved rather than deduct twice or release early.
+- Manual opening balance: audited owner-authorized adjustment for legacy remaining days/units, no automated import of legacy plans or passwords.
+- Enforce entitlements in server-side command boundary, not UI alone; atomic reservation and unique send-intent keys with concurrency tests.
+
+### Cash, partner participation and settlements
+- Deal-level receivables remain distinct from collections. Verified provider or approved manual cash receipt is assigned to orders using immutable allocations; partial collections/refunds/chargebacks use compensating postings.
+- Partner settlement base is **verified cash allocated to the deal** minus approved eligible allocated tax/expense under the contracted accounting policy. Contracted percentage is snapshotted (often 50%, never assumed globally). Unapproved expenses do not reduce participation. Root-direct sales have zero Level 2 participation.
+- Financial visibility: Level 1 full authorized financial administration; Level 2 only its own commercial customers/orders/receipts/approved costs/share/history; customer only own plans, invoices, payments, credit and wallet. Enforce application and SQL query scope, including former-owner access after reassignment.
+- Settlement proposal, approval, payment execution, reversal and finalization are separate auditable states. Prevent double payouts on retries.
+
+### SMS wallet
+- One-time promotional credit **2,000,000 IRR** per eligible customer under an idempotent grant rule; do not repeat on restart/re-registration.
+- Customer-facing tariffs and Ghasedak provider expense are separate amounts/ledgers. Effective price is selected for provider panel + category at atomic reservation timestamp, using Asia/Tehran scheduling converted to UTC. Exactly one applicable tariff at a time; missing tariff blocks paid send. Snapshot the selected rate across retries. Future price administration by Level 1 in Phase 16; no unapproved live SMS activation.
+
+## Fixed twelve-step delivery and acceptance matrix
+
+| Step | Deliverable / likely migration impact | Acceptance gate |
+|---|---|---|
+| 01 | Read-only audit, design and this master plan; **none** | Plan, boundaries, risks and test cadence documented; owner signoff |
+| 02 | Versioned plans, prices, subscriptions, purchase rules; **likely yes** | Annual and quantity lifecycle, role-specific price and historical snapshot tests |
+| 03 | Taxpayer/memory binding and subscription authorization; **likely yes** | Annual single binding, exception approval, expiry, cross-tenant denial and immutable past linkage |
+| 04 | Invoice-unit reservation/consumption/release and credit ledger; **likely yes** | Atomic double-send/idempotency tests; Indeterminate never double-debited |
+| 05 | Orders, billing snapshots and receivables; **likely yes** | Purchase/renewal/add-on and partial receivable reconciliation without retrospective edits |
+| 06 | Manual verified cash, gateway abstraction, callbacks/refunds; **likely yes** | Verified allocation, replay rejection, webhook authenticity, no real gateway without approval |
+| 07 | Root/Level 2 separate ledgers, partner agreement, approved costs; **likely yes** | Direct sale zero partner share, partial receipts, historical ownership isolation and net-profit formula |
+| 08 | Approval/execution of settlements, compensating corrections; **likely yes** | No duplicate payouts, separation of duties, reversal/refund and immutable audit |
+| 09 | SMS wallets, idempotent promo grant, versioned effective tariffs; **likely yes** | Exactly one rate, price-boundary, retry snapshots, provider-cost separation, no live paid SMS |
+| 10 | Compact Persian RTL finance UX + macOS regression; **avoid unless defect** | All roles and scopes, ledger reconciliation, local UI acceptance, prior invoice flows preserved |
+| 11 | **Ubuntu-only** same-SHA independent acceptance; **none** | macOS SHA = Ubuntu SHA, build/tests, DB name/migration review, smoke, role isolation and finance audit |
+| 12 | Owner approval, documentation, merge/release; **none** | Clean tree, explicit signoff, merge to main, tag/release separately authorized |
+
+Do not renumber without explicit owner-approved plan amendment. In each step report touched files, backend/frontend impacts, migrations, tests PASS/FAIL/NOT_RUN, risks, rollback, actual commit SHA, and owner approval.
+
+## Acceptance scenarios to implement before release
+
+1. Root direct sale, partner sale at contract-specific percentage, partner reassignment after sale, customer with multiple taxpayers.
+2. Annual single active binding vs quantity multi-taxpayer; expired, cancelled, pending, renewal/add-on and supervised manual-opening states.
+3. Two browser tabs reserve same last unit, network timeout/indeterminate authority result, repeated send/replay, cancellation/correction/return treatment per explicit fiscal policy.
+4. Order value without cash gives no partner payable; partial verified cash creates proportional eligible participation; approved expenses only; refunds, chargebacks, late expense and settlement reversal.
+5. Cross-customer and cross-partner URL/API authorization, former-owner access, concurrent approval, user/role audit, secrets and bank webhook validation.
+6. SMS promo grant once; scheduled tariff boundary, timezone conversion, missing rate rejection, immutable rate on retries, separate provider expense.
+7. Migration rollback/review, backfill without fabricated balances, ledger double-entry totals and per-customer reconciliation; no access to Production DB.
+
+## Operational cadence and safety
+
+**macOS is sole development/migration test host.** After each step: `git pull --ff-only origin phase/12-subscriptions-billing-settlements`; run applicable focused and regression tests; for UI use ONLY `zsh scripts/dev-up.zsh`, `zsh scripts/dev-status.zsh`, `zsh scripts/dev-down.zsh`. Do not instruct manually starting autossh; the dev-up script manages transport. It must never auto-apply EF migrations. Review SQL and assert actual `current_database()='argintaxpayer_test'` before approved migration. Separate local environment secrets from Git.
+
+**Ubuntu tests happen exclusively in Step 11 (penultimate).** Verify identical clean Git SHA; run independent .NET/web build/test and PostgreSQL audit then. Step 12 is release/closeout only; no hidden Ubuntu re-test.
+
+**Step 01 evidence:** remote documentation/source inspection PASS; documentation-only safety PASS; macOS build/test NOT_RUN; frontend typecheck/test/build NOT_RUN; database/migration NOT_RUN; Ubuntu NOT_RUN; live fiscal authority/gateway/SMS NOT_RUN. This distinction is required for honest acceptance.
+
+**Rollback:** revert the Step 01 documentation commit on the phase branch; no database rollback needed. All runtime and financial functionality remains for later owner-approved steps.
+
+**Owner signoff:** PENDING.
+
+
+## Step 02 — Plan and pricing foundation (2026-10-31)
+
+**State: SOURCE IMPLEMENTATION EXPANDED; LOCAL BUILD/DB VERIFICATION PENDING; NOT ACCEPTED.** Following owner approval of Step 01, the phase branch adds:
+- `src/ArginTaxPayer.Domain/Subscriptions/SubscriptionContracts.cs`: annual unlimited vs quantity bounded unit terms, UTC price windows, partner vs Root direct audience, immutable purchase snapshot contracts.
+- `tests/ArginTaxPayer.Tests/Phase12SubscriptionContractTests.cs`: focused invariant cases (not executed).
+- `src/ArginTaxPayer.Infrastructure/Persistence/Migrations/20261031180000_AddPhase12SubscriptionCatalog.cs`: SQL schema for plans, immutable price versions and customer subscriptions, default inactive/pending, scoped owner identifiers and check constraints. **Migration NOT APPLIED**.
+
+**Open before Step 02 signoff:** inspect SQL with a genuine test DB; confirm migration compatibility and any existing subscription schema; add persistence mapping, scoped command/query services, non-overlapping active price window validation, renewal/upgrade/add-on workflow and concurrency tests; run local .NET and Web regression. Do not report these as complete. There is no paid activation, finance ledger, API, UI or production change. Current schema migration is reviewed for syntax only, not verified by executing PostgreSQL. Backout is revert commits on phase branch; if applied to test DB later, use reviewed Down migration only after backup/ownership verification.
+
+**Evidence:** remote source inspection and GitHub commits PASS; local .NET build/test NOT_RUN; Mac DB/migration NOT_RUN; Web build/test NOT_RUN; Ubuntu NOT_RUN; owner approval PENDING.
+
+### Step 02 continuation — persistent EF catalog, pricing guard, instructions
+
+GitHub source commits add `Subscriptions/SubscriptionCatalogPersistence.cs` (EF model mapping, plan creation, non-overlapping price creation and customer-scoped root/partner quote), register its entities in `ArginTaxPayerDbContext`, strengthen DB migration with a transaction-serialized price-overlap trigger and immutable price-version UPDATE/DELETE rejection, and add negative unit-test cases. No routes expose these repository actions; the caller authorization layer and payment activation are intentionally not enabled. Database guard is authoritative against concurrent inserts.
+
+**BLOCKER before acceptance / migration:** model snapshot `ArginTaxPayerDbContextModelSnapshot.cs` has not been regenerated; EF model/schema parity, SQL migrations on the approved test database, real .NET build/tests and lifecycle/renewal/add-on integration tests remain unverified. Schema is not yet production-ready. Do not execute migration blindly; local operator must review its SQL, obtain parity evidence and verify `argintaxpayer_test` before any database mutation. Explicitly distinguish schema foundations from full purchase/renewal/upgrade functionality. Any owner acceptance of missing items requires an express scope change, not silent closure.
+
+**Operational test cadence:** start Mac environment only with `zsh scripts/dev-up.zsh`; source `.env.dev.local` into the migration shell and validate actual DB via psql before any `dotnet ef database update`. Ubuntu exclusively Step 11. All local build/migration tests still NOT_RUN here.
+
+## SMS credit and usage accounting — 2026-11-02
+
+**SMS wallet and SEP top-up source implementation added; both additive migrations applied to the isolated `argintaxpayer_test` database on 2026-11-02 after explicit owner approval. API build succeeded (0 errors, 10 warnings). No automated tests were run. SEP payments remain disabled by default pending merchant configuration and sandbox evidence.** Customer accounts created through the email, phone and administrator provisioning paths are intended to receive 2,000,000 IRR once in the same transaction. Level 1/2 accounts return unlimited SMS credit. The additive migration is `20261102030000_AddPhase12SmsMoneyLedger`; it is recorded in `__EFMigrationsHistory`. Pre-migration backup: `~/.argintaxpayer-test/backups/argin-sms-migrations-before-20261102.dump` (archive list validated).
+
+The current dispatch code requires `Ghasedak:CostUnit` (`IRR` or `TOMAN`) plus a Level 1 setting for service-fee basis points, a per-send IRR reservation ceiling and the customer credit control switch before live sending can proceed. A customer charge is provider cost plus the snapshotted percentage. Accepted sends without a reported cost, ambiguous responses, and costs beyond the reservation remain in reconciliation state; provider calls are never retried automatically. OTP and SMS message bodies are not written to the financial ledger. Insufficient credit returns `insufficient_sms_credit` for the SMS request only. Local-file OTP delivery does not write provider cost or wallet charges.
+
+The finance workspace now has a ten-row SMS cost/charge report with a Level 2 scope filter; admin settings expose the service percentage, reservation ceiling and a default-on customer credit control switch. Turning the switch off for new dispatches skips wallet balance checks/reservations and customer debits while retaining actual Ghasedak expense reporting. Each dispatch snapshots the setting; registration OTP linking uses the same snapshot. Existing dispatches and settings default to enabled. Customer top-bar balance reads from the monetary ledger. Legacy unit-wallet records are not converted; the old unit-grant API route and UI entry were removed. The finance SMS table now offers an administrator-initiated SEP charge for a selected customer. Customers can initiate their own charge from the SMS-credit page. Level 1 configures the positive terminal number and the responsible Level 1/Level 2 administrator; Level 2 initiation is limited to the selected administrator’s assigned customers and requires MFA. Attempts snapshot the customer, ownership scope, initiator, terminal, amount and unique `ResNum`. The token and redirect flow follows the owner-supplied SEP OnlinePG Technical Guide v3.6 (1404-10): token request to `https://sep.shaparak.ir/onlinepg/OnlinePG`, form POST to `https://sep.shaparak.ir/OnlinePG/OnlinePG`, then server-to-server verification at `https://sep.shaparak.ir/verifyTxnRandomSessionkey/ipg/VerifyTransaction`. Browser callback fields alone never grant credit; verified success, matching reference, terminal, original amount and effective amount are required. A unique provider reference and immutable event ledger protect replay and double credit. Unknown outcomes remain uncredited and can be rechecked by an authorized administrator; amount mismatch requests a provider reverse. User supplied sample source was inspected for protocol shape only; its cookies, test identifiers, SQL and unsafe TLS behavior were not copied.
+
+SEP top-up schema is in additive migration `20261102040000_AddSepSmsTopups`, applied after the SMS ledger migration; both IDs were confirmed in `__EFMigrationsHistory`, and `sms_provider_dispatches`, `sms_credit_accounts`, and `sms_credit_topups` were confirmed present. Live initiation is off unless `SmsSep:EnablePayments=true` and both `SmsSep:CallbackUrl` and `SmsSep:ReturnUrl` are absolute HTTPS URLs. SEP requires the merchant server IP to be registered. The SMS customer-credit enforcement toggle migration `20261102050000_AddSmsCustomerBillingEnforcement` was applied to `argintaxpayer_test` on 2026-11-02 after explicit owner approval; its history row and both default-true columns were confirmed. No merchant sandbox payment, callback replay, reverse, automated test or typecheck was run; therefore real payment acceptance remains pending. Keep payments disabled until the merchant terminal is configured, callback reachability/IP registration is confirmed, and the success, cancellation, mismatch, duplicate and timeout paths are verified with SEP test credentials.
+
+**Verification boundary:** both SMS migrations were applied only to `argintaxpayer_test` after explicit approval; the API build succeeded. No automated tests or typecheck were run. Provider cost units have not been confirmed against account billing evidence; live SMS must remain disabled until that is confirmed. There is no production acceptance claim.
+
+## Step 03 — Binding implementation update (2026-10-31)
+
+**Owner request:** finish persistent annual taxpayer/memory binding, reviewed exceptions, test checklist. Current implementation commits introduce domain policy, unit tests, persistent annual binding and exception entity mappings, new migration `20261031193000_AddPhase12AnnualSubscriptionBinding`, database trigger blocking UPDATE/DELETE and confirming active annual subscription + tenant/memory join, scoped repository for future trusted evidence integration.
+
+**Important non-claims / blockers:** no verified tax-authority evidence adapter is wired to RegisterVerifiedAnnualBindingAsync; caller-supplied evidence text is not independently verified. No authorized Level2 request/Level1 approval service or API is wired, and exception approval must never mutate an existing historic binding. No entitlement enforcement has been connected to real invoice sending; doing so before payment/credit policy exists would regress Phase 10. EF model snapshot not updated with Step03 additions; MAC build, migration SQL and integration tests NOT_RUN. No production readiness or full Step03 signoff is claimed.
+
+**Required completion:** trusted correlation of official successful connection evidence; server-issued scoped authentication/authorization for exception review; immutable exception event trail and safe prospectively effective replacement subscription rather than editing historic binding; stable EF migration/snapshot, actual SQL review, test DB verification, macOS regression including Phase10; explicitly approved operator acceptance. Ubuntu Step11 only.
+
+**Step 03 rollback:** revert branch code/migration before DB update. Once applied, carefully review reversible Down migration with empty binding tables; never drop real historical records.
+
+### Step 03 follow-up — Exception approval backend (2026-10-31)
+
+Added `SubscriptionExceptionReviewService` as a server-side-only workflow: authenticates the presented access token from existing IdentityAuthorizationService; verifies current Level2 role and current customer commercial ownership before accepting a request; verifies proposed taxpayer and fiscal memory ownership; permits only a Level1 belonging to the customer's current controlling root to approve/reject; decision history remains and the pre-existing annual binding is never mutated. Duplicate pending review has a pre-existing partial unique database index. No public endpoint yet, so no user workflow is asserted.
+
+**Still blocked for full Step 03:** trustworthy authority connection evidence source and server-side adapter; existing `RegisterVerifiedAnnualBindingAsync` still accepts a string reference from its caller and is NOT authorized to handle untrusted inputs. API integration of request/review endpoints and qualified fiscal evidence, role-scoped integration tests, local .NET build, and live Sandbox validation have NOT_RUN. User has reported macOS Build, EF snapshot and Step03 migration applied successfully, but this new service was committed afterward and remains untested. Do not treat it as accepted or proceed to Step04 before closing this gate. No new migration introduced by this follow-up.
+
+## Owner-approved Phase 12 Step 03 scope correction — 2026-10-31
+
+The owner explicitly rejects tax-authority connectivity/evidence as a subscription prerequisite. **This amendment supersedes all preceding Step 03 wording** that calls for tax-authority connection evidence, Sandbox inquiry or a new Level1 exception workflow.
+
+- Monthly and annual plans are **single taxpayer/company**, with no quantity-based invoice limit. Quantity plans permit multiple authorized customer-owned taxpayers, with a finite invoice unit limit.
+- Monthly plan kind 3 introduced, validity 28–31 days in catalog terms. Calendar-month anniversary/timezone semantics need separate implementation when actual activation is integrated with paid billing.
+- Internal binding registers the chosen taxpayer and existing fiscal-memory record; no new authority call/test/connection proof. A change to fiscal memory code is governed **only by the pre-existing Level1 approval process**, not a new Phase 12 approval endpoint.
+- Earlier Step03 exception/request/review components are not exposed from Program.cs. They must be considered obsolete scaffolding and not deployed as a competing approval workflow.
+- Existing applied Step03 migration is never rewritten. New additive migration `20261031210000_AlignSingleTaxpayerCommercialPlans` extends plan types and database binding guard. Inspect generated SQL and EF snapshot before applying to `argintaxpayer_test`; no implicit Production migration.
+- Implementation keeps Phase10 invoice send and Phase11 status logic untouched.
+
+**Important evidence limits:** GitHub source edits and commit only; no macOS build, EF migration, integration tests, or Ubuntu runs performed by assistant. Owner-reported previous macOS tests applied to prior SHA, not new commits. Do not mark Step03 fully verified before same-SHA local acceptance, EF snapshot check, test DB migration, unique taxpayer/active membership checks and existing Level1 memory-approval regression. Specifically, selecting an existing taxpayer via repository is not yet a fully exposed subscription onboarding flow.
+
+
+## Owner correction — five commercial plan categories (2026-10-31)
+
+This **supersedes** all previous Phase12 assumptions that there are only annual/monthly/quantity plans.
+
+1. **Monthly (1 calendar month), quarterly (3 calendar months), semiannual (6 calendar months), annual (12 calendar months):** each is a single-company/single-taxpayer entitlement, unlimited invoice count during the valid paid period. Multiple taxpayer registrations against the same active entitlement must be rejected server-side.
+2. **Quantity:** configurable positive invoice-unit package size (examples 50, 100, etc.); permitted for multiple customer-owned taxpayers, subject to the purchased balance and configured validity no longer than one year.
+3. Level1 or Level2 can define a quantity-based **commercial package and selling price** within their ownership and permissions. A Level2-created package must be scoped to that Level2; it must not mutate a global Level1 catalog or another partner's prices. Package creation does not waive financial ownership, approvals, or audit requirements.
+4. Time entitlement expiry must be computed with calendar-month arithmetic from the authorized activation instant and an explicit agreed timezone/time-of-day convention; `30 * months` is not equivalent. Preserve exact periods and purchase terms in immutable snapshots.
+5. Fiscal-memory code changes remain governed solely by the pre-existing Level1 approval process; this phase does not make new tax authority calls or introduce another approval process.
+6. **Implementation gate:** current `SubscriptionPlanKind` exposes only Annual=1, Quantity=2, Monthly=3, and current schema relies on `validity_days`. Quarterly and semiannual contracts, period-month persistence, admin package creation/scoping and comprehensive regression tests are **not yet implemented**. Do not mark Step03 complete or issue an unreviewed migration; design a forward-only migration preserving existing records and the prior applied migration history. No database write was performed for this amendment.
+
+## Owner correction: Five commercial plan types (2026-10-31)
+
+**Supersedes all previous interpretations of Phase 12 duration-plan types.** Monthly, three-month, six-month and annual are each single-company/single-taxpayer unlimited-invoice plans. Quantity packages (50, 100, or arbitrary positive limits) can cover multiple taxpayer profiles owned by the same customer, and expire no later than 12 months after activation. Level1 and Level2 may define packages/pricing within their authorized commercial scope. Fiscal memory redefinition remains governed by the previously implemented Level1 approval process. No new tax-authority connection dependency in Phase12.
+
+Initial source edits add enum kinds 4/5, expand term validation, single-taxpayer detection and an additive SQL migration `20261031220000_AddQuarterlyAndSemiannualSubscriptionPlans`; focused tests added. **Do not consider this full acceptance yet**: contract currently stores duration as days, not calendar-month intervals; exact calendar-month anniversary semantics, role-authorized plan creation and active subscription integration still need implementation. Existing EF snapshot, same-SHA Mac build, migration SQL and PostgreSQL execution are unverified. Never mark new migration as applied until verified and reviewed on `argintaxpayer_test`. Ubuntu only Step11.
+
+The authoritative model should use calendar months (1/3/6/12) for the four duration plans, with explicit UTC/time-zone and end-of-month expiry policy, rather than relying on fixed day counts. Quantity remains bounded by <=12 calendar months. Preserve past price and membership snapshots.
+
+## Step 03 delivery delta — calendar, administration and migration repair (2026-10-31)
+
+- `SubscriptionCalendar.ExpirationUtc` computes 1/3/6/12 calendar-month expiries in UTC with end-of-month rollover policy; quantity packages accept explicitly bounded 1–12 calendar months. Domain tests cover Jan31/Feb28, leap day, six-month crossing, quarter and invalid parameters.
+- `SubscriptionPlanAdministrationService` restricts internal creation to authenticated, active Level1/Level2 operators with database-confirmed enabled MFA; plan code is prefixed by the server-derived administrator ID to avoid namespace impersonation. An endpoint under `/api/dev/subscriptions/plans` is loopback-only, rejects browser Origins and is rate-limited. Newly created plans are **inactive**, so this endpoint does not sell or activate them; payment and activation remain future steps.
+- The two additive migration sources (20261031210000 and 20261031220000) now use `DROP CONSTRAINT IF EXISTS` when replacing optional old check constraints: the EF-generated Phase12 catalog migration did not create those named constraints.
+- The owner requires **five** plan types: 1/3/6/12 month single-taxpayer unlimited and quantity multiple-taxpayer with count limit and expiration <=1 year. Memory-code changes remain under the pre-existing Level1 process; no authority connectivity or evidence dependency.
+- **Sign-off blockers:** No local dotnet runtime or PostgreSQL is available in this assistant execution context, therefore current GitHub SHA has NOT been compiled/tested or migrated here. Owner must verify Mac build, migration SQL and `argintaxpayer_test` updates, all backend tests and Level1/Level2/Customer negative auth tests. Do NOT apply pending migrations to any database other than the verified test database; check `has-pending-model-changes` first. Further live subscription assignment and active-use enforcement require authenticated plan-purchase workflow and cannot truthfully be considered delivered by this catalog API alone. Ubuntu remains Step11.
+
+## Step 03 — owner acceptance (2026-10-31)
+
+Owner explicitly approved Step 03 and authorized moving to Step 04. Approved scope: five commercial plans; monthly/quarterly/semiannual/annual are each single taxpayer with unlimited invoices, quantity plans have configurable positive invoice count and <=12-month validity; separate Level1/Level2 commercial pricing. No new tax-authority connectivity. Earlier migration / UI / end-to-end limitations remain documented as outstanding technical risks rather than silently represented as tested.
+
+## Step 04 — immutable credit ledger (implementation in progress)
+
+Credit ledger foundations committed:
+- `20261101010000_AddPhase12CreditLedger` creates one balance per subscription and append-only journal; checks balance conservation, non-negative quantities, unique subscription/operation idempotency key; a database trigger rejects entry UPDATE/DELETE.
+- `SubscriptionCreditLedgerService` exposes server-internal initialization (quantity only, active scoped subscription), reserve, consume, release; serializable transaction with account-row FOR UPDATE lock and journal append within same transaction.
+- `SubscriptionCreditPolicy` unit-tests quantity conservation and invalid transitions; registration in API DI, but **no public credit increment endpoint**.
+- The existing invoice-send workflow is intentionally not modified in Step04. A successful monetary payment, activation, or purchase authority adapter is NOT implemented in Step04 and must not be implied by a public grant.
+- No .NET SDK or Postgres available in assistant runtime; current SHA source not compiled, integration tested, or migrated here. Current code requires Mac .NET Build and scoped integration QA; database migration must first be SQL-reviewed on verified `argintaxpayer_test`. Ubuntu is reserved for Step11.
+- Step04 signoff requires race/idempotent duplicate operation testing, duplicate key with changed payload rejection, insufficient balance rollback, expiry, cross-customer denial, crash-retry and snapshot invariant checks, and operator acceptance. If any check fails, Step04 remains open.
+
+**CAUTION:** Legacy Step03 plan SQL uses later additive migrations; never rewrite already applied migration history, and do not run production database update.
+
+## Step 04 — owner sign-off
+
+Owner explicitly confirmed Step 04 and authorized starting Step 05. The confirmation is recorded; evidence limitations previously listed remain preserved.
+
+## Step 05 — commercial orders, internal financial invoices and receivables
+
+Committed new `SubscriptionBilling` domain records and tests, `20261101020000_AddPhase12CommercialOrders` for customer-scoped commercial order and append-only JSON financial invoice snapshots, and internal `CommercialOrderService` for issuing order+invoice in one serializable transaction with idempotency key and purchase-time price snapshot. Amounts use IRR. **Not** a tax-authority invoice; no calls to tax.gov.ir; no payments booked, captured, or inferred. The receivable balance supports partial collections in domain policy, while actual collection posting is Step06. Newly created orders are never automatic proof of paid subscription or credit grant.
+
+**Outstanding acceptance / implementation risks:** No local .NET or PostgreSQL runtime available; Step05 code is not compiled, migrated or integration tested. Review post-transaction retry and idempotency behavior under price-version changes, same-key conflicting payloads, FK/customer ownership and race conditions before exposing endpoint. A fully secured public order API/UI, receivable read model and immutable order snapshot consistency checks are not yet complete. Do not claim Step05 operational completion or apply migrations before verifying target `argintaxpayer_test` and reviewing SQL. Local Mac acceptance and Ubuntu Step11 sequencing apply.
+
+### Step05 continuation — internal API and receivable query
+
+The order issue route `POST /api/dev/subscriptions/commercial-orders` is loopback-only, bearer-protected, Origin-rejecting and rate-limited, with an internal administrative role/ownership check. Retried operation keys now attempt an existing order lookup before price quotation to preserve historic pricing. `CommercialReceivableReadService` supports scoped, read-only due/collected balances. These are source changes only, not integration-tested; possible live DB mapping and concurrency behavior must be verified during Mac acceptance. No payment posting endpoint exists yet (Step06). The invoice snapshot is an internal financial artifact, not a fiscal invoice.
+
+**Step05 outstanding acceptance:** validate compiled .NET API, migration and real database, idempotency races (including changed amounts and version rollover), scoped Level1/Level2 authentication, legitimate order read after ownership reassignment, historical immutability and allowed partial-payments state in the follow-on Step06. Until proven, this step is NOT fully accepted.
+
+## Step 05 — owner acceptance
+
+Owner approved Step05 and authorized Step06. Previous limitations remain transparent in acceptance evidence.
+
+## Step 06 — verified collections implementation and acceptance boundary
+
+Committed:
+- `PaymentCollectionPolicy.cs` specifies Cash/BankTransfer/Gateway, positive IRR amounts, unique external receipt reference and explicit trustworthy provider-verification predicates.
+- Migration `20261101030000_AddPhase12VerifiedCollections` creates append-only `commercial_collections`, duplicate detection via unique (channel, external_reference), manual verifier actor, gateway verification provenance, and foreign keys.
+- `VerifiedCollectionService` checks live Level1/Level2 role, active account, MFA and commercial customer ownership for manual collections, then serializes on the commercial-order row and inserts collection + adjusts collected amount/status atomically. Rejects mismatched duplicate references, overcollection, voided orders, missing scope. Internal gateway posting method is deliberately non-public and must only be called after trustworthy provider server-to-server verification.
+- Loopback-only POST `/api/dev/subscriptions/collections/manual` supports explicit admin-verified cash and bank transfer; never accepts gateway mode. Phase 10 invoice dispatch unaffected. Unit tests cover partial/full, overpayment, invalid payment shape and gateway proof predicates.
+
+**Critical uncompleted items:** An actual PSP gateway integration, merchant credentials, signed/server-side verification, callbacks, webhook reconciliation and gateway test transactions are **NOT implemented**; no provider has been designated. Even the manual workflow has not been compiled or PostgreSQL integration-tested in this assistant context. No customer-facing payment page or partial-payment UI exists yet. This is NOT full Step06 acceptance until provider selection and verified PSP integration plus Mac database and race/idempotency/authorization QA. Do not activate subscriptions or allocate invoice credits based on unverified callbacks, redirect parameters or preliminary intents.
+
+**Local acceptance:** On macOS run `zsh scripts/dev-up.zsh`, .NET restore/build/test, `dotnet ef migrations has-pending-model-changes`, list and review all pending migrations, verify actual connection is `argintaxpayer_test`, then apply only approved migrations. Test duplicate reference same/different payload, concurrent partial collection, overpayment, failed gateway verification, cross-owner access, and journal immutability. Ubuntu only Step11.
+
+## Step 06 PSP selection — Owner decision (2026-10-31)
+
+Owner selects **SEP / Saman Electronic Payment** as primary PSP and **Zarinpal** as fallback. SEP is not Sepal (3pal). Never use 3pal documentation for SEP. Added domain `PaymentGatewayRouting` with SEP priority 1 and Zarinpal priority 2, `GatewayVerificationEvidence` requiring provider-side confirmation and exact amount/merchant/order/attempt match, `ISubscriptionPaymentGateway` initiation + independent verification interfaces, and domain tests. These are interfaces and policy only: **NO live SEP or Zarinpal adapter, callback handling, redirect, live processing or gateway settlement is implemented**. Do not pretend that provider selection or status query is payment authorization. Keep gateway code disabled until each provider's authoritative merchant-specific contract is verified, credentials are securely supplied, and staging or live test transactions + duplicate callbacks, cancellation, amount mismatch and financial ledger tests pass. Existing manual collections are unrelated. macOS QA of new SHA and test database pending. No new migration created for this selection.
+
+Before full Step06 acceptance implement durable payment attempts linked to commercial orders, provider initiate + verification adapters, persisted callback correlation, exactly-once posting, reconciliation handling, and guarded fallback ONLY on unequivocally non-initiated/failed first attempts (never on unknown SEP outcomes).
+
+## Owner confirmation — singleton Level 1 and SEP terminal (2026-11-01)
+
+The owner explicitly confirms there is **exactly one Level 1 administrator** in this installation, and that account is the system owner. All other administrator accounts are **Level 2**. This invariant must be enforced at the role-grant and database levels, not merely reflected in the UI. No new or second Level1 assignment is allowed, including concurrency and imports; ensure bootstrap/recovery does not silently create a second root. The owner possesses SEP merchant terminal connection information; do not ask them to paste merchant secrets into chat or commit them to Git. SEP remains primary and Zarinpal secondary. Provider-specific adapter and verified test payments still required before Step06 can close.
+
+## Step 06 — owner acceptance (2026-11-01)
+
+Owner explicitly approved Step 06 and authorized moving to Step 07. SEP remains primary, Zarinpal fallback, and real PSP adapters remain outstanding in Step06 evidence; approval does not imply live payment gateway tests.
+
+## Step 07 — segregated root / partner accounting: source implementation (2026-11-01)
+
+Source commits introduce `PartnerRevenuePolicy`, `PartnerRevenueAllocationService`, `PartnerRevenueApprovalService`, domain unit tests, DI wiring and additive `20261101040000_AddPhase12PartnerAccounting` migration. The ledger uses **verified collections only**, frozen partner attribution on commercial orders, optional Level1-approved costs and approved partner revenue-share terms (basis points). Direct Level1 collections have zero partner share. Appends one allocation per collection, root/partner scoped read indexes; finance allocation, approved cost and share rate terms are append-only at DB level.
+
+Level1-only roles + MFA are checked server-side when approving costs or rates and posting allocations. For partner arrangements, exactly one effective time-window is required; no implicit share percentage. Collection row is locked during allocation and cost approval to avoid simultaneous edits. No automated settlements in this step (Step08).
+
+**NOT YET VERIFIED:** No .NET/PostgreSQL runtime was run here. Step07 API/UI read endpoints, independent root/partner ledger reporting, full purchase lifecycle and realistic concurrent PostgreSQL integration tests remain outstanding. The singleton Level1 invariant was documented but still needs database enforcement. Operator must run Mac same-SHA build/complete tests, inspect pending migrations and SQL, verify actual `argintaxpayer_test`, and execute the new migration only with explicit approval. Ubuntu only Step11. Do not call Step07 complete or publish share calculations as payable before validations and role-scope tests pass.
+
+## Step 07 — owner acceptance and closure (2026-11-01)
+
+**Owner decision: APPROVED / CLOSED for the agreed Step 07 handoff.** The owner expressly instructed finalizing Step 07. Its implemented scope is verified-cash partner allocation, root-only approved deductible costs, partner share terms, immutable allocation records, and the source tests committed on this branch. Proceed to Step 08 (settlements, reversals and corrections) only on the owner's next instruction.
+
+**Evidence distinctions:** owner acceptance does not assert that assistant executed macOS/PostgreSQL acceptance tests or that the pending migration was successfully applied. The previously documented open technical tasks—independent Level1/Level2 ledger reporting, end-to-end role isolation and concurrency regression, actual test DB migration evidence, and singleton Level1 database enforcement—remain explicitly tracked for follow-on integration/final acceptance. No production enablement or gateway success is implied. Ubuntu cross-platform validation remains Step 11.
+
+## Step 07 post-acceptance completion — reporting and integration audit
+
+Owner requested completion of missing integration tests and separated ledger reporting **before treating Step07 as technically finished**. Added `PartnerRevenueLedgerReadService` and `GET /api/dev/subscriptions/revenue-ledger`, loopback-only, bearer-authorized, with server-side SQL scope to root vs partner. Level2 partner data excludes root-only amounts. Root sees the root portfolio; partners see only their own collection allocations. `Phase12PartnerLedgerReportingTests` covers pagination and summary aggregation. `scripts/phase12-step07-ledger-audit.sql` is a read-only integration SQL check for actual PostgreSQL allocations, attribution, no duplicate collection allocations and cash conservation; it refuses any database other than `argintaxpayer_test`.
+
+**Still unverified:** Assistant did not execute Mac .NET tests, psql script, authenticated Level1/Level2 API requests, or verify seeded allocation data. Thus this is a committed implementation and a repeatable integration-test instrument, not observed PASS of end-to-end tests. Approval of Step07 was recorded earlier, but the *technical* verification gate remains open until actual macOS evidence of API tenant isolation, duplicate concurrent allocation, cost approval authorization and rate effective-window scenarios. No Ubuntu testing before Step11.
+
+## Step 07 acceptance — renewed owner confirmation (2026-11-01)
+
+Owner again confirmed Step07 is accepted and authorized Step08. Existing unexecuted regression and tenant-isolation tests remain documented honestly; this approval is not a substitute for their runtime results.
+
+## Step 08 — partial partner settlements and financial reversal foundation
+
+Implemented:
+- `PartnerSettlementPolicy`: deterministic outstanding/net-paid accounting; prohibits negative, overpaid and over-reversed balances.
+- `20261101050000_AddPhase12PartnerSettlements`: append-only settlement events with payment/reversal types, immutable history, unique bank/operator reference per root, and one full reversal per original payment.
+- `PartnerSettlementService`: Level1-with-MFA only, scopes each allocation to root owner, serializable transaction and `FOR UPDATE` row lock, idempotent record and reversal, rejects overpayment and double reversal. The service only records **independently verified** bank transfers; it does not initiate or execute a payment. Corrections use linked reversal and a new settlement; original receipts are never deleted.
+- Loopback-only administrative testing routes `POST /api/dev/subscriptions/settlements/record` and `/reverse`, domain unit tests, registration in API DI, and read-only `scripts/phase12-step08-settlement-audit.sql` for test PostgreSQL consistency.
+
+**Remaining for Step08 full signoff:** read-only settlement history / partner balance reporting (preferably with explicit root/partner scope), PostgreSQL seeded integration and concurrent idempotent requests, manual acceptance on macOS, app lifecycle/UI integration, and owner acceptance. No .NET SDK or test PostgreSQL was available to run them in this assistant execution; builds or migrations must not be claimed as PASS. Before applying the new migration, verify connection is truly `argintaxpayer_test`, review pending migration history and generated idempotent SQL. Ubuntu remains Step11. Do not run production financial commands from unverified development endpoints.
+
+### Step08 settlement reporting follow-up
+
+Added scoped `PartnerSettlementReadService` and development-only `GET /api/dev/subscriptions/settlements/balances` with Level1 root-wide and Level2 own-only visibility. Totals calculated from immutable settlement payment/reversal history. The endpoint is loopback-only, token protected and not cached. Service registered in API DI. Do not treat this as a substitute for PostgreSQL tenant integration QA and authenticated UI checks. Step08 remains awaiting owner-run tests and formal signoff.
+
+## Step09 owner sign-off and Step10 frontend work (2026-11-01)
+
+Owner states Step09 is approved and requests Step10. This records the owner's sign-off only; the repository as inspected did not show a completed SMS wallet backend or corresponding Step09 migration. Do not infer operational SMS-wallet completion from the owner's declaration. Explicit evidence remains necessary.
+
+Step10 source delivery:
+- Added `/subscriptions` role-gated Next.js admin page and nav/dashboard link for Level1/Level2.
+- Added responsive RTL tabbed UI: inactive plan definition, financial order issue, manually confirmed cash/bank collections, scoped root/partner revenue read, partner settlement balances and Level1-only settlement/reversal entry. UI is a development workspace; it does not perform fund transfers, merchant processing or automatic activation.
+- Next.js `/api/phase12/[...parts]` same-origin proxy reads the existing HttpOnly identity cookie server-side, checks role, enforces backend allowlist and restricted Level1 settlement mutation, and forwards to local-only .NET API. No user-supplied backend URL.
+- Added source-regression tests `phase12-step10-finance-ui.test.mjs` and styles.
+- **Known incompleteness:** The current catalog API only creates inactive plans; price-version creation/activation and customer-facing purchase remain unimplemented. The duration-plan UI currently requests the legacy `validityDays` backend contract, despite calendar-month expiry domain functions; must consolidate before live sales. No full UI for revenue-share terms/cost approval, customer subscription attachment, or SMS wallet exists. The page should not be marketed as live subscription selling. Real PSP adapters are also incomplete.
+- No direct macOS runtime, browser or .NET/PostgreSQL in assistant tool execution; frontend typecheck/build/tests and end-to-end checks have not been run. Step10 remains OPEN pending owner-run acceptance and completion of the gaps above. Ubuntu only Step11.
+
+## Step10 remediation — tariff, paid activation and SMS wallet (2026-11-01)
+
+Additional source delivered following owner's request:
+- Scoped `SubscriptionPriceAdministrationService` with live role+MFA, server-selected root/partner price owner, `POST /api/dev/subscriptions/prices`; separate Level1-only `POST /api/dev/subscriptions/plans/activate` requires root price version.
+- `CommercialSubscriptionActivationService` + additive `20261101070000_AddPhase12SubscriptionActivation`: a Level1 operator may activate a **positive, fully collected and receipt-reconciled** order exactly once. Purchase-time price/owner snapshot is preserved. Quantity credits are granted atomically with the new subscription and immutable order/subscription link. New order produces new subscription; no historical mutation.
+- `SmsWalletService` + additive `20261101060000_AddPhase12SmsWallet`: isolated per-customer balance, append-only grant/spend journal, idempotent operation keys, root-only explicit credit grant, authorized read, internal-only confirmed SMS spend; routed through local-only dev API and authenticated web proxy.
+- RTL UI includes partner-scoped price creation, Level1 plan activation, Level1 paid-order activation, SMS balance and root grant. Browser source tests expanded.
+- `scripts/phase12-step10-finance-audit.sql`: read-only test-DB SQL audit; expected PASS is not evidence until user actually executes the SQL against seeded relevant rows.
+
+**Important open acceptance blockers — do NOT mark Step10 fully complete:**
+1. No local Mac .NET build, npm typecheck/build/test, PostgreSQL migration or browser E2E ran in this execution. New code may require fixes upon testing.
+2. No full customer-facing catalogue purchase flow or authenticated searchable selectors; current development forms use IDs. The existing plan contract still stores `ValidityDays`, while expiration uses calendar months; quantity expiration is currently fixed at 12 months and needs product-level selectable expiry ≤12 months.
+3. For single-taxpayer subscriptions, activation currently creates a commercial subscription but does NOT atomically bind the selected taxpayer (legacy binding requires fiscal memory). The tenant/taxpayer entitlement enforcement must be integrated before paid customer access.
+4. Real SEP/Zarinpal provider initiation+server verification is still missing; manual verified collections are the only implemented payment path. Do not enable general checkout.
+5. SMS send coordinator is not wired to the internal confirmed-spend operation; financial SMS charge must not occur before confirmed delivery. No full wallet history UI or SMS pricing workflow yet.
+6. Singleton Level1 role remains a documented owner rule but is not yet globally enforced at the database level. Full tenant isolation and concurrent retry tests remain due.
+7. UI finance controls are development-only, and Level1 plan catalog activation is separate from paid customer subscription activation. Further production hardening/permission tests required.
+
+Owner can run Mac smoke checks on the branch: `zsh scripts/dev-up.zsh`; `dotnet build ArginTaxPayer.sln -c Release`; `dotnet test ArginTaxPayer.sln -c Release`; `cd apps/web && npm run typecheck && npm test && npm run build`. Inspect migrations and generated SQL before any test DB update, including `20261101060000_AddPhase12SmsWallet` and `20261101070000_AddPhase12SubscriptionActivation`. After verifying the real PostgreSQL target is `argintaxpayer_test`, apply reviewed migrations, then execute `scripts/phase12-step10-finance-audit.sql` with psql. Ubuntu remains Step11.
+
+## Step10 follow-up — compact plan catalog UI (2026-11-01)
+
+Owner explicitly requires plan list to match compact previous console pages, with same-page Add, View, Edit, Delete and a reusable modal rather than a tall scrolling form. Replaced scattered plan forms with `PlanCatalog` table, search, add/edit/view/archive modal, responsive RTL CSS and compact tariff/activation accordion. Created scoped admin list, update and deactivate APIs, with Next same-origin proxy for GET/PUT/DELETE. Each admin sees only its own plan codes; mutation requires live admin role and enabled MFA. Editing plan contractual fields is rejected once referenced by a price or subscription; create a new version instead. Delete means deactivate/soft archive, preserving historical financial records. One effect: previously inactive new plans may not be archived further because they are already inactive. Updated UI source regression tests.
+
+**Not run here:** macOS `npm run typecheck && npm test && npm run build`, .NET build, browser modal QA, or live API checks. Keep step 10 pending execution and repairs based on observed results. Price API and monthly calendar/financial lifecycle limitations described above remain unchanged.
+
+## Owner requirements — customer checkout and trial entitlement (2026-11-01)
+
+These eight requirements supersede assumptions that only administrators purchase subscriptions. All workflows remain separate from sending an *internal commercial bill* to the tax authority.
+
+1. **Unsubscribed trial:** one customer-owned taxpayer may be registered, and at most two **confirmed real invoice sends** are granted as trial entitlement without a paid plan. Implement persisted, atomic reservation and consume/release at the authoritative final-send boundary; deduplicate retries by tax invoice ID, never count drafts, inquiries, corrective events or failed/inconclusive sends twice. Unknown send outcomes keep a reservation until authoritative resolution; never free a slot and resend on an indeterminate send. The one-taxpayer limit must be enforced transactionally on the taxpayer create API, not only in the UI. Existing completed tax invoice events must be reconciled for pre-existing accounts.
+2. **Self-service:** profile displays "پلن‌های نرم‌افزار", with only the user's **own current commercial owner** and their effective plan/price versions. A Level1-direct customer uses root pricing; a partner-owned customer uses that partner's pricing only. Selection creates a versioned purchase snapshot.
+3. **Payment selection:** cash payment pending administrative approval OR independent PSP gateway verification. Client UI must not mark cash as paid.
+4. **Official software purchase invoice optional:** capture opt-in before checkout, snapshot root-configured VAT rate as integer basis points and separately snapshot base/tax/gross IRR. The financial invoice for the software purchase is separate from taxpayer e-invoices. Legal invoicing rules and applicable VAT rate require official validation; do not hardcode rate.
+5. **Merchant routing:** Level1 alone configures SEP/Zarinpal credentials in encrypted secret storage, grants provider access per Level2, and maps each owner+provider+official-invoice preference to distinct enabled merchant identity. A VAT purchase must never silently fall back to a no-VAT merchant. SEP primary, Zarinpal secondary **within the selected VAT class only**. Real PSP documentation, signature/verify, callbacks, retry state machine, reconciliation, webhook replay and settlement idempotence required before enabling public gateway checkout. Never store secret merchant credentials in source or browser responses.
+6. **Cash approval:** manual cash receipt creates **pending** commercial order, tied to actor's owner and plan snapshot. Only that customer's authorized commercial administrator can record/approve actual receipt; after independent confirmation, the amount and plan appear in administrative finance, with explicit approval that triggers activation atomically. Root remains sole Level1.
+7. **Header:** plan name and, for quantity plans, available invoice credits beside profile icon. Stale/cached display cannot authorize sends.
+8. **Dashboard:** active plan, expiry in calendar days and invoice credits when quantity-limited; trial used/remaining counters if unsubscribed. Display must be sourced from an authenticated server-scoped read model.
+
+Code already added in this workstream: `SubscriptionCheckoutPolicy.cs` and `Phase12CheckoutTrialPolicyTests.cs` (trial domain rules, integer VAT quotation, scoped merchant routing). **They are policy foundations only**: no persistence, actual trial send gate, checkout flow, merchant configuration UI or payment adapter yet. Existing Step10 administrative UI and current commercial order service must be refactored for client purchases and source-calculated VAT; currently admin-only order creation and Level1-only paid activation are incompatible with complete owner-requested flow. Release is blocked on these changes plus macOS tests, PostgreSQL concurrency integration and real PSP sandbox tests. No secrets should be posted to chat.
+
+## Owner amendment — Level2 independent cash verification; customer finance; quantity replenishment (2026-11-01)
+
+Owner clarification: an active Level2 administrator may independently confirm an actual cash/bank receipt for **their own customer's own attributed commercial order**, without Level1 pre-approval. Such confirmations must remain auditable and must not affect Level1 partner-settlement approval rights. Receipt confirmation is a financial action distinct from an unverified self-reported cash-payment choice.
+
+Implemented this turn:
+- Tightened `VerifiedCollectionService.RecordManualAsync` to current commercial owner and order attribution. In partner-managed orders, a root administrator cannot bypass the partner as cashier. Requires active admin and enabled MFA; verified-collection journal remains append-only.
+- `CommercialSubscriptionActivationService` now permits the commercial owner Level2 to activate its own **already fully paid, receipt-reconciled** order, without root approval. Activation remains unique per order; no authority invoice dispatch changes.
+- `CustomerFinancialHistoryService`, local-only customer report API, Next server-side cookie proxy, RTL `/financial-history` page, and navigation/dashboard link. Reads order history scoped by the authenticated identity (no customer-id parameter); reports amounts, collection status, commercial invoice number, activated subscription and expiry.
+- `SubscriptionRenewalPolicy`: distinguishes new, renewal, repurchase and quantity add-on. An add-on must carry the base active quantity subscription's **exact expiry**. A new/repeat pack uses its own bounded plan validity. Unit tests cover this pure policy.
+
+**NOT FINISHED / blocked before live checkout:**
+- Purchase purpose, add-on base subscription, expiry inheritance and credit grant are NOT YET persisted/attached to the actual commercial order and activation services. Domain policy alone does not enable an add-on purchase. Existing activation still uses the hardcoded 12-month quantity expiration and requires correction.
+- Customer self-service checkout with optional official purchase invoice VAT, cash-pending approval request workflow and linked merchant routing (SEP/Zarinpal with VAT/no-VAT merchant credentials) are not wired. PSP credentials must be protected and verified via server-to-server PSP API.
+- Trial 1 taxpayer / 2 confirmed sends must be enforced within the actual taxpayer creation and final send transaction; domain test does not enforce real limits.
+- Customer history does not yet provide trustworthy labels for purchase/renewal/add-on because the existing order table has no immutable purchase-purpose field. It shows actual order and subscription data without making up the subtype.
+- Header/dashboard subscription status and remaining quantity have not been implemented; test isolated vs actual send pipeline before enabling.
+- No actual .NET runtime, PostgreSQL migration, tests or browser execution by assistant. Owner macOS QA and integration/concurrency/tenant tests required. No claim of closing the eight-item checkout initiative until the above are addressed.
+
+## Combined checkout acceptance request — consolidated progress
+
+Owner requests a single delivery that closes the complete subscription checklist. Changes introduced in this batch:
+- `CustomerSubscriptionOverviewService` provides a strictly current-user-scoped active subscription, expiry and quantity-plan available balance read model; `/api/dev/subscriptions/customer-overview/me` via the same-origin authenticated Next proxy.
+- `SubscriptionStatus` renders the plan next to customer header/profile navigation and on the dashboard. Trial label is informational only; the counter shown for trials is NOT yet authoritative, and **must never be used to authorize dispatch**.
+- Customer profile now links to financial history and clearly marks new checkout as unavailable until validated.
+No real commercial checkout was enabled in this batch.
+
+**Blocking implementation acceptance (OPEN):** durable trial quota/reservations integrated with real taxpayer registration and send; self-service owned-plan catalog + transactional purchase order; immutable VAT invoice choice and source-calculated totals; encrypted Level1 merchant configuration and per-Level2 per-VAT toggles; SEP/Zarinpal server verify integration with idempotent callbacks; quantity add-on credit ledger attachment and exact base expiry inheritance; financial history immutable purchase purpose/payment-method breakdown; truthful trial usage and multiple active quantity packs summary; end-to-end macOS DB, API, frontend, and PSP sandbox checks. Admin approval and staged manual collections are covered in the follow-up section below; production checkout/payment acceptance still requires the other blockers. The root singleton invariant and official invoice legal requirements also require a verified gate. A successful UI build alone does not close this list.
+
+## Customer cash-checkout integration slice — 2026-11-01
+
+This change set adds:
+- `CustomerCheckoutService` + local API: authenticated customer-owned available-plan listing (only effective price for current assigned root/partner), immutable cash-pending order insert and invoice snapshot with idempotency key. This route does NOT accept buyer-supplied price or owner and does not post verified collections.
+- Next server-side token proxy `/api/customer-checkout`, customer-only `/customer-plans` page, profile link; explicit fail-closed official VAT and gateway choices until real root tax settings and PSP server verification exist.
+- Owning-admin `CommercialPendingCashService` / `/api/dev/subscriptions/cash-pending` and finance inbox selecting an order for manual verification.
+- Unit/source tests for checkout UI; current-user subscription balance read model in header/dashboard is informational.
+
+CRITICAL: Do not claim full eight-point acceptance or live checkout. No Mac tests or real PSP verification have run. The following remain release blockers:
+1. Trial quota persisted atomic reservation for 2 confirmed sends, and one-taxpayer create enforcement in actual Phase10/party services.
+2. Optional official purchase tax invoice with protected current VAT setting, immutable tax arithmetic; separate VAT/no-VAT merchant config encrypted by Level1 and per-partner enablement.
+3. SEP/Zarinpal initiation/verification via documented provider APIs and replay-safe callback reconciliation. Do not enable a payment initiation button until verified.
+4. Admin approval and staged cash/bank collection are implemented in the finance workspace below. Collection remains manually confirmed by an admin; gateway initiation and independent PSP verification are still unavailable.
+5. Renewal and quantity add-ons need persisted order purpose and atomic credit inheritance; do not just extend time for an add-on.
+6. Trial usage counters and multi-pack summary require authoritative dispatch accounting; current dashboard trial counter is *illustrative* and must be corrected.
+7. Database integration, effective price under concurrency, tenant isolation, idempotency, manual approval and browser QA must all run on a test DB before signoff.
+
+## Checkout implementation increment and migration (2026-11-01)
+
+Added migration `20261101220000_AddPhase12CheckoutSettings`:
+- Level1-root VAT setting (basis points) for future software-sale invoices.
+- Immutable `commercial_checkout_order_options` with purchase purpose, future add-on linkage, official-invoice choice, locked base/VAT/gross IRR, and payment method. Existing orders are not backfilled; historic invoices remain separate.
+- Root-MFA-only rate read/write service and local settings API with a Level1 UI.
+- Customer cash checkout now calculates VAT from the root's trusted setting; customers cannot choose a rate. Payment continues as **cash pending** until the owning administrator independently verifies receipt. No automatic payment success.
+- Read-only `scripts/phase12-checkout-audit.sql` validates order/option totals after applying the migration on `argintaxpayer_test`.
+
+**CRITICAL unresolved**: Checkout idempotency for preexisting purchases needs verified immutable-option comparisons (not just price/version), and concurrent initial reads must be integration tested. This migration does not make live provider payments possible. No encrypted SEP/Zarinpal credential custody or per-Level2 terminal binding, PSP initiate/verify, taxpayer creation limit, or final-dispatch atomic trial accounting has been added yet. Purchase purposes are recorded as initial purchase for current cash checkout; quantity repeat/add-on flow is not operational. Header trial count is illustrative. Do not approve all checklist gates.
+
+Before migration, check actual test DB, review generated SQL and pending migrations; no Mac or Ubuntu tests were executed in this connector session. Test results must be supplied by operator.
+
+## Unapplied migration refinement — shared application settings (2026-11-01)
+
+Owner confirmed checkout settings migration `20261101220000_AddPhase12CheckoutSettings` has NOT been applied. The existing migration file was edited in place: it now creates `application_settings(scope_user_id,setting_key,value_json,updated_by_user_id,updated_at_utc,revision)` with a compound key, instead of `commercial_checkout_tax_settings`. Settings are stored as JSONB and scoped to the owning root; `checkout.vat` uses `{ "basis_points": 1000 }` as the example payload, but no tax rate is preconfigured by the migration. All checkout and Level1 VAT administration queries reference the generic table. Other checkout order-options schema is preserved. For subsequent settings, prefer a registered key and dedicated typed validation in application code, not a new single-purpose table. No existing production or test DB has been touched from this session; run migration only after confirming the database and generated SQL on Mac. New read-only audit: `scripts/phase12-application-settings-audit.sql`. If any other environment has already applied the old migration, editing applied migration history is unsafe and requires a forward-only migration instead.
+
+## Admin approval and staged collections — 2026-11-01
+
+- In «ثبت دریافت», admins can approve and activate a customer subscription regardless of whether the order has no receipts, partial receipts, or full receipts. Approval does not change the order total or collected amount.
+- Level 1 can approve and collect orders under its root, including partner-attributed orders. Level 2 can approve and collect only orders attributed to that partner. Admin MFA remains required for approval and manual receipt recording.
+- The inbox displays the current responsible Level 2 administrator name (or «فروش مستقیم»). An order remains in the inbox until it is both approved and fully settled; its sale remains visible in the revenue report afterward. Each manual cash/bank receipt is individually recorded with its amount, method, reference, timestamp, and admin; history is shown in the row's payment details.
+- `20261101230000_RenameSubscriptionApprover` renames the activation audit actor to the role-neutral `approved_by_user_id`. `/orders/approve` is the explicit approval route; the previous paid-activation path remains as an alias.
+- The standalone «سفارش مالی» tab has been removed from this workflow. The manual order API is retained for compatibility. No test or build commands were run for this change; database migration and browser behavior still require environment-level verification.
+
+
+## Plan sales and period receivables report — 2026-11-02
+
+- «گزارش درآمد» now starts with a paged plan-sales report including fully paid orders, partially paid orders, and unpaid requests with their activation state. Voided/rejected orders are excluded. The revenue-allocation view was removed from this tab at the owner’s request; settlement remains in its own tab.
+- `GET /api/dev/subscriptions/sales-report` accepts `period=month` (default) or `period=year`, `page` (default 1) and a fixed page size of 10. The authenticated Next proxy allowlists the route and period; the backend independently validates period, pagination, active admin and ownership scope.
+- Period selection uses the order issue date, the Persian calendar and Tehran time: the current month or the current year from its first day through the current instant. Level 2 sees only orders attributed to itself; Level 1 sees matching root snapshots or current root customer ownership, consistent with the collections inbox.
+- Columns show customer, current responsible Level 2 administrator, plan, sale date, gross price, cumulative verified receipts, remaining receivable, payment state and activation state. Partner profile names fall back to email/mobile/identity; direct sales show «فروش مستقیم».
+- Totals cover every matching sale before pagination: gross sales, cumulative collected amount, and outstanding receivables. Collections use the commercial-order counter maintained atomically by verified receipts. They include all receipts to date for sales issued in the selected period, including cash/bank receipts; this is not a report grouped by receipt date. Previous-period orders/debts are excluded.
+- No schema migration is needed. Automated verification covers Persian/Tehran boundaries, paid/partial/unpaid totals across pages, rendered sale rows, request cleanup and authenticated proxy query forwarding. Live PostgreSQL and browser acceptance require the running environment.
+
+- Verification on 2026-11-02: backend 1,352 passed / 28 skipped; finance/report web tests 10 passed; TypeScript and production build passed. Full web suite has 509 passes and one unchanged checkout source-regex failure (`Customer cash checkout is server-owned and fail-closed for VAT/PSP`). PostgreSQL integration was not enabled and browser acceptance was not run.
+
+
+### Finance report corrections — 2026-11-02
+
+- Removed the allocation report UI and its ledger/settlement background reads from the revenue tab. Settlements are requested only when opening their own tab.
+- The running local API was serving an older binary without `/sales-report` (404); the local API was restarted with the current build and the route now returns 401 for unauthenticated access (rather than 404), with readiness 200.
+- The Level 2 name now follows current customer commercial ownership within the visible root; historical order attribution is a fallback only when no current ownership is available in scope. Names fall back to company, email, mobile and identity ID. This is display-only: financial snapshots and authorization scope are unchanged.
+- Inbox loading replaces stale rows inside a full-width table cell. The table marks `aria-busy` and keeps a centered, reserved loading area.
+- Read-only execution of the actual inbox SQL against the dedicated test database verified both visible orders resolve to the current Level 2 name. No database rows were changed.
+
+- Follow-up verification: 12 finance/report UI tests passed, backend suite 1,352 passed / 28 skipped, and TypeScript passed. Full web suite: 511 passed and the same pre-existing checkout source-regex failure. The local API restart preserved the existing configuration; no migration was applied.
+
+
+## Server pagination for finance tables — 2026-11-02
+
+- All tables in the subscriptions finance workspace now request ten rows per server page: plan catalog, manual collections inbox, plan sales, partner settlement balances, order receipt history, and plan-price history. SMS wallet has no table.
+- Sales and inbox execute a scoped SQL aggregation for total count/financial totals and a deterministic `LIMIT 10 OFFSET ...` data query. The old 100-order inbox cap and in-memory sales slicing are removed. Settlements aggregate full-scope positions and page only the visible allocation rows in SQL.
+- Plan catalog applies role scope and code/Persian plan-kind search in SQL before counting and paging, and only loads price summaries for the ten visible plans. Price history applies plan/root/partner filters before paging. Existing catalog/history callers without `page` retain their array responses; the finance UI always sends `page` and consumes the page envelope.
+- `cash-pending?page=1`, `sales-report?period=month&page=1` and `settlements/balances?page=1` return `items`, `totalCount`, `page`, `pageSize=10`, plus existing financial totals where relevant. `collections/history?orderId=...&page=1` authorizes the order before exposing receipt counts/references and returns its own page envelope. The proxy validates and forwards page, order ID and catalog search.
+- Every pager displays the full row count and previous/next controls. Page/search/period changes request new data from the server; loading displays the table shell and spinner. The sales filter and refresh button share the same baseline and control height. Financial totals remain for the whole selected scope/period rather than the visible ten rows.
+- No schema change or migration is required. PostgreSQL acceptance uses transaction-local synthetic fixtures and rollback; existing financial records remain unchanged.
+
+- Verification for server pagination: four live PostgreSQL integration tests passed using rollback fixtures; full backend suite 1,364 passed / 28 skipped; TypeScript passed. Web suite 518 passed with the unchanged checkout source-regex failure. Race-condition regressions cover out-of-order inbox/settlement responses and sales-page correction after total count shrinks. Updated local API readiness is 200; no migration was applied.
+
+
+### Revenue Level 2 administrator filter — 2026-11-02
+
+- The revenue toolbar includes «ادمین سطح ۲» with «همه ادمین‌ها» and scoped administrator options. Changing this selection resets the sale page to 1 and retains the selected Persian month/year filter.
+- `sales-report` accepts optional `partnerUserId` (GUID). This filters the same current responsible Level 2 identity displayed in the table, with the historical snapshot fallback already described above. SQL applies the filter before total count, financial aggregation and `LIMIT 10 OFFSET` paging; no browser-only row filtering is used.
+- Filter choices are returned as `partners` (`partnerUserId`, `displayName`) from the caller's permitted non-voided sales through the report instant, independent of selected period/partner. Choices are not derived from only the current ten rows. Role/root ownership predicates apply to both choices and report rows; selecting another UUID cannot broaden access.
+
+- Verification: the selected-partner PostgreSQL integration test passed with rollback fixtures, including full-scope totals, empty foreign selection and scoped filter options. Seven sales-report frontend tests and TypeScript passed. Full backend suite: 1,365 passed / 28 skipped. Full frontend suite: 519 passed and the unchanged `Customer cash checkout is server-owned and fail-closed for VAT/PSP` source-regex failure. The local API was restarted with the filter enabled and readiness is 200.
+
+
+## Partner-selected batch settlement vouchers — 2026-11-02
+
+This section replaces the old allocation-payment UI described in Step08. The legacy journal remains immutable and readable for historical reconciliation; it is not relabeled as incoming Level2→Level1 money.
+
+- Mandatory Level2 selection identifies the counterparty before preview or registration. A dedicated compact workspace uses the existing table/loading style and ten-row database pagination for history, previews and saved details.
+- The source is verified cash/bank receipts, not order totals/debts or sale dates. New receipts on old plan orders participate. Cash/bank are treated as held by Level2 regardless of which admin verified them, per owner clarification. Gateway ownership/configuration is deferred: verified gateway rows are shown in a pending-ownership count and remain unclaimed.
+- First coverage resolves current customer commercial ownership with historical-order fallback; direct-root receipts are excluded until a partner is assigned. First coverage freezes the root, partner, rate and customer/plan display snapshot. Later ownership/profile/rate changes never rewrite existing vouchers.
+- Level1 explicitly configures the partner percentage using `application_settings` key `settlement.partner.<partner UUID>`. Existing effective approved terms may provide a fallback. Missing percentages block registration; no default rate is invented. UI percentages are 0–100, converted to basis points only at the API boundary.
+- Operating expenses are approved against a verified receipt, with explicit payer (Level1 or Level2), evidence reference and note. Costs cannot exceed that receipt's collected amount. Shares divide net receipts after costs. Net owed to Level1 equals its share plus costs it paid. Level2-paid costs are retained/reimbursed on the Level2 side. Existing approved costs count as Level1-paid.
+- Every subsequent batch captures only changes since the previous cumulative receipt snapshot. A newly received installment contributes its actual new receipt; a later expense contributes only the changed cost/share/net, with zero new gross receipt. Negative net reverses payer/receiver; zero net is recorded as no fund movement. This is recording of independently confirmed transfers, not automated bank payment.
+- `partner_settlement_batches`, `partner_settlement_batch_lines` and `partner_settlement_expenses` are additive immutable tables. Unique coverage inputs, shared partner/root advisory locks, receipt locks, serializable transactions/retries, exact-payload operation keys and server-recomputed preview fingerprints prevent duplicate or stale posting. Legacy mutation guards prohibit claiming a batch-covered receipt again; receipts with preexisting legacy events are excluded and counted for reconciliation.
+- Each voucher stores its own header and line snapshots. Printable detail reads every saved line, independent of ten-row interactive pagination, with payer/receiver, customer, plan, source receipt/date/channel, cumulative amounts, new amounts, costs, both percentages/shares and net. Future rates or profile edits do not change printed history.
+- New local-only endpoints: `GET settlements/partners`, `PUT settlements/terms`, `GET settlements/preview`, `GET/POST settlements/batches`, `POST settlements/expenses`, `GET settlements/batch` and `GET settlements/print`. Writes require active Level1 and MFA. Level2 reads only its own counterpart history/preview; historical batches remain accessible after root changes. The cookie proxy allowlists routes and denies Level2 writes independently.
+- Additive migration `20261102020000_AddPartnerBatchSettlements` was reviewed and applied alone to the verified dedicated `argintaxpayer_test` database. No previous migration, financial row or production environment was modified. Read-only audit: `scripts/phase12-batch-settlement-audit.sql`.
+
+- Verification: 16 policy tests and seven real PostgreSQL rollback-only tests passed, with both review regressions rerun successfully after fixes. Full backend suite: 1,388 passed / 28 skipped. Settlement UI/proxy tests and TypeScript passed. Full web suite: 528 passed with the unchanged checkout source-regex failure. Read-only batch audit found no mismatches and no synthetic financial data remained. The updated API is ready (200), new routes are guarded (401 unauthenticated). Interactive browser printing was not exercised; immutable full-detail output and escaping were tested.
+
+## Owner-approved financial policy: activation with outstanding receivables
+
+The owner explicitly authorizes a Level1 or Level2 administrator to approve and activate its authorized customer's commercial subscription even if no payment or only partial payment has yet been received. This is a credit/receivable approval, **not** payment verification.
+
+Implementation: `CommercialActivationApprovalPolicy.RequireApprovable` is called inside `CommercialSubscriptionActivationService.ApproveOrderCoreAsync`. Positive, non-voided, financially consistent orders are approvable independent of collection balance; root/partner authorization, MFA, customer locking, duplicate activation prevention, and independent collection-journal reconciliation remain mandatory. Activation does not change `commercial_orders.collected_amount_irr` and must not create a `commercial_collections` receipt. Outstanding amount remains `gross_amount_irr - collected_amount_irr`; later confirmed payments use `VerifiedCollectionService`. Partner revenue sharing/settlement continues to depend on verified cash rather than approval of credit.
+
+Tests: `Phase12CommercialActivationApprovalPolicyTests` covers zero collection, partial collection, fully collected, voided, invalid and over-collected balances. Existing `scripts/phase12-step10-finance-audit.sql` accepts approved unpaid orders while verifying receipts/ownership/credit conservation. No DB migration is required for this policy-only change. Runtime macOS and Ubuntu tests have not been executed by the assistant and must be operator-verified.

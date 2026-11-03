@@ -98,7 +98,7 @@ WHERE id=@memory AND customer_user_id=@owner AND taxpayer_id=@taxpayer
                 operation.StateRevision, ct);
             if (started.Status != Phase10DispatchAttemptStartStatus.Started ||
                 started.AttemptId is not { } attemptId || started.NewStateRevision is not { } sendingRevision)
-                return new("Blocked", "dispatch_attempt_not_started");
+                return new("Blocked", started.BlockingCode ?? "dispatch_attempt_not_started");
 
             var result = await sender.SendPreparedAsync(prepared, ct);
             // Sanitized diagnostic: no token, signed payload, fiscal identifier, or provider body.

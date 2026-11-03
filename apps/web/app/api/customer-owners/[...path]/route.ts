@@ -31,7 +31,7 @@ async function handle(req: NextRequest, ctx: Context, method: "GET" | "POST") {
   }
   const target = path[0] === "list" ? "" : "/" + path.join("/");
   const allowed = new URLSearchParams();
-  for (const key of ["page", "pageSize", "query", "ownership"]) {
+  for (const key of ["page", "pageSize", "query", "ownership", "role"]) {
     const value = req.nextUrl.searchParams.get(key);
     if (value !== null) allowed.set(key, value.slice(0, 120));
   }

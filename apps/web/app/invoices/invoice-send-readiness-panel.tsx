@@ -1,5 +1,6 @@
 "use client";
 import {useCallback,useEffect,useRef,useState} from "react";
+import {redirectForInvoiceSubscription} from "../../lib/invoice-subscription";
 import InvoiceDispatchHistory from "./invoice-dispatch-history";
 
 type Report={environment:"Sandbox"|"Unverified";invoiceState:"Draft"|"Validated"|"Finalized";
@@ -270,6 +271,7 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
      credentials:"same-origin",signal});
     const result=await response.json();
     if(signal?.aborted)return;
+    if(!response.ok&&redirectForInvoiceSubscription(result))return;
     if(!response.ok)throw Error("send_response_unavailable");
     if(result.status==="Acknowledged"&&typeof result.referenceNumber==="string"&&result.referenceNumber)
      referenceNumber=result.referenceNumber;
