@@ -967,3 +967,8 @@ npm run build
 Manual QA: sign in as Customer, Level2 and Level1. Verify critical center and quick links are immediately visible while the first authenticated fetch is in flight, and optional analytics initially closed. Expand and close financial/trend/subscription sections repeatedly; check keyboard, mobile, role scopes, and that old reports still appear. Force a subscription API failure: the alert center must not show a false all-clear. Confirm navigation links are GET-safe and non-mutating. For Level2 verify no root financial share; for Customer no subscriptions-watch request and no financial charts. No new database schema work. Ubuntu acceptance remains reserved for later phase gates.
 
 **Code committed; runtime PASS requires macOS operator test output.** This remains the sole canonical Phase15 document.
+
+### Step12 management shortcut and approval limitation
+
+- For Level1, the priority center provides a safe navigation link to the existing `/users` management workflow. It does **not** fabricate a count of pending approvals or claim that all approval queues are integrated.
+- No authenticated, consolidated pending-approval read contract has been verified for this stage. A live count across key approvals, memory-change approvals and owner reassignment approvals requires explicit source mapping and role-scoped server aggregation in a later step; until then no potentially incorrect number is displayed.
