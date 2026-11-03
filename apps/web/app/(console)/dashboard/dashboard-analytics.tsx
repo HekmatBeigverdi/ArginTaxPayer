@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import PartnerDashboardDetails from "./partner-dashboard-details";
 import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
 
 type Role = "Level1" | "Level2" | "Customer";
@@ -591,6 +592,14 @@ export default function DashboardAnalytics({ role }: { role: Role }) {
         </DashboardPanel>
       </div>
 
+      {role === "Level2" && (
+        <PartnerDashboardDetails
+          finance={financeState.data}
+          financeState={financeState.status}
+          periodLabel={periodNames[period]}
+          onRetry={retryRead}
+        />
+      )}
       <div className="argin-dashboard__footer-grid">
         <DashboardPanel title="موارد نیازمند پیگیری">
           {attentionState.status === "loading" ? <DashboardSkeleton variant="list" rows={4} /> : (
