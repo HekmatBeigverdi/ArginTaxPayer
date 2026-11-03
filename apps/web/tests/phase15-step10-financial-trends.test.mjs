@@ -19,7 +19,7 @@ test("financial chart TSX compiles syntactically",()=>{
 });
 test("chart is admin-only and root share selector is Level1-only",()=>{
  assert.match(root,/\{admin && <DashboardFinancialCharts/);
- assert.match(chart,/role==="Level1"\?/);
+ assert.match(chart,/role\s*===\s*"Level1"\s*\?/);
  assert.match(chart,/rootEarnedShareIrr/);
  assert.match(proxy,/section === "financial-trends"\) && !administrator/);
  assert.match(endpoint,/"financial-trends"=>await service\.FinancialTrendsAsync/);
@@ -36,12 +36,12 @@ test("server scopes before grouping and uses distinct event clocks",()=>{
  assert.match(backend,/WHEN e.kind=1 THEN e.amount_irr ELSE -e.amount_irr/);
 });
 test("chart is read-only, loading independently with accessible table and no pretend money",()=>{
- assert.match(chart,/fetch\("\/api\/dashboard\/financial-trends\?period="\+period/);
- assert.match(chart,/cache:"no-store"/);
+ assert.match(chart,/fetch\("\/api\/dashboard\/financial-trends\?period="\s*\+\s*period/);
+ assert.match(chart,/cache:\s*"no-store"/);
  assert.match(chart,/controller\.abort\(\)/);
  assert.match(chart,/setData\(null\)/);
  assert.match(chart,/aria-busy="true"/);
- assert.match(chart,/aria-labelledby=\{id\}/);
+ assert.match(chart,/aria-labelledby=\{titleId\}/);
  assert.match(chart,/<table className=/);
  assert.match(chart,/مانده فروش، وضعیت فعلی/);
  assert.doesNotMatch(chart,/Math\.random|mockData|demoData|method:"POST"/);
