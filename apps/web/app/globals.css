@@ -1235,3 +1235,12 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 @keyframes invoice-lineage-shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
 @media(max-width:540px){.invoice-lineage-loading{padding-inline:0}.invoice-lineage-loading .argin-loader-subtitle{max-width:260px}}
 @media(prefers-reduced-motion:reduce){.invoice-lineage-skeleton__card>span{animation:none}}
+
+/* Subscription metrics keep four equal columns on wide screens. */
+.app-summary.subscription-summary {grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+.subscription-summary>div {display:flex;align-items:center;gap:14px;min-height:112px;padding:20px;border-color:var(--argin-line,#dae6ed);border-radius:16px}
+.subscription-summary__icon {display:flex;align-items:center;justify-content:center;flex:0 0 46px;height:46px;border-radius:14px;background:#e8f5f2;color:var(--argin-primary,#177f81)}
+.subscription-summary small {font-size:12px;line-height:1.7;margin-bottom:8px}
+.subscription-summary strong {display:block;font-size:18px;line-height:1.6;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+@media(max-width:1100px){.app-summary.subscription-summary {grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:480px){.app-summary.subscription-summary {grid-template-columns:minmax(0,1fr)}}

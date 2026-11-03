@@ -45,12 +45,12 @@ test("dashboard stays structurally visible during loading with SVG waiting per r
   assert.ok(!client.includes('state!=="ready"?<DashboardState'));
 });
 
-test("quick actions render immediately and remain content height",()=>{
+test("quick actions render immediately and stretch to match the neighboring card",()=>{
   assert.ok(client.includes('title="دسترسی سریع"'));
   assert.ok(client.includes('className="argin-dashboard__side"'));
-  assert.ok(css.includes(".argin-dashboard__side>.argin-dashboard__card {height:auto;min-height:0}"));
-  assert.ok(css.includes("align-items:start"));
-  assert.ok(css.includes("align-self:start"));
+  assert.ok(css.includes(".argin-dashboard__side {min-width:0;display:flex;align-self:stretch}"));
+  assert.ok(css.includes("align-items:stretch"));
+  assert.ok(css.includes("align-self:stretch"));
   assert.ok(client.includes('href="/invoices"'));
   assert.ok(client.includes('href="/parties"'));
 });

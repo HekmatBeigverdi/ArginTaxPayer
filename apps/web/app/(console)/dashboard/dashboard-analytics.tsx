@@ -2,6 +2,9 @@
 
 import Link from "next/link";
 import PartnerDashboardDetails from "./partner-dashboard-details";
+
+import DashboardCalendar from "./dashboard-calendar";
+import DashboardIcon from "../../components/dashboard-icon";
 import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
 
 type Role = "Level1" | "Level2" | "Customer";
@@ -398,23 +401,6 @@ function DashboardTrendChart({ data }: { data: Trends["buckets"] }) {
       <p className="argin-dashboard__kpi-note">
         تأییدها بر مبنای تاریخ صدور صورتحساب محاسبه شده‌اند، نه تاریخ پاسخ سازمان.
       </p>
-      <div className="argin-dashboard__table-wrap">
-        <table className="argin-dashboard__table">
-          <caption>جدول معادل نمودار، آخرین روزهای دارای فعالیت</caption>
-          <thead>
-            <tr><th scope="col">روز</th><th scope="col">صدور</th><th scope="col">تأیید</th></tr>
-          </thead>
-          <tbody>
-            {data.slice(-7).map((bucket, index) => (
-              <tr key={index}>
-                <td>{formatDate(bucket.date)}</td>
-                <td>{formatNumber(bucket.issued)}</td>
-                <td>{formatNumber(bucket.acceptedByIssueDate)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
     </>
   );
 }
@@ -583,13 +569,55 @@ export default function DashboardAnalytics({ role }: { role: Role }) {
               : <DashboardTrendChart data={trendState.data?.buckets ?? []} />
           )}
         </DashboardPanel>
-        <DashboardPanel title="ترکیب آخرین وضعیت صورتحساب‌ها">
-          {overviewState.status === "loading" ? <DashboardSkeleton variant="chart" /> : (
-            overviewState.status === "error" ? <DashboardState kind="error" onRetry={retryRead} /> : (
-              overview ? <DashboardStatusChart status={overview.invoiceStatus} /> : <DashboardState kind="empty" />
-            )
-          )}
-        </DashboardPanel>
+        <div className="argin-dashboard__side">
+          <DashboardPanel title="دسترسی سریع">
+            <nav className="argin-dashboard__quick" aria-label="اقدامات پرکاربرد">
+              <Link href="/invoices">
+                <span className="argin-dashboard__quick-icon"><DashboardIcon name="invoice" /></span>
+                <span>صورتحساب‌ها</span>
+              </Link>
+              <Link href="/parties">
+                <span className="argin-dashboard__quick-icon"><DashboardIcon name="parties" /></span>
+                <span>خریداران و مؤدیان</span>
+              </Link>
+              <Link href={admin ? "/subscriptions" : "/account"}>
+                <span className="argin-dashboard__quick-icon"><DashboardIcon name="subscription" /></span>
+                <span>{admin ? "اشتراک‌ها و فروش" : "اشتراک من"}</span>
+              </Link>
+            </nav>
+            {role === "Customer" && overviewState.status === "loading" && (
+              <div className="argin-dashboard__subscription-waiting" aria-label="در حال دریافت اشتراک">
+                <DashboardSkeleton rows={1} />
+              </div>
+            )}
+            {role === "Customer" && overviewState.status === "error" && (
+              <p className="argin-dashboard__kpi-note">
+                وضعیت اشتراک در دسترس نیست. <Link href="/account">مشاهده حساب</Link>
+              </p>
+            )}
+            {role === "Customer" && overview?.subscription && (
+              <section className="argin-dashboard__subscription" aria-label="وضعیت اشتراک فعلی">
+                <div className="argin-dashboard__subscription-name">
+                  <span>اشتراک فعلی شما</span>
+                  <strong>{overview.subscription.planName}</strong>
+                  <span className="argin-dashboard__subscription-badge" data-active={overview.subscription.hasActivePlan}>
+                    {overview.subscription.hasActivePlan ? "فعال" : "غیرفعال"}
+                  </span>
+                </div>
+                <div className="argin-dashboard__subscription-remaining">
+                  <strong>{formatNumber(Math.max(0, overview.subscription.remainingDays))}</strong>
+                  <span>روز اعتبار باقی‌مانده</span>
+                </div>
+                {overview.subscription.remainingInvoices !== null && (
+                  <p className="argin-dashboard__subscription-quota">
+                    <strong>{formatNumber(overview.subscription.remainingInvoices)}</strong> صورتحساب باقی‌مانده
+                  </p>
+                )}
+              </section>
+            )}
+            <DashboardCalendar />
+          </DashboardPanel>
+        </div>
       </div>
 
       {role === "Level2" && (
@@ -623,35 +651,13 @@ export default function DashboardAnalytics({ role }: { role: Role }) {
             )
           )}
         </DashboardPanel>
-        <div className="argin-dashboard__side">
-          <DashboardPanel title="دسترسی سریع">
-            <nav className="argin-dashboard__quick" aria-label="اقدامات پرکاربرد">
-              <Link href="/invoices">صورتحساب‌ها</Link>
-              <Link href="/parties">خریداران و مؤدیان</Link>
-              <Link href={admin ? "/subscriptions" : "/account"}>
-                {admin ? "اشتراک‌ها و فروش" : "اشتراک من"}
-              </Link>
-            </nav>
-            {role === "Customer" && overviewState.status === "loading" && (
-              <div className="argin-dashboard__subscription-waiting" aria-label="در حال دریافت اشتراک">
-                <DashboardSkeleton rows={1} />
-              </div>
-            )}
-            {role === "Customer" && overviewState.status === "error" && (
-              <p className="argin-dashboard__kpi-note">
-                وضعیت اشتراک در دسترس نیست. <Link href="/account">مشاهده حساب</Link>
-              </p>
-            )}
-            {role === "Customer" && overview?.subscription && (
-              <p className="argin-dashboard__kpi-note">
-                اشتراک فعلی: {overview.subscription.planName} · {formatNumber(overview.subscription.remainingDays)} روز مانده
-                {overview.subscription.remainingInvoices !== null
-                  ? " · " + formatNumber(overview.subscription.remainingInvoices) + " صورتحساب باقی‌مانده"
-                  : ""}
-              </p>
-            )}
-          </DashboardPanel>
-        </div>
+        <DashboardPanel title="ترکیب آخرین وضعیت صورتحساب‌ها">
+          {overviewState.status === "loading" ? <DashboardSkeleton variant="chart" /> : (
+            overviewState.status === "error" ? <DashboardState kind="error" onRetry={retryRead} /> : (
+              overview ? <DashboardStatusChart status={overview.invoiceStatus} /> : <DashboardState kind="empty" />
+            )
+          )}
+        </DashboardPanel>
       </div>
     </div>
   );

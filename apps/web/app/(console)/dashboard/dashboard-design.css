@@ -90,19 +90,22 @@
 .argin-dashboard__legacy{border:1px solid var(--argin-line,#dae6ed);background:#fff;border-radius:14px;padding:14px 16px;margin-top:18px}
 .argin-dashboard__legacy>summary{cursor:pointer;font-size:13px;font-weight:800;color:#176d6a;display:flex;align-items:center;justify-content:space-between;gap:12px;list-style:none}
 .argin-dashboard__legacy>summary::-webkit-details-marker{display:none}
-.argin-dashboard__legacy>summary span{font-size:11px;color:#6b7b8f;font-weight:500}
+.argin-dashboard__legacy>summary>span:last-child{font-size:11px;color:#6b7b8f;font-weight:500}
 .argin-dashboard__legacy[open]>summary{margin-bottom:16px}
 .argin-dashboard__legacy .app-module-grid{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
 .argin-dashboard__legacy .app-module{min-height:160px}
 .argin-dashboard__legacy .app-help{margin-top:14px}
 
-/* Phase 15 Step07: content-sized quick access, stable independent panel skeletons */
-.argin-dashboard__footer-grid {align-items:start;grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr)}
-.argin-dashboard__footer-grid>.argin-dashboard__card {align-self:start}
-.argin-dashboard__side {min-width:0;align-self:start}
-.argin-dashboard__side>.argin-dashboard__card {height:auto;min-height:0}
+/* Equal-height footer cards and independent panel skeletons. */
+.argin-dashboard__footer-grid {align-items:stretch;grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr)}
+.argin-dashboard__footer-grid>.argin-dashboard__card {align-self:stretch}
+.argin-dashboard__side {min-width:0;display:flex;align-self:stretch}
+.argin-dashboard__side>.argin-dashboard__card {width:100%;min-height:0;display:flex;flex-direction:column}
 .argin-dashboard__quick {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
-.argin-dashboard__quick a {min-height:44px;display:flex;align-items:center;justify-content:center;text-align:center;padding:10px 8px}
+.argin-dashboard__quick a {min-height:112px;display:flex;flex-direction:column;gap:12px;align-items:center;justify-content:center;text-align:center;padding:16px 8px;line-height:1.7;transition:background .15s,border-color .15s}
+.argin-dashboard__quick a:hover {background:#ddf0eb;border-color:#a3d3c8}
+.argin-dashboard__quick-icon {display:flex;align-items:center;justify-content:center;width:46px;height:46px;border-radius:14px;background:var(--dashboard-surface);color:var(--dashboard-accent)}
+.argin-dashboard__side>.argin-dashboard__card>.argin-dashboard__kpi-note {margin-block-start:auto;padding-block-start:18px}
 .argin-dashboard__subscription-waiting {margin-block-start:12px;padding-block-start:8px;border-block-start:1px solid var(--dashboard-line)}
 .argin-dashboard__more {display:inline-flex;margin-block-start:14px;color:var(--dashboard-accent);font-size:12px;font-weight:800;text-decoration:none}
 .argin-dashboard__kpi-error {margin-block-end:18px;min-height:126px}
@@ -117,6 +120,7 @@
 }
 @media(max-width:480px) {
   .argin-dashboard__quick {grid-template-columns:minmax(0,1fr)}
+  .argin-dashboard__quick a {min-height:64px;flex-direction:row;justify-content:flex-start;padding-inline:14px}
 }
 @media(prefers-reduced-motion:reduce) {
   .argin-dashboard__skeleton-bar,.argin-dashboard__skeleton-chart-line {animation:none}
@@ -139,3 +143,43 @@
 .argin-dashboard__partner-shimmer svg{height:auto}
 @media(max-width:950px){.argin-dashboard__partner-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.argin-dashboard__partner-finance{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:580px){.argin-dashboard__partner-grid{grid-template-columns:minmax(0,1fr)}.argin-dashboard__partner-amounts>div{align-items:flex-start;flex-direction:column;gap:6px}.argin-dashboard__partner-amounts dd{text-align:right}}
+
+.argin-dashboard__legacy-heading {display:inline-flex;align-items:center;gap:10px}
+.argin-dashboard__legacy-heading svg {flex-shrink:0;width:20px;height:20px}
+.argin-dashboard__legacy .app-module-icon {display:inline-flex;align-items:center;justify-content:center;background:#e8f5f2;color:#177f81;border:1px solid #cde8e3}
+
+/* Subscription and today's three calendars live inside the quick-access card. */
+.argin-dashboard__subscription {display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 16px;align-items:center;margin-block-start:18px;padding:14px 16px;border:1px solid #cce7df;border-radius:14px;background:linear-gradient(120deg,#f1f9f6,#e9f5f1)}
+.argin-dashboard__subscription-name {display:flex;align-items:center;flex-wrap:wrap;gap:6px 8px;min-width:0}
+.argin-dashboard__subscription-name>span:first-child {flex-basis:100%;font-size:11px;color:var(--dashboard-muted)}
+.argin-dashboard__subscription-name>strong {font-size:17px;color:var(--dashboard-ink)}
+.argin-dashboard__subscription-badge {padding:2px 8px;border-radius:999px;background:#fff0d6;color:#92640b;font-size:10px;font-weight:700}
+.argin-dashboard__subscription-badge[data-active="true"] {background:#d6eee2;color:#196849}
+.argin-dashboard__subscription-remaining {display:flex;flex-direction:column;align-items:center;gap:2px;padding-inline-start:16px;border-inline-start:1px solid #cce3da}
+.argin-dashboard__subscription-remaining>strong {font-size:28px;line-height:1.2;color:#176d6a;font-variant-numeric:tabular-nums}
+.argin-dashboard__subscription-remaining>span {font-size:10px;color:#52786e;white-space:nowrap}
+.argin-dashboard__subscription-quota {grid-column:1/-1;margin:0;padding-block-start:8px;border-block-start:1px solid #d8ebe3;font-size:11px;color:#52786e}
+.argin-dashboard__calendar {display:grid;grid-template-columns:112px minmax(0,1fr);align-items:center;gap:12px;margin-block-start:18px;padding-block-start:16px;border-block-start:1px solid var(--dashboard-line)}
+.argin-dashboard__calendar-art svg {display:block;width:100%;height:auto;max-height:140px}
+.argin-dashboard__calendar-content {min-width:0}
+.argin-dashboard__calendar-heading {display:flex;justify-content:space-between;align-items:center;gap:8px;margin-block-end:6px}
+.argin-dashboard__calendar-heading h3 {margin:0;font-size:12px;color:var(--dashboard-ink)}
+.argin-dashboard__calendar-heading>span {font-size:9px;color:var(--dashboard-muted);white-space:nowrap}
+.argin-dashboard__calendar-dates {display:grid;gap:0;margin:0}
+.argin-dashboard__calendar-dates>div {display:flex;align-items:baseline;gap:8px;padding-block:7px}
+.argin-dashboard__calendar-dates>div+div {border-block-start:1px dashed var(--dashboard-line)}
+.argin-dashboard__calendar-dates dt {flex-shrink:0;width:36px;font-size:10px;color:var(--dashboard-muted)}
+.argin-dashboard__calendar-dates dd {margin:0;min-width:0;font-size:11px;line-height:1.8;font-weight:600;color:var(--dashboard-ink)}
+.argin-dashboard__calendar-dates time {display:inline-block}
+@media(max-width:1100px) and (min-width:901px) {
+  .argin-dashboard__calendar {grid-template-columns:1fr}
+  .argin-dashboard__calendar-art {width:100px;margin-inline:auto}
+}
+@media(max-width:480px) {
+  .argin-dashboard__calendar {grid-template-columns:76px minmax(0,1fr);gap:8px}
+  .argin-dashboard__calendar-heading {align-items:flex-start;flex-direction:column;gap:2px}
+  .argin-dashboard__calendar-dates>div {flex-wrap:wrap;gap:0 6px}
+  .argin-dashboard__calendar-dates dd {font-size:10px}
+  .argin-dashboard__subscription {padding:12px;gap:8px}
+  .argin-dashboard__subscription-remaining {padding-inline-start:10px}
+}

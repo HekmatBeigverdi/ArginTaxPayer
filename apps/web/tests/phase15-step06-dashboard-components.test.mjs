@@ -29,6 +29,7 @@ function dashboard(role,fetch) {
  let slot=0;
  const Component=loadTsx(new URL("../app/(console)/dashboard/dashboard-analytics.tsx",import.meta.url),{
   globals:{fetch,AbortController},modules:{
+   "./dashboard-calendar":{default:()=>null},
    "next/link":{default:({href,children,...props})=>React.createElement("a",{href,...props},children)},
    react:{...React,useMemo:fn=>fn(),useEffect:fn=>effects.push(fn),useState(initial){
     const index=slot++;
@@ -91,9 +92,9 @@ test("changing period clears old data, failure hides KPIs, and cleanup aborts re
  assert.ok(!html.includes('class="argin-dashboard__kpi-value"'));
  cleanup();assert.equal(calls.at(-1).signal.aborted,true);
 });
-test("chart has textual accessible alternative and correct timeline semantics",()=>{
+test("chart has an accessible label and correct timeline semantics",()=>{
  assert.match(client,/role="img"\s+aria-label=/);
- assert.match(client,/آخرین روزهای دارای فعالیت/);
+ assert.ok(!client.includes("آخرین روزهای دارای فعالیت"));
  assert.match(client,/تأییدها بر مبنای تاریخ صدور/);
  assert.match(client,/status\.unknown/);
  assert.match(client,/DashboardPeriodFilter/);
