@@ -8,7 +8,7 @@ import ts from "typescript";
 const require=createRequire(import.meta.url);
 const {NextRequest}=require("next/server");
 const read=path=>readFileSync(new URL("../"+path,import.meta.url),"utf8");
-const readRoot=path=>readFileSync(new URL("../../"+path,import.meta.url),"utf8");
+const readRoot=path=>readFileSync(new URL("../../../"+path,import.meta.url),"utf8");
 const route=read("app/api/dashboard/[section]/route.ts");
 const dashboard=read("app/(console)/dashboard/dashboard-analytics.tsx");
 const center=read("app/(console)/dashboard/dashboard-action-center.tsx");
