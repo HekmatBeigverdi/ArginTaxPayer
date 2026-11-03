@@ -843,3 +843,67 @@ Subscription renewal, quota and expiration insights. Continue adding documentati
 - Extended `apps/web/tests/phase15-step03-dashboard-proxy.test.mjs` with runnable Customer/Level2/Level1 negative/positive routing checks for `financial-trends` (including foreign selectors).
 - Corrected the SVG chart's vertical scaling for negative signed settlement days. Negative reversal net amounts are now mapped below zero rather than clipped into a flat bottom line. The table preserves exact signed amounts.
 - No server compilation or test database execution is claimed from these commits. Run macOS verification above and compare sums to authoritative Phase12 ledger.
+
+---
+
+## STEP 11 — Subscription status, quota and renewals (2026-11-03)
+
+### Implementation
+
+- **Customer:** preserve the previously integrated `CustomerSubscriptionOverviewService.ReadMineAsync` and existing dashboard card. It reads current active plan name, expiry, days remaining and quantity-package balance. It must never be used to authorize invoice dispatch: the atomic entitlement gate remains authoritative.
+- **Level1 / Level2:** add a read-only `GET /api/dev/dashboard/subscriptions-watch` endpoint and corresponding same-origin `GET /api/dashboard/subscriptions-watch`. Backend resolves actor role and current commercial owner before reading any subscription rows. No incoming partner/user/taxpayer/time override is accepted.
+- Backend file: `src/ArginTaxPayer.Api/Dashboard/Phase15DashboardReadService.cs`, method `SubscriptionWatchAsync`; output `SubscriptionWatch` with active count, expiry within 7/30 days, exhausted quantity-based packages and at most 10 subscriptions requiring attention. Exposes only subscription ID, plan kind, expires-at, remaining days, remaining units (null for unlimited), and status; no customer phone/email or root financial data.
+- Active subscription selection: `state=2`, activation at or before now, expiry strictly after now, current active customer account; choose latest eligible activation per customer with `ROW_NUMBER`. The quota for quantity plans comes from `subscription_credit_accounts.available_units` and is clamped at zero to avoid rendering negative remaining units. Distinguish expired plans from upcoming renewals: this watchlist currently considers *active plans only*. No claim that a customer without an active plan appears here.
+- UI component: `apps/web/app/(console)/dashboard/dashboard-subscription-watch.tsx`. Visible only for Level1/Level2, four compact KPI tiles, at most ten rows, Jalali expiry date, quota and status, link to existing subscriptions workflow, loading SVG, independent error/retry and no simulated numbers.
+- `apps/web/app/(console)/dashboard/dashboard-analytics.tsx` mounts it for admin roles, `dashboard-design.css` supplies responsive styling.
+- Tests: `apps/web/tests/phase15-step11-subscription-watch.test.mjs`, additional runnable proxy role/filter tests in `apps/web/tests/phase15-step03-dashboard-proxy.test.mjs`, and `tests/ArginTaxPayer.Tests/Phase15SubscriptionWatchContractsTests.cs`.
+
+### Status and timing semantics
+
+| KPI | Meaning |
+| --- | --- |
+| Active subscriptions | Latest eligible active subscription per customer within server-authorized current ownership |
+| Expires within 7 days | Active subscriptions with expiry no later than UTC now + 7 days |
+| Expires within 30 days | Active subscriptions with expiry no later than UTC now + 30 days |
+| Quantity exhausted | Active `kind=2` subscriptions whose credit account has zero available units |
+| Watch items | First 10 matching active plans sorted by expiry; `quota_exhausted` takes display precedence over near-expiry status |
+
+- Counts are a **current snapshot**, not selected-period events. UI explicitly says so.
+- For plan types without invoice-count restrictions, remaining invoice count is `null` and the UI labels this "نامحدود"; this is a display label, not a dispatch authorization guarantee.
+- A subscription can be both expiring and quota-exhausted, so counts must **not** be added as mutually exclusive parts.
+- All calculations are read-only. No auto-renewal, payment capture, email, SMS or tax authority call.
+- No new migration is needed.
+
+### Access-control matrix
+
+| Role | Customer current subscription | Admin watchlist |
+| --- | --- | --- |
+| Customer | Own active plan only | 403 |
+| Level2 | No other customer disclosure | Current active commercial-owner customers only |
+| Level1 | Admin scope | Current root-owned customers only |
+| Signed-out/expired session | 401 / denied | 401 / denied |
+
+### macOS acceptance commands
+
+```bash
+cd ~/projects/ArginTaxPayer
+git fetch origin
+git switch phase/15-role-based-dashboard
+git pull --ff-only origin phase/15-role-based-dashboard
+
+dotnet restore ArginTaxPayer.sln
+dotnet build ArginTaxPayer.sln -c Release --no-restore
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj -c Release --no-restore --filter "FullyQualifiedName~Phase15SubscriptionWatchContractsTests"
+
+cd apps/web
+npm ci
+node --test tests/phase15-step11-subscription-watch.test.mjs tests/phase15-step03-dashboard-proxy.test.mjs tests/phase15-step10-financial-trends.test.mjs tests/phase15-step09-level1-dashboard.test.mjs tests/phase15-step08-level2-dashboard.test.mjs
+npm run typecheck
+npm run build
+```
+
+Browser QA: sign in as each role, verify no watchlist for Customer, and correct one-root/one-partner scope for admins. Check active plans expiring in 7 and 30 days, unlimited plan vs quantity balance, zero balance, expired/inactive exclusion, transferred ownership, empty list, and loading/error cases. Compare counted active plans against authoritative Phase12 subscription records. Confirm no new migration and existing send/correction/cancel/return flows are untouched.
+
+**Step11 GitHub implementation and test definitions: COMPLETE. Local .NET compilation, Node/TypeScript execution, PostgreSQL data comparison, and browser behavior remain UNVERIFIED until operator-run acceptance.** Continue adding Phase15 documentation only to this single file in `docs/phases`.
+
+### Next Step12 — Actionable attention center
