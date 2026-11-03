@@ -42,6 +42,8 @@ test("two consumers share the exact parent-owned snapshot and retry callback",()
  assert.ok(detail.includes("watch?.role===role"));
  assert.ok(detail.includes("status:WatchLoadState"));
  assert.ok(detail.includes("onClick={onRetry}"));
+ assert.ok(detail.includes("تازه‌سازی آمار"));
+ assert.ok(center.includes("تازه‌سازی هشدار اشتراک‌ها"));
  assert.ok(!center.includes("useEffect"));
  assert.ok(!detail.includes("useEffect"));
 });
