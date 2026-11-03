@@ -50,7 +50,7 @@ test("partner endpoint denies role misuse at both server and proxy",()=>{
  assert.match(proxy,/"recent", "partner"/);
  assert.match(proxy,/section === "partner" && \(actor\.roles\.includes\("Level1"\)/);
  assert.match(proxy,/!actor\.roles\.includes\("Level2"\)/);
- assert.match(proxy,/section === "partner" && query\\.size > 0/);
+ assert.ok(proxy.includes('section === "partner" && query.size > 0'));
  assert.match(proxy,/section === "partner"\)\) return unavailable\(400/);
 });
 
