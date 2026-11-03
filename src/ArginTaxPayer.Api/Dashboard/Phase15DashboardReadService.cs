@@ -27,6 +27,20 @@ public sealed class Phase15DashboardReadService(
         long CollectionsInPeriodIrr, long PartnerEarnedShareIrr,
         [property: System.Text.Json.Serialization.JsonIgnore(Condition=System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
         long? RootEarnedShareIrr, long PartnerSettlementNetIrr);
+    // Deliberately partner-only: no root share, approved cost or global tenant totals.
+    public sealed record PartnerOverview(int SchemaVersion, string Role, DateTime AsOfUtc,
+        int ActiveCustomerCount, int ActiveSubscriptionCount, int ExpiringSubscriptionCount,
+        long LifetimePartnerEarnedIrr, long LifetimePartnerSettledIrr, long LifetimePartnerOutstandingIrr,
+        string Currency = "IRR");
+    private sealed class PartnerPositionRow
+    {
+        public int ActiveCustomerCount { get; set; }
+        public int ActiveSubscriptionCount { get; set; }
+        public int ExpiringSubscriptionCount { get; set; }
+        public long LifetimePartnerEarnedIrr { get; set; }
+        public long LifetimePartnerSettledIrr { get; set; }
+        public long LifetimePartnerOutstandingIrr { get; set; }
+    }
     public sealed record Attention(int SchemaVersion, Window Period, Alert[] Items);
     public sealed record Recent(int SchemaVersion, Window Period, Alert[] Items);
 
@@ -256,6 +270,59 @@ public sealed class Phase15DashboardReadService(
     }
     private static Alert ToAlert(InvoiceRow x)=>new(x.RootId,x.TaxpayerId,
         Classify(x.AuthorityStatus,x.DispatchState),x.IssuedAtUtc,"/invoices");
+
+    /// <summary>
+    /// Current-owner Level2 snapshot, scoped in SQL before any sum.
+    /// A settlement reversal subtracts cash settled. Does not expose the root allocation.
+    /// </summary>
+    public async Task<PartnerOverview> PartnerOverviewAsync(string? bearer, CancellationToken ct)
+    {
+        var actor = await AuthorizeAsync(bearer, true, ct);
+        if (actor.Role != "Level2")
+            throw new UnauthorizedAccessException("Partner overview requires Level2 role.");
+        var now = DateTime.UtcNow;
+        var soon = now.AddDays(30);
+        const string sql = """
+            WITH owned AS (
+                SELECT o.customer_user_id FROM customer_commercial_owners o
+                JOIN identity_users u ON u.id=o.customer_user_id AND u.is_active=true
+                WHERE o.partner_level2_user_id={0}
+            ), current_subscriptions AS (
+                SELECT s.id,s.expires_at_utc
+                FROM customer_subscriptions s
+                JOIN owned own ON own.customer_user_id=s.customer_user_id
+                WHERE s.state=2 AND s.activated_at_utc<={1} AND s.expires_at_utc>{1}
+            ), positions AS (
+                SELECT a.id,a.partner_share_irr,
+                    COALESCE(SUM(CASE WHEN e.kind=1 THEN e.amount_irr
+                        WHEN e.kind=2 THEN -e.amount_irr ELSE 0 END),0)::bigint AS settled
+                FROM commercial_revenue_allocations a
+                JOIN commercial_collections c ON c.id=a.collection_id
+                JOIN commercial_orders ord ON ord.id=c.order_id
+                JOIN owned own ON own.customer_user_id=ord.customer_user_id
+                LEFT JOIN partner_settlement_events e ON e.allocation_id=a.id
+                WHERE a.partner_user_id={0}
+                GROUP BY a.id,a.partner_share_irr
+            )
+            SELECT
+                (SELECT COUNT(*)::int FROM owned) AS "ActiveCustomerCount",
+                (SELECT COUNT(*)::int FROM current_subscriptions) AS "ActiveSubscriptionCount",
+                (SELECT COUNT(*)::int FROM current_subscriptions
+                    WHERE expires_at_utc<={2}) AS "ExpiringSubscriptionCount",
+                COALESCE((SELECT SUM(partner_share_irr) FROM positions),0)::bigint
+                    AS "LifetimePartnerEarnedIrr",
+                COALESCE((SELECT SUM(settled) FROM positions),0)::bigint
+                    AS "LifetimePartnerSettledIrr",
+                COALESCE((SELECT SUM(partner_share_irr-settled) FROM positions),0)::bigint
+                    AS "LifetimePartnerOutstandingIrr"
+            """;
+        var result = await db.Database.SqlQueryRaw<PartnerPositionRow>(sql, actor.Id, now, soon)
+            .SingleAsync(ct);
+        return new PartnerOverview(1, actor.Role, now, result.ActiveCustomerCount,
+            result.ActiveSubscriptionCount, result.ExpiringSubscriptionCount,
+            result.LifetimePartnerEarnedIrr, result.LifetimePartnerSettledIrr,
+            result.LifetimePartnerOutstandingIrr);
+    }
 
     public async Task<Finance> FinanceAsync(string? bearer,Window range,Guid? partnerUserId,CancellationToken ct)
     {
