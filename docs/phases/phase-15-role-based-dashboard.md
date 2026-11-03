@@ -907,3 +907,63 @@ Browser QA: sign in as each role, verify no watchlist for Customer, and correct 
 **Step11 GitHub implementation and test definitions: COMPLETE. Local .NET compilation, Node/TypeScript execution, PostgreSQL data comparison, and browser behavior remain UNVERIFIED until operator-run acceptance.** Continue adding Phase15 documentation only to this single file in `docs/phases`.
 
 ### Next Step12 — Actionable attention center
+
+---
+
+## STEP 12 — Priority attention center and collapsed dashboard reporting (2026-11-03)
+
+### Operator request and result
+
+The dashboard had become too long and visually noisy after Steps 06–11. Step12 keeps critical content above the fold and puts secondary analytics behind accessible, **collapsed-by-default** on-demand panels. The initial dashboard still shows the title, period filter, four KPI cards, top invoice trend, quick access, and a new high-priority attention center. No arbitrary alert counts or fake information are shown.
+
+### Code changes
+
+1. `apps/web/app/(console)/dashboard/dashboard-action-center.tsx` — NEW, read-only unified attention center. Combines the already fetched server-scoped invoice `attention` items with an independently fetched, authenticated `subscriptions-watch` result for administrators. Prioritizes rejected invoices, quota exhaustion and imminent expiry. Displays up to five highest-priority actionable items and safe navigation links only to `/invoices` and `/subscriptions`, never invokes an invoice send, tax inquiry, payment or renewal mutation. Customer role never requests commercial watch. If one endpoint is unavailable, displays an incomplete-data warning, preserving any available items. Loading is an independent SVG skeleton.
+2. `apps/web/app/(console)/dashboard/dashboard-analytics.tsx` — new `DashboardFold` with keyboard-operable button, `aria-expanded`, stable `aria-controls` target, reduced visual noise and delayed mounting of expensive charts. Secondary financial charts, detailed subscription watch, Level1 whole-system/partner comparisons, Level2 settlement detail and invoice status composition/details start **closed**. Each can be opened when needed without reloading the whole page; by default no hidden chart component fetches.
+3. `apps/web/app/(console)/dashboard/dashboard-design.css` — compact responsive summary list, priority markers, accordion, interaction states, and reduced-motion behavior.
+4. `apps/web/tests/phase15-step12-action-center.test.mjs` — new static and server-render check for initial action center, role restrictions, prioritization, accessible accordion, safe links, no write methods and error handling.
+5. Adapted Step09/10/11 UI regression tests to the new collapsed-by-default wrappers while retaining earlier role and API constraints.
+
+No new EF migration, background worker, email/SMS automation, credit handling or external fiscal action was introduced.
+
+### Default information architecture
+
+```text
+Dashboard heading / role / date window
+[ Four primary KPI cards — always visible and individually loading ]
+[ Priority center — always visible, read-only and scoped ]
+[ Invoice trend ] [ Quick shortcuts + calendar ]
+[› Financial event chart — collapsed for Level1/2]
+[› Subscription and quota breakdown — collapsed for Level1/2]
+[› Level1 system or Level2 settlement report — collapsed for that role]
+[› Invoice status composition and full attention list — collapsed]
+[ Existing module shortcuts — collapsed from earlier steps ]
+```
+
+### Alert semantics / limitations
+
+- Invoice alerts originate from existing `/api/dashboard/attention?period=...` and are already scoped to the actor on the server; only the first ten are retrieved by the existing endpoint. Rejected → unknown → other attention priority; these are `period`-limited.
+- Subscription attention is retrieved from `/api/dashboard/subscriptions-watch` for Level1/2 only. Its feed has **up to ten** items; zero quota and expiry within seven days are urgent, with later upcoming renewals lower. It is a current-state snapshot, not limited by the dashboard's date selector.
+- The top five list is a priority view **among the items returned by these bounded feeds**, not a guaranteed global top-five across all historical invoices or all customer subscriptions. The count displayed is the count of the fetched candidate items, not a global queue size. Future step(s) can implement server-side cross-domain priority paging if needed.
+- Statuses are not reconciled automatically. A call to action only navigates to an existing authorized workspace. No indeterminate invoice is automatically resent.
+- Aggregate subscription alert fetch is separate from the detailed watch fetch. The collapsed detail does not fetch until opened. If it is opened both views can query the same read-only endpoint; this is an accepted current implementation trade-off, not a new write operation.
+- Accordion contents use client-side on-demand mounting and maintain stable `aria-controls` regions. This preserves loading/error/empty states in their own components once expanded.
+
+### Test macOS
+
+```bash
+cd ~/projects/ArginTaxPayer
+git fetch origin
+git switch phase/15-role-based-dashboard
+git pull --ff-only origin phase/15-role-based-dashboard
+
+cd apps/web
+npm ci
+node --test tests/phase15-step12-action-center.test.mjs tests/phase15-step11-subscription-watch.test.mjs tests/phase15-step10-financial-trends.test.mjs tests/phase15-step09-level1-dashboard.test.mjs tests/phase15-step08-level2-dashboard.test.mjs tests/phase15-step07-customer-ux.test.mjs tests/phase15-step06-dashboard-components.test.mjs
+npm run typecheck
+npm run build
+```
+
+Manual QA: sign in as Customer, Level2 and Level1. Verify critical center and quick links are immediately visible while the first authenticated fetch is in flight, and optional analytics initially closed. Expand and close financial/trend/subscription sections repeatedly; check keyboard, mobile, role scopes, and that old reports still appear. Force a subscription API failure: the alert center must not show a false all-clear. Confirm navigation links are GET-safe and non-mutating. For Level2 verify no root financial share; for Customer no subscriptions-watch request and no financial charts. No new database schema work. Ubuntu acceptance remains reserved for later phase gates.
+
+**Code committed; runtime PASS requires macOS operator test output.** This remains the sole canonical Phase15 document.
