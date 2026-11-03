@@ -43,3 +43,6 @@ artifacts/phase12-final/
 
 # Private local Phase15 acceptance logs, possible scoped test diagnostics
 artifacts/phase15-step16/
+
+# Private Ubuntu Phase15 same-SHA QA evidence
+artifacts/phase15-step17/
