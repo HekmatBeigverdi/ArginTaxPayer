@@ -18,7 +18,8 @@ test("subscription watch compiles as TSX",()=>{
    .map(x=>ts.flattenDiagnosticMessageText(x.messageText,"\n")),[]);
 });
 test("watchlist only mounts for administrator roles",()=>{
- assert.ok(page.includes('admin && <DashboardSubscriptionWatch'));
+ assert.ok(page.includes('admin && <DashboardFold id="subscription-details"'));
+ assert.ok(page.includes('<DashboardSubscriptionWatch'));
  assert.ok(page.includes('role === "Level1" ? "Level1" : "Level2"'));
  assert.ok(watch.includes("data.role!==role"));
  assert.ok(watch.includes('fetch("/api/dashboard/subscriptions-watch"'));
