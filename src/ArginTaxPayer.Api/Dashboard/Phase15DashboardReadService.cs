@@ -178,7 +178,7 @@ public sealed class Phase15DashboardReadService(
             actor.Level1, actor.Role == "Level2", range.FromUtc, range.ToUtcExclusive)
             .AsNoTracking().ToArrayAsync(ct);
 
-    internal static string Classify(string? authority, int? dispatch)
+    public static string Classify(string? authority, int? dispatch)
     {
         if (string.Equals(authority, "SUCCESS", StringComparison.OrdinalIgnoreCase)) return "accepted";
         if (authority is not null && (authority.Equals("FAILED", StringComparison.OrdinalIgnoreCase)
