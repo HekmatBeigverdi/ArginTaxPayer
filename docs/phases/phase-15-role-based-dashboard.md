@@ -1110,3 +1110,101 @@ The single-file documentation convention remains `docs/phases/phase-15-role-base
 ### Step14 freshness follow-up
 
 The shared watch response is intentionally not a timed or persistent cache: while a dashboard stays open, a freshly changed subscription may not appear until the operator requests refresh. Added an explicit **تازه‌سازی آمار** button to the detailed subscription panel and **تازه‌سازی هشدار اشتراک‌ها** to the administrator attention center; both trigger the same parent-owned, abortable re-fetch and synchronize both consumers. This is a GET-only read action, not a subscription renewal or fiscal inquiry. The matching Step14 regression enforces that both controls exist. No periodic background polling or cross-session data retention was added.
+
+---
+
+## STEP 15 — PostgreSQL query-plan audit, bounded load test and latest-invoice optimization (2026-11-03)
+
+**Source implementation on `phase/15-role-based-dashboard`; production-scale results cannot be claimed until the operator executes the scripts on a representative `argintaxpayer_test` dataset.**
+
+### Findings from source review
+
+1. The shared invoice read model (`InvoiceSql`) first computes authorized legal invoice roots, traverses corrective/cancel/return chains to find a canonical latest status, then sorts by issue date. `OverviewAsync` and `TrendsAsync` need the full scoped rows and should **not** be truncated.
+2. `RecentAsync` previously called `ReadInvoices` without any bound, materialized every scoped chain row into API memory, and then selected `Take(10)` client-side. This was avoidable network/deserialization and allocation cost.
+3. The finance, collection, partner ownership and subscription-watch SQL aggregates rely on join/index selectivity. Without actual `EXPLAIN (ANALYZE, BUFFERS)` and data-volume distributions, introducing new indexes or rewriting joins would be speculative and risks degrading write-heavy commercial paths.
+4. Previous Step14 already removed duplicate subscription-watch requests from concurrently opened dashboard sections; Step15 preserves that scoped in-memory sharing.
+
+### Code changes
+
+- `src/ArginTaxPayer.Api/Dashboard/Phase15DashboardReadService.cs`: added optional `maxRows` to the private `ReadInvoices` query. Only `RecentAsync` passes `maxRows:10` and the SQL gains a parameterized **`LIMIT {7}` after the existing canonical `ORDER BY`**, so the result remains the same latest ten authorized invoice roots. This reduces API row transfer and materialization without removing any invoice scope or changing summary counts, invoice lineage precedence, status classification or fiscal actions.
+- `scripts/phase15-step15-query-plan-audit.sql`: deterministic **read-only, test-database-only** audit with `current_database() = 'argintaxpayer_test'` fail-closed check, `statement_timeout=15s`, `lock_timeout=2s`, `EXPLAIN (ANALYZE, BUFFERS, TIMING OFF)` for root commercial sales, confirmed collections, active partner ownership and expiring subscription queries. Prints PostgreSQL row estimates/dead tuples and current index definitions; selects available root/partner **test** owner IDs into private psql variables without emitting them in normal SELECT output. Uses `ROLLBACK`; does not create indexes or change rows.
+- `scripts/phase15-step15-dashboard-load.mjs`: bounded authenticated GET benchmark for the existing **loopback-only** API `/api/dev/dashboard/{section}`. Calls 1–20 rounds, up to 4 concurrent requests, defaults to 6 rounds x 2 concurrency, with 15-second abort timeout. User supplies a valid test role token privately via the process environment. Emits per-endpoint status, count, min/p50/p95/max latency and response byte length; **never logs or writes bearer tokens or dashboard response bodies**. Optional JSON results must be stored outside Git in a restricted location. A failure status or malformed JSON contract produces a failing exit code. Results are for repeatable regression baselines, not a synthetic high-stress test and not a throughput guarantee.
+- `apps/web/tests/phase15-step15-query-performance.test.mjs`: source-contract checks for canonical SQL ordering, a database-side latest-10 limit, retention of unrestricted overview/trend/attention aggregation, read-only test DB audit safeguards and bounded runner.
+- This section is appended only to canonical `docs/phases/phase-15-role-based-dashboard.md`.
+
+### Explicit security and correctness constraints
+
+- No cross-account cache, `localStorage` persistence, token logging, or direct tax authority requests. No changes to tax invoice sends, legal corrections, cancellation or return.
+- Authorization and taxpayer/partner/root scopes remain applied **before** the latest-10 limit; no client-supplied scope enters the SQL string.
+- The existing `RecentAsync` takes ten items **after** legal-chain resolution and latest-first sorting. `AttentionAsync` still filters alert status before `Take(10)`, and `OverviewAsync` / `TrendsAsync` still count all scoped records. Future optimization of recursive invoice queries requires a representative plan and exact output parity audit.
+- No migration is introduced or warranted without evidence of an index need. Any new index proposal requires a separate reviewed migration with rollback notes and measurements on data resembling production.
+- WARNING: PostgreSQL `EXPLAIN` predicate output can include test actor identifiers. Treat logs as restricted QA artifacts; do not commit them to the repository or paste sensitive tokens in messages.
+
+### macOS implementation acceptance
+
+```bash
+cd ~/projects/ArginTaxPayer
+git fetch origin
+git switch phase/15-role-based-dashboard
+git pull --ff-only origin phase/15-role-based-dashboard
+dotnet restore ArginTaxPayer.sln
+dotnet build ArginTaxPayer.sln -c Release --no-restore
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj -c Release --no-restore
+
+cd apps/web
+npm ci
+node --test tests/phase15-step15-query-performance.test.mjs \
+ tests/phase15-step14-dashboard-performance.test.mjs \
+ tests/phase15-step13-dashboard-drilldown.test.mjs \
+ tests/phase15-step12-action-center.test.mjs \
+ tests/phase15-step03-dashboard-proxy.test.mjs
+npm run typecheck
+npm run build
+```
+
+### PostgreSQL query plan (macOS via existing AutoSSH tunnel)
+
+```bash
+cd ~/projects/ArginTaxPayer
+psql -X -h 127.0.0.1 -p 15432 -U argintaxpayer \
+  -d argintaxpayer_test -f scripts/phase15-step15-query-plan-audit.sql
+```
+
+Ubuntu (same test database, DB bound on loopback):
+
+```bash
+cd ~/projects/ArginTaxPayer
+psql -X -h 127.0.0.1 -p 5432 -U argintaxpayer \
+  -d argintaxpayer_test -f scripts/phase15-step15-query-plan-audit.sql
+```
+
+A representative query-plan result must be inspected for **sequential scans on large tables, excessive buffer reads, high execution time, join cardinality errors and inactive/poorly selective indexes**. The audit cannot claim that all production queries are fast; only the operator's test DB results support conclusions.
+
+### Bounded authenticated API test (macOS and Ubuntu)
+
+Obtain a valid *test-account* bearer with the normal developer login. Do not paste it into the command history. In an interactive shell:
+
+```bash
+read -rs PHASE15_BEARER_TOKEN
+export PHASE15_BEARER_TOKEN
+export PHASE15_ROLE=Level1
+export PHASE15_BASE_URL=http://127.0.0.1:15089
+node scripts/phase15-step15-dashboard-load.mjs
+unset PHASE15_BEARER_TOKEN
+```
+
+Repeat as Level2 and Customer with an appropriate token and matching `PHASE15_ROLE`. The result prints only endpoint summaries, HTTP statuses and measured latency statistics. For a restricted local JSON artifact, set `PHASE15_RESULT_FILE` to a directory outside the Git working tree; review it before distribution. The runner has a hard upper bound of 20 repetitions and 4 concurrent requests, not a production DoS/stress tool.
+
+### Operator acceptance checklist
+
+- Confirm macOS .NET compilation and full web/Node regressions pass after the recent-feed SQL limit change.
+- For test fixtures with >10 scoped legal invoice chains, compare recent ordering, root identity and statuses with the unbounded canonical read query; ensure **exact same first ten rows**. Confirm 0 and 1 row edge cases.
+- Compare `overview` total invoice counts, `trends` daily buckets and `attention` filtered alerts before vs after this change, **unchanged** across each role.
+- Execute read-only plan audit on representative test data and inspect joins/IO/time. If a table is empty, mark that run nonrepresentative rather than claiming optimization success.
+- Run Level1/Level2/Customer bounded API tests individually and record p50/p95 and error counts. Compare pre/post on the **same dataset, machine and concurrency**; no fixed performance improvement percentage is claimed.
+- Validate a foreign-customer/partner scoped response is never exposed and re-check the Phase10 send/cancel/correct/return flows for nonregression.
+- Do **not** merge/release the phase merely from source-level tests: actual macOS and later Ubuntu acceptance is required.
+
+### Status and next step
+
+Step15 **code, SQL audit scripts, bounded runner, tests and documentation are committed**. Live PostgreSQL query plans, .NET builds, Node tests, browser timing and operator-confirmed acceptance remain pending. Step16 should focus on integrated security, performance, UI and error-state regression acceptance before penultimate Ubuntu parity/release gates.
