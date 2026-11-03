@@ -1,5 +1,6 @@
 using ArginTaxPayer.Api.Subscriptions;
 using ArginTaxPayer.Api.Invoices;
+using ArginTaxPayer.Api.Dashboard;
 using ArginTaxPayer.Infrastructure.Persistence.Invoices;
 using ArginTaxPayer.Api.Health;
 using ArginTaxPayer.Api.Identity;
@@ -169,6 +170,7 @@ if (identityDevelopmentEnabled)
     builder.Services.AddScoped<Phase10SandboxSubmissionAdmissionService>();
     builder.Services.AddScoped<Phase10InvoiceDispatchHistoryService>();
     builder.Services.AddScoped<ArginTaxPayer.Infrastructure.Persistence.Signing.SandboxFiscalMemoryMetadataService>();
+    builder.Services.AddScoped<Phase15DashboardReadService>();
     builder.Services.AddScoped<InvoiceEntryWorkspaceService>();
     builder.Services.AddScoped<InvoiceWorkspacePromotionService>();
     builder.Services.AddScoped<InvoiceValidationReferenceService>();
@@ -239,6 +241,7 @@ if (app.Environment.IsDevelopment())
         app.MapSigningGenerationEndpoints();
         app.MapSigningConnectionEndpoints();
         app.MapSandboxFiscalMemoryDevelopmentEndpoints();
+        app.MapPhase15DashboardEndpoints();
         app.MapPhase12PlanAdministrationEndpoints();
         app.MapPhase12PriceEndpoints();
         app.MapPhase12ActivationEndpoints();
