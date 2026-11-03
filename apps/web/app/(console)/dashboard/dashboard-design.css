@@ -207,3 +207,17 @@
   .argin-dashboard__root-metrics {grid-template-columns:minmax(0,1fr)}
   .argin-dashboard__root-partner-title {align-items:flex-start;flex-direction:column;gap:3px}
 }
+
+/* Phase 15 Step10: authenticated commercial finance event timeline */
+.argin-dashboard__finance-section{margin-block:20px;min-width:0}
+.argin-dashboard__finance-heading{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;flex-wrap:wrap}
+.argin-dashboard__finance-heading p{font-size:12px;color:var(--dashboard-muted);line-height:1.8;margin:0}
+.argin-dashboard__finance-tabs{display:flex;flex-wrap:wrap;gap:7px;max-width:100%}
+.argin-dashboard__finance-tabs button{border:1px solid var(--dashboard-line);background:#f7fafb;color:var(--dashboard-ink);font-family:inherit;font-size:12px;border-radius:10px;padding:9px 12px;min-height:40px;cursor:pointer}
+.argin-dashboard__finance-tabs button[aria-pressed="true"]{border-color:var(--dashboard-accent);background:var(--dashboard-accent-soft);color:#126e6a;font-weight:800}
+.argin-dashboard__finance-graph{min-width:0;padding-block:12px}
+.argin-dashboard__finance-graph svg{height:min(230px,36vw);min-height:155px}
+.argin-dashboard__finance-axis{display:flex;justify-content:space-between;color:var(--dashboard-muted);font-size:11px;margin-top:7px;gap:10px}
+.argin-dashboard__finance-skeleton svg{height:170px;display:block}
+.argin-dashboard__finance-section .argin-dashboard__table-wrap{margin-top:10px;max-height:310px;overflow:auto}
+@media(max-width:580px){.argin-dashboard__finance-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%}.argin-dashboard__finance-tabs button{padding:8px 6px;font-size:11px}}
