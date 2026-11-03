@@ -71,6 +71,7 @@ public static class PersistenceRegistration
         services.AddScoped<IUnitOfWork, EfUnitOfWork>();
         services.AddScoped<IOutboxWriter, EfOutboxWriter>();
         services.AddScoped<Phase10SandboxOutboxService>();
+        services.AddScoped<ArginTaxPayer.Infrastructure.Persistence.Subscriptions.InvoiceSubscriptionGate>();
         services.AddScoped<Phase10DispatchAttemptRepository>();
         services.AddScoped<Phase10DispatchEvidenceRepository>();
         services.AddScoped<InvoiceDispatchFaultRepository>();

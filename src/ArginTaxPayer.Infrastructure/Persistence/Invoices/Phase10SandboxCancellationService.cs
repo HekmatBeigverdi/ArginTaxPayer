@@ -1,3 +1,4 @@
+using ArginTaxPayer.Infrastructure.Persistence.Subscriptions;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json.Nodes;
@@ -14,7 +15,7 @@ public sealed record CancellationSendResult(InvoiceApiDecision Decision,string C
 public sealed class Phase10SandboxCancellationService(
  ArginTaxPayerDbContext db,TaxpayerScopeService scope,
  Phase10CancellationEligibilityService eligibility,Phase10OneClickSandboxSubmissionService submission,
- LegacyAuthorityReportRepository authorityReports)
+ LegacyAuthorityReportRepository authorityReports,InvoiceSubscriptionGate subscriptions)
 {
  public async Task<CancellationSendResult> SendAsync(string? bearer,Guid taxpayerId,Guid predecessorId,CancellationToken ct)
  {
@@ -25,6 +26,8 @@ public sealed class Phase10SandboxCancellationService(
   var owner=await scope.ScopedQuery(actor.ActorId,actor.Level1)
    .Where(t=>t.Id==taxpayerId).Select(t=>t.CustomerUserId).SingleOrDefaultAsync(ct);
   if(owner is null)return new(InvoiceApiDecision.NotFound,"not_found");
+  var subscriptionError=await subscriptions.CheckAsync(owner.Value,ct);
+  if(subscriptionError is not null)return new(InvoiceApiDecision.Conflict,subscriptionError);
   var eligible=await eligibility.ReadAsync(bearer,taxpayerId,predecessorId,ct);
   if(!eligible.Eligible||eligible.FiscalTaxId is not {Length:22} predecessorTaxId)
    return new(eligible.Decision,eligible.Code);

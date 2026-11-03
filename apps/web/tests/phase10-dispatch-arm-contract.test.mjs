@@ -189,3 +189,19 @@ test('manual inquiry can be deferred and a later manual inquiry still receives i
  assert.equal(reports.at(-1)?.result.status,'SUCCESS');
  assert.equal(action.errors.filter(Boolean).length,0);
 });
+
+test('subscription rejection redirects without treating the send as uncertain or requesting inquiry',async()=>{
+ const {loadTsx}=await import('./helpers/load-tsx.mjs');
+ const navigations=[],requests=[];
+ const {redirectForInvoiceSubscription}=loadTsx(new URL('../lib/invoice-subscription.ts',import.meta.url),{
+  globals:{window:{location:{assign:path=>navigations.push(path)}}}
+ });
+ const action=oneClick({redirectForInvoiceSubscription,fetch:async(url)=>{
+  requests.push(url);return {ok:false,json:async()=>({error:'subscription_expired'})};
+ }});
+ await action.send();
+ assert.deepEqual(navigations,['/customer-plans']);
+ assert.equal(requests.length,1);assert.ok(requests[0].endsWith('/send-and-inquire'));
+ assert.equal(action.completed(),0);
+ assert.ok(action.errors.every(error=>!error.includes('نتیجه ارسال هنوز مشخص نیست')));
+});

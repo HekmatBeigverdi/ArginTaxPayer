@@ -1,4 +1,5 @@
 using System.Data;
+using ArginTaxPayer.Infrastructure.Persistence.Subscriptions;
 using System.Data.Common;
 using System.Security.Cryptography;
 using System.Text;
@@ -90,6 +91,7 @@ FOR UPDATE
                 if (!await reader.ReadAsync(ct) || reader.GetInt32(0) != (int)expectedState ||
                     reader.GetInt64(1) != expectedStateRevision)
                 {
+                    await reader.DisposeAsync();
                     await tx.RollbackAsync(CancellationToken.None);
                     return new(Phase10DispatchEvidenceStatus.StaleOrWrongScope);
                 }
@@ -124,6 +126,8 @@ RETURNING state_revision
                         await tx.RollbackAsync(CancellationToken.None);
                         return new(Phase10DispatchEvidenceStatus.StaleOrWrongScope);
                     }
+                    await InvoiceSubscriptionGate.ConsumeAsync(connection, tx,
+                        customerUserId, operationId, observedAtUtc, ct);
                     await tx.CommitAsync(ct);
                     return new(Phase10DispatchEvidenceStatus.Recorded, target, revision);
                 }

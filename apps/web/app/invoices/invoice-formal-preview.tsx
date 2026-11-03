@@ -1,5 +1,6 @@
 "use client";
 
+import {redirectForInvoiceSubscription} from "../../lib/invoice-subscription";
 import { useEffect, useState } from "react";
 import InvoiceCorrectionModal from "./invoice-correction-modal";
 
@@ -327,6 +328,7 @@ export default function InvoiceFormalPreview({
          void fetch("/api/invoice-dispatch/"+encodeURIComponent(taxpayerId)+"/"+encodeURIComponent(invoiceId)+"/cancel-and-inquire",
           {method:"POST",credentials:"same-origin",cache:"no-store"})
           .then(async response=>{const data=await response.json() as Record<string,unknown>;
+           if(!response.ok&&redirectForInvoiceSubscription(data))return;
            if(!response.ok)throw Error(String(data.error??response.status));
            setCancelEligible(false);
            setCancelInquiry({status:String(data.status??"نامشخص"),reference:String(data.referenceNumber??"در انتظار بررسی"),code:String(data.inquiryCode??"")});

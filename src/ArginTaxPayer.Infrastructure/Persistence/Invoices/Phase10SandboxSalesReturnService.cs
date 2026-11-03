@@ -1,3 +1,4 @@
+using ArginTaxPayer.Infrastructure.Persistence.Subscriptions;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -58,6 +59,7 @@ public sealed class Phase10SandboxSalesReturnService(
     ArginTaxPayerDbContext db,
     TaxpayerScopeService scope,
     Phase10LegacyReferenceInquiryService inquiry,
+    InvoiceSubscriptionGate subscriptions,
     Phase10OneClickSandboxSubmissionService sender,
     IConfiguration config,
     LegacyAuthorityReportRepository authorityReports)
@@ -342,6 +344,10 @@ public sealed class Phase10SandboxSalesReturnService(
         {
             return new(InvoiceApiDecision.Forbidden, "not_authorized");
         }
+
+        var subscriptionError = await subscriptions.CheckAsync(owner.Value, ct);
+        if (subscriptionError is not null)
+            return new(InvoiceApiDecision.Conflict, subscriptionError);
 
         var draft = await FindActiveDraftAsync(owner.Value, taxpayerId, predecessorId, ct);
         if (draft is not { } savedDraft)

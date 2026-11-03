@@ -66,7 +66,7 @@ public sealed class Phase10CorrectionPersistenceTests
     }
 
     private static Phase10SandboxCorrectionService Service(ArginTaxPayerDbContext db) =>
-        new(db, null!, null!, null!, new ConfigurationBuilder().Build(), null!);
+        new(db, null!, null!, null!, null!, new ConfigurationBuilder().Build(), null!);
 
     private static CorrectionSuccessorWrite NewWrite()
     {

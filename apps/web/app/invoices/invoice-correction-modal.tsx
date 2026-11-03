@@ -2,6 +2,7 @@
 import {useCallback,useEffect,useState} from "react";
 import InvoiceActionToast,{InvoiceActionIcon} from "./invoice-action-toast";
 import InvoiceCorrectionReceipt,{type CorrectionReceiptValue} from "./invoice-correction-receipt";
+import {redirectForInvoiceSubscription} from "../../lib/invoice-subscription";
 import {fetchWithSessionRefresh} from "../../lib/session-fetch";
 type Line={description:string;quantity:number;unitPriceRial:number;discountPerUnitRial:number;vatRatePercent:number|null;officialIdentifierSnapshot:string|null};
 type Draft={workspaceId:string;predecessorInvoiceId:string;revision:number;lines:Line[];settlementMethod:number;cashAmountRial:number;creditAmountRial:number};
@@ -106,6 +107,7 @@ export default function InvoiceCorrectionModal({taxpayerId,invoiceId,onClose,onC
     }catch{setError("رسید ارسال اصلاحیه ثبت شد، اما استعلام در دسترس نیست. از بخش استعلام، نتیجه آخرین سند زنجیره را بررسی کنید.");}
    }
   }catch(e){
+   if(e instanceof CorrectionActionError&&redirectForInvoiceSubscription({code:e.code}))return;
    setMessage("");
    if(e instanceof CorrectionActionError&&e.code==="no_changes_to_correct"){
     setError("تغییری نسبت به صورتحساب اصلی ثبت نشده است. ابتدا مبلغ، تعداد، تخفیف یا روش تسویه را اصلاح کنید؛ صورتحساب اصلاحی ارسال نشده است.");
