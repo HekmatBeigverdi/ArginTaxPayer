@@ -125,7 +125,10 @@ test("slow charts and failed attention do not block role-specific KPI cards or q
   const html=view.render();
   assert.ok(html.includes('class="argin-dashboard__kpi-value"'),role);
   assert.ok(html.includes('class="argin-dashboard__skeleton"'),role);
-  assert.ok(html.includes('role="alert"'),role);
+  assert.equal(html.includes('role="alert"'),role==="Customer",role);
+  if(role!=="Customer"){
+   assert.match(html,/id="operational-priorities"[^>]*hidden=""/);
+  }
   assert.ok(html.includes('aria-label="اقدامات پرکاربرد"'),role);
   cleanup();
  }

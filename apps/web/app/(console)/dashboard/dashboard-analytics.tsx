@@ -553,6 +553,10 @@ export default function DashboardAnalytics({ role }: { role: Role }) {
     ? "آخرین دریافت: " + formatLastUpdated(overview.asOfUtc)
     : "اطلاعات هر بخش به‌صورت مستقل دریافت می‌شود";
   const retryRead = () => setVersion(current => current + 1);
+  const actionCenter = (
+    <DashboardActionCenter role={role} attentionStatus={attentionState.status}
+      attention={attentionState.data ?? []} onRetry={retryRead} />
+  );
 
   return (
     <div className="argin-dashboard" dir="rtl">
@@ -579,8 +583,7 @@ export default function DashboardAnalytics({ role }: { role: Role }) {
         )
       )}
 
-      <DashboardActionCenter role={role} attentionStatus={attentionState.status}
-        attention={attentionState.data ?? []} onRetry={retryRead} />
+      {!admin && actionCenter}
       <div className="argin-dashboard__charts">
         <DashboardPanel title="روند صورتحساب‌ها">
           {trendState.status === "loading" ? <DashboardSkeleton variant="chart" /> : (
@@ -697,6 +700,12 @@ export default function DashboardAnalytics({ role }: { role: Role }) {
         </DashboardPanel>
       </div>
       </DashboardFold>
+      {admin && (
+        <DashboardFold id="operational-priorities" title="اولویت‌های عملیاتی"
+          note="اقدام‌های نیازمند پیگیری — برای مشاهده باز کنید">
+          {actionCenter}
+        </DashboardFold>
+      )}
     </div>
   );
 }
