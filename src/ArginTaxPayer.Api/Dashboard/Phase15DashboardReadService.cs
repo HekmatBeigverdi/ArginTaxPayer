@@ -22,6 +22,23 @@ public sealed class Phase15DashboardReadService(
     public sealed record Overview(int SchemaVersion, string Role, DateTime AsOfUtc, Window Period,
         StatusCounts InvoiceStatus, int InvoiceDrafts, CustomerSubscriptionOverviewService.Overview? Subscription);
     public sealed record Trend(int SchemaVersion, Window Period, Bucket[] Buckets);
+    public sealed record FinancialTrendBucket(string Date, long SalesGrossIrr,
+        long SalesOutstandingForCohortIrr, long CollectionsInPeriodIrr,
+        long PartnerEarnedShareIrr,
+        [property: System.Text.Json.Serialization.JsonIgnore(Condition=System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+        long? RootEarnedShareIrr, long PartnerSettlementNetIrr);
+    public sealed record FinancialTrends(int SchemaVersion, string Role,
+        Window Period, string Currency, FinancialTrendBucket[] Buckets);
+    private sealed class FinancialTrendRow
+    {
+        public string Date { get; set; } = "";
+        public long SalesGrossIrr { get; set; }
+        public long SalesOutstandingForCohortIrr { get; set; }
+        public long CollectionsInPeriodIrr { get; set; }
+        public long PartnerEarnedShareIrr { get; set; }
+        public long RootEarnedShareIrr { get; set; }
+        public long PartnerSettlementNetIrr { get; set; }
+    }
     public sealed record Finance(int SchemaVersion, string Role, Window Period, string Currency,
         long SalesGrossIrr, long SalesCollectedForCohortIrr, long SalesOutstandingIrr,
         long CollectionsInPeriodIrr, long PartnerEarnedShareIrr,
@@ -482,6 +499,88 @@ public sealed class Phase15DashboardReadService(
             partners.Select(p => new PartnerPerformance(p.PartnerUserId,p.PartnerLabel,
                 p.ActiveCustomerCount,p.VerifiedCollectionsInPeriodIrr,
                 p.PartnerEarnedShareInPeriodIrr,p.LifetimePartnerOutstandingIrr)).ToArray());
+    }
+
+    /// <summary>
+    /// Event-date financial trends for authenticated administrators only.
+    /// Each event is assigned to one Asia/Tehran calendar day and scoped
+    /// BEFORE aggregation. The outstanding series is an order-cohort as-of
+    /// balance (not cash outstanding changes on that calendar day).
+    /// </summary>
+    public async Task<FinancialTrends> FinancialTrendsAsync(
+        string? bearer, Window range, CancellationToken ct)
+    {
+        var actor=await AuthorizeAsync(bearer,true,ct);
+        // Keep the ownership convention identical to the existing Phase15 finance read model.
+        const string sql = """
+            WITH scoped_orders AS (
+              SELECT o.id,o.customer_user_id,o.gross_amount_irr,
+                  o.collected_amount_irr,o.issued_at_utc
+              FROM commercial_orders o
+              WHERE o.status<>4 AND (
+                ({2} AND o.root_admin_user_id={3})
+                OR ({4} AND o.partner_user_id={3}
+                  AND EXISTS (
+                    SELECT 1 FROM customer_commercial_owners co
+                    WHERE co.customer_user_id=o.customer_user_id
+                      AND co.partner_level2_user_id={3}))
+              )
+            ), events AS (
+              -- Subscription sale is measured on order issue day.
+              SELECT (o.issued_at_utc AT TIME ZONE 'Asia/Tehran')::date AS event_day,
+                o.gross_amount_irr::bigint AS gross,
+                (o.gross_amount_irr-o.collected_amount_irr)::bigint AS outstanding,
+                0::bigint AS receipt,0::bigint AS partner_share,
+                0::bigint AS root_share,0::bigint AS net_settled
+              FROM scoped_orders o
+              WHERE o.issued_at_utc>={0} AND o.issued_at_utc<{1}
+              UNION ALL
+              -- Only recorded/verified collection evidence, by receipt date.
+              SELECT (c.verified_at_utc AT TIME ZONE 'Asia/Tehran')::date,
+                0::bigint,0::bigint,c.amount_irr::bigint,0::bigint,0::bigint,0::bigint
+              FROM commercial_collections c
+              JOIN scoped_orders o ON o.id=c.order_id
+              WHERE c.verified_at_utc>={0} AND c.verified_at_utc<{1}
+              UNION ALL
+              -- Shares allocated against verified collections, by posting date.
+              SELECT (a.posted_at_utc AT TIME ZONE 'Asia/Tehran')::date,
+                0::bigint,0::bigint,0::bigint,a.partner_share_irr::bigint,
+                CASE WHEN {2} THEN a.root_share_irr ELSE 0 END::bigint,0::bigint
+              FROM commercial_revenue_allocations a
+              JOIN commercial_collections c ON c.id=a.collection_id
+              JOIN scoped_orders o ON o.id=c.order_id
+              WHERE a.posted_at_utc>={0} AND a.posted_at_utc<{1}
+                AND (({2} AND a.root_user_id={3}) OR ({4} AND a.partner_user_id={3}))
+              UNION ALL
+              -- Signed settlement and reversals by recorded event date.
+              SELECT (e.recorded_at_utc AT TIME ZONE 'Asia/Tehran')::date,
+                0::bigint,0::bigint,0::bigint,0::bigint,0::bigint,
+                CASE WHEN e.kind=1 THEN e.amount_irr ELSE -e.amount_irr END::bigint
+              FROM partner_settlement_events e
+              JOIN commercial_revenue_allocations a ON a.id=e.allocation_id
+              JOIN commercial_collections c ON c.id=a.collection_id
+              JOIN scoped_orders o ON o.id=c.order_id
+              WHERE e.recorded_at_utc>={0} AND e.recorded_at_utc<{1}
+                AND (({2} AND a.root_user_id={3}) OR ({4} AND a.partner_user_id={3}))
+            )
+            SELECT to_char(event_day,'YYYY-MM-DD') AS "Date",
+              COALESCE(SUM(gross),0)::bigint AS "SalesGrossIrr",
+              COALESCE(SUM(outstanding),0)::bigint AS "SalesOutstandingForCohortIrr",
+              COALESCE(SUM(receipt),0)::bigint AS "CollectionsInPeriodIrr",
+              COALESCE(SUM(partner_share),0)::bigint AS "PartnerEarnedShareIrr",
+              COALESCE(SUM(root_share),0)::bigint AS "RootEarnedShareIrr",
+              COALESCE(SUM(net_settled),0)::bigint AS "PartnerSettlementNetIrr"
+            FROM events
+            GROUP BY event_day ORDER BY event_day
+            """;
+        var rows=await db.Database.SqlQueryRaw<FinancialTrendRow>(sql,
+            range.FromUtc,range.ToUtcExclusive,actor.Level1,actor.Id,
+            actor.Role=="Level2").AsNoTracking().ToArrayAsync(ct);
+        return new FinancialTrends(1,actor.Role,range,"IRR",
+            rows.Select(x=>new FinancialTrendBucket(x.Date,x.SalesGrossIrr,
+                x.SalesOutstandingForCohortIrr,x.CollectionsInPeriodIrr,
+                x.PartnerEarnedShareIrr,actor.Level1?x.RootEarnedShareIrr:null,
+                x.PartnerSettlementNetIrr)).ToArray());
     }
 
     public async Task<Finance> FinanceAsync(string? bearer,Window range,Guid? partnerUserId,CancellationToken ct)
