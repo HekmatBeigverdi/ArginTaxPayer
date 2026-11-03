@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 import {test} from "node:test";
-const read=path=>readFileSync(new URL("../../../"+path,import.meta.url),"utf8");
+const repositoryRoot=new URL("../../../",import.meta.url);
+const read=path=>readFileSync(new URL(path,repositoryRoot),"utf8");
 const service=read("src/ArginTaxPayer.Api/Dashboard/Phase15DashboardReadService.cs");
 const sql=read("scripts/phase15-step15-query-plan-audit.sql");
 const runner=read("scripts/phase15-step15-dashboard-load.mjs");
@@ -21,8 +22,8 @@ test("recent list pushes LIMIT to SQL after canonical latest-state ordering",()=
  assert.match(query,/c\.depth<100 AND NOT s\.id=ANY\(c\.visited\)/);
 });
 test("do not silently limit financial, overview, trend and attention calculations",()=>{
- for(const section of ["Overview","Trends","Attention"]){
-  const method=service.split("public async Task<"+section+"> "+section+"Async")[1];
+ for(const [section,responseType] of [["Overview","Overview"],["Trends","Trend"],["Attention","Attention"]]){
+  const method=service.split("public async Task<"+responseType+"> "+section+"Async")[1];
   assert.ok(method,section);
   assert.ok(method.split("public async Task<")[0].includes("ReadInvoices(actor,range,taxpayer,ct)"),section);
  }
