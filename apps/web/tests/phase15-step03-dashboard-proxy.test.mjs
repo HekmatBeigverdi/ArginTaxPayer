@@ -136,3 +136,19 @@ test("Level1 root summary only forwards for Level1 and never Level2 or Customer"
   assert.equal((await call(h,"root","?taxpayerId=1")).status,400);
   assert.equal(h.calls.length,1);
 });
+
+test("financial trends is denied to Customer and refuses tenant selectors",async()=>{
+  const customer=handler(["Customer"]);
+  assert.equal((await call(customer,"financial-trends","?period=30d")).status,403);
+  assert.equal(customer.calls.length,0);
+  const level2=handler(["Level2"]);
+  assert.equal((await call(level2,"financial-trends","?period=30d")).status,200);
+  assert.equal(level2.calls[0].url,
+    "http://127.0.0.1:15089/api/dev/dashboard/financial-trends?period=30d");
+  for(const query of ["?partnerUserId=1","?taxpayerId=1"])
+    assert.equal((await call(level2,"financial-trends",query)).status,400);
+  assert.equal(level2.calls.length,1);
+  const level1=handler(["Level1"]);
+  assert.equal((await call(level1,"financial-trends","?period=7d")).status,200);
+  assert.equal(level1.calls.length,1);
+});
