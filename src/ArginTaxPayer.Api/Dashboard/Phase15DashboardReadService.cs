@@ -247,11 +247,23 @@ public sealed class Phase15DashboardReadService(
         ORDER BY "IssuedAtUtc" DESC,"RootId" DESC
         """;
 
-    private async Task<InvoiceRow[]> ReadInvoices(Actor actor, Window range, Guid? taxpayer, CancellationToken ct)
-        => await db.Database.SqlQueryRaw<InvoiceRow>(InvoiceSql, taxpayer, actor.Id,
-            actor.Level1, actor.Role == "Level2", range.FromUtc, range.ToUtcExclusive,
-            actor.Role == "Customer")
+    private async Task<InvoiceRow[]> ReadInvoices(Actor actor, Window range, Guid? taxpayer, CancellationToken ct,
+        int? maxRows = null)
+    {
+        // The recent feed only needs ten rows. Push its LIMIT after the canonical
+        // root/status evaluation and stable ORDER BY into PostgreSQL, rather than
+        // materializing every scoped invoice chain in the API process.
+        if (maxRows is > 0)
+            return await db.Database.SqlQueryRaw<InvoiceRow>(InvoiceSql + "\nLIMIT {7}",
+                taxpayer, actor.Id, actor.Level1, actor.Role == "Level2",
+                range.FromUtc, range.ToUtcExclusive, actor.Role == "Customer", maxRows.Value)
+                .AsNoTracking().ToArrayAsync(ct);
+
+        return await db.Database.SqlQueryRaw<InvoiceRow>(InvoiceSql, taxpayer, actor.Id,
+                actor.Level1, actor.Role == "Level2", range.FromUtc, range.ToUtcExclusive,
+                actor.Role == "Customer")
             .AsNoTracking().ToArrayAsync(ct);
+    }
 
     public static string Classify(string? authority, int? dispatch)
     {
@@ -324,8 +336,8 @@ public sealed class Phase15DashboardReadService(
     {
         var actor=await AuthorizeAsync(bearer,false,ct);
         await ValidateTaxpayerAsync(actor,taxpayer,ct);
-        var rows=await ReadInvoices(actor,range,taxpayer,ct);
-        return new(1,range,rows.Take(10).Select(ToAlert).ToArray());
+        var rows=await ReadInvoices(actor,range,taxpayer,ct,maxRows:10);
+        return new(1,range,rows.Select(ToAlert).ToArray());
     }
     private static Alert ToAlert(InvoiceRow x)=>new(x.RootId,x.TaxpayerId,
         Classify(x.AuthorityStatus,x.DispatchState),x.IssuedAtUtc,"/invoices");
