@@ -119,3 +119,20 @@ test("Level2 partner snapshot rejects any date or identity filter",async()=>{
   }
   assert.equal(partner.calls.length,0);
 });
+
+test("Level1 root summary only forwards for Level1 and never Level2 or Customer",async()=>{
+  for (const roles of [["Customer"],["Level2"]]) {
+    const h=handler(roles);
+    assert.equal((await call(h,"root","?period=30d")).status,403);
+    assert.equal(h.calls.length,0);
+  }
+  const h=handler(["Level1"]);
+  assert.equal((await call(h,"root","?period=30d")).status,200);
+  assert.equal(h.calls.length,1);
+  assert.equal(h.calls[0].url,"http://127.0.0.1:15089/api/dev/dashboard/root?period=30d");
+  assert.equal(h.calls[0].options.headers.Authorization,"Bearer token");
+  assert.equal(h.calls[0].options.cache,"no-store");
+  assert.equal((await call(h,"root","?partnerUserId=1")).status,400);
+  assert.equal((await call(h,"root","?taxpayerId=1")).status,400);
+  assert.equal(h.calls.length,1);
+});
