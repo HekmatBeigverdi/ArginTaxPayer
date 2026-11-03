@@ -40,3 +40,6 @@ artifacts/phase11-step08/
 
 # Local Phase 12 acceptance output (manifests and generated command logs)
 artifacts/phase12-final/
+
+# Private local Phase15 acceptance logs, possible scoped test diagnostics
+artifacts/phase15-step16/
