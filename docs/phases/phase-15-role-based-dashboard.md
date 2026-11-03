@@ -1294,3 +1294,9 @@ The automatic full .NET and Next test suites serve as nonregression checks; Step
 - A successful script reports **automated tests passed for exactly one Git SHA**, **not** a complete Phase15 signoff. The next Step17 performs Ubuntu on the *identical SHA*, tests source/build parity, checks server environment, and gathers Ubuntu acceptance evidence. Final Step18 handles review, tag, release and merge only after all gates are verified.
 
 **Status:** source implementation + tests + macOS runner + live smoke script + canonical documentation committed. **Mac automated result, three-role live smoke, manual cross-owner reconciliation and Ubuntu parity remain pending actual operator output.** No migration required.
+
+
+### Step16 final source-level corrections
+
+- Reviewed file resolution in Node acceptance tests: \`apps/web/tests\` is three directory levels below repository root. Adjusted both \`phase15-step16-integrated-acceptance.test.mjs\` and previously prepared \`phase15-step15-query-performance.test.mjs\` to load \`src/\`, \`scripts/\` and \`docs/\` through \`../../../\`, preventing false \`ENOENT\` failures.
+- The validation toolchain is deliberately runnable **locally** with macOS + project dependencies. Tests and shell scripts have been committed but not executed in the assistant environment. Any failed macOS acceptance result must be resolved before Step17. No user-visible financial or fiscal business logic changed in Step16.
