@@ -450,7 +450,9 @@ function DashboardFold({id,title,note,children}:{id:string;title:string;note:str
       <span><strong>{title}</strong><small>{note}</small></span>
       <span aria-hidden="true" className="argin-dashboard__fold-chevron">⌄</span>
     </button>
-    {open&&<div id={id} className="argin-dashboard__fold-body">{children}</div>}
+    <div id={id} className="argin-dashboard__fold-body" hidden={!open}>
+      {open ? children : null}
+    </div>
   </section>;
 }
 
