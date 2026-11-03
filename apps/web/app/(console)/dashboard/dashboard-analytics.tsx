@@ -9,7 +9,7 @@ import DashboardActionCenter from "./dashboard-action-center";
 
 import DashboardCalendar from "./dashboard-calendar";
 import DashboardIcon from "../../components/dashboard-icon";
-import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useState, type ReactNode, type FormEvent } from "react";
 
 type Role = "Level1" | "Level2" | "Customer";
 type Period = "7d" | "30d" | "90d" | "year" | "custom";
