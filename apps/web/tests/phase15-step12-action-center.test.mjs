@@ -38,12 +38,12 @@ test("attention is ordered by priority and links only to authenticated existing 
 });
 
 test("subscription watch is queried for admins only, with no leaked response on failure",()=>{
-  assert.ok(center.includes("if(!admin)return"));
-  assert.ok(center.includes('fetch("/api/dashboard/subscriptions-watch"'));
-  assert.ok(center.includes('cache:"no-store"'));
-  assert.ok(center.includes("controller.abort()"));
-  assert.ok(center.includes("setWatch(null)"));
-  assert.ok(center.includes('data.role!==role'));
+  assert.ok(root.includes("if(!admin||!watchEnabled)return"));
+  assert.ok(root.includes('fetch("/api/dashboard/subscriptions-watch"'));
+  assert.ok(root.includes('cache:"no-store"'));
+  assert.ok(root.includes("controller.abort()"));
+  assert.ok(root.includes("setWatchData(null)"));
+  assert.ok(root.includes('value.role!==role'));
   assert.ok(center.includes('watchState==="error"'));
   assert.ok(center.includes("تعداد موارد ممکن است کامل نباشد"));
 });
