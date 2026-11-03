@@ -65,26 +65,35 @@ WHERE o.root_level1_user_id=$1 AND s.state=2
   AND s.activated_at_utc <= $2 AND s.expires_at_utc > $2
   AND s.expires_at_utc <= $3;
 
--- UUID sentinel is intentionally invalid as a real actor; the plan still reveals
--- scans, join strategies and index usage. Re-run with representative TEST actor
--- only in a controlled environment to get representative row counts.
+-- Choose existing TEST owner identities without printing them to stdout.
+-- When there are no qualifying owners, use a zero UUID and mark the sample nonrepresentative.
+SELECT COALESCE((
+  SELECT root_level1_user_id::text FROM customer_commercial_owners
+  WHERE root_level1_user_id IS NOT NULL ORDER BY customer_user_id LIMIT 1
+), '00000000-0000-0000-0000-000000000000') AS root_actor \gset
+SELECT COALESCE((
+  SELECT partner_level2_user_id::text FROM customer_commercial_owners
+  WHERE partner_level2_user_id IS NOT NULL ORDER BY customer_user_id LIMIT 1
+), '00000000-0000-0000-0000-000000000000') AS partner_actor \gset
+SELECT CASE WHEN EXISTS(SELECT 1 FROM customer_commercial_owners) THEN 'test owners present'
+  ELSE 'WARNING: no test owners, plans not representative' END AS sample_quality;
 \echo ==== ROOT COMMERCIAL SALES PLAN ====
 EXPLAIN (ANALYZE, BUFFERS, TIMING OFF, SUMMARY ON)
-EXECUTE phase15_sale_cohort('00000000-0000-0000-0000-000000000000',
+EXECUTE phase15_sale_cohort( :'root_actor'::uuid,
   now()-interval '30 days', now());
 
 \echo ==== VERIFIED RECEIPTS PLAN ====
 EXPLAIN (ANALYZE, BUFFERS, TIMING OFF, SUMMARY ON)
-EXECUTE phase15_verified_collections('00000000-0000-0000-0000-000000000000',
+EXECUTE phase15_verified_collections( :'root_actor'::uuid,
   now()-interval '30 days', now());
 
 \echo ==== PARTNER OWNERSHIP PLAN ====
 EXPLAIN (ANALYZE, BUFFERS, TIMING OFF, SUMMARY ON)
-EXECUTE phase15_partner_scope('00000000-0000-0000-0000-000000000000');
+EXECUTE phase15_partner_scope(:'partner_actor'::uuid);
 
 \echo ==== SUBSCRIPTION EXPIRY PLAN ====
 EXPLAIN (ANALYZE, BUFFERS, TIMING OFF, SUMMARY ON)
-EXECUTE phase15_expiring_subscriptions('00000000-0000-0000-0000-000000000000',
+EXECUTE phase15_expiring_subscriptions(:'root_actor'::uuid,
   now(), now()+interval '30 days');
 
 -- Existing SQL can be profiled with representative TEST actor ID from an operator
