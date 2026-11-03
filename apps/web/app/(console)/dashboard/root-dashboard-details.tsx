@@ -3,7 +3,7 @@
 import Link from "next/link";
 import {useEffect,useState} from "react";
 
-type Period="7d"|"30d"|"90d"|"year";
+type Period=string;
 type PartnerPerformance={
   partnerUserId:string;partnerLabel:string;activeCustomerCount:number;
   verifiedCollectionsInPeriodIrr:number;partnerEarnedShareInPeriodIrr:number;
