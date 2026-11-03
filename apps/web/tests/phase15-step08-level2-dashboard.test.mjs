@@ -2,12 +2,13 @@ import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 import {test} from "node:test";
 import ts from "typescript";
+import {createRequire} from "node:module";
+import {loadTsx} from "./helpers/load-tsx.mjs";
 
 const read=(path)=>readFileSync(new URL("../"+path,import.meta.url),"utf8");
 const root=read("app/(console)/dashboard/dashboard-analytics.tsx");
 const partner=read("app/(console)/dashboard/partner-dashboard-details.tsx");
 const css=read("app/(console)/dashboard/dashboard-design.css");
-const proxy=read("app/api/dashboard/[section]/route.ts");
 const backend=read("../../src/ArginTaxPayer.Api/Dashboard/Phase15DashboardReadService.cs");
 const endpoint=read("../../src/ArginTaxPayer.Api/Dashboard/Phase15DashboardEndpoints.cs");
 
@@ -45,13 +46,53 @@ test("partner only backend DTO has no privileged root share or unrelated totals"
  assert.match(backend,/WHEN e\.kind=2 THEN -e\.amount_irr/);
 });
 
-test("partner endpoint denies role misuse at both server and proxy",()=>{
+function partnerProxy(roles) {
+ const calls=[];
+ const route=loadTsx(new URL("../app/api/dashboard/[section]/route.ts",import.meta.url),{
+  globals:{URL,AbortSignal,fetch:async(url,options)=>{
+   calls.push({url:url.toString(),options});
+   return Response.json({schemaVersion:1,role:"Level2"});
+  }},
+  modules:{
+   "next/headers":{cookies:async()=>({get:()=>({value:"session-token"})})},
+   "../../../../lib/identity":{ACCESS_COOKIE:"access",identityUiEnabled:()=>true,
+    currentIdentity:async()=>({roles}),identityApiOrigin:()=>"http://backend"}
+  }
+ });
+ const {NextRequest}=createRequire(import.meta.url)("next/server");
+ return {calls,get(query=""){
+  return route.GET(new NextRequest("http://localhost/api/dashboard/partner"+query),
+   {params:Promise.resolve({section:"partner"})});
+ }};
+}
+
+test("partner endpoint denies role misuse at both server and proxy",async()=>{
  assert.match(endpoint,/"partner"=>await service\.PartnerOverviewAsync/);
- assert.match(proxy,/"recent", "partner"/);
- assert.ok(proxy.includes('return unavailable(400, "invalid_filter")'));
- assert.match(proxy,/!actor\.roles\.includes\("Level2"\)/);
- assert.ok(proxy.includes('section === "partner" && query.size > 0'));
- assert.ok(proxy.includes('return unavailable(400, "invalid_filter")'));
+ assert.match(backend,/actor\.Role != "Level2"/);
+
+ for(const roles of [[],["Customer"],["Level1"],["Level1","Level2"],["Level2","Level1"]]){
+  const proxy=partnerProxy(roles);
+  const response=await proxy.get();
+  assert.equal(response.status,403,JSON.stringify(roles));
+  assert.equal(proxy.calls.length,0,"unauthorized roles never reach the backend");
+ }
+
+ const proxy=partnerProxy(["Level2"]);
+ for(const query of ["?partnerUserId=another-partner","?taxpayerId=another-taxpayer",
+  "?period=30d","?from=2026-11-01","?to=2026-11-03","?period=",
+  "?partnerUserId=","?period=7d&period=30d","?role=Level1"]){
+  const response=await proxy.get(query);
+  assert.equal(response.status,400,query);
+  assert.equal((await response.json()).error,"invalid_filter",query);
+ }
+ assert.equal(proxy.calls.length,0,"filtered snapshots never reach the backend");
+
+ const response=await proxy.get();
+ assert.equal(response.status,200);
+ assert.equal(response.headers.get("cache-control"),"private, no-store");
+ assert.equal(proxy.calls.length,1);
+ assert.equal(proxy.calls[0].url,"http://backend/api/dev/dashboard/partner");
+ assert.equal(proxy.calls[0].options.headers.Authorization,"Bearer session-token");
 });
 
 test("UI uses real numbers and excludes fabricated profit",()=>{
