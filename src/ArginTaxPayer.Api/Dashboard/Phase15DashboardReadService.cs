@@ -218,7 +218,9 @@ public sealed class Phase15DashboardReadService(
         var drafts=await db.InvoiceEntryWorkspaces.AsNoTracking()
             .Where(x=>allowed.Contains(x.TaxpayerId) &&
                 (!taxpayer.HasValue || x.TaxpayerId==taxpayer.Value) &&
-                x.UpdatedAtUtc>=range.FromUtc && x.UpdatedAtUtc<range.ToUtcExclusive)
+                x.UpdatedAtUtc>=range.FromUtc && x.UpdatedAtUtc<range.ToUtcExclusive &&
+                !db.InvoiceDocuments.Any(d=>d.Id==x.Id && d.CustomerUserId==x.CustomerUserId &&
+                    d.TaxpayerId==x.TaxpayerId))
             .CountAsync(ct);
         var subscription=actor.Role=="Customer" ? await subscriptions.ReadMineAsync(bearer,ct) : null;
         return new(1,actor.Role,DateTime.UtcNow,range,Count(invoices),drafts,subscription);
