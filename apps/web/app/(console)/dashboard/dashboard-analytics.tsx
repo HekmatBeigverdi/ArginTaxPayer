@@ -3,6 +3,7 @@
 import Link from "next/link";
 import PartnerDashboardDetails from "./partner-dashboard-details";
 import RootDashboardDetails from "./root-dashboard-details";
+import DashboardFinancialCharts from "./dashboard-financial-charts";
 
 import DashboardCalendar from "./dashboard-calendar";
 import DashboardIcon from "../../components/dashboard-icon";
@@ -621,6 +622,7 @@ export default function DashboardAnalytics({ role }: { role: Role }) {
         </div>
       </div>
 
+      {admin && <DashboardFinancialCharts role={role === "Level1" ? "Level1" : "Level2"} period={period} />}
       {role === "Level1" && <RootDashboardDetails period={period} />}
       {role === "Level2" && (
         <PartnerDashboardDetails
