@@ -1037,3 +1037,72 @@ npm run build
 Manual browser QA: sign in with Customer/Level2/Level1. Open each KPI and verify exact numbers against existing API, explanatory labels, only one detail area, valid navigation, and role-safe fields. Change a preset and confirm detail closes. Open the custom-date section, choose an earlier valid Gregorian period and ensure the cards, invoice trend, financial chart and Level1 partner comparison all use it. Try reversed, impossible, future and over-one-year dates; confirm no request is issued. Check the details continue to be collapsed on page load and on mobile. A Level2 must not receive root-share fields.
 
 No migration or fiscal-authority write operations added. Local Build, xUnit, Node tests, PostgreSQL and browser PASS are pending actual operator results. The user-approved phase documentation remains in this single file.
+
+---
+
+## STEP 14 — Dashboard loading performance and duplicate-request avoidance (2026-11-03)
+
+**Branch:** `phase/15-role-based-dashboard`. Source implementation recorded; macOS/runtime verification pending.
+
+### Verified source issue
+
+Before Step14, both `DashboardActionCenter` and `DashboardSubscriptionWatch` performed their own independent `GET /api/dashboard/subscriptions-watch` when both respective admin foldouts were open. This duplicated an authenticated PostgreSQL aggregate, used separate abort/retry lifecycles, and could produce inconsistent displayed snapshot timestamps. The initial Step12 foldout system already deferred heavier charts; Step14 preserves that behavior and consolidates the duplicated subscription request.
+
+### Implementation
+
+- `apps/web/app/(console)/dashboard/dashboard-analytics.tsx`: the current authenticated dashboard component owns exactly **one shared subscription-watch response** and the request lifecycle. An `onOpen` callback activates the feed only when the administrator first expands either "جزئیات اشتراک‌ها و سهمیه‌ها" or "اولویت‌های عملیاتی". Opening the second panel reuses the same in-memory response, including its loading/error state, without a second fetch. The shared result is validated for `schemaVersion=1`, effective role, array shape and numeric counters. A retry explicitly clears its old data and refetches once. The request is aborted when the dashboard unmounts or its effective role/request version changes. No persistent or module-level cache was introduced.
+- `apps/web/app/(console)/dashboard/dashboard-action-center.tsx`: uses parent-provided `watchState`, `watch` and `onRetryWatch`, with no local subscription fetch. Only valid role-matched records are allowed into the priority list. The first loading frame includes `idle` in the waiting indicator to avoid a false "nothing urgent" message.
+- `apps/web/app/(console)/dashboard/dashboard-subscription-watch.tsx`: now renders the shared parent-provided snapshot and retry callback. It no longer fetches the same endpoint independently. Customer still never gets this admin component.
+- All responses continue to be browser/Next `no-store` and scope-checked by the server. The shared in-memory result is limited to **one mounted, authorized dashboard instance**, with no `localStorage`, `sessionStorage`, global promise map, cross-tab cache or cross-account reuse.
+- Existing Step11/12 tests adapted to the new ownership model and retained the original backend/role-contract assertions.
+- Added `apps/web/tests/phase15-step14-dashboard-performance.test.mjs` to check shared fetch ownership, independent retries, abort handling, lazy mounting, scoped role verification and absence of persistent caches.
+
+### Expected request reduction
+
+| User interaction | Before Step14 | After Step14 |
+| --- | --- | --- |
+| First dashboard load, all advanced admin foldouts closed | 0 subscription-watch calls | 0 |
+| First opening of either subscription / priority fold | 1 call | 1 call |
+| Opening the second fold while same dashboard remains mounted | **another 1 call** | **0 additional calls** |
+| Explicit Retry, both foldouts open | Local per-component request | **one shared re-fetch**, shared state |
+| Customer dashboard | 0 subscription-watch calls | 0 |
+
+These numbers refer only to the duplicate subscription-watch aggregate; they are not a measured end-to-end dashboard latency improvement. Other period-specific API requests (`overview`, `trends`, `attention`, `finance`) remain independent and use existing abort-on-period-change/no-store logic. React's per-panel SVG loading and selected-period stale-value clearing remain unchanged.
+
+### Deferred optimizations and risk limits
+
+- Cross-tab/client-side caching is **not** adopted because financial aggregates can differ by account and membership; security, freshness and data isolation outweigh a speculative cache hit.
+- There is **no** Redis, background request queue, new DB index, database migration or additional worker.
+- The root/partner SQL aggregation performance under large production data still requires a measured PostgreSQL `EXPLAIN (ANALYZE, BUFFERS)` study before changing indexes, grouping or result paging; do not claim a backend performance target without representative test data.
+- The existing generic "retry overview" re-fetches the ordinary period feeds together. This is recorded for future per-section retry separation if measurements justify it; Step14 specifically removes duplicated subscription-watch requests without destabilizing earlier period-feed behavior.
+
+### Mac acceptance commands
+
+```bash
+cd ~/projects/ArginTaxPayer
+git fetch origin
+git switch phase/15-role-based-dashboard
+git pull --ff-only origin phase/15-role-based-dashboard
+
+cd apps/web
+npm ci
+node --test \
+  tests/phase15-step14-dashboard-performance.test.mjs \
+  tests/phase15-step13-dashboard-drilldown.test.mjs \
+  tests/phase15-step12-action-center.test.mjs \
+  tests/phase15-step11-subscription-watch.test.mjs \
+  tests/phase15-step10-financial-trends.test.mjs \
+  tests/phase15-step09-level1-dashboard.test.mjs \
+  tests/phase15-step08-level2-dashboard.test.mjs \
+  tests/phase15-step06-dashboard-components.test.mjs
+npm run typecheck
+npm run build
+```
+
+**Manual network QA:** Sign in as Level1 and Level2 separately and open Chrome DevTools > Network with Preserve log. First load (advanced foldouts closed) must not request `/api/dashboard/subscriptions-watch`. Expand "اولویت‌های عملیاتی" and observe exactly one request. Expand "جزئیات اشتراک‌ها و سهمیه‌ها" and observe **no additional request**. Collapse/reopen either panel, verify no new request. Trigger retry on an error and ensure exactly one request and that both open panels transition to loading and then the same new snapshot. Simulate a delayed response, navigate away, and verify the network request aborts and does not update the departed page. As Customer, verify zero subscription-watch calls. Check quick date changes, error states and old Phase10 invoice operations remain unaffected.
+
+### Acceptance status
+
+GitHub source changes, test definitions and documentation: saved. **No operator macOS npm/tsc/Next build, network trace, SQL measurement or browser PASS has been observed by the assistant.** Step14 should be marked fully accepted only after those results. Continue to Step15 for measured performance/load audit, or the next phase-prescribed step, only after current acceptance.
+
+The single-file documentation convention remains `docs/phases/phase-15-role-based-dashboard.md`.
