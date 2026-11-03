@@ -40,9 +40,10 @@ function dashboard(role,fetch) {
  }).default;
  return {state,effects,loadEffect:null,tree(){
   slot=0;
+  const firstEffect=effects.length;
   const tree=Component({role});
-  // Capture the dashboard effect before rendering children with their own effects.
-  this.loadEffect=effects.at(-1);
+  // Capture period loading separately from the lazy watch feed and child effects.
+  this.loadEffect=effects[firstEffect];
   return tree;
  },
   render(){return renderToStaticMarkup(this.tree());}};
@@ -125,10 +126,9 @@ test("slow charts and failed attention do not block role-specific KPI cards or q
   const html=view.render();
   assert.ok(html.includes('class="argin-dashboard__kpi-value"'),role);
   assert.ok(html.includes('class="argin-dashboard__skeleton"'),role);
-  assert.equal(html.includes('role="alert"'),role==="Customer",role);
-  if(role!=="Customer"){
-   assert.match(html,/id="operational-priorities"[^>]*hidden=""/);
-  }
+  assert.equal(html.includes('role="alert"'),false,role);
+  assert.match(html,/id="operational-priorities"[^>]*hidden=""/);
+  assert.ok(html.indexOf('id="invoice-details"')<html.indexOf('id="operational-priorities"'),role);
   assert.ok(html.includes('aria-label="اقدامات پرکاربرد"'),role);
   cleanup();
  }

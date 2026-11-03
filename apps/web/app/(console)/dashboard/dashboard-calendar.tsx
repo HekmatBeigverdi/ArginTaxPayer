@@ -23,9 +23,19 @@ export function calendarDatesFor(date: Date) {
     const part = (type: Intl.DateTimeFormatPartTypes) => (
       parts.find(value => value.type === type)?.value ?? ""
     );
-    const text = calendar.direction === "ltr"
+    let text = calendar.direction === "ltr"
       ? formatter.format(date)
       : `${part("weekday")}، ${part("day")} ${part("month")} ${part("year")}`;
+
+    if (calendar.calendar === "persian") {
+      const numericDate = new Intl.DateTimeFormat("fa-IR-u-ca-persian", {
+        timeZone,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(date);
+      text += ` (${numericDate})`;
+    }
 
     return { ...calendar, text, day: part("day"), month: part("month") };
   });

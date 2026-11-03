@@ -714,7 +714,6 @@ export default function DashboardAnalytics({ role }: { role: Role }) {
       {selectedKpi!==null && kpiState.status==="ready" &&
         <DashboardKpiDetails role={role} index={selectedKpi} overview={overview}
           finance={finance} onClose={()=>setSelectedKpi(null)} />}
-      {!admin && actionCenter}
       <div className="argin-dashboard__charts">
         <DashboardPanel title="روند صورتحساب‌ها">
           {trendState.status === "loading" ? <DashboardSkeleton variant="chart" /> : (
@@ -832,12 +831,10 @@ export default function DashboardAnalytics({ role }: { role: Role }) {
         </DashboardPanel>
       </div>
       </DashboardFold>
-      {admin && (
-        <DashboardFold id="operational-priorities" onOpen={enableWatch} title="اولویت‌های عملیاتی"
-          note="اقدام‌های نیازمند پیگیری — برای مشاهده باز کنید">
-          {actionCenter}
-        </DashboardFold>
-      )}
+      <DashboardFold id="operational-priorities" onOpen={enableWatch} title="اولویت‌های عملیاتی"
+        note="اقدام‌های نیازمند پیگیری — برای مشاهده باز کنید">
+        {actionCenter}
+      </DashboardFold>
     </div>
   );
 }
