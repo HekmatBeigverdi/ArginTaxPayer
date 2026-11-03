@@ -367,3 +367,76 @@ Re-test role security manually with authenticated Customer, Level2 and Level1 se
 ### Canonical file rule
 
 This is the **only Phase 15 document inside `docs/phases/`**. Append Step04 and later updates here as new sections, rather than creating additional per-step documents. Other non-Phase15 phase files must not be renamed or touched.
+
+---
+
+## STEP 04 — Authorization isolation and financial/invoice integrity (2026-11-03)
+
+**Source review and regression test expansion completed; execution on owner's macOS/test PostgreSQL is still required for runtime approval.**
+
+### Findings fixed in this step
+
+1. **Customer-role invoice predicate hardening.** The original `ReadInvoices` query allowed `d.customer_user_id=actor` without requiring the selected role to be `Customer`. The predicate now explicitly requires `{6}=Customer` for that branch, while Level1 and Level2 use their distinct authorized owner predicates. This prevents an administrator's historical customer identity from broadening data visibility under a different role.
+2. **Level2 collections scope fix.** In the initial Step03 implementation, cohort order sales and revenue share queries checked Level2 current ownership but `collectionsInPeriodIrr` checked historical `o.partner_user_id` only. That inconsistency could show a transferred customer's historical receipts to a former partner. The collections query now also checks current `customer_commercial_owners.partner_level2_user_id` before aggregating.
+3. **Read-only audit.** `scripts/phase15-step04-security-audit.sql` runs only on `argintaxpayer_test`, under a read-only transaction; it reports counts of invoice ownership/lineage issues, receipt reconciliation mismatches, over-settled allocations, historical partnership changes and acknowledgement without official SUCCESS. The last two are **diagnostic** and may be nonzero legitimately.
+4. **Proxy negative test coverage.** Expanded `apps/web/tests/phase15-step03-dashboard-proxy.test.mjs` to assert backend 401/403/404/503 propagation, non-caching, Customer finance denial, Level2 partner-filter denial, and unsupported finance filter rejection.
+
+### Security matrix
+
+| Actor/request | Expected result |
+| --- | --- |
+| Customer / own overview and trends | HTTP 200 with only own authorized taxpayer data |
+| Customer / finance | HTTP 403, no money fields |
+| Level2 / finance with no partner filter | HTTP 200 scoped to current owned customer financial records |
+| Level2 / finance with `partnerUserId` | HTTP 403 |
+| Level1 / finance for owned root | HTTP 200 |
+| Level1 / finance with a foreign `partnerUserId` | HTTP 404 |
+| Authorized actor / foreign `taxpayerId` | HTTP 404 |
+| Missing session | HTTP 401 |
+| Disabled session, inactive user, missing MFA for admin | Denied (status based on identity boundary) |
+| Unknown dashboard section | HTTP 404 |
+| Duplicate or unknown query parameters | HTTP 400 |
+| Provider unavailability | HTTP 503 through Next.js proxy |
+
+### Important limitations (not misreported as PASS)
+
+- No .NET, Next.js or PostgreSQL live execution was available in the GitHub-only editing environment. The above expectations are **tests and source-reviewed conditions**, not proven runtime outcomes.
+- Step03 `ReadInvoices` still materializes all scoped invoice summaries in app memory for the selected time window. Large-volume performance and SQL execution plans remain an explicit Step15 issue. No unbounded PII snapshots are sent to the web app.
+- Step03 `invoiceAcceptedTrend` is currently an **issue-date-cohort accepted count**, not a time series of official confirmation observed at date. The UI must not label it "daily confirmed by authority" until the separate authority-observed series is implemented.
+- Official rejection string vocabulary, revision provenance and complex legal-chain collision scenarios require live SDK/DB fixture verification. Unknown reports remain unclassified, not accepted.
+- Current ownership versus historical commercial revenue attribution is explicit; finance audit should compare the same ownership/time filter across all amount categories.
+
+### macOS validation commands, from project root
+
+```bash
+git fetch origin
+git switch phase/15-role-based-dashboard
+git pull --ff-only
+dotnet restore ArginTaxPayer.sln
+dotnet build ArginTaxPayer.sln -c Release --no-restore
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj -c Release --no-restore \
+  --filter "FullyQualifiedName~Phase15DashboardContractTests"
+cd apps/web
+npm ci
+npm run typecheck
+node --test tests/phase15-step03-dashboard-proxy.test.mjs
+npm run build
+```
+
+For database validation, with the previously configured macOS AutoSSH tunnel to VPS PostgreSQL:
+
+```bash
+# Run from the repository root (not apps/web)
+PGPASSWORD='' psql -h 127.0.0.1 -p 15432 -U argintaxpayer -d argintaxpayer_test \
+  -f scripts/phase15-step04-security-audit.sql
+```
+
+The example deliberately does not inline a password. If `psql` prompts for one, enter it interactively; `PGPASSWORD=''` is optional and can be omitted.
+
+For browser checks, run the API/Web services through the existing `scripts/dev-up.zsh` workflow and verify separate authenticated Customer/Level2/Level1 sessions. Compare server-side metrics with audit results, and run an adversarial test where the Level2 owner changes after a collection was recorded.
+
+**Step 04: source fixes and tests committed. Runtime security and database acceptance: NOT YET VERIFIED.**
+
+### Documentation policy
+
+Continue appending future phase steps to this file only; do not create new `docs/phases/phase-15-stepXX*.md` files.
