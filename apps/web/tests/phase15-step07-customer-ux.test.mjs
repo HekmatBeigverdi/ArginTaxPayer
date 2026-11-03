@@ -22,15 +22,15 @@ test("independent requests settle separately and abort obsolete periods",()=>{
   for(const section of ["overview","trends","attention","finance"]) {
     assert.ok(client.includes('query("'+section+'"'));
   }
-  assert.ok(client.includes('if(admin)query("finance"'));
+  assert.match(client,/if\s*\(admin\)\s*\{?\s*query\("finance"/);
   assert.ok(client.includes("controller.abort()"));
-  assert.ok(client.includes("if(!controller.signal.aborted)"));
+  assert.match(client,/if\s*\(!controller.signal.aborted\)/);
   assert.ok(!client.includes("Promise.all(tasks)"));
   for(const state of ["OverviewState","TrendState","AttentionState","FinanceState"]) {
     assert.ok(client.includes("set"+state+"(waiting())"),state);
-    assert.ok(client.includes("set"+state+'({status:"error",data:null})'),state);
+    assert.match(client,new RegExp("set"+state+'\\(\\{\\s*status:\\s*"error",\\s*data:\\s*null\\s*\\}\\)'),state);
   }
-  assert.ok(client.includes('cache:"no-store"'));
+  assert.match(client,/cache:\s*"no-store"/);
 });
 
 test("dashboard stays structurally visible during loading with SVG waiting per region",()=>{
@@ -56,7 +56,7 @@ test("quick actions render immediately and remain content height",()=>{
 });
 
 test("attention is bounded to five, preserves safe invoice links and show-more",()=>{
-  assert.ok(client.includes("attentionState.data?.slice(0,5)"));
+  assert.match(client,/attentionState.data\?\.slice\(0,\s*5\)/);
   assert.ok(client.includes("مشاهده همه صورتحساب‌ها"));
   assert.ok(client.includes('href="/invoices"'));
   assert.ok(!client.includes("Math.random"));
@@ -69,5 +69,5 @@ test("reduced motion and live error handling preserve accessibility",()=>{
   assert.ok(client.includes("DashboardState kind=\"error\""));
   assert.ok(client.includes("aria-live=\"polite\""));
   assert.ok(client.includes('aria-label="در حال دریافت اطلاعات از سرور"'));
-  assert.ok(client.includes('status:"error",data:null'));
+  assert.match(client,/status:\s*"error",\s*data:\s*null/);
 });
