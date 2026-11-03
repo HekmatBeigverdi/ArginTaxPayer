@@ -450,3 +450,88 @@ Continue appending future phase steps to this file only; do not create new `docs
 - The SQL file now requires no procedural code; `ON_ERROR_STOP` continues to abort the audit on any SQL failure. Gate returns 1 on the designated test DB and fails on other databases.
 - Fix commit: `507e15c4055f42d255455199b339bb73a730ec9e`.
 - Runtime test still pending a new macOS execution; no PASS claim.
+
+---
+
+## STEP 05 — Dashboard visual/UX design system (2026-11-03)
+
+**Design system committed; graphical page integration is intentionally scheduled for Steps 06–09.** Existing dashboard and all routes remain unchanged in Step05.
+
+### Visual direction
+
+- Preserve the existing application shell, brand, navigation and RTL Persian typography. Existing CSS tokens are `--argin-primary:#177f81`, `--argin-page:#f3f6fa`, `--argin-line:#dae6ed`, `--argin-text:#20344b`, `--argin-muted:#64788c`; use shared Vazirmatn and Tahoma fallback.
+- Use a quiet, professional operational dashboard: light background, white bordered cards, green action emphasis, restrained status colours only for meaningful states. No chart decoration or oversized banner pushing actionable information below the fold.
+- Use consistent 16px card radius, 16px desktop grid gap, 12px phone grid gap, card padding 18px/14px, readable labels and 40px+ filter targets. Respect `prefers-reduced-motion`.
+- Status colour semantics: green = confirmed official acceptance / paid; amber = pending/attention; red = rejected/terminal failure; neutral blue-grey = prepared/in progress; **indeterminate should be distinctly labeled unknown**, never green.
+
+### Shared information architecture
+
+```text
+[Compact page title + user role + as-of timestamp]   [period | taxpayer/partner selector]
+[ K P I 01 ] [ K P I 02 ] [ K P I 03 ] [ K P I 04 ]
+[Trend chart: issuance / commercial receipts]    [Status chart / composition]
+[Actionable attention queue]                     [Latest activity]
+[Role-specific secondary KPIs, subscription and contextual shortcuts]
+```
+
+Keep no more than **four primary metrics** immediately visible per role at desktop width. Further metrics reside in clearly titled secondary sections. Filters remain visually distinct from cards; loading/error states never masquerade as real zeroes. Every KPI has a description of its source/time dimension accessible in context.
+
+### Role-specific primary and secondary widgets
+
+| Role | Primary four KPIs | Main chart | Secondary/quick actions |
+| --- | --- | --- | --- |
+| Customer | logical invoices, official accepted outcomes, unresolved/attention cases, remaining subscription quota or expiration | invoices issued by local Tehran calendar date, plus current outcome composition | subscription details, drafts, recent invoices, create invoice, open invoices |
+| Level2 | gross sales of subscription orders, verified collections posted in period, outstanding on selected order cohort, own allocated partner share | receipt trend and own invoice status trend | own customer count, own settlement position, renewals and recent customer activity; **no root share or profit** |
+| Level1 | subscription sales gross, period-verified cash collections, commercial receivables, root share from approved allocations | cash collection and sales trend, partner comparison | active subscribers, invoice operations, partner earned/net-settled/outstanding, approaching renewals |
+
+**Never use the monetary face amount of a taxpayer-issued fiscal invoice as platform subscription revenue.** Currency amounts use persisted IRR and an explicit user-visible unit.
+
+### Charts and metrics
+
+- For Step06, define reusable primitives: `DashboardPageHeader`, `DashboardPeriodFilter`, `DashboardKpiCard`, `DashboardPanel`, `DashboardStatusDonut`, `DashboardTrendChart`, `DashboardState`, `DashboardQuickActions`.
+- Chart x-axis is Tehran local calendar day (display Persian/Jalali date). Provide readable legend, unit, comparison and text/table equivalent. Charts are not the exclusive access path to information.
+- **AcceptedByIssueDate** from the Step03 API means current accepted outcomes grouped by **original invoice issue date**, not date of official confirmation. Do not label it as "daily authority confirmations".
+- Proposed API topology still has no daily cash receipt series or subscription renewal aggregation; those chart slots must be shown only after actual server support is implemented in subsequent steps, never via invented placeholder figures.
+- Count corrected/cancelled/returned invoice chains once per root. Show cancellation as its own last effective subject and keep uncertain outcomes in an explicit neutral/amber state.
+
+### Layout by breakpoint
+
+| Width | KPI grid | Charts | Recent/attention | Filter bar |
+| --- | --- | --- | --- | --- |
+| Above 1100 px | 4 columns | Trend 1.65fr + status 1fr | two columns | right-aligned, wrapping |
+| 641–1100 px | 2 columns | stacked | two columns where space allows | wrapping |
+| 381–640 px | 2 compact columns | stacked | one column | full width |
+| Up to 380 px | 1 column | stacked | one column | full width |
+
+Maximum content width continues to be managed by the existing console shell. No separate shell, no horizontal body scrolling. Tables may use contained overflow scroll with accessible labels.
+
+### State and security UX
+
+- Loading: accessible skeleton/progress text, never fake KPI digits.
+- Empty dataset: descriptive message and permitted action, not a misleading success rate of 0%.
+- Missing/invalid session: follow existing identity flow, no stale cached finance data.
+- API 403/404: safe generic denial, no hidden-tenant identity clues.
+- API 503/timeouts: inline retry of read-only dashboard fetch only; **never send, retry or inquire a fiscal invoice automatically**.
+- No cards/links shown solely by frontend role should be mistaken for security enforcement. Server authorizes every API request.
+- Focus-visible ring, logical heading sequence, 4.5:1 text contrast target, text labels alongside status colours, reduced motion, `aria-live` for data states, keyboard-operable filters.
+
+### Deliverables
+
+- `apps/web/app/(console)/dashboard/dashboard-design.css`: scoped dashboard-only CSS contract (not imported in Step05; will be used in Step06 shared components).
+- `apps/web/tests/phase15-step05-dashboard-design.test.mjs`: static regression checks of brand token reuse, RTL, responsive layouts, accessibility states and preserved existing operational dashboard navigation.
+- One single canonical phase document: this file; no additional phase-15 step documents.
+
+### Step05 verification (macOS)
+
+```bash
+git fetch origin
+git switch phase/15-role-based-dashboard
+git pull --ff-only
+cd apps/web
+npm ci
+node --test tests/phase15-step05-dashboard-design.test.mjs
+npm run typecheck
+npm run build
+```
+
+**Step05 source-level design work complete. Runtime tests are pending operator execution; no database migration or Ubuntu acceptance needed in this design-only step.**
