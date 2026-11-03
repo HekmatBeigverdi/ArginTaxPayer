@@ -1,37 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import {useEffect,useState} from "react";
+import type {SubscriptionWatch,WatchLoadState} from "./dashboard-subscription-watch";
 
 type Role="Level1"|"Level2"|"Customer";
 type AttentionItem={invoiceId:string;taxpayerId:string;status:string;issuedAtUtc:string;link:string};
 type AttentionStatus="loading"|"ready"|"error";
-type Watch={schemaVersion:number;role:"Level1"|"Level2";expiringWithinSevenDays:number;expiringWithinThirtyDays:number;exhaustedQuantityPlans:number;items:{subscriptionId:string;status:string;remainingDays:number;expiresAtUtc:string}[]};
-type Props={role:Role;attentionStatus:AttentionStatus;attention:AttentionItem[];onRetry:()=>void};
+type Props={role:Role;attentionStatus:AttentionStatus;attention:AttentionItem[];onRetry:()=>void;
+  watchState:WatchLoadState;watch:SubscriptionWatch|null;onRetryWatch:()=>void};
 const n=(value:number)=>new Intl.NumberFormat("fa-IR").format(value);
 const day=(s:string)=>new Intl.DateTimeFormat("fa-IR-u-ca-persian",{dateStyle:"medium",timeZone:"Asia/Tehran"}).format(new Date(s));
 const labels:Record<string,string>={rejected:"ردشده",unknown:"نتیجه نامشخص",attention:"نیازمند بررسی"};
-export default function DashboardActionCenter({role,attentionStatus,attention,onRetry}:Props){
+export default function DashboardActionCenter({role,attentionStatus,attention,onRetry,
+  watchState,watch,onRetryWatch}:Props){
   const admin=role!=="Customer";
-  const [watchState,setWatchState]=useState<"loading"|"ready"|"error">("loading");
-  const [watch,setWatch]=useState<Watch|null>(null);
-  const [retryCount,setRetryCount]=useState(0);
-  useEffect(()=>{
-    if(!admin)return;
-    const controller=new AbortController();
-    setWatchState("loading");setWatch(null);
-    fetch("/api/dashboard/subscriptions-watch",{cache:"no-store",signal:controller.signal})
-      .then(async response=>{
-        if(!response.ok)throw new Error("watch_unavailable");
-        const data=await response.json() as Watch;
-        if(data.schemaVersion!==1||data.role!==role||!Array.isArray(data.items)||
-          !Number.isSafeInteger(data.expiringWithinSevenDays)||!Number.isSafeInteger(data.exhaustedQuantityPlans))
-          throw new Error("invalid_watch");
-        if(!controller.signal.aborted){setWatch(data);setWatchState("ready");}
-      }).catch(()=>{if(!controller.signal.aborted){setWatch(null);setWatchState("error");}});
-    return()=>controller.abort();
-  },[role,admin,retryCount]);
-
+  const scopedWatch=admin&&watch?.role===role?watch:null;
   const sortedInvoices=[...attention].sort((a,b)=>{
     const prio=(s:string)=>s==="rejected"?0:s==="unknown"?1:2;
     return prio(a.status)-prio(b.status)||b.issuedAtUtc.localeCompare(a.issuedAtUtc);
@@ -40,7 +23,7 @@ export default function DashboardActionCenter({role,attentionStatus,attention,on
     ...sortedInvoices.map(i=>({id:"invoice-"+i.invoiceId,title:labels[i.status]??"صورتحساب نیازمند بررسی",
       text:"صورتحساب · "+day(i.issuedAtUtc),priority:i.status==="rejected"?"urgent" as const:"review" as const,
       href:"/invoices",action:"بررسی صورتحساب"})),
-    ...(admin&&watch?watch.items.map(i=>({
+    ...(scopedWatch?scopedWatch.items.map(i=>({
       id:"subscription-"+i.subscriptionId,
       title:i.status==="quota_exhausted"?"سهمیه صورتحساب به پایان رسیده":i.status==="urgent"?"اشتراک در آستانه انقضا":"تمدید اشتراک نزدیک است",
       text:"اشتراک · "+day(i.expiresAtUtc)+" · "+n(i.remainingDays)+" روز مانده",
@@ -67,7 +50,7 @@ export default function DashboardActionCenter({role,attentionStatus,attention,on
     {errors&&<div className="argin-dashboard__action-alert" role="alert">
       بخشی از اطلاعات دریافت نشد؛ تعداد موارد ممکن است کامل نباشد.
       {attentionStatus==="error"&&<button type="button" onClick={onRetry}>تلاش مجدد برای صورتحساب‌ها</button>}
-      {admin&&watchState==="error"&&<button type="button" onClick={()=>setRetryCount(v=>v+1)}>تلاش مجدد برای اشتراک‌ها</button>}
+      {admin&&watchState==="error"&&<button type="button" onClick={onRetryWatch}>تلاش مجدد برای اشتراک‌ها</button>}
     </div>}
     {tasks.length>0?<ul className="argin-dashboard__action-list">
       {tasks.slice(0,5).map(task=><li key={task.id}>
