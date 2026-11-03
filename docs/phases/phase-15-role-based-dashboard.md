@@ -584,3 +584,58 @@ Then launch the existing dev environment with the API and web app as usual, sign
 - End-to-end role separation of DB aggregates: continue Step04/Step07–09 runtime validation.
 - Per-role advanced screens, additional calendar inputs, money/receipt series, richer activity and large-data query optimization: follow Steps07–15.
 - **This remains the only Phase15 documentation file under `docs/phases/`**.
+
+---
+
+## STEP 07 — Customer dashboard UX, independent loading and compact quick access (2026-11-03)
+
+**Source implementation committed; final runtime acceptance requires macOS browser and test results.**
+
+### User-reported defects and resolution
+
+1. **Giant blank quick-actions card:** screenshot showed the quick-actions card stretched vertically to match a lengthy attention list. The grid now uses `align-items:start`, the quick action card is contained in a self-sized side column, and it has `height:auto;min-height:0`. Links use a compact accessible grid with full-size interactive targets. Both columns stack when width <= 900px.
+2. **Blank first-login dashboard:** the old implementation rendered just one generic loading line while it awaited all requests. The dashboard header, period controls, four KPI card slots, trend chart, status chart, attention list and quick actions now render from the initial React render. SVG skeleton components preserve layout while each feed loads. Native SVG skeleton geometry and a restrained CSS pulse are used, not false KPI numbers; reduced-motion preference disables animation.
+3. **One failed endpoint made the whole page unavailable:** a single `Promise.all` previously failed the entire UI. Now each feed independently requests its read-only API, verifies its expected response shape and settles its own `loading|ready|error` state. The other panels remain usable. Browser no-store and abort-on-unmount or period-change are retained; period change immediately clears stale finance and invoice values before requesting new data.
+4. **Excessive attention list height:** display at most five items in the dashboard, link to existing `/invoices` for full listing. All items are sourced from authenticated scoped API; no new send/inquiry operation or unsafe auto-resend.
+5. **Customer subscription quick status:** while `overview` is loading, display a compact skeleton beneath usable quick-action links; when resolved, show actual plan name, remaining days and quantity (when applicable). On failure, link to account without showing guessed values.
+
+### Code and test files
+
+- Modified `apps/web/app/(console)/dashboard/dashboard-analytics.tsx`: reusable `DashboardSkeleton`, `DashboardKpiSkeleton`; separate panel states; compact quick actions; five-item attention list; subscription summary.
+- Modified `apps/web/app/(console)/dashboard/dashboard-design.css`: self-sized grid, SVG pulse and chart skeleton, small-screen widths, reduced motion and accessible screen-reader text.
+- Added `apps/web/tests/phase15-step07-customer-ux.test.mjs`: static regression checks for initial skeleton structure, independent fetching, error recovery, no synthetic data, responsive cards and bounded attention.
+- Updated `apps/web/tests/phase15-step06-dashboard-components.test.mjs` so the previous phase checks match the new independent-fetch architecture.
+
+### Test/acceptance commands (macOS first)
+
+```bash
+cd ~/projects/ArginTaxPayer
+git fetch origin
+git switch phase/15-role-based-dashboard
+git pull --ff-only origin phase/15-role-based-dashboard
+cd apps/web
+npm ci
+node --test tests/phase15-step07-customer-ux.test.mjs tests/phase15-step06-dashboard-components.test.mjs tests/phase15-step05-dashboard-design.test.mjs tests/dashboard-redesign.test.mjs
+npm run typecheck
+npm run build
+```
+
+With the current development API, web and DB tunnel running, log in as a Customer and check:
+
+- Dashboard skeleton layout is immediately present during throttled network, with four KPI cells and two chart placeholders (not a blank page).
+- Quick-action links work while API calls are pending, and the quick-action card has no unused height under a tall attention card.
+- Simulate one endpoint failure: only that region shows a retry/error; the rest of the panel data still appears.
+- Switch the 7/30/90/year filter quickly; no stale period data reappears when the old request resolves.
+- Attention list has at most five rows, with safe link to all invoices.
+- Subscription summary matches server data and does not show an invented quota.
+- Check 390px phone layout, keyboard navigation and reduced-motion setting.
+- Admin finance remains Level1/Level2 only; Customer must never fetch `/finance`.
+- No external fiscal actions, database migrations or changes to existing Phase10 invoice flows were introduced.
+
+### Scope and open gates
+
+- This is the **visible Customer UX completion slice** of Step07, with the shared skeleton mechanism benefiting all roles. Role-specific analytical content is still scheduled for Level2 Step08 and Level1 Step09.
+- GitHub source updates are saved, but local macOS unit tests, full `tsc`, Next.js build and live browser/network-throttling tests **have not been run by the assistant**. Request operator logs before claiming runtime PASS.
+- The Step15 backend performance limitation (materializing scoped invoice rows for a period) remains deferred; the UI change does not mask it.
+
+**Single-document rule:** append all later Phase15 notes to this same file in `docs/phases`.
