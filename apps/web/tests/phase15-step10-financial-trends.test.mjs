@@ -18,7 +18,8 @@ test("financial chart TSX compiles syntactically",()=>{
   .map(x=>ts.flattenDiagnosticMessageText(x.messageText,"\n")),[]);
 });
 test("chart is admin-only and root share selector is Level1-only",()=>{
- assert.match(root,/\{admin && <DashboardFinancialCharts/);
+ assert.match(root,/\{admin && <DashboardFold id="finance-details"/);
+ assert.match(root,/<DashboardFinancialCharts/);
  assert.match(chart,/role\s*===\s*"Level1"\s*\?/);
  assert.match(chart,/rootEarnedShareIrr/);
  assert.match(proxy,/section === "financial-trends"\) && !administrator/);
