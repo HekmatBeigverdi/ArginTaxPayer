@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { ACCESS_COOKIE, currentIdentity, identityApiOrigin, identityUiEnabled } from "../../../../lib/identity";
 
 export const dynamic = "force-dynamic";
-const sections = new Set(["overview", "trends", "finance", "attention", "recent", "partner", "root"]);
+const sections = new Set(["overview", "trends", "finance", "attention", "recent", "partner", "root", "financial-trends"]);
 const allowedKeys = new Set(["period", "from", "to", "taxpayerId", "partnerUserId"]);
 type Context = { params: Promise<{ section: string }> };
 
@@ -19,10 +19,12 @@ export async function GET(request: NextRequest, context: Context) {
   if ([...query.keys()].some(key => !allowedKeys.has(key) || query.getAll(key).length !== 1))
     return unavailable(400, "invalid_filter");
   const administrator = actor.roles.includes("Level1") || actor.roles.includes("Level2");
-  if (section === "finance" && !administrator) return unavailable(403, "forbidden");
+  if ((section === "finance" || section === "financial-trends") && !administrator) return unavailable(403, "forbidden");
   if (section === "partner" && (actor.roles.includes("Level1") || !actor.roles.includes("Level2")))
     return unavailable(403, "forbidden");
   if (section === "root" && !actor.roles.includes("Level1")) return unavailable(403, "forbidden");
+  if (section === "financial-trends" && (query.has("taxpayerId") || query.has("partnerUserId")))
+    return unavailable(400, "invalid_filter");
   if (section === "root" && (query.has("taxpayerId") || query.has("partnerUserId")))
     return unavailable(400, "invalid_filter");
   if (section === "partner" && query.size > 0) return unavailable(400, "invalid_filter");
