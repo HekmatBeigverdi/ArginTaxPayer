@@ -1208,3 +1208,89 @@ Repeat as Level2 and Customer with an appropriate token and matching `PHASE15_RO
 ### Status and next step
 
 Step15 **code, SQL audit scripts, bounded runner, tests and documentation are committed**. Live PostgreSQL query plans, .NET builds, Node tests, browser timing and operator-confirmed acceptance remain pending. Step16 should focus on integrated security, performance, UI and error-state regression acceptance before penultimate Ubuntu parity/release gates.
+
+
+---
+
+## STEP 16 — Integrated macOS acceptance, read-only role-matrix probe and nonregression (2026-11-03)
+
+**Implementation and acceptance tooling committed on \`phase/15-role-based-dashboard\`. This step does not claim macOS or Ubuntu execution: operator evidence is required for PASS. Do not merge or release from source-only checks.**
+
+### Scope
+
+The Step16 acceptance gate consolidates the previously delivered Phase15 dashboard functionality and Phase10/11/12 nonregression into a repeatable **same-SHA** run. It does not change core SQL financial allocation, fiscal signing, dispatch, cancellation, correction, sales return, or subscription activation rules. It never runs a database migration or external tax authority call.
+
+### Delivered files
+
+| File | Function |
+| --- | --- |
+| \`apps/web/tests/phase15-step16-integrated-acceptance.test.mjs\` | Dynamic, mocked Next proxy tests: Customer/Level2/Level1 permission matrix, anonymous/missing-cookie rejection, foreign scope and duplicate parameter rejection, upstream 401/403/404/429/500/503 handling, network failure, no-store and GET-only behavior. Static regression checks for TSX syntax, role-limited financial panels, accordion accessibility, loading and errors, current owner SQL and no persistent private data cache |
+| \`scripts/phase15-step16-integrated-acceptance.sh\` | macOS-only, fail-closed acceptance runner: verifies intended branch and clean tracked tree, records exact HEAD SHA, runs .NET restore/build/full tests, npm ci, Step16 integration tests, earlier Step03–15 dashboard tests, all Next web tests, TypeScript typecheck and Next production build. Logs + manifest + status JSON are restricted to private \`artifacts/phase15-step16/<SHA>/macos-<UTC timestamp>\`. Does not mark manual work PASS |
+| \`scripts/phase15-step16-role-smoke.mjs\` | Read-only loopback API smoke with **three distinct test-account bearer tokens**, explicit allowed and forbidden endpoint matrix and role/contract assertions. Tests root-vs-partner isolation, financial and subscription watch access, and invalid selectors. Only prints operation/status/PASS-or-FAIL, never tokens or customer responses |
+| \`.gitignore\` | Excludes private \`artifacts/phase15-step16/\` evidence from commits |
+
+### Acceptance automation (macOS first)
+
+\`\`\`bash
+cd ~/projects/ArginTaxPayer
+git fetch origin
+git switch phase/15-role-based-dashboard
+git pull --ff-only origin phase/15-role-based-dashboard
+git status --short
+bash scripts/phase15-step16-integrated-acceptance.sh
+\`\`\`
+
+The script is compatible with stock macOS Bash 3.2, aborts for the wrong branch, dirty tracked tree, wrong expected SHA or missing tools, and captures each check's **actual** exit code. Use \`PHASE15_EXPECT_SHA=$(git rev-parse HEAD) bash scripts/phase15-step16-integrated-acceptance.sh\` when an explicit immutable identity check is desired. Successful automated checks mean only **AUTOMATED MACOS GATE PASS**; the manifest includes \`MANUAL_PENDING\` for browser, ownership, finance ledger, API runtime, fiscal nonregression and Ubuntu parity.
+
+### Live role-matrix smoke (manual, authenticated, localhost)
+
+The API must already be running and the three tokens must correspond to independent **test** users in Level1, Level2 and Customer. Use an interactive Bash session to input secrets without displaying or adding them to shell history:
+
+\`\`\`bash
+cd ~/projects/ArginTaxPayer
+bash
+read -rs PHASE15_LEVEL1_TOKEN; echo
+read -rs PHASE15_LEVEL2_TOKEN; echo
+read -rs PHASE15_CUSTOMER_TOKEN; echo
+export PHASE15_LEVEL1_TOKEN PHASE15_LEVEL2_TOKEN PHASE15_CUSTOMER_TOKEN
+PHASE15_BASE_URL=http://127.0.0.1:15089 node scripts/phase15-step16-role-smoke.mjs
+unset PHASE15_LEVEL1_TOKEN PHASE15_LEVEL2_TOKEN PHASE15_CUSTOMER_TOKEN
+exit
+\`\`\`
+
+Do not paste these tokens into chat, commit them, or run against production. The probe is **GET-only** and refuses non-loopback URLs. For authenticated requests it verifies the effective role returned by the API and schema version. An unexpected authorization failure or success is FAIL, not an assumed permission.
+
+### Manual browser acceptance matrix
+
+| Area | Customer | Level2 | Level1 |
+| --- | --- | --- | --- |
+| Dashboard, overview, invoice status, trend and attention | Own taxpayer invoices only | Currently owned customer invoices only | Root-owned customers |
+| Commercial finance, collections and period trend | Not visible / forbidden | Authorized own-partner values only | Root scope |
+| Level1 \`root\` view and top partners | 403 | 403 | Allowed |
+| Level2 \`partner\` view | 403 | Allowed | 403 |
+| Subscription watch/renewals and quantity balance | Own subscription card only | Currently owned customers only | Root-owned customers only |
+| Foreign \`taxpayerId\`, foreign \`partnerUserId\`, duplicate URL fields | Refused before any information disclosure | Refused or scoped to currently owned | Only explicitly authorized filters |
+| Loading, error, retry, and stale response | Independent skeletons, no stale private totals | Same, shared subscription watch | Same, root report only |
+
+Visual and interaction checks:
+1. On first login, the dashboard layout is immediately visible with SVG skeletons, no blank viewport or simulated amounts. Check narrow mobile width and reduced-motion preference.
+2. KPI drilldowns, period presets/custom Tehran date boundaries, selected-period semantics, and permitted links work. Unavailable API must not show a false zero / all-clear.
+3. Detailed reports are collapsed by default, keyboard-operable and do not fetch while unopened. "Quick Access" retains content height, not the height of a longer attention list.
+4. Verify \`/api/dashboard/subscriptions-watch\` is requested **once** when the first relevant accordion is opened, and shared across both open consumers. Freshness uses manual refresh; no unauthorized persistence.
+5. Verify no hidden POST action, invoice resend, tax inquiry, payment settlement or subscription renewal is triggered by dashboard controls.
+6. For test records, compare Level1/Level2 commercial sales gross, verified collections, partner allocation and signed settlement reversals against the Phase12 ledger. **Do not** treat tax invoice face values as SaaS sales or "as-of" payables as daily cash flow.
+7. For a legal invoice chain with original/correction/cancellation/return evidence, compare dashboard canonical invoice-root counts and latest status to the existing Phase10 invoice workspace. Acknowledgement-only or indeterminate status must never be counted as official acceptance.
+8. Validate no cross-owner data disclosure by switching test-owner assignments and reloading the dashboard. No production customer PII may be recorded in logs.
+
+### Phase10 fiscal operations safety
+
+The automatic full .NET and Next test suites serve as nonregression checks; Step16 **does not automatically invoke Sandbox**. The owner must separately confirm sandbox send, cancellation, correction and sales return for new test invoices with unique identifiers if live fiscal acceptance is required. A failure of any previously approved fiscal workflow **blocks release**; do not re-send an indeterminate invoice.
+
+### Known boundaries and release gate
+
+- The Step15 \`EXPLAIN ANALYZE\` test database had only a small number of rows; those fast plans are **not evidence of production-scale load performance**.
+- The bounded Step15 latency runner is available for per-role p50/p95; metrics from different host/data conditions are not directly comparable.
+- Step16's new dynamic proxy tests are **mocked**. Only the separate test-account live smoke and real browser/ledger review can confirm runtime role separation and financial correctness.
+- A successful script reports **automated tests passed for exactly one Git SHA**, **not** a complete Phase15 signoff. The next Step17 performs Ubuntu on the *identical SHA*, tests source/build parity, checks server environment, and gathers Ubuntu acceptance evidence. Final Step18 handles review, tag, release and merge only after all gates are verified.
+
+**Status:** source implementation + tests + macOS runner + live smoke script + canonical documentation committed. **Mac automated result, three-role live smoke, manual cross-owner reconciliation and Ubuntu parity remain pending actual operator output.** No migration required.
