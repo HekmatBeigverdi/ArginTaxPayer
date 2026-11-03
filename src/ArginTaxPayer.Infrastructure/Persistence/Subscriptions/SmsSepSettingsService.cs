@@ -25,22 +25,25 @@ public sealed class SmsSepSettingsService(ArginTaxPayerDbContext db, IdentityAut
              db.IdentityMfaStates.Any(m=>m.UserId==u.Id&&m.EnabledAtUtc!=null)&&
              db.CustomerCommercialOwners.Any(o=>o.RootLevel1UserId==root&&o.PartnerLevel2UserId==u.Id)),ct);
         if(!valid)throw new ArgumentException("Selected administrator is outside this root's active scope.");
-        await using var tx=await db.Database.BeginTransactionAsync(ct);
-        var now=DateTime.UtcNow;
-        await db.Database.ExecuteSqlInterpolatedAsync($"""
-            INSERT INTO sms_sep_terminal_settings(root_level1_user_id,terminal_number,assigned_admin_user_id,revision,updated_by_user_id,updated_at_utc)
-            VALUES({root},{terminalNumber},{assignedAdminUserId},1,{root},{now})
-            ON CONFLICT(root_level1_user_id) DO UPDATE SET terminal_number=EXCLUDED.terminal_number,
-              assigned_admin_user_id=EXCLUDED.assigned_admin_user_id,revision=sms_sep_terminal_settings.revision+1,
-              updated_by_user_id=EXCLUDED.updated_by_user_id,updated_at_utc=EXCLUDED.updated_at_utc
-            """,ct);
-        var current=await ReadForRootAsync(root,ct)??throw new InvalidOperationException("SEP setting write was not visible.");
-        await db.Database.ExecuteSqlInterpolatedAsync($"""
-            INSERT INTO sms_sep_terminal_setting_events(id,root_level1_user_id,terminal_number,assigned_admin_user_id,revision,changed_by_user_id,recorded_at_utc)
-            VALUES({Guid.NewGuid()},{root},{terminalNumber},{assignedAdminUserId},{current.Revision},{root},{now})
-            """,ct);
-        await tx.CommitAsync(ct);
-        return current;
+        return await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+        {
+            await using var tx=await db.Database.BeginTransactionAsync(ct);
+            var now=DateTime.UtcNow;
+            await db.Database.ExecuteSqlInterpolatedAsync($"""
+                INSERT INTO sms_sep_terminal_settings(root_level1_user_id,terminal_number,assigned_admin_user_id,revision,updated_by_user_id,updated_at_utc)
+                VALUES({root},{terminalNumber},{assignedAdminUserId},1,{root},{now})
+                ON CONFLICT(root_level1_user_id) DO UPDATE SET terminal_number=EXCLUDED.terminal_number,
+                  assigned_admin_user_id=EXCLUDED.assigned_admin_user_id,revision=sms_sep_terminal_settings.revision+1,
+                  updated_by_user_id=EXCLUDED.updated_by_user_id,updated_at_utc=EXCLUDED.updated_at_utc
+                """,ct);
+            var current=await ReadForRootAsync(root,ct)??throw new InvalidOperationException("SEP setting write was not visible.");
+            await db.Database.ExecuteSqlInterpolatedAsync($"""
+                INSERT INTO sms_sep_terminal_setting_events(id,root_level1_user_id,terminal_number,assigned_admin_user_id,revision,changed_by_user_id,recorded_at_utc)
+                VALUES({Guid.NewGuid()},{root},{terminalNumber},{assignedAdminUserId},{current.Revision},{root},{now})
+                """,ct);
+            await tx.CommitAsync(ct);
+            return current;
+        });
     }
 
     public async Task<IReadOnlyList<SmsSepAdminOption>> ListAssignableAdminsAsync(string? bearer,CancellationToken ct=default)
