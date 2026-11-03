@@ -31,7 +31,7 @@ export default function DashboardActionCenter({role,attentionStatus,attention,on
       href:"/subscriptions",action:"مدیریت اشتراک"})):[])
   ].sort((a,b)=>(a.priority==="urgent"?0:1)-(b.priority==="urgent"?0:1));
 
-  const loading=attentionStatus==="loading"||(admin&&watchState==="loading");
+  const loading=attentionStatus==="loading"||(admin&&(watchState==="loading"||watchState==="idle"));
   const errors=attentionStatus==="error"||(admin&&watchState==="error");
   return <section className="argin-dashboard__card argin-dashboard__action-center" aria-label="مرکز پیگیری اقدامات">
     <div className="argin-dashboard__action-header">
