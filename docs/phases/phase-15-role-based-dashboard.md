@@ -779,3 +779,61 @@ Manual acceptance: log in as Level1, open `/dashboard`, verify root metrics, top
 - Next Phase15 Step10: commercial sales, collections, receivables and settlement **time-series charts**, preserving role-scope semantics.
 
 **Documentation policy:** keep this as the single Phase15 document under `docs/phases`.
+
+---
+
+## STEP 10 — Real financial event timelines (2026-11-03)
+
+**Implementation committed; local build and live PostgreSQL reconciliation remain operator acceptance gates.**
+
+### Delivered
+
+- `src/ArginTaxPayer.Api/Dashboard/Phase15DashboardReadService.cs`: `FinancialTrendsAsync`, `FinancialTrends`, `FinancialTrendBucket` and SQL projections. Financial events are filtered by authenticated root/partner ownership *before aggregation*, unioned and grouped once per calendar day in `Asia/Tehran`.
+- `src/ArginTaxPayer.Api/Dashboard/Phase15DashboardEndpoints.cs`: `GET /api/dev/dashboard/financial-trends?period=30d` under current development-only, local-only bearer controls.
+- `apps/web/app/api/dashboard/[section]/route.ts`: `GET /api/dashboard/financial-trends` allowed to Level1 or Level2 only; Customer -> 403; taxpayerId/partnerUserId -> 400. No browser-selected tenant scope.
+- `apps/web/app/(console)/dashboard/dashboard-financial-charts.tsx`: an interactive, accessible financial trend visual with tab selector, IRR values, Jalali date labels, tabular equivalent, independent SVG skeleton, explicit error+retry and empty state. Root share selector only for Level1.
+- `apps/web/app/(console)/dashboard/dashboard-analytics.tsx`: renders financial visual for admins only; customer dashboards never fetch financial-trends.
+- `apps/web/app/(console)/dashboard/dashboard-design.css`: compact mobile and desktop chart layout.
+- `apps/web/tests/phase15-step10-financial-trends.test.mjs`: source-level role, scope, date-clock, a11y and TSX syntax checks.
+
+### Strict accounting and timeline semantics
+
+| Series | Event date | Meaning |
+| --- | --- | --- |
+| `salesGrossIrr` | commercial order `issued_at_utc` | Gross subscription order value issued on that day |
+| `salesOutstandingForCohortIrr` | order `issued_at_utc` | Current remaining collectible amount for orders issued on that day; **not** an outstanding balance snapshot as of each historical day |
+| `collectionsInPeriodIrr` | verified collection `verified_at_utc` | Receipt amount verified that day, including collections against earlier orders |
+| `partnerEarnedShareIrr` | allocation `posted_at_utc` | Partner allocation posted that day |
+| `rootEarnedShareIrr` | allocation `posted_at_utc` | Root-only allocation posted that day, omitted from Level2 JSON |
+| `partnerSettlementNetIrr` | settlement event `recorded_at_utc` | Paid transfers minus reversals recorded that day; may be negative |
+
+- Series do not mix taxpayer fiscal invoice face value into software-revenue metrics.
+- Selected time window is normalized to UTC boundaries for Tehran-local inclusive days. Dates with no events have no point; missing dates should not be confused with observed zeros.
+- SQL event aggregates use current-ownership scoping consistent with Phase15 finance endpoints. Verify transferred customers and order attribution on real test DB before acceptance.
+- Root share serialized only for Level1; Level2 gets null-excluded property.
+- Empty results, network failures and delayed requests do not trigger invoice sends, auto inquiries or financial writes. No migration.
+
+### macOS acceptance commands
+
+```bash
+cd ~/projects/ArginTaxPayer
+git fetch origin
+git switch phase/15-role-based-dashboard
+git pull --ff-only origin phase/15-role-based-dashboard
+dotnet restore ArginTaxPayer.sln
+dotnet build ArginTaxPayer.sln --configuration Release --no-restore
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --configuration Release --no-restore
+cd apps/web
+npm ci
+node --test tests/phase15-step10-financial-trends.test.mjs tests/phase15-step09-level1-dashboard.test.mjs tests/phase15-step08-level2-dashboard.test.mjs tests/phase15-step03-dashboard-proxy.test.mjs
+npm run typecheck
+npm run build
+```
+
+Manual QA: with valid API, test PostgreSQL and macOS web session, open `/dashboard` as Level1 and Level2; confirm period selector changes event series, negative reversal days show signed values in the table, root-share selector appears only for Level1, and no finance area appears for Customer. Compare series sums to the same-period existing Phase12 finance read model, **excluding** distinct order-cohort collection-versus-event-date collection semantics. Verify an ownership transfer, a refunded/voided order and a reverse settlement. Simulate slow and failed network operations and quick period changes.
+
+**Runtime testing has not been performed by the assistant; no compile, SQL execution or browser PASS claimed.**
+
+### Next — Step11
+
+Subscription renewal, quota and expiration insights. Continue adding documentation only to this single Phase15 file.
