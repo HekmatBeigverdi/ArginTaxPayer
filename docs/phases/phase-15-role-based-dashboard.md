@@ -535,3 +535,52 @@ npm run build
 ```
 
 **Step05 source-level design work complete. Runtime tests are pending operator execution; no database migration or Ubuntu acceptance needed in this design-only step.**
+
+---
+
+## STEP 06 — Shared components & visible live dashboard integration (2026-11-03)
+
+**Implemented and committed to `phase/15-role-based-dashboard`; runtime macOS acceptance pending.**
+
+### Delivered
+
+1. `apps/web/app/(console)/dashboard/dashboard-analytics.tsx`: real client-side shared components: `DashboardKpiCard`, `DashboardPanel`, `DashboardState`, `DashboardPeriodFilter`, `DashboardTrendChart`, and `DashboardStatusChart`. Four role-specific KPI cards with real server-supplied numbers, chart with accessible text table and legible status progress bars, attention list and scoped quick actions.
+2. `apps/web/app/(console)/dashboard/page.tsx`: imports the Step05 `dashboard-design.css` and mounts `DashboardAnalytics` for Level1, Level2 or Customer. The previous oversized welcome and static status summary are replaced with the visible analytics layout. Existing feature/module shortcuts are retained in a compact expandable `details` panel, and customer subscription widget is retained.
+3. `apps/web/app/(console)/dashboard/dashboard-design.css`: styles for status bars, trend chart, cards, error/empty states, accessible navigation and responsive expanded/collapsed modules.
+4. `apps/web/tests/phase15-step06-dashboard-components.test.mjs`: TSX syntactic transpilation + static UI contract checks for role-specific finance fetching, no write methods, no fake numbers, stale data clearing, no-store fetches, and chart labels.
+
+### Functional details
+
+- Data requests from real `GET /api/dashboard/{overview|trends|attention}`, plus `/finance` **only for Level1/Level2**; Customer never fetches finance.
+- Period options `7d`, `30d`, `90d` and `year` use server Tehran-window semantics and are interactive. Step07–09 may add advanced taxpayer/partner filters and detailed per-role analytics.
+- When any required feed is unavailable, the dashboard displays a recoverable error, not sample KPI digits. Changing periods aborts old fetches and clears previous-period numbers; requests are GET only and read-only.
+- Invoice acceptance is based only on official outcome; acknowledged/indeterminate are not counted as accepted. Status distribution is based on canonical invoice roots supplied by the Step03 read model.
+- **Trend semantics:** `acceptedByIssueDate` is a *current status by invoice's original issue date* series, **not** daily official response events. UI has an explicit clarification and tabular alternative.
+- Financial figures use verified subscriptions/commercial ledger amounts in **ریال** with explicit unit, never taxpayer invoice face amount, no invented profit.
+- Root share is displayed only to Level1. Customer and partner views do not receive root financial data in browser.
+- New dashboard is visible immediately after the code is deployed and the development UI is running; the actual KPI numbers require a healthy authenticated backend API and database.
+- No database migration or external tax operation was introduced in Step06.
+
+### Validation commands — macOS
+
+```bash
+cd ~/projects/ArginTaxPayer
+git fetch origin
+git switch phase/15-role-based-dashboard
+git pull --ff-only origin phase/15-role-based-dashboard
+cd apps/web
+npm ci
+node --test tests/phase15-step06-dashboard-components.test.mjs tests/phase15-step05-dashboard-design.test.mjs tests/dashboard-redesign.test.mjs
+npm run typecheck
+npm run build
+```
+
+Then launch the existing dev environment with the API and web app as usual, sign in under each role and visit `http://127.0.0.1:3000/dashboard`. Verify a new analytic header and KPI cards (or explicit unavailable state), chart, 7/30/90/year filters, finance only for admins, and continued access to existing module links. On API error, verify no fake zeros are shown.
+
+### Acceptance and deferrals
+
+- Source-level implementation and design-test file creation: complete.
+- Browser visual confirmation on the operator's macOS: pending.
+- End-to-end role separation of DB aggregates: continue Step04/Step07–09 runtime validation.
+- Per-role advanced screens, additional calendar inputs, money/receipt series, richer activity and large-data query optimization: follow Steps07–15.
+- **This remains the only Phase15 documentation file under `docs/phases/`**.
