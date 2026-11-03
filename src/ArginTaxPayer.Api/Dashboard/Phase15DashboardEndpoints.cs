@@ -24,11 +24,12 @@ public static class Phase15DashboardEndpoints
             var header=http.Request.Headers.Authorization.ToString();
             if(header.Length>4096 || !header.StartsWith("Bearer ",StringComparison.OrdinalIgnoreCase)
                 || string.IsNullOrWhiteSpace(header[7..]))return Results.Unauthorized();
-            if(section is not ("overview" or "trends" or "finance" or "attention" or "recent" or "partner"))
+            if(section is not ("overview" or "trends" or "finance" or "attention" or "recent" or "partner" or "root"))
                 return Results.NotFound();
             if((section=="finance" || section=="partner") && taxpayerId.HasValue ||
                section!="finance" && partnerUserId.HasValue ||
-               section=="partner" && (partnerUserId.HasValue || period is not null || from is not null || to is not null))
+               section=="partner" && (partnerUserId.HasValue || period is not null || from is not null || to is not null) ||
+               section=="root" && (taxpayerId.HasValue || partnerUserId.HasValue))
                 return Results.BadRequest(new {error="invalid_filter"});
             try
             {
@@ -40,6 +41,7 @@ public static class Phase15DashboardEndpoints
                     "trends"=>await service.TrendsAsync(bearer,window,taxpayerId,ct),
                     "finance"=>await service.FinanceAsync(bearer,window,partnerUserId,ct),
                     "partner"=>await service.PartnerOverviewAsync(bearer,ct),
+                    "root"=>await service.RootOverviewAsync(bearer,window,ct),
                     "attention"=>await service.AttentionAsync(bearer,window,taxpayerId,ct),
                     _=>await service.RecentAsync(bearer,window,taxpayerId,ct)
                 };
