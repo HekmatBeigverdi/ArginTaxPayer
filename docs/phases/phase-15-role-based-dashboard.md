@@ -700,3 +700,10 @@ Manual role acceptance on running local API/Web/DB: login as Level2, view `/dash
 ### Release gate
 
 **Step08 implementation committed and source reviewed. macOS build, xUnit, Node tests, browser and PostgreSQL runtime validation still require operator execution; no PASS has been claimed.** A single-phase document remains the only Phase15 file in `docs/phases`.
+
+
+### Step08 final source hardening
+
+- Added `tests/ArginTaxPayer.Tests/Phase15PartnerDashboardContractsTests.cs` to assert the Level2 response DTO and JSON contain only partner-scoped totals, not root share or approved costs, and to cover settled-minus-reversal arithmetic.
+- Corrected Next.js partner query rejection precedence so `/api/dashboard/partner?partnerUserId=...` and any other filter produce HTTP 400 for Level2; unauthorized Level1/Customer still get 403. Verified source-level against the new proxy regression cases.
+- Latest Step08 code is on the existing `phase/15-role-based-dashboard` branch. Actual .NET/Node/PostgreSQL runtime PASS remains dependent on execution in the owner's environment.
