@@ -168,3 +168,20 @@ test("subscription watch is admin only and rejects selectors on the proxy",async
     assert.equal(h.calls.length,1);
   }
 });
+
+test("custom Tehran date window is forwarded unchanged only to read-only supported reports",async()=>{
+  const value="?period=custom&from=2026-10-01&to=2026-10-31";
+  for(const roles of [["Customer"],["Level2"],["Level1"]]){
+    const h=handler(roles);
+    for(const section of ["overview","trends","attention",...(roles[0]==="Customer"?[]:["finance","financial-trends"])]){
+      const response=await call(h,section,value);
+      assert.equal(response.status,200,section);
+      assert.equal(h.calls.at(-1).url,"http://127.0.0.1:15089/api/dev/dashboard/"+section+value);
+      assert.equal(h.calls.at(-1).options.cache,"no-store");
+    }
+  }
+  const h=handler(["Level1"]);
+  assert.equal((await call(h,"root",value)).status,200);
+  assert.equal((await call(h,"subscriptions-watch",value)).status,400);
+  assert.equal((await call(h,"partner",value)).status,403);
+});
