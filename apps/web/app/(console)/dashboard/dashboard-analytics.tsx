@@ -388,7 +388,7 @@ function DashboardPeriodFilter({ period, setPeriod, onCustom }: {
     const get=(key:string)=>parts.find(p=>p.type===key)?.value??"";
     return get("year")+"-"+get("month")+"-"+get("day");
   },[]);
-  const apply=(event:React.FormEvent<HTMLFormElement>)=>{
+  const apply=(event:FormEvent<HTMLFormElement>)=>{
     event.preventDefault();
     const iso=/^\d{4}-\d{2}-\d{2}$/;
     const start=Date.parse(from+"T00:00:00Z"),end=Date.parse(to+"T00:00:00Z");
