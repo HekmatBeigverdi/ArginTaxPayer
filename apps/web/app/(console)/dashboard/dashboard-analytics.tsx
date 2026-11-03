@@ -12,7 +12,8 @@ import DashboardIcon from "../../components/dashboard-icon";
 import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
 
 type Role = "Level1" | "Level2" | "Customer";
-type Period = "7d" | "30d" | "90d" | "year";
+type Period = "7d" | "30d" | "90d" | "year" | "custom";
+type CustomRange = {from:string;to:string};
 type RemoteState = "loading" | "ready" | "error";
 
 type InvoiceStatus = {
@@ -90,6 +91,7 @@ const periodNames: Record<Period, string> = {
   "30d": "۳۰ روز",
   "90d": "۹۰ روز",
   year: "سال جاری",
+  custom: "بازه دلخواه",
 };
 
 const dashboardTitles: Record<Role, string> = {
@@ -140,8 +142,9 @@ function formatLastUpdated(value: string) {
   }).format(new Date(value));
 }
 
-async function query(section: string, period: Period, signal: AbortSignal): Promise<unknown> {
-  const response = await fetch("/api/dashboard/" + section + "?period=" + period, {
+async function query(section: string, period: Period, signal: AbortSignal, range?: CustomRange | null): Promise<unknown> {
+  const suffix=period==="custom"&&range ? "&from="+range.from+"&to="+range.to : "";
+  const response = await fetch("/api/dashboard/" + section + "?period=" + period + suffix, {
     cache: "no-store",
     signal,
   });
@@ -370,24 +373,53 @@ function DashboardKpiSkeleton() {
   );
 }
 
-function DashboardPeriodFilter({ period, setPeriod }: {
+function DashboardPeriodFilter({ period, setPeriod, onCustom }: {
   period: Period;
   setPeriod: (period: Period) => void;
+  onCustom: (from:string,to:string) => void;
 }) {
-  return (
+  const [from,setFrom]=useState("");
+  const [to,setTo]=useState("");
+  const [message,setMessage]=useState("");
+  // API custom date inputs use ISO Gregorian YYYY-MM-DD; summaries remain Jalali.
+  const today=useMemo(()=>{
+    const parts=new Intl.DateTimeFormat("en-GB",{timeZone:"Asia/Tehran",year:"numeric",
+      month:"2-digit",day:"2-digit"}).formatToParts(new Date());
+    const get=(key:string)=>parts.find(p=>p.type===key)?.value??"";
+    return get("year")+"-"+get("month")+"-"+get("day");
+  },[]);
+  const apply=(event:React.FormEvent<HTMLFormElement>)=>{
+    event.preventDefault();
+    const iso=/^\d{4}-\d{2}-\d{2}$/;
+    const start=Date.parse(from+"T00:00:00Z"),end=Date.parse(to+"T00:00:00Z");
+    if(!iso.test(from)||!iso.test(to)||!Number.isFinite(start)||!Number.isFinite(end)||
+       new Date(start).toISOString().slice(0,10)!==from||
+       new Date(end).toISOString().slice(0,10)!==to||start>end||to>today||
+       (end-start)/86400000>365){
+      setMessage("بازه معتبر انتخاب کنید: حداکثر ۳۶۶ روز، بدون تاریخ آینده.");
+      return;
+    }
+    setMessage("");
+    onCustom(from,to);
+  };
+  return <div className="argin-dashboard__period-box">
     <div className="argin-dashboard__filters" role="group" aria-label="بازه زمانی آمار">
-      {(Object.keys(periodNames) as Period[]).map(key => (
-        <button
-          type="button"
-          key={key}
-          aria-pressed={period === key}
-          onClick={() => setPeriod(key)}
-        >
-          {periodNames[key]}
-        </button>
+      {(["7d","30d","90d","year"] as Period[]).map(key=>(
+        <button type="button" key={key} aria-pressed={period===key}
+          onClick={()=>setPeriod(key)}>{periodNames[key]}</button>
       ))}
     </div>
-  );
+    <form onSubmit={apply} className="argin-dashboard__date-range" aria-label="بازه تاریخی سفارشی">
+      <label>از (میلادی)
+        <input type="date" value={from} max={today} onChange={event=>setFrom(event.target.value)} required/>
+      </label>
+      <label>تا (میلادی)
+        <input type="date" value={to} max={today} onChange={event=>setTo(event.target.value)} required/>
+      </label>
+      <button type="submit" aria-pressed={period==="custom"}>اعمال بازه</button>
+      {message&&<span className="argin-dashboard__date-error" role="alert">{message}</span>}
+    </form>
+  </div>;
 }
 
 function DashboardTrendChart({ data }: { data: Trends["buckets"] }) {
@@ -513,12 +545,13 @@ function waiting<T>(): Loadable<T> {
 
 export default function DashboardAnalytics({ role }: { role: Role }) {
   const [period, setPeriod] = useState<Period>("30d");
-  const [selectedKpi,setSelectedKpi] = useState<number|null>(null);
   const [version, setVersion] = useState(0);
   const [overviewState, setOverviewState] = useState<Loadable<Overview>>(waiting);
   const [trendState, setTrendState] = useState<Loadable<Trends>>(waiting);
   const [attentionState, setAttentionState] = useState<Loadable<AttentionItem[]>>(waiting);
   const [financeState, setFinanceState] = useState<Loadable<Finance>>(waiting);
+  const [selectedKpi,setSelectedKpi] = useState<number|null>(null);
+  const [customRange,setCustomRange] = useState<CustomRange|null>(null);
   const admin = role !== "Customer";
 
   useEffect(() => {
@@ -530,7 +563,7 @@ export default function DashboardAnalytics({ role }: { role: Role }) {
     setAttentionState(waiting());
     setFinanceState(waiting());
 
-    query("overview", period, controller.signal)
+    query("overview", period, controller.signal, customRange)
       .then(data => {
         const next = data as Overview;
         if (next.schemaVersion !== 1 || next.role !== role || !next.invoiceStatus) {
@@ -542,7 +575,7 @@ export default function DashboardAnalytics({ role }: { role: Role }) {
         if (!controller.signal.aborted) setOverviewState({ status: "error", data: null });
       });
 
-    query("trends", period, controller.signal)
+    query("trends", period, controller.signal, customRange)
       .then(data => {
         const next = data as Trends;
         if (next.schemaVersion !== 1 || !Array.isArray(next.buckets)) {
@@ -554,7 +587,7 @@ export default function DashboardAnalytics({ role }: { role: Role }) {
         if (!controller.signal.aborted) setTrendState({ status: "error", data: null });
       });
 
-    query("attention", period, controller.signal)
+    query("attention", period, controller.signal, customRange)
       .then(data => {
         const next = data as AttentionResponse;
         if (!Array.isArray(next.items)) throw new Error("invalid_dashboard_response");
@@ -565,7 +598,7 @@ export default function DashboardAnalytics({ role }: { role: Role }) {
       });
 
     if (admin) {
-      query("finance", period, controller.signal)
+      query("finance", period, controller.signal, customRange)
         .then(data => {
           const next = data as Finance;
           if (next.schemaVersion !== 1 || next.role !== role || next.currency !== "IRR") {
@@ -579,7 +612,7 @@ export default function DashboardAnalytics({ role }: { role: Role }) {
     }
 
     return () => controller.abort();
-  }, [role, admin, period, version]);
+  }, [role, admin, period, customRange, version]);
 
   function changePeriod(next: Period) {
     if (next === period) return;
@@ -591,6 +624,15 @@ export default function DashboardAnalytics({ role }: { role: Role }) {
     setSelectedKpi(null);
     setPeriod(next);
   }
+
+  function applyCustom(from:string,to:string){
+    setOverviewState(waiting());setTrendState(waiting());setAttentionState(waiting());setFinanceState(waiting());
+    setSelectedKpi(null);setCustomRange({from,to});setPeriod("custom");
+  }
+  const dateQuery=period==="custom"&&customRange
+    ? "custom&from="+customRange.from+"&to="+customRange.to : period;
+  const currentPeriodLabel=period==="custom"&&customRange
+    ? formatDate(customRange.from)+" تا "+formatDate(customRange.to) : periodNames[period];
 
   const overview = overviewState.data;
   const finance = financeState.data;
@@ -613,10 +655,10 @@ export default function DashboardAnalytics({ role }: { role: Role }) {
           <span className="argin-dashboard__eyebrow">پیشخوان تحلیلی آرگین</span>
           <h1 className="argin-dashboard__title">{dashboardTitles[role]}</h1>
           <p className="argin-dashboard__subtitle">
-            گزارش‌های واقعی متناسب با دسترسی شما؛ {lastUpdated}
+            گزارش‌های واقعی متناسب با دسترسی شما؛ {lastUpdated} · بازه: {currentPeriodLabel}
           </p>
         </div>
-        <DashboardPeriodFilter period={period} setPeriod={changePeriod} />
+        <DashboardPeriodFilter period={period} setPeriod={changePeriod} onCustom={applyCustom} />
       </header>
 
       {kpiState.status === "loading" ? <DashboardKpiSkeleton /> : (
@@ -697,7 +739,7 @@ export default function DashboardAnalytics({ role }: { role: Role }) {
 
       {admin && <DashboardFold id="finance-details" title="گزارش‌های تحلیلی مالی"
         note="روند فروش، وصول وجه و تسویه همکاران — برای مشاهده باز کنید">
-        <DashboardFinancialCharts role={role === "Level1" ? "Level1" : "Level2"} period={period} />
+        <DashboardFinancialCharts role={role === "Level1" ? "Level1" : "Level2"} period={dateQuery} />
       </DashboardFold>}
       {admin && <DashboardFold id="subscription-details" title="جزئیات اشتراک‌ها و سهمیه‌ها"
         note="تمدیدهای نزدیک و بسته‌های نیازمند رسیدگی — برای مشاهده باز کنید">
@@ -713,7 +755,7 @@ export default function DashboardAnalytics({ role }: { role: Role }) {
           <PartnerDashboardDetails
             finance={financeState.data}
             financeState={financeState.status}
-            periodLabel={periodNames[period]}
+            periodLabel={currentPeriodLabel}
             onRetry={retryRead}
           />
         </DashboardFold>
