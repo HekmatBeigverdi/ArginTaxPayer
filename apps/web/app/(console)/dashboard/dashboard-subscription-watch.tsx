@@ -33,7 +33,7 @@ export default function DashboardSubscriptionWatch({role,status,watch,onRetry}:{
     <div className="argin-dashboard__watch-head">
       <div><h2 className="argin-dashboard__section-title">اشتراک‌ها و تمدیدهای نزدیک</h2>
         <p>وضعیت فعلی مشتریان مجاز، مستقل از فیلتر تاریخ نمودارها</p></div>
-      <Link href="/subscriptions">مدیریت اشتراک‌ها</Link>
+      <div className="argin-dashboard__watch-controls"><button type="button" onClick={onRetry}>تازه‌سازی آمار</button><Link href="/subscriptions">مدیریت اشتراک‌ها</Link></div>
     </div>
     {(status==="loading"||status==="idle")?<Loading/>:status==="error"?
       <div className="argin-dashboard__error" role="alert">گزارش اشتراک‌ها در دسترس نیست.
