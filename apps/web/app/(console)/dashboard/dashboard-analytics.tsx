@@ -213,14 +213,60 @@ function buildKpiCards(role: Role, overview: Overview | null, finance: Finance |
   ];
 }
 
-function DashboardKpiCard({ label, value, note, tone }: KpiCardProps) {
+function DashboardKpiCard({ label, value, note, tone, selected, onSelect }: KpiCardProps & {
+  selected?: boolean; onSelect?: () => void;
+}) {
   return (
-    <article className="argin-dashboard__card" aria-label={label}>
-      <span className="argin-dashboard__kpi-label">{label}</span>
-      <strong className="argin-dashboard__kpi-value" data-tone={tone}>{value}</strong>
-      <span className="argin-dashboard__kpi-note">{note}</span>
+    <article className="argin-dashboard__card argin-dashboard__kpi-interactive"
+      aria-label={label} data-selected={selected}>
+      <button type="button" className="argin-dashboard__kpi-button" aria-expanded={Boolean(selected)}
+        aria-label={label+"، نمایش جزئیات"} onClick={onSelect}>
+        <span className="argin-dashboard__kpi-label">{label}</span>
+        <strong className="argin-dashboard__kpi-value" data-tone={tone}>{value}</strong>
+        <span className="argin-dashboard__kpi-note">{note}</span>
+        <span className="argin-dashboard__kpi-hint">مشاهده جزئیات ←</span>
+      </button>
     </article>
   );
+}
+
+function DashboardKpiDetails({role,index,overview,finance,onClose}:{
+  role:Role;index:number;overview:Overview|null;finance:Finance|null;onClose:()=>void;
+}){
+  // All displayed amounts come from the authenticated read-only API, not chart samples.
+  const admin=role!=="Customer";
+  const sections=admin&&finance?[
+    {heading:"فروش اشتراک",note:"مبلغ سفارش‌های صادرشده در بازه؛ مبلغ دریافتی ممکن است متفاوت باشد.",
+      rows:[["ارزش سفارش‌های دوره",formatMoney(finance.salesGrossIrr)],["وصول سفارش‌های همین دوره تا امروز",formatMoney(finance.salesCollectedForCohortIrr)],["مانده فعلی سفارش‌ها",formatMoney(finance.salesOutstandingIrr)]]},
+    {heading:"دریافتی تأییدشده",note:"مبلغ وجه تأییدشده در بازه، شامل پرداخت سفارش‌های قدیمی‌تر.",
+      rows:[["دریافتی دوره",formatMoney(finance.collectionsInPeriodIrr)],["تسویه خالص همکاران",formatMoney(finance.partnerSettlementNetIrr)]]},
+    {heading:"مطالبات فروش",note:"مانده سفارش‌های صادرشده در بازه انتخاب‌شده، نه تمام مطالبات تاریخی.",
+      rows:[["فروش دوره",formatMoney(finance.salesGrossIrr)],["مانده سفارش‌ها",formatMoney(finance.salesOutstandingIrr)]]},
+    {heading:role==="Level1"?"سهم مدیر اصلی":"سهم همکاری",note:"سهم تخصیص‌یافته در بازه؛ معادل سود حسابداری نیست.",
+      rows:[["سهم دوره",role==="Level1"&&finance.rootEarnedShareIrr==null?"نامشخص":formatMoney(role==="Level1"?finance.rootEarnedShareIrr!:finance.partnerEarnedShareIrr)],
+        ["تسویه خالص دوره",formatMoney(finance.partnerSettlementNetIrr)]]}
+  ]:overview?[
+    {heading:"صورتحساب‌ها",note:"هر زنجیره قانونی فقط یک بار در آمار حساب می‌شود.",
+      rows:[["زنجیره‌های یکتا",formatNumber(overview.invoiceStatus.logicalInvoiceCount)],["پیش‌نویس‌ها",formatNumber(overview.invoiceDrafts)]]},
+    {heading:"تأییدهای سازمان",note:"تنها نتیجه قطعی رسمی، نه رسید اولیه ارسال.",
+      rows:[["تأییدشده",formatNumber(overview.invoiceStatus.accepted)],["ابطال تأییدشده",formatNumber(overview.invoiceStatus.acceptedCancellation)]]},
+    {heading:"نیازمند پیگیری",note:"نتیجه نامشخص به معنی مجوز ارسال مجدد نیست.",
+      rows:[["نامشخص",formatNumber(overview.invoiceStatus.unknown)],["ردشده",formatNumber(overview.invoiceStatus.rejected)],["نیازمند بررسی",formatNumber(overview.invoiceStatus.attention)]]},
+    {heading:"پیش‌نویس‌ها",note:"اسناد پیش‌نویس داخلی، بدون ارسال خودکار.",
+      rows:[["پیش‌نویس‌های فعال",formatNumber(overview.invoiceDrafts)]]}
+  ]:[];
+  const selected=sections[index];
+  if(!selected)return null;
+  return <section className="argin-dashboard__kpi-detail" aria-label={"جزئیات "+selected.heading}>
+    <div className="argin-dashboard__kpi-detail-head">
+      <div><h2>{selected.heading}</h2><p>{selected.note}</p></div>
+      <button type="button" aria-label="بستن جزئیات شاخص" onClick={onClose}>بستن ×</button>
+    </div>
+    <dl>{selected.rows.map(([label,value])=><div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
+    <Link className="argin-dashboard__more" href={admin?"/subscriptions":"/invoices"}>
+      {admin?"ورود به مدیریت اشتراک‌ها و مالی":"ورود به مدیریت صورتحساب‌ها"}
+    </Link>
+  </section>;
 }
 
 function DashboardPanel({ title, children }: { title: string; children: ReactNode }) {
@@ -467,6 +513,7 @@ function waiting<T>(): Loadable<T> {
 
 export default function DashboardAnalytics({ role }: { role: Role }) {
   const [period, setPeriod] = useState<Period>("30d");
+  const [selectedKpi,setSelectedKpi] = useState<number|null>(null);
   const [version, setVersion] = useState(0);
   const [overviewState, setOverviewState] = useState<Loadable<Overview>>(waiting);
   const [trendState, setTrendState] = useState<Loadable<Trends>>(waiting);
@@ -541,6 +588,7 @@ export default function DashboardAnalytics({ role }: { role: Role }) {
     setTrendState(waiting());
     setAttentionState(waiting());
     setFinanceState(waiting());
+    setSelectedKpi(null);
     setPeriod(next);
   }
 
@@ -578,11 +626,15 @@ export default function DashboardAnalytics({ role }: { role: Role }) {
           </section>
         ) : (
           <section aria-label="شاخص‌های کلیدی" className="argin-dashboard__kpis">
-            {cards.map(card => <DashboardKpiCard key={card.label} {...card} />)}
+            {cards.map((card,index) => <DashboardKpiCard key={card.label} {...card}
+              selected={selectedKpi===index} onSelect={()=>setSelectedKpi(selectedKpi===index?null:index)} />)}
           </section>
         )
       )}
 
+      {selectedKpi!==null && kpiState.status==="ready" &&
+        <DashboardKpiDetails role={role} index={selectedKpi} overview={overview}
+          finance={finance} onClose={()=>setSelectedKpi(null)} />}
       {!admin && actionCenter}
       <div className="argin-dashboard__charts">
         <DashboardPanel title="روند صورتحساب‌ها">
