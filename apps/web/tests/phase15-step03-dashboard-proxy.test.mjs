@@ -9,7 +9,7 @@ const require=createRequire(import.meta.url);
 const {NextRequest}=require("next/server");
 const source=readFileSync(new URL("../app/api/dashboard/[section]/route.ts",import.meta.url),"utf8");
 
-function handler(roles=["Level1"],loggedIn=true) {
+function handler(roles=["Level1"],loggedIn=true,backendStatus=200) {
   const js=ts.transpileModule(source,{compilerOptions:{
     module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022
   },reportDiagnostics:true});
@@ -28,7 +28,8 @@ function handler(roles=["Level1"],loggedIn=true) {
     },
     fetch:async (url,options)=>{
       calls.push({url:url.toString(),options});
-      return Response.json({schemaVersion:1,role:roles[0]});
+      return backendStatus===200 ? Response.json({schemaVersion:1,role:roles[0]})
+        : new Response(null,{status:backendStatus});
     }
   });
   return {GET:exports.GET,calls};
@@ -71,5 +72,28 @@ test("unrecognized sections and duplicated or foreign parameters are blocked",as
 test("Level2 cannot supply a different partner filter",async()=>{
   const h=handler(["Level2"]);
   assert.equal((await call(h,"finance","?partnerUserId=123")).status,403);
+  assert.equal(h.calls.length,0);
+});
+
+test("backend denial never becomes a successful dashboard result",async()=>{
+  for(const status of [401,403,404,503]) {
+    const h=handler(["Level2"],true,status);
+    const response=await call(h,"overview","?period=30d");
+    assert.equal(response.status,status);
+    assert.equal(response.headers.get("cache-control"),"private, no-store");
+  }
+});
+test("finance customer response contains no root or partner financial payload",async()=>{
+  const h=handler(["Customer"]);
+  const response=await call(h,"finance","?period=7d");
+  assert.equal(response.status,403);
+  const body=await response.text();
+  assert.ok(!body.includes("RootEarnedShareIrr"));
+  assert.ok(!body.includes("SalesGrossIrr"));
+  assert.equal(h.calls.length,0);
+});
+test("a finance request may not include a taxpayer selector",async()=>{
+  const h=handler(["Level1"]);
+  assert.equal((await call(h,"finance","?taxpayerId=123")).status,400);
   assert.equal(h.calls.length,0);
 });
