@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 import {test} from "node:test";
-const read=path=>readFileSync(new URL("../../"+path,import.meta.url),"utf8");
+const read=path=>readFileSync(new URL("../../../"+path,import.meta.url),"utf8");
 const service=read("src/ArginTaxPayer.Api/Dashboard/Phase15DashboardReadService.cs");
 const sql=read("scripts/phase15-step15-query-plan-audit.sql");
 const runner=read("scripts/phase15-step15-dashboard-load.mjs");
