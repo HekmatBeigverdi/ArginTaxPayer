@@ -5,6 +5,7 @@ import PartnerDashboardDetails from "./partner-dashboard-details";
 import RootDashboardDetails from "./root-dashboard-details";
 import DashboardFinancialCharts from "./dashboard-financial-charts";
 import DashboardSubscriptionWatch from "./dashboard-subscription-watch";
+import DashboardActionCenter from "./dashboard-action-center";
 
 import DashboardCalendar from "./dashboard-calendar";
 import DashboardIcon from "../../components/dashboard-icon";
@@ -441,6 +442,18 @@ function DashboardStatusChart({ status }: { status: InvoiceStatus }) {
   );
 }
 
+function DashboardFold({id,title,note,children}:{id:string;title:string;note:string;children:ReactNode}){
+  const [open,setOpen]=useState(false);
+  return <section className="argin-dashboard__fold" data-open={open}>
+    <button type="button" className="argin-dashboard__fold-trigger" aria-expanded={open}
+      aria-controls={id} onClick={()=>setOpen(x=>!x)}>
+      <span><strong>{title}</strong><small>{note}</small></span>
+      <span aria-hidden="true" className="argin-dashboard__fold-chevron">⌄</span>
+    </button>
+    {open&&<div id={id} className="argin-dashboard__fold-body">{children}</div>}
+  </section>;
+}
+
 type Loadable<T> = {
   status: RemoteState;
   data: T | null;
@@ -564,6 +577,8 @@ export default function DashboardAnalytics({ role }: { role: Role }) {
         )
       )}
 
+      <DashboardActionCenter role={role} attentionStatus={attentionState.status}
+        attention={attentionState.data ?? []} onRetry={retryRead} />
       <div className="argin-dashboard__charts">
         <DashboardPanel title="روند صورتحساب‌ها">
           {trendState.status === "loading" ? <DashboardSkeleton variant="chart" /> : (
@@ -623,17 +638,31 @@ export default function DashboardAnalytics({ role }: { role: Role }) {
         </div>
       </div>
 
-      {admin && <DashboardFinancialCharts role={role === "Level1" ? "Level1" : "Level2"} period={period} />}
-      {admin && <DashboardSubscriptionWatch role={role === "Level1" ? "Level1" : "Level2"} />}
-      {role === "Level1" && <RootDashboardDetails period={period} />}
+      {admin && <DashboardFold id="finance-details" title="گزارش‌های تحلیلی مالی"
+        note="روند فروش، وصول وجه و تسویه همکاران — برای مشاهده باز کنید">
+        <DashboardFinancialCharts role={role === "Level1" ? "Level1" : "Level2"} period={period} />
+      </DashboardFold>}
+      {admin && <DashboardFold id="subscription-details" title="جزئیات اشتراک‌ها و سهمیه‌ها"
+        note="تمدیدهای نزدیک و بسته‌های نیازمند رسیدگی — برای مشاهده باز کنید">
+        <DashboardSubscriptionWatch role={role === "Level1" ? "Level1" : "Level2"} />
+      </DashboardFold>}
+      {role === "Level1" && <DashboardFold id="root-details" title="گزارش تکمیلی مدیر اصلی"
+        note="آمار کل سامانه و عملکرد همکاران">
+        <RootDashboardDetails period={period} />
+      </DashboardFold>}
       {role === "Level2" && (
-        <PartnerDashboardDetails
-          finance={financeState.data}
-          financeState={financeState.status}
-          periodLabel={periodNames[period]}
-          onRetry={retryRead}
-        />
+        <DashboardFold id="partner-details" title="گزارش تکمیلی مدیر سطح ۲"
+          note="مشتریان و وضعیت سهم همکاری">
+          <PartnerDashboardDetails
+            finance={financeState.data}
+            financeState={financeState.status}
+            periodLabel={periodNames[period]}
+            onRetry={retryRead}
+          />
+        </DashboardFold>
       )}
+      <DashboardFold id="invoice-details" title="جزئیات وضعیت صورتحساب‌ها"
+        note="فهرست پیگیری و ترکیب آخرین وضعیت — گزارش تکمیلی">
       <div className="argin-dashboard__footer-grid">
         <DashboardPanel title="موارد نیازمند پیگیری">
           {attentionState.status === "loading" ? <DashboardSkeleton variant="list" rows={4} /> : (
@@ -665,6 +694,7 @@ export default function DashboardAnalytics({ role }: { role: Role }) {
           )}
         </DashboardPanel>
       </div>
+      </DashboardFold>
     </div>
   );
 }
