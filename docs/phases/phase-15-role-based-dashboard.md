@@ -1300,3 +1300,79 @@ The automatic full .NET and Next test suites serve as nonregression checks; Step
 
 - Reviewed file resolution in Node acceptance tests: \`apps/web/tests\` is three directory levels below repository root. Adjusted both \`phase15-step16-integrated-acceptance.test.mjs\` and previously prepared \`phase15-step15-query-performance.test.mjs\` to load \`src/\`, \`scripts/\` and \`docs/\` through \`../../../\`, preventing false \`ENOENT\` failures.
 - The validation toolchain is deliberately runnable **locally** with macOS + project dependencies. Tests and shell scripts have been committed but not executed in the assistant environment. Any failed macOS acceptance result must be resolved before Step17. No user-visible financial or fiscal business logic changed in Step16.
+
+
+---
+
+## STEP 17 — Ubuntu 24.04 same-SHA acceptance and cross-platform parity (2026-11-03)
+
+### Intended scope and precise acceptance boundary
+
+- Step16's macOS automated checks were operator-confirmed PASS on **\`11559e7bc9fd415d8a8e23293be5f5b702099bcf\`**. The Step17 script/test/docs commits necessarily change HEAD. Consequently, the older macOS SHA **cannot** establish full same-SHA parity for the new Step17 source tree.
+- Before Ubuntu testing, run the Step16 macOS acceptance script **again at the final current HEAD**, capture its new full SHA from the PASS manifest, and pass that same SHA into Ubuntu as \`PHASE15_MAC_ACCEPTED_SHA\`. This is compulsory and fail-closed; do not enter the old SHA unless the actual Ubuntu checkout and approved Mac source are truly identical (which they cannot be after adding Step17).
+- The Ubuntu tool records only automatic build/test acceptance. Real account and browser permissions, Phase12 finance parity, owner isolation, Sandbox fiscal behavior and final release authorization remain manual. Step17 does not merge, tag, create releases, deploy, migrate or restart services.
+
+### Delivered
+
+| File | Function |
+| --- | --- |
+| \`scripts/phase15-step17-ubuntu-acceptance.sh\` | Fail-closed Ubuntu **24.04** gate. Validates branch and clean tracked tree, checks exact SHA equality to operator-supplied accepted Mac SHA, tests available tools and nonsecret host resources. Executes dotnet restore, Release build and tests, npm ci, Step16 integration suite, Step03–15 regression tests, full Next tests, TypeScript typecheck and production build. Each check has its own log and PASS/FAIL exit status. Private manifest and status JSON use \`artifacts/phase15-step17/<SHA>/ubuntu-<timestamp>\`. |
+| \`apps/web/tests/phase15-step17-ubuntu-parity.test.mjs\` | Static and \`bash -n\` shell syntax tests: Linux/Ubuntu version restriction, SHA and worktree guards, same macOS baseline tests, no production actions, private output, manual release gates. The project-wide \`npm test\` discovers this test automatically. |
+| \`.gitignore\` | Ignore \`artifacts/phase15-step17/\` so local host-specific logs are never committed. |
+| This canonical doc | Preserves final SHA handoff and manual acceptance constraints without creating extra phase documents. |
+
+### 1. Re-accept final HEAD on macOS
+
+\`\`\`bash
+cd ~/projects/ArginTaxPayer
+git fetch origin
+git switch phase/15-role-based-dashboard
+git pull --ff-only origin phase/15-role-based-dashboard
+git status --short
+bash scripts/phase15-step16-integrated-acceptance.sh
+git rev-parse HEAD
+\`\`\`
+
+Only after the script reports *AUTOMATED MACOS GATE PASS* should the exact new SHA be recorded. The previous macOS output for \`11559e7...\` is historical evidence, not a substitute for a new same-SHA run.
+
+### 2. Connect to Ubuntu VPS
+
+\`\`\`bash
+ssh argindev@<VPS-IP>
+cd ~/projects/ArginTaxPayer
+git fetch origin
+git switch phase/15-role-based-dashboard
+git pull --ff-only origin phase/15-role-based-dashboard
+git status --short
+git rev-parse HEAD
+\`\`\`
+
+Do not use \`git reset --hard\`, \`git clean -fd\` or force-pull; if there are local changes, inspect them and reconcile deliberately.
+
+### 3. Run Ubuntu same-SHA gate
+
+Copy the full SHA from the new successful macOS execution into the variable; **replace the placeholder**:
+
+\`\`\`bash
+cd ~/projects/ArginTaxPayer
+export PHASE15_MAC_ACCEPTED_SHA='<FULL-NEW-MACOS-PASS-SHA>'
+bash scripts/phase15-step17-ubuntu-acceptance.sh
+unset PHASE15_MAC_ACCEPTED_SHA
+\`\`\`
+
+Expected output: explicit \`[PASS]\` for Ubuntu platform/resources, .NET restore/build/tests, npm install, integrated acceptance, all dashboard regressions, full Next tests, typecheck and production build; status metadata includes the exact Ubuntu SHA and macOS SHA. A mismatch fails **before** compiling or running tests.
+
+Logs in a private local directory: \`artifacts/phase15-step17/<SHA>/ubuntu-<UTC stamp>/{manifest.tsv,status.json,*.log}\`.
+
+### 4. Additional manual Ubuntu checks (after automated PASS)
+
+1. **Role isolation**: with API running *locally* on Ubuntu and three distinct test-account tokens, run the read-only \`node scripts/phase15-step16-role-smoke.mjs\`, with the same environment-variable setup as Step16. Do not paste tokens, and do not run on production.
+2. **Finance/ledger**: verify Level1/Level2 sales gross, collections, earned allocations and signed settlements against Phase12 on the same authorized TEST records. Do not compare daily flows to as-of balances.
+3. **PostgreSQL**: the Step15 audit is test-database-only, read-only. On VPS, use \`psql -X -h 127.0.0.1 -p 5432 -U argintaxpayer -d argintaxpayer_test -f scripts/phase15-step15-query-plan-audit.sql\`, and review the output offline.
+4. **UI**: examine customer/Level2/Level1 landing, compact foldouts, KPI details, financial trends, custom dates, skeletons, error/retry and page performance at mobile and desktop width.
+5. **Fiscal nonregression**: confirm Phase10 issuance, correction, cancellation and sales-return workflows are not broken; separately QA Sandbox with fresh invoices if live fiscal acceptance is required. Never auto-resend an indeterminate invoice.
+6. **Service configuration**: check that environment remains test-only, localhost-proxied API, and no production secrets are exposed in artifacts.
+
+### Acceptance definition
+
+**Step17 source implementation is complete; no Ubuntu tests were executed by the assistant in GitHub-only context.** Only after (a) the new final SHA has Mac automated PASS, (b) that SHA has Ubuntu automated PASS, (c) requested manual checks are acknowledged, can the operator approve Step17. **Step18** is the final review/release/merge gate and must not be performed merely because the scripts exist. This phase adds no EF migrations or runtime behavior changes.
