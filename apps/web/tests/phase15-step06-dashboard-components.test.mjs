@@ -34,6 +34,7 @@ test("error state cannot falsely show previous period numbers",()=>{
  assert.match(client,/Promise\.all\(tasks\)/);
  assert.match(client,/setState\("error"\)/);
  assert.match(client,/status:"error",data:null/);
+ assert.match(client,/if\\(admin\\)query\\("finance"/);
  assert.match(client,/setOverviewState\\(waiting\\(\\)\\)/);
  assert.match(client,/setTrendState\\(waiting\\(\\)\\)/);
  assert.match(client,/dashboard_unavailable/);
