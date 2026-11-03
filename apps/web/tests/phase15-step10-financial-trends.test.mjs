@@ -77,5 +77,5 @@ test("financial chart is responsive and honors active date filter",()=>{
  assert.match(style,/\.argin-dashboard__finance-tabs/);
  assert.match(style,/\.argin-dashboard__finance-graph/);
  assert.match(style,/max-width:580px/);
- assert.match(root,/period=\{period\}/);
+ assert.match(root,/period=\{dateQuery\}/);
 });
