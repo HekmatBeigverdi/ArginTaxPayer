@@ -21,10 +21,11 @@ test("watchlist only mounts for administrator roles",()=>{
  assert.ok(page.includes('admin && <DashboardFold id="subscription-details"'));
  assert.ok(page.includes('<DashboardSubscriptionWatch'));
  assert.ok(page.includes('role === "Level1" ? "Level1" : "Level2"'));
- assert.ok(watch.includes("data.role!==role"));
- assert.ok(watch.includes('fetch("/api/dashboard/subscriptions-watch"'));
- assert.ok(watch.includes('cache:"no-store"'));
- assert.ok(watch.includes("controller.abort()"));
+ assert.ok(watch.includes("watch?.role===role"));
+ assert.ok(page.includes("value.role!==role"));
+ assert.ok(page.includes('fetch("/api/dashboard/subscriptions-watch"'));
+ assert.ok(page.includes('cache:"no-store"'));
+ assert.ok(page.includes("controller.abort()"));
 });
 test("backend filters currently owned clients before subscription enumeration",()=>{
  assert.ok(backend.includes('public async Task<SubscriptionWatch> SubscriptionWatchAsync'));
