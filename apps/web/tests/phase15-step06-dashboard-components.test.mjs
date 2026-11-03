@@ -38,7 +38,13 @@ function dashboard(role,fetch) {
    }}
   }
  }).default;
- return {state,effects,tree(){slot=0;return Component({role});},
+ return {state,effects,loadEffect:null,tree(){
+  slot=0;
+  const tree=Component({role});
+  // Capture the dashboard effect before rendering children with their own effects.
+  this.loadEffect=effects.at(-1);
+  return tree;
+ },
   render(){return renderToStaticMarkup(this.tree());}};
 }
 const overview=role=>({schemaVersion:1,role,asOfUtc:"2026-11-03T10:00:00Z",invoiceDrafts:2,
@@ -80,7 +86,7 @@ test("changing period clears old data, failure hides KPIs, and cleanup aborts re
  previousCleanup();
  view.render();
  fail=true;
- const cleanup=view.effects.at(-1)();
+ const cleanup=view.loadEffect();
  assert.equal(view.state[0],"7d");
  assert.ok(calls.at(-1).url.endsWith("?period=7d"));
  for(const section of view.state.slice(2,6)){
