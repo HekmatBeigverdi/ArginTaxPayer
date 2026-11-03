@@ -23,7 +23,7 @@ test("Level1-specific component and shared dashboard transpile",()=>{
 });
 test("Level1-only root widget stays out of Level2 and Customer views",()=>{
  assert.match(root,/role === "Level1" && <DashboardFold id="root-details"/);
- assert.match(root,/<RootDashboardDetails period=\{period\}/);
+ assert.match(root,/<RootDashboardDetails period=\{dateQuery\}/);
  assert.match(root,/role === "Level2" && \(/);
  assert.match(root,/import RootDashboardDetails/);
  assert.doesNotMatch(level2,/RootDashboardDetails|LifetimePartnerEarnedIrr/);
