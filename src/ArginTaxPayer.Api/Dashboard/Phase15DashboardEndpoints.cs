@@ -28,7 +28,7 @@ public static class Phase15DashboardEndpoints
                 return Results.NotFound();
             if((section=="finance" || section=="partner") && taxpayerId.HasValue ||
                section!="finance" && partnerUserId.HasValue ||
-               section=="partner" && partnerUserId.HasValue)
+               section=="partner" && (partnerUserId.HasValue || period is not null || from is not null || to is not null))
                 return Results.BadRequest(new {error="invalid_filter"});
             try
             {
