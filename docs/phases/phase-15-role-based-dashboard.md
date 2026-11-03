@@ -639,3 +639,64 @@ With the current development API, web and DB tunnel running, log in as a Custome
 - The Step15 backend performance limitation (materializing scoped invoice rows for a period) remains deferred; the UI change does not mask it.
 
 **Single-document rule:** append all later Phase15 notes to this same file in `docs/phases`.
+
+---
+
+## STEP 08 — Level2 partner-specific dashboard (2026-11-03)
+
+### Scope and decisions
+
+- Add a **real data** dashboard section exclusively for authenticated Level2 partners. The existing shared read-only invoice trend/status and period financial KPIs continue to work.
+- A Level2 can see only **currently owned, active customer accounts** and their active subscriptions, plus allocations and settlement records corresponding to currently owned customers.
+- Commercial sales, verified collections, earned shares and settlements are distinct events. The total settlement balance is an **as-of lifetime snapshot**, while financial KPIs elsewhere use the selected calendar period; never apply the UI period to lifetime balances.
+- NEVER expose Level1's root share, approved root costs, other partners' data, or platform-wide data to Level2. A partner summary is not a profit-and-loss report.
+- The Level1 and Customer dashboard must not load or display the Level2-specific widget.
+
+### Implementation on `phase/15-role-based-dashboard`
+
+| File | Description |
+| --- | --- |
+| `src/ArginTaxPayer.Api/Dashboard/Phase15DashboardReadService.cs` | `PartnerOverviewAsync`, SQL-scoped aggregate of currently owned active customers, active/next-30-day expiring subscriptions, earned partner share, net settlements (including reversals), and remaining payable. Partner-only response DTO without privileged fields |
+| `src/ArginTaxPayer.Api/Dashboard/Phase15DashboardEndpoints.cs` | `GET /api/dev/dashboard/partner`: read-only server-side Level2 authorization; rejects taxpayer, partner and period filters |
+| `apps/web/app/api/dashboard/[section]/route.ts` | Only Level2 can access `GET /api/dashboard/partner`; Level1 and Customer get 403; any partner query parameter is rejected with 400 |
+| `apps/web/app/(console)/dashboard/partner-dashboard-details.tsx` | Level2-only panel, independent loading/error, active customer/subscription/expiry cards and lifetime settlement / current period finance breakdown; prices in IRR |
+| `apps/web/app/(console)/dashboard/dashboard-analytics.tsx` | Mounts `PartnerDashboardDetails` only when `role === "Level2"` and passes finance loading state/period label |
+| `apps/web/app/(console)/dashboard/dashboard-design.css` | Responsive panel grids, mobile stacking and accessible SVG skeletons |
+| `apps/web/tests/phase15-step08-level2-dashboard.test.mjs` | Contract tests of role exposure, current owner SQL, settlement reversal accounting, absence of root share, frontend display and accessibility |
+| `apps/web/tests/phase15-step03-dashboard-proxy.test.mjs` | Added runnable proxy tests: Customer/Level1/mixed roles denied, Level2 forwards only to fixed local API, arbitrary filters rejected |
+
+### Accuracy and guardrails
+
+- Current ownership: `customer_commercial_owners.partner_level2_user_id = actor` evaluated at query time, JOIN active `identity_users`. An ownership transfer immediately removes customer and subscription rows from the previous partner's dashboard.
+- Lifetime partner share records are joined to their verified collection/order and current owner; a previous partner's allocations for transferred-away customers do not appear.
+- `lifetimePartnerSettledIrr` is sum of settlement events `kind=1` minus reversals `kind=2`; payable = earned - net settled. It is not a standalone proxy for profit.
+- Active plan: `state=2`, activated at or before now and expires strictly after now; the upcoming expiry count is the active plan subset expiring in the next 30 days. No duplicate customer account counting.
+- The display explicitly distinguishes **total-to-date** share/settlement from **selected-period** commercial activity.
+- Snapshot endpoint does not accept a time selector. Filtering lifetime totals to a short period would produce misleading "outstanding" results.
+- No database migration, client write, real tax authority inquiry, invoice resubmission or other Phase10/11 process introduced.
+- Important: Amount scope differs between a historical ledger attribution and current ownership. Here the partner-specific snapshot deliberately follows current ownership, and future step10 comparison must use matching definition for its charts.
+
+### Acceptance checks on macOS
+
+```bash
+cd ~/projects/ArginTaxPayer
+git fetch origin
+git switch phase/15-role-based-dashboard
+git pull --ff-only origin phase/15-role-based-dashboard
+
+dotnet restore ArginTaxPayer.sln
+dotnet build ArginTaxPayer.sln -c Release --no-restore
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj -c Release --no-restore
+
+cd apps/web
+npm ci
+node --test tests/phase15-step08-level2-dashboard.test.mjs tests/phase15-step03-dashboard-proxy.test.mjs tests/phase15-step07-customer-ux.test.mjs tests/phase15-step06-dashboard-components.test.mjs
+npm run typecheck
+npm run build
+```
+
+Manual role acceptance on running local API/Web/DB: login as Level2, view `/dashboard` and confirm new partner cards, IRR figures, settlements and skeletons. Login as Customer or Level1: the Level2 block must not render, and `/api/dashboard/partner` must return 403. Try a foreign partner filter (400). Transfer a test customer out of Level2 and confirm that customer's subscription and historical collection are no longer counted. Compare partner payable totals with settlement ledger and verify reversal sign. Test zero customers, zero allocations, expired plans and slow API calls.
+
+### Release gate
+
+**Step08 implementation committed and source reviewed. macOS build, xUnit, Node tests, browser and PostgreSQL runtime validation still require operator execution; no PASS has been claimed.** A single-phase document remains the only Phase15 file in `docs/phases`.
