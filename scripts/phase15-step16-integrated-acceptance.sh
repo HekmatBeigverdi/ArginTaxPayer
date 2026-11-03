@@ -18,7 +18,7 @@ for bin in git dotnet node npm; do
   command -v "$bin" >/dev/null || { echo "REFUSED: missing $bin" >&2; exit 2; }
 done
 sha="$(git rev-parse HEAD)"
-if [[ -v PHASE15_EXPECT_SHA && "$sha" != "$PHASE15_EXPECT_SHA" ]]; then
+if [[ -n "$(printenv PHASE15_EXPECT_SHA 2>/dev/null || true)" && "$sha" != "$(printenv PHASE15_EXPECT_SHA)" ]]; then
   echo "REFUSED: checked-out SHA does not match PHASE15_EXPECT_SHA." >&2; exit 2
 fi
 
