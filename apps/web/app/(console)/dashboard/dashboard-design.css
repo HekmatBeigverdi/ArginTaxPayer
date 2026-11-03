@@ -183,3 +183,27 @@
   .argin-dashboard__subscription {padding:12px;gap:8px}
   .argin-dashboard__subscription-remaining {padding-inline-start:10px}
 }
+
+/* Phase15 Step09: Level1-only overview, top-partner comparisons */
+.argin-dashboard__root {min-width:0;margin-block:20px 24px}
+.argin-dashboard__root-metrics {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--dashboard-gap);margin-block-end:var(--dashboard-gap)}
+.argin-dashboard__root-panels {display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr);gap:var(--dashboard-gap);align-items:start}
+.argin-dashboard__root-skeleton {min-width:0;max-width:260px}
+.argin-dashboard__root-skeleton svg {display:block;height:auto}
+.argin-dashboard__root-partner-list {display:grid;gap:12px}
+.argin-dashboard__root-partner-row {padding-block:9px;border-bottom:1px solid var(--dashboard-line);min-width:0}
+.argin-dashboard__root-partner-title {display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:12px;min-width:0}
+.argin-dashboard__root-partner-title strong {overflow-wrap:anywhere}
+.argin-dashboard__root-partner-title span {color:var(--dashboard-muted);font-size:11px;white-space:nowrap}
+.argin-dashboard__root-partner-bar {height:8px;background:#e5eff0;border-radius:10px;overflow:hidden;margin-block:9px}
+.argin-dashboard__root-partner-bar span {display:block;height:100%;background:var(--dashboard-accent);border-radius:10px}
+.argin-dashboard__root-partner-details {display:flex;gap:8px 14px;flex-wrap:wrap;color:var(--dashboard-muted);font-size:11px;line-height:1.9}
+.argin-dashboard__root-partner-details b {color:var(--dashboard-ink);font-variant-numeric:tabular-nums}
+@media(max-width:1100px) {
+  .argin-dashboard__root-metrics {grid-template-columns:repeat(2,minmax(0,1fr))}
+  .argin-dashboard__root-panels {grid-template-columns:minmax(0,1fr)}
+}
+@media(max-width:580px) {
+  .argin-dashboard__root-metrics {grid-template-columns:minmax(0,1fr)}
+  .argin-dashboard__root-partner-title {align-items:flex-start;flex-direction:column;gap:3px}
+}
