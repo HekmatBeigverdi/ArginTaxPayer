@@ -747,7 +747,7 @@ export default function DashboardAnalytics({ role }: { role: Role }) {
       </DashboardFold>}
       {role === "Level1" && <DashboardFold id="root-details" title="گزارش تکمیلی مدیر اصلی"
         note="آمار کل سامانه و عملکرد همکاران">
-        <RootDashboardDetails period={period} />
+        <RootDashboardDetails period={dateQuery} />
       </DashboardFold>}
       {role === "Level2" && (
         <DashboardFold id="partner-details" title="گزارش تکمیلی مدیر سطح ۲"
