@@ -272,3 +272,33 @@
 .argin-dashboard__fold-body>.argin-dashboard__footer-grid{margin-bottom:14px}
 @media(max-width:650px){.argin-dashboard__action-list li{align-items:start;flex-wrap:wrap}.argin-dashboard__action-list li>a{margin-inline-start:auto}.argin-dashboard__fold-trigger{padding:13px}.argin-dashboard__fold-body{padding:12px 9px 0}}
 @media(prefers-reduced-motion:reduce){.argin-dashboard__fold-chevron{transition:none}}
+
+/* Phase15 Step13 — compact custom dates and KPI drill-down; no additional shell */
+.argin-dashboard__period-box {display:flex;align-items:start;justify-content:flex-end;gap:8px;flex-wrap:wrap;min-width:0}
+.argin-dashboard__custom-range {position:relative;border:1px solid var(--dashboard-line);border-radius:10px;background:var(--dashboard-surface);font-size:12px}
+.argin-dashboard__custom-range summary {list-style:none;cursor:pointer;padding:10px 12px;min-height:40px;display:flex;align-items:center;gap:8px;white-space:nowrap}
+.argin-dashboard__custom-range summary::-webkit-details-marker{display:none}
+.argin-dashboard__custom-range summary:after{content:"⌄";color:var(--dashboard-accent);font-size:16px}
+.argin-dashboard__custom-range[data-active="true"]{border-color:var(--dashboard-accent);background:var(--dashboard-accent-soft)}
+.argin-dashboard__custom-range[open] summary{border-bottom:1px solid var(--dashboard-line)}
+.argin-dashboard__date-range{display:flex;align-items:end;flex-wrap:wrap;gap:8px;padding:12px;max-width:360px}
+.argin-dashboard__date-range label{display:grid;gap:6px;color:var(--dashboard-muted);font-size:11px}
+.argin-dashboard__date-range input{font:inherit;font-size:12px;color:var(--dashboard-ink);border:1px solid var(--dashboard-line);border-radius:8px;min-height:39px;padding:8px;background:var(--dashboard-surface);direction:ltr}
+.argin-dashboard__date-range button{border:0;background:var(--dashboard-accent);color:white;border-radius:8px;min-height:39px;font:inherit;font-size:12px;padding:8px 12px;cursor:pointer}
+.argin-dashboard__date-error{color:var(--dashboard-danger);font-size:11px;line-height:1.9;width:100%}
+.argin-dashboard__kpi-interactive{padding:0;overflow:hidden}
+.argin-dashboard__kpi-interactive[data-selected="true"]{border-color:var(--dashboard-accent)}
+.argin-dashboard__kpi-button{display:flex;flex-direction:column;align-items:flex-start;width:100%;height:100%;padding:18px;text-align:right;background:transparent;border:0;color:inherit;font:inherit;cursor:pointer}
+.argin-dashboard__kpi-button .argin-dashboard__kpi-value{line-height:1.4}
+.argin-dashboard__kpi-hint{margin-block-start:auto;padding-block-start:10px;color:var(--dashboard-accent);font-size:11px;font-weight:800}
+.argin-dashboard__kpi-detail{border:1px solid #b9ddd6;background:#f8fcfb;border-radius:14px;padding:16px 18px;margin-block:-5px 18px}
+.argin-dashboard__kpi-detail-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.argin-dashboard__kpi-detail-head h2{font-size:16px;margin:0 0 6px}
+.argin-dashboard__kpi-detail-head p{font-size:12px;line-height:1.8;color:var(--dashboard-muted);margin:0}
+.argin-dashboard__kpi-detail-head button{border:1px solid var(--dashboard-line);border-radius:9px;padding:8px 10px;background:var(--dashboard-surface);font:inherit;font-size:12px;cursor:pointer}
+.argin-dashboard__kpi-detail dl{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:16px 0 6px}
+.argin-dashboard__kpi-detail dl>div{padding:12px;border-radius:10px;background:var(--dashboard-surface);border:1px solid var(--dashboard-line);min-width:0}
+.argin-dashboard__kpi-detail dt{font-size:11px;color:var(--dashboard-muted);margin-block-end:8px}
+.argin-dashboard__kpi-detail dd{font-size:14px;font-weight:800;margin:0;overflow-wrap:anywhere}
+@media(max-width:900px){.argin-dashboard__period-box{justify-content:flex-start}.argin-dashboard__kpi-detail dl{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:540px){.argin-dashboard__period-box{width:100%}.argin-dashboard__custom-range{width:100%}.argin-dashboard__date-range{max-width:none}.argin-dashboard__kpi-detail dl{grid-template-columns:minmax(0,1fr)}.argin-dashboard__kpi-button{padding:14px}}
