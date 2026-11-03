@@ -1,4 +1,6 @@
 import SubscriptionStatus from "../../components/subscription-status";
+import DashboardAnalytics from "./dashboard-analytics";
+import "./dashboard-design.css";
 import Link from "next/link";
 import Image from "next/image";
 import { currentIdentity } from "../../../lib/identity";
@@ -34,6 +36,7 @@ export default async function DashboardPage() {
   const modules = admin ? adminModules : customerModules;
   const role = level1 ? "مدیر سطح یک" : level2 ? "مدیر سطح دو" : "کاربر پنل";
   return <>
+        <DashboardAnalytics role={level1 ? "Level1" : level2 ? "Level2" : "Customer"}/>
         <div className="app-welcome"><div><p className="app-kicker">پیشخوان آرگین</p>
           <h1>{admin ? "مرکز مدیریت سامانه" : "داشبورد شما"}</h1>
           <p>{admin
