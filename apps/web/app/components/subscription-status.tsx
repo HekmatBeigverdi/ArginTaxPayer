@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import DashboardIcon from "./dashboard-icon";
 import { useEffect,useState } from "react";
 type Status={planName:string;planKind:number|null;expiresAtUtc:string|null;
 remainingInvoices:number|null;remainingDays:number;hasActivePlan:boolean};
@@ -29,12 +30,16 @@ export default function SubscriptionStatus({compact=false}:{compact?:boolean}){
   {name}{status.planKind===2&&status.remainingInvoices!==null?" · "+status.remainingInvoices.toLocaleString("fa-IR")+" فاکتور":""}
   {sms&&!sms.isUnlimited?" · پیامک "+Math.floor((sms.availableIrr??0)/10).toLocaleString("fa-IR")+" تومان":""}
  </Link>;
- return <section className="app-summary" aria-label="اشتراک نرم‌افزار">
-  <div><small>پلن فعلی</small><strong>{name}</strong></div>
-  <div><small>مانده اعتبار</small><strong>{status.hasActivePlan?status.remainingDays.toLocaleString("fa-IR")+" روز":"بدون اشتراک"}</strong></div>
-  <div><small>سهمیه فاکتور</small><strong>{status.planKind===2?
+ return <section className="app-summary subscription-summary" aria-label="اشتراک نرم‌افزار">
+  <div><span className="subscription-summary__icon"><DashboardIcon name="subscription" /></span>
+    <div><small>پلن فعلی</small><strong>{name}</strong></div></div>
+  <div><span className="subscription-summary__icon"><DashboardIcon name="calendar" /></span>
+    <div><small>مانده اعتبار</small><strong>{status.hasActivePlan?status.remainingDays.toLocaleString("fa-IR")+" روز":"بدون اشتراک"}</strong></div></div>
+  <div><span className="subscription-summary__icon"><DashboardIcon name="invoice" /></span>
+    <div><small>سهمیه فاکتور</small><strong>{status.planKind===2?
     (status.remainingInvoices??0).toLocaleString("fa-IR")+" عدد":
-    status.hasActivePlan?"نامحدود":"تا ۲ فاکتور آزمایشی"}</strong></div>
-  {sms&&!sms.isUnlimited&&<div><small>مانده اعتبار پیامک</small><strong>{Math.floor((sms.availableIrr??0)/10).toLocaleString("fa-IR")} تومان</strong></div>}
+    status.hasActivePlan?"نامحدود":"تا ۲ فاکتور آزمایشی"}</strong></div></div>
+  {sms&&!sms.isUnlimited&&<div><span className="subscription-summary__icon"><DashboardIcon name="message" /></span>
+    <div><small>مانده اعتبار پیامک</small><strong>{Math.floor((sms.availableIrr??0)/10).toLocaleString("fa-IR")} تومان</strong></div></div>}
  </section>;
 }

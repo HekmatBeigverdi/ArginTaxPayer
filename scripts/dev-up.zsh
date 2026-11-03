@@ -176,9 +176,10 @@ if lsof -nP -iTCP:15089 -sTCP:LISTEN >/dev/null 2>&1; then
   print -u2 'Port 15089 already in use. Stop old API before using dev-up.'
   exit 1
 fi
-print 'Starting .NET API...'
-nohup dotnet run --no-launch-profile --project src/ArginTaxPayer.Api \
-  --urls http://127.0.0.1:15089 > "$STATE/api.log" 2>&1 < /dev/null &
+print 'Starting .NET API with automatic rebuild/restart...'
+# Restart after backend edits and pulls so new dashboard routes are available.
+nohup dotnet watch --no-hot-reload --project src/ArginTaxPayer.Api run \
+  --no-launch-profile --urls http://127.0.0.1:15089 > "$STATE/api.log" 2>&1 < /dev/null &
 api_pid="$!"
 started_pids+=("$api_pid")
 started_api=1

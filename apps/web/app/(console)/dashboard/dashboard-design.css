@@ -1,0 +1,310 @@
+/* Phase 15 dashboard-only style system, integrated at Step06. */
+.argin-dashboard {
+  --dashboard-accent:var(--argin-primary,#177f81);
+  --dashboard-accent-soft:#e8f5f2;
+  --dashboard-ink:var(--argin-text,#20344b);
+  --dashboard-muted:var(--argin-muted,#64788c);
+  --dashboard-surface:var(--argin-surface,#fff);
+  --dashboard-line:var(--argin-line,#dae6ed);
+  --dashboard-danger:#a83d46;
+  --dashboard-warning:#92640b;
+  --dashboard-success:#197451;
+  --dashboard-radius:16px;
+  --dashboard-gap:16px;
+  direction:rtl;
+  min-width:0;
+  color:var(--dashboard-ink);
+}
+.argin-dashboard *, .argin-dashboard *::before, .argin-dashboard *::after {box-sizing:border-box}
+.argin-dashboard__header {display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:16px;margin-block-end:20px}
+.argin-dashboard__eyebrow {color:var(--dashboard-accent);font-size:12px;font-weight:800}
+.argin-dashboard__title {margin:4px 0 6px;font-size:clamp(21px,2.4vw,30px);line-height:1.5}
+.argin-dashboard__subtitle {color:var(--dashboard-muted);font-size:13px;line-height:1.9;margin:0}
+.argin-dashboard__filters {display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.argin-dashboard__filters button, .argin-dashboard__filters select {min-height:40px;font:inherit;font-size:12px;border:1px solid var(--dashboard-line);background:var(--dashboard-surface);color:var(--dashboard-ink);border-radius:10px;padding:8px 12px}
+.argin-dashboard__filters [aria-pressed="true"] {background:var(--dashboard-accent-soft);border-color:var(--dashboard-accent);color:#135c5b;font-weight:800}
+.argin-dashboard__kpis {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--dashboard-gap);margin-block-end:18px}
+.argin-dashboard__card {min-width:0;border:1px solid var(--dashboard-line);border-radius:var(--dashboard-radius);padding:18px;background:var(--dashboard-surface)}
+.argin-dashboard__kpi-label {display:block;color:var(--dashboard-muted);font-size:12px;line-height:1.7;margin-block-end:12px}
+.argin-dashboard__kpi-value {font-size:clamp(20px,2.1vw,28px);line-height:1.4;font-weight:800;display:block;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.argin-dashboard__kpi-note {display:block;font-size:11px;color:var(--dashboard-muted);line-height:1.8;margin-block-start:6px}
+.argin-dashboard__charts {display:grid;grid-template-columns:minmax(0,1.65fr) minmax(260px,1fr);gap:var(--dashboard-gap);margin-block-end:18px}
+.argin-dashboard__section-title {margin:0 0 15px;font-size:16px;line-height:1.6}
+.argin-dashboard__footer-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--dashboard-gap);align-items:start}
+.argin-dashboard__empty,.argin-dashboard__error,.argin-dashboard__loading {padding:24px;text-align:center;font-size:13px;line-height:1.9;color:var(--dashboard-muted)}
+.argin-dashboard__error {color:var(--dashboard-danger)}
+.argin-dashboard__table-wrap {max-width:100%;overflow-x:auto}
+.argin-dashboard__table {width:100%;border-collapse:collapse;font-size:12px;text-align:right}
+.argin-dashboard__table th,.argin-dashboard__table td {padding:12px;border-block-end:1px solid var(--dashboard-line);white-space:nowrap}
+.argin-dashboard__table th {color:var(--dashboard-muted);font-weight:700}
+.argin-dashboard__status {display:inline-flex;align-items:center;gap:5px;font-size:11px;border-radius:999px;padding:4px 9px;background:#edf2f6;color:#476276}
+.argin-dashboard__status[data-tone="success"] {background:#e7f6ed;color:var(--dashboard-success)}
+.argin-dashboard__status[data-tone="warning"] {background:#fff5dc;color:var(--dashboard-warning)}
+.argin-dashboard__status[data-tone="danger"] {background:#fcecee;color:var(--dashboard-danger)}
+.argin-dashboard__chart {min-height:240px;min-width:0}
+.argin-dashboard__chart-label {color:var(--dashboard-muted);font-size:12px}
+.argin-dashboard :focus-visible {outline:3px solid #18888c;outline-offset:3px}
+@media(max-width:1100px){
+  .argin-dashboard__kpis {grid-template-columns:repeat(2,minmax(0,1fr))}
+  .argin-dashboard__charts {grid-template-columns:minmax(0,1fr)}
+}
+@media(max-width:640px){
+  .argin-dashboard {--dashboard-gap:12px}
+  .argin-dashboard__header {flex-direction:column}
+  .argin-dashboard__filters {width:100%}
+  .argin-dashboard__kpis {grid-template-columns:repeat(2,minmax(0,1fr))}
+  .argin-dashboard__card {padding:14px}
+  .argin-dashboard__kpi-value {font-size:20px}
+  .argin-dashboard__footer-grid {grid-template-columns:minmax(0,1fr)}
+}
+@media(max-width:380px){.argin-dashboard__kpis {grid-template-columns:minmax(0,1fr)}}
+@media(prefers-reduced-motion:reduce){.argin-dashboard * {scroll-behavior:auto!important;transition:none!important;animation:none!important}}
+
+/* Phase 15 Step06 — live dashboard components */
+.argin-dashboard {margin-block-end:28px}
+.argin-dashboard__kpi-value[data-tone="success"]{color:var(--dashboard-success)}
+.argin-dashboard__kpi-value[data-tone="warning"]{color:var(--dashboard-warning)}
+.argin-dashboard__kpi-value[data-tone="danger"]{color:var(--dashboard-danger)}
+.argin-dashboard__retry{font:inherit;cursor:pointer;background:var(--dashboard-accent);color:#fff;border:0;padding:8px 14px;border-radius:9px;margin-inline-start:10px}
+.argin-dashboard__chart svg{height:220px;display:block}
+.argin-dashboard__chart-dates{display:flex;justify-content:space-between;gap:4px;font-size:10px;color:var(--dashboard-muted)}
+.argin-dashboard__legend{display:flex;flex-wrap:wrap;gap:16px;margin-top:12px;color:var(--dashboard-muted);font-size:11px}
+.argin-dashboard__dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-inline-end:6px;background:#aabcc3}
+.argin-dashboard__dot[data-tone="primary"]{background:#177f81}
+.argin-dashboard__dot[data-tone="amber"]{background:#e2a54b}
+.argin-dashboard__composition{display:flex;flex-direction:column;gap:15px}
+.argin-dashboard__composition-row>div:first-child{display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px}
+.argin-dashboard__track{width:100%;height:8px;background:#e9eff2;border-radius:12px;overflow:hidden}
+.argin-dashboard__track>span{height:100%;display:block;min-width:2px;background:#7b9cab;border-radius:12px}
+.argin-dashboard__track>span[data-tone="success"]{background:#197451}
+.argin-dashboard__track>span[data-tone="warning"]{background:#d19d3b}
+.argin-dashboard__track>span[data-tone="danger"]{background:#ad5050}
+.argin-dashboard__attention{list-style:none;padding:0;margin:0}
+.argin-dashboard__attention li{display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--dashboard-line);font-size:12px}
+.argin-dashboard__attention li a{color:var(--dashboard-accent);font-weight:800;text-decoration:none}
+.argin-dashboard__quick{display:flex;gap:10px;flex-wrap:wrap}
+.argin-dashboard__quick a{font-size:12px;display:inline-block;padding:10px 14px;background:var(--dashboard-accent-soft);border:1px solid #cde8e3;color:#176d6a;border-radius:10px;text-decoration:none;font-weight:700}
+.argin-dashboard__table caption{font-size:11px;color:var(--dashboard-muted);text-align:right;margin-block:12px}
+.argin-dashboard__chart-label{margin-block:6px}
+
+.argin-dashboard__legacy{border:1px solid var(--argin-line,#dae6ed);background:#fff;border-radius:14px;padding:14px 16px;margin-top:18px}
+.argin-dashboard__legacy>summary{cursor:pointer;font-size:13px;font-weight:800;color:#176d6a;display:flex;align-items:center;justify-content:space-between;gap:12px;list-style:none}
+.argin-dashboard__legacy>summary::-webkit-details-marker{display:none}
+.argin-dashboard__legacy>summary>span:last-child{font-size:11px;color:#6b7b8f;font-weight:500}
+.argin-dashboard__legacy[open]>summary{margin-bottom:16px}
+.argin-dashboard__legacy .app-module-grid{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+.argin-dashboard__legacy .app-module{min-height:160px}
+.argin-dashboard__legacy .app-help{margin-top:14px}
+
+/* Equal-height footer cards and independent panel skeletons. */
+.argin-dashboard__footer-grid {align-items:stretch;grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr)}
+.argin-dashboard__footer-grid>.argin-dashboard__card {align-self:stretch}
+.argin-dashboard__side {min-width:0;display:flex;align-self:stretch}
+.argin-dashboard__side>.argin-dashboard__card {width:100%;min-height:0;display:flex;flex-direction:column}
+.argin-dashboard__quick {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.argin-dashboard__quick a {min-height:112px;display:flex;flex-direction:column;gap:12px;align-items:center;justify-content:center;text-align:center;padding:16px 8px;line-height:1.7;transition:background .15s,border-color .15s}
+.argin-dashboard__quick a:hover {background:#ddf0eb;border-color:#a3d3c8}
+.argin-dashboard__quick-icon {display:flex;align-items:center;justify-content:center;width:46px;height:46px;border-radius:14px;background:var(--dashboard-surface);color:var(--dashboard-accent)}
+.argin-dashboard__side>.argin-dashboard__card>.argin-dashboard__kpi-note {margin-block-start:auto;padding-block-start:18px}
+.argin-dashboard__subscription-waiting {margin-block-start:12px;padding-block-start:8px;border-block-start:1px solid var(--dashboard-line)}
+.argin-dashboard__more {display:inline-flex;margin-block-start:14px;color:var(--dashboard-accent);font-size:12px;font-weight:800;text-decoration:none}
+.argin-dashboard__kpi-error {margin-block-end:18px;min-height:126px}
+.argin-dashboard__skeleton {width:100%;min-width:0;display:block;opacity:.93}
+.argin-dashboard__skeleton svg {display:block;height:auto;max-height:190px}
+.argin-dashboard__skeleton-bar,.argin-dashboard__skeleton-chart-line {animation:argin-dashboard-skeleton 1.6s ease-in-out infinite}
+.argin-dashboard__sr-only {position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
+@keyframes argin-dashboard-skeleton {0%,100%{opacity:.45}50%{opacity:1}}
+@media(max-width:900px) {
+  .argin-dashboard__footer-grid {grid-template-columns:minmax(0,1fr)}
+  .argin-dashboard__quick {grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@media(max-width:480px) {
+  .argin-dashboard__quick {grid-template-columns:minmax(0,1fr)}
+  .argin-dashboard__quick a {min-height:64px;flex-direction:row;justify-content:flex-start;padding-inline:14px}
+}
+@media(prefers-reduced-motion:reduce) {
+  .argin-dashboard__skeleton-bar,.argin-dashboard__skeleton-chart-line {animation:none}
+}
+
+/* Phase 15 Step08 — Level2 dashboard; scoped to partner role only */
+.argin-dashboard__partner{margin-block:20px 24px;min-width:0}
+.argin-dashboard__partner-heading{display:flex;justify-content:space-between;align-items:end;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+.argin-dashboard__partner-heading h2{font-size:18px;margin:3px 0 6px}
+.argin-dashboard__partner-heading p{font-size:12px;color:var(--dashboard-muted);margin:0;line-height:1.8}
+.argin-dashboard__partner-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--dashboard-gap);margin-bottom:var(--dashboard-gap)}
+.argin-dashboard__partner-value{font-size:24px;font-weight:800;display:block;line-height:1.6;font-variant-numeric:tabular-nums;margin-bottom:4px}
+.argin-dashboard__partner-finance{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--dashboard-gap);align-items:start}
+.argin-dashboard__partner-amounts{margin:0;display:grid;gap:0}
+.argin-dashboard__partner-amounts>div{display:flex;justify-content:space-between;gap:14px;align-items:center;padding:12px 0;border-bottom:1px solid var(--dashboard-line)}
+.argin-dashboard__partner-amounts dt{color:var(--dashboard-muted);font-size:12px}
+.argin-dashboard__partner-amounts dd{margin:0;font-size:13px;font-weight:800;direction:rtl;font-variant-numeric:tabular-nums;text-align:left;overflow-wrap:anywhere}
+.argin-dashboard__partner-outstanding dt,.argin-dashboard__partner-outstanding dd{color:var(--dashboard-accent);font-weight:800}
+.argin-dashboard__partner-shimmer{width:100%;max-width:240px}
+.argin-dashboard__partner-shimmer svg{height:auto}
+@media(max-width:950px){.argin-dashboard__partner-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.argin-dashboard__partner-finance{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:580px){.argin-dashboard__partner-grid{grid-template-columns:minmax(0,1fr)}.argin-dashboard__partner-amounts>div{align-items:flex-start;flex-direction:column;gap:6px}.argin-dashboard__partner-amounts dd{text-align:right}}
+
+.argin-dashboard__legacy-heading {display:inline-flex;align-items:center;gap:10px}
+.argin-dashboard__legacy-heading svg {flex-shrink:0;width:20px;height:20px}
+.argin-dashboard__legacy .app-module-icon {display:inline-flex;align-items:center;justify-content:center;background:#e8f5f2;color:#177f81;border:1px solid #cde8e3}
+
+/* Subscription and today's three calendars live inside the quick-access card. */
+.argin-dashboard__subscription {display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 16px;align-items:center;margin-block-start:18px;padding:14px 16px;border:1px solid #cce7df;border-radius:14px;background:linear-gradient(120deg,#f1f9f6,#e9f5f1)}
+.argin-dashboard__subscription-name {display:flex;align-items:center;flex-wrap:wrap;gap:6px 8px;min-width:0}
+.argin-dashboard__subscription-name>span:first-child {flex-basis:100%;font-size:11px;color:var(--dashboard-muted)}
+.argin-dashboard__subscription-name>strong {font-size:17px;color:var(--dashboard-ink)}
+.argin-dashboard__subscription-badge {padding:2px 8px;border-radius:999px;background:#fff0d6;color:#92640b;font-size:10px;font-weight:700}
+.argin-dashboard__subscription-badge[data-active="true"] {background:#d6eee2;color:#196849}
+.argin-dashboard__subscription-remaining {display:flex;flex-direction:column;align-items:center;gap:2px;padding-inline-start:16px;border-inline-start:1px solid #cce3da}
+.argin-dashboard__subscription-remaining>strong {font-size:28px;line-height:1.2;color:#176d6a;font-variant-numeric:tabular-nums}
+.argin-dashboard__subscription-remaining>span {font-size:10px;color:#52786e;white-space:nowrap}
+.argin-dashboard__subscription-quota {grid-column:1/-1;margin:0;padding-block-start:8px;border-block-start:1px solid #d8ebe3;font-size:11px;color:#52786e}
+.argin-dashboard__calendar {display:grid;grid-template-columns:112px minmax(0,1fr);align-items:center;gap:12px;margin-block-start:18px;padding-block-start:16px;border-block-start:1px solid var(--dashboard-line)}
+.argin-dashboard__calendar-art svg {display:block;width:100%;height:auto;max-height:140px}
+.argin-dashboard__calendar-content {min-width:0}
+.argin-dashboard__calendar-heading {display:flex;justify-content:space-between;align-items:center;gap:8px;margin-block-end:6px}
+.argin-dashboard__calendar-heading h3 {margin:0;font-size:12px;color:var(--dashboard-ink)}
+.argin-dashboard__calendar-heading>span {font-size:9px;color:var(--dashboard-muted);white-space:nowrap}
+.argin-dashboard__calendar-dates {display:grid;gap:0;margin:0}
+.argin-dashboard__calendar-dates>div {display:flex;align-items:baseline;gap:8px;padding-block:7px}
+.argin-dashboard__calendar-dates>div+div {border-block-start:1px dashed var(--dashboard-line)}
+.argin-dashboard__calendar-dates dt {flex-shrink:0;width:36px;font-size:10px;color:var(--dashboard-muted)}
+.argin-dashboard__calendar-dates dd {margin:0;min-width:0;font-size:11px;line-height:1.8;font-weight:600;color:var(--dashboard-ink)}
+.argin-dashboard__calendar-dates time {display:inline-block}
+@media(max-width:1100px) and (min-width:901px) {
+  .argin-dashboard__calendar {grid-template-columns:1fr}
+  .argin-dashboard__calendar-art {width:100px;margin-inline:auto}
+}
+@media(max-width:480px) {
+  .argin-dashboard__calendar {grid-template-columns:76px minmax(0,1fr);gap:8px}
+  .argin-dashboard__calendar-heading {align-items:flex-start;flex-direction:column;gap:2px}
+  .argin-dashboard__calendar-dates>div {flex-wrap:wrap;gap:0 6px}
+  .argin-dashboard__calendar-dates dd {font-size:10px}
+  .argin-dashboard__subscription {padding:12px;gap:8px}
+  .argin-dashboard__subscription-remaining {padding-inline-start:10px}
+}
+
+/* Phase15 Step09: Level1-only overview, top-partner comparisons */
+.argin-dashboard__root {min-width:0;margin-block:20px 24px}
+.argin-dashboard__root-metrics {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--dashboard-gap);margin-block-end:var(--dashboard-gap)}
+.argin-dashboard__root-panels {display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr);gap:var(--dashboard-gap);align-items:start}
+.argin-dashboard__root-skeleton {min-width:0;max-width:260px}
+.argin-dashboard__root-skeleton svg {display:block;height:auto}
+.argin-dashboard__root-partner-list {display:grid;gap:12px}
+.argin-dashboard__root-partner-row {padding-block:9px;border-bottom:1px solid var(--dashboard-line);min-width:0}
+.argin-dashboard__root-partner-title {display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:12px;min-width:0}
+.argin-dashboard__root-partner-title strong {overflow-wrap:anywhere}
+.argin-dashboard__root-partner-title span {color:var(--dashboard-muted);font-size:11px;white-space:nowrap}
+.argin-dashboard__root-partner-bar {height:8px;background:#e5eff0;border-radius:10px;overflow:hidden;margin-block:9px}
+.argin-dashboard__root-partner-bar span {display:block;height:100%;background:var(--dashboard-accent);border-radius:10px}
+.argin-dashboard__root-partner-details {display:flex;gap:8px 14px;flex-wrap:wrap;color:var(--dashboard-muted);font-size:11px;line-height:1.9}
+.argin-dashboard__root-partner-details b {color:var(--dashboard-ink);font-variant-numeric:tabular-nums}
+@media(max-width:1100px) {
+  .argin-dashboard__root-metrics {grid-template-columns:repeat(2,minmax(0,1fr))}
+  .argin-dashboard__root-panels {grid-template-columns:minmax(0,1fr)}
+}
+@media(max-width:580px) {
+  .argin-dashboard__root-metrics {grid-template-columns:minmax(0,1fr)}
+  .argin-dashboard__root-partner-title {align-items:flex-start;flex-direction:column;gap:3px}
+}
+
+/* Phase 15 Step10: authenticated commercial finance event timeline */
+.argin-dashboard__finance-section{margin-block:20px;min-width:0}
+.argin-dashboard__finance-heading{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;flex-wrap:wrap}
+.argin-dashboard__finance-heading p{font-size:12px;color:var(--dashboard-muted);line-height:1.8;margin:0}
+.argin-dashboard__finance-tabs{display:flex;flex-wrap:wrap;gap:7px;max-width:100%}
+.argin-dashboard__finance-tabs button{border:1px solid var(--dashboard-line);background:#f7fafb;color:var(--dashboard-ink);font-family:inherit;font-size:12px;border-radius:10px;padding:9px 12px;min-height:40px;cursor:pointer}
+.argin-dashboard__finance-tabs button[aria-pressed="true"]{border-color:var(--dashboard-accent);background:var(--dashboard-accent-soft);color:#126e6a;font-weight:800}
+.argin-dashboard__finance-graph{min-width:0;padding-block:12px}
+.argin-dashboard__finance-graph svg{height:min(230px,36vw);min-height:155px}
+.argin-dashboard__finance-axis{display:flex;justify-content:space-between;color:var(--dashboard-muted);font-size:11px;margin-top:7px;gap:10px}
+.argin-dashboard__finance-skeleton svg{height:170px;display:block}
+.argin-dashboard__finance-section .argin-dashboard__table-wrap{margin-top:10px;max-height:310px;overflow:auto}
+@media(max-width:580px){.argin-dashboard__finance-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%}.argin-dashboard__finance-tabs button{padding:8px 6px;font-size:11px}}
+
+/* Phase15 Step11: renewal and quota watchlist */
+.argin-dashboard__watch{margin-block:20px;min-width:0}
+.argin-dashboard__watch-head{display:flex;gap:16px;align-items:start;justify-content:space-between;flex-wrap:wrap;margin-bottom:15px}
+.argin-dashboard__watch-head h2{margin-bottom:5px}
+.argin-dashboard__watch-head p{font-size:12px;color:var(--dashboard-muted);line-height:1.7;margin:0}
+.argin-dashboard__watch-head>a{color:var(--dashboard-accent);text-decoration:none;font-size:12px;font-weight:800;white-space:nowrap}
+.argin-dashboard__watch-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:15px}
+.argin-dashboard__watch-stat{background:#f6fafb;border:1px solid var(--dashboard-line);border-radius:12px;padding:13px;display:flex;justify-content:space-between;align-items:center;gap:8px;min-width:0}
+.argin-dashboard__watch-stat span{font-size:12px;color:var(--dashboard-muted)}
+.argin-dashboard__watch-stat strong{font-size:20px;font-weight:800;font-variant-numeric:tabular-nums}
+.argin-dashboard__watch-loading svg{max-height:126px;display:block}
+@media(max-width:1000px){.argin-dashboard__watch-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:500px){.argin-dashboard__watch-stats{grid-template-columns:minmax(0,1fr)}}
+
+/* Phase15 Step12: prioritized action surface and compact expandable reports */
+.argin-dashboard__action-center{margin-block:16px 20px;border-color:#d0e7e3}
+.argin-dashboard__action-header{display:flex;align-items:start;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.argin-dashboard__action-header .argin-dashboard__section-title{margin:3px 0 5px}
+.argin-dashboard__action-header p{margin:0}
+.argin-dashboard__action-count{border-radius:100px;border:1px solid #b8dfd7;background:#eef8f5;color:#176a60;font-size:12px;font-weight:800;padding:7px 12px;white-space:nowrap}
+.argin-dashboard__action-list{list-style:none;padding:0;margin:14px 0 0}
+.argin-dashboard__action-list li{display:flex;align-items:center;gap:12px;padding:12px 2px;border-bottom:1px solid var(--dashboard-line);min-width:0}
+.argin-dashboard__action-marker{height:9px;width:9px;flex-shrink:0;border-radius:50%;background:#d9a449}
+.argin-dashboard__action-marker[data-priority="urgent"]{background:#bd4754}
+.argin-dashboard__action-info{min-width:0;flex:1;display:grid;gap:5px}
+.argin-dashboard__action-info strong{font-size:13px}
+.argin-dashboard__action-info small{color:var(--dashboard-muted);font-size:11px;overflow-wrap:anywhere}
+.argin-dashboard__action-list li>a{font-size:12px;font-weight:800;color:#176f68;text-decoration:none;white-space:nowrap;border:1px solid #cee7e1;border-radius:9px;padding:9px 12px;background:#f2f9f7}
+.argin-dashboard__action-bottom{display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin-top:13px;font-size:11px}
+.argin-dashboard__action-bottom>a{color:var(--dashboard-accent);font-weight:800;text-decoration:none}
+.argin-dashboard__action-bottom span{color:var(--dashboard-muted)}
+.argin-dashboard__action-alert{margin-block:10px;padding:12px;border-radius:10px;background:#fff7eb;color:#7b5622;font-size:12px;line-height:1.8}
+.argin-dashboard__action-alert button{font-family:inherit;border:0;border-radius:7px;padding:6px 9px;margin-inline-start:8px;cursor:pointer;color:#6f4d1a;background:#fbe8c8}
+.argin-dashboard__action-clear{margin-block:16px;padding:16px;border-radius:12px;color:#197451;background:#eff9f4;font-size:13px}
+.argin-dashboard__action-pending svg{display:block;max-height:60px}
+.argin-dashboard__fold{background:var(--dashboard-surface);border:1px solid var(--dashboard-line);border-radius:14px;margin-block:12px;overflow:hidden;min-width:0}
+.argin-dashboard__fold-trigger{font-family:inherit;width:100%;border:0;background:transparent;text-align:right;display:flex;justify-content:space-between;align-items:center;gap:14px;cursor:pointer;padding:15px 18px;color:var(--dashboard-ink);min-height:62px}
+.argin-dashboard__fold-trigger>span:first-child{display:grid;gap:5px}
+.argin-dashboard__fold-trigger strong{font-size:14px}
+.argin-dashboard__fold-trigger small{font-size:11px;color:var(--dashboard-muted);font-weight:400}
+.argin-dashboard__fold-chevron{font-size:24px;line-height:1;color:var(--dashboard-accent);transform:rotate(0deg);transition:transform .2s ease}
+.argin-dashboard__fold[data-open="true"] .argin-dashboard__fold-chevron{transform:rotate(180deg)}
+.argin-dashboard__fold-body{border-top:1px solid var(--dashboard-line);padding:14px 16px 2px}
+.argin-dashboard__fold-body>.argin-dashboard__finance-section,
+.argin-dashboard__fold-body>.argin-dashboard__watch,
+.argin-dashboard__fold-body>.argin-dashboard__root,
+.argin-dashboard__fold-body>.argin-dashboard__partner{margin-block:0 14px}
+.argin-dashboard__fold-body>.argin-dashboard__footer-grid{margin-bottom:14px}
+@media(max-width:650px){.argin-dashboard__action-list li{align-items:start;flex-wrap:wrap}.argin-dashboard__action-list li>a{margin-inline-start:auto}.argin-dashboard__fold-trigger{padding:13px}.argin-dashboard__fold-body{padding:12px 9px 0}}
+@media(prefers-reduced-motion:reduce){.argin-dashboard__fold-chevron{transition:none}}
+
+/* Phase15 Step13 — compact custom dates and KPI drill-down; no additional shell */
+.argin-dashboard__period-box {display:flex;align-items:start;justify-content:flex-end;gap:8px;flex-wrap:wrap;min-width:0}
+.argin-dashboard__custom-range {position:relative;border:1px solid var(--dashboard-line);border-radius:10px;background:var(--dashboard-surface);font-size:12px}
+.argin-dashboard__custom-range summary {list-style:none;cursor:pointer;padding:10px 12px;min-height:40px;display:flex;align-items:center;gap:8px;white-space:nowrap}
+.argin-dashboard__custom-range summary::-webkit-details-marker{display:none}
+.argin-dashboard__custom-range summary:after{content:"⌄";color:var(--dashboard-accent);font-size:16px}
+.argin-dashboard__custom-range[data-active="true"]{border-color:var(--dashboard-accent);background:var(--dashboard-accent-soft)}
+.argin-dashboard__custom-range[open] summary{border-bottom:1px solid var(--dashboard-line)}
+.argin-dashboard__date-range{display:flex;align-items:end;flex-wrap:wrap;gap:8px;padding:12px;max-width:360px}
+.argin-dashboard__date-range label{display:grid;gap:6px;color:var(--dashboard-muted);font-size:11px}
+.argin-dashboard__date-range input{font:inherit;font-size:12px;color:var(--dashboard-ink);border:1px solid var(--dashboard-line);border-radius:8px;min-height:39px;padding:8px;background:var(--dashboard-surface);direction:ltr}
+.argin-dashboard__date-range button{border:0;background:var(--dashboard-accent);color:white;border-radius:8px;min-height:39px;font:inherit;font-size:12px;padding:8px 12px;cursor:pointer}
+.argin-dashboard__date-error{color:var(--dashboard-danger);font-size:11px;line-height:1.9;width:100%}
+.argin-dashboard__kpi-interactive{padding:0;overflow:hidden}
+.argin-dashboard__kpi-interactive[data-selected="true"]{border-color:var(--dashboard-accent)}
+.argin-dashboard__kpi-button{display:flex;flex-direction:column;align-items:flex-start;width:100%;height:100%;padding:18px;text-align:right;background:transparent;border:0;color:inherit;font:inherit;cursor:pointer}
+.argin-dashboard__kpi-button .argin-dashboard__kpi-value{line-height:1.4}
+.argin-dashboard__kpi-hint{margin-block-start:auto;padding-block-start:10px;color:var(--dashboard-accent);font-size:11px;font-weight:800}
+.argin-dashboard__kpi-detail{border:1px solid #b9ddd6;background:#f8fcfb;border-radius:14px;padding:16px 18px;margin-block:-5px 18px}
+.argin-dashboard__kpi-detail-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.argin-dashboard__kpi-detail-head h2{font-size:16px;margin:0 0 6px}
+.argin-dashboard__kpi-detail-head p{font-size:12px;line-height:1.8;color:var(--dashboard-muted);margin:0}
+.argin-dashboard__kpi-detail-head button{border:1px solid var(--dashboard-line);border-radius:9px;padding:8px 10px;background:var(--dashboard-surface);font:inherit;font-size:12px;cursor:pointer}
+.argin-dashboard__kpi-detail dl{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:16px 0 6px}
+.argin-dashboard__kpi-detail dl>div{padding:12px;border-radius:10px;background:var(--dashboard-surface);border:1px solid var(--dashboard-line);min-width:0}
+.argin-dashboard__kpi-detail dt{font-size:11px;color:var(--dashboard-muted);margin-block-end:8px}
+.argin-dashboard__kpi-detail dd{font-size:14px;font-weight:800;margin:0;overflow-wrap:anywhere}
+@media(max-width:900px){.argin-dashboard__period-box{justify-content:flex-start}.argin-dashboard__kpi-detail dl{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:540px){.argin-dashboard__period-box{width:100%}.argin-dashboard__custom-range{width:100%}.argin-dashboard__date-range{max-width:none}.argin-dashboard__kpi-detail dl{grid-template-columns:minmax(0,1fr)}.argin-dashboard__kpi-button{padding:14px}}
+
+/* Step14 opt-in refresh for a live, never-persisted subscription snapshot */
+.argin-dashboard__watch-controls{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.argin-dashboard__watch-controls button,.argin-dashboard__action-refresh{font:inherit;cursor:pointer;color:var(--dashboard-accent);background:var(--dashboard-accent-soft);border:1px solid var(--dashboard-line);border-radius:8px;font-size:12px;min-height:35px;padding:7px 10px}
+.argin-dashboard__watch-controls a{text-decoration:none;font-size:12px;font-weight:700;color:var(--dashboard-accent)}
+.argin-dashboard__watch-controls button:focus-visible,.argin-dashboard__action-refresh:focus-visible{outline:2px solid var(--dashboard-accent);outline-offset:2px}

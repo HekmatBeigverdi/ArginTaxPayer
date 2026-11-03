@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 
 const paths=[
- "../app/(console)/dashboard/page.tsx",
  "../app/components/console-shell.tsx",
  "../app/identity/page.tsx"
 ];

@@ -1,0 +1,1378 @@
+# Phase 15 — Role-Based Analytics & Dashboard
+
+> Single canonical phase record. Append future step notes to this file only. Phases 13 and 14 deferred. All planned APIs described in Step02 are contracts until implementation is recorded in Step03.
+
+---
+
+## STEP 01 — Baseline audit
+
+
+Date: 2026-11-03
+Branch: `phase/15-role-based-dashboard`
+Baseline: `main` at `f9b7d35273b417a263b90250e0315600c8d753db`
+Status: Repository source audit completed; runtime/database validation pending.
+
+## Phase decisions
+
+- Phases 13 and 14 are deferred, not prerequisites for Phase 15.
+- Scope: meaningful role-based operational analytics for Customer, commercial/financial/operational analytics for Level1 and Level2.
+- Dashboard is NOT an accounting profit-and-loss system. Customer must not see platform financial KPIs. Invoice face values must never be mislabeled as platform revenue.
+- Preserve existing Persian RTL shell, green visual identity, Jalali filtering, tenant access controls, and operational flows from Phases 10–12.
+- No automated inquiry, restart-recovery, or multi-worker coordination is implemented by this phase. Existing Phase11 inquiry observer is read-only.
+
+## Verified source-level inventory
+
+| Area | Existing source | Finding / follow-up |
+| --- | --- | --- |
+| Dashboard | `apps/web/app/(console)/dashboard/page.tsx` | Static role-based module cards, welcome and a subscription widget; no aggregate analytics; stale labels (“development”, “next phase”). |
+| Dashboard test | `apps/web/tests/dashboard-redesign.test.mjs` | Current assertions couple to literal module-copy/layout. Update carefully when replacing page; preserve security/navigation assertions. |
+| Identity | `apps/web/lib/identity.ts` | `currentIdentity()` resolves user ID and role from authenticated backend; no scope claims should be trusted from the client. |
+| Invoice overview proxy | `apps/web/app/api/invoices/[...segments]/route.ts` | `GET /api/invoices/overview` routes to `/api/dev/invoices`. Inspect authoritative scope/lineage/status query before aggregating. |
+| Invoice dispatch | `src/ArginTaxPayer.Api/Invoices/Phase10InvoiceDispatchDevelopmentEndpoints.cs` | Existing dispatch operations and inquiry flows; use authoritative server state, not mutable UI status. |
+| Inquiry queue | `src/ArginTaxPayer.Api/Invoices/Phase11InquiryQueueObserver.cs` | Observer only, reads operations in states 5/6 for test database; no automatic inquiry-processing feature. |
+| Customer subscription | `src/ArginTaxPayer.Infrastructure/Persistence/Subscriptions/CustomerSubscriptionOverviewService.cs` | Authenticated customer subscription plan, expiry, days, and quantity-pack remaining units. Display model must not become dispatch entitlement authority. |
+| Financial sales | `apps/web/app/subscriptions/plan-sales-report.tsx` | Existing monthly/annual Jalali-aligned report: gross sales, verified collection and outstanding; partner selector must remain Level1-scoped. |
+| Revenue ledger | `src/ArginTaxPayer.Infrastructure/Persistence/Subscriptions/PartnerRevenueLedgerReadService.cs` | Collection-backed partner/root allocations; SQL-scope applied before totals and pagination; Level2 must not see root financial share. |
+| Settlement | `src/ArginTaxPayer.Api/Subscriptions/Phase12PartnerSettlementEndpoints.cs` | Balance and settlement recording/reversal endpoints. Distinguish posted, outstanding and reversed entries. |
+| Collections | `src/ArginTaxPayer.Api/Subscriptions/Phase12CollectionEndpoints.cs` | Manual confirmation of verified collections. Never count unverified gateway attempts as collected cash. |
+| Finance proxy | `apps/web/app/api/phase12/[...parts]/route.ts` | Role-gated explicit proxy action allowlist. Prefer a dedicated read-only dashboard backend and explicitly scoped proxy path. |
+| Invoice access | `src/ArginTaxPayer.Application/Tenancy/InvoiceWorkflowAccessPolicy.cs` | Current ownership and active membership required for invoice authorization; dashboard queries require equivalent server-side scoping. |
+
+## Planned dashboard KPI definitions (to validate against live DB schema in Step 02)
+
+### Customer
+- `invoice_success_confirmed`: number of distinct logical invoice chains whose latest authoritative relevant outcome is confirmed success; distinguish successful original from later accepted cancellation/return.
+- `invoice_pending`: distinct logical invoices with pending/prepared/acknowledged/inquiry-needed status, without treating an indeterminate outcome as failure.
+- `invoice_attention`: rejected, actionable validation issue, or indeterminate requiring explicit inquiry (shown separately).
+- `invoice_drafts`: current, editable drafts only; never double-count lineage versions.
+- `invoice_trend`: per Tehran/Jalali bucket, distinguish issue date from confirmation time.
+- `subscription`: current plan, expiry, remaining days, remaining invoice quota where applicable.
+- `recent_actions`: server-scoped latest invoice/dispatch activity.
+- No monetary profit/revenue widgets and no misleading “automatic jobs” counter.
+
+### Level2
+- All operational aggregates only across CURRENT owned customer memberships.
+- Active customers/subscriptions, renewals due, own commercial order gross, verified collected amount, outstanding receivables and partner share.
+- Do not leak root share, cross-partner balances or customers.
+
+### Level1
+- Root-scoped aggregates, all authorized customers/partners, commercial sales, verified collections, outstanding, revenue allocation/settlements, partner comparisons and approval queue.
+- Distinguish gross order value, confirmed collections, allocated share and actual settlement; never equate them.
+
+## Data integrity and security acceptance gates
+
+1. Perform filtering on the DB/API side before grouping, sorting, totals and pagination.
+2. Prevent cross-tenant inference through totals, timeseries, error cases and exported data.
+3. Resolve invoice chain canonical identity and latest accepted status before aggregating; avoid double-counting correction/cancellation/return child rows.
+4. Use `AsNoTracking`, projection and server-side aggregation where appropriate; query plans/indexes to be evaluated before adding migration.
+5. Use parameterized dates and server-defined timezone boundaries: Asia/Tehran; the API contract should use an explicit period and deterministic start/end.
+6. Treat `Indeterminate` as unknown; no automatic resend triggered by dashboard.
+7. Never expose signing custody, credentials, private keys or raw financial personal data via analytics.
+8. No write operations from read-only dashboard endpoints.
+9. React loading/empty/error states, accessible Persian charts with tabular alternatives and mobile RTL.
+10. Preserve existing Phase10–12 workflows; run macOS first, then independent Ubuntu acceptance and final release.
+
+## Gaps and unresolved validations
+
+- Invoice overview, logical chain joins, latest status precedence, and ownership SQL: inspect implementation and live schema before writing aggregation.
+- Existing sales report API accounting/time-window semantics: inspect source and test against finance audit to prevent counting future/outside-period receipts incorrectly.
+- Scope distinction Level1 root vs Level2 partner: verify actual ownership and authorization of all new dashboard SQL.
+- Current `main` contains Next.js 15.5.28 and no charting library in `apps/web/package.json`; prefer accessible lightweight SVG or consciously approved dependency.
+- Data-volume and query performance on real PostgreSQL are unverified; no runtime tests have been run as part of Step01.
+
+## Next Step: Step 02 — KPI contract (completed; see below)
+
+Produce an exact per-role KPI dictionary with numerator/denominator, time dimension, empty state, owner-scope predicate, source tables, status-to-bucket mapping, lineage deduplication, and SQL verification samples. Include sample payloads, API read-only routes and explicit negative authorization tests. Implement only after source/DB contract confirmation.
+
+## Phase checklist (18 steps)
+
+01 Audit baseline (this document).
+02 Role KPI dictionary and API contract.
+03 Read-only aggregate services/endpoints.
+04 Tenant isolation and authorization tests.
+05 UI/UX dashboard design.
+06 Shared chart, card and filters.
+07 Customer dashboard.
+08 Level2 dashboard.
+09 Level1 dashboard.
+10 Sales/collection/receivables/settlement charts.
+11 Subscription and renewal views.
+12 Actionable attention center.
+13 Recent activity and quick actions.
+14 Loading, error, empty-data handling.
+15 Performance and large-data validation.
+16 macOS acceptance.
+17 Ubuntu acceptance.
+18 Documentation, merge, tag and release.
+
+
+---
+
+## STEP 02 — KPI & API contract
+
+
+Date: 2026-11-03 | Baseline: `phase/15-role-based-dashboard`
+Status: **DESIGN COMPLETE, IMPLEMENTATION PENDING STEP 03**
+Prerequisite: STEP 01 in this same file
+
+## Decision record
+
+KPI means **Key Performance Indicator**. Every widget is an authenticated, server-scoped, evidence-backed metric and not a substitute for accounting profit/loss or external authority processing.
+
+This file is a proposed **v1 contract** for future implementation; no endpoint declared here exists yet. No migration or external API call is authorized in Step 02.
+
+### 1. Scope and security
+
+- Identity comes from bearer/session validated by the existing backend, NOT from `role`, `customerId`, `partnerId`, or `ownerId` supplied by browser.
+- Customer: only own accessible taxpayer + invoice + subscription rows.
+- Level2: only **current** commercial-owner customers (`customer_commercial_owners.partner_level2_user_id = actor`) and linked authorized taxpayers; finance transactions must additionally be scoped by authoritative order/ledger ownership.
+- Level1: root authorized domain only. In the current single-Level1 model, cover allowed root's records, not arbitrary unrelated records.
+- Default role precedence when multiple roles exist: Level1 > Level2 > Customer, with authorization re-evaluated server-side. An unprivileged role cannot force an administrator response.
+- An optional `taxpayerId` must belong to the resolved scope; otherwise return 404 without partial aggregate results. An optional `partnerUserId` allowed only for Level1 and restricted to its root; unauthorized partner returns 404.
+- Apply scope **before** counts, time-series grouping, pagination and totals. No user-provided WHERE clause, UUID whitelist or role flag is security evidence.
+- All responses: `Cache-Control: private, no-store`, no raw invoice JSON, private keys, sensitive details or provider errors. No write operations or external tax-service calls.
+
+### 2. Time contract
+
+- Query: `period=7d|30d|90d|year|custom`; default `30d`; for custom, `from=YYYY-MM-DD&to=YYYY-MM-DD` both ISO Gregorian **dates**, interpreted as inclusive calendar days in `Asia/Tehran`.
+- UI displays Jalali, but dates are normalized to a UTC half-open interval `[fromUtc, toUtcExclusive)` on the server. Gregorian custom inputs are an API transport convention, not a Gregorian UI requirement.
+- Max custom length 366 local days, no inverted intervals, no future bounds beyond today's Tehran date; return 400 for invalid combinations. Avoid timezone-dependent frontend bucketing.
+- `period=year` means current Jalali year-to-date; `7d/30d/90d` are trailing local calendar days inclusive today. Display fixed labels and `asOfUtc`.
+- Every metric declares its own event time: invoice **issued** date for invoice issue series; latest authoritative report observation time for acceptance series; order issued time for sales; collection posted time for cash; allocation posted time for revenue-share; settlement event time for transfer/reversal.
+- **Lifetime status snapshot** and **within-period activity** are different concepts. `invoiceStatus` counts currently visible logical invoices with latest issue date in the selected period; `invoiceActivity` counts distinct external outcomes observed in the period. A late inquiry may change the former; this is expected. No misleading comparability between them.
+- Currency in backend: `IRR` long integer; UI may show toman by exact division and explicit unit, but never assume persisted amounts are toman.
+
+### 3. Invoice status and deduplication policy
+
+Authoritative source investigation:
+- `invoice_documents`, `invoice_entry_workspaces` (editable drafts), `sandbox_invoice_legal_relations` (predecessor-successor legal edges), `invoice_dispatch_operations`, `sandbox_authority_inquiry_reports`.
+- Relevant: `Phase10EffectiveInvoiceQuery`, `Phase10InvoiceLineageReadService`, `InvoiceEntryWorkspaceService`, `InvoiceDispatchState`.
+- Latest operation selection: per invoice + owner + taxpayer, `ORDER BY invoice_revision DESC, created_at_utc DESC, id DESC`.
+- Latest inquiry report by authoritative observation time and stable ID; its status has precedence over local operation status **only after validating report provenance/relevance to invoice and operation revision**.
+- Invoice chain root is the canonical oldest ancestor from legal relations; traverse cycle-safe and depth-bounded with deduplicated root; orphan/suspect cycles must be flagged as data integrity issues, not silently inflated.
+- The **logical current state** is deduplicated per root + owner + taxpayer and may show the last accepted legal successor (correction, cancellation, return); latest unaccepted draft/attempt must not erase last accepted outcome. For operational pending alerts, expose the actionable newest successor separately.
+- `invoice_entry_workspaces` are private editable drafts; never add a workspace and its promoted `invoice_documents` entry as separate invoices.
+- `SUCCESS` official inquiry report is authoritative acceptance evidence. `Acknowledged` only means receipt of submission, not accepted. `Indeterminate` remains unknown; never auto-resend. Rejected statuses are accepted as rejection only when recognized from the SDK/authority schema; unknown strings are `unclassified`, not guessed.
+- State map (local operation when no definitive authority outcome):
+
+| Dispatch state | Canonical analytics bucket | Reason |
+| --- | --- | --- |
+| No operation / draft workspace | draft | local edit only |
+| Prepared (1), Signed (2), Reserved (3) | prepared | locally staged, not sent |
+| Sending (4) | processing | external outcome not established |
+| Acknowledged (5) | awaiting_inquiry | receipt-only, NOT success |
+| Indeterminate (6) | unknown | requires safe inquiry/reconciliation |
+| RetryEligible (7) | retry_eligible | not a grant to resend from dashboard |
+| FailedTerminal (8) | attention | terminal dispatch failure |
+| Verified official SUCCESS | accepted | confirmed authority outcome |
+| Verified official rejection | rejected | only from recognized official evidence |
+| Other/unrecognized official result | unclassified | never turn into success/failure |
+
+A legal cancellation with official SUCCESS is recorded as `accepted_cancellation` in the *legal subject/status*, not a fresh independent original accepted invoice. Correction and sales return follow same lineage rule. Status buckets in `invoiceStatus` must be **mutually exclusive**: sum buckets = `logicalInvoiceCount` for the selected issue cohort.
+
+**Success rate denominator:** `accepted + rejected` where each is a logical invoice with a definitive official acceptance/rejection outcome of the **current relevant legal event**. Thus `successRatePercent = accepted / (accepted + rejected) × 100`; null and `notEnoughEvidence=true` if denominator 0. Do not count prepared/acknowledged/indeterminate as failures or successes. A separately labeled `completionRate` can use a larger denominator only when precisely explained.
+
+### 4. Required KPI dictionary
+
+| id | Roles | Definition | Source of truth | Time/scope |
+| --- | --- | --- | --- | --- |
+| `logicalInvoiceCount` | all | distinct legal invoice roots in selected issue cohort | invoice documents + legal relations | issue date, actor taxpayer scope |
+| `invoiceAccepted` | all | roots with current relevant definitive official success, with accepted cancellation/return separately labeled | inquiry report + legal chain | issue cohort; authority status |
+| `invoiceRejected` | all | roots with current relevant definitive official rejection | verified inquiry report | issue cohort |
+| `invoiceProcessing` | all | roots current state `Sending` | dispatch | issue cohort |
+| `invoiceAwaitingInquiry` | all | roots current state `Acknowledged` | dispatch + report | issue cohort |
+| `invoiceUnknown` | all | roots current state `Indeterminate` or inconclusive unresolved outcome | operation + inquiry | issue cohort |
+| `invoicePrepared` | all | roots with prepared/signed/reserved evidence and no official outcome | dispatch | issue cohort |
+| `invoiceAttention` | all | actionable rejected / terminal failed / retry eligible (subtypes separately), excluding unknown where separate | dispatch + validated report | issue cohort |
+| `invoiceDrafts` | all | editable non-promoted workspaces (distinct, scoped) | invoice_entry_workspaces | draft updated time |
+| `invoiceSuccessRatePercent` | all | `accepted/(accepted+rejected)*100`; nullable | derived from authoritative statuses | issue cohort |
+| `invoiceIssuedTrend` | all | distinct canonical roots newly issued per bucket | invoice documents | issued-at, Tehran |
+| `invoiceAcceptedTrend` | all | authoritative acceptance events per bucket, deduped per operation/event | inquiry report | observed-at, Tehran |
+| `activeSubscription` | customer | current active plan, expiry, days, quantity-pack remainder | CustomerSubscriptionOverviewService | as-of, not period-filtered |
+| `upcomingExpiryCount` | admins | active subscriptions due in <= 30 days; exclude already expired | customer_subscriptions | as-of, scoped owner |
+| `activeCustomerCount` | admins | distinct active authorized customer accounts | identity + commercial owners | as-of |
+| `activeSubscriptionCount` | admins | distinct active subscriptions | customer_subscriptions | as-of |
+| `salesGrossIrr` | admins | gross commercial orders issued in interval, excluding explicitly voided/refunded where defined | commercial_orders, commercial invoices | order issued-at, owner |
+| `salesCollectedForCohortIrr` | admins | verified collections against orders issued in interval up to as-of | commercial orders + verified receipts | order cohort, clearly labeled |
+| `collectionsInPeriodIrr` | admins | net verified collections posted during interval (including older orders) | verified collections | receipt date |
+| `salesOutstandingIrr` | admins | remaining collectible balance on selected order cohort as-of | order/receivable read model | order cohort |
+| `partnerEarnedShareIrr` | admins | posted partner allocation amount | commercial_revenue_allocations | allocation posted-at |
+| `partnerSettlementNetIrr` | admins | transfers minus reversals posted within interval | partner_settlement_events | settlement event time |
+| `partnerOutstandingIrr` | admins | earned less net settled as-of, no period leakage | PartnerSettlementReadService | as-of |
+| `rootEarnedShareIrr` | Level1 only | root allocation share from verified collections, not P&L | PartnerRevenueLedgerReadService | allocation posted-at |
+| `partnerComparison` | Level1 only | restricted per-partner active customer, verified collection and net share data | commercial owner + ledger | consistent server intervals |
+| `pendingApprovals` | Level1, eligible Level2 | active authorized signature/memory/commercial review requests | corresponding authorized approval read-models | as-of |
+
+**Important distinction:** `salesCollectedForCohortIrr` is NOT the same as `collectionsInPeriodIrr`. Never sum them together. Allocation and settlement metrics are NOT net profit; do not label them as profit/loss.
+
+### 5. Planned read-only endpoint topology (not yet implemented)
+
+Next.js authenticated same-origin proxy:
+- `GET /api/dashboard/overview?period=30d[&taxpayerId=...]` — role-specific summary + invoice status + subscription summary.
+- `GET /api/dashboard/trends?period=30d[&taxpayerId=...]` — scoped invoice trends.
+- `GET /api/dashboard/finance?period=30d[&partnerUserId=...]` — Level1/Level2 only, server-decided response projection; returns 403 for Customer.
+- `GET /api/dashboard/attention?period=30d[&taxpayerId=...]` — bounded list (max 10) of actionable items with safe deep links, no direct processing.
+- `GET /api/dashboard/recent?period=30d[&taxpayerId=...]` — bounded list (max 10) of recent relevant activity.
+
+Corresponding local .NET API:
+- `GET /api/dev/dashboard/{overview|trends|finance|attention|recent}` (backend policy consistent with existing loopback-only dev endpoints). Do NOT introduce a publicly accessible route or bypass existing deployment posture.
+- Return 401 missing/expired credential; 403 authenticated but insufficient role; 404 for inaccessible scoped entity (avoid enumeration); 400 invalid date/range/input; 503 data source unavailable.
+- Not implemented in Step02; Step03 will build route, service, DI registration and thin explicit Next.js proxy after cross-check.
+
+#### v1 conceptual JSON response example (illustrative ONLY)
+
+```json
+{
+  "schemaVersion": 1,
+  "role": "Customer",
+  "asOfUtc": "2026-11-03T08:00:00Z",
+  "period": {
+    "key": "30d",
+    "timeZone": "Asia/Tehran",
+    "fromUtc": "2026-10-04T20:30:00Z",
+    "toUtcExclusive": "2026-11-03T20:30:00Z"
+  },
+  "invoiceStatus": {
+    "logicalInvoiceCount": 20,
+    "accepted": 12,
+    "acceptedCancellation": 1,
+    "rejected": 2,
+    "processing": 1,
+    "awaitingInquiry": 1,
+    "unknown": 1,
+    "prepared": 1,
+    "attention": 1,
+    "unclassified": 0,
+    "successRatePercent": 85.71
+  },
+  "invoiceDrafts": 3,
+  "subscription": {
+    "planName": "بسته ۱۰۰ تایی",
+    "remainingInvoices": 56,
+    "expiresAtUtc": "2027-01-01T00:00:00Z"
+  }
+}
+```
+
+*Example note:* `acceptedCancellation` is an exclusive status category, while `attention` represents terminal failures or retry-eligible actionable roots; the sum of exclusive categories above is 20. Actual response must be schema-validated before implementation. Do not render example figures as live data.
+
+Finance responses should use an **independent admin-only DTO** so customer payloads cannot contain financial fields even with null values.
+
+### 6. Test contract for Step03–04
+
+| Case | Expected |
+| --- | --- |
+| Customer calling finance endpoint | 403; no monetary data |
+| Level2 requesting another partner's data | 404; no totals leak |
+| Level2 without selected partner | server scopes to own partner |
+| Level1 own-partner comparison | only own authorized root |
+| Unknown taxpayer ID | 404, zero partial results |
+| Session revoked / disabled user / missing MFA where required | denied |
+| Acknowledged only, no inquiry success | awaiting_inquiry, never accepted |
+| Indeterminate and 401/404 inquiry fault | unknown, no resend |
+| Accepted cancellation/correction/return | one root; latest valid legal event |
+| Unaccepted correction/return draft | retains previous confirmed legal state; actionable separate |
+| Duplicate receipts/inquiry observations | no duplicate invoice counting |
+| RetryEligible/FailedTerminal | attention category but never implicitly authorized to retry |
+| Order manually activated with debt | activation not classified as full cash receipt; outstanding remains |
+| Failed gateway callback | excluded from collections |
+| Settlement reversal | net settled decreases, outstanding increases |
+| Date crossing Tehran midnight and Jalali year-end | assigned exactly once to correct local bucket |
+| Empty dataset | zeros and empty arrays; percentage null |
+| Unavailable backend | explicit unavailable state, never fake zero |
+| All buckets | exclusive invoiceStatus buckets reconcile to logicalInvoiceCount |
+| Large volume | no fetching entire invoice or ledger histories into web app memory |
+
+### 7. SQL verification checklist (to use against test DB, read-only)
+
+1. Inspect schema columns for `invoice_documents`, `invoice_entry_workspaces`, `sandbox_invoice_legal_relations`, `invoice_dispatch_operations`, `sandbox_authority_inquiry_reports`.
+2. Verify current active ownership through `customer_commercial_owners` and `TaxpayerScopeService.ScopedQuery` equivalent before counting.
+3. Compare authority report ordering and uniqueness by operation revision; detect conflicting outcomes.
+4. Cross-check financial totals with Phase12 plan sales report; cohort sales and in-period collection different dates.
+5. Cross-check allocations, settlement payments and reversals with existing finance audit scripts.
+6. Run EXPLAIN (ANALYZE, BUFFERS) ONLY on isolated test dataset, with bounded execution; never on production without approval.
+
+### 8. Deferred feature policy
+
+Automated inquiry jobs, restart recovery, multi-worker handling and phases 13/14 remain postponed. Dashboard may include **hidden/disabled future extension slots**, not fake job counters or simulated operational status.
+
+### 9. Step02 acceptance
+
+- [x] KPI definition and roles documented
+- [x] Monetary units, rate denominator, timeline and scope defined
+- [x] Dispatch-state mappings grounded in existing enum
+- [x] Legal invoice lineage / dedup rules documented
+- [x] Read-only API topology and failure semantics proposed
+- [x] Security and negative acceptance cases specified
+- [ ] Runtime DB schema validation — Step03 prerequisite
+- [ ] Endpoint implementation and automated tests — Steps03–04
+
+**No source code, schema migrations or runtime test results are claimed by this design-only step.**
+
+---
+
+## STEP 03 — Backend aggregate read-model and Next.js proxy (2026-11-03)
+
+### Delivered on phase/15-role-based-dashboard
+
+- `src/ArginTaxPayer.Api/Dashboard/Phase15DashboardReadService.cs`: read-only PostgreSQL-backed role-aware query service. Supports Tehran-local `7d`, `30d`, `90d`, `year`, and bounded `custom`; canonical invoice lineage-root grouping; official inquiry SUCCESS distinct from Acknowledged; unsigned/unknown state visibility; customer subscription; admin commercial order gross/collected/outstanding, receipts by posting period, partner share, root share and net settlements.
+- `src/ArginTaxPayer.Api/Dashboard/Phase15DashboardEndpoints.cs`: read-only `GET /api/dev/dashboard/{overview|trends|finance|attention|recent}`, local-only and authenticated, no-store and rate limited, no mutation or authority traffic.
+- `src/ArginTaxPayer.Api/Program.cs`: service registration and mapping inside the existing Development and DB-enabled scope.
+- `apps/web/app/api/dashboard/[section]/route.ts`: authenticated strict Next.js GET-only route with role/parameter allowlist, local API destination and short timeout; customer finance denied even before backend.
+- `tests/ArginTaxPayer.Tests/Phase15DashboardContractTests.cs`: deterministic classification and Iran date window tests.
+- `apps/web/tests/phase15-step03-dashboard-proxy.test.mjs`: route isolation, forwarding and input rejection tests.
+
+### Important implementation semantics
+
+- Dashboard is **not** wired into the visual page yet. UI is scheduled for steps 05–09.
+- `accepted` requires a latest official `SUCCESS` evidence; `Acknowledged` is awaiting inquiry. Unrecognized statuses are not presented as accepted. Legal successors are associated with their original invoice root, and accepted cancellation is separate from accepted ordinary issuance.
+- `invoiceDrafts` excludes a workspace already promoted to invoice_documents, by shared workspace/document ID.
+- Revenue metrics are IRR and cannot be interpreted as accounting profit. Cohort collections and receipts-in-period are separate.
+- Existing development-only gate is retained deliberately. No production exposure, schema change or migration.
+- `trends` currently exposes `AcceptedByIssueDate` (issued cohort), **not** a report-observed acceptance series. Replace or extend in Step 06 with independently bucketed authority observation events before displaying an observed-acceptance chart.
+- `recent` is currently invoice issue-date recency; dispatch activity chronological feed is a Step 13 enhancement.
+- `finance` covers verified order/collection ledger and allocations. More comprehensive active subscription and approvals aggregates belong to Steps 10–12.
+
+### Steps 03–04 validation/acceptance requirements (NOT claimed to have run)
+
+The connected GitHub environment is source-level only; this session has not connected to the test Postgres or executed `.NET`, Next.js or live HTTP tests. These must be executed before accepting Step 03 as runtime-validated:
+
+```bash
+# macOS, from repo root, with existing dev DB tunnel already active
+git fetch origin
+git switch phase/15-role-based-dashboard
+git pull --ff-only
+dotnet restore ArginTaxPayer.sln
+dotnet build ArginTaxPayer.sln --configuration Release --no-restore
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --configuration Release --no-restore --filter FullyQualifiedName~Phase15DashboardContractTests
+cd apps/web
+npm ci
+npm run typecheck
+node --test tests/phase15-step03-dashboard-proxy.test.mjs
+npm run build
+```
+
+Re-test role security manually with authenticated Customer, Level2 and Level1 sessions against `/api/dashboard/overview?period=30d` and `/api/dashboard/finance?period=30d`. Verify Customer finance =>403; invalid `taxpayerId` =>404; Level2 foreign partner =>404/403; unauthenticated=>401. Compare aggregates against the test database and existing Phase12 finance audits.
+
+### Runtime review gates and known follow-up
+
+1. Confirm PostgreSQL query plans and numeric totals on seeded, real database; validate empty data/large histories.
+2. Confirm source builds on macOS; fix all compilation, route and SQL runtime defects before marking Step03 accepted.
+3. Expand official status classification when actual archived authority report vocabulary is confirmed; unknown remains unclassified.
+4. Check whether `issued` versus `accepted` charts and recent-activity wording accurately describe their actual timestamp dimension.
+5. Step04 must include cross-customer, cross-partner, revoked grant, changed ownership and MFA negative tests.
+
+**Step03 implementation committed; runtime acceptance remains PENDING local tests.**
+
+### Canonical file rule
+
+This is the **only Phase 15 document inside `docs/phases/`**. Append Step04 and later updates here as new sections, rather than creating additional per-step documents. Other non-Phase15 phase files must not be renamed or touched.
+
+---
+
+## STEP 04 — Authorization isolation and financial/invoice integrity (2026-11-03)
+
+**Source review and regression test expansion completed; execution on owner's macOS/test PostgreSQL is still required for runtime approval.**
+
+### Findings fixed in this step
+
+1. **Customer-role invoice predicate hardening.** The original `ReadInvoices` query allowed `d.customer_user_id=actor` without requiring the selected role to be `Customer`. The predicate now explicitly requires `{6}=Customer` for that branch, while Level1 and Level2 use their distinct authorized owner predicates. This prevents an administrator's historical customer identity from broadening data visibility under a different role.
+2. **Level2 collections scope fix.** In the initial Step03 implementation, cohort order sales and revenue share queries checked Level2 current ownership but `collectionsInPeriodIrr` checked historical `o.partner_user_id` only. That inconsistency could show a transferred customer's historical receipts to a former partner. The collections query now also checks current `customer_commercial_owners.partner_level2_user_id` before aggregating.
+3. **Read-only audit.** `scripts/phase15-step04-security-audit.sql` runs only on `argintaxpayer_test`, under a read-only transaction; it reports counts of invoice ownership/lineage issues, receipt reconciliation mismatches, over-settled allocations, historical partnership changes and acknowledgement without official SUCCESS. The last two are **diagnostic** and may be nonzero legitimately.
+4. **Level2 response minimization.** The optional `rootEarnedShareIrr` finance field is omitted entirely for Level2 (not returned as zero); root-only financial data remains Level1-only.
+5. **Proxy negative test coverage.** Expanded `apps/web/tests/phase15-step03-dashboard-proxy.test.mjs` to assert backend 401/403/404/503 propagation, non-caching, Customer finance denial, Level2 partner-filter denial, and unsupported finance filter rejection.
+
+### Security matrix
+
+| Actor/request | Expected result |
+| --- | --- |
+| Customer / own overview and trends | HTTP 200 with only own authorized taxpayer data |
+| Customer / finance | HTTP 403, no money fields |
+| Level2 / finance with no partner filter | HTTP 200 scoped to current owned customer financial records |
+| Level2 / finance with `partnerUserId` | HTTP 403 |
+| Level1 / finance for owned root | HTTP 200 |
+| Level1 / finance with a foreign `partnerUserId` | HTTP 404 |
+| Authorized actor / foreign `taxpayerId` | HTTP 404 |
+| Missing session | HTTP 401 |
+| Disabled session, inactive user, missing MFA for admin | Denied (status based on identity boundary) |
+| Unknown dashboard section | HTTP 404 |
+| Duplicate or unknown query parameters | HTTP 400 |
+| Provider unavailability | HTTP 503 through Next.js proxy |
+
+### Important limitations (not misreported as PASS)
+
+- No .NET, Next.js or PostgreSQL live execution was available in the GitHub-only editing environment. The above expectations are **tests and source-reviewed conditions**, not proven runtime outcomes.
+- Step03 `ReadInvoices` still materializes all scoped invoice summaries in app memory for the selected time window. Large-volume performance and SQL execution plans remain an explicit Step15 issue. No unbounded PII snapshots are sent to the web app.
+- Step03 `invoiceAcceptedTrend` is currently an **issue-date-cohort accepted count**, not a time series of official confirmation observed at date. The UI must not label it "daily confirmed by authority" until the separate authority-observed series is implemented.
+- Official rejection string vocabulary, revision provenance and complex legal-chain collision scenarios require live SDK/DB fixture verification. Unknown reports remain unclassified, not accepted.
+- Current ownership versus historical commercial revenue attribution is explicit; finance audit should compare the same ownership/time filter across all amount categories.
+
+### macOS validation commands, from project root
+
+```bash
+git fetch origin
+git switch phase/15-role-based-dashboard
+git pull --ff-only
+dotnet restore ArginTaxPayer.sln
+dotnet build ArginTaxPayer.sln -c Release --no-restore
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj -c Release --no-restore \
+  --filter "FullyQualifiedName~Phase15DashboardContractTests"
+cd apps/web
+npm ci
+npm run typecheck
+node --test tests/phase15-step03-dashboard-proxy.test.mjs
+npm run build
+```
+
+For database validation, with the previously configured macOS AutoSSH tunnel to VPS PostgreSQL:
+
+```bash
+# Run from the repository root (not apps/web)
+PGPASSWORD='' psql -h 127.0.0.1 -p 15432 -U argintaxpayer -d argintaxpayer_test \
+  -f scripts/phase15-step04-security-audit.sql
+```
+
+The example deliberately does not inline a password. If `psql` prompts for one, enter it interactively; `PGPASSWORD=''` is optional and can be omitted.
+
+For browser checks, run the API/Web services through the existing `scripts/dev-up.zsh` workflow and verify separate authenticated Customer/Level2/Level1 sessions. Compare server-side metrics with audit results, and run an adversarial test where the Level2 owner changes after a collection was recorded.
+
+**Step 04: source fixes and tests committed. Runtime security and database acceptance: NOT YET VERIFIED.**
+
+### Documentation policy
+
+Continue appending future phase steps to this file only; do not create new `docs/phases/phase-15-stepXX*.md` files.
+
+
+### Step 04 audit hotfix — 2026-11-03
+
+- User-reported PostgreSQL syntax error at line 8: `DO $ BEGIN` / `END $` had an invalid dollar-quoted delimiter. This was a script-authoring defect; the transaction stopped before integrity queries.
+- Replaced the procedural block with a standard read-only SQL gate: `SELECT 1 / (CASE WHEN current_database() = 'argintaxpayer_test' THEN 1 ELSE 0 END) AS test_database_gate;`.
+- The SQL file now requires no procedural code; `ON_ERROR_STOP` continues to abort the audit on any SQL failure. Gate returns 1 on the designated test DB and fails on other databases.
+- Fix commit: `507e15c4055f42d255455199b339bb73a730ec9e`.
+- Runtime test still pending a new macOS execution; no PASS claim.
+
+---
+
+## STEP 05 — Dashboard visual/UX design system (2026-11-03)
+
+**Design system committed; graphical page integration is intentionally scheduled for Steps 06–09.** Existing dashboard and all routes remain unchanged in Step05.
+
+### Visual direction
+
+- Preserve the existing application shell, brand, navigation and RTL Persian typography. Existing CSS tokens are `--argin-primary:#177f81`, `--argin-page:#f3f6fa`, `--argin-line:#dae6ed`, `--argin-text:#20344b`, `--argin-muted:#64788c`; use shared Vazirmatn and Tahoma fallback.
+- Use a quiet, professional operational dashboard: light background, white bordered cards, green action emphasis, restrained status colours only for meaningful states. No chart decoration or oversized banner pushing actionable information below the fold.
+- Use consistent 16px card radius, 16px desktop grid gap, 12px phone grid gap, card padding 18px/14px, readable labels and 40px+ filter targets. Respect `prefers-reduced-motion`.
+- Status colour semantics: green = confirmed official acceptance / paid; amber = pending/attention; red = rejected/terminal failure; neutral blue-grey = prepared/in progress; **indeterminate should be distinctly labeled unknown**, never green.
+
+### Shared information architecture
+
+```text
+[Compact page title + user role + as-of timestamp]   [period | taxpayer/partner selector]
+[ K P I 01 ] [ K P I 02 ] [ K P I 03 ] [ K P I 04 ]
+[Trend chart: issuance / commercial receipts]    [Status chart / composition]
+[Actionable attention queue]                     [Latest activity]
+[Role-specific secondary KPIs, subscription and contextual shortcuts]
+```
+
+Keep no more than **four primary metrics** immediately visible per role at desktop width. Further metrics reside in clearly titled secondary sections. Filters remain visually distinct from cards; loading/error states never masquerade as real zeroes. Every KPI has a description of its source/time dimension accessible in context.
+
+### Role-specific primary and secondary widgets
+
+| Role | Primary four KPIs | Main chart | Secondary/quick actions |
+| --- | --- | --- | --- |
+| Customer | logical invoices, official accepted outcomes, unresolved/attention cases, remaining subscription quota or expiration | invoices issued by local Tehran calendar date, plus current outcome composition | subscription details, drafts, recent invoices, create invoice, open invoices |
+| Level2 | gross sales of subscription orders, verified collections posted in period, outstanding on selected order cohort, own allocated partner share | receipt trend and own invoice status trend | own customer count, own settlement position, renewals and recent customer activity; **no root share or profit** |
+| Level1 | subscription sales gross, period-verified cash collections, commercial receivables, root share from approved allocations | cash collection and sales trend, partner comparison | active subscribers, invoice operations, partner earned/net-settled/outstanding, approaching renewals |
+
+**Never use the monetary face amount of a taxpayer-issued fiscal invoice as platform subscription revenue.** Currency amounts use persisted IRR and an explicit user-visible unit.
+
+### Charts and metrics
+
+- For Step06, define reusable primitives: `DashboardPageHeader`, `DashboardPeriodFilter`, `DashboardKpiCard`, `DashboardPanel`, `DashboardStatusDonut`, `DashboardTrendChart`, `DashboardState`, `DashboardQuickActions`.
+- Chart x-axis is Tehran local calendar day (display Persian/Jalali date). Provide readable legend, unit, comparison and text/table equivalent. Charts are not the exclusive access path to information.
+- **AcceptedByIssueDate** from the Step03 API means current accepted outcomes grouped by **original invoice issue date**, not date of official confirmation. Do not label it as "daily authority confirmations".
+- Proposed API topology still has no daily cash receipt series or subscription renewal aggregation; those chart slots must be shown only after actual server support is implemented in subsequent steps, never via invented placeholder figures.
+- Count corrected/cancelled/returned invoice chains once per root. Show cancellation as its own last effective subject and keep uncertain outcomes in an explicit neutral/amber state.
+
+### Layout by breakpoint
+
+| Width | KPI grid | Charts | Recent/attention | Filter bar |
+| --- | --- | --- | --- | --- |
+| Above 1100 px | 4 columns | Trend 1.65fr + status 1fr | two columns | right-aligned, wrapping |
+| 641–1100 px | 2 columns | stacked | two columns where space allows | wrapping |
+| 381–640 px | 2 compact columns | stacked | one column | full width |
+| Up to 380 px | 1 column | stacked | one column | full width |
+
+Maximum content width continues to be managed by the existing console shell. No separate shell, no horizontal body scrolling. Tables may use contained overflow scroll with accessible labels.
+
+### State and security UX
+
+- Loading: accessible skeleton/progress text, never fake KPI digits.
+- Empty dataset: descriptive message and permitted action, not a misleading success rate of 0%.
+- Missing/invalid session: follow existing identity flow, no stale cached finance data.
+- API 403/404: safe generic denial, no hidden-tenant identity clues.
+- API 503/timeouts: inline retry of read-only dashboard fetch only; **never send, retry or inquire a fiscal invoice automatically**.
+- No cards/links shown solely by frontend role should be mistaken for security enforcement. Server authorizes every API request.
+- Focus-visible ring, logical heading sequence, 4.5:1 text contrast target, text labels alongside status colours, reduced motion, `aria-live` for data states, keyboard-operable filters.
+
+### Deliverables
+
+- `apps/web/app/(console)/dashboard/dashboard-design.css`: scoped dashboard-only CSS contract (not imported in Step05; will be used in Step06 shared components).
+- `apps/web/tests/phase15-step05-dashboard-design.test.mjs`: static regression checks of brand token reuse, RTL, responsive layouts, accessibility states and preserved existing operational dashboard navigation.
+- One single canonical phase document: this file; no additional phase-15 step documents.
+
+### Step05 verification (macOS)
+
+```bash
+git fetch origin
+git switch phase/15-role-based-dashboard
+git pull --ff-only
+cd apps/web
+npm ci
+node --test tests/phase15-step05-dashboard-design.test.mjs
+npm run typecheck
+npm run build
+```
+
+**Step05 source-level design work complete. Runtime tests are pending operator execution; no database migration or Ubuntu acceptance needed in this design-only step.**
+
+---
+
+## STEP 06 — Shared components & visible live dashboard integration (2026-11-03)
+
+**Implemented and committed to `phase/15-role-based-dashboard`; runtime macOS acceptance pending.**
+
+### Delivered
+
+1. `apps/web/app/(console)/dashboard/dashboard-analytics.tsx`: real client-side shared components: `DashboardKpiCard`, `DashboardPanel`, `DashboardState`, `DashboardPeriodFilter`, `DashboardTrendChart`, and `DashboardStatusChart`. Four role-specific KPI cards with real server-supplied numbers, chart with accessible text table and legible status progress bars, attention list and scoped quick actions.
+2. `apps/web/app/(console)/dashboard/page.tsx`: imports the Step05 `dashboard-design.css` and mounts `DashboardAnalytics` for Level1, Level2 or Customer. The previous oversized welcome and static status summary are replaced with the visible analytics layout. Existing feature/module shortcuts are retained in a compact expandable `details` panel, and customer subscription widget is retained.
+3. `apps/web/app/(console)/dashboard/dashboard-design.css`: styles for status bars, trend chart, cards, error/empty states, accessible navigation and responsive expanded/collapsed modules.
+4. `apps/web/tests/phase15-step06-dashboard-components.test.mjs`: TSX syntactic transpilation + static UI contract checks for role-specific finance fetching, no write methods, no fake numbers, stale data clearing, no-store fetches, and chart labels.
+
+### Functional details
+
+- Data requests from real `GET /api/dashboard/{overview|trends|attention}`, plus `/finance` **only for Level1/Level2**; Customer never fetches finance.
+- Period options `7d`, `30d`, `90d` and `year` use server Tehran-window semantics and are interactive. Step07–09 may add advanced taxpayer/partner filters and detailed per-role analytics.
+- When any required feed is unavailable, the dashboard displays a recoverable error, not sample KPI digits. Changing periods aborts old fetches and clears previous-period numbers; requests are GET only and read-only.
+- Invoice acceptance is based only on official outcome; acknowledged/indeterminate are not counted as accepted. Status distribution is based on canonical invoice roots supplied by the Step03 read model.
+- **Trend semantics:** `acceptedByIssueDate` is a *current status by invoice's original issue date* series, **not** daily official response events. UI has an explicit clarification and tabular alternative.
+- Financial figures use verified subscriptions/commercial ledger amounts in **ریال** with explicit unit, never taxpayer invoice face amount, no invented profit.
+- Root share is displayed only to Level1. Customer and partner views do not receive root financial data in browser.
+- New dashboard is visible immediately after the code is deployed and the development UI is running; the actual KPI numbers require a healthy authenticated backend API and database.
+- No database migration or external tax operation was introduced in Step06.
+
+### Validation commands — macOS
+
+```bash
+cd ~/projects/ArginTaxPayer
+git fetch origin
+git switch phase/15-role-based-dashboard
+git pull --ff-only origin phase/15-role-based-dashboard
+cd apps/web
+npm ci
+node --test tests/phase15-step06-dashboard-components.test.mjs tests/phase15-step05-dashboard-design.test.mjs tests/dashboard-redesign.test.mjs
+npm run typecheck
+npm run build
+```
+
+Then launch the existing dev environment with the API and web app as usual, sign in under each role and visit `http://127.0.0.1:3000/dashboard`. Verify a new analytic header and KPI cards (or explicit unavailable state), chart, 7/30/90/year filters, finance only for admins, and continued access to existing module links. On API error, verify no fake zeros are shown.
+
+### Acceptance and deferrals
+
+- Source-level implementation and design-test file creation: complete.
+- Browser visual confirmation on the operator's macOS: pending.
+- End-to-end role separation of DB aggregates: continue Step04/Step07–09 runtime validation.
+- Per-role advanced screens, additional calendar inputs, money/receipt series, richer activity and large-data query optimization: follow Steps07–15.
+- **This remains the only Phase15 documentation file under `docs/phases/`**.
+
+---
+
+## STEP 07 — Customer dashboard UX, independent loading and compact quick access (2026-11-03)
+
+**Source implementation committed; final runtime acceptance requires macOS browser and test results.**
+
+### User-reported defects and resolution
+
+1. **Giant blank quick-actions card:** screenshot showed the quick-actions card stretched vertically to match a lengthy attention list. The grid now uses `align-items:start`, the quick action card is contained in a self-sized side column, and it has `height:auto;min-height:0`. Links use a compact accessible grid with full-size interactive targets. Both columns stack when width <= 900px.
+2. **Blank first-login dashboard:** the old implementation rendered just one generic loading line while it awaited all requests. The dashboard header, period controls, four KPI card slots, trend chart, status chart, attention list and quick actions now render from the initial React render. SVG skeleton components preserve layout while each feed loads. Native SVG skeleton geometry and a restrained CSS pulse are used, not false KPI numbers; reduced-motion preference disables animation.
+3. **One failed endpoint made the whole page unavailable:** a single `Promise.all` previously failed the entire UI. Now each feed independently requests its read-only API, verifies its expected response shape and settles its own `loading|ready|error` state. The other panels remain usable. Browser no-store and abort-on-unmount or period-change are retained; period change immediately clears stale finance and invoice values before requesting new data.
+4. **Excessive attention list height:** display at most five items in the dashboard, link to existing `/invoices` for full listing. All items are sourced from authenticated scoped API; no new send/inquiry operation or unsafe auto-resend.
+5. **Customer subscription quick status:** while `overview` is loading, display a compact skeleton beneath usable quick-action links; when resolved, show actual plan name, remaining days and quantity (when applicable). On failure, link to account without showing guessed values.
+
+### Code and test files
+
+- Modified `apps/web/app/(console)/dashboard/dashboard-analytics.tsx`: reusable `DashboardSkeleton`, `DashboardKpiSkeleton`; separate panel states; compact quick actions; five-item attention list; subscription summary.
+- Modified `apps/web/app/(console)/dashboard/dashboard-design.css`: self-sized grid, SVG pulse and chart skeleton, small-screen widths, reduced motion and accessible screen-reader text.
+- Added `apps/web/tests/phase15-step07-customer-ux.test.mjs`: static regression checks for initial skeleton structure, independent fetching, error recovery, no synthetic data, responsive cards and bounded attention.
+- Updated `apps/web/tests/phase15-step06-dashboard-components.test.mjs` so the previous phase checks match the new independent-fetch architecture.
+
+### Test/acceptance commands (macOS first)
+
+```bash
+cd ~/projects/ArginTaxPayer
+git fetch origin
+git switch phase/15-role-based-dashboard
+git pull --ff-only origin phase/15-role-based-dashboard
+cd apps/web
+npm ci
+node --test tests/phase15-step07-customer-ux.test.mjs tests/phase15-step06-dashboard-components.test.mjs tests/phase15-step05-dashboard-design.test.mjs tests/dashboard-redesign.test.mjs
+npm run typecheck
+npm run build
+```
+
+With the current development API, web and DB tunnel running, log in as a Customer and check:
+
+- Dashboard skeleton layout is immediately present during throttled network, with four KPI cells and two chart placeholders (not a blank page).
+- Quick-action links work while API calls are pending, and the quick-action card has no unused height under a tall attention card.
+- Simulate one endpoint failure: only that region shows a retry/error; the rest of the panel data still appears.
+- Switch the 7/30/90/year filter quickly; no stale period data reappears when the old request resolves.
+- Attention list has at most five rows, with safe link to all invoices.
+- Subscription summary matches server data and does not show an invented quota.
+- Check 390px phone layout, keyboard navigation and reduced-motion setting.
+- Admin finance remains Level1/Level2 only; Customer must never fetch `/finance`.
+- No external fiscal actions, database migrations or changes to existing Phase10 invoice flows were introduced.
+
+### Scope and open gates
+
+- This is the **visible Customer UX completion slice** of Step07, with the shared skeleton mechanism benefiting all roles. Role-specific analytical content is still scheduled for Level2 Step08 and Level1 Step09.
+- GitHub source updates are saved, but local macOS unit tests, full `tsc`, Next.js build and live browser/network-throttling tests **have not been run by the assistant**. Request operator logs before claiming runtime PASS.
+- The Step15 backend performance limitation (materializing scoped invoice rows for a period) remains deferred; the UI change does not mask it.
+
+**Single-document rule:** append all later Phase15 notes to this same file in `docs/phases`.
+
+---
+
+## STEP 08 — Level2 partner-specific dashboard (2026-11-03)
+
+### Scope and decisions
+
+- Add a **real data** dashboard section exclusively for authenticated Level2 partners. The existing shared read-only invoice trend/status and period financial KPIs continue to work.
+- A Level2 can see only **currently owned, active customer accounts** and their active subscriptions, plus allocations and settlement records corresponding to currently owned customers.
+- Commercial sales, verified collections, earned shares and settlements are distinct events. The total settlement balance is an **as-of lifetime snapshot**, while financial KPIs elsewhere use the selected calendar period; never apply the UI period to lifetime balances.
+- NEVER expose Level1's root share, approved root costs, other partners' data, or platform-wide data to Level2. A partner summary is not a profit-and-loss report.
+- The Level1 and Customer dashboard must not load or display the Level2-specific widget.
+
+### Implementation on `phase/15-role-based-dashboard`
+
+| File | Description |
+| --- | --- |
+| `src/ArginTaxPayer.Api/Dashboard/Phase15DashboardReadService.cs` | `PartnerOverviewAsync`, SQL-scoped aggregate of currently owned active customers, active/next-30-day expiring subscriptions, earned partner share, net settlements (including reversals), and remaining payable. Partner-only response DTO without privileged fields |
+| `src/ArginTaxPayer.Api/Dashboard/Phase15DashboardEndpoints.cs` | `GET /api/dev/dashboard/partner`: read-only server-side Level2 authorization; rejects taxpayer, partner and period filters |
+| `apps/web/app/api/dashboard/[section]/route.ts` | Only Level2 can access `GET /api/dashboard/partner`; Level1 and Customer get 403; any partner query parameter is rejected with 400 |
+| `apps/web/app/(console)/dashboard/partner-dashboard-details.tsx` | Level2-only panel, independent loading/error, active customer/subscription/expiry cards and lifetime settlement / current period finance breakdown; prices in IRR |
+| `apps/web/app/(console)/dashboard/dashboard-analytics.tsx` | Mounts `PartnerDashboardDetails` only when `role === "Level2"` and passes finance loading state/period label |
+| `apps/web/app/(console)/dashboard/dashboard-design.css` | Responsive panel grids, mobile stacking and accessible SVG skeletons |
+| `apps/web/tests/phase15-step08-level2-dashboard.test.mjs` | Contract tests of role exposure, current owner SQL, settlement reversal accounting, absence of root share, frontend display and accessibility |
+| `apps/web/tests/phase15-step03-dashboard-proxy.test.mjs` | Added runnable proxy tests: Customer/Level1/mixed roles denied, Level2 forwards only to fixed local API, arbitrary filters rejected |
+
+### Accuracy and guardrails
+
+- Current ownership: `customer_commercial_owners.partner_level2_user_id = actor` evaluated at query time, JOIN active `identity_users`. An ownership transfer immediately removes customer and subscription rows from the previous partner's dashboard.
+- Lifetime partner share records are joined to their verified collection/order and current owner; a previous partner's allocations for transferred-away customers do not appear.
+- `lifetimePartnerSettledIrr` is sum of settlement events `kind=1` minus reversals `kind=2`; payable = earned - net settled. It is not a standalone proxy for profit.
+- Active plan: `state=2`, activated at or before now and expires strictly after now; the upcoming expiry count is the active plan subset expiring in the next 30 days. No duplicate customer account counting.
+- The display explicitly distinguishes **total-to-date** share/settlement from **selected-period** commercial activity.
+- Snapshot endpoint does not accept a time selector. Filtering lifetime totals to a short period would produce misleading "outstanding" results.
+- No database migration, client write, real tax authority inquiry, invoice resubmission or other Phase10/11 process introduced.
+- Important: Amount scope differs between a historical ledger attribution and current ownership. Here the partner-specific snapshot deliberately follows current ownership, and future step10 comparison must use matching definition for its charts.
+
+### Acceptance checks on macOS
+
+```bash
+cd ~/projects/ArginTaxPayer
+git fetch origin
+git switch phase/15-role-based-dashboard
+git pull --ff-only origin phase/15-role-based-dashboard
+
+dotnet restore ArginTaxPayer.sln
+dotnet build ArginTaxPayer.sln -c Release --no-restore
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj -c Release --no-restore
+
+cd apps/web
+npm ci
+node --test tests/phase15-step08-level2-dashboard.test.mjs tests/phase15-step03-dashboard-proxy.test.mjs tests/phase15-step07-customer-ux.test.mjs tests/phase15-step06-dashboard-components.test.mjs
+npm run typecheck
+npm run build
+```
+
+Manual role acceptance on running local API/Web/DB: login as Level2, view `/dashboard` and confirm new partner cards, IRR figures, settlements and skeletons. Login as Customer or Level1: the Level2 block must not render, and `/api/dashboard/partner` must return 403. Try a foreign partner filter (400). Transfer a test customer out of Level2 and confirm that customer's subscription and historical collection are no longer counted. Compare partner payable totals with settlement ledger and verify reversal sign. Test zero customers, zero allocations, expired plans and slow API calls.
+
+### Release gate
+
+**Step08 implementation committed and source reviewed. macOS build, xUnit, Node tests, browser and PostgreSQL runtime validation still require operator execution; no PASS has been claimed.** A single-phase document remains the only Phase15 file in `docs/phases`.
+
+
+### Step08 final source hardening
+
+- Added `tests/ArginTaxPayer.Tests/Phase15PartnerDashboardContractsTests.cs` to assert the Level2 response DTO and JSON contain only partner-scoped totals, not root share or approved costs, and to cover settled-minus-reversal arithmetic.
+- Corrected Next.js partner query rejection precedence so `/api/dashboard/partner?partnerUserId=...` and any other filter produce HTTP 400 for Level2; unauthorized Level1/Customer still get 403. Verified source-level against the new proxy regression cases.
+- Latest Step08 code is on the existing `phase/15-role-based-dashboard` branch. Actual .NET/Node/PostgreSQL runtime PASS remains dependent on execution in the owner's environment.
+
+---
+
+## STEP 09 — Dedicated Level1 root-wide dashboard (2026-11-03)
+
+**Implementation committed to `phase/15-role-based-dashboard`; macOS runtime acceptance remains pending.**
+
+### Functional scope
+
+- Keep the Step06 main Level1 commercial KPI row (gross subscription orders, verified collections posted during selected period, outstanding on the order cohort, and root share from allocations). No taxpayer fiscal invoice face value is counted as software revenue.
+- Add an explicitly Level1-only, read-only `root` dashboard:
+  - Distinct current active customer count under the authenticated Level1 root.
+  - Active subscriptions and active subscriptions expiring in the next 30 days.
+  - Count of distinct Level2 partners with assigned active customers.
+  - **As-of** partner share earned, net settled (transfer less reversal), and remaining payable, restricted to customers *currently* owned under this root and partner.
+  - Up to 10 partner performance entries ranked by verified customer cash collections during the selected calendar period. Each shows active customer count, verified collections in period, allocated partner share in period, and current outstanding settlement share.
+  - Each item is attributed via actual `commercial_orders`, `commercial_collections`, `commercial_revenue_allocations`, `partner_settlement_events` with current `customer_commercial_owners` and root checks; no artificial sample amounts.
+- Lifetime settlement balance is **not filtered by the date picker**; partner performance cash/allocated-share figures **are**. The UI labels this distinction.
+- A customer reassigned to another partner or another root no longer contributes to previous owner's **current-scope dashboard**; historical audit records are unaffected.
+- All SQL parameters are server-supplied resolved Level1 actor + a validated Tehran period, not client-supplied tenant IDs.
+
+### Files
+
+| File | Action |
+| --- | --- |
+| `src/ArginTaxPayer.Api/Dashboard/Phase15DashboardReadService.cs` | Added `RootOverviewAsync`, `RootOverview` and `PartnerPerformance` projections; authorized root SQL and current-ownership scoped aggregates |
+| `src/ArginTaxPayer.Api/Dashboard/Phase15DashboardEndpoints.cs` | Registered `GET /api/dev/dashboard/root` in the existing localhost-only read-only route; prohibits taxpayer/partner selectors |
+| `apps/web/app/api/dashboard/[section]/route.ts` | Allows `/api/dashboard/root` for Level1 only; unauthorized users receive 403, blocked tenant selectors receive 400 |
+| `apps/web/app/(console)/dashboard/root-dashboard-details.tsx` | Level1-only cards, lifetime settlement report, top-partner ranked bars and details with independent loading/error states |
+| `apps/web/app/(console)/dashboard/dashboard-analytics.tsx` | Mount root UI only for effective role Level1, pass selected period |
+| `apps/web/app/(console)/dashboard/dashboard-design.css` | Responsive, compact grid and comparison-bar design |
+| `apps/web/tests/phase15-step09-level1-dashboard.test.mjs` | Role isolation, source SQL scope, amount/date semantics, responsive UI and TSX transpilation contract tests |
+| `tests/ArginTaxPayer.Tests/Phase15RootDashboardContractsTests.cs` | Root summary and partner performance DTO/JSON shape and reversal arithmetic tests |
+
+Existing Step08 tests were updated to match the strict `partner` endpoint query validation; no change to Step08 functionality.
+
+### Explicit non-goals
+
+- No automatic invoicing, tax-authority API call, new background worker, ledger mutation, database migration, or invoice resend.
+- No P&L claim; gross sales and verified collections are different time dimensions, and earned revenue allocation is not accounting net profit.
+- The financial **time-series charts** of sales and collection by day are Step10, not falsely represented here by invoice-issue trend.
+- The top 10 table is not an exhaustive export; an authorized link to existing subscriptions is provided for more detailed review.
+- Root user is identified exclusively from the validated bearer on the backend.
+
+### Local macOS validation
+
+```bash
+cd ~/projects/ArginTaxPayer
+git fetch origin
+git switch phase/15-role-based-dashboard
+git pull --ff-only origin phase/15-role-based-dashboard
+
+dotnet restore ArginTaxPayer.sln
+dotnet build ArginTaxPayer.sln -c Release --no-restore
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj -c Release --no-restore --filter "FullyQualifiedName~Phase15RootDashboardContractsTests|FullyQualifiedName~Phase15PartnerDashboardContractsTests"
+
+cd apps/web
+npm ci
+node --test tests/phase15-step09-level1-dashboard.test.mjs tests/phase15-step08-level2-dashboard.test.mjs tests/phase15-step03-dashboard-proxy.test.mjs tests/phase15-step07-customer-ux.test.mjs
+npm run typecheck
+npm run build
+```
+
+Manual acceptance: log in as Level1, open `/dashboard`, verify root metrics, top partners, same-period receipt comparisons, current ownership and lifetime partner settlement. Test zero customers, no partners, reversals, changed ownership, delayed API, date switching. Log in as Level2 and Customer, confirm the root block is absent and `/api/dashboard/root` returns HTTP 403. For Level1, attempts to pass foreign `taxpayerId` or `partnerUserId` must return 400 and disclose no totals.
+
+### Acceptance status
+
+- GitHub code, stylesheet, tests, and single-file documentation committed: **complete**.
+- .NET compilation, Node runtime, TypeScript typecheck, PostgreSQL reconciliation, and real browser visual acceptance: **not executed by assistant in this environment**. Owner-run results are needed before asserting runtime PASS.
+- Next Phase15 Step10: commercial sales, collections, receivables and settlement **time-series charts**, preserving role-scope semantics.
+
+**Documentation policy:** keep this as the single Phase15 document under `docs/phases`.
+
+---
+
+## STEP 10 — Real financial event timelines (2026-11-03)
+
+**Implementation committed; local build and live PostgreSQL reconciliation remain operator acceptance gates.**
+
+### Delivered
+
+- `src/ArginTaxPayer.Api/Dashboard/Phase15DashboardReadService.cs`: `FinancialTrendsAsync`, `FinancialTrends`, `FinancialTrendBucket` and SQL projections. Financial events are filtered by authenticated root/partner ownership *before aggregation*, unioned and grouped once per calendar day in `Asia/Tehran`.
+- `src/ArginTaxPayer.Api/Dashboard/Phase15DashboardEndpoints.cs`: `GET /api/dev/dashboard/financial-trends?period=30d` under current development-only, local-only bearer controls.
+- `apps/web/app/api/dashboard/[section]/route.ts`: `GET /api/dashboard/financial-trends` allowed to Level1 or Level2 only; Customer -> 403; taxpayerId/partnerUserId -> 400. No browser-selected tenant scope.
+- `apps/web/app/(console)/dashboard/dashboard-financial-charts.tsx`: an interactive, accessible financial trend visual with tab selector, IRR values, Jalali date labels, tabular equivalent, independent SVG skeleton, explicit error+retry and empty state. Root share selector only for Level1.
+- `apps/web/app/(console)/dashboard/dashboard-analytics.tsx`: renders financial visual for admins only; customer dashboards never fetch financial-trends.
+- `apps/web/app/(console)/dashboard/dashboard-design.css`: compact mobile and desktop chart layout.
+- `apps/web/tests/phase15-step10-financial-trends.test.mjs`: source-level role, scope, date-clock, a11y and TSX syntax checks.
+
+### Strict accounting and timeline semantics
+
+| Series | Event date | Meaning |
+| --- | --- | --- |
+| `salesGrossIrr` | commercial order `issued_at_utc` | Gross subscription order value issued on that day |
+| `salesOutstandingForCohortIrr` | order `issued_at_utc` | Current remaining collectible amount for orders issued on that day; **not** an outstanding balance snapshot as of each historical day |
+| `collectionsInPeriodIrr` | verified collection `verified_at_utc` | Receipt amount verified that day, including collections against earlier orders |
+| `partnerEarnedShareIrr` | allocation `posted_at_utc` | Partner allocation posted that day |
+| `rootEarnedShareIrr` | allocation `posted_at_utc` | Root-only allocation posted that day, omitted from Level2 JSON |
+| `partnerSettlementNetIrr` | settlement event `recorded_at_utc` | Paid transfers minus reversals recorded that day; may be negative |
+
+- Series do not mix taxpayer fiscal invoice face value into software-revenue metrics.
+- Selected time window is normalized to UTC boundaries for Tehran-local inclusive days. Dates with no events have no point; missing dates should not be confused with observed zeros.
+- SQL event aggregates use current-ownership scoping consistent with Phase15 finance endpoints. Verify transferred customers and order attribution on real test DB before acceptance.
+- Root share serialized only for Level1; Level2 gets null-excluded property.
+- Empty results, network failures and delayed requests do not trigger invoice sends, auto inquiries or financial writes. No migration.
+
+### macOS acceptance commands
+
+```bash
+cd ~/projects/ArginTaxPayer
+git fetch origin
+git switch phase/15-role-based-dashboard
+git pull --ff-only origin phase/15-role-based-dashboard
+dotnet restore ArginTaxPayer.sln
+dotnet build ArginTaxPayer.sln --configuration Release --no-restore
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --configuration Release --no-restore
+cd apps/web
+npm ci
+node --test tests/phase15-step10-financial-trends.test.mjs tests/phase15-step09-level1-dashboard.test.mjs tests/phase15-step08-level2-dashboard.test.mjs tests/phase15-step03-dashboard-proxy.test.mjs
+npm run typecheck
+npm run build
+```
+
+Manual QA: with valid API, test PostgreSQL and macOS web session, open `/dashboard` as Level1 and Level2; confirm period selector changes event series, negative reversal days show signed values in the table, root-share selector appears only for Level1, and no finance area appears for Customer. Compare series sums to the same-period existing Phase12 finance read model, **excluding** distinct order-cohort collection-versus-event-date collection semantics. Verify an ownership transfer, a refunded/voided order and a reverse settlement. Simulate slow and failed network operations and quick period changes.
+
+**Runtime testing has not been performed by the assistant; no compile, SQL execution or browser PASS claimed.**
+
+### Next — Step11
+
+Subscription renewal, quota and expiration insights. Continue adding documentation only to this single Phase15 file.
+
+### Step10 post-implementation hardening
+
+- Extended `apps/web/tests/phase15-step03-dashboard-proxy.test.mjs` with runnable Customer/Level2/Level1 negative/positive routing checks for `financial-trends` (including foreign selectors).
+- Corrected the SVG chart's vertical scaling for negative signed settlement days. Negative reversal net amounts are now mapped below zero rather than clipped into a flat bottom line. The table preserves exact signed amounts.
+- No server compilation or test database execution is claimed from these commits. Run macOS verification above and compare sums to authoritative Phase12 ledger.
+
+---
+
+## STEP 11 — Subscription status, quota and renewals (2026-11-03)
+
+### Implementation
+
+- **Customer:** preserve the previously integrated `CustomerSubscriptionOverviewService.ReadMineAsync` and existing dashboard card. It reads current active plan name, expiry, days remaining and quantity-package balance. It must never be used to authorize invoice dispatch: the atomic entitlement gate remains authoritative.
+- **Level1 / Level2:** add a read-only `GET /api/dev/dashboard/subscriptions-watch` endpoint and corresponding same-origin `GET /api/dashboard/subscriptions-watch`. Backend resolves actor role and current commercial owner before reading any subscription rows. No incoming partner/user/taxpayer/time override is accepted.
+- Backend file: `src/ArginTaxPayer.Api/Dashboard/Phase15DashboardReadService.cs`, method `SubscriptionWatchAsync`; output `SubscriptionWatch` with active count, expiry within 7/30 days, exhausted quantity-based packages and at most 10 subscriptions requiring attention. Exposes only subscription ID, plan kind, expires-at, remaining days, remaining units (null for unlimited), and status; no customer phone/email or root financial data.
+- Active subscription selection: `state=2`, activation at or before now, expiry strictly after now, current active customer account; choose latest eligible activation per customer with `ROW_NUMBER`. The quota for quantity plans comes from `subscription_credit_accounts.available_units` and is clamped at zero to avoid rendering negative remaining units. Distinguish expired plans from upcoming renewals: this watchlist currently considers *active plans only*. No claim that a customer without an active plan appears here.
+- UI component: `apps/web/app/(console)/dashboard/dashboard-subscription-watch.tsx`. Visible only for Level1/Level2, four compact KPI tiles, at most ten rows, Jalali expiry date, quota and status, link to existing subscriptions workflow, loading SVG, independent error/retry and no simulated numbers.
+- `apps/web/app/(console)/dashboard/dashboard-analytics.tsx` mounts it for admin roles, `dashboard-design.css` supplies responsive styling.
+- Tests: `apps/web/tests/phase15-step11-subscription-watch.test.mjs`, additional runnable proxy role/filter tests in `apps/web/tests/phase15-step03-dashboard-proxy.test.mjs`, and `tests/ArginTaxPayer.Tests/Phase15SubscriptionWatchContractsTests.cs`.
+
+### Status and timing semantics
+
+| KPI | Meaning |
+| --- | --- |
+| Active subscriptions | Latest eligible active subscription per customer within server-authorized current ownership |
+| Expires within 7 days | Active subscriptions with expiry no later than UTC now + 7 days |
+| Expires within 30 days | Active subscriptions with expiry no later than UTC now + 30 days |
+| Quantity exhausted | Active `kind=2` subscriptions whose credit account has zero available units |
+| Watch items | First 10 matching active plans sorted by expiry; `quota_exhausted` takes display precedence over near-expiry status |
+
+- Counts are a **current snapshot**, not selected-period events. UI explicitly says so.
+- For plan types without invoice-count restrictions, remaining invoice count is `null` and the UI labels this "نامحدود"; this is a display label, not a dispatch authorization guarantee.
+- A subscription can be both expiring and quota-exhausted, so counts must **not** be added as mutually exclusive parts.
+- All calculations are read-only. No auto-renewal, payment capture, email, SMS or tax authority call.
+- No new migration is needed.
+
+### Access-control matrix
+
+| Role | Customer current subscription | Admin watchlist |
+| --- | --- | --- |
+| Customer | Own active plan only | 403 |
+| Level2 | No other customer disclosure | Current active commercial-owner customers only |
+| Level1 | Admin scope | Current root-owned customers only |
+| Signed-out/expired session | 401 / denied | 401 / denied |
+
+### macOS acceptance commands
+
+```bash
+cd ~/projects/ArginTaxPayer
+git fetch origin
+git switch phase/15-role-based-dashboard
+git pull --ff-only origin phase/15-role-based-dashboard
+
+dotnet restore ArginTaxPayer.sln
+dotnet build ArginTaxPayer.sln -c Release --no-restore
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj -c Release --no-restore --filter "FullyQualifiedName~Phase15SubscriptionWatchContractsTests"
+
+cd apps/web
+npm ci
+node --test tests/phase15-step11-subscription-watch.test.mjs tests/phase15-step03-dashboard-proxy.test.mjs tests/phase15-step10-financial-trends.test.mjs tests/phase15-step09-level1-dashboard.test.mjs tests/phase15-step08-level2-dashboard.test.mjs
+npm run typecheck
+npm run build
+```
+
+Browser QA: sign in as each role, verify no watchlist for Customer, and correct one-root/one-partner scope for admins. Check active plans expiring in 7 and 30 days, unlimited plan vs quantity balance, zero balance, expired/inactive exclusion, transferred ownership, empty list, and loading/error cases. Compare counted active plans against authoritative Phase12 subscription records. Confirm no new migration and existing send/correction/cancel/return flows are untouched.
+
+**Step11 GitHub implementation and test definitions: COMPLETE. Local .NET compilation, Node/TypeScript execution, PostgreSQL data comparison, and browser behavior remain UNVERIFIED until operator-run acceptance.** Continue adding Phase15 documentation only to this single file in `docs/phases`.
+
+### Next Step12 — Actionable attention center
+
+---
+
+## STEP 12 — Priority attention center and collapsed dashboard reporting (2026-11-03)
+
+### Operator request and result
+
+The dashboard had become too long and visually noisy after Steps 06–11. Step12 keeps critical content above the fold and puts secondary analytics behind accessible, **collapsed-by-default** on-demand panels. The initial dashboard still shows the title, period filter, four KPI cards, top invoice trend, quick access, and a new high-priority attention center. No arbitrary alert counts or fake information are shown.
+
+### Code changes
+
+1. `apps/web/app/(console)/dashboard/dashboard-action-center.tsx` — NEW, read-only unified attention center. Combines the already fetched server-scoped invoice `attention` items with an independently fetched, authenticated `subscriptions-watch` result for administrators. Prioritizes rejected invoices, quota exhaustion and imminent expiry. Displays up to five highest-priority actionable items and safe navigation links only to `/invoices` and `/subscriptions`, never invokes an invoice send, tax inquiry, payment or renewal mutation. Customer role never requests commercial watch. If one endpoint is unavailable, displays an incomplete-data warning, preserving any available items. Loading is an independent SVG skeleton.
+2. `apps/web/app/(console)/dashboard/dashboard-analytics.tsx` — new `DashboardFold` with keyboard-operable button, `aria-expanded`, stable `aria-controls` target, reduced visual noise and delayed mounting of expensive charts. Secondary financial charts, detailed subscription watch, Level1 whole-system/partner comparisons, Level2 settlement detail and invoice status composition/details start **closed**. Each can be opened when needed without reloading the whole page; by default no hidden chart component fetches.
+3. `apps/web/app/(console)/dashboard/dashboard-design.css` — compact responsive summary list, priority markers, accordion, interaction states, and reduced-motion behavior.
+4. `apps/web/tests/phase15-step12-action-center.test.mjs` — new static and server-render check for initial action center, role restrictions, prioritization, accessible accordion, safe links, no write methods and error handling.
+5. Adapted Step09/10/11 UI regression tests to the new collapsed-by-default wrappers while retaining earlier role and API constraints.
+
+No new EF migration, background worker, email/SMS automation, credit handling or external fiscal action was introduced.
+
+### Default information architecture
+
+```text
+Dashboard heading / role / date window
+[ Four primary KPI cards — always visible and individually loading ]
+[ Priority center — always visible, read-only and scoped ]
+[ Invoice trend ] [ Quick shortcuts + calendar ]
+[› Financial event chart — collapsed for Level1/2]
+[› Subscription and quota breakdown — collapsed for Level1/2]
+[› Level1 system or Level2 settlement report — collapsed for that role]
+[› Invoice status composition and full attention list — collapsed]
+[ Existing module shortcuts — collapsed from earlier steps ]
+```
+
+### Alert semantics / limitations
+
+- Invoice alerts originate from existing `/api/dashboard/attention?period=...` and are already scoped to the actor on the server; only the first ten are retrieved by the existing endpoint. Rejected → unknown → other attention priority; these are `period`-limited.
+- Subscription attention is retrieved from `/api/dashboard/subscriptions-watch` for Level1/2 only. Its feed has **up to ten** items; zero quota and expiry within seven days are urgent, with later upcoming renewals lower. It is a current-state snapshot, not limited by the dashboard's date selector.
+- The top five list is a priority view **among the items returned by these bounded feeds**, not a guaranteed global top-five across all historical invoices or all customer subscriptions. The count displayed is the count of the fetched candidate items, not a global queue size. Future step(s) can implement server-side cross-domain priority paging if needed.
+- Statuses are not reconciled automatically. A call to action only navigates to an existing authorized workspace. No indeterminate invoice is automatically resent.
+- Aggregate subscription alert fetch is separate from the detailed watch fetch. The collapsed detail does not fetch until opened. If it is opened both views can query the same read-only endpoint; this is an accepted current implementation trade-off, not a new write operation.
+- Accordion contents use client-side on-demand mounting and maintain stable `aria-controls` regions. This preserves loading/error/empty states in their own components once expanded.
+
+### Test macOS
+
+```bash
+cd ~/projects/ArginTaxPayer
+git fetch origin
+git switch phase/15-role-based-dashboard
+git pull --ff-only origin phase/15-role-based-dashboard
+
+cd apps/web
+npm ci
+node --test tests/phase15-step12-action-center.test.mjs tests/phase15-step11-subscription-watch.test.mjs tests/phase15-step10-financial-trends.test.mjs tests/phase15-step09-level1-dashboard.test.mjs tests/phase15-step08-level2-dashboard.test.mjs tests/phase15-step07-customer-ux.test.mjs tests/phase15-step06-dashboard-components.test.mjs
+npm run typecheck
+npm run build
+```
+
+Manual QA: sign in as Customer, Level2 and Level1. Verify critical center and quick links are immediately visible while the first authenticated fetch is in flight, and optional analytics initially closed. Expand and close financial/trend/subscription sections repeatedly; check keyboard, mobile, role scopes, and that old reports still appear. Force a subscription API failure: the alert center must not show a false all-clear. Confirm navigation links are GET-safe and non-mutating. For Level2 verify no root financial share; for Customer no subscriptions-watch request and no financial charts. No new database schema work. Ubuntu acceptance remains reserved for later phase gates.
+
+**Code committed; runtime PASS requires macOS operator test output.** This remains the sole canonical Phase15 document.
+
+### Step12 management shortcut and approval limitation
+
+- For Level1, the priority center provides a safe navigation link to the existing `/users` management workflow. It does **not** fabricate a count of pending approvals or claim that all approval queues are integrated.
+- No authenticated, consolidated pending-approval read contract has been verified for this stage. A live count across key approvals, memory-change approvals and owner reassignment approvals requires explicit source mapping and role-scoped server aggregation in a later step; until then no potentially incorrect number is displayed.
+
+---
+
+## STEP 13 — KPI drilldowns, validated custom dates and navigation (2026-11-03)
+
+**Source implementation saved on `phase/15-role-based-dashboard`. Local runtime and operator browser acceptance not yet executed.**
+
+### Purpose
+
+After the Step12 concise dashboard, make its four KPI cards actionable without crowding the default view, and add an advanced date range without weakening the server-side scope. All new interactions are read-only and must preserve the collapsed-by-default detailed reports.
+
+### Changes implemented
+
+1. `apps/web/app/(console)/dashboard/dashboard-analytics.tsx`
+   - Each primary KPI is now a keyboard-accessible `button` inside its existing card. Selecting it displays a compact drilldown just below the four-card row; selecting it again or using Close collapses the drilldown. Selecting another KPI replaces the details rather than stacking panels.
+   - The drilldown uses only the **already authorized** `overview` or `finance` response values. No client-side query for another taxpayer, partner, or root is accepted. Level1 sees its own root share; Level2 sees its own partner share; Customer sees invoice and draft counts only.
+   - Detail descriptions differentiate commercial order gross, collections **for that cohort**, verified cash collected **during the period**, current outstanding for that cohort, and official invoice acceptance status.
+   - Contextual navigation opens the existing authorized `/subscriptions` or `/invoices` workspace. There is **no assertion that a dashboard filter is applied to the destination page**; this navigation does not invent unsupported deep-link query parameters.
+   - On a date-window change, the selected KPI detail closes, and all period-scoped cards clear their stale values before refetching.
+2. Advanced **custom date window**:
+   - Built into existing filter toolbar as a collapsed `details` section, so the first-screen dashboard stays compact.
+   - Start and end controls use **Gregorian ISO date inputs explicitly labeled میلادی**, because the backend accepts `YYYY-MM-DD`. Selected-period summaries display dates in the Persian/Jalali calendar. A dedicated Jalali date selector can replace these fields in a later visual refinement without changing the API contract.
+   - Client validation: real ISO calendar dates, ordered start/end, not later than current Tehran date, span no more than 365 days between endpoints (366 inclusive days). These checks are repeated authoritatively by `Phase15DashboardReadService.ResolveWindow`.
+   - `GET /api/dashboard/{overview,trends,attention,finance,financial-trends,root}` uses `period=custom&from=YYYY-MM-DD&to=YYYY-MM-DD` when applicable. For each role, only authorized endpoints are requested. Latest response clears prior-period stale finance and invoice counts.
+   - `/api/dashboard/subscriptions-watch` and `/partner` remain current snapshots and **must not** receive date filters.
+3. `apps/web/app/(console)/dashboard/dashboard-financial-charts.tsx` and `root-dashboard-details.tsx`: accept validated query-string period fragments from the dashboard parent, so date selectors and financial/partner comparisons stay synchronized. Child fetches remain abortable, read-only and no-store.
+4. `apps/web/app/(console)/dashboard/dashboard-design.css`: scoped RTL compact style for advanced date accordion, KPI keyboard focus, selected state, responsive 1/2/3-column drilldown facts and accessible links.
+5. Tests: new `apps/web/tests/phase15-step13-dashboard-drilldown.test.mjs`; extended `apps/web/tests/phase15-step03-dashboard-proxy.test.mjs` for custom range forwarding and role restrictions. Updated Step09 and Step10 static expectations to account for the `dateQuery` prop.
+
+### Date/window semantics
+
+- Date fields select *local calendar days in Tehran*; API resolves them to a half-open UTC interval `[from midnight, day after to midnight)`. This prevents ambiguous filtering across UTC midnight.
+- The max permitted date span and the future-date restriction prevent a client from requesting an arbitrary historical full-database scan.
+- Payment, invoice and subscription snapshots retain the previously documented distinct event-time/as-of conventions. Changing the selected period does **not** reattribute money between accounts.
+
+### Acceptance commands (macOS; before Ubuntu gate)
+
+```bash
+cd ~/projects/ArginTaxPayer
+git fetch origin
+git switch phase/15-role-based-dashboard
+git pull --ff-only origin phase/15-role-based-dashboard
+
+dotnet restore ArginTaxPayer.sln
+dotnet build ArginTaxPayer.sln -c Release --no-restore
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj -c Release --no-restore \
+  --filter "FullyQualifiedName~Phase15DashboardContractTests"
+
+cd apps/web
+npm ci
+node --test \
+  tests/phase15-step13-dashboard-drilldown.test.mjs \
+  tests/phase15-step12-action-center.test.mjs \
+  tests/phase15-step11-subscription-watch.test.mjs \
+  tests/phase15-step10-financial-trends.test.mjs \
+  tests/phase15-step09-level1-dashboard.test.mjs \
+  tests/phase15-step03-dashboard-proxy.test.mjs \
+  tests/phase15-step06-dashboard-components.test.mjs
+npm run typecheck
+npm run build
+```
+
+Manual browser QA: sign in with Customer/Level2/Level1. Open each KPI and verify exact numbers against existing API, explanatory labels, only one detail area, valid navigation, and role-safe fields. Change a preset and confirm detail closes. Open the custom-date section, choose an earlier valid Gregorian period and ensure the cards, invoice trend, financial chart and Level1 partner comparison all use it. Try reversed, impossible, future and over-one-year dates; confirm no request is issued. Check the details continue to be collapsed on page load and on mobile. A Level2 must not receive root-share fields.
+
+No migration or fiscal-authority write operations added. Local Build, xUnit, Node tests, PostgreSQL and browser PASS are pending actual operator results. The user-approved phase documentation remains in this single file.
+
+---
+
+## STEP 14 — Dashboard loading performance and duplicate-request avoidance (2026-11-03)
+
+**Branch:** `phase/15-role-based-dashboard`. Source implementation recorded; macOS/runtime verification pending.
+
+### Verified source issue
+
+Before Step14, both `DashboardActionCenter` and `DashboardSubscriptionWatch` performed their own independent `GET /api/dashboard/subscriptions-watch` when both respective admin foldouts were open. This duplicated an authenticated PostgreSQL aggregate, used separate abort/retry lifecycles, and could produce inconsistent displayed snapshot timestamps. The initial Step12 foldout system already deferred heavier charts; Step14 preserves that behavior and consolidates the duplicated subscription request.
+
+### Implementation
+
+- `apps/web/app/(console)/dashboard/dashboard-analytics.tsx`: the current authenticated dashboard component owns exactly **one shared subscription-watch response** and the request lifecycle. An `onOpen` callback activates the feed only when the administrator first expands either "جزئیات اشتراک‌ها و سهمیه‌ها" or "اولویت‌های عملیاتی". Opening the second panel reuses the same in-memory response, including its loading/error state, without a second fetch. The shared result is validated for `schemaVersion=1`, effective role, array shape and numeric counters. A retry explicitly clears its old data and refetches once. The request is aborted when the dashboard unmounts or its effective role/request version changes. No persistent or module-level cache was introduced.
+- `apps/web/app/(console)/dashboard/dashboard-action-center.tsx`: uses parent-provided `watchState`, `watch` and `onRetryWatch`, with no local subscription fetch. Only valid role-matched records are allowed into the priority list. The first loading frame includes `idle` in the waiting indicator to avoid a false "nothing urgent" message.
+- `apps/web/app/(console)/dashboard/dashboard-subscription-watch.tsx`: now renders the shared parent-provided snapshot and retry callback. It no longer fetches the same endpoint independently. Customer still never gets this admin component.
+- All responses continue to be browser/Next `no-store` and scope-checked by the server. The shared in-memory result is limited to **one mounted, authorized dashboard instance**, with no `localStorage`, `sessionStorage`, global promise map, cross-tab cache or cross-account reuse.
+- Existing Step11/12 tests adapted to the new ownership model and retained the original backend/role-contract assertions.
+- Added `apps/web/tests/phase15-step14-dashboard-performance.test.mjs` to check shared fetch ownership, independent retries, abort handling, lazy mounting, scoped role verification and absence of persistent caches.
+
+### Expected request reduction
+
+| User interaction | Before Step14 | After Step14 |
+| --- | --- | --- |
+| First dashboard load, all advanced admin foldouts closed | 0 subscription-watch calls | 0 |
+| First opening of either subscription / priority fold | 1 call | 1 call |
+| Opening the second fold while same dashboard remains mounted | **another 1 call** | **0 additional calls** |
+| Explicit Retry, both foldouts open | Local per-component request | **one shared re-fetch**, shared state |
+| Customer dashboard | 0 subscription-watch calls | 0 |
+
+These numbers refer only to the duplicate subscription-watch aggregate; they are not a measured end-to-end dashboard latency improvement. Other period-specific API requests (`overview`, `trends`, `attention`, `finance`) remain independent and use existing abort-on-period-change/no-store logic. React's per-panel SVG loading and selected-period stale-value clearing remain unchanged.
+
+### Deferred optimizations and risk limits
+
+- Cross-tab/client-side caching is **not** adopted because financial aggregates can differ by account and membership; security, freshness and data isolation outweigh a speculative cache hit.
+- There is **no** Redis, background request queue, new DB index, database migration or additional worker.
+- The root/partner SQL aggregation performance under large production data still requires a measured PostgreSQL `EXPLAIN (ANALYZE, BUFFERS)` study before changing indexes, grouping or result paging; do not claim a backend performance target without representative test data.
+- The existing generic "retry overview" re-fetches the ordinary period feeds together. This is recorded for future per-section retry separation if measurements justify it; Step14 specifically removes duplicated subscription-watch requests without destabilizing earlier period-feed behavior.
+
+### Mac acceptance commands
+
+```bash
+cd ~/projects/ArginTaxPayer
+git fetch origin
+git switch phase/15-role-based-dashboard
+git pull --ff-only origin phase/15-role-based-dashboard
+
+cd apps/web
+npm ci
+node --test \
+  tests/phase15-step14-dashboard-performance.test.mjs \
+  tests/phase15-step13-dashboard-drilldown.test.mjs \
+  tests/phase15-step12-action-center.test.mjs \
+  tests/phase15-step11-subscription-watch.test.mjs \
+  tests/phase15-step10-financial-trends.test.mjs \
+  tests/phase15-step09-level1-dashboard.test.mjs \
+  tests/phase15-step08-level2-dashboard.test.mjs \
+  tests/phase15-step06-dashboard-components.test.mjs
+npm run typecheck
+npm run build
+```
+
+**Manual network QA:** Sign in as Level1 and Level2 separately and open Chrome DevTools > Network with Preserve log. First load (advanced foldouts closed) must not request `/api/dashboard/subscriptions-watch`. Expand "اولویت‌های عملیاتی" and observe exactly one request. Expand "جزئیات اشتراک‌ها و سهمیه‌ها" and observe **no additional request**. Collapse/reopen either panel, verify no new request. Trigger retry on an error and ensure exactly one request and that both open panels transition to loading and then the same new snapshot. Simulate a delayed response, navigate away, and verify the network request aborts and does not update the departed page. As Customer, verify zero subscription-watch calls. Check quick date changes, error states and old Phase10 invoice operations remain unaffected.
+
+### Acceptance status
+
+GitHub source changes, test definitions and documentation: saved. **No operator macOS npm/tsc/Next build, network trace, SQL measurement or browser PASS has been observed by the assistant.** Step14 should be marked fully accepted only after those results. Continue to Step15 for measured performance/load audit, or the next phase-prescribed step, only after current acceptance.
+
+The single-file documentation convention remains `docs/phases/phase-15-role-based-dashboard.md`.
+
+### Step14 freshness follow-up
+
+The shared watch response is intentionally not a timed or persistent cache: while a dashboard stays open, a freshly changed subscription may not appear until the operator requests refresh. Added an explicit **تازه‌سازی آمار** button to the detailed subscription panel and **تازه‌سازی هشدار اشتراک‌ها** to the administrator attention center; both trigger the same parent-owned, abortable re-fetch and synchronize both consumers. This is a GET-only read action, not a subscription renewal or fiscal inquiry. The matching Step14 regression enforces that both controls exist. No periodic background polling or cross-session data retention was added.
+
+---
+
+## STEP 15 — PostgreSQL query-plan audit, bounded load test and latest-invoice optimization (2026-11-03)
+
+**Source implementation on `phase/15-role-based-dashboard`; production-scale results cannot be claimed until the operator executes the scripts on a representative `argintaxpayer_test` dataset.**
+
+### Findings from source review
+
+1. The shared invoice read model (`InvoiceSql`) first computes authorized legal invoice roots, traverses corrective/cancel/return chains to find a canonical latest status, then sorts by issue date. `OverviewAsync` and `TrendsAsync` need the full scoped rows and should **not** be truncated.
+2. `RecentAsync` previously called `ReadInvoices` without any bound, materialized every scoped chain row into API memory, and then selected `Take(10)` client-side. This was avoidable network/deserialization and allocation cost.
+3. The finance, collection, partner ownership and subscription-watch SQL aggregates rely on join/index selectivity. Without actual `EXPLAIN (ANALYZE, BUFFERS)` and data-volume distributions, introducing new indexes or rewriting joins would be speculative and risks degrading write-heavy commercial paths.
+4. Previous Step14 already removed duplicate subscription-watch requests from concurrently opened dashboard sections; Step15 preserves that scoped in-memory sharing.
+
+### Code changes
+
+- `src/ArginTaxPayer.Api/Dashboard/Phase15DashboardReadService.cs`: added optional `maxRows` to the private `ReadInvoices` query. Only `RecentAsync` passes `maxRows:10` and the SQL gains a parameterized **`LIMIT {7}` after the existing canonical `ORDER BY`**, so the result remains the same latest ten authorized invoice roots. This reduces API row transfer and materialization without removing any invoice scope or changing summary counts, invoice lineage precedence, status classification or fiscal actions.
+- `scripts/phase15-step15-query-plan-audit.sql`: deterministic **read-only, test-database-only** audit with `current_database() = 'argintaxpayer_test'` fail-closed check, `statement_timeout=15s`, `lock_timeout=2s`, `EXPLAIN (ANALYZE, BUFFERS, TIMING OFF)` for root commercial sales, confirmed collections, active partner ownership and expiring subscription queries. Prints PostgreSQL row estimates/dead tuples and current index definitions; selects available root/partner **test** owner IDs into private psql variables without emitting them in normal SELECT output. Uses `ROLLBACK`; does not create indexes or change rows.
+- `scripts/phase15-step15-dashboard-load.mjs`: bounded authenticated GET benchmark for the existing **loopback-only** API `/api/dev/dashboard/{section}`. Calls 1–20 rounds, up to 4 concurrent requests, defaults to 6 rounds x 2 concurrency, with 15-second abort timeout. User supplies a valid test role token privately via the process environment. Emits per-endpoint status, count, min/p50/p95/max latency and response byte length; **never logs or writes bearer tokens or dashboard response bodies**. Optional JSON results must be stored outside Git in a restricted location. A failure status or malformed JSON contract produces a failing exit code. Results are for repeatable regression baselines, not a synthetic high-stress test and not a throughput guarantee.
+- `apps/web/tests/phase15-step15-query-performance.test.mjs`: source-contract checks for canonical SQL ordering, a database-side latest-10 limit, retention of unrestricted overview/trend/attention aggregation, read-only test DB audit safeguards and bounded runner.
+- This section is appended only to canonical `docs/phases/phase-15-role-based-dashboard.md`.
+
+### Explicit security and correctness constraints
+
+- No cross-account cache, `localStorage` persistence, token logging, or direct tax authority requests. No changes to tax invoice sends, legal corrections, cancellation or return.
+- Authorization and taxpayer/partner/root scopes remain applied **before** the latest-10 limit; no client-supplied scope enters the SQL string.
+- The existing `RecentAsync` takes ten items **after** legal-chain resolution and latest-first sorting. `AttentionAsync` still filters alert status before `Take(10)`, and `OverviewAsync` / `TrendsAsync` still count all scoped records. Future optimization of recursive invoice queries requires a representative plan and exact output parity audit.
+- No migration is introduced or warranted without evidence of an index need. Any new index proposal requires a separate reviewed migration with rollback notes and measurements on data resembling production.
+- WARNING: PostgreSQL `EXPLAIN` predicate output can include test actor identifiers. Treat logs as restricted QA artifacts; do not commit them to the repository or paste sensitive tokens in messages.
+
+### macOS implementation acceptance
+
+```bash
+cd ~/projects/ArginTaxPayer
+git fetch origin
+git switch phase/15-role-based-dashboard
+git pull --ff-only origin phase/15-role-based-dashboard
+dotnet restore ArginTaxPayer.sln
+dotnet build ArginTaxPayer.sln -c Release --no-restore
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj -c Release --no-restore
+
+cd apps/web
+npm ci
+node --test tests/phase15-step15-query-performance.test.mjs \
+ tests/phase15-step14-dashboard-performance.test.mjs \
+ tests/phase15-step13-dashboard-drilldown.test.mjs \
+ tests/phase15-step12-action-center.test.mjs \
+ tests/phase15-step03-dashboard-proxy.test.mjs
+npm run typecheck
+npm run build
+```
+
+### PostgreSQL query plan (macOS via existing AutoSSH tunnel)
+
+```bash
+cd ~/projects/ArginTaxPayer
+psql -X -h 127.0.0.1 -p 15432 -U argintaxpayer \
+  -d argintaxpayer_test -f scripts/phase15-step15-query-plan-audit.sql
+```
+
+Ubuntu (same test database, DB bound on loopback):
+
+```bash
+cd ~/projects/ArginTaxPayer
+psql -X -h 127.0.0.1 -p 5432 -U argintaxpayer \
+  -d argintaxpayer_test -f scripts/phase15-step15-query-plan-audit.sql
+```
+
+A representative query-plan result must be inspected for **sequential scans on large tables, excessive buffer reads, high execution time, join cardinality errors and inactive/poorly selective indexes**. The audit cannot claim that all production queries are fast; only the operator's test DB results support conclusions.
+
+### Bounded authenticated API test (macOS and Ubuntu)
+
+Obtain a valid *test-account* bearer with the normal developer login. Do not paste it into the command history. In an interactive shell:
+
+```bash
+read -rs PHASE15_BEARER_TOKEN
+export PHASE15_BEARER_TOKEN
+export PHASE15_ROLE=Level1
+export PHASE15_BASE_URL=http://127.0.0.1:15089
+node scripts/phase15-step15-dashboard-load.mjs
+unset PHASE15_BEARER_TOKEN
+```
+
+Repeat as Level2 and Customer with an appropriate token and matching `PHASE15_ROLE`. The result prints only endpoint summaries, HTTP statuses and measured latency statistics. For a restricted local JSON artifact, set `PHASE15_RESULT_FILE` to a directory outside the Git working tree; review it before distribution. The runner has a hard upper bound of 20 repetitions and 4 concurrent requests, not a production DoS/stress tool.
+
+### Operator acceptance checklist
+
+- Confirm macOS .NET compilation and full web/Node regressions pass after the recent-feed SQL limit change.
+- For test fixtures with >10 scoped legal invoice chains, compare recent ordering, root identity and statuses with the unbounded canonical read query; ensure **exact same first ten rows**. Confirm 0 and 1 row edge cases.
+- Compare `overview` total invoice counts, `trends` daily buckets and `attention` filtered alerts before vs after this change, **unchanged** across each role.
+- Execute read-only plan audit on representative test data and inspect joins/IO/time. If a table is empty, mark that run nonrepresentative rather than claiming optimization success.
+- Run Level1/Level2/Customer bounded API tests individually and record p50/p95 and error counts. Compare pre/post on the **same dataset, machine and concurrency**; no fixed performance improvement percentage is claimed.
+- Validate a foreign-customer/partner scoped response is never exposed and re-check the Phase10 send/cancel/correct/return flows for nonregression.
+- Do **not** merge/release the phase merely from source-level tests: actual macOS and later Ubuntu acceptance is required.
+
+### Status and next step
+
+Step15 **code, SQL audit scripts, bounded runner, tests and documentation are committed**. Live PostgreSQL query plans, .NET builds, Node tests, browser timing and operator-confirmed acceptance remain pending. Step16 should focus on integrated security, performance, UI and error-state regression acceptance before penultimate Ubuntu parity/release gates.
+
+
+---
+
+## STEP 16 — Integrated macOS acceptance, read-only role-matrix probe and nonregression (2026-11-03)
+
+**Implementation and acceptance tooling committed on \`phase/15-role-based-dashboard\`. This step does not claim macOS or Ubuntu execution: operator evidence is required for PASS. Do not merge or release from source-only checks.**
+
+### Scope
+
+The Step16 acceptance gate consolidates the previously delivered Phase15 dashboard functionality and Phase10/11/12 nonregression into a repeatable **same-SHA** run. It does not change core SQL financial allocation, fiscal signing, dispatch, cancellation, correction, sales return, or subscription activation rules. It never runs a database migration or external tax authority call.
+
+### Delivered files
+
+| File | Function |
+| --- | --- |
+| \`apps/web/tests/phase15-step16-integrated-acceptance.test.mjs\` | Dynamic, mocked Next proxy tests: Customer/Level2/Level1 permission matrix, anonymous/missing-cookie rejection, foreign scope and duplicate parameter rejection, upstream 401/403/404/429/500/503 handling, network failure, no-store and GET-only behavior. Static regression checks for TSX syntax, role-limited financial panels, accordion accessibility, loading and errors, current owner SQL and no persistent private data cache |
+| \`scripts/phase15-step16-integrated-acceptance.sh\` | macOS-only, fail-closed acceptance runner: verifies intended branch and clean tracked tree, records exact HEAD SHA, runs .NET restore/build/full tests, npm ci, Step16 integration tests, earlier Step03–15 dashboard tests, all Next web tests, TypeScript typecheck and Next production build. Logs + manifest + status JSON are restricted to private \`artifacts/phase15-step16/<SHA>/macos-<UTC timestamp>\`. Does not mark manual work PASS |
+| \`scripts/phase15-step16-role-smoke.mjs\` | Read-only loopback API smoke with **three distinct test-account bearer tokens**, explicit allowed and forbidden endpoint matrix and role/contract assertions. Tests root-vs-partner isolation, financial and subscription watch access, and invalid selectors. Only prints operation/status/PASS-or-FAIL, never tokens or customer responses |
+| \`.gitignore\` | Excludes private \`artifacts/phase15-step16/\` evidence from commits |
+
+### Acceptance automation (macOS first)
+
+\`\`\`bash
+cd ~/projects/ArginTaxPayer
+git fetch origin
+git switch phase/15-role-based-dashboard
+git pull --ff-only origin phase/15-role-based-dashboard
+git status --short
+bash scripts/phase15-step16-integrated-acceptance.sh
+\`\`\`
+
+The script is compatible with stock macOS Bash 3.2, aborts for the wrong branch, dirty tracked tree, wrong expected SHA or missing tools, and captures each check's **actual** exit code. Use \`PHASE15_EXPECT_SHA=$(git rev-parse HEAD) bash scripts/phase15-step16-integrated-acceptance.sh\` when an explicit immutable identity check is desired. Successful automated checks mean only **AUTOMATED MACOS GATE PASS**; the manifest includes \`MANUAL_PENDING\` for browser, ownership, finance ledger, API runtime, fiscal nonregression and Ubuntu parity.
+
+### Live role-matrix smoke (manual, authenticated, localhost)
+
+The API must already be running and the three tokens must correspond to independent **test** users in Level1, Level2 and Customer. Use an interactive Bash session to input secrets without displaying or adding them to shell history:
+
+\`\`\`bash
+cd ~/projects/ArginTaxPayer
+bash
+read -rs PHASE15_LEVEL1_TOKEN; echo
+read -rs PHASE15_LEVEL2_TOKEN; echo
+read -rs PHASE15_CUSTOMER_TOKEN; echo
+export PHASE15_LEVEL1_TOKEN PHASE15_LEVEL2_TOKEN PHASE15_CUSTOMER_TOKEN
+PHASE15_BASE_URL=http://127.0.0.1:15089 node scripts/phase15-step16-role-smoke.mjs
+unset PHASE15_LEVEL1_TOKEN PHASE15_LEVEL2_TOKEN PHASE15_CUSTOMER_TOKEN
+exit
+\`\`\`
+
+Do not paste these tokens into chat, commit them, or run against production. The probe is **GET-only** and refuses non-loopback URLs. For authenticated requests it verifies the effective role returned by the API and schema version. An unexpected authorization failure or success is FAIL, not an assumed permission.
+
+### Manual browser acceptance matrix
+
+| Area | Customer | Level2 | Level1 |
+| --- | --- | --- | --- |
+| Dashboard, overview, invoice status, trend and attention | Own taxpayer invoices only | Currently owned customer invoices only | Root-owned customers |
+| Commercial finance, collections and period trend | Not visible / forbidden | Authorized own-partner values only | Root scope |
+| Level1 \`root\` view and top partners | 403 | 403 | Allowed |
+| Level2 \`partner\` view | 403 | Allowed | 403 |
+| Subscription watch/renewals and quantity balance | Own subscription card only | Currently owned customers only | Root-owned customers only |
+| Foreign \`taxpayerId\`, foreign \`partnerUserId\`, duplicate URL fields | Refused before any information disclosure | Refused or scoped to currently owned | Only explicitly authorized filters |
+| Loading, error, retry, and stale response | Independent skeletons, no stale private totals | Same, shared subscription watch | Same, root report only |
+
+Visual and interaction checks:
+1. On first login, the dashboard layout is immediately visible with SVG skeletons, no blank viewport or simulated amounts. Check narrow mobile width and reduced-motion preference.
+2. KPI drilldowns, period presets/custom Tehran date boundaries, selected-period semantics, and permitted links work. Unavailable API must not show a false zero / all-clear.
+3. Detailed reports are collapsed by default, keyboard-operable and do not fetch while unopened. "Quick Access" retains content height, not the height of a longer attention list.
+4. Verify \`/api/dashboard/subscriptions-watch\` is requested **once** when the first relevant accordion is opened, and shared across both open consumers. Freshness uses manual refresh; no unauthorized persistence.
+5. Verify no hidden POST action, invoice resend, tax inquiry, payment settlement or subscription renewal is triggered by dashboard controls.
+6. For test records, compare Level1/Level2 commercial sales gross, verified collections, partner allocation and signed settlement reversals against the Phase12 ledger. **Do not** treat tax invoice face values as SaaS sales or "as-of" payables as daily cash flow.
+7. For a legal invoice chain with original/correction/cancellation/return evidence, compare dashboard canonical invoice-root counts and latest status to the existing Phase10 invoice workspace. Acknowledgement-only or indeterminate status must never be counted as official acceptance.
+8. Validate no cross-owner data disclosure by switching test-owner assignments and reloading the dashboard. No production customer PII may be recorded in logs.
+
+### Phase10 fiscal operations safety
+
+The automatic full .NET and Next test suites serve as nonregression checks; Step16 **does not automatically invoke Sandbox**. The owner must separately confirm sandbox send, cancellation, correction and sales return for new test invoices with unique identifiers if live fiscal acceptance is required. A failure of any previously approved fiscal workflow **blocks release**; do not re-send an indeterminate invoice.
+
+### Known boundaries and release gate
+
+- The Step15 \`EXPLAIN ANALYZE\` test database had only a small number of rows; those fast plans are **not evidence of production-scale load performance**.
+- The bounded Step15 latency runner is available for per-role p50/p95; metrics from different host/data conditions are not directly comparable.
+- Step16's new dynamic proxy tests are **mocked**. Only the separate test-account live smoke and real browser/ledger review can confirm runtime role separation and financial correctness.
+- A successful script reports **automated tests passed for exactly one Git SHA**, **not** a complete Phase15 signoff. The next Step17 performs Ubuntu on the *identical SHA*, tests source/build parity, checks server environment, and gathers Ubuntu acceptance evidence. Final Step18 handles review, tag, release and merge only after all gates are verified.
+
+**Status:** source implementation + tests + macOS runner + live smoke script + canonical documentation committed. **Mac automated result, three-role live smoke, manual cross-owner reconciliation and Ubuntu parity remain pending actual operator output.** No migration required.
+
+
+### Step16 final source-level corrections
+
+- Reviewed file resolution in Node acceptance tests: \`apps/web/tests\` is three directory levels below repository root. Adjusted both \`phase15-step16-integrated-acceptance.test.mjs\` and previously prepared \`phase15-step15-query-performance.test.mjs\` to load \`src/\`, \`scripts/\` and \`docs/\` through \`../../../\`, preventing false \`ENOENT\` failures.
+- The validation toolchain is deliberately runnable **locally** with macOS + project dependencies. Tests and shell scripts have been committed but not executed in the assistant environment. Any failed macOS acceptance result must be resolved before Step17. No user-visible financial or fiscal business logic changed in Step16.
+
+
+---
+
+## STEP 17 — Ubuntu 24.04 same-SHA acceptance and cross-platform parity (2026-11-03)
+
+### Intended scope and precise acceptance boundary
+
+- Step16's macOS automated checks were operator-confirmed PASS on **\`11559e7bc9fd415d8a8e23293be5f5b702099bcf\`**. The Step17 script/test/docs commits necessarily change HEAD. Consequently, the older macOS SHA **cannot** establish full same-SHA parity for the new Step17 source tree.
+- Before Ubuntu testing, run the Step16 macOS acceptance script **again at the final current HEAD**, capture its new full SHA from the PASS manifest, and pass that same SHA into Ubuntu as \`PHASE15_MAC_ACCEPTED_SHA\`. This is compulsory and fail-closed; do not enter the old SHA unless the actual Ubuntu checkout and approved Mac source are truly identical (which they cannot be after adding Step17).
+- The Ubuntu tool records only automatic build/test acceptance. Real account and browser permissions, Phase12 finance parity, owner isolation, Sandbox fiscal behavior and final release authorization remain manual. Step17 does not merge, tag, create releases, deploy, migrate or restart services.
+
+### Delivered
+
+| File | Function |
+| --- | --- |
+| \`scripts/phase15-step17-ubuntu-acceptance.sh\` | Fail-closed Ubuntu **24.04** gate. Validates branch and clean tracked tree, checks exact SHA equality to operator-supplied accepted Mac SHA, tests available tools and nonsecret host resources. Executes dotnet restore, Release build and tests, npm ci, Step16 integration suite, Step03–15 regression tests, full Next tests, TypeScript typecheck and production build. Each check has its own log and PASS/FAIL exit status. Private manifest and status JSON use \`artifacts/phase15-step17/<SHA>/ubuntu-<timestamp>\`. |
+| \`apps/web/tests/phase15-step17-ubuntu-parity.test.mjs\` | Static and \`bash -n\` shell syntax tests: Linux/Ubuntu version restriction, SHA and worktree guards, same macOS baseline tests, no production actions, private output, manual release gates. The project-wide \`npm test\` discovers this test automatically. |
+| \`.gitignore\` | Ignore \`artifacts/phase15-step17/\` so local host-specific logs are never committed. |
+| This canonical doc | Preserves final SHA handoff and manual acceptance constraints without creating extra phase documents. |
+
+### 1. Re-accept final HEAD on macOS
+
+\`\`\`bash
+cd ~/projects/ArginTaxPayer
+git fetch origin
+git switch phase/15-role-based-dashboard
+git pull --ff-only origin phase/15-role-based-dashboard
+git status --short
+bash scripts/phase15-step16-integrated-acceptance.sh
+git rev-parse HEAD
+\`\`\`
+
+Only after the script reports *AUTOMATED MACOS GATE PASS* should the exact new SHA be recorded. The previous macOS output for \`11559e7...\` is historical evidence, not a substitute for a new same-SHA run.
+
+### 2. Connect to Ubuntu VPS
+
+\`\`\`bash
+ssh argindev@<VPS-IP>
+cd ~/projects/ArginTaxPayer
+git fetch origin
+git switch phase/15-role-based-dashboard
+git pull --ff-only origin phase/15-role-based-dashboard
+git status --short
+git rev-parse HEAD
+\`\`\`
+
+Do not use \`git reset --hard\`, \`git clean -fd\` or force-pull; if there are local changes, inspect them and reconcile deliberately.
+
+### 3. Run Ubuntu same-SHA gate
+
+Copy the full SHA from the new successful macOS execution into the variable; **replace the placeholder**:
+
+\`\`\`bash
+cd ~/projects/ArginTaxPayer
+export PHASE15_MAC_ACCEPTED_SHA='<FULL-NEW-MACOS-PASS-SHA>'
+bash scripts/phase15-step17-ubuntu-acceptance.sh
+unset PHASE15_MAC_ACCEPTED_SHA
+\`\`\`
+
+Expected output: explicit \`[PASS]\` for Ubuntu platform/resources, .NET restore/build/tests, npm install, integrated acceptance, all dashboard regressions, full Next tests, typecheck and production build; status metadata includes the exact Ubuntu SHA and macOS SHA. A mismatch fails **before** compiling or running tests.
+
+Logs in a private local directory: \`artifacts/phase15-step17/<SHA>/ubuntu-<UTC stamp>/{manifest.tsv,status.json,*.log}\`.
+
+### 4. Additional manual Ubuntu checks (after automated PASS)
+
+1. **Role isolation**: with API running *locally* on Ubuntu and three distinct test-account tokens, run the read-only \`node scripts/phase15-step16-role-smoke.mjs\`, with the same environment-variable setup as Step16. Do not paste tokens, and do not run on production.
+2. **Finance/ledger**: verify Level1/Level2 sales gross, collections, earned allocations and signed settlements against Phase12 on the same authorized TEST records. Do not compare daily flows to as-of balances.
+3. **PostgreSQL**: the Step15 audit is test-database-only, read-only. On VPS, use \`psql -X -h 127.0.0.1 -p 5432 -U argintaxpayer -d argintaxpayer_test -f scripts/phase15-step15-query-plan-audit.sql\`, and review the output offline.
+4. **UI**: examine customer/Level2/Level1 landing, compact foldouts, KPI details, financial trends, custom dates, skeletons, error/retry and page performance at mobile and desktop width.
+5. **Fiscal nonregression**: confirm Phase10 issuance, correction, cancellation and sales-return workflows are not broken; separately QA Sandbox with fresh invoices if live fiscal acceptance is required. Never auto-resend an indeterminate invoice.
+6. **Service configuration**: check that environment remains test-only, localhost-proxied API, and no production secrets are exposed in artifacts.
+
+### Acceptance definition
+
+**Step17 source implementation is complete; no Ubuntu tests were executed by the assistant in GitHub-only context.** Only after (a) the new final SHA has Mac automated PASS, (b) that SHA has Ubuntu automated PASS, (c) requested manual checks are acknowledged, can the operator approve Step17. **Step18** is the final review/release/merge gate and must not be performed merely because the scripts exist. This phase adds no EF migrations or runtime behavior changes.

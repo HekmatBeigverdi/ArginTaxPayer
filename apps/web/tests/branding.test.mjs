@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { test } from "node:test";
+import React from "react";
+import {renderToStaticMarkup} from "react-dom/server";
+import {loadTsx} from "./helpers/load-tsx.mjs";
 const read = (path) => readFileSync(new URL("../"+path,import.meta.url),"utf8");
 test("owner-supplied Argin logo is available as a nonempty PNG", () => {
   for (const path of ["public/brand/argin-logo.png", "app/icon.png",
@@ -38,12 +41,20 @@ test("all branding images have a transparent PNG color and alpha definition", ()
     assert.ok(transparencyChunk || rgbaColorType, path+" must have transparent background");
   }
 });
-test("dashboard hero uses transparent image instead of letter tile", () => {
-  const home = read("app/(console)/dashboard/page.tsx");
-  const css = read("app/globals.css");
-  assert.match(home, /argin-welcome-logo/);
-  assert.match(home, /src="\/brand\/argin-logo\.png"/);
-  assert.doesNotMatch(home, /app-welcome-graphic" aria-hidden="true">آ/);
-  assert.match(css, /\.argin-brand-logo\{[^}]*background:transparent/);
-  assert.match(css, /\.app-welcome \.app-welcome-graphic\.argin-welcome-logo\{/);
+test("dashboard renders role-scoped analytics without the retired welcome banner",async()=>{
+  for(const [role,title] of [["Customer","وضعیت صورتحساب‌های شما"],
+    ["Level1","نمای مدیریتی کل سامانه"],["Level2","عملکرد مشتریان زیرمجموعه"]]){
+    const Page=loadTsx(new URL("../app/(console)/dashboard/page.tsx",import.meta.url),{
+      modules:{
+        "./dashboard-design.css":{},
+        "../../../lib/identity":{currentIdentity:async()=>({roles:[role]})},
+        "next/link":{default:({href,children,...props})=>React.createElement("a",{href,...props},children)}
+      }
+    }).default;
+    const html=renderToStaticMarkup(await Page());
+    assert.ok(html.includes(title),role);
+    assert.ok(html.includes('class="argin-dashboard"'),role);
+    assert.ok(!html.includes("app-welcome-graphic"),role);
+    assert.ok(!html.includes("argin-welcome-logo"),role);
+  }
 });
