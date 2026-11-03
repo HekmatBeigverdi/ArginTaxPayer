@@ -2,7 +2,6 @@ import SubscriptionStatus from "../../components/subscription-status";
 import DashboardAnalytics from "./dashboard-analytics";
 import "./dashboard-design.css";
 import Link from "next/link";
-import Image from "next/image";
 import { currentIdentity } from "../../../lib/identity";
 
 export const dynamic = "force-dynamic";
@@ -34,24 +33,11 @@ export default async function DashboardPage() {
   const customer = actor.roles.includes("Customer");
   if (!admin && !customer) return null;
   const modules = admin ? adminModules : customerModules;
-  const role = level1 ? "مدیر سطح یک" : level2 ? "مدیر سطح دو" : "کاربر پنل";
   return <>
         <DashboardAnalytics role={level1 ? "Level1" : level2 ? "Level2" : "Customer"}/>
-        <div className="app-welcome"><div><p className="app-kicker">پیشخوان آرگین</p>
-          <h1>{admin ? "مرکز مدیریت سامانه" : "داشبورد شما"}</h1>
-          <p>{admin
-            ? "مدیریت حساب‌های نرم‌افزار و مشتریان را از بخش‌های مستقل انجام دهید."
-            : "از اینجا به اطلاعات مؤدیان و بخش‌های پنل خود دسترسی دارید."}</p></div>
-          <Image className="app-welcome-graphic argin-welcome-logo" src="/brand/argin-logo.png" width={128} height={128} alt="نشان آرگین" priority unoptimized />
-        </div>
-        <section aria-label="نمای کلی امکانات" className="app-summary">
-          <div><small>نقش فعال</small><strong>{role}</strong></div>
-          <div><small>حوزه دسترسی</small><strong>{level1 ? "مدیریت سطح یک" : level2 ? "مشتریان زیرمجموعه" : "حساب شخصی"}</strong></div>
-          <div><small>وضعیت پنل</small><strong>محیط توسعه</strong></div>
-        </section>
         {customer && <SubscriptionStatus/>}
-        <div className="app-section-title"><div><h2>بخش‌های سامانه</h2>
-          <p>ماژول‌های فعال و قابلیت‌های برنامه‌ریزی‌شده</p></div></div>
+        <details className="argin-dashboard__legacy">
+          <summary>دسترسی به سایر بخش‌های سامانه <span>نمایش میان‌برها</span></summary>
         <section className="app-module-grid" aria-label="ماژول‌های سامانه">
           {modules.map(item => <article key={item.title} className="app-module">
             <div className="app-module-heading"><span className="app-module-icon">{item.symbol}</span>
@@ -62,5 +48,6 @@ export default async function DashboardPage() {
           </article>)}
         </section>
         <div className="app-help">برای حفظ امنیت، امکانات مدیریت مشتریان فقط در محدوده مجوزهای نقش فعلی در دسترس هستند.</div>
+        </details>
   </>;
 }
