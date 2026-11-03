@@ -24,8 +24,9 @@ public sealed class Phase15DashboardReadService(
     public sealed record Trend(int SchemaVersion, Window Period, Bucket[] Buckets);
     public sealed record Finance(int SchemaVersion, string Role, Window Period, string Currency,
         long SalesGrossIrr, long SalesCollectedForCohortIrr, long SalesOutstandingIrr,
-        long CollectionsInPeriodIrr, long PartnerEarnedShareIrr, long RootEarnedShareIrr,
-        long PartnerSettlementNetIrr);
+        long CollectionsInPeriodIrr, long PartnerEarnedShareIrr,
+        [property: System.Text.Json.Serialization.JsonIgnore(Condition=System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+        long? RootEarnedShareIrr, long PartnerSettlementNetIrr);
     public sealed record Attention(int SchemaVersion, Window Period, Alert[] Items);
     public sealed record Recent(int SchemaVersion, Window Period, Alert[] Items);
 
@@ -329,6 +330,6 @@ public sealed class Phase15DashboardReadService(
             actor.Role=="Level2",partnerUserId).SingleAsync(ct);
         return new(1,actor.Role,range,"IRR",sales.GrossIrr,sales.CollectedIrr,
             sales.OutstandingIrr,collections.Amount,shares.GrossIrr,
-            actor.Level1?shares.CollectedIrr:0,settled.Amount);
+            actor.Level1?shares.CollectedIrr:null,settled.Amount);
     }
 }
