@@ -4,7 +4,7 @@ import Link from "next/link";
 import PartnerDashboardDetails from "./partner-dashboard-details";
 import RootDashboardDetails from "./root-dashboard-details";
 import DashboardFinancialCharts from "./dashboard-financial-charts";
-import DashboardSubscriptionWatch from "./dashboard-subscription-watch";
+import DashboardSubscriptionWatch, {type SubscriptionWatch,type WatchLoadState} from "./dashboard-subscription-watch";
 import DashboardActionCenter from "./dashboard-action-center";
 
 import DashboardCalendar from "./dashboard-calendar";
@@ -523,11 +523,11 @@ function DashboardStatusChart({ status }: { status: InvoiceStatus }) {
   );
 }
 
-function DashboardFold({id,title,note,children}:{id:string;title:string;note:string;children:ReactNode}){
+function DashboardFold({id,title,note,children,onOpen}:{id:string;title:string;note:string;children:ReactNode;onOpen?:()=>void}){
   const [open,setOpen]=useState(false);
   return <section className="argin-dashboard__fold" data-open={open}>
     <button type="button" className="argin-dashboard__fold-trigger" aria-expanded={open}
-      aria-controls={id} onClick={()=>setOpen(x=>!x)}>
+      aria-controls={id} onClick={()=>{if(!open)onOpen?.();setOpen(x=>!x);}}>
       <span><strong>{title}</strong><small>{note}</small></span>
       <span aria-hidden="true" className="argin-dashboard__fold-chevron">⌄</span>
     </button>
@@ -555,6 +555,12 @@ export default function DashboardAnalytics({ role }: { role: Role }) {
   const [financeState, setFinanceState] = useState<Loadable<Finance>>(waiting);
   const [selectedKpi,setSelectedKpi] = useState<number|null>(null);
   const [customRange,setCustomRange] = useState<CustomRange|null>(null);
+  // A single component-scoped subscription feed serves both admin detail and action center.
+  // No module-global cache: results disappear when this authenticated dashboard unmounts.
+  const [watchEnabled,setWatchEnabled]=useState(false);
+  const [watchRetry,setWatchRetry]=useState(0);
+  const [watchStatus,setWatchStatus]=useState<WatchLoadState>("idle");
+  const [watchData,setWatchData]=useState<SubscriptionWatch|null>(null);
   const admin = role !== "Customer";
 
   useEffect(() => {
@@ -616,6 +622,29 @@ export default function DashboardAnalytics({ role }: { role: Role }) {
 
     return () => controller.abort();
   }, [role, admin, period, customRange, version]);
+  useEffect(()=>{
+    if(!admin||!watchEnabled)return;
+    const controller=new AbortController();
+    setWatchStatus("loading");
+    setWatchData(null);
+    fetch("/api/dashboard/subscriptions-watch",{cache:"no-store",signal:controller.signal})
+      .then(async response=>{
+        if(!response.ok)throw new Error("subscription_watch_unavailable");
+        const value=await response.json() as SubscriptionWatch;
+        if(value.schemaVersion!==1||value.role!==role||!Array.isArray(value.items)||
+           !Number.isSafeInteger(value.activeSubscriptionCount)||
+           !Number.isSafeInteger(value.expiringWithinThirtyDays)||
+           !Number.isSafeInteger(value.exhaustedQuantityPlans))
+          throw new Error("invalid_subscription_watch");
+        if(!controller.signal.aborted){
+          setWatchData(value);
+          setWatchStatus("ready");
+        }
+      })
+      .catch(()=>{if(!controller.signal.aborted){setWatchData(null);setWatchStatus("error");}});
+    return()=>controller.abort();
+  },[admin,role,watchEnabled,watchRetry]);
+
 
   function changePeriod(next: Period) {
     if (next === period) return;
@@ -646,9 +675,14 @@ export default function DashboardAnalytics({ role }: { role: Role }) {
     ? "آخرین دریافت: " + formatLastUpdated(overview.asOfUtc)
     : "اطلاعات هر بخش به‌صورت مستقل دریافت می‌شود";
   const retryRead = () => setVersion(current => current + 1);
+  const enableWatch=()=>setWatchEnabled(true);
+  const retryWatch=()=>{setWatchStatus("loading");setWatchData(null);setWatchEnabled(true);setWatchRetry(x=>x+1);};
+  const scopedWatch=watchData?.role===role?watchData:null;
+  const scopedWatchStatus:WatchLoadState=watchStatus==="ready"&&!scopedWatch?"loading":watchStatus;
   const actionCenter = (
     <DashboardActionCenter role={role} attentionStatus={attentionState.status}
-      attention={attentionState.data ?? []} onRetry={retryRead} />
+      attention={attentionState.data ?? []} onRetry={retryRead}
+      watchState={scopedWatchStatus} watch={scopedWatch} onRetryWatch={retryWatch} />
   );
 
   return (
@@ -744,9 +778,10 @@ export default function DashboardAnalytics({ role }: { role: Role }) {
         note="روند فروش، وصول وجه و تسویه همکاران — برای مشاهده باز کنید">
         <DashboardFinancialCharts role={role === "Level1" ? "Level1" : "Level2"} period={dateQuery} />
       </DashboardFold>}
-      {admin && <DashboardFold id="subscription-details" title="جزئیات اشتراک‌ها و سهمیه‌ها"
+      {admin && <DashboardFold id="subscription-details" onOpen={enableWatch} title="جزئیات اشتراک‌ها و سهمیه‌ها"
         note="تمدیدهای نزدیک و بسته‌های نیازمند رسیدگی — برای مشاهده باز کنید">
-        <DashboardSubscriptionWatch role={role === "Level1" ? "Level1" : "Level2"} />
+        <DashboardSubscriptionWatch role={role === "Level1" ? "Level1" : "Level2"}
+          status={scopedWatchStatus} watch={scopedWatch} onRetry={retryWatch} />
       </DashboardFold>}
       {role === "Level1" && <DashboardFold id="root-details" title="گزارش تکمیلی مدیر اصلی"
         note="آمار کل سامانه و عملکرد همکاران">
@@ -798,7 +833,7 @@ export default function DashboardAnalytics({ role }: { role: Role }) {
       </div>
       </DashboardFold>
       {admin && (
-        <DashboardFold id="operational-priorities" title="اولویت‌های عملیاتی"
+        <DashboardFold id="operational-priorities" onOpen={enableWatch} title="اولویت‌های عملیاتی"
           note="اقدام‌های نیازمند پیگیری — برای مشاهده باز کنید">
           {actionCenter}
         </DashboardFold>
