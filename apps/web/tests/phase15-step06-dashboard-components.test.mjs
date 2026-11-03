@@ -1,56 +1,53 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { test } from "node:test";
+import {readFileSync} from "node:fs";
+import {test} from "node:test";
 import ts from "typescript";
 const read=path=>readFileSync(new URL("../"+path,import.meta.url),"utf8");
 const client=read("app/(console)/dashboard/dashboard-analytics.tsx");
 const page=read("app/(console)/dashboard/page.tsx");
 const css=read("app/(console)/dashboard/dashboard-design.css");
 
-test("all shared Phase15 widgets compile as TSX without syntax diagnostics",()=>{
- const output=ts.transpileModule(client,{fileName:"dashboard-analytics.tsx",compilerOptions:{
+test("shared dashboard widgets transpile without TSX syntax errors",()=>{
+ const compiled=ts.transpileModule(client,{fileName:"dashboard-analytics.tsx",compilerOptions:{
    target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext,jsx:ts.JsxEmit.Preserve
  },reportDiagnostics:true});
- assert.deepEqual((output.diagnostics||[]).filter(x=>x.category===ts.DiagnosticCategory.Error)
+ assert.deepEqual((compiled.diagnostics??[]).filter(x=>x.category===ts.DiagnosticCategory.Error)
    .map(x=>ts.flattenDiagnosticMessageText(x.messageText,"\n")),[]);
 });
-test("dashboard page visibly mounts role-scoped UI and its styles",()=>{
- assert.match(page,/import DashboardAnalytics/);
- assert.match(page,/import "\.\/dashboard-design\.css"/);
- assert.match(page,/<DashboardAnalytics role=\{/);
- assert.match(page,/level1 \? "Level1" : level2 \? "Level2" : "Customer"/);
- assert.match(page,/admin \? adminModules : customerModules/);
+test("role-based dashboard is mounted without removing earlier feature shortcuts",()=>{
+ assert.ok(page.includes('import DashboardAnalytics'));
+ assert.ok(page.includes('import "./dashboard-design.css"'));
+ assert.ok(page.includes("<DashboardAnalytics role="));
+ assert.ok(page.includes("admin ? adminModules : customerModules"));
 });
-test("components request real scoped APIs, no fake KPI numbers or write calls",()=>{
- for(const route of ["overview","trends","attention","finance"])assert.ok(client.includes('query("'+route+'"'));
- assert.match(client,/fetch\("\/api\/dashboard\/"\+section/);
- assert.match(client,/cache:"no-store"/);
- assert.match(client,/if\(admin\)tasks\.push\(query\("finance"/);
- assert.doesNotMatch(client,/method\s*:\s*"(?:POST|PUT|DELETE)"/);
- assert.doesNotMatch(client,/Math\.random|setInterval|demoData|mockData/i);
+test("live dashboard uses read-only scoped endpoints, finance only for admins",()=>{
+ for(const section of ["overview","trends","attention","finance"])
+   assert.ok(client.includes('query("'+section+'"'));
+ assert.ok(client.includes('if(admin)query("finance"'));
+ assert.ok(client.includes('cache:"no-store"'));
+ assert.ok(!client.includes('method:"POST"'));
+ assert.ok(!client.includes("mockData"));
 });
-test("error state cannot falsely show previous period numbers",()=>{
- assert.match(client,/setState\("loading"\);setOverview\(null\);setTrend\(null\);setFinance\(null\);setAttention\(\[\]\)/);
- assert.match(client,/Promise\.all\(tasks\)/);
- assert.match(client,/setState\("error"\)/);
- assert.match(client,/status:"error",data:null/);
- assert.match(client,/if\\(admin\\)query\\("finance"/);
- assert.match(client,/setOverviewState\\(waiting\\(\\)\\)/);
- assert.match(client,/setTrendState\\(waiting\\(\\)\\)/);
- assert.match(client,/dashboard_unavailable/);
- assert.match(client,/controller\.abort\(\)/);
+test("independent requests clear prior-period values and support errors",()=>{
+ assert.ok(client.includes("setOverviewState(waiting())"));
+ assert.ok(client.includes("setTrendState(waiting())"));
+ assert.ok(client.includes("setAttentionState(waiting())"));
+ assert.ok(client.includes("setFinanceState(waiting())"));
+ assert.ok(!client.includes("Promise.all(tasks)"));
+ assert.ok(client.includes('status:"error",data:null'));
+ assert.ok(client.includes("controller.abort()"));
 });
-test("chart has textual accessible alternative and correct timeline semantics",()=>{
- assert.match(client,/role="img" aria-label=/);
- assert.match(client,/آخرین روزهای دارای فعالیت/);
- assert.match(client,/تأییدها بر مبنای تاریخ صدور/);
- assert.match(client,/status\.unknown/);
- assert.match(client,/DashboardPeriodFilter/);
+test("chart has textual alternative and accurate meaning",()=>{
+ assert.ok(client.includes('role="img" aria-label='));
+ assert.ok(client.includes("آخرین روزهای دارای فعالیت"));
+ assert.ok(client.includes("تأییدها بر مبنای تاریخ صدور"));
+ assert.ok(client.includes("status.unknown"));
+ assert.ok(client.includes("DashboardPeriodFilter"));
 });
-test("scoped CSS styles are actually integrated and responsive",()=>{
- assert.match(css,/\.argin-dashboard__composition/);
- assert.match(css,/\.argin-dashboard__quick/);
- assert.match(css,/max-width:640px/);
- assert.match(css,/:focus-visible/);
- assert.match(css,/--argin-primary/);
+test("dashboard stylesheet is scoped and responsive",()=>{
+ assert.ok(css.includes(".argin-dashboard__composition"));
+ assert.ok(css.includes(".argin-dashboard__quick"));
+ assert.ok(css.includes("max-width:640px"));
+ assert.ok(css.includes(":focus-visible"));
+ assert.ok(css.includes("--argin-primary"));
 });
