@@ -152,3 +152,19 @@ test("financial trends is denied to Customer and refuses tenant selectors",async
   assert.equal((await call(level1,"financial-trends","?period=7d")).status,200);
   assert.equal(level1.calls.length,1);
 });
+
+test("subscription watch is admin only and rejects selectors on the proxy",async()=>{
+  const customer=handler(["Customer"]);
+  assert.equal((await call(customer,"subscriptions-watch")).status,403);
+  assert.equal(customer.calls.length,0);
+  for(const roles of [["Level1"],["Level2"]]){
+    const h=handler(roles);
+    const response=await call(h,"subscriptions-watch");
+    assert.equal(response.status,200);
+    assert.equal(h.calls[0].url,"http://127.0.0.1:15089/api/dev/dashboard/subscriptions-watch");
+    assert.equal(h.calls[0].options.cache,"no-store");
+    for(const filter of ["?period=30d","?partnerUserId=1","?taxpayerId=1","?from=2026-11-01"])
+      assert.equal((await call(h,"subscriptions-watch",filter)).status,400,filter);
+    assert.equal(h.calls.length,1);
+  }
+});
