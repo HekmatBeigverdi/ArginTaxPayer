@@ -19,7 +19,7 @@ test("fail closed on wrong OS, branch, dirty files and missing mac SHA",()=>{
  assert.match(ubuntu,/phase\/15-role-based-dashboard/);
  assert.match(ubuntu,/git status --porcelain --untracked-files=no/);
  assert.match(ubuntu,/PHASE15_MAC_ACCEPTED_SHA/);
- assert.match(ubuntu,/sha.*!=.*mac_sha/);
+ assert.match(ubuntu,/\[\[ "\$sha" == "\$mac_sha" \]\]/);
  assert.match(ubuntu,/^\s*fail\(\)/m);
  assert.match(ubuntu,/git rev-parse HEAD/);
 });
