@@ -972,3 +972,68 @@ Manual QA: sign in as Customer, Level2 and Level1. Verify critical center and qu
 
 - For Level1, the priority center provides a safe navigation link to the existing `/users` management workflow. It does **not** fabricate a count of pending approvals or claim that all approval queues are integrated.
 - No authenticated, consolidated pending-approval read contract has been verified for this stage. A live count across key approvals, memory-change approvals and owner reassignment approvals requires explicit source mapping and role-scoped server aggregation in a later step; until then no potentially incorrect number is displayed.
+
+---
+
+## STEP 13 — KPI drilldowns, validated custom dates and navigation (2026-11-03)
+
+**Source implementation saved on `phase/15-role-based-dashboard`. Local runtime and operator browser acceptance not yet executed.**
+
+### Purpose
+
+After the Step12 concise dashboard, make its four KPI cards actionable without crowding the default view, and add an advanced date range without weakening the server-side scope. All new interactions are read-only and must preserve the collapsed-by-default detailed reports.
+
+### Changes implemented
+
+1. `apps/web/app/(console)/dashboard/dashboard-analytics.tsx`
+   - Each primary KPI is now a keyboard-accessible `button` inside its existing card. Selecting it displays a compact drilldown just below the four-card row; selecting it again or using Close collapses the drilldown. Selecting another KPI replaces the details rather than stacking panels.
+   - The drilldown uses only the **already authorized** `overview` or `finance` response values. No client-side query for another taxpayer, partner, or root is accepted. Level1 sees its own root share; Level2 sees its own partner share; Customer sees invoice and draft counts only.
+   - Detail descriptions differentiate commercial order gross, collections **for that cohort**, verified cash collected **during the period**, current outstanding for that cohort, and official invoice acceptance status.
+   - Contextual navigation opens the existing authorized `/subscriptions` or `/invoices` workspace. There is **no assertion that a dashboard filter is applied to the destination page**; this navigation does not invent unsupported deep-link query parameters.
+   - On a date-window change, the selected KPI detail closes, and all period-scoped cards clear their stale values before refetching.
+2. Advanced **custom date window**:
+   - Built into existing filter toolbar as a collapsed `details` section, so the first-screen dashboard stays compact.
+   - Start and end controls use **Gregorian ISO date inputs explicitly labeled میلادی**, because the backend accepts `YYYY-MM-DD`. Selected-period summaries display dates in the Persian/Jalali calendar. A dedicated Jalali date selector can replace these fields in a later visual refinement without changing the API contract.
+   - Client validation: real ISO calendar dates, ordered start/end, not later than current Tehran date, span no more than 365 days between endpoints (366 inclusive days). These checks are repeated authoritatively by `Phase15DashboardReadService.ResolveWindow`.
+   - `GET /api/dashboard/{overview,trends,attention,finance,financial-trends,root}` uses `period=custom&from=YYYY-MM-DD&to=YYYY-MM-DD` when applicable. For each role, only authorized endpoints are requested. Latest response clears prior-period stale finance and invoice counts.
+   - `/api/dashboard/subscriptions-watch` and `/partner` remain current snapshots and **must not** receive date filters.
+3. `apps/web/app/(console)/dashboard/dashboard-financial-charts.tsx` and `root-dashboard-details.tsx`: accept validated query-string period fragments from the dashboard parent, so date selectors and financial/partner comparisons stay synchronized. Child fetches remain abortable, read-only and no-store.
+4. `apps/web/app/(console)/dashboard/dashboard-design.css`: scoped RTL compact style for advanced date accordion, KPI keyboard focus, selected state, responsive 1/2/3-column drilldown facts and accessible links.
+5. Tests: new `apps/web/tests/phase15-step13-dashboard-drilldown.test.mjs`; extended `apps/web/tests/phase15-step03-dashboard-proxy.test.mjs` for custom range forwarding and role restrictions. Updated Step09 and Step10 static expectations to account for the `dateQuery` prop.
+
+### Date/window semantics
+
+- Date fields select *local calendar days in Tehran*; API resolves them to a half-open UTC interval `[from midnight, day after to midnight)`. This prevents ambiguous filtering across UTC midnight.
+- The max permitted date span and the future-date restriction prevent a client from requesting an arbitrary historical full-database scan.
+- Payment, invoice and subscription snapshots retain the previously documented distinct event-time/as-of conventions. Changing the selected period does **not** reattribute money between accounts.
+
+### Acceptance commands (macOS; before Ubuntu gate)
+
+```bash
+cd ~/projects/ArginTaxPayer
+git fetch origin
+git switch phase/15-role-based-dashboard
+git pull --ff-only origin phase/15-role-based-dashboard
+
+dotnet restore ArginTaxPayer.sln
+dotnet build ArginTaxPayer.sln -c Release --no-restore
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj -c Release --no-restore \
+  --filter "FullyQualifiedName~Phase15DashboardContractTests"
+
+cd apps/web
+npm ci
+node --test \
+  tests/phase15-step13-dashboard-drilldown.test.mjs \
+  tests/phase15-step12-action-center.test.mjs \
+  tests/phase15-step11-subscription-watch.test.mjs \
+  tests/phase15-step10-financial-trends.test.mjs \
+  tests/phase15-step09-level1-dashboard.test.mjs \
+  tests/phase15-step03-dashboard-proxy.test.mjs \
+  tests/phase15-step06-dashboard-components.test.mjs
+npm run typecheck
+npm run build
+```
+
+Manual browser QA: sign in with Customer/Level2/Level1. Open each KPI and verify exact numbers against existing API, explanatory labels, only one detail area, valid navigation, and role-safe fields. Change a preset and confirm detail closes. Open the custom-date section, choose an earlier valid Gregorian period and ensure the cards, invoice trend, financial chart and Level1 partner comparison all use it. Try reversed, impossible, future and over-one-year dates; confirm no request is issued. Check the details continue to be collapsed on page load and on mobile. A Level2 must not receive root-share fields.
+
+No migration or fiscal-authority write operations added. Local Build, xUnit, Node tests, PostgreSQL and browser PASS are pending actual operator results. The user-approved phase documentation remains in this single file.
