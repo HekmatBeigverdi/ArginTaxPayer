@@ -1,5 +1,4 @@
-/* Phase 15 / Step 05: dashboard-only design contract.
-   Ready for Step06 components. Not loaded globally until UI integration. */
+/* Phase 15 dashboard-only style system, integrated at Step06. */
 .argin-dashboard {
   --dashboard-accent:var(--argin-primary,#177f81);
   --dashboard-accent-soft:#e8f5f2;
@@ -60,3 +59,30 @@
 }
 @media(max-width:380px){.argin-dashboard__kpis {grid-template-columns:minmax(0,1fr)}}
 @media(prefers-reduced-motion:reduce){.argin-dashboard * {scroll-behavior:auto!important;transition:none!important;animation:none!important}}
+
+/* Phase 15 Step06 — live dashboard components */
+.argin-dashboard {margin-block-end:28px}
+.argin-dashboard__kpi-value[data-tone="success"]{color:var(--dashboard-success)}
+.argin-dashboard__kpi-value[data-tone="warning"]{color:var(--dashboard-warning)}
+.argin-dashboard__kpi-value[data-tone="danger"]{color:var(--dashboard-danger)}
+.argin-dashboard__retry{font:inherit;cursor:pointer;background:var(--dashboard-accent);color:#fff;border:0;padding:8px 14px;border-radius:9px;margin-inline-start:10px}
+.argin-dashboard__chart svg{height:220px;display:block}
+.argin-dashboard__chart-dates{display:flex;justify-content:space-between;gap:4px;font-size:10px;color:var(--dashboard-muted)}
+.argin-dashboard__legend{display:flex;flex-wrap:wrap;gap:16px;margin-top:12px;color:var(--dashboard-muted);font-size:11px}
+.argin-dashboard__dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-inline-end:6px;background:#aabcc3}
+.argin-dashboard__dot[data-tone="primary"]{background:#177f81}
+.argin-dashboard__dot[data-tone="amber"]{background:#e2a54b}
+.argin-dashboard__composition{display:flex;flex-direction:column;gap:15px}
+.argin-dashboard__composition-row>div:first-child{display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px}
+.argin-dashboard__track{width:100%;height:8px;background:#e9eff2;border-radius:12px;overflow:hidden}
+.argin-dashboard__track>span{height:100%;display:block;min-width:2px;background:#7b9cab;border-radius:12px}
+.argin-dashboard__track>span[data-tone="success"]{background:#197451}
+.argin-dashboard__track>span[data-tone="warning"]{background:#d19d3b}
+.argin-dashboard__track>span[data-tone="danger"]{background:#ad5050}
+.argin-dashboard__attention{list-style:none;padding:0;margin:0}
+.argin-dashboard__attention li{display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--dashboard-line);font-size:12px}
+.argin-dashboard__attention li a{color:var(--dashboard-accent);font-weight:800;text-decoration:none}
+.argin-dashboard__quick{display:flex;gap:10px;flex-wrap:wrap}
+.argin-dashboard__quick a{font-size:12px;display:inline-block;padding:10px 14px;background:var(--dashboard-accent-soft);border:1px solid #cde8e3;color:#176d6a;border-radius:10px;text-decoration:none;font-weight:700}
+.argin-dashboard__table caption{font-size:11px;color:var(--dashboard-muted);text-align:right;margin-block:12px}
+.argin-dashboard__chart-label{margin-block:6px}
