@@ -64,6 +64,7 @@ export default function DashboardActionCenter({role,attentionStatus,attention,on
     <div className="argin-dashboard__action-bottom">
       <Link href="/invoices">همه صورتحساب‌ها</Link>
       {admin&&<Link href="/subscriptions">مدیریت اشتراک‌ها</Link>}
+      {admin&&<button type="button" className="argin-dashboard__action-refresh" onClick={onRetryWatch}>تازه‌سازی هشدار اشتراک‌ها</button>}
       {role==="Level1"&&<Link href="/users">بررسی امور مدیریتی کاربران</Link>}
       {tasks.length>5&&<span>۵ مورد از {n(tasks.length)} مورد دریافت‌شده نمایش داده شده است.</span>}
     </div>
