@@ -22,10 +22,10 @@ export async function GET(request: NextRequest, context: Context) {
   if (section === "finance" && !administrator) return unavailable(403, "forbidden");
   if (section === "partner" && (actor.roles.includes("Level1") || !actor.roles.includes("Level2")))
     return unavailable(403, "forbidden");
+  if (section === "partner" && query.size > 0) return unavailable(400, "invalid_filter");
   if (query.has("partnerUserId") && (section !== "finance" || !actor.roles.includes("Level1")))
     return unavailable(403, "forbidden");
   if (query.has("taxpayerId") && (section === "finance" || section === "partner")) return unavailable(400, "invalid_filter");
-  if (section === "partner" && query.size > 0) return unavailable(400, "invalid_filter");
   const bearer = (await cookies()).get(ACCESS_COOKIE)?.value;
   if (!bearer) return unavailable(401, "unauthorized");
   try {
