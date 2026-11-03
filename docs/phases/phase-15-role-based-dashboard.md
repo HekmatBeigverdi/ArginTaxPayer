@@ -837,3 +837,9 @@ Manual QA: with valid API, test PostgreSQL and macOS web session, open `/dashboa
 ### Next — Step11
 
 Subscription renewal, quota and expiration insights. Continue adding documentation only to this single Phase15 file.
+
+### Step10 post-implementation hardening
+
+- Extended `apps/web/tests/phase15-step03-dashboard-proxy.test.mjs` with runnable Customer/Level2/Level1 negative/positive routing checks for `financial-trends` (including foreign selectors).
+- Corrected the SVG chart's vertical scaling for negative signed settlement days. Negative reversal net amounts are now mapped below zero rather than clipped into a flat bottom line. The table preserves exact signed amounts.
+- No server compilation or test database execution is claimed from these commits. Run macOS verification above and compare sums to authoritative Phase12 ledger.
