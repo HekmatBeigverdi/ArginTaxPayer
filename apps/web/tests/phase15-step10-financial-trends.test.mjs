@@ -2,11 +2,14 @@ import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 import {test} from "node:test";
 import ts from "typescript";
+import React from "react";
+import {renderToStaticMarkup} from "react-dom/server";
+import {createRequire} from "node:module";
+import {loadTsx} from "./helpers/load-tsx.mjs";
 const read=path=>readFileSync(new URL("../"+path,import.meta.url),"utf8");
 const chart=read("app/(console)/dashboard/dashboard-financial-charts.tsx");
 const root=read("app/(console)/dashboard/dashboard-analytics.tsx");
 const style=read("app/(console)/dashboard/dashboard-design.css");
-const proxy=read("app/api/dashboard/[section]/route.ts");
 const backend=read("../../src/ArginTaxPayer.Api/Dashboard/Phase15DashboardReadService.cs");
 const endpoint=read("../../src/ArginTaxPayer.Api/Dashboard/Phase15DashboardEndpoints.cs");
 
@@ -17,12 +20,35 @@ test("financial chart TSX compiles syntactically",()=>{
  assert.deepEqual((output.diagnostics??[]).filter(x=>x.category===ts.DiagnosticCategory.Error)
   .map(x=>ts.flattenDiagnosticMessageText(x.messageText,"\n")),[]);
 });
-test("chart is admin-only and root share selector is Level1-only",()=>{
+test("chart is admin-only and root share selector is Level1-only",async()=>{
  assert.match(root,/\{admin && <DashboardFold id="finance-details"/);
  assert.match(root,/<DashboardFinancialCharts/);
- assert.match(chart,/role\s*===\s*"Level1"\s*\?/);
- assert.match(chart,/rootEarnedShareIrr/);
- assert.match(proxy,/section === "financial-trends"\) && !administrator/);
+ const {NextRequest}=createRequire(import.meta.url)("next/server");
+ for(const role of ["Customer","Level1","Level2"]){
+  const calls=[];
+  const route=loadTsx(new URL("../app/api/dashboard/[section]/route.ts",import.meta.url),{
+   globals:{URL,AbortSignal,fetch:async(url,options)=>{
+    calls.push({url:url.toString(),options});return Response.json({schemaVersion:1,role});
+   }},
+   modules:{"next/headers":{cookies:async()=>({get:()=>({value:"session-token"})})},
+    "../../../../lib/identity":{ACCESS_COOKIE:"access",identityUiEnabled:()=>true,
+     currentIdentity:async()=>({roles:[role]}),identityApiOrigin:()=>"http://backend"}}
+  });
+  const response=await route.GET(new NextRequest("http://localhost/api/dashboard/financial-trends?period=30d"),
+   {params:Promise.resolve({section:"financial-trends"})});
+  assert.equal(response.status,role==="Customer"?403:200,role);
+  assert.equal(calls.length,role==="Customer"?0:1,role);
+  if(role==="Customer")continue;
+  assert.equal(calls[0].url,"http://backend/api/dev/dashboard/financial-trends?period=30d");
+  assert.equal(calls[0].options.headers.Authorization,"Bearer session-token");
+
+  const Component=loadTsx(new URL("../app/(console)/dashboard/dashboard-financial-charts.tsx",import.meta.url),{
+   modules:{react:{...React,useEffect:()=>{},useState:initial=>[initial,()=>{}]}}
+  }).default;
+  const html=renderToStaticMarkup(React.createElement(Component,{role,period:"30d"}));
+  assert.equal(html.includes("سهم مدیر اصلی"),role==="Level1",role);
+  assert.ok(html.includes("وصول وجه"));
+ }
  assert.match(endpoint,/"financial-trends"=>await service\.FinancialTrendsAsync/);
  assert.match(backend,/AuthorizeAsync\(bearer,true,ct\)/);
  assert.match(backend,/actor\.Level1\?x\.RootEarnedShareIrr:null/);
