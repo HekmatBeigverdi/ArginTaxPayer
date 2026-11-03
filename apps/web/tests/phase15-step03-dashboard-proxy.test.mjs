@@ -97,3 +97,25 @@ test("a finance request may not include a taxpayer selector",async()=>{
   assert.equal((await call(h,"finance","?taxpayerId=123")).status,400);
   assert.equal(h.calls.length,0);
 });
+
+test("only Level2 can request the unfiltered partner overview",async()=>{
+  for(const roles of [["Customer"],["Level1"],["Level1","Level2"]]){
+    const h=handler(roles);
+    assert.equal((await call(h,"partner")).status,403);
+    assert.equal(h.calls.length,0);
+  }
+  const partner=handler(["Level2"]);
+  const response=await call(partner,"partner");
+  assert.equal(response.status,200);
+  assert.equal(partner.calls.length,1);
+  assert.equal(partner.calls[0].url,"http://127.0.0.1:15089/api/dev/dashboard/partner");
+  assert.equal(partner.calls[0].options.headers.Authorization,"Bearer token");
+  assert.equal(partner.calls[0].options.cache,"no-store");
+});
+test("Level2 partner snapshot rejects any date or identity filter",async()=>{
+  const partner=handler(["Level2"]);
+  for(const params of ["?period=30d","?partnerUserId=1","?taxpayerId=1","?from=2026-11-01","?to=2026-11-03"]){
+    assert.equal((await call(partner,"partner",params)).status,400,params);
+  }
+  assert.equal(partner.calls.length,0);
+});
