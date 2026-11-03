@@ -115,7 +115,7 @@ public sealed class Phase15DashboardReadService(
              AND tp.customer_user_id=d.customer_user_id
           JOIN identity_users u ON u.id=d.customer_user_id AND u.is_active=true
           WHERE ({0}::uuid IS NULL OR d.taxpayer_id={0})
-            AND (d.customer_user_id={1}
+            AND (({6} AND d.customer_user_id={1})
               OR ({2} AND EXISTS (
                   SELECT 1 FROM customer_commercial_owners co
                   WHERE co.customer_user_id=d.customer_user_id
@@ -175,7 +175,8 @@ public sealed class Phase15DashboardReadService(
 
     private async Task<InvoiceRow[]> ReadInvoices(Actor actor, Window range, Guid? taxpayer, CancellationToken ct)
         => await db.Database.SqlQueryRaw<InvoiceRow>(InvoiceSql, taxpayer, actor.Id,
-            actor.Level1, actor.Role == "Level2", range.FromUtc, range.ToUtcExclusive)
+            actor.Level1, actor.Role == "Level2", range.FromUtc, range.ToUtcExclusive,
+            actor.Role == "Customer")
             .AsNoTracking().ToArrayAsync(ct);
 
     public static string Classify(string? authority, int? dispatch)
@@ -286,7 +287,9 @@ public sealed class Phase15DashboardReadService(
           FROM commercial_collections c JOIN commercial_orders o ON o.id=c.order_id
           WHERE c.verified_at_utc>={0} AND c.verified_at_utc<{1}
             AND o.status<>4 AND
-            (({2} AND o.root_admin_user_id={3}) OR ({4} AND o.partner_user_id={3}))
+            (({2} AND o.root_admin_user_id={3}) OR ({4} AND o.partner_user_id={3}
+              AND EXISTS (SELECT 1 FROM customer_commercial_owners own
+                WHERE own.customer_user_id=o.customer_user_id AND own.partner_level2_user_id={3})))
             AND ({5}::uuid IS NULL OR o.partner_user_id={5})
           """;
         var collections=await db.Database.SqlQueryRaw<AmountRow>(collectionsSql,
