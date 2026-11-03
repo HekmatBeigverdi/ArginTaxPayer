@@ -41,6 +41,35 @@ public sealed class Phase15DashboardReadService(
         public long LifetimePartnerSettledIrr { get; set; }
         public long LifetimePartnerOutstandingIrr { get; set; }
     }
+    // Root dashboard is a distinct Level1-only response projection, never used by Level2.
+    public sealed record RootOverview(int SchemaVersion, string Role, DateTime AsOfUtc,
+        Window Period, int ActiveCustomerCount, int ActiveSubscriptionCount,
+        int ExpiringSubscriptionCount, int ActivePartnerCount,
+        long LifetimePartnerEarnedIrr, long LifetimePartnerSettledIrr,
+        long LifetimePartnerOutstandingIrr, PartnerPerformance[] Partners,
+        string Currency = "IRR");
+    public sealed record PartnerPerformance(Guid PartnerUserId, string PartnerLabel,
+        int ActiveCustomerCount, long VerifiedCollectionsInPeriodIrr,
+        long PartnerEarnedShareInPeriodIrr, long LifetimePartnerOutstandingIrr);
+    private sealed class RootSnapshotRow
+    {
+        public int ActiveCustomerCount { get; set; }
+        public int ActiveSubscriptionCount { get; set; }
+        public int ExpiringSubscriptionCount { get; set; }
+        public int ActivePartnerCount { get; set; }
+        public long LifetimePartnerEarnedIrr { get; set; }
+        public long LifetimePartnerSettledIrr { get; set; }
+        public long LifetimePartnerOutstandingIrr { get; set; }
+    }
+    private sealed class RootPartnerRow
+    {
+        public Guid PartnerUserId { get; set; }
+        public string PartnerLabel { get; set; } = "";
+        public int ActiveCustomerCount { get; set; }
+        public long VerifiedCollectionsInPeriodIrr { get; set; }
+        public long PartnerEarnedShareInPeriodIrr { get; set; }
+        public long LifetimePartnerOutstandingIrr { get; set; }
+    }
     public sealed record Attention(int SchemaVersion, Window Period, Alert[] Items);
     public sealed record Recent(int SchemaVersion, Window Period, Alert[] Items);
 
@@ -322,6 +351,137 @@ public sealed class Phase15DashboardReadService(
             result.ActiveSubscriptionCount, result.ExpiringSubscriptionCount,
             result.LifetimePartnerEarnedIrr, result.LifetimePartnerSettledIrr,
             result.LifetimePartnerOutstandingIrr);
+    }
+
+    /// <summary>
+    /// Level1 root-wide dashboard: current-owner client metrics, verified receipt activity,
+    /// and immutable lifetime partner liabilities. No invoice face value is treated as revenue.
+    /// </summary>
+    public async Task<RootOverview> RootOverviewAsync(
+        string? bearer, Window range, CancellationToken ct)
+    {
+        var actor = await AuthorizeAsync(bearer, true, ct);
+        if (!actor.Level1 || actor.Role != "Level1")
+            throw new UnauthorizedAccessException("Root dashboard requires Level1.");
+        var now = DateTime.UtcNow;
+        var soon = now.AddDays(30);
+
+        const string summarySql = """
+            WITH owned AS (
+                SELECT co.customer_user_id, co.partner_level2_user_id
+                FROM customer_commercial_owners co
+                JOIN identity_users u ON u.id=co.customer_user_id AND u.is_active=true
+                WHERE co.root_level1_user_id={0}
+            ), active_subscriptions AS (
+                SELECT sub.id,sub.expires_at_utc
+                FROM customer_subscriptions sub
+                JOIN owned own ON own.customer_user_id=sub.customer_user_id
+                WHERE sub.state=2 AND sub.activated_at_utc<={1}
+                  AND sub.expires_at_utc>{1}
+            ), partner_positions AS (
+                SELECT a.id,a.partner_share_irr,
+                    COALESCE(SUM(CASE WHEN e.kind=1 THEN e.amount_irr
+                        WHEN e.kind=2 THEN -e.amount_irr ELSE 0 END),0)::bigint AS settled
+                FROM commercial_revenue_allocations a
+                JOIN commercial_collections col ON col.id=a.collection_id
+                JOIN commercial_orders ord ON ord.id=col.order_id
+                JOIN owned own ON own.customer_user_id=ord.customer_user_id
+                   AND own.partner_level2_user_id=a.partner_user_id
+                LEFT JOIN partner_settlement_events e ON e.allocation_id=a.id
+                WHERE a.root_user_id={0} AND a.partner_user_id IS NOT NULL
+                GROUP BY a.id,a.partner_share_irr
+            )
+            SELECT
+              (SELECT COUNT(*)::int FROM owned) AS "ActiveCustomerCount",
+              (SELECT COUNT(*)::int FROM active_subscriptions) AS "ActiveSubscriptionCount",
+              (SELECT COUNT(*)::int FROM active_subscriptions WHERE expires_at_utc<={2})
+                AS "ExpiringSubscriptionCount",
+              (SELECT COUNT(DISTINCT partner_level2_user_id)::int FROM owned
+                WHERE partner_level2_user_id IS NOT NULL) AS "ActivePartnerCount",
+              COALESCE((SELECT SUM(partner_share_irr) FROM partner_positions),0)::bigint
+                AS "LifetimePartnerEarnedIrr",
+              COALESCE((SELECT SUM(settled) FROM partner_positions),0)::bigint
+                AS "LifetimePartnerSettledIrr",
+              COALESCE((SELECT SUM(partner_share_irr-settled) FROM partner_positions),0)::bigint
+                AS "LifetimePartnerOutstandingIrr"
+            """;
+        var summary = await db.Database.SqlQueryRaw<RootSnapshotRow>(
+                summarySql, actor.Id, now, soon).SingleAsync(ct);
+
+        // First resolve current root-owned partner identities; financial subqueries are
+        // then constrained by the same current ownership and receipt/order root.
+        const string partnersSql = """
+            WITH partners AS (
+                SELECT co.partner_level2_user_id AS partner_id,
+                    COUNT(*)::int AS customer_count
+                FROM customer_commercial_owners co
+                JOIN identity_users customer ON customer.id=co.customer_user_id
+                    AND customer.is_active=true
+                WHERE co.root_level1_user_id={0}
+                    AND co.partner_level2_user_id IS NOT NULL
+                GROUP BY co.partner_level2_user_id
+            )
+            SELECT p.partner_id AS "PartnerUserId",
+                COALESCE(NULLIF(partner.normalized_mobile,''),
+                    NULLIF(partner.normalized_email,''),'همکار') AS "PartnerLabel",
+                p.customer_count AS "ActiveCustomerCount",
+                COALESCE(receipts.amount,0)::bigint AS "VerifiedCollectionsInPeriodIrr",
+                COALESCE(shares.amount,0)::bigint AS "PartnerEarnedShareInPeriodIrr",
+                COALESCE(liabilities.amount,0)::bigint AS "LifetimePartnerOutstandingIrr"
+            FROM partners p
+            JOIN identity_users partner ON partner.id=p.partner_id
+            LEFT JOIN LATERAL (
+                SELECT SUM(c.amount_irr)::bigint AS amount
+                FROM commercial_collections c
+                JOIN commercial_orders ord ON ord.id=c.order_id
+                JOIN customer_commercial_owners co ON co.customer_user_id=ord.customer_user_id
+                    AND co.root_level1_user_id={0}
+                    AND co.partner_level2_user_id=p.partner_id
+                WHERE ord.root_admin_user_id={0} AND ord.partner_user_id=p.partner_id
+                    AND ord.status<>4
+                    AND c.verified_at_utc>={1} AND c.verified_at_utc<{2}
+            ) receipts ON true
+            LEFT JOIN LATERAL (
+                SELECT SUM(a.partner_share_irr)::bigint AS amount
+                FROM commercial_revenue_allocations a
+                JOIN commercial_collections c ON c.id=a.collection_id
+                JOIN commercial_orders ord ON ord.id=c.order_id
+                JOIN customer_commercial_owners co ON co.customer_user_id=ord.customer_user_id
+                    AND co.root_level1_user_id={0}
+                    AND co.partner_level2_user_id=p.partner_id
+                WHERE a.root_user_id={0} AND a.partner_user_id=p.partner_id
+                    AND a.posted_at_utc>={1} AND a.posted_at_utc<{2}
+            ) shares ON true
+            LEFT JOIN LATERAL (
+                SELECT SUM(a.partner_share_irr-COALESCE(se.net_settled,0))::bigint AS amount
+                FROM commercial_revenue_allocations a
+                JOIN commercial_collections c ON c.id=a.collection_id
+                JOIN commercial_orders ord ON ord.id=c.order_id
+                JOIN customer_commercial_owners co ON co.customer_user_id=ord.customer_user_id
+                    AND co.root_level1_user_id={0}
+                    AND co.partner_level2_user_id=p.partner_id
+                LEFT JOIN LATERAL (
+                    SELECT SUM(CASE WHEN e.kind=1 THEN e.amount_irr
+                        WHEN e.kind=2 THEN -e.amount_irr ELSE 0 END)::bigint AS net_settled
+                    FROM partner_settlement_events e WHERE e.allocation_id=a.id
+                ) se ON true
+                WHERE a.root_user_id={0} AND a.partner_user_id=p.partner_id
+            ) liabilities ON true
+            ORDER BY "VerifiedCollectionsInPeriodIrr" DESC,
+                "ActiveCustomerCount" DESC,"PartnerUserId"
+            LIMIT 10
+            """;
+        var partners = await db.Database.SqlQueryRaw<RootPartnerRow>(
+                partnersSql, actor.Id, range.FromUtc, range.ToUtcExclusive)
+            .ToArrayAsync(ct);
+        return new RootOverview(1, actor.Role, now, range,
+            summary.ActiveCustomerCount, summary.ActiveSubscriptionCount,
+            summary.ExpiringSubscriptionCount, summary.ActivePartnerCount,
+            summary.LifetimePartnerEarnedIrr, summary.LifetimePartnerSettledIrr,
+            summary.LifetimePartnerOutstandingIrr,
+            partners.Select(p => new PartnerPerformance(p.PartnerUserId,p.PartnerLabel,
+                p.ActiveCustomerCount,p.VerifiedCollectionsInPeriodIrr,
+                p.PartnerEarnedShareInPeriodIrr,p.LifetimePartnerOutstandingIrr)).ToArray());
     }
 
     public async Task<Finance> FinanceAsync(string? bearer,Window range,Guid? partnerUserId,CancellationToken ct)
