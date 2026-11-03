@@ -1106,3 +1106,7 @@ npm run build
 GitHub source changes, test definitions and documentation: saved. **No operator macOS npm/tsc/Next build, network trace, SQL measurement or browser PASS has been observed by the assistant.** Step14 should be marked fully accepted only after those results. Continue to Step15 for measured performance/load audit, or the next phase-prescribed step, only after current acceptance.
 
 The single-file documentation convention remains `docs/phases/phase-15-role-based-dashboard.md`.
+
+### Step14 freshness follow-up
+
+The shared watch response is intentionally not a timed or persistent cache: while a dashboard stays open, a freshly changed subscription may not appear until the operator requests refresh. Added an explicit **تازه‌سازی آمار** button to the detailed subscription panel and **تازه‌سازی هشدار اشتراک‌ها** to the administrator attention center; both trigger the same parent-owned, abortable re-fetch and synchronize both consumers. This is a GET-only read action, not a subscription renewal or fiscal inquiry. The matching Step14 regression enforces that both controls exist. No periodic background polling or cross-session data retention was added.
