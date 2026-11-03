@@ -3,8 +3,11 @@
 \set ON_ERROR_STOP on
 BEGIN TRANSACTION READ ONLY;
 SELECT current_database() AS database_checked;
-SELECT CASE WHEN current_database()='argintaxpayer_test' THEN 'PASS'
-  ELSE (1/0)::text END AS test_database_gate;
+DO $ BEGIN
+ IF current_database()<>'argintaxpayer_test' THEN
+  RAISE EXCEPTION 'Phase15 audit is restricted to argintaxpayer_test';
+ END IF;
+END $;
 
 SELECT 'invoice_owner_mismatch' AS check_name,COUNT(*) AS observed_rows
 FROM invoice_documents d JOIN taxpayer_profiles t ON t.id=d.taxpayer_id
