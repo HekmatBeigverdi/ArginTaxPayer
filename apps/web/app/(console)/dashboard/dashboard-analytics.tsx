@@ -409,7 +409,9 @@ function DashboardPeriodFilter({ period, setPeriod, onCustom }: {
           onClick={()=>setPeriod(key)}>{periodNames[key]}</button>
       ))}
     </div>
-    <form onSubmit={apply} className="argin-dashboard__date-range" aria-label="بازه تاریخی سفارشی">
+    <details className="argin-dashboard__custom-range" data-active={period==="custom"}>
+      <summary>بازه دلخواه</summary>
+      <form onSubmit={apply} className="argin-dashboard__date-range" aria-label="بازه تاریخی سفارشی">
       <label>از (میلادی)
         <input type="date" value={from} max={today} onChange={event=>setFrom(event.target.value)} required/>
       </label>
@@ -418,7 +420,8 @@ function DashboardPeriodFilter({ period, setPeriod, onCustom }: {
       </label>
       <button type="submit" aria-pressed={period==="custom"}>اعمال بازه</button>
       {message&&<span className="argin-dashboard__date-error" role="alert">{message}</span>}
-    </form>
+      </form>
+    </details>
   </div>;
 }
 
