@@ -87,6 +87,19 @@ public sealed class Phase15DashboardReadService(
         public long PartnerEarnedShareInPeriodIrr { get; set; }
         public long LifetimePartnerOutstandingIrr { get; set; }
     }
+    public sealed record SubscriptionWatchItem(Guid SubscriptionId, int PlanKind,
+        DateTime ExpiresAtUtc, int RemainingDays, long? RemainingInvoices, string Status);
+    public sealed record SubscriptionWatch(int SchemaVersion, string Role, DateTime AsOfUtc,
+        int ActiveSubscriptionCount, int ExpiringWithinSevenDays,
+        int ExpiringWithinThirtyDays, int ExhaustedQuantityPlans,
+        SubscriptionWatchItem[] Items);
+    private sealed class SubscriptionWatchRow
+    {
+        public Guid SubscriptionId { get; set; }
+        public int PlanKind { get; set; }
+        public DateTime ExpiresAtUtc { get; set; }
+        public long? RemainingInvoices { get; set; }
+    }
     public sealed record Attention(int SchemaVersion, Window Period, Alert[] Items);
     public sealed record Recent(int SchemaVersion, Window Period, Alert[] Items);
 
@@ -581,6 +594,48 @@ public sealed class Phase15DashboardReadService(
                 x.SalesOutstandingForCohortIrr,x.CollectionsInPeriodIrr,
                 x.PartnerEarnedShareIrr,actor.Level1?x.RootEarnedShareIrr:null,
                 x.PartnerSettlementNetIrr)).ToArray());
+    }
+
+    public async Task<SubscriptionWatch> SubscriptionWatchAsync(string? bearer,CancellationToken ct)
+    {
+        var actor=await AuthorizeAsync(bearer,true,ct);
+        var now=DateTime.UtcNow;
+        const string sql = """
+            WITH ranked AS (
+              SELECT sub.id AS "SubscriptionId", sub.kind AS "PlanKind",
+                sub.expires_at_utc AS "ExpiresAtUtc",
+                CASE WHEN sub.kind=2 THEN GREATEST(COALESCE(c.available_units,0),0)::bigint
+                     ELSE NULL::bigint END AS "RemainingInvoices",
+                ROW_NUMBER() OVER (PARTITION BY sub.customer_user_id
+                  ORDER BY sub.activated_at_utc DESC,sub.id DESC) AS rn
+              FROM customer_subscriptions sub
+              JOIN customer_commercial_owners co ON co.customer_user_id=sub.customer_user_id
+              JOIN identity_users u ON u.id=sub.customer_user_id AND u.is_active=true
+              LEFT JOIN subscription_credit_accounts c ON c.subscription_id=sub.id
+              WHERE sub.state=2 AND sub.activated_at_utc<={1} AND sub.expires_at_utc>{1}
+                AND (({2} AND co.root_level1_user_id={0})
+                  OR ({3} AND co.partner_level2_user_id={0}))
+            )
+            SELECT "SubscriptionId","PlanKind","ExpiresAtUtc","RemainingInvoices"
+            FROM ranked WHERE rn=1 ORDER BY "ExpiresAtUtc","SubscriptionId"
+            """;
+        var rows=await db.Database.SqlQueryRaw<SubscriptionWatchRow>(
+            sql,actor.Id,now,actor.Level1,actor.Role=="Level2")
+            .AsNoTracking().ToArrayAsync(ct);
+        var expiring7=rows.Count(x=>x.ExpiresAtUtc<=now.AddDays(7));
+        var expiring30=rows.Count(x=>x.ExpiresAtUtc<=now.AddDays(30));
+        var exhausted=rows.Count(x=>x.PlanKind==2 && x.RemainingInvoices==0);
+        var items=rows.Where(x=>x.ExpiresAtUtc<=now.AddDays(30) ||
+                x.PlanKind==2 && x.RemainingInvoices==0)
+            .Take(10).Select(x=>{
+                var days=Math.Max(0,(int)Math.Ceiling((x.ExpiresAtUtc-now).TotalDays));
+                var status=x.PlanKind==2 && x.RemainingInvoices==0
+                    ? "quota_exhausted" : days<=7 ? "urgent" : "upcoming";
+                return new SubscriptionWatchItem(x.SubscriptionId,x.PlanKind,x.ExpiresAtUtc,
+                    days,x.RemainingInvoices,status);
+            }).ToArray();
+        return new SubscriptionWatch(1,actor.Role,now,rows.Length,expiring7,
+            expiring30,exhausted,items);
     }
 
     public async Task<Finance> FinanceAsync(string? bearer,Window range,Guid? partnerUserId,CancellationToken ct)
