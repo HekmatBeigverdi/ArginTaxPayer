@@ -80,7 +80,7 @@ Status: Repository source audit completed; runtime/database validation pending.
 - Current `main` contains Next.js 15.5.28 and no charting library in `apps/web/package.json`; prefer accessible lightweight SVG or consciously approved dependency.
 - Data-volume and query performance on real PostgreSQL are unverified; no runtime tests have been run as part of Step01.
 
-## Next Step: Step 02 — KPI contract
+## Next Step: Step 02 — KPI contract (completed; see below)
 
 Produce an exact per-role KPI dictionary with numerator/denominator, time dimension, empty state, owner-scope predicate, source tables, status-to-bucket mapping, lineage deduplication, and SQL verification samples. Include sample payloads, API read-only routes and explicit negative authorization tests. Implement only after source/DB contract confirmation.
 
@@ -113,7 +113,7 @@ Produce an exact per-role KPI dictionary with numerator/denominator, time dimens
 
 Date: 2026-11-03 | Baseline: `phase/15-role-based-dashboard`
 Status: **DESIGN COMPLETE, IMPLEMENTATION PENDING STEP 03**
-Prerequisite: `docs/phases/phase-15-step01-dashboard-baseline-audit.md`
+Prerequisite: STEP 01 in this same file
 
 ## Decision record
 
@@ -308,3 +308,62 @@ Automated inquiry jobs, restart recovery, multi-worker handling and phases 13/14
 - [ ] Endpoint implementation and automated tests — Steps03–04
 
 **No source code, schema migrations or runtime test results are claimed by this design-only step.**
+
+---
+
+## STEP 03 — Backend aggregate read-model and Next.js proxy (2026-11-03)
+
+### Delivered on phase/15-role-based-dashboard
+
+- `src/ArginTaxPayer.Api/Dashboard/Phase15DashboardReadService.cs`: read-only PostgreSQL-backed role-aware query service. Supports Tehran-local `7d`, `30d`, `90d`, `year`, and bounded `custom`; canonical invoice lineage-root grouping; official inquiry SUCCESS distinct from Acknowledged; unsigned/unknown state visibility; customer subscription; admin commercial order gross/collected/outstanding, receipts by posting period, partner share, root share and net settlements.
+- `src/ArginTaxPayer.Api/Dashboard/Phase15DashboardEndpoints.cs`: read-only `GET /api/dev/dashboard/{overview|trends|finance|attention|recent}`, local-only and authenticated, no-store and rate limited, no mutation or authority traffic.
+- `src/ArginTaxPayer.Api/Program.cs`: service registration and mapping inside the existing Development and DB-enabled scope.
+- `apps/web/app/api/dashboard/[section]/route.ts`: authenticated strict Next.js GET-only route with role/parameter allowlist, local API destination and short timeout; customer finance denied even before backend.
+- `tests/ArginTaxPayer.Tests/Phase15DashboardContractTests.cs`: deterministic classification and Iran date window tests.
+- `apps/web/tests/phase15-step03-dashboard-proxy.test.mjs`: route isolation, forwarding and input rejection tests.
+
+### Important implementation semantics
+
+- Dashboard is **not** wired into the visual page yet. UI is scheduled for steps 05–09.
+- `accepted` requires a latest official `SUCCESS` evidence; `Acknowledged` is awaiting inquiry. Unrecognized statuses are not presented as accepted. Legal successors are associated with their original invoice root, and accepted cancellation is separate from accepted ordinary issuance.
+- `invoiceDrafts` excludes a workspace already promoted to invoice_documents, by shared workspace/document ID.
+- Revenue metrics are IRR and cannot be interpreted as accounting profit. Cohort collections and receipts-in-period are separate.
+- Existing development-only gate is retained deliberately. No production exposure, schema change or migration.
+- `trends` currently exposes `AcceptedByIssueDate` (issued cohort), **not** a report-observed acceptance series. Replace or extend in Step 06 with independently bucketed authority observation events before displaying an observed-acceptance chart.
+- `recent` is currently invoice issue-date recency; dispatch activity chronological feed is a Step 13 enhancement.
+- `finance` covers verified order/collection ledger and allocations. More comprehensive active subscription and approvals aggregates belong to Steps 10–12.
+
+### Steps 03–04 validation/acceptance requirements (NOT claimed to have run)
+
+The connected GitHub environment is source-level only; this session has not connected to the test Postgres or executed `.NET`, Next.js or live HTTP tests. These must be executed before accepting Step 03 as runtime-validated:
+
+```bash
+# macOS, from repo root, with existing dev DB tunnel already active
+git fetch origin
+git switch phase/15-role-based-dashboard
+git pull --ff-only
+dotnet restore ArginTaxPayer.sln
+dotnet build ArginTaxPayer.sln --configuration Release --no-restore
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --configuration Release --no-restore --filter FullyQualifiedName~Phase15DashboardContractTests
+cd apps/web
+npm ci
+npm run typecheck
+node --test tests/phase15-step03-dashboard-proxy.test.mjs
+npm run build
+```
+
+Re-test role security manually with authenticated Customer, Level2 and Level1 sessions against `/api/dashboard/overview?period=30d` and `/api/dashboard/finance?period=30d`. Verify Customer finance =>403; invalid `taxpayerId` =>404; Level2 foreign partner =>404/403; unauthenticated=>401. Compare aggregates against the test database and existing Phase12 finance audits.
+
+### Runtime review gates and known follow-up
+
+1. Confirm PostgreSQL query plans and numeric totals on seeded, real database; validate empty data/large histories.
+2. Confirm source builds on macOS; fix all compilation, route and SQL runtime defects before marking Step03 accepted.
+3. Expand official status classification when actual archived authority report vocabulary is confirmed; unknown remains unclassified.
+4. Check whether `issued` versus `accepted` charts and recent-activity wording accurately describe their actual timestamp dimension.
+5. Step04 must include cross-customer, cross-partner, revoked grant, changed ownership and MFA negative tests.
+
+**Step03 implementation committed; runtime acceptance remains PENDING local tests.**
+
+### Canonical file rule
+
+This is the **only Phase 15 document inside `docs/phases/`**. Append Step04 and later updates here as new sections, rather than creating additional per-step documents. Other non-Phase15 phase files must not be renamed or touched.
