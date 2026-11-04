@@ -61,10 +61,14 @@ test('known blocker: Sandbox onboarding and dispatch still require legacy test d
   }
 });
 
-test('known blocker: persisted fiscal memory lacks authoritative typed environment', () => {
+test('persisted fiscal memory has an explicit nullable authority environment, while dispatch binding remains blocked', () => {
   const fiscal = read(paths.fiscal);
-  assert.doesNotMatch(fiscal, /(?:AuthorityEnvironment|TaxAuthorityEnvironment)\s*\{/);
-  assert.doesNotMatch(fiscal, /(?:AuthorityEnvironment|TaxAuthorityEnvironment)\s*\{/);
+  assert.match(fiscal, /FiscalConnectionEnvironment\? AuthorityEnvironment/);
+  const registration = read(root + 'Persistence/Taxpayers/FiscalMemoryManagementService.cs');
+  assert.match(registration, /request\?\.AuthorityEnvironment is not/);
+  const migration = read(root + 'Persistence/Migrations/20261104220000_AddFiscalMemoryAuthorityEnvironment.cs');
+  assert.match(migration, /nullable: true/);
+  assert.match(migration, /authority_environment IS NULL OR authority_environment IN \(1, 2\)/);
   assert.match(read(paths.readiness), /sandboxFiscalMemoryId/);
 });
 
