@@ -17,6 +17,6 @@ export default async function IdentityPage() {
       <p className="identity-muted">برای ورود به فضای کاری، اطلاعات حساب خود را وارد کنید.</p>
       <IdentityFlow />
     </section>
-    <p className="identity-note">این بخش صرفاً در محیط توسعه فعال است. اطلاعات ورود خود را با دیگران به اشتراک نگذارید.</p>
+    <p className="identity-note">{process.env.NODE_ENV === "production" ? "برای حفظ امنیت حساب، کد یک‌بارمصرف و اطلاعات ورود خود را با هیچ‌کس به اشتراک نگذارید." : "این بخش صرفاً در محیط توسعه فعال است. اطلاعات ورود خود را با دیگران به اشتراک نگذارید."}</p>
   </main>;
 }
