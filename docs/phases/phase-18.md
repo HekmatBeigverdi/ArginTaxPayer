@@ -320,3 +320,11 @@ Alternative mandatory before actual production financial/tax operations:
 5. For **Step 03**, operator's lack of provider snapshot is a documented and accepted *constraint*, not proof of full backup compliance. It is safe to continue read-only discovery and non-destructive planning; actual public go-live remains BLOCKED until Step 07/12 restores and access/network preflight evidence succeed.
 
 Explicitly avoid any unreviewed SSH or firewall hardening, destructive migration, upgrade, or `ufw enable` while this recovery path is not established.
+
+### 9.8 Owner correction — provider snapshot exists (2026-11-04)
+
+Owner **corrected** Section 9.7: the hosting provider DOES provide a reported **24-hour snapshot capability**, and the owner has **initiated/taken one snapshot**. Therefore Section 9.7's assertion that provider snapshots are unavailable is **superseded** and must not be used as current provider capability. At this stage, this is owner-reported evidence, not an independently validated recovery test.
+
+Step 03 backup gate status updated to **SNAPSHOT TAKEN (owner-reported); restore readiness unverified**. Before marking complete, check the provider panel reports the snapshot as completed/successful; record its reference/time, retention/expiry, coverage of attached volumes/PostgreSQL and the precise restore procedure, without publishing credentials or private material. Also verify independent AutoSSH access and ingress/loopback exposure. Avoid reboot/recovery tests on the active VPS; rehearse on a disposable recovery target if available.
+
+A single provider snapshot **does not replace** scheduled encrypted off-host PostgreSQL backups and restoration drills for real production operations, which remain Step 07/12 mandatory gates. Production go-live remains gated on tested recovery and additional Step 04–18 acceptance.
