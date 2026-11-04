@@ -14,7 +14,7 @@ sha=$(git rev-parse HEAD)
   fail 'Identical approved macOS/Ubuntu commit SHA required'
 [[ "${PHASE18_RESTORE_DRILL_APPROVED:-}" == YES ]] ||
   fail 'Set PHASE18_RESTORE_DRILL_APPROVED=YES for disposable recovery DB creation'
-for t in psql pg_dump pg_restore sha256sum sudo docker; do
+for t in psql sha256sum sudo docker; do
   command -v "$t" >/dev/null || fail "Missing $t"
 done
 root="$PWD/artifacts/phase18-step07/production-private"
@@ -46,13 +46,17 @@ recovery="argin_p18_restore_$stamp"
 out="$PWD/artifacts/phase18-step07/restore/$sha/$stamp"
 mkdir -p "$out"; chmod 700 "$out"
 echo '[START] Custom-format backup of dedicated, unused Production DB'
-pg_dump -h "$dbhost" -p "$port" -U "$user" -d "$source_db" \
-  --format=custom --no-owner --no-acl --file="$out/production.dump" \
-  > "$out/dump.log" 2>&1 || fail 'pg_dump failed'
+# Use the PostgreSQL 17 clients embedded in the dedicated container rather
+# than changing the system's existing PostgreSQL client for unrelated apps.
+sudo -n docker exec -u postgres argintaxpayer-phase18-production-postgres \
+  pg_dump -U argin_prod_migrator -d "$source_db" \
+    --format=custom --no-owner --no-acl \
+  > "$out/production.dump" 2> "$out/dump.log" || fail 'pg_dump failed'
 [[ -s "$out/production.dump" ]] || fail 'Backup empty'
 chmod 600 "$out/production.dump"
 sha256sum "$out/production.dump" > "$out/production.sha256"
-pg_restore --list "$out/production.dump" > "$out/archive-manifest.txt" ||
+sudo -n docker exec -i -u postgres argintaxpayer-phase18-production-postgres \
+  pg_restore --list < "$out/production.dump" > "$out/archive-manifest.txt" ||
   fail 'Backup archive unreadable'
 if [[ -z "$(sudo -n docker port argintaxpayer-phase18-production-postgres 5432/tcp | grep -Fx '127.0.0.1:15434')" ]]; then
   fail 'Dedicated Docker database port altered; refuse restore'
@@ -65,9 +69,10 @@ sudo -n docker exec -u postgres argintaxpayer-phase18-production-postgres \
   > "$out/recovery-create.log" 2>&1 ||
   fail 'Recovery DB creation failed. Never retry under another instance.'
 echo "[INFO] Recovery database created: $recovery (retained for inspection)"
-pg_restore -h "$dbhost" -p "$port" -U "$user" -d "$recovery" \
-  --exit-on-error --no-owner --no-acl "$out/production.dump" \
-  > "$out/recovery-restore.log" 2>&1 ||
+sudo -n docker exec -i -u postgres argintaxpayer-phase18-production-postgres \
+  pg_restore -U argin_prod_migrator -d "$recovery" \
+    --exit-on-error --no-owner --no-acl \
+    < "$out/production.dump" > "$out/recovery-restore.log" 2>&1 ||
   fail 'Restore failed; retained separate recovery DB for safe investigation'
 count_src=$(psql "${common[@]}" -d "$source_db" -Atc "SELECT count(*) FROM pg_tables WHERE schemaname='public';")
 count_dst=$(psql "${common[@]}" -d "$recovery" -Atc "SELECT count(*) FROM pg_tables WHERE schemaname='public';")
