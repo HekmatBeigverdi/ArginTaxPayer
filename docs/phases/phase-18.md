@@ -742,3 +742,31 @@ Following successful operator test of actual Production HTTP tenant and real API
 **Same-source parity:** `PHASE18_EXPECTED_SHA` ensures the Ubuntu runner checks the supplied hash against Ubuntu HEAD, but this string is still operator-supplied; retain the macOS `git rev-parse HEAD` output and matching compilation/test artifact as independent evidence.
 
 **Operational separation:** Step05 may be closed after this *local* QA passes on Ubuntu and macOS same-source build evidence is recorded. Real public HTTPS + Nginx + full admin MFA browser acceptance is deliberately moved to the **mandatory pre-Go-Live gate after Step06 service staging**, because it cannot be run with a real upstream until Systemd staging exists. It is **not waived** and may not be marked PASS in Step05. `production-go-live BLOCKED` remains mandatory. No migration/production DB changes or source-side Release/Merge at this step.
+
+### Step 05 — FINAL OWNER ACCEPTANCE, same-SHA macOS and Ubuntu (2026-11-04)
+
+**Decision: STEP05 CLOSED / OWNER ACCEPTED for local, isolated, non-public Production readiness.** Owner supplied independently sourced macOS and Ubuntu manifests for exactly the same SHA `2d9a01edb6abfe1bcb7722a741fddea2df38edad`.
+
+macOS private manifest:
+`artifacts/phase18-step05-final/2d9a01edb6abfe1bcb7722a741fddea2df38edad/Darwin-20261104T112748Z/manifest.tsv`:
+- `browser-bff-runtime PASS`
+- `web-boundary-tests PASS`
+- `dotnet-tenant-compile PASS`
+- `tenant-isolation-db UBUNTU_ONLY` (expected)
+- `public-http-auth NOT_TESTED_NO_LIVE_SITE`
+- `production-go-live BLOCKED_PENDING_SUBSEQUENT_PHASE18_STEPS`
+
+Ubuntu private manifest:
+`artifacts/phase18-step05-e2e/reports/2d9a01edb6abfe1bcb7722a741fddea2df38edad/20261104T112826Z/manifest.tsv`:
+- `real-production-http-tenant PASS`
+- `qa-api-publish PASS`
+- `real-production-api-bff PASS`
+- `invoice-http-tenant-authorization PASS_POPULATED_SYNTHETIC_DRAFT_HTTP_IDOR`
+- `production-https-browser DEFERRED_TO_SYSTEMD_NGINX`
+- `production-go-live BLOCKED`
+
+Older Ubuntu isolated DB VerifyFull PostgreSQL migration/MFA/RBAC and synthetic tenant transfer acceptance also passed. Populated invoice IDOR tested real HTTP GET, filtered lists, and denied foreign POST to the isolated QA DB; no actual fiscal submission, signing, inquiry, SMS or customer data was involved.
+
+**Explicit non-waivable deployment blockers retained:** real public HTTPS/Nginx browser-to-backend login and complete administrative MFA session/CSRF/cookie flow, plus subsequent Step06+ service/deployment checks. Step05 closure **does not authorize enabling** tax dispatch, switching Nginx upstream, taking down maintenance, changing any existing production/shared PostgreSQL, or releasing/merging the Phase18 branch. Keep the dedicated disposable QA PostgreSQL for authorized later acceptance and disposal.
+
+**Next:** Phase18 Step06 Systemd staging/service units with loopback-only sockets and safe rollback, retaining the public maintenance page. Public real-browser acceptance belongs to the pre-Go-Live gate after isolated service staging.
