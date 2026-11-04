@@ -14,6 +14,8 @@ test("Production routes require explicit configuration and reject unsafe registr
   assert.match(program, /operationalEndpointsEnabled/);
   assert.match(program, /Identity:AllowDevelopmentRegistration/);
   assert.match(program, /Identity:OtpDeliveryMode/);
+  assert.match(program, /http:\/\/127\\.0\\.0\\.1:15090/);
+  assert.match(program, /argintaxpayer_test/);
   assert.match(program, /StartsWithSegments\("\/api\/dev"\)/);
   assert.match(program, /IsLoopbackAddress\(context\.Connection\.RemoteIpAddress\)/);
   assert.match(program, /if \(app\.Environment\.IsDevelopment\(\)\)/);
