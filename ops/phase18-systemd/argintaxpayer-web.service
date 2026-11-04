@@ -21,7 +21,7 @@ Environment=ARGIN_IDENTITY_API_INTERNAL_BASE_URL=http://127.0.0.1:15090
 Environment=ARGIN_IDENTITY_UI_ENABLED=false
 Environment=ARGIN_PRODUCTION_UI_ENABLED=false
 EnvironmentFile=-/etc/argintaxpayer/web.env
-ExecStart=/usr/bin/env node /opt/argintaxpayer/current/web/node_modules/next/dist/bin/next start --hostname 127.0.0.1 --port 15091
+ExecStart=/opt/argintaxpayer/runtime/node/bin/node /opt/argintaxpayer/current/web/node_modules/next/dist/bin/next start --hostname 127.0.0.1 --port 15091
 Restart=on-failure
 RestartSec=10s
 TimeoutStartSec=60s
