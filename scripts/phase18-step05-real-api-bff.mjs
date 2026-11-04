@@ -111,7 +111,8 @@ try {
       SigningKeyImport__Enabled: "false",
       SigningKeyGeneration__Enabled: "false"
     },
-    stdio: "ignore"
+    // The caller redirects this output to a private, gitignored test log.
+    stdio: "inherit"
   });
   await ready(apiPort, "/health/live", 200, api, "Production API");
   assert.equal((await request(apiPort, "/health/ready")).status, 200,
@@ -133,7 +134,8 @@ try {
       ARGIN_PUBLIC_BASE_URL: origin,
       ARGIN_IDENTITY_API_INTERNAL_BASE_URL: "http://127.0.0.1:15090"
     },
-    stdio: "ignore"
+    // Startup failures are actionable in the private QA report.
+    stdio: "inherit"
   });
   await ready(webPort, "/api/identity/me", 401, next, "Production BFF");
 
