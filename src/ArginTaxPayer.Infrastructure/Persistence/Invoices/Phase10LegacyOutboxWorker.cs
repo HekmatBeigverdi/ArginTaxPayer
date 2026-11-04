@@ -83,8 +83,8 @@ WHERE id=@memory AND customer_user_id=@owner AND taxpayer_id=@taxpayer
     JOIN fiscal_memories fm ON fm.id=d.fiscal_memory_id AND fm.taxpayer_id=d.taxpayer_id
     WHERE d.id=@operation AND d.customer_user_id=@owner
       AND d.taxpayer_id=@taxpayer AND d.fiscal_memory_id=@memory
-      AND (d.authority_environment IS NULL OR d.authority_environment=2)
-      AND (fm.authority_environment IS NULL OR fm.authority_environment=2)
+      AND (to_jsonb(d)->>'authority_environment' IS NULL OR to_jsonb(d)->>'authority_environment'='2')
+      AND (to_jsonb(fm)->>'authority_environment' IS NULL OR to_jsonb(fm)->>'authority_environment'='2')
   )
 """;
             foreach(var (name,value) in new (string,object)[] {
