@@ -187,7 +187,7 @@ export default function SubscriptionWorkspace({level1}:{level1:boolean}) {
                     <option value={1}>نقدی</option><option value={2}>واریز بانکی</option></select></label>
                   <label>مبلغ (ریال)<input required type="number" min={1} max={outstanding}
                     value={draft.amount} onChange={e=>setReceiptDrafts(v=>({...v,[o.orderId]:{...draft,amount:e.target.value}}))}/></label>
-                  <label>مرجع رسید<input required value={draft.reference}
+                  <label>مرجع رسید<input required maxLength={160} placeholder="کد یکتای رسید، نه عنوان روش پرداخت" value={draft.reference}
                     onChange={e=>setReceiptDrafts(v=>({...v,[o.orderId]:{...draft,reference:e.target.value}}))}/></label>
                   <button type="submit" disabled={busy}>ثبت دریافت</button>
                 </>}

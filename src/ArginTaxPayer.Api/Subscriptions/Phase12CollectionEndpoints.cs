@@ -11,11 +11,30 @@ public static class Phase12CollectionEndpoints
 {
     public sealed record ManualCollectionRequest(Guid OrderId, Guid CustomerUserId,
         CollectionChannel Channel, long AmountIrr, string ReceiptReference);
+    internal static IResult CollectionConflict(InvalidOperationException exception)
+    {
+        var (code, message) = exception.Message switch
+        {
+            "Payment reference reused with different details." => ("collection_reference_reused",
+                "این مرجع رسید قبلاً برای دریافت دیگری با همین روش پرداخت ثبت شده است. مرجع یکتای رسید جدید را وارد کنید."),
+            "Invalid collection amount." => ("collection_amount_exceeds_balance",
+                "مبلغ دریافت از ماندهٔ فعلی سفارش بیشتر است. فهرست را بازخوانی و مبلغ را اصلاح کنید."),
+            "Order not collectible." => ("collection_order_not_collectible",
+                "این سفارش قابل دریافت نیست یا لغو شده است. فهرست را بازخوانی کنید."),
+            "Order missing." => ("collection_order_missing",
+                "سفارش یافت نشد. فهرست را بازخوانی کنید."),
+            _ => (null, null)
+        };
+        return code is null
+            ? Results.Json(new { message = "ثبت دریافت به دلیل خطای داخلی انجام نشد. دوباره تلاش کنید." }, statusCode: 500)
+            : Results.Conflict(new { error = code, message });
+    }
+
     public static IEndpointRouteBuilder MapPhase12CollectionEndpoints(this IEndpointRouteBuilder routes)
     {
         routes.MapPost("/api/dev/subscriptions/collections/manual", async (
             HttpContext http, [FromBody] ManualCollectionRequest request,
-            VerifiedCollectionService service, CancellationToken ct) =>
+            VerifiedCollectionService service, ILogger<VerifiedCollectionService> logger, CancellationToken ct) =>
         {
             var ip=http.Connection.RemoteIpAddress;
             if(ip is null || !(IPAddress.IsLoopback(ip) ||
@@ -39,7 +58,13 @@ public static class Phase12CollectionEndpoints
             }
             catch(UnauthorizedAccessException) { return Results.StatusCode(403); }
             catch(ArgumentException) { return Results.BadRequest(); }
-            catch(InvalidOperationException) { return Results.Conflict(); }
+            catch(InvalidOperationException ex)
+            {
+                var result = CollectionConflict(ex);
+                if (result is IStatusCodeHttpResult { StatusCode: 500 })
+                    logger.LogError(ex, "Manual collection failed for order {OrderId}", request.OrderId);
+                return result;
+            }
         }).ExcludeFromDescription().RequireRateLimiting("signing-import");
         return routes;
     }
