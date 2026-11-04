@@ -10,7 +10,14 @@ public sealed class AddLegacyAuthorityInquiryReports : Migration
     protected override void Up(MigrationBuilder migrationBuilder) => migrationBuilder.Sql("""
 SET LOCAL lock_timeout='5s';
 DO $$ BEGIN
- IF current_database()<>'argintaxpayer_test' THEN
+ IF NOT (
+    current_database() = 'argintaxpayer_test'
+    OR (
+      current_database() = 'argin_phase18_acceptance'
+      AND current_user = 'phase18_acceptance'
+      AND EXISTS (SELECT 1 FROM pg_stat_ssl WHERE pid = pg_backend_pid() AND ssl)
+    )
+  ) THEN
   RAISE EXCEPTION 'Legacy Sandbox reports require argintaxpayer_test';
  END IF;
 END $$;
