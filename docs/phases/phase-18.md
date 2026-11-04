@@ -285,3 +285,13 @@ The last two commands require authorized sudo privileges, are inspection-only, a
 | Secure operational production API registration | Step 05/06/11 code and tests | BLOCKED UNTIL IMPLEMENTED |
 
 **Exit criteria:** This is an implementation artifact and precise operator procedure, **not** an assertion of a hardened VPS. Step 03 may only be approved as a server-readiness gate after the operator runs preflight and returns reviewed results, provider backup evidence, SSH fallback and non-disruption/ingress checks. No DNS/SSL, firewall, endpoint or tax authority changes are performed automatically. Never merge or release based on an unrun checklist.
+
+### 9.5 Owner-provided Ubuntu evidence (2026-11-04; partial)
+
+Operator ran `bash scripts/ubuntu-dev.sh status`: neither managed test API nor test Next.js process running; API readiness and Next.js probes unavailable. This is a **reported stopped state**, not evidence of production readiness or unexpected loss. Do not restart or assume collision-free production ports without separate listener inspection.
+
+Operator ran `sudo ufw status verbose`: active; incoming deny, outgoing allow, routed deny, low logging; IPv4/IPv6 rules allow 22/tcp, 8080/tcp, 8081/tcp from anywhere. **Potential exposure:** 8080/8081 must be mapped to actual listeners and business dependencies before safely restricting; no rule changes authorized. 80/443 not currently allowed, intended for Step 04 after preflight and safe change approval.
+
+Operator ran `sudo systemctl status ssh --no-pager --lines=0`: `ssh.service` active (running), triggered by `ssh.socket`, `sshd -t` startup check returned status 0. Disabling `ssh.service` in listing does not mean SSH unavailable; socket activation present. Existing administrator remote access must not be disrupted.
+
+**Remaining Step 03 blockers:** `phase18-step03-ubuntu-preflight.sh` output and capacity/listeners/time synchronization; provider snapshot/recovery evidence; second-session AutoSSH access; internet-side exposure check; SSH/DB non-regression. Do not mark Step 03 PASS on partial evidence. Operator explicitly prefers AutoSSH, including interactive VPS shell.
