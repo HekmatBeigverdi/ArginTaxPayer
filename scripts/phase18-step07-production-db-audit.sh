@@ -45,6 +45,20 @@ app_proof=$(psql -h 127.0.0.1 -p 15434 -U argin_prod_app -d argintaxpayer_prod -
 [[ "$app_proof" == 'argintaxpayer_prod|argin_prod_app|t' ]] ||
   fail 'Runtime role cannot connect over VerifyFull or has wrong identity'
 printf 'app-tls-login\tPASS\n' >> "$out/manifest.tsv"
+# After EF migration, the app must be able to SELECT an owned table without
+# becoming the schema owner or receiving migration/DDL privileges.
+export PGPASSWORD="$migrator"
+history=$(psql "${common[@]}" -Atc "SELECT to_regclass('public.\"__EFMigrationsHistory\"') IS NOT NULL;")
+if [[ "$history" == t ]]; then
+  export PGPASSWORD="$app"
+  psql -h 127.0.0.1 -p 15434 -U argin_prod_app -d argintaxpayer_prod -X -At \
+    -v ON_ERROR_STOP=1 -c 'SELECT count(*) FROM public.identity_users;' \
+    > "$out/app-read-check.log" 2>&1 ||
+    fail 'Runtime app role cannot read migrated identity_users with limited privileges'
+  printf 'app-postmigration-select\tPASS\n' >> "$out/manifest.tsv"
+else
+  printf 'app-postmigration-select\tPENDING_INITIAL_MIGRATION\n' >> "$out/manifest.tsv"
+fi
 unset PGPASSWORD
 # TLS-disabled connection must be explicitly rejected.
 if PGSSLMODE=disable PGPASSWORD="$migrator" psql "${common[@]}" -Atc 'SELECT 1' \
