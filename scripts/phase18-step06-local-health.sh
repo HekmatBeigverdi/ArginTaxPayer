@@ -3,8 +3,8 @@
 # Step06 must remain inactive; probe becomes useful only after Steps07/08.
 set -Eeuo pipefail
 umask 077
-[[ "${1:-}" == "--probe-local" && "$#" == 1 ]] ||
-  { echo '[REFUSED] Only explicit --probe-local is supported' >&2; exit 2; }
+[[ "$#" == 1 && ( "$1" == "--probe-local" || "$1" == "--probe-local-disabled-ui" ) ]] ||
+  { echo '[REFUSED] Use --probe-local or --probe-local-disabled-ui' >&2; exit 2; }
 [[ "$(uname -s)" == Linux ]] || { echo '[REFUSED] Ubuntu required' >&2; exit 2; }
 command -v curl >/dev/null || exit 2
 command -v ss >/dev/null || exit 2
@@ -24,9 +24,10 @@ code() { curl --noproxy '*' -sS -o /dev/null -w '%{http_code}' --max-time 5 "$1"
 [[ "$(code "$api/health/live")" == 200 ]] || { echo '[FAIL] API liveness' >&2; exit 1; }
 [[ "$(code "$api/health/ready")" == 200 ]] || { echo '[FAIL] API PostgreSQL readiness' >&2; exit 1; }
 webcode=$(code "$web/identity")
-[[ "$webcode" == 200 || "$webcode" == 307 || "$webcode" == 308 ]] ||
+[[ "$webcode" == 200 || "$webcode" == 307 || "$webcode" == 308 || ( "$1" == "--probe-local-disabled-ui" && "$webcode" == 404 ) ]] ||
   { echo '[FAIL] BFF web route not healthy' >&2; exit 1; }
 [[ "$(code "$api/health/dev-identity")" == 404 ]] ||
   { echo '[FAIL] Development diagnostics enabled in Production' >&2; exit 1; }
 echo '[PASS] Loopback API live/ready, web route and production dev-diagnostic isolation.'
+if [[ "$1" == "--probe-local-disabled-ui" ]]; then echo '[INFO] UI may remain disabled: no authenticated business endpoints tested.'; fi
 echo '[NOTE] This does not replace real HTTPS/Nginx/browser tests or tax authority checks.'
