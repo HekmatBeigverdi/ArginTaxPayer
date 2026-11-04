@@ -17,6 +17,10 @@ base="$PWD"
   refuse 'Wrong branch'
 [[ -z "$(git -c safe.directory="$base" status --porcelain --untracked-files=no)" ]] ||
   refuse 'Dirty tracked tree'
+[[ "${PHASE18_EXPECTED_SHA:-}" =~ ^[0-9a-f]{40}$ ]] ||
+  refuse 'Full independent macOS SHA required via PHASE18_EXPECTED_SHA'
+[[ "$(git -c safe.directory="$base" rev-parse HEAD)" == "$PHASE18_EXPECTED_SHA" ]] ||
+  refuse 'Refusing installer for unverified source SHA'
 command -v systemd-analyze >/dev/null || refuse 'systemd-analyze missing'
 command -v systemctl >/dev/null || refuse 'systemctl missing'
 command -v ss >/dev/null || refuse 'ss missing'
