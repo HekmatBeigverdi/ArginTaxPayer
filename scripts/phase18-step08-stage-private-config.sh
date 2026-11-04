@@ -22,8 +22,9 @@ done
 [[ -f "$PWD/artifacts/phase18-step07/production-private/compose.env" &&
     -f "$PWD/artifacts/phase18-step07/production-private/ca/ca.pem" ]] ||
   fail 'Step07 dedicated DB secrets or CA missing'
-for t in sudo openssl install mktemp stat sed; do command -v "$t" >/dev/null || fail "Missing $t"; done
+for t in sudo openssl install mktemp stat sed getent; do command -v "$t" >/dev/null || fail "Missing $t"; done
 sudo -v
+getent group argintaxsvc >/dev/null || fail 'Dedicated argintaxsvc group missing; do not stage yet'
 # Never overwrite an existing config or replace an existing signing/encryption secret.
 for f in /etc/argintaxpayer/api.env /etc/argintaxpayer/web.env /etc/argintaxpayer/prod-db-ca.pem; do
   if sudo test -e "$f"; then fail "Existing private config; refuse overwrite: $f"; fi
@@ -67,8 +68,10 @@ ARGIN_IDENTITY_API_INTERNAL_BASE_URL=http://127.0.0.1:15090
 ARGIN_IDENTITY_UI_ENABLED=false
 ARGIN_PRODUCTION_UI_ENABLED=false
 EOF
-sudo install -d -o root -g root -m 0700 /etc/argintaxpayer
-sudo install -o root -g root -m 0644 -T "$PWD/artifacts/phase18-step07/production-private/ca/ca.pem" /etc/argintaxpayer/prod-db-ca.pem
+sudo install -d -o root -g argintaxsvc -m 0750 /etc/argintaxpayer
+# Service must read public CA despite its ProtectHome=true restriction.
+# Only the CA is group-readable; root-only api.env and web.env remain 0600.
+sudo install -o root -g argintaxsvc -m 0640 -T "$PWD/artifacts/phase18-step07/production-private/ca/ca.pem" /etc/argintaxpayer/prod-db-ca.pem
 sudo install -o root -g root -m 0600 -T "$tmp/api.env" /etc/argintaxpayer/api.env
 sudo install -o root -g root -m 0600 -T "$tmp/web.env" /etc/argintaxpayer/web.env
 for f in /etc/argintaxpayer/api.env /etc/argintaxpayer/web.env; do
