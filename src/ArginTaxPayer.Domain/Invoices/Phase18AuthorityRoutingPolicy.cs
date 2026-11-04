@@ -20,6 +20,8 @@ public static class Phase18AuthorityRoutingPolicy
             persistedOperation.TaxpayerId == Guid.Empty ||
             persistedOperation.InvoiceId == Guid.Empty ||
             persistedOperation.FiscalMemoryId == Guid.Empty ||
+            !Enum.IsDefined(persistedOperation.Environment) ||
+            !Enum.IsDefined(persistedMemory.Environment) ||
             persistedOperation.Environment is TaxAuthorityEnvironment.Unknown ||
             persistedMemory.Environment is TaxAuthorityEnvironment.Unknown)
             return false;
@@ -33,6 +35,7 @@ public static class Phase18AuthorityRoutingPolicy
         AuthorityOperationBinding persistedMemory,
         TaxAuthorityEnvironment registeredProvider)
         => CanUseMemory(persistedOperation, persistedMemory) &&
+           Enum.IsDefined(registeredProvider) &&
            registeredProvider is not TaxAuthorityEnvironment.Unknown &&
            persistedOperation.Environment == registeredProvider;
 
