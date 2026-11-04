@@ -4,7 +4,7 @@ import { spawnSync } from "node:child_process";
 import { test } from "node:test";
 
 const read = p => readFileSync(new URL("../"+p, import.meta.url), "utf8");
-const program = read("../../../src/ArginTaxPayer.Api/Program.cs");
+const program = read("../../src/ArginTaxPayer.Api/Program.cs");
 const identity = read("lib/identity.ts");
 const proxy = read("app/api/identity/[...path]/route.ts");
 
