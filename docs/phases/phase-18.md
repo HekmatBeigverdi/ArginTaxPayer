@@ -541,3 +541,24 @@ Owner explicitly reports the **same** acceptance manifest on macOS and Ubuntu:
 - `production_go_live BLOCKED`
 
 Accept the three isolated Production integration tests as **PASS (owner-reported on both platforms)**. The manifests as quoted do not contain a literal SHA; do not claim same-SHA parity for this new integration test execution until the SHA metadata is checked. The remaining gate is an independent and disposable PostgreSQL environment, TLS-verified connection, no real users/taxpayer data, controlled fixture setup/teardown, Production-authentication/MFA and tenant isolation, cookie/CSRF browser checks, without contacting tax authority. Existing `argintaxpayer_test` must not be reclassified or reused as Production database. Keep operational publishing disabled and Nginx maintenance page unchanged. Step05 is NOT yet finally accepted.
+
+### Step 05 — dedicated disposable PostgreSQL MFA/role acceptance harness (2026-11-04)
+
+Owner approved continuing the remaining Step05 database-backed security QA. Added **source only**, not yet validated by execution:
+- `tests/ArginTaxPayer.Tests/Phase18DisposableDatabaseAcceptanceTests.cs` — explicit opt-in `RUN_PHASE18_DISPOSABLE_DB_ACCEPTANCE=1`. The test **refuses** any database other than the exact `argin_phase18_acceptance` name with exact `phase18_acceptance` PostgreSQL role on loopback (`localhost`/`127.0.0.1`) and `SslMode=VerifyFull`. Operator must provide a validated trusted Postgres certificate suitable for the chosen hostname. It checks no pending EF migrations and **zero identity users** before inserting synthetic, disposable identities. Tests: password-only login blocked for Level1/Level2, customer login and forbidden admin actions, MFA enrollment and recovery-code challenge, Level1-only ManageLevel2 capability, Level2 ReadAdministration without ManageLevel2, no arbitrary privilege creation, token logout and MFA challenge reuse. No tax authority calls, external SMS, invoice send, Nginx changes, or shared PostgreSQL test DB accesses are performed by this test.
+- `scripts/phase18-step05-disposable-db-acceptance.sh` — refuses without explicit opt-in and separately supplied private connection string; executes only targeted xUnit fixture. It never creates, migrates or drops DBs. Reports private logs to `artifacts/phase18-step05-db/<sha>/<utc>`, ignored by Git. Preserve log confidentiality, since integration errors could include infrastructure details.
+
+**Operator DB prerequisite and risk gates (MUST NOT skip):**
+1. Use a **new disposable database** created manually by a privileged DB operator. Database and role exactly as specified, dedicated local Postgres listener with proper TLS hostname identity and CA validation (not just `SslMode=Require`), no shared customer, dev, staging or `argintaxpayer_test` database. Verify role has permissions only in this new DB, no superuser or access to existing databases. Do not use root role to run tests.
+2. On the new empty database only, apply the complete EF schema/migrations using documented migration tooling with an **explicit connection** pointing to `argin_phase18_acceptance`; verify backup/snapshot and confirm the exact target before any migration. Never execute migration commands against any existing project database as part of this acceptance.
+3. Secrets belong in an owner-controlled, mode-600 environment file/session and must never enter command history, a public PR, logs, assistant chat, or `appsettings.*.json`. An example *without secrets*:
+```bash
+# Run in a private shell where PHASE18_DISPOSABLE_DB_CONNECTION has been securely set:
+export RUN_PHASE18_DISPOSABLE_DB_ACCEPTANCE=1
+unset RUN_ARGINTAXPAYER_PG_INTEGRATION
+bash scripts/phase18-step05-disposable-db-acceptance.sh
+```
+4. The test deliberately retains synthetic fixtures in the disposable DB for audit. After acceptance, explicitly destroy that **dedicated** DB and role, only after verifying exact name and no other dependent resources. There is no automated database drop.
+5. Run macOS through its existing protected localhost:15432 tunnel only if the TLS certificate's hostname validation can be satisfied; otherwise run on Ubuntu loopback on the dedicated Postgres instance and report macOS as NOT RUN for the database gate. Do not weaken TLS or reconfigure the shared test DB to work around certificates.
+
+**Important limitations:** Test does not yet prove real browser BFF cookie/session/CSRF behavior, cross-tenant ownership of fiscal entities, live Production tax authority routing, or the TLS certificate configuration of a future production database. Those remain separate **BLOCKED** gates. Step05 is **NOT FINALLY ACCEPTED**. No fabricated database or credential setup is claimed. Existing Nginx tax domain continues to serve its separate HTTPS maintenance site.
