@@ -78,9 +78,18 @@ internal sealed class Phase10LegacyOutboxWorker(
 SELECT memory_identifier FROM sandbox_fiscal_memories
 WHERE id=@memory AND customer_user_id=@owner AND taxpayer_id=@taxpayer
   AND current_database()='argintaxpayer_test'
+  AND EXISTS (
+    SELECT 1 FROM invoice_dispatch_operations d
+    JOIN fiscal_memories fm ON fm.id=d.fiscal_memory_id AND fm.taxpayer_id=d.taxpayer_id
+    WHERE d.id=@operation AND d.customer_user_id=@owner
+      AND d.taxpayer_id=@taxpayer AND d.fiscal_memory_id=@memory
+      AND (d.authority_environment IS NULL OR d.authority_environment=2)
+      AND (fm.authority_environment IS NULL OR fm.authority_environment=2)
+  )
 """;
             foreach(var (name,value) in new (string,object)[] {
-                ("memory",memory),("owner",customer),("taxpayer",taxpayer) })
+                ("memory",memory),("owner",customer),("taxpayer",taxpayer),
+                ("operation",operationId) })
             {
                 var parameter=cmd.CreateParameter();
                 parameter.ParameterName=name;
