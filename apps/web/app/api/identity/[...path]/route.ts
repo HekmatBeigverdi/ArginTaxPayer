@@ -96,12 +96,16 @@ async function callIdentity(operation: string, req: NextRequest, method: "GET" |
       return NextResponse.json({ error: "otp_cooldown", retryAfterSeconds: remaining },
         { status: 429, headers: { "Cache-Control": "no-store" } });
     }
+    if (operation === "phone/request" && response.status === 404)
+      return errorResult(404, "mobile_not_registered");
     if (operation === "phone/request" && response.status === 409)
       return errorResult(409, "mobile_already_registered");
     if (operation === "phone/request" && response.status === 503)
       return errorResult(503, "otp_unavailable");
     if (operation === "phone/request" && response.status === 402)
       return errorResult(402, "insufficient_sms_credit");
+    if (operation === "phone/register/complete" && response.status === 503)
+      return errorResult(503, "registration_unavailable");
     const result = await response.text();
     // Never expose raw upstream diagnostics; for enrollment only, explicitly return
     // the one-time provisioning secret to an authenticated local development user.

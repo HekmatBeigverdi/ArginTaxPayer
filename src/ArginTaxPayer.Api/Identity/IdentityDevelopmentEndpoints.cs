@@ -2,6 +2,7 @@ using ArginTaxPayer.Infrastructure.Persistence.Identity;
 using ArginTaxPayer.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Mvc;
+using System.Diagnostics;
 using System.Net;
 
 namespace ArginTaxPayer.Api.Identity;
@@ -223,6 +224,8 @@ public static class IdentityDevelopmentEndpoints
             {
                 PhoneOtpRequestStatus.AlreadyRegistered =>
                     Results.Conflict(new { error = "mobile_already_registered" }),
+                PhoneOtpRequestStatus.NotRegistered =>
+                    Results.NotFound(new { error = "mobile_not_registered" }),
                 PhoneOtpRequestStatus.RateLimited =>
                     Results.Json(new { error = "otp_cooldown", retryAfterSeconds = result.RetryAfterSeconds },
                         statusCode: StatusCodes.Status429TooManyRequests),
@@ -238,12 +241,29 @@ public static class IdentityDevelopmentEndpoints
 
         group.MapPost("/phone/register/complete", async (
             [FromBody] PhoneRegisterComplete request, HttpContext http,
-            IdentityPhoneService phones, CancellationToken ct) =>
+            IdentityPhoneService phones, ILoggerFactory loggerFactory, CancellationToken ct) =>
         {
             if (!IsLoopback(http)) return Results.NotFound();
-            return await phones.ConfirmRegistrationAsync(request.Mobile, request.Code,
-                request.Password, ct) ? Results.StatusCode(201) :
-                Results.BadRequest(new { error = "verification_failed" });
+            try
+            {
+                return await phones.ConfirmRegistrationAsync(request.Mobile, request.Code,
+                    request.Password, ct) ? Results.StatusCode(201) :
+                    Results.BadRequest(new { error = "verification_failed" });
+            }
+            catch (Exception exception) when (!ct.IsCancellationRequested)
+            {
+                var frames = new StackTrace(exception, false).GetFrames()?
+                    .Take(6)
+                    .Select(frame => frame.GetMethod() is { } method
+                        ? $"{method.DeclaringType?.Name}.{method.Name}"
+                        : "unknown")
+                    .ToArray() ?? [];
+                loggerFactory.CreateLogger("ArginTaxPayer.Identity.OtpDelivery")
+                    .LogError("OTP_REGISTRATION_PIPELINE_EXCEPTION exception_type={ExceptionType} frames={Frames}",
+                        exception.GetType().FullName, string.Join(" > ", frames));
+                return Results.Json(new { error = "registration_unavailable" },
+                    statusCode: StatusCodes.Status503ServiceUnavailable);
+            }
         });
 
         group.MapPost("/phone/login/complete", async (

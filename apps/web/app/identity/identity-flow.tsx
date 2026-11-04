@@ -65,7 +65,10 @@ function getOtpCompletionRequest(
   };
 }
 
-function getOtpError(status: number) {
+function getOtpError(status: number, error?: string) {
+  if (status === 503 && error === "registration_unavailable") {
+    return "کد پذیرفته شد، اما ساخت حساب کامل نشد. دوباره کد ثبت‌نام بگیرید.";
+  }
   return status === 429
     ? "تعداد تلاش‌ها زیاد است."
     : "کد تأیید اشتباه یا منقضی شده است.";
@@ -315,6 +318,11 @@ export default function IdentityFlow({ restrictedLogin = false }: { restrictedLo
           return;
         }
 
+        if (response.status === 404 && result.error === "mobile_not_registered") {
+          setError("این شماره هنوز ثبت‌نام نشده است. ابتدا ثبت‌نام کنید.");
+          return;
+        }
+
         if (response.status === 429) {
           const seconds =
             typeof result.retryAfterSeconds === "number" &&
@@ -348,10 +356,10 @@ export default function IdentityFlow({ restrictedLogin = false }: { restrictedLo
       }
 
       const request = getOtpCompletionRequest(purpose, identifier, code, password);
-      const { response } = await api(request.path, request.body);
+      const { response, result } = await api(request.path, request.body);
 
       if (!response.ok) {
-        setError(getOtpError(response.status));
+        setError(getOtpError(response.status, result.error));
         return;
       }
 
