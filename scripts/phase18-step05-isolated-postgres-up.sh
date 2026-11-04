@@ -20,7 +20,9 @@ if sudo docker ps -a --format '{{.Names}}' | grep -Fxq 'argintaxpayer-phase18-po
   fail 'Dedicated QA container already exists; inspect manually before proceeding'
 fi
 mkdir -p "$root/ca" "$root/server"
-chmod 700 "$root" "$root/ca" "$root/server"
+chmod 700 "$root" "$root/ca"
+# TLS mount directory must be traversable by the postgres container UID.
+chmod 755 "$root/server"
 printf '[START] Generate new private CA and 127.0.0.1 TLS server certificate\n'
 openssl req -x509 -newkey rsa:3072 -sha256 -nodes -days 30 \
   -subj '/CN=ArginTaxPayer Phase18 Ephemeral Test CA' \
