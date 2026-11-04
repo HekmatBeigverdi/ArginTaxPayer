@@ -37,11 +37,13 @@ cleanup() {
   fi
   rmdir "$socket_dir" 2>/dev/null || true
 }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 # Override inherited database configuration and explicitly prohibit operational APIs.
 (
  cd "$out/publish"
- env -u ConnectionStrings__ArginTaxPayerDb -u ARGIN_IDENTITY_UI_ENABLED \
+ exec env -u ConnectionStrings__ArginTaxPayerDb -u ARGIN_IDENTITY_UI_ENABLED \
    ConnectionStrings__ArginTaxPayerDb="Host=$socket_dir;Database=negative_smoke;Username=negative_smoke;SSL Mode=Require;Timeout=1;Pooling=false" \
    ASPNETCORE_ENVIRONMENT=Production DOTNET_ENVIRONMENT=Production \
    ASPNETCORE_URLS="$url" \
