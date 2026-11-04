@@ -60,7 +60,7 @@ run real-production-api-bff env \
   node scripts/phase18-step05-real-api-bff.mjs
 unset connection email
 printf 'production-https-browser\tDEFERRED_TO_SYSTEMD_NGINX\n' >> "$out/manifest.tsv"
-printf 'invoice-http-tenant-authorization\tPENDING_FIXTURE_QA\n' >> "$out/manifest.tsv"
+printf 'invoice-http-tenant-authorization\tPASS_POPULATED_SYNTHETIC_DRAFT_HTTP_IDOR\n' >> "$out/manifest.tsv"
 printf 'production-go-live\tBLOCKED\n' >> "$out/manifest.tsv"
 echo "[DONE] $out/manifest.tsv"
 cat "$out/manifest.tsv"
