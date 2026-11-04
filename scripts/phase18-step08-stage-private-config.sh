@@ -46,6 +46,7 @@ cat > "$tmp/api.env" <<EOF
 ASPNETCORE_ENVIRONMENT=Production
 DOTNET_ENVIRONMENT=Production
 ASPNETCORE_URLS=http://127.0.0.1:15090
+ArginTaxPayer__PublicBaseUrl=https://tax.argin.ir
 ArginTaxPayer__EnableOperationalEndpoints=false
 Ghasedak__EnableLiveSending=false
 SandboxInvoiceLegacy__Enabled=false
