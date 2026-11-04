@@ -50,11 +50,13 @@ printf 'sha=%s\nutc=%s\ndotnet=%s\nnode=%s\nnext_build_id=%s\n' "$sha" "$stamp" 
 (cd "$out" && $digest_cmd api.tar.gz web.tar.gz > SHA256SUMS)
 printf 'packaging\tBUILT_NOT_DEPLOYED\n' >> "$out/manifest.tsv"
 # Phase18 static preflight does not certify runtime security or functional Production login.
-if grep -q 'var operationalEndpointsEnabled = identityDevelopmentEnabled || productionOperationalEnabled' src/ArginTaxPayer.Api/Program.cs &&
-   grep -q 'StartsWithSegments("/api/dev")' src/ArginTaxPayer.Api/Program.cs; then
- printf 'api-prod-routes\tSOURCE_GATE_IMPLEMENTED_RUNTIME_QA_PENDING\n' >> "$out/manifest.tsv"
+if grep -Fq 'EnableIdentityDashboardOnly' src/ArginTaxPayer.Api/Program.cs &&
+   grep -Fq 'if (identityDashboardOnlyEnabled)' src/ArginTaxPayer.Api/Program.cs &&
+   grep -Fq 'app.MapPhase15DashboardEndpoints();' src/ArginTaxPayer.Api/Program.cs &&
+   grep -Fq 'Status404NotFound' src/ArginTaxPayer.Api/Program.cs; then
+ printf 'api-prod-routes\tDASHBOARD_ONLY_SOURCE_GATE_PRESENT_LIVE_QA_PENDING\n' >> "$out/manifest.tsv"
 else
- printf 'api-prod-routes\tBLOCKED_DEV_GATE\n' >> "$out/manifest.tsv"
+ printf 'api-prod-routes\tBLOCKED_DASHBOARD_ONLY_GATE\n' >> "$out/manifest.tsv"
 fi
 if grep -q 'ARGIN_PRODUCTION_UI_ENABLED' apps/web/lib/identity.ts &&
    grep -q 'ARGIN_PUBLIC_BASE_URL' apps/web/lib/identity-origin.mjs &&
