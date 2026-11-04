@@ -66,3 +66,6 @@ artifacts/phase18-step05-final/
 
 # Phase18 loopback-only actual API + BFF acceptance reports and binaries
 artifacts/phase18-step05-e2e/
+
+# Step06 Systemd private preflight and installation audit reports
+artifacts/phase18-step06/
