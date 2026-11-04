@@ -42,6 +42,18 @@ var operationalEndpointsEnabled = identityDevelopmentEnabled || productionOperat
 if (productionOperationalEnabled &&
     string.IsNullOrWhiteSpace(builder.Configuration.GetConnectionString("ArginTaxPayerDb")))
     throw new InvalidOperationException("Production operational endpoints require a configured database.");
+if (productionOperationalEnabled)
+{
+    // A defense-in-depth host binding requirement, independent of the per-route
+    // loopback checks. Production uses port 15090 so it does not take over
+    // development API port 15089. Never expose this listener through Nginx.
+    if (builder.Configuration["urls"] != "http://127.0.0.1:15090" ||
+        builder.Configuration.GetSection("Kestrel:Endpoints").Exists())
+        throw new InvalidOperationException("Production API must bind exclusively to http://127.0.0.1:15090 with no Kestrel endpoint overrides.");
+    var database = builder.Configuration.GetConnectionString("ArginTaxPayerDb")!;
+    if (database.Contains("argintaxpayer_test", StringComparison.OrdinalIgnoreCase))
+        throw new InvalidOperationException("Production operational endpoints cannot use the test database.");
+}
 // No anonymous customer registration or file-based OTP in publicly hosted Production.
 if (productionOperationalEnabled &&
     (builder.Configuration.GetValue<bool>("Identity:AllowDevelopmentRegistration") ||
