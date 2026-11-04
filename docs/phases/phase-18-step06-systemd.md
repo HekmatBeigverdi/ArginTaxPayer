@@ -37,7 +37,7 @@ git switch phase/18-production-deployment
 git pull --ff-only origin phase/18-production-deployment
 git status --short
 git rev-parse HEAD
-bash -n scripts/phase18-step06-*.sh
+for script in scripts/phase18-step06-*.sh; do bash -n "$script" || exit 1; done
 node --test apps/web/tests/phase18-step06-systemd-contract.test.mjs
 bash scripts/phase18-step06-systemd-preflight.sh
 ```
@@ -53,7 +53,7 @@ git switch phase/18-production-deployment
 git pull --ff-only origin phase/18-production-deployment
 git status --short
 git rev-parse HEAD
-bash -n scripts/phase18-step06-*.sh
+for script in scripts/phase18-step06-*.sh; do bash -n "$script" || exit 1; done
 node --test apps/web/tests/phase18-step06-systemd-contract.test.mjs
 PHASE18_EXPECTED_SHA='<FULL_MACOS_SHA>' bash scripts/phase18-step06-systemd-preflight.sh
 ```
