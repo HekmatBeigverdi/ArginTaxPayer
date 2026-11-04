@@ -1,4 +1,6 @@
 using System.Net;
+using System.Text.Json;
+using ArginTaxPayer.Infrastructure.Persistence.Invoices;
 using System.Net.Http.Json;
 using ArginTaxPayer.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Builder;
@@ -16,7 +18,7 @@ namespace ArginTaxPayer.Tests;
 /// <summary>
 /// Actual ASP.NET Core Production middleware/routing/authorization with
 /// real synthetic tenant users in dedicated TLS PostgreSQL, never customer DB.
-/// Request set is read-only except test-session login/logout.
+/// Creates only synthetic, unissued draft invoice fixtures and test sessions; never dispatches or signs.
 /// </summary>
 public sealed class Phase18ProductionHttpTenantAcceptanceTests
 {
@@ -82,6 +84,31 @@ public sealed class Phase18ProductionHttpTenantAcceptanceTests
         var tokenA = await Login(userA!);
         var tokenB = await Login(userB!);
 
+        // Persist two synthetic drafts with the same atomic writer as real
+        // application logic. No buyer, signing key, serial or authority send.
+        var invoiceAId = Guid.NewGuid();
+        var invoiceBId = Guid.NewGuid();
+        var issuedAt = DateTime.UtcNow;
+        var writer = new EfInvoiceAtomicWriter(db);
+        var jsonA = JsonSerializer.Serialize(new {
+            qa = "phase18-populated-id-oracle", id = invoiceAId,
+            customerUserId = taxpayerA.CustomerUserId, taxpayerId = taxpayerA.Id,
+            state = "Draft", lineItems = Array.Empty<object>()
+        });
+        var jsonB = JsonSerializer.Serialize(new {
+            qa = "phase18-populated-id-oracle", id = invoiceBId,
+            customerUserId = taxpayerB.CustomerUserId, taxpayerId = taxpayerB.Id,
+            state = "Draft", lineItems = Array.Empty<object>()
+        });
+        Assert.True(await writer.CreateDraftAsync(invoiceAId,
+            taxpayerA.CustomerUserId!.Value, taxpayerA.Id, issuedAt, jsonA, issuedAt));
+        Assert.True(await writer.CreateDraftAsync(invoiceBId,
+            taxpayerB.CustomerUserId!.Value, taxpayerB.Id, issuedAt, jsonB, issuedAt));
+        Assert.True(await db.InvoiceDocuments.AsNoTracking()
+            .AnyAsync(x => x.Id == invoiceAId && x.TaxpayerId == taxpayerA.Id));
+        Assert.True(await db.InvoiceDocuments.AsNoTracking()
+            .AnyAsync(x => x.Id == invoiceBId && x.TaxpayerId == taxpayerB.Id));
+
         async Task<HttpStatusCode> GetAs(string token, string path)
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, path);
@@ -98,9 +125,44 @@ public sealed class Phase18ProductionHttpTenantAcceptanceTests
             await GetAs(tokenB, $"/api/dev/taxpayers/{taxpayerB.Id}"));
         Assert.Equal(HttpStatusCode.NotFound,
             await GetAs(tokenB, $"/api/dev/taxpayers/{taxpayerA.Id}"));
-        // Invoice LIST authorization through actual Production HTTP middleware.
-        // These synthetic taxpayers have no invoice rows, so a populated
-        // invoice-IDOR acceptance remains a separate pre-Go-Live gate.
+        // Populated invoice read IDOR: foreign taxpayer and mismatched invoice IDs
+        // must both be hidden, including attempts to substitute the own scope.
+        Assert.Equal(HttpStatusCode.OK,
+            await GetAs(tokenA, $"/api/dev/taxpayers/{taxpayerA.Id}/invoices/{invoiceAId}"));
+        Assert.Equal(HttpStatusCode.OK,
+            await GetAs(tokenB, $"/api/dev/taxpayers/{taxpayerB.Id}/invoices/{invoiceBId}"));
+        Assert.Equal(HttpStatusCode.NotFound,
+            await GetAs(tokenA, $"/api/dev/taxpayers/{taxpayerB.Id}/invoices/{invoiceBId}"));
+        Assert.Equal(HttpStatusCode.NotFound,
+            await GetAs(tokenB, $"/api/dev/taxpayers/{taxpayerA.Id}/invoices/{invoiceAId}"));
+        Assert.Equal(HttpStatusCode.NotFound,
+            await GetAs(tokenA, $"/api/dev/taxpayers/{taxpayerA.Id}/invoices/{invoiceBId}"));
+        Assert.Equal(HttpStatusCode.NotFound,
+            await GetAs(tokenB, $"/api/dev/taxpayers/{taxpayerB.Id}/invoices/{invoiceAId}"));
+        Assert.Equal(HttpStatusCode.Unauthorized,
+            (await client.GetAsync($"/api/dev/taxpayers/{taxpayerA.Id}/invoices/{invoiceAId}")).StatusCode);
+
+        // Cross-tenant command attempts are rejected BEFORE validating the
+        // request body: even malformed JSON cannot modify another tenant.
+        async Task<HttpStatusCode> CrossTenantCreate(string bearer, Guid foreignTaxpayer)
+        {
+            using var req = new HttpRequestMessage(HttpMethod.Post,
+                $"/api/dev/taxpayers/{foreignTaxpayer}/invoices");
+            req.Headers.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", bearer);
+            req.Content = JsonContent.Create(new {
+                issueDateUtc = issuedAt, sellerDisplayName = "QA invalid",
+                buyerDisplayName = (string?)null
+            });
+            using var response = await client.SendAsync(req);
+            return response.StatusCode;
+        }
+        Assert.Equal(HttpStatusCode.NotFound,
+            await CrossTenantCreate(tokenA, taxpayerB.Id));
+        Assert.Equal(HttpStatusCode.NotFound,
+            await CrossTenantCreate(tokenB, taxpayerA.Id));
+
+        // Invoice LIST admission on actual populated tenant data.
         Assert.Equal(HttpStatusCode.OK,
             await GetAs(tokenA, $"/api/dev/taxpayers/{taxpayerA.Id}/invoices"));
         Assert.Equal(HttpStatusCode.NotFound,
@@ -109,6 +171,23 @@ public sealed class Phase18ProductionHttpTenantAcceptanceTests
             await GetAs(tokenB, $"/api/dev/taxpayers/{taxpayerB.Id}/invoices"));
         Assert.Equal(HttpStatusCode.NotFound,
             await GetAs(tokenB, $"/api/dev/taxpayers/{taxpayerA.Id}/invoices"));
+        // Explicitly prove scoped lists do not leak the other tenant's draft.
+        async Task<string> ListBody(string token, Guid taxpayerId)
+        {
+            using var req = new HttpRequestMessage(HttpMethod.Get,
+                $"/api/dev/taxpayers/{taxpayerId}/invoices");
+            req.Headers.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+            using var response = await client.SendAsync(req);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            return await response.Content.ReadAsStringAsync();
+        }
+        var listA = await ListBody(tokenA, taxpayerA.Id);
+        var listB = await ListBody(tokenB, taxpayerB.Id);
+        Assert.Contains(invoiceAId.ToString(), listA, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(invoiceBId.ToString(), listA, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(invoiceBId.ToString(), listB, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(invoiceAId.ToString(), listB, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(HttpStatusCode.Unauthorized,
             (await client.GetAsync($"/api/dev/taxpayers/{taxpayerA.Id}/invoices")).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized,
@@ -134,7 +213,7 @@ public sealed class Phase18ProductionHttpTenantAcceptanceTests
         Assert.Equal(HttpStatusCode.NotFound,
             (await remoteClient.GetAsync("/api/dev/identity/authorization/me")).StatusCode);
 
-        Console.WriteLine("Phase18 Production HTTP tenant isolation PASS (real DB and middleware).");
+        Console.WriteLine("Phase18 Production HTTP populated-invoice IDOR and tenant isolation PASS (real DB and middleware).");
     }
 
     private static async Task<HttpStatusCode> GetAsRemote(HttpClient client, string token, string path)
