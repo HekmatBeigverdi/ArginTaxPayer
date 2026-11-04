@@ -52,6 +52,15 @@ internal sealed class Phase10LegacyOutboxWorker(
         using var payload = JsonDocument.Parse(message.PayloadJson,
             new JsonDocumentOptions { MaxDepth = 24 });
         var root = payload.RootElement;
+        // The legacy worker is exclusively a Sandbox transport. Never permit a
+        // Production or unclassified outbox payload to select its credentials.
+        if (!root.TryGetProperty("environment", out var environmentField) ||
+            environmentField.ValueKind != JsonValueKind.String ||
+            environmentField.GetString() != "Sandbox" ||
+            !root.TryGetProperty("schema", out var schemaField) ||
+            schemaField.ValueKind != JsonValueKind.String ||
+            schemaField.GetString() != "phase10.sandbox.legacy.invoice.dispatch.v1")
+            return new("Blocked", "outbox_environment_or_schema_mismatch");
         var operationId = GuidField(root, "operationId");
         var customer = GuidField(root, "customerUserId");
         var taxpayer = GuidField(root, "taxpayerId");
@@ -68,6 +77,7 @@ internal sealed class Phase10LegacyOutboxWorker(
             cmd.CommandText = """
 SELECT memory_identifier FROM sandbox_fiscal_memories
 WHERE id=@memory AND customer_user_id=@owner AND taxpayer_id=@taxpayer
+  AND current_database()='argintaxpayer_test'
 """;
             foreach(var (name,value) in new (string,object)[] {
                 ("memory",memory),("owner",customer),("taxpayer",taxpayer) })
