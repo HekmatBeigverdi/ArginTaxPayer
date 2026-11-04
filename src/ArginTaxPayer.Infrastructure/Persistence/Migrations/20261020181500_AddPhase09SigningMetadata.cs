@@ -28,6 +28,11 @@ BEGIN
          WHERE pid = pg_backend_pid() AND ssl
       )
     )
+    OR (
+      current_database() = 'argintaxpayer_prod'
+      AND current_user = 'argin_prod_migrator'
+      AND EXISTS (SELECT 1 FROM pg_stat_ssl WHERE pid = pg_backend_pid() AND ssl)
+    )
   ) THEN
     RAISE EXCEPTION 'Phase09 draft requires argintaxpayer_test';
   END IF;
