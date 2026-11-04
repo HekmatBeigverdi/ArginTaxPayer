@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 18: Controlled Production Deployment & Dual Tax-Authority Environments
 
-**Status:** Steps 01–05 OWNER-APPROVED (2026-11-04; Step05 same-SHA local security acceptance PASS). Step 06 isolated Systemd units and guarded installer IMPLEMENTED; operator macOS/Ubuntu preflight and Ubuntu disabled-unit installation/audit PENDING. No operational Production application rollout or authority submission.  
+**Status:** Steps 01–06 OWNER-APPROVED (2026-11-04); Step 07 isolated Production PostgreSQL 17, roles, TLS, migration review and backup/restore scripts IMPLEMENTED; cross-platform operator validation and Ubuntu database/SQL/restore acceptance PENDING. Public Production application remains disabled.
 **Date:** 2026-11-04  
 **Branch:** `phase/18-production-deployment`  
 **Starting main SHA:** `6ad5246a39cace77e76901a20d149c301094f7c3` (Phase 15 merge; release `phase-15-v1.0.0` reported in merge metadata).  
@@ -796,3 +796,26 @@ Owner supplied Ubuntu installed-audit output for source SHA `0963824eb26f7cebf65
 **Decision: STEP06 CLOSED / OWNER ACCEPTED for install-only disabled/inactive Systemd supervision preparation.** This is not evidence of successfully starting real Production API/Next.js processes, live database readiness, restart recovery or external HTTPS browser sessions. These remain future deployment gates after Step07 independent Production PostgreSQL, Step08 secure config/key custody, and later security/functional checks. No activation marker, service enable/start, DNS/Nginx switch, provider charges, authority send, or shared database migration is authorized or claimed. Keep the inactive units and retain disposable QA database unless explicitly cleared.
 
 The logged source SHA was `0963824...`; later Step06 documentation/source changes may have a different HEAD. Before any future template modification or activation, require exact git SHA parity and re-check installed unit equality. Proceed to **Step07 separate Production database and migration dry-run plan**, without changing unrelated PostgreSQL services.
+
+## Step 07 — Isolated Production PostgreSQL (source implementation, 2026-11-04)
+
+User explicitly approved closure of Step06 and authorized implementing Step07. The source now defines a **new separate** PostgreSQL 17 container `argintaxpayer-phase18-production-postgres` with pinned Docker image digest, dedicated named volume, `127.0.0.1:15434` binding and TLS VerifyFull. Database `argintaxpayer_prod` has separate `argin_prod_migrator` and least-privileged `argin_prod_app` credentials, isolated from the shared PostgreSQL `postgres-postgres-1:5432` and existing disposable QA database on `15433`.
+
+Ten historical Phase09/10 migrations previously limited to test/Phase18 QA now additionally admit **only** the exact `argintaxpayer_prod` database with `argin_prod_migrator` and an actual TLS session. No runtime-app migration privilege was added. A strict .NET migration admission test and Node production DB contract test enforce this boundary. All migration scripts remain opt-in; there is **no** automatic migration during application startup or database provisioning.
+
+Source paths:
+- `ops/phase18-production-db/compose.yaml`, `ops/phase18-production-db/init/01-init-production.sh`
+- `scripts/phase18-step07-source-preflight.sh`
+- `scripts/phase18-step07-provision-production-db.sh`
+- `scripts/phase18-step07-production-db-audit.sh`
+- `scripts/phase18-step07-migration-sql-review.sh`
+- `scripts/phase18-step07-backup-restore-drill.sh`
+- `scripts/phase18-step07-apply-reviewed-migration.sh`
+- `tests/ArginTaxPayer.Tests/Phase18LegacyMigrationAdmissionTests.cs`
+- `apps/web/tests/phase18-step07-production-db-contract.test.mjs`
+
+**Detailed runbook:** [Phase18 Step07 Production Database](./phase-18-step07-production-db.md).
+
+**Security/operational gates:** private 0600 secrets and CA; named isolated Docker volume; exact-source SHA parity; VerifyFull and plaintext rejection; migration SQL generated offline, hash matched and manually reviewed; backup and separate recovery-db restore **both before and after initial migration**; no automatic drop/recreate on failure; no real customer identities or unencrypted live-data backup; Step08 production secret custody/rotation and Step12 operational encrypted backups still pending. The initial schema apply will refuse until reviewed SQL hash and pre-migration restore evidence are provided with explicit owner approval.
+
+**Status: STEP07 SOURCE IMPLEMENTED / UBUNTU OPERATOR ACCEPTANCE PENDING.** No live shell execution, Production database creation, Production Migration or restore has been performed by the assistant. Do not mark Step07 PASS or close it until actual owner-provided logs show source tests, new DB provision, role/TLS and non-TLS refusal, manual reviewed migration application, and isolated backup/restore drills. Existing Nginx, maintenance page, disabled systemd units, sandbox/real authority routing and all other databases remain unchanged; Production go-live is BLOCKED.
