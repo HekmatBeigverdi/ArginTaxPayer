@@ -81,6 +81,7 @@ public static class PersistenceRegistration
         services.AddScoped<InvoiceDispatchAdmissionRepository>();
         services.AddScoped<Phase18PersistedAuthorityEnvironmentResolver>();
         services.AddScoped<Phase18PersistedAuthorityOperationGate>();
+        services.AddScoped<Phase18AuthorityEndpointRoutingService>();
         services.AddScoped<SandboxInvoiceFiscalSerialRepository>();
         services.AddScoped<IIdempotencyReservationWriter, EfIdempotencyReservationWriter>();
 
