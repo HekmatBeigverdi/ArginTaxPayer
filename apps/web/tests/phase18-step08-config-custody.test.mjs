@@ -26,6 +26,7 @@ test('staging script must not rotate keys, activate services or modify shared Po
   assert.match(script, /refuse overwrite/);
   assert.match(script, /install -o root -g root -m 0600/);
   assert.doesNotMatch(script, /(?:systemctl\s+(?:start|enable|restart)|docker\s+(?:rm|stop|down)|dotnet ef database update|DROP DATABASE)/);
+  assert.match(script, /ArginTaxPayer__PublicBaseUrl=https:\/\/tax\.argin\.ir/);
   assert.match(script, /ArginTaxPayer__EnableOperationalEndpoints=false/);
   assert.match(script, /Ghasedak__EnableLiveSending=false/);
   assert.match(script, /Identity__MfaEncryptionKey=\$mfa_key/);
