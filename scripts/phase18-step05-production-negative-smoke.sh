@@ -26,17 +26,23 @@ echo "[INFO] Private report: $out"
 echo '[START] Isolated .NET Production publish'
 dotnet publish src/ArginTaxPayer.Api/ArginTaxPayer.Api.csproj -c Release -o "$out/publish" > "$out/publish.log" 2>&1 || die "Publish failed; inspect private log"
 pid=''
+# Production requires syntactically valid database configuration even when
+# operational routes are disabled. An empty private Unix socket directory makes
+# readiness fail without contacting a TCP listener or using real credentials.
+socket_dir=$(mktemp -d /tmp/argin-smoke-db.XXXXXX)
 cleanup() {
   if [[ -n "$pid" ]]; then
     kill "$pid" 2>/dev/null || true
     wait "$pid" 2>/dev/null || true
   fi
+  rmdir "$socket_dir" 2>/dev/null || true
 }
 trap cleanup EXIT INT TERM
-# Restrict startup environment and explicitly prohibit operational APIs.
+# Override inherited database configuration and explicitly prohibit operational APIs.
 (
  cd "$out/publish"
  env -u ConnectionStrings__ArginTaxPayerDb -u ARGIN_IDENTITY_UI_ENABLED \
+   ConnectionStrings__ArginTaxPayerDb="Host=$socket_dir;Database=negative_smoke;Username=negative_smoke;SSL Mode=Require;Timeout=1;Pooling=false" \
    ASPNETCORE_ENVIRONMENT=Production DOTNET_ENVIRONMENT=Production \
    ASPNETCORE_URLS="$url" \
    ArginTaxPayer__PublicBaseUrl=https://tax.argin.ir \
