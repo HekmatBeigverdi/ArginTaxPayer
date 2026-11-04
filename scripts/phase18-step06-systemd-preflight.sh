@@ -33,19 +33,21 @@ if [[ "$platform" == "Linux" ]]; then
     refuse 'macOS/Ubuntu SHA mismatch'
   command -v systemd-analyze >/dev/null || refuse 'systemd-analyze missing'
   command -v ss >/dev/null || refuse 'ss missing'
-  # argintaxsvc does not inherit argindev NVM or ~/.dotnet. Check only
-  # system-wide directories that systemd's /usr/bin/env can actually see.
-  node_system=$(PATH=/usr/local/bin:/usr/bin:/bin command -v node || true)
+  # Dedicated root-owned Node runtime. Never demand changing host-global Node.
+  node_system=/opt/argintaxpayer/runtime/node/bin/node
+  [[ -f "$node_system" && -x "$node_system" && ! -L "$node_system" ]] ||
+    refuse 'Dedicated Node missing; use phase18-step06-install-isolated-node.sh'
+  node_major=$("$node_system" -p 'Number(process.versions.node.split(".")[0])')
+  [[ "$node_major" =~ ^[0-9]+$ && "$node_major" -ge 20 ]] ||
+    refuse 'Dedicated Node 20+ required for Next.js Production'
+  [[ "$(stat -c %U:%G "$node_system")" == root:root ]] ||
+    refuse 'Dedicated Node must be owned by root:root'
+  # API may use existing system-wide dotnet; never modify host .NET in Step06.
   dotnet_system=$(PATH=/usr/local/bin:/usr/bin:/bin command -v dotnet || true)
-  [[ -n "$node_system" && -x "$node_system" ]] ||
-    refuse 'System-wide Node.js missing (argindev NVM is insufficient)'
   [[ -n "$dotnet_system" && -x "$dotnet_system" ]] ||
     refuse 'System-wide dotnet missing (user-local SDK is insufficient)'
-  node_major=$(PATH=/usr/local/bin:/usr/bin:/bin "$node_system" -p 'Number(process.versions.node.split(".")[0])')
-  [[ "$node_major" =~ ^[0-9]+$ && "$node_major" -ge 20 ]] ||
-    refuse 'System-wide Node.js 20+ required for Next.js Production'
   PATH=/usr/local/bin:/usr/bin:/bin "$dotnet_system" --list-runtimes |
-    grep -Eq '^Microsoft\.AspNetCore\.App 9\.' ||
+    grep -Eq '^Microsoft\\.AspNetCore\\.App 9\\.' ||
     refuse 'System-wide ASP.NET Core 9 runtime missing'
   run systemd-syntax systemd-analyze verify \
     ops/phase18-systemd/argintaxpayer-api.service \
