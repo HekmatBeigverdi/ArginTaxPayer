@@ -16,6 +16,12 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.."
 for t in sudo docker openssl psql ss git stat; do command -v "$t" >/dev/null || fail "Missing $t"; done
 sudo -v || fail 'Privileged Docker permission required'
 sudo docker compose version >/dev/null || fail 'Docker Compose v2 required'
+# Pin the already-reviewed local PostgreSQL 17 image by immutable registry digest.
+# Never use a floating tag for the Production DB container.
+image_digest=$(sudo docker image inspect postgres:17 --format '{{index .RepoDigests 0}}' 2>/dev/null || true)
+[[ "$image_digest" =~ ^postgres(@sha256:)[a-f0-9]{64}$ ]] ||
+  fail 'Missing reviewed local postgres:17 image digest; pull and review PostgreSQL 17 image separately'
+
 root="$PWD/artifacts/phase18-step07/production-private"
 [[ ! -e "$root" ]] || fail 'Production secrets directory already exists; refuse overwrite'
 if sudo docker container inspect argintaxpayer-phase18-production-postgres >/dev/null 2>&1; then
@@ -62,7 +68,7 @@ rm -f "$root/server/server.csr" "$root/server/server.ext"
 chmod 600 "$root/ca/ca.key" "$root/server/server.key"
 chmod 644 "$root/server/server.crt"
 # The official PostgreSQL 17 container account owns the TLS private key.
-pg_uid=$(sudo docker run --rm --entrypoint id postgres:17 -u postgres)
+pg_uid=$(sudo docker run --rm --entrypoint id "$image_digest" -u postgres)
 [[ "$pg_uid" =~ ^[0-9]+$ ]] || fail 'Unrecognized postgres container UID'
 sudo chown "$pg_uid:$pg_uid" "$root/server/server.key"
 bootstrap=$(openssl rand -hex 32)
@@ -73,9 +79,10 @@ PHASE18_PROD_BOOTSTRAP_PASSWORD=$bootstrap
 PHASE18_PROD_MIGRATOR_PASSWORD=$migrator
 PHASE18_PROD_APP_PASSWORD=$app
 PHASE18_PROD_TLS_DIR=$root/server
+PHASE18_PROD_POSTGRES_IMAGE=$image_digest
 EOF
 chmod 600 "$root/compose.env"
-unset bootstrap migrator app
+unset bootstrap migrator app image_digest
 # Only the dedicated project/compose file is addressed; never run compose down.
 sudo docker compose --env-file "$root/compose.env" \
   -f ops/phase18-production-db/compose.yaml up -d
