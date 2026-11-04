@@ -4,6 +4,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using ArginTaxPayer.Domain.Invoices;
+using ArginTaxPayer.Application.Invoices;
 using ArginTaxPayer.Infrastructure.Signing.Connection;
 using ArginTaxPayer.Infrastructure.Signing.Offline;
 using Microsoft.EntityFrameworkCore;
@@ -145,9 +146,32 @@ WHERE d.id=@operation AND d.customer_user_id=@customer
             var body=await response.Content.ReadAsByteArrayAsync(ct);
             if (body.Length>262144) return new("inquiry_response_too_large");
             using var document=JsonDocument.Parse(body,new JsonDocumentOptions{MaxDepth=16});
-            // No uncorrelated network response may advance stored operation
-            // status. Full reference reconciliation is a separate workflow.
-            return new("inquiry_response_pending_reconciliation",reference);
+            var root=document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object)
+                return new("inquiry_response_unrecognized");
+            if (root.TryGetProperty("errors",out var errors) &&
+                errors.ValueKind != JsonValueKind.Null &&
+                (errors.ValueKind != JsonValueKind.Array || errors.GetArrayLength()>0))
+                return new("inquiry_authority_rejected");
+            if (!root.TryGetProperty("result",out var result))
+                return new("inquiry_result_missing");
+            JsonElement rows;
+            if (result.ValueKind==JsonValueKind.Array)
+                rows=result;
+            else if (result.ValueKind==JsonValueKind.Object &&
+                result.TryGetProperty("data",out var data) &&
+                data.ValueKind==JsonValueKind.Array)
+                rows=data;
+            else
+                return new("inquiry_result_unrecognized");
+            // Scope every response row to the original durable invoice UID,
+            // memory ID and acknowledged reference. Even a correlated SUCCESS
+            // is pending separate official final-status validation.
+            var expected=new InvoiceReconciliationIdentity(operationId,
+                customerUserId,taxpayerId,trusted.FiscalMemoryId,
+                operationId.ToString("D"),"INVOICE.V01",memoryCode,reference);
+            var verdict=Phase10InquiryReconciliation.Evaluate(expected,rows.GetRawText());
+            return new(verdict.SafeCode,verdict.MatchedReference);
         }
         catch (HttpRequestException){return new("inquiry_network_unavailable");}
         catch (JsonException){return new("inquiry_response_invalid");}
