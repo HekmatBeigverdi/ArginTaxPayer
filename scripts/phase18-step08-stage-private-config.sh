@@ -25,20 +25,20 @@ done
 for t in sudo openssl install mktemp stat sed; do command -v "$t" >/dev/null || fail "Missing $t"; done
 sudo -v
 # Never overwrite an existing config or replace an existing signing/encryption secret.
-for f in /etc/argintaxpayer/api.env /etc/argintaxpayer/web.env; do
+for f in /etc/argintaxpayer/api.env /etc/argintaxpayer/web.env /etc/argintaxpayer/prod-db-ca.pem; do
   if sudo test -e "$f"; then fail "Existing private config; refuse overwrite: $f"; fi
 done
-# Secret values intentionally are NOT invented here. Authentication/signing
-# material must be explicitly supplied and reviewed under Step08's offline
-# acceptance before the operational opt-in gate is ever considered.
+# Only two source-verified 32-byte AES keys are generated for this NEW DB.
+# Never replace them after ciphertext has been created. Real authority, payment
+# and SMS provider secrets are deliberately absent.
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 dbpass=$(sed -n 's/^PHASE18_PROD_APP_PASSWORD=//p' "$PWD/artifacts/phase18-step07/production-private/compose.env")
 [[ "$dbpass" =~ ^[a-f0-9]{64}$ ]] || fail 'Missing dedicated least-privileged DB app credential'
 # Generate once, in memory only, and write to root-owned private environment file.
 # BOTH keys are AES-256 32-byte base64, as required by the current source.
-mfa_key=$(openssl rand -base64 32 | tr -d '\\n')
-wrapping_key=$(openssl rand -base64 32 | tr -d '\\n')
+mfa_key=$(openssl rand -base64 32 | tr -d '\n')
+wrapping_key=$(openssl rand -base64 32 | tr -d '\n')
 [[ -n "$mfa_key" && -n "$wrapping_key" && "$mfa_key" != "$wrapping_key" ]] || fail 'Failed to generate independent keys'
 cat > "$tmp/api.env" <<EOF
 # Phase18 Step08: private stable keys for NEW isolated Production DB, go-live still blocked.
