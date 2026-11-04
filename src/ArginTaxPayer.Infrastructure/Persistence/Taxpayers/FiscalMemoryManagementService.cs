@@ -6,10 +6,12 @@ using Npgsql;
 
 namespace ArginTaxPayer.Infrastructure.Persistence.Taxpayers;
 
-public sealed record RegisterFiscalMemoryRequest(string? MemoryIdentifier);
+public sealed record RegisterFiscalMemoryRequest(string? MemoryIdentifier,
+    FiscalConnectionEnvironment? AuthorityEnvironment = null);
 public sealed record ChangeFiscalMemoryStatusRequest(FiscalMemoryStatus Status, long ExpectedRevision);
 public sealed record FiscalMemoryView(Guid Id, Guid TaxpayerId, string MemoryIdentifier,
-    FiscalMemoryStatus Status, long Revision);
+    FiscalMemoryStatus Status, long Revision,
+    FiscalConnectionEnvironment? AuthorityEnvironment = null);
 public enum FiscalMemoryOperationStatus
 {
     Success, Invalid, Unauthenticated, Forbidden, NotFound, Conflict,
@@ -58,7 +60,9 @@ public sealed class FiscalMemoryManagementService(
         var denied = await AuthenticateParticipantAsync(bearer, taxpayerId, ct);
         if (denied is { } failure) return new(failure);
         if (taxpayerId == Guid.Empty ||
-            !FiscalMemoryOnboardingPolicy.TryNormalizeIdentifier(request?.MemoryIdentifier, out var identifier))
+             !FiscalMemoryOnboardingPolicy.TryNormalizeIdentifier(request?.MemoryIdentifier, out var identifier) ||
+            request?.AuthorityEnvironment is not { } requestedEnvironment ||
+            !Enum.IsDefined(requestedEnvironment))
             return new(FiscalMemoryOperationStatus.Invalid);
 
         // This is FIRST-TIME metadata onboarding only. The database does not yet
@@ -85,6 +89,7 @@ public sealed class FiscalMemoryManagementService(
                 {
                     Id = Guid.NewGuid(), TaxpayerId = taxpayerId,
                     MemoryIdentifier = identifier,
+                    AuthorityEnvironment = requestedEnvironment,
                     Status = FiscalMemoryStatus.PendingVerification,
                     Revision = 1, CreatedAtUtc = now, UpdatedAtUtc = now
                 };
@@ -117,7 +122,7 @@ public sealed class FiscalMemoryManagementService(
         var list = await db.FiscalMemories.AsNoTracking()
             .Where(x => x.TaxpayerId == taxpayerId)
             .OrderBy(x => x.CreatedAtUtc)
-            .Select(x => new FiscalMemoryView(x.Id, x.TaxpayerId, x.MemoryIdentifier, x.Status, x.Revision))
+            .Select(x => new FiscalMemoryView(x.Id, x.TaxpayerId, x.MemoryIdentifier, x.Status, x.Revision, x.AuthorityEnvironment))
             .ToArrayAsync(ct);
         return (FiscalMemoryOperationStatus.Success, list);
     }
@@ -155,9 +160,9 @@ public sealed class FiscalMemoryManagementService(
         if (changed != 1) return new(FiscalMemoryOperationStatus.Conflict);
         return new(FiscalMemoryOperationStatus.Success,
             new FiscalMemoryView(memory.Id, taxpayerId, memory.MemoryIdentifier,
-                FiscalMemoryStatus.Retired, memory.Revision + 1));
+                FiscalMemoryStatus.Retired, memory.Revision + 1, memory.AuthorityEnvironment));
     }
 
     private static FiscalMemoryView ToView(FiscalMemory memory) =>
-        new(memory.Id, memory.TaxpayerId, memory.MemoryIdentifier, memory.Status, memory.Revision);
+        new(memory.Id, memory.TaxpayerId, memory.MemoryIdentifier, memory.Status, memory.Revision, memory.AuthorityEnvironment);
 }
