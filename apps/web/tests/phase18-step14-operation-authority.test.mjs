@@ -30,8 +30,8 @@ test('Sandbox worker and both inquiries cannot use a Production-classified opera
   const dir = 'src/ArginTaxPayer.Infrastructure/Persistence/Invoices/';
   for (const name of ['Phase10LegacyOutboxWorker.cs','Phase10LegacyUidInquiryService.cs','Phase10LegacyReferenceInquiryService.cs']) {
     const source = read(dir + name);
-    assert.match(source, /d.authority_environment IS NULL OR d.authority_environment=2/, name);
-    assert.match(source, /fm.authority_environment IS NULL OR fm.authority_environment=2/, name);
+    assert.match(source, /to_jsonb\(d\)->>'authority_environment' IS NULL OR to_jsonb\(d\)->>'authority_environment'='2'/, name);
+    assert.match(source, /to_jsonb\(fm\)->>'authority_environment' IS NULL OR to_jsonb\(fm\)->>'authority_environment'='2'/, name);
   }
 });
 
