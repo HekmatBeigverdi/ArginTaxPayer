@@ -25,6 +25,10 @@ test('staging script must not rotate keys, activate services or modify shared Po
   assert.doesNotMatch(script, /(?:systemctl\s+(?:start|enable|restart)|docker\s+(?:rm|stop|down)|dotnet ef database update|DROP DATABASE)/);
   assert.match(script, /ArginTaxPayer__EnableOperationalEndpoints=false/);
   assert.match(script, /Ghasedak__EnableLiveSending=false/);
+  assert.match(script, /Identity__MfaEncryptionKey=\$mfa_key/);
+  assert.match(script, /SigningKeyProtection__DatabaseMasterKey=\$wrapping_key/);
+  assert.match(script, /Port=15434;Database=argintaxpayer_prod;Username=argin_prod_app/);
+  assert.match(script, /sudo install -o root -g root -m 0644/);
 });
 test('Step08 preflight never prints or exports raw secrets', () => {
   const script = read('scripts/phase18-step08-config-custody-preflight.sh');
@@ -32,4 +36,13 @@ test('Step08 preflight never prints or exports raw secrets', () => {
   assert.match(script, /source_sha/);
   assert.match(script, /key-restart-recovery\\tNOT_YET_TESTED/);
   assert.doesNotMatch(script, /(?:cat\s+.*compose\.env|sed\s+.*PASSWORD|echo\s+.*PASSWORD)/);
+});
+
+test('private configuration audit checks both keys without disclosing secret values', () => {
+  const audit = read('scripts/phase18-step08-private-config-audit.sh');
+  assert.match(audit, /base64\.b64decode\(a\[key\],validate=True\)/);
+  assert.match(audit, /Identity__MfaEncryptionKey/);
+  assert.match(audit, /SigningKeyProtection__DatabaseMasterKey/);
+  assert.match(audit, /ArginTaxPayer__EnableOperationalEndpoints/);
+  assert.match(audit, /root-only 0600/);
 });
