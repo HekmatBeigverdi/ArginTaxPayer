@@ -44,9 +44,10 @@ jobs:
             apps/web/tests/phase18-step17-legal-successor-routing.test.mjs \
             apps/web/tests/phase18-step17-scoped-outbox-worker.test.mjs \
             apps/web/tests/phase18-step17-reference-inquiry.test.mjs \
-            apps/web/tests/phase18-step18-domain-readiness.test.mjs
+            apps/web/tests/phase18-step18-domain-readiness.test.mjs \
+            apps/web/tests/phase18-step19-identity-dashboard-only.test.mjs
       - name: Syntax-check read-only Ubuntu domain probe
-        run: bash -n scripts/phase18-step18-domain-readiness.sh
+        run: bash -n scripts/phase18-step18-domain-readiness.sh scripts/phase18-step19-activate-dashboard-only.sh
       - name: Restore and compile Release
         run: |
           dotnet restore ArginTaxPayer.sln
