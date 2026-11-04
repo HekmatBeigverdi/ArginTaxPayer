@@ -334,3 +334,9 @@ A single provider snapshot **does not replace** scheduled encrypted off-host Pos
 Owner explicitly confirms the just-created VPS snapshot is shown as **Successful** in the provider console. Record Step 03 pre-change provider snapshot as **PASS (owner-confirmed provider status)**. This does not independently establish a successful restore, recovery scope or retention. Keep database encrypted off-site backup and restore drill gates for Steps 07/12 before production go-live.
 
 Outstanding Step 03 server acceptance evidence: second independent AutoSSH session and verification that ArginTaxPayer API/DB ports are not publicly accessible (without changing 8080/8081, which belong to unrelated software); optionally confirm the snapshot expiry and recovery instructions. The successfully completed preflight checks and privileged sshd -t test are already recorded. Do not mark the entire Step 03 PASS until these remaining items have evidence.
+
+### 9.10 Owner-provided loopback listener evidence (2026-11-04)
+
+Operator ran `sudo ss -lntp | grep -E ':(3000|5432|15089)\\b' || true`; the sole reported listener was `127.0.0.1:5432` via `docker-proxy`. This demonstrates PostgreSQL port 5432 is published on IPv4 loopback only in the observed host socket inventory; app test ports 3000 and 15089 were not listening. **PASS for host listener bind review**, not a substitute for independent external port scan, provider firewall inspection or inspection of Docker network forwarding/IPv6. Ports 8080 and 8081 are explicitly out of ArginTaxPayer scope per owner.
+
+Other Step 03 owner-confirmed results: privileged `sudo /usr/sbin/sshd -t` exit 0 and successful provider snapshot. Remaining acceptance evidence: independent secondary AutoSSH login (and external exposure check as part of Step 03 security gate). Do not claim Step 03 fully accepted without this evidence.
