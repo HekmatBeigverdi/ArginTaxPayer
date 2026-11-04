@@ -65,7 +65,7 @@ Do not proceed if macOS/Ubuntu SHAs differ or port 15090/15091 is occupied. The 
 Only after Stage B passes and the owner explicitly runs the following. The installer verifies branch/clean tree, Ubuntu 24.04, exact non-conflicting unit names, two free ports, no approval marker, and syntax **before any privileged changes**. It creates `argintaxsvc`, isolated directories, installs exactly two unit files and calls `systemctl daemon-reload`. It never calls `systemctl start`, `enable`, `restart` or reloads Nginx, Docker, PostgreSQL or SSH.
 
 ```bash
-sudo bash scripts/phase18-step06-install-disabled.sh --install-disabled
+sudo env PHASE18_EXPECTED_SHA='<FULL_MACOS_SHA>' bash scripts/phase18-step06-install-disabled.sh --install-disabled
 bash scripts/phase18-step06-installed-audit.sh
 systemctl is-enabled argintaxpayer-api.service argintaxpayer-web.service
 systemctl is-active argintaxpayer-api.service argintaxpayer-web.service
