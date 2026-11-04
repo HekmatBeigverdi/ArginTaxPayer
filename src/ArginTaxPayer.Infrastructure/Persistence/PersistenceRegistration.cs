@@ -87,6 +87,7 @@ public static class PersistenceRegistration
         services.AddScoped<Phase18ScopedLegacyCredentialsService>();
         services.AddScoped<Phase18DispatchAttemptAdmissionService>();
         services.AddScoped<Phase18DispatchOutcomeRepository>();
+        services.AddScoped<Phase18LegalSuccessorAuthorityGate>();
         services.AddScoped<SandboxInvoiceFiscalSerialRepository>();
         services.AddScoped<IIdempotencyReservationWriter, EfIdempotencyReservationWriter>();
 
