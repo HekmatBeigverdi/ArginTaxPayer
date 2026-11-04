@@ -54,3 +54,6 @@ artifacts/phase18-step05/
 
 # Phase18 isolated Production-mode runtime smoke reports
 artifacts/phase18-step05-runtime/
+
+# Phase18 local non-mutating Production integration acceptance logs
+artifacts/phase18-step05-integration/
