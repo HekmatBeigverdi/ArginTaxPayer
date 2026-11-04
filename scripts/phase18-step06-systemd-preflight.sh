@@ -45,7 +45,7 @@ if [[ "$platform" == "Linux" ]]; then
   [[ "$node_major" =~ ^[0-9]+$ && "$node_major" -ge 20 ]] ||
     refuse 'System-wide Node.js 20+ required for Next.js Production'
   PATH=/usr/local/bin:/usr/bin:/bin "$dotnet_system" --list-runtimes |
-    grep -Eq '^Microsoft\\.AspNetCore\\.App 9\\.' ||
+    grep -Eq '^Microsoft\.AspNetCore\.App 9\.' ||
     refuse 'System-wide ASP.NET Core 9 runtime missing'
   run systemd-syntax systemd-analyze verify \
     ops/phase18-systemd/argintaxpayer-api.service \
