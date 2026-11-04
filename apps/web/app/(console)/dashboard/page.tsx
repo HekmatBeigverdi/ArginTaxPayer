@@ -33,7 +33,7 @@ export default async function DashboardPage() {
   const admin = level1 || level2;
   const customer = actor.roles.includes("Customer");
   if (!admin && !customer) return null;
-  const dashboardOnly = process.env.NODE_ENV === "production" &&
+  const dashboardOnly = typeof process !== "undefined" && process.env.NODE_ENV === "production" &&
     process.env.ARGIN_IDENTITY_DASHBOARD_ONLY === "true";
   const modules = admin ? adminModules : customerModules;
   return <>
