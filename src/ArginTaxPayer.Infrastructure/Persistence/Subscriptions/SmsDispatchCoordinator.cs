@@ -4,6 +4,7 @@ using ArginTaxPayer.Domain.Subscriptions;
 using ArginTaxPayer.Infrastructure.Persistence.Identity;
 using ArginTaxPayer.Infrastructure.Persistence.Taxpayers;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
@@ -49,14 +50,24 @@ public sealed class SmsDispatchCoordinator(ArginTaxPayerDbContext db, IIdentityO
         }
         logger.LogInformation("OTP_DISPATCH_COOLDOWN_CHECK_STARTED");
         var now = DateTime.UtcNow;
-        var hasRecentDispatch = !isLocal && await db.Database.SqlQuery<bool>($"""
-            SELECT EXISTS (
-              SELECT 1 FROM sms_provider_dispatches
-              WHERE destination_hash={hash} AND (
-                state IN (1,3,6) AND created_at_utc>{now.AddMinutes(-15)} OR
-                state=5 AND updated_at_utc>{now.AddMinutes(-3)})
-            ) AS "Value"
-            """).SingleAsync(ct);
+        var hasRecentDispatch = false;
+        if (!isLocal)
+        {
+            await using var cooldownCommand = db.Database.GetDbConnection().CreateCommand();
+            cooldownCommand.Transaction = db.Database.CurrentTransaction!.GetDbTransaction();
+            cooldownCommand.CommandText = """
+                SELECT EXISTS (
+                  SELECT 1 FROM sms_provider_dispatches
+                  WHERE destination_hash=@destination_hash AND (
+                    (state IN (1,3,6) AND created_at_utc>@attempt_window) OR
+                    (state=5 AND updated_at_utc>@resend_window))
+                )
+                """;
+            AddParameter(cooldownCommand, "destination_hash", hash);
+            AddParameter(cooldownCommand, "attempt_window", now.AddMinutes(-15));
+            AddParameter(cooldownCommand, "resend_window", now.AddMinutes(-3));
+            hasRecentDispatch = (bool)(await cooldownCommand.ExecuteScalarAsync(ct) ?? false);
+        }
         if (hasRecentDispatch)
             return new(SmsDispatchStatus.Unavailable,dispatchId);
         logger.LogInformation("OTP_DISPATCH_COOLDOWN_CHECK_PASSED");
@@ -157,4 +168,12 @@ public sealed class SmsDispatchCoordinator(ArginTaxPayerDbContext db, IIdentityO
         await db.Database.ExecuteSqlInterpolatedAsync($"""INSERT INTO sms_provider_dispatch_events(id,dispatch_id,state,detail_code,recorded_at_utc) VALUES({Guid.NewGuid()},{dispatchId},6,'registration-charge-reconciliation',{now})""",ct);
     }
     private sealed class PendingRegistrationSms { public Guid Id{get;set;} public Guid? RootId{get;set;} public Guid? PartnerId{get;set;} public int? Fee{get;set;} public long? Cost{get;set;} public bool CustomerBillingEnabled{get;set;} }
+
+    private static void AddParameter(System.Data.Common.DbCommand command, string name, object value)
+    {
+        var parameter = command.CreateParameter();
+        parameter.ParameterName = name;
+        parameter.Value = value;
+        command.Parameters.Add(parameter);
+    }
 }
