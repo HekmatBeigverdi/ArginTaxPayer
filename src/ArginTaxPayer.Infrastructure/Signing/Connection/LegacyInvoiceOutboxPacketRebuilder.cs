@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using ArginTaxPayer.Infrastructure.Signing.Protection;
+using ArginTaxPayer.Domain.Invoices;
 
 namespace ArginTaxPayer.Infrastructure.Signing.Connection;
 
@@ -12,7 +13,8 @@ internal static class LegacyInvoiceOutboxPacketRebuilder
     internal static LegacyInvoiceSubmissionPacket Rebuild(
         string outboxPayloadJson, SensitiveBytes signingKey,
         ReadOnlyMemory<byte> expectedPublicSpki, string accessToken,
-        CancellationToken ct = default, string? sandboxMemoryClientId = null)
+        CancellationToken ct = default, string? sandboxMemoryClientId = null,
+        TaxAuthorityEnvironment environment = TaxAuthorityEnvironment.Sandbox)
     {
         ct.ThrowIfCancellationRequested();
         if (outboxPayloadJson is not { Length: > 2 and <= MaxPayloadBytes })
@@ -22,8 +24,16 @@ internal static class LegacyInvoiceOutboxPacketRebuilder
             new JsonDocumentOptions { MaxDepth = 24 });
         var root = payload.RootElement;
         var schema = RequiredString(root, "schema");
-        if (schema != "phase10.sandbox.legacy.invoice.dispatch.v1" ||
-            RequiredString(root, "environment") != "Sandbox")
+        var expectedSchema = environment switch
+        {
+            TaxAuthorityEnvironment.Sandbox => "phase10.sandbox.legacy.invoice.dispatch.v1",
+            TaxAuthorityEnvironment.Production => "phase18.production.legacy.invoice.dispatch.v1",
+            _ => null
+        };
+        var expectedEnvironment = environment == TaxAuthorityEnvironment.Production
+            ? "Production" : "Sandbox";
+        if (expectedSchema is null || schema != expectedSchema ||
+            RequiredString(root, "environment") != expectedEnvironment)
             throw new ArgumentException("Invalid legacy Outbox schema.", nameof(outboxPayloadJson));
 
         var operationId = RequiredGuid(root, "operationId");
