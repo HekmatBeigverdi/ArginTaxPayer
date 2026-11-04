@@ -49,8 +49,7 @@ test("Step06 units are disabled by default and require independent owner gate", 
   }
 });
 test("Dedicated loopback process ports are distinct and Next never binds publicly", () => {
-  assert.equal(one(api, "Service", "Environment"),
-    "ASPNETCORE_ENVIRONMENT=Production");
+  assert.match(api, /^Environment=ASPNETCORE_ENVIRONMENT=Production$/m);
   assert.match(api, /^Environment=ASPNETCORE_URLS=http:\/\/127\.0\.0\.1:15090$/m);
   assert.match(web, /^ExecStart=.*next start --hostname 127\.0\.0\.1 --port 15091$/m);
   assert.match(web, /^Environment=ARGIN_IDENTITY_API_INTERNAL_BASE_URL=http:\/\/127\.0\.0\.1:15090$/m);
