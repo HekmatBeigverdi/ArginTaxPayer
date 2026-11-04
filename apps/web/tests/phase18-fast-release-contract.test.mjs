@@ -31,3 +31,14 @@ test("GitHub workflow never deploys automatically on push", () => {
   assert.match(s,/SHA256SUMS/);
   assert.doesNotMatch(s,/StrictHostKeyChecking=no/);
 });
+
+test('initial staging startup permits disabled UI only when provider gates remain false', () => {
+  const promote=read('scripts/phase18-release-promote.sh');
+  const health=read('scripts/phase18-step06-local-health.sh');
+  assert.match(promote, /--initial-disabled-ui/);
+  assert.match(promote, /ArginTaxPayer__EnableOperationalEndpoints=false/);
+  assert.match(promote, /Ghasedak__EnableLiveSending=false/);
+  assert.match(promote, /ARGIN_PRODUCTION_UI_ENABLED=false/);
+  assert.match(health, /--probe-local-disabled-ui/);
+  assert.match(health, /\$webcode.*404/);
+});
