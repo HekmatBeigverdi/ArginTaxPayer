@@ -28,7 +28,7 @@ test('staging script must not rotate keys, activate services or modify shared Po
   assert.match(script, /Identity__MfaEncryptionKey=\$mfa_key/);
   assert.match(script, /SigningKeyProtection__DatabaseMasterKey=\$wrapping_key/);
   assert.match(script, /Port=15434;Database=argintaxpayer_prod;Username=argin_prod_app/);
-  assert.match(script, /sudo install -o root -g root -m 0644/);
+  assert.match(script, /sudo install -o root -g argintaxsvc -m 0640/);
 });
 test('Step08 preflight never prints or exports raw secrets', () => {
   const script = read('scripts/phase18-step08-config-custody-preflight.sh');
