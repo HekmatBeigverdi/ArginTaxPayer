@@ -54,7 +54,19 @@ internal sealed class LegacyInvoiceSubmissionHttpTransport(
     {
         if (!TryResolveSandboxBase(configuration, out _))
             return new(false, "sandbox_legacy_transport_disabled");
-        if (!UriEquals(InvoiceEndpoint, SandboxHost, SandboxPath + "self-tsp/async/normal-enqueue") ||
+        return await PostVerifiedEndpointAsync(InvoiceEndpoint, fiscalId, requestJson,
+            transferSignature, accessToken, requestTraceId, timestamp, ct);
+    }
+
+    // This low-level sender must only be called after the database-backed
+    // Phase18AuthorityEndpointRoutingService resolves a canonical endpoint.
+    // It cannot accept arbitrary hosts, paths, aliases, ports or redirects.
+    internal async Task<Result> PostVerifiedEndpointAsync(
+        Uri verifiedEndpoint, string fiscalId, string requestJson,
+        string transferSignature, string accessToken, string requestTraceId,
+        string timestamp, CancellationToken ct)
+    {
+        if (!IsPinnedInvoiceEndpoint(verifiedEndpoint) ||
             fiscalId is not { Length: >= 6 and <= 32 } ||
             fiscalId.Any(c => !char.IsAsciiLetterOrDigit(c)) ||
             requestJson is not { Length: > 2 and <= 3_000_000 } ||
@@ -89,7 +101,7 @@ internal sealed class LegacyInvoiceSubmissionHttpTransport(
         }
 
         using var client = testClientFactory?.Invoke() ?? NewClient();
-        using var request = new HttpRequestMessage(HttpMethod.Post, InvoiceEndpoint)
+        using var request = new HttpRequestMessage(HttpMethod.Post, verifiedEndpoint)
         {
             Content = new StringContent(requestJson, Encoding.UTF8, "application/json")
         };
@@ -180,6 +192,17 @@ internal sealed class LegacyInvoiceSubmissionHttpTransport(
                 return true;
             }
         return false;
+    }
+
+    private static bool IsPinnedInvoiceEndpoint(Uri? candidate)
+    {
+        if (candidate is null || !candidate.IsAbsoluteUri ||
+            !string.IsNullOrEmpty(candidate.Query) ||
+            !string.IsNullOrEmpty(candidate.Fragment) ||
+            !string.IsNullOrEmpty(candidate.UserInfo))
+            return false;
+        return UriEquals(candidate, SandboxHost, SandboxPath + "self-tsp/async/normal-enqueue") ||
+            UriEquals(candidate, "tp.tax.gov.ir", SandboxPath + "self-tsp/async/normal-enqueue");
     }
 
     private static bool UriEquals(Uri uri, string host, string path) =>
