@@ -197,8 +197,22 @@ public static class IdentityDevelopmentEndpoints
             if (!IsLoopback(http)) return Results.NotFound();
             // Explicit errors are restricted to Development + loopback; a public
             // production identity API must not reveal registration existence.
-            var result = await phones.RequestDetailedAsync(request.Mobile, request.Purpose, ct);
             var logger = loggerFactory.CreateLogger("ArginTaxPayer.Identity.OtpDelivery");
+            PhoneOtpRequestResult result;
+            try
+            {
+                result = await phones.RequestDetailedAsync(request.Mobile, request.Purpose, ct);
+            }
+            catch (Exception exception) when (!ct.IsCancellationRequested)
+            {
+                // Keep the public error generic and never log request data, provider
+                // bodies, credentials, or OTP values. The exception type is enough
+                // to locate failures in the multi-step SMS dispatch pipeline.
+                logger.LogError("OTP_REQUEST_PIPELINE_EXCEPTION exception_type={ExceptionType}",
+                    exception.GetType().FullName);
+                return Results.Json(new { error = "otp_unavailable" },
+                    statusCode: StatusCodes.Status503ServiceUnavailable);
+            }
             if (result.Status == PhoneOtpRequestStatus.Sent)
             {
                 logger.LogInformation("OTP_REQUEST_DELIVERED");

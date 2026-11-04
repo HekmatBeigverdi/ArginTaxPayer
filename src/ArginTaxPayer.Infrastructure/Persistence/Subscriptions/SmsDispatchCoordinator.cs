@@ -5,6 +5,7 @@ using ArginTaxPayer.Infrastructure.Persistence.Identity;
 using ArginTaxPayer.Infrastructure.Persistence.Taxpayers;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 
 namespace ArginTaxPayer.Infrastructure.Persistence.Subscriptions;
 
@@ -14,7 +15,7 @@ public sealed record SmsDispatchOutcome(SmsDispatchStatus Status, Guid DispatchI
 /// <summary>Reserves a bounded amount before provider I/O, then records provider evidence and settles exactly once.</summary>
 public sealed class SmsDispatchCoordinator(ArginTaxPayerDbContext db, IIdentityOtpSender sender,
     SmsServiceSettingsService settings, CustomerCommercialOwnershipService owners,
-    IConfiguration config)
+    IConfiguration config, ILogger<SmsDispatchCoordinator> logger)
 {
     public async Task<SmsDispatchOutcome> SendOtpAsync(Guid? customerId, string mobile, string code,
         string purpose, Guid dispatchId, CancellationToken ct = default)
@@ -42,8 +43,11 @@ public sealed class SmsDispatchCoordinator(ArginTaxPayerDbContext db, IIdentityO
         await using var dispatchTransaction = await db.Database.BeginTransactionAsync(ct);
         if(!isLocal)
         {
+            logger.LogInformation("OTP_DISPATCH_DESTINATION_LOCK_STARTED");
             await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock(hashtextextended({hash},0))",ct);
+            logger.LogInformation("OTP_DISPATCH_DESTINATION_LOCK_ACQUIRED");
         }
+        logger.LogInformation("OTP_DISPATCH_COOLDOWN_CHECK_STARTED");
         if(!isLocal && await db.Database.SqlQueryRaw<int>("""
             SELECT count(*)::integer AS "Value" FROM sms_provider_dispatches
             WHERE destination_hash={0} AND (
@@ -51,6 +55,7 @@ public sealed class SmsDispatchCoordinator(ArginTaxPayerDbContext db, IIdentityO
               state=5 AND updated_at_utc>{2})
             """,hash,DateTime.UtcNow.AddMinutes(-15),DateTime.UtcNow.AddMinutes(-3)).SingleAsync(ct)>0)
             return new(SmsDispatchStatus.Unavailable,dispatchId);
+        logger.LogInformation("OTP_DISPATCH_COOLDOWN_CHECK_PASSED");
         long reserved = 0;
         if (!isLocal && customerBillingEnabled && customerId is { } customer)
         {
@@ -77,8 +82,12 @@ public sealed class SmsDispatchCoordinator(ArginTaxPayerDbContext db, IIdentityO
                 VALUES({dispatchId},{dispatchId.ToString("N")},{customerId},{customerId},{root},{partner},{hash},{purpose},1,{snapshot!.ServiceFeeBasisPoints},{snapshot.ReservationCeilingIrr},{customerBillingEnabled},{DateTime.UtcNow},{DateTime.UtcNow})
                 """,ct);
         }
+        logger.LogInformation("OTP_DISPATCH_RESERVATION_COMMIT_STARTED");
         await dispatchTransaction.CommitAsync(ct);
+        logger.LogInformation("OTP_DISPATCH_PROVIDER_CALL_STARTED");
     var result = await sender.SendWithCostAsync(mobile,code,purpose,dispatchId,ct);
+        logger.LogInformation("OTP_DISPATCH_PROVIDER_CALL_COMPLETED accepted={Accepted} ambiguous={Ambiguous}",
+            result.Accepted, result.Ambiguous);
         if (isLocal) return new(result.Accepted?SmsDispatchStatus.Accepted:SmsDispatchStatus.Rejected,dispatchId);
         long? customerCharge=null;
         if(customerBillingEnabled && customerId is not null && result.CostIrr is { } knownCost && snapshot is not null)
