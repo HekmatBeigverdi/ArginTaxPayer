@@ -3,6 +3,8 @@ Description=ArginTaxPayer Production API (Phase18 gated)
 Documentation=https://github.com/HekmatBeigverdi/ArginTaxPayer
 After=network-online.target
 Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=3
 # No activation in Step06. Requires explicit separate future owner-approved gate.
 ConditionPathExists=/etc/argintaxpayer/phase18-activation-approved
 
@@ -23,8 +25,6 @@ EnvironmentFile=-/etc/argintaxpayer/api.env
 ExecStart=/usr/bin/env dotnet /opt/argintaxpayer/current/api/ArginTaxPayer.Api.dll
 Restart=on-failure
 RestartSec=10s
-StartLimitIntervalSec=300
-StartLimitBurst=3
 TimeoutStartSec=60s
 TimeoutStopSec=30s
 KillSignal=SIGTERM
