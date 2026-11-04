@@ -69,3 +69,6 @@ artifacts/phase18-step05-e2e/
 
 # Step06 Systemd private preflight and installation audit reports
 artifacts/phase18-step06/
+
+# Phase18 Step07: sensitive Production DB CA, passwords, backups, SQL reviews and audit logs
+artifacts/phase18-step07/
