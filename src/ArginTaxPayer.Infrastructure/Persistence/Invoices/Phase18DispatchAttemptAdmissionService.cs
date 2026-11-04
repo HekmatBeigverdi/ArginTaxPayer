@@ -78,7 +78,6 @@ WHERE d.id=@operation AND d.customer_user_id=@customer
   AND i.customer_user_id=d.customer_user_id AND i.state=3
   AND i.revision=d.invoice_revision
   AND o.id=d.id AND o.taxpayer_id=d.taxpayer_id
-  AND o.customer_user_id=d.customer_user_id
   AND o.event_type=@event AND o.processed_at_utc IS NULL
   AND o.attempt_count=0
   AND o.payload_json::jsonb->>'schema'=@schema
