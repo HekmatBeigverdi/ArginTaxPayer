@@ -5,6 +5,7 @@ using ArginTaxPayer.Infrastructure.Persistence.Identity;
 using ArginTaxPayer.Infrastructure.Persistence.Parties;
 using ArginTaxPayer.Infrastructure.Persistence.Taxpayers;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Npgsql;
 using Xunit;
 
@@ -157,12 +158,13 @@ public sealed class Phase18TenantIsolationDatabaseTests
         Assert.DoesNotContain(partnerList.Profiles!, p => p.Id == taxpayerBId);
 
         // Live ownership changes must take effect without renewing the partner token.
-        await db.CustomerCommercialOwners
-            .Where(o => o.CustomerUserId == customerAId && o.PartnerLevel2UserId == partnerAId)
-            .ExecuteUpdateAsync(set => set
-                .SetProperty(o => o.PartnerLevel2UserId, partnerBId)
-                .SetProperty(o => o.Revision, o => o.Revision + 1)
-                .SetProperty(o => o.UpdatedAtUtc, DateTime.UtcNow));
+        var ownership = new CustomerCommercialOwnershipService(
+            db, authorization, new ConfigurationBuilder().Build());
+        var transfer = await ownership.TransferAsync(rootToken, customerAId,
+            new TransferCustomerOwnerRequest(partnerBId, 1,
+                CustomerOwnershipChangeReason.ManualCorrection,
+                "Phase18 synthetic owner transfer acceptance"));
+        Assert.Equal(CustomerOwnershipDecision.Success, transfer.Decision);
         Assert.Equal(TaxpayerScopeDecision.NotFound,
             (await scope.GetAsync(partnerAToken, taxpayerAId)).Decision);
         Assert.Equal(TaxpayerScopeDecision.Allowed,
