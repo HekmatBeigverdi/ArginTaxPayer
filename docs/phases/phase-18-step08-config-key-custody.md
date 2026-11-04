@@ -50,7 +50,7 @@ export PHASE18_OWNER_APPROVED_CONFIG_STAGING=YES
 bash scripts/phase18-step08-stage-private-config.sh --stage-disabled-private-config
 ```
 
-Creates **new** `/etc/argintaxpayer/api.env`, `web.env` (`root:root 0600`) and public CA certificate `prod-db-ca.pem` (`root:root 0644`). Populates an **isolated app-role** TLS VerifyFull PostgreSQL connection string (port 15434) from Step07 private credentials and creates two **independent persistent 32-byte AES keys** using OpenSSL, never printing values. `ArginTaxPayer__EnableOperationalEndpoints` remains false. Does NOT issue fiscal-memory RSA keys, seed identity/user data, send provider requests, activate API/Web services, touch Nginx, or overwrite any existing private file. The on-disk key material must be backed up and independently escrowed BEFORE real user enrollment; never paste private file contents in chat.
+Creates **new** `/etc/argintaxpayer/api.env`, `web.env` (`root:root 0600`) and PostgreSQL CA certificate `prod-db-ca.pem` (`root:argintaxsvc 0640`; parent directory `root:argintaxsvc 0750`). This grants the dedicated API service access only to the public CA, NOT the root-only env file. Populates an **isolated app-role** TLS VerifyFull PostgreSQL connection string (port 15434) from Step07 private credentials and creates two **independent persistent 32-byte AES keys** using OpenSSL, never printing values. `ArginTaxPayer__EnableOperationalEndpoints` remains false. Does NOT issue fiscal-memory RSA keys, seed identity/user data, send provider requests, activate API/Web services, touch Nginx, or overwrite any existing private file. The on-disk key material must be backed up and independently escrowed BEFORE real user enrollment; never paste private file contents in chat.
 
 After staging, run read-only confidential contract audit:
 
@@ -63,7 +63,7 @@ This validates root ownership, permissions, exact AES-256 key lengths, distinct 
 ## Mandatory outstanding Step08 security acceptance (BLOCKING)
 
 1. **Source-reviewed:** MFA AES-256 and database wrapping AES-256 key formats and persistent config are implemented. JWT is not used for API identity sessions; opaque hashed DB-backed sessions are used. Full browser cookie, provider credential contracts and live fiscal-memory environment routing remain pending.
-2. **Staging implemented, acceptance pending:** root-owned 0600 secrets file, separate runtime app-only TLS DB credential, two persisted keys. Repeat audit across operator logins; actual API restart/decrypt round trip and independent off-host escrow are NOT yet evidenced. Never write a new key atop ciphertext protected by an old one.
+2. **Staging implemented, acceptance pending:** root-owned 0600 secrets file, group-traversable restricted directory for CA access, separate runtime app-only TLS DB credential, two persisted keys. Repeat audit across operator logins; actual API restart/decrypt round trip and independent off-host escrow are NOT yet evidenced. Never write a new key atop ciphertext protected by an old one.
 3. Distinguish Sandbox fiscal-memory and real fiscal-memory credentials and test mismatch/unknown environment rejection before any real API call. Step09/10 implement/validate routing.
 4. Provider credentials (Ghasedak, SEP, ZarinPal) remain OFF or absent until specifically approved; validate only presence/format without making outbound calls or charging money.
 5. Confirm session/JWT cookie flags (`Secure`, `HttpOnly`, `SameSite`, expiry), CSRF/origin and proxy trust under Production. Step11 owns full browser authorization regression.
