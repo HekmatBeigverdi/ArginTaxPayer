@@ -29,8 +29,8 @@ private="$PWD/artifacts/phase18-step07/production-private"
   fail 'Dedicated Production DB private configuration missing'
 [[ "$(stat -c %a "$private/compose.env")" == 600 ]] ||
   fail 'Insecure private credentials'
-[[ -f /etc/argintaxpayer/phase18-activation-approved ]] ||
-  fail 'Expected activated deployment not present'
+# The phase18-activation-approved marker authorizes service startup, not schema migration.
+# Do not create or require it here: the migration is independently owner-gated.
 sudo grep -Fxq 'ArginTaxPayer__EnableOperationalEndpoints=false' /etc/argintaxpayer/api.env ||
   fail 'Operational APIs must remain disabled'
 sudo grep -Fxq 'ARGIN_PRODUCTION_UI_ENABLED=false' /etc/argintaxpayer/web.env ||
