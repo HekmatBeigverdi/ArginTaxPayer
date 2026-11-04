@@ -27,10 +27,11 @@ tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 mkdir -p "$tmp/stage"
 for name in api web; do
-  tar -tzf "$bundle/$name.tar.gz" | grep -q "^$name/" || die "Missing $name archive root"
+  tar -tzf "$bundle/$name.tar.gz" | grep "^$name/" >/dev/null || die "Missing $name archive root"
   if tar -tzf "$bundle/$name.tar.gz" | grep -Eq '(^/|(^|/)\.\.(/|$))'; then die 'Unsafe archive path'; fi
   tar -xzf "$bundle/$name.tar.gz" -C "$tmp/stage" --no-same-owner --no-same-permissions
 done
+if find "$tmp/stage" -type l -print -quit | grep . >/dev/null; then die "Symlinks disallowed in release archive"; fi
 [[ -f "$tmp/stage/api/ArginTaxPayer.Api.dll" &&
    -f "$tmp/stage/web/.next/BUILD_ID" &&
    -f "$tmp/stage/web/package-lock.json" ]] || die 'Incomplete release'
