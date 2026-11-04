@@ -307,3 +307,16 @@ Owner clarified that public UFW allowances 8080 and 8081 serve unrelated applica
 **Confirmed checks:** platform, resource script completion, runtime inventory script completion, socket inventory script completion, UFW presence/status, service inventory, disk ownership and privileged `sshd -t`. Note: a script PASS means a diagnostic command completed, not automatically that all infrastructure was hardened or correctly exposed.
 
 **Outstanding operational acceptance:** provider snapshot/off-host backup and recovery option not yet evidenced; second independent AutoSSH connection not separately evidenced; external exposure/loopback review and actual inventory contents not supplied. Step 03 remains **CONDITIONALLY READY / NOT YET FINAL PASS** until these conditions are verified or explicitly dispositioned by owner with appropriate risk control. Further checks must not interrupt unrelated applications.
+
+### 9.7 Owner clarification — provider backup unavailable (2026-11-04)
+
+Owner confirms the VPS provider offers **no usable Backup/Snapshot capability**. Provider snapshot is not an achievable prerequisite. Replace it with an approved independent, **off-VPS encrypted recovery strategy**; do not label provider backup PASS. This does not authorize wiping/reprovisioning a host or running risky patches.
+
+Alternative mandatory before actual production financial/tax operations:
+1. Verify a separate trusted off-host destination (not the same VPS) and scheduled encrypted PostgreSQL logical backup (consistent `pg_dump` of actual production DB with an appropriate minimally privileged backup account, plus required PostgreSQL role/schema metadata); protect keys and access controls. Record schedule, retention, capacity and backup-failure monitoring.
+2. Securely escrow **encryption key material / credential recovery instructions** independently of DB backups, with least privilege. Never store raw keys/secrets/backup dumps in the public GitHub repository or plaintext in remotely synced development folders.
+3. Save reproducible deployment artifacts and version-pinned OS package/service/Nginx configs, DNS/TLS issuance steps, and secure secret restoration procedures for rebuilding on a fresh Ubuntu 24 host. An in-place OS rollback is **not** promised.
+4. Demonstrate successful restore into an isolated disposable PostgreSQL environment with the correct DB identity and decryption/read checks; record recovery time and recovery point objectives and any lost intervals. Only after verified restore and owner signoff may the no-provider-snapshot alternative satisfy the production disaster recovery gate.
+5. For **Step 03**, operator's lack of provider snapshot is a documented and accepted *constraint*, not proof of full backup compliance. It is safe to continue read-only discovery and non-destructive planning; actual public go-live remains BLOCKED until Step 07/12 restores and access/network preflight evidence succeed.
+
+Explicitly avoid any unreviewed SSH or firewall hardening, destructive migration, upgrade, or `ufw enable` while this recovery path is not established.
