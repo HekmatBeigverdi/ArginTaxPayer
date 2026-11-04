@@ -47,7 +47,7 @@ if [[ "$platform" == "Linux" ]]; then
   [[ -n "$dotnet_system" && -x "$dotnet_system" ]] ||
     refuse 'System-wide dotnet missing (user-local SDK is insufficient)'
   PATH=/usr/local/bin:/usr/bin:/bin "$dotnet_system" --list-runtimes |
-    grep -Eq '^Microsoft\\.AspNetCore\\.App 9\\.' ||
+    grep -Eq '^Microsoft\.AspNetCore\.App 9\.' ||
     refuse 'System-wide ASP.NET Core 9 runtime missing'
   run systemd-syntax systemd-analyze verify \
     ops/phase18-systemd/argintaxpayer-api.service \
