@@ -1,0 +1,54 @@
+[Unit]
+Description=ArginTaxPayer Production Next.js BFF (Phase18 gated)
+Documentation=https://github.com/HekmatBeigverdi/ArginTaxPayer
+After=network-online.target argintaxpayer-api.service
+Wants=network-online.target
+# No activation in Step06. Requires explicit separate future owner-approved gate.
+ConditionPathExists=/etc/argintaxpayer/phase18-activation-approved
+
+[Service]
+Type=simple
+User=argintaxsvc
+Group=argintaxsvc
+WorkingDirectory=/opt/argintaxpayer/current/web
+Environment=NODE_ENV=production
+Environment=PORT=15091
+Environment=HOSTNAME=127.0.0.1
+Environment=ARGIN_PUBLIC_BASE_URL=https://tax.argin.ir
+Environment=ARGIN_IDENTITY_API_INTERNAL_BASE_URL=http://127.0.0.1:15090
+Environment=ARGIN_IDENTITY_UI_ENABLED=false
+Environment=ARGIN_PRODUCTION_UI_ENABLED=false
+EnvironmentFile=-/etc/argintaxpayer/web.env
+ExecStart=/usr/bin/env node /opt/argintaxpayer/current/web/node_modules/next/dist/bin/next start --hostname 127.0.0.1 --port 15091
+Restart=on-failure
+RestartSec=10s
+StartLimitIntervalSec=300
+StartLimitBurst=3
+TimeoutStartSec=60s
+TimeoutStopSec=30s
+KillSignal=SIGTERM
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+RuntimeDirectory=argintaxpayer-web
+StateDirectory=argintaxpayer
+CacheDirectory=argintaxpayer-web
+# Next.js 15 writes incremental and image caches under .next/cache.
+# This exception applies only to cache, never to source/API binaries.
+ReadWritePaths=/opt/argintaxpayer/current/web/.next/cache
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=argintaxpayer-web
+
+[Install]
+WantedBy=multi-user.target
