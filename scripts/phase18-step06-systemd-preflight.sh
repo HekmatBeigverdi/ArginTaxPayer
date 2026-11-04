@@ -33,6 +33,20 @@ if [[ "$platform" == "Linux" ]]; then
     refuse 'macOS/Ubuntu SHA mismatch'
   command -v systemd-analyze >/dev/null || refuse 'systemd-analyze missing'
   command -v ss >/dev/null || refuse 'ss missing'
+  # argintaxsvc does not inherit argindev NVM or ~/.dotnet. Check only
+  # system-wide directories that systemd's /usr/bin/env can actually see.
+  node_system=$(PATH=/usr/local/bin:/usr/bin:/bin command -v node || true)
+  dotnet_system=$(PATH=/usr/local/bin:/usr/bin:/bin command -v dotnet || true)
+  [[ -n "$node_system" && -x "$node_system" ]] ||
+    refuse 'System-wide Node.js missing (argindev NVM is insufficient)'
+  [[ -n "$dotnet_system" && -x "$dotnet_system" ]] ||
+    refuse 'System-wide dotnet missing (user-local SDK is insufficient)'
+  node_major=$(PATH=/usr/local/bin:/usr/bin:/bin "$node_system" -p 'Number(process.versions.node.split(".")[0])')
+  [[ "$node_major" =~ ^[0-9]+$ && "$node_major" -ge 20 ]] ||
+    refuse 'System-wide Node.js 20+ required for Next.js Production'
+  PATH=/usr/local/bin:/usr/bin:/bin "$dotnet_system" --list-runtimes |
+    grep -Eq '^Microsoft\\.AspNetCore\\.App 9\\.' ||
+    refuse 'System-wide ASP.NET Core 9 runtime missing'
   run systemd-syntax systemd-analyze verify \
     ops/phase18-systemd/argintaxpayer-api.service \
     ops/phase18-systemd/argintaxpayer-web.service
