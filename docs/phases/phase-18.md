@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 18: Controlled Production Deployment & Dual Tax-Authority Environments
 
-**Status:** Steps 01 and 02 OWNER-APPROVED (2026-11-04); Step 03 read-only preflight script and hardening plan PREPARED; remote execution/operational hardening PENDING owner-run evidence. No production rollout.  
+**Status:** Steps 01–03 OWNER-APPROVED (2026-11-04; Step03 constrained pre-deployment acceptance); Step 04 DNS/TLS preflight STARTED, awaiting VPS/DNS evidence. No public production rollout.  
 **Date:** 2026-11-04  
 **Branch:** `phase/18-production-deployment`  
 **Starting main SHA:** `6ad5246a39cace77e76901a20d149c301094f7c3` (Phase 15 merge; release `phase-15-v1.0.0` reported in merge metadata).  
@@ -340,3 +340,26 @@ Outstanding Step 03 server acceptance evidence: second independent AutoSSH sessi
 Operator ran `sudo ss -lntp | grep -E ':(3000|5432|15089)\\b' || true`; the sole reported listener was `127.0.0.1:5432` via `docker-proxy`. This demonstrates PostgreSQL port 5432 is published on IPv4 loopback only in the observed host socket inventory; app test ports 3000 and 15089 were not listening. **PASS for host listener bind review**, not a substitute for independent external port scan, provider firewall inspection or inspection of Docker network forwarding/IPv6. Ports 8080 and 8081 are explicitly out of ArginTaxPayer scope per owner.
 
 Other Step 03 owner-confirmed results: privileged `sudo /usr/sbin/sshd -t` exit 0 and successful provider snapshot. Remaining acceptance evidence: independent secondary AutoSSH login (and external exposure check as part of Step 03 security gate). Do not claim Step 03 fully accepted without this evidence.
+
+## 10. Step 03 final signoff / Step 04 initiation (2026-11-04)
+
+**Owner acceptance:** The owner explicitly confirmed successful second independent interactive **AutoSSH** connection to `argindev@85.133.244.156` and instructed finalizing Step 03. Step 03 is **ACCEPTED as Ubuntu pre-deployment readiness** at reported audit SHA `26e1a1d11ab7831dc8a08506b99288fba7999514`, with final PASS for `sudo /usr/sbin/sshd -t`, owner-confirmed completed provider snapshot, Ubuntu preflight results, loopback-only docker-proxy PostgreSQL `127.0.0.1:5432`, and independent AutoSSH login. This does NOT establish tested full disaster recovery, an internet-side port scan, or production application readiness. Carry these as mandatory Step 04/07/11/12 release gates; no risk is silently waived. Ports 8080 and 8081 belong to another application and must remain unchanged. Owner prefers AutoSSH for every future interactive VPS command, not plain SSH.
+
+### Step 04 — DNS and HTTPS rollout plan (STARTED; not yet deployed)
+
+**Goal:** Public `https://tax.argin.ir` terminating TLS at Nginx on the company-B VPS, while apex `argin.ir` continues on company-A cPanel with email and other services unaffected.
+
+**Read-only preflight deliverable:** `scripts/phase18-step04-dns-tls-preflight.sh` created on branch; execute as ordinary argindev on Ubuntu 24. Captures `argin.ir` authoritative NS, `tax.argin.ir` A/AAAA/CNAME/CAA, current loopback/public listener inventory, nginx state and presence of certbot/openssl; writes private reports under `artifacts/phase18-step04/`. No provider DNS write, UFW write, package install, certificate issuance, service restart or API calls. Report command PASS means inspection completed, not DNS correct.
+
+**Sequence and owner gates:**
+1. Verify DNS is managed by the authoritative provider. Identify existing `tax` A/CNAME/AAAA wildcard and any Cloudflare proxy; record actual provider-confirmed VPS public IP; never assume prior SSH address is necessarily the HTTP endpoint IP. Check compatibility with IPv6 and CAA.
+2. Determine who currently owns TCP 80/443 on VPS and whether a reverse proxy exists; ensure neither existing app (including unrelated 8080/8081) nor SSH will be disrupted. Nginx must have one explicit `server_name tax.argin.ir` block with valid config and loopback reverse proxy to Next.js **only once a working production build is available**. Backend BFF routes remain loopback/private.
+3. Change ONLY the authoritative `tax` DNS A record to the verified VPS public IPv4 when approved. Do not change apex A, NS, MX, TXT, SPF/DKIM/DMARC or `www`. Only add AAAA if valid IPv6 HTTPS routing/TLS actually exists. Record propagation from multiple resolvers.
+4. Stage explicit UFW TCP 80 and 443 rules only with SSH continuity and provider firewall context validated. UFW is already active; avoid broad reload or changing existing 22, 8080, 8081 rules. Nginx HTTP port 80 serves ACME challenge, then redirects to HTTPS.
+5. Validate Nginx config `nginx -t` before and after staging. Issue a certificate for `tax.argin.ir` with certbot/ACME only after authoritative DNS matches VPS and port 80 is reachable; confirm cert SAN and chain, certbot renew dry-run and a monitored timer. Never issue a wildcard cert unnecessarily or expose internal ports.
+6. Confirm `curl -I https://tax.argin.ir`, TLS hostname verification, HTTPS redirect, no mixed content, appropriate cookie security (functional in later Steps 05/06/11). If the application is not yet deployable in Production mode, use a harmless temporary maintenance response or keep access gated rather than exposing development-mode APIs.
+7. Rollback: preserve old DNS TTL/values and previous nginx config (secrets excluded), avoid destructive changes; if new config fails, revert only tax-specific vhost and DNS to verified former values. Do not rollback unrelated sites.
+
+**Step 04 acceptance evidence:** owner-confirmed DNS target and provider, public ingress and nginx port ownership checks, `nginx -t` PASS, authoritative DNS resolving to intended VPS, verified TLS cert chain and hostname, HTTP redirect, renewal drill, zero disturbance to company-A apex/mail and unrelated 8080/8081 applications. No official tax invoices will be submitted as part of Step 04.
+
+**Current state:** Script authored only. DNS, port access, Nginx installation/configuration, SSL issuance and public endpoint all **NOT YET VERIFIED / NOT YET DEPLOYED**. Step 04 remains OPEN until Ubuntu operator run and DNS operator action with evidence.
