@@ -57,6 +57,12 @@ public sealed class Phase10LegacyReferenceInquiryService(
             !await db.InvoiceDocuments.AsNoTracking().AnyAsync(i=>
                 i.Id==invoiceId&&i.CustomerUserId==owner.Value&&i.TaxpayerId==taxpayerId,ct))
             return new(InvoiceApiDecision.NotFound,"not_found");
+        // Legacy inquiry is bound to the original Sandbox-only test database.
+        // Never obtain a Sandbox credential or call an authority from Production DB.
+        var databaseName = await db.Database.SqlQueryRaw<string>(
+            "SELECT current_database() AS \"Value\"").SingleAsync(ct);
+        if (databaseName != "argintaxpayer_test")
+            return new(InvoiceApiDecision.Invalid, "sandbox_database_required");
         if(!LegacyInvoiceSubmissionHttpTransport.TryResolveSandboxBase(config,out var baseUrl)||
             baseUrl is null)
             return new(InvoiceApiDecision.Invalid,"sandbox_inquiry_disabled");
@@ -85,6 +91,13 @@ JOIN invoice_dispatch_receipts receipt ON receipt.operation_id=d.id AND receipt.
    AND d.invoice_id=@invoice AND d.state=5
    AND m.customer_user_id=@owner AND m.taxpayer_id=@taxpayer
    AND o.event_type='invoice.sandbox.legacy.dispatch.requested'
+   AND o.payload_json::jsonb->>'environment'='Sandbox'
+   AND o.payload_json::jsonb->>'schema'='phase10.sandbox.legacy.invoice.dispatch.v1'
+   AND o.payload_json::jsonb->>'operationId'=d.id::text
+   AND o.payload_json::jsonb->>'customerUserId'=d.customer_user_id::text
+   AND o.payload_json::jsonb->>'taxpayerId'=d.taxpayer_id::text
+   AND o.payload_json::jsonb->>'invoiceId'=d.invoice_id::text
+   AND o.payload_json::jsonb->>'fiscalMemoryId'=d.fiscal_memory_id::text
    AND EXISTS(SELECT 1 FROM invoice_dispatch_attempts a WHERE a.operation_id=d.id)
  ORDER BY d.created_at_utc DESC LIMIT 1
 """;
