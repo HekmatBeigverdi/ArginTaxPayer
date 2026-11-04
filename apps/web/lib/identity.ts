@@ -17,6 +17,13 @@ export function identityApiOrigin(): string {
   return url.origin;
 }
 
+// This restricted operator mode is separate from the full business console.
+export function identityDashboardOnlyEnabled(): boolean {
+  return process.env.NODE_ENV === "production" &&
+    process.env.ARGIN_IDENTITY_DASHBOARD_ONLY === "true" &&
+    process.env.ARGIN_PUBLIC_BASE_URL === "https://tax.argin.ir";
+}
+
 export function identityUiEnabled(): boolean {
   // Production activation requires an explicit, reviewed opt-in; never enabled by a build alone.
   return (process.env.NODE_ENV === "development" ||
