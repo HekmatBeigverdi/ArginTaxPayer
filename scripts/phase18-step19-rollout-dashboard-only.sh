@@ -30,12 +30,23 @@ bundle=$(find "$PWD/artifacts/phase18-step05/$sha" -name SHA256SUMS -type f |
     sort | tail -1)
 [[ -n "$bundle" && -f "$bundle" ]] || die 'No signed immutable packaging manifest'
 bundle_dir=$(dirname "$bundle")
-echo '[START] Stage immutable binary bundle without changing active version'
-bash scripts/phase18-release-stage.sh --stage "$sha" \
-  --bundle-dir "$bundle_dir" --sha256-manifest "$bundle"
-echo '[START] Promote new binaries with all operational features still disabled'
-PHASE18_OWNER_APPROVED_RELEASE=YES \
-  bash scripts/phase18-release-promote.sh --promote "$sha" --initial-disabled-ui
+if sudo test -d "/opt/argintaxpayer/releases/$sha"; then
+  sudo grep -Fxq "sha=$sha" "/opt/argintaxpayer/releases/$sha/build-info.txt" ||
+    die 'Existing staged release does not match reviewed SHA'
+  echo '[PASS] Exact staged release already present; reusing immutable release'
+else
+  echo '[START] Stage immutable binary bundle without changing active version'
+  bash scripts/phase18-release-stage.sh --stage "$sha" \
+    --bundle-dir "$bundle_dir" --sha256-manifest "$bundle"
+fi
+current=$(sudo readlink -f /opt/argintaxpayer/current || true)
+if [[ "$current" != "/opt/argintaxpayer/releases/$sha" ]]; then
+  echo '[START] Promote new binaries with all operational features still disabled'
+  PHASE18_OWNER_APPROVED_RELEASE=YES \
+    bash scripts/phase18-release-promote.sh --promote "$sha" --initial-disabled-ui
+else
+  echo '[PASS] Exact reviewed release already active; no new promotion required'
+fi
 echo '[START] Enable only production login and read-only dashboard'
 PHASE18_OWNER_APPROVED_DASHBOARD_ONLY=YES PHASE18_EXPECTED_SHA="$sha" \
   bash scripts/phase18-step19-activate-dashboard-only.sh --activate-dashboard-only
