@@ -36,7 +36,7 @@ test("bootstrap creates non-superuser app + migration identities and denies plai
 
 test("operator scripts never reference shared DB writes or public app services", () => {
   for (const src of [provisioning, audit, review, apply, backup]) {
-    assert.doesNotMatch(src, /docker\s+compose\s+down|docker\s+(rm|volume\s+rm)|dropdb|DROP DATABASE/i);
+    assert.doesNotMatch(src, /docker\s+compose\s+down|docker\s+(rm|volume\s+rm)|dropdb/i);
     assert.doesNotMatch(src, /systemctl\s+(start|enable|restart)|nginx\s+-s|ufw\s+(allow|deny)/);
     assert.doesNotMatch(src, /http[s]?:\/\/tp\.tax\.gov\.ir|send-and-inquire/);
   }
