@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 18: Controlled Production Deployment & Dual Tax-Authority Environments
 
-**Status:** Steps 01–04 OWNER-APPROVED (2026-11-04; Step04 successful HTTPS/DNS/certificate/renewal reported by owner); Step 05 cross-platform release packaging IMPLEMENTED, acceptance tests pending. No operational Production app rollout.  
+**Status:** Steps 01–05 OWNER-APPROVED (2026-11-04; Step05 same-SHA local security acceptance PASS). Step 06 isolated Systemd units and guarded installer IMPLEMENTED; operator macOS/Ubuntu preflight and Ubuntu disabled-unit installation/audit PENDING. No operational Production application rollout or authority submission.  
 **Date:** 2026-11-04  
 **Branch:** `phase/18-production-deployment`  
 **Starting main SHA:** `6ad5246a39cace77e76901a20d149c301094f7c3` (Phase 15 merge; release `phase-15-v1.0.0` reported in merge metadata).  
@@ -770,3 +770,13 @@ Older Ubuntu isolated DB VerifyFull PostgreSQL migration/MFA/RBAC and synthetic 
 **Explicit non-waivable deployment blockers retained:** real public HTTPS/Nginx browser-to-backend login and complete administrative MFA session/CSRF/cookie flow, plus subsequent Step06+ service/deployment checks. Step05 closure **does not authorize enabling** tax dispatch, switching Nginx upstream, taking down maintenance, changing any existing production/shared PostgreSQL, or releasing/merging the Phase18 branch. Keep the dedicated disposable QA PostgreSQL for authorized later acceptance and disposal.
 
 **Next:** Phase18 Step06 Systemd staging/service units with loopback-only sockets and safe rollback, retaining the public maintenance page. Public real-browser acceptance belongs to the pre-Go-Live gate after isolated service staging.
+
+## Step 06 — Systemd staging / supervised Production processes, fail-closed (2026-11-04)
+
+Step05 was signed off after identical macOS+Ubuntu SHA `2d9a01edb6abfe1bcb7722a741fddea2df38edad` and successful isolated QA including synthetic populated invoice IDOR. Step06 source implementation is now prepared under `ops/phase18-systemd/`, with scripts `phase18-step06-systemd-preflight.sh`, `phase18-step06-install-disabled.sh`, `phase18-step06-installed-audit.sh`, `phase18-step06-remove-disabled.sh`, `phase18-step06-local-health.sh` and Node unit contract tests.
+
+**Operator runbook:** [phase-18-step06-systemd.md](./phase-18-step06-systemd.md).
+
+**Acceptance gates:** identical current git SHA Mac and Ubuntu (enforced by Ubuntu preflight); both service unit contracts and Ubuntu `systemd-analyze verify` PASS; Ubuntu loopback ports 15090/15091 free; root installer explicitly invoked with `--install-disabled` and no service name collisions; installed byte-for-byte matching systemd units `DISABLED_AND_INACTIVE`; start approval marker absent; no public Nginx/DB changes. The installer may create a dedicated `argintaxsvc` system identity and empty owned directories but NEVER installs a Production database, starts services, switches release symlink, enables fiscal operations, or routes HTTP through Nginx.
+
+**Status: STEP06 IMPLEMENTED / OWNER ACCEPTANCE PENDING.** Neither the assistant nor the owner has yet executed the new Step06 installation or provided an Ubuntu unit audit. Future actual liveness/readiness/restart runtime checks require approved Production DB+secret custody in Steps07/08 and remain blocked, and external HTTPS browser MFA is still mandatory before Go-Live. Subsequent release/merge remains prohibited until Step18 signoff.
