@@ -1,0 +1,73 @@
+name: Phase18 dual-authority safety checks
+
+on:
+  push:
+    branches:
+      - phase/18-production-deployment
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-and-dotnet:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      RUN_ARGINTAXPAYER_PG_INTEGRATION: "0"
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      ConnectionStrings__ArginTaxPayerDb: ""
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Run offline routing and legacy regression checks
+        run: |
+          node --test apps/web/tests/phase18-step09-dual-authority-audit.test.mjs \
+            apps/web/tests/phase18-step10-fiscal-environment-onboarding.test.mjs \
+            apps/web/tests/phase18-step13-inquiry-isolation.test.mjs \
+            apps/web/tests/phase18-step14-operation-authority.test.mjs
+      - name: Restore and compile Release
+        run: |
+          dotnet restore ArginTaxPayer.sln
+          dotnet build ArginTaxPayer.sln -c Release --no-restore
+      - name: Test all offline .NET regression suites
+        run: dotnet test ArginTaxPayer.sln -c Release --no-build
+      - name: Check migration SQL is constructible without database access
+        env:
+          ConnectionStrings__ArginTaxPayerDb: "Host=127.0.0.1;Port=1;Database=phase18_offline_sql_only;Username=no_live_access;Password=no_live_access;SSL Mode=Require;Timeout=1"
+        run: |
+          dotnet tool restore || true
+          dotnet ef migrations script --idempotent \
+            --project src/ArginTaxPayer.Infrastructure/ArginTaxPayer.Infrastructure.csproj \
+            --startup-project src/ArginTaxPayer.Api/ArginTaxPayer.Api.csproj \
+            --configuration Release \
+            --output /tmp/phase18-ci-review.sql
+          grep -q '20261104230000_BindDispatchAuthorityEnvironment' /tmp/phase18-ci-review.sql
+
+  web:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm ci --no-audit --no-fund
+      - run: npm test
+      - run: npm run typecheck
+      - run: npm run build
