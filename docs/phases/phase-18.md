@@ -430,3 +430,16 @@ The same Git commit must be used, but macOS and Ubuntu build artifact SHA256 val
 **Acceptance:** macOS and Ubuntu automated tests plus Release builds PASS; package manifests and hashes recorded; no tracked modifications or leaked secret files; staging files remain off public Internet. The source-backed Production DI/identity restrictions remain **hard go-live blockers**, and require separate code changes, security review and Production-mode integration tests (start in Step 05 follow-up and complete before Steps 06/11). No false assertion that a successful build alone means the application is deployable.
 
 **Current evidence:** Implementation of script and documentation committed only. macOS/Ubuntu build/test command outputs **not yet supplied**; Step05 runtime verification remains OPEN. No files installed on VPS production paths and Nginx continues as configured in Step04.
+
+### Step 05 — owner-provided macOS acceptance manifest (2026-11-04)
+
+Owner ran `scripts/phase18-step05-build-release.sh` on macOS. Provided `manifest.tsv`:
+- PASS: `dotnet-restore`, `dotnet-release-build`, `dotnet-release-tests`, `dotnet-publish`, `web-install`, `web-tests`, `web-typecheck`, `web-production-build`.
+- `packaging = BUILT_NOT_DEPLOYED` (expected).
+- `api-prod-routes = BLOCKED_DEV_GATE`; `web-prod-auth = BLOCKED_DEV_GATE` (expected safety blockers).
+
+**Interpretation:** macOS compilation/packaging completed; **Production functional acceptance FAIL/BLOCKED**, Ubuntu same-SHA acceptance still unreported. Do not assign an accepted macOS SHA solely from this manifest if its SHA is not included; read `build-info.txt` first. Do not start public app, enable real tax authority credentials, or change `NODE_ENV`/`ASPNETCORE_ENVIRONMENT` to Development as a workaround.
+
+**Source audit expansion:** `src/ArginTaxPayer.Api/Identity/IdentityDevelopmentEndpoints.cs` explicitly defines `/api/dev/identity` and uses `IsLoopback(http)` checks, while `Phase10InvoiceDispatchDevelopmentEndpoints.cs` similarly maps `/api/dev/taxpayers/.../dispatch` with `Local(http)` restrictions. Next.js proxies call these via server-to-server loopback. Therefore a secure production refactor must classify **individual routes** by capabilities and authorization, not simply remove `if(identityDevelopmentEnabled)`, change `identityUiEnabled()`, or expose existing `/api/dev/*` paths to the public Internet. The Next.js BFF may communicate with the loopback API but must enforce own origin/session/auth policies, with the API binding loopback and independently validating bearer tokens and taxpayer ownership.
+
+**Required remediation before go-live:** establish production-safe DI registration, classify/rename API routes (identity, billing, signing and tax actions), remove/restrict development registration, diagnostics and fixture/bypass routes, review MFA/cookie/CSRF/session boundaries, create negative tests for public network endpoints and cross-tenant actions, and then re-enable necessary Next.js BFF functionality with a fail-closed production config. Versioned Sandbox/live fiscal-memory routing must be validated separately in Step09/10. Any changes must preserve local Development behavior and Phase10–15 regression. No official API call, DB migration, or deployment is authorized merely by this manifest.
