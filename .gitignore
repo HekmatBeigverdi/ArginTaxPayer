@@ -57,3 +57,6 @@ artifacts/phase18-step05-runtime/
 
 # Phase18 local non-mutating Production integration acceptance logs
 artifacts/phase18-step05-integration/
+
+# Phase18 isolated disposable PostgreSQL acceptance logs
+artifacts/phase18-step05-db/
