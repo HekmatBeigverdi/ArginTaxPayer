@@ -13,7 +13,7 @@ const backup = read("scripts/phase18-step07-backup-restore-drill.sh");
 
 test("isolated PostgreSQL 17 uses a separate Docker project, volume and only loopback", () => {
   assert.match(compose, /name: argintaxpayer-phase18-production/);
-  assert.match(compose, /image: postgres:17/);
+  assert.match(compose, /image: \$\{PHASE18_PROD_POSTGRES_IMAGE:\?/);
   assert.match(compose, /container_name: argintaxpayer-phase18-production-postgres/);
   assert.match(compose, /127\.0\.0\.1:15434:5432/);
   assert.match(compose, /prod_pgdata:|prod_pgdata\//);
@@ -42,6 +42,8 @@ test("operator scripts never reference shared DB writes or public app services",
   }
   assert.match(provisioning, /--provision-isolated-production-db/);
   assert.match(provisioning, /15434/);
+  assert.match(provisioning, /image_digest/);
+  assert.match(provisioning, /RepoDigests/);
   assert.match(audit, /PGSSLMODE=verify-full/);
   assert.match(audit, /PGSSLMODE=disable/);
   assert.match(review, /migrations script --idempotent/);
