@@ -51,3 +51,6 @@ artifacts/phase15-step17/
 artifacts/phase18-step03/
 artifacts/phase18-step04/
 artifacts/phase18-step05/
+
+# Phase18 isolated Production-mode runtime smoke reports
+artifacts/phase18-step05-runtime/
