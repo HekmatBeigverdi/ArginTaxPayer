@@ -4,7 +4,7 @@ import { ACCESS_COOKIE, REFRESH_COOKIE, identityBackend, identityUiEnabled } fro
 
 type TokenResponse = { accessToken: string; refreshToken: string; accessExpiresAtUtc?: string; refreshExpiresAtUtc?: string };
 const operations = new Set(["register", "login", "logout", "mfa/challenge", "mfa/complete", "mfa/enroll", "mfa/confirm", "refresh", "me", "sessions", "sessions/revoke", "phone/request", "phone/register/complete", "phone/login/complete", "phone/reset/complete", "admin/customers"]);
-const cookieOptions = { httpOnly: true, sameSite: "strict" as const, secure: false, path: "/" };
+const cookieOptions = { httpOnly: true, sameSite: "strict" as const, secure: process.env.NODE_ENV === "production", path: "/" };
 operations.add("mfa/status");
 operations.add("roles/level2/nominate");
 operations.add("mfa/level2/reset");
