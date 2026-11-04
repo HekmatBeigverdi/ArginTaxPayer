@@ -31,12 +31,16 @@ public sealed class Phase18LegacyMigrationAdmissionTests
             var migration = (Migration)Activator.CreateInstance(type)!;
             var sql = string.Join("\n", migration.UpOperations
                 .OfType<SqlOperation>().Select(o => o.Sql));
-            Assert.Contains("current_database() = 'argintaxpayer_test'", sql);
-            Assert.Contains("current_database() = 'argin_phase18_acceptance'", sql);
-            Assert.Contains("current_user = 'phase18_acceptance'", sql);
-            Assert.Contains("pg_stat_ssl", sql);
-            Assert.Contains("pg_backend_pid()", sql);
-            Assert.Contains("AND ssl", sql);
+            AssertIsolatedDatabaseAdmission(sql);
         }
+    }
+
+    internal static void AssertIsolatedDatabaseAdmission(string sql)
+    {
+        Assert.Matches(@"IF\s+NOT\s*\(\s*current_database\(\)\s*=\s*'argintaxpayer_test'\s*" +
+            @"OR\s*\(\s*current_database\(\)\s*=\s*'argin_phase18_acceptance'\s*" +
+            @"AND\s+current_user\s*=\s*'phase18_acceptance'\s*" +
+            @"AND\s+EXISTS\s*\(\s*SELECT\s+1\s+FROM\s+pg_stat_ssl\s*" +
+            @"WHERE\s+pid\s*=\s*pg_backend_pid\(\)\s+AND\s+ssl\s*\)\s*\)\s*\)\s*THEN\s+RAISE\s+EXCEPTION", sql);
     }
 }
