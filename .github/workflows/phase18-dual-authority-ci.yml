@@ -46,7 +46,8 @@ jobs:
         env:
           ConnectionStrings__ArginTaxPayerDb: "Host=127.0.0.1;Port=1;Database=phase18_offline_sql_only;Username=no_live_access;Password=no_live_access;SSL Mode=Require;Timeout=1"
         run: |
-          dotnet tool restore || true
+          dotnet tool install --tool-path /tmp/phase18-ef-tools dotnet-ef --version 9.0.4
+          export PATH="/tmp/phase18-ef-tools:$PATH"
           dotnet ef migrations script --idempotent \
             --project src/ArginTaxPayer.Infrastructure/ArginTaxPayer.Infrastructure.csproj \
             --startup-project src/ArginTaxPayer.Api/ArginTaxPayer.Api.csproj \
