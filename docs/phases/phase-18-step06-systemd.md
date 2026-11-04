@@ -55,7 +55,7 @@ git status --short
 git rev-parse HEAD
 bash -n scripts/phase18-step06-*.sh
 node --test apps/web/tests/phase18-step06-systemd-contract.test.mjs
-bash scripts/phase18-step06-systemd-preflight.sh
+PHASE18_EXPECTED_SHA='<FULL_MACOS_SHA>' bash scripts/phase18-step06-systemd-preflight.sh
 ```
 
 Do not proceed if macOS/Ubuntu SHAs differ or port 15090/15091 is occupied. The preflight reports `unit-contract PASS`, `systemd-syntax PASS`, both ports FREE, and no currently active service.
