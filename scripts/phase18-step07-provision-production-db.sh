@@ -19,7 +19,7 @@ sudo docker compose version >/dev/null || fail 'Docker Compose v2 required'
 # Pin the already-reviewed local PostgreSQL 17 image by immutable registry digest.
 # Never use a floating tag for the Production DB container.
 image_digest=$(sudo docker image inspect postgres:17 --format '{{index .RepoDigests 0}}' 2>/dev/null || true)
-[[ "$image_digest" =~ ^postgres(@sha256:)[a-f0-9]{64}$ ]] ||
+[[ "$image_digest" =~ ^(docker.io/library/)?postgres@sha256:[a-f0-9]{64}$ ]] ||
   fail 'Missing reviewed local postgres:17 image digest; pull and review PostgreSQL 17 image separately'
 
 root="$PWD/artifacts/phase18-step07/production-private"
