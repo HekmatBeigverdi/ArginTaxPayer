@@ -1,0 +1,35 @@
+# Phase18 disposable database only. Never use as the live Production database.
+name: argintaxpayer-phase18-qa
+services:
+  postgres:
+    image: postgres:17
+    container_name: argintaxpayer-phase18-postgres
+    restart: "no"
+    ports:
+      - "127.0.0.1:15433:5432"
+    environment:
+      POSTGRES_USER: phase18_bootstrap
+      POSTGRES_PASSWORD: ${PHASE18_BOOTSTRAP_PASSWORD:?missing}
+      POSTGRES_DB: postgres
+      PHASE18_DB_PASSWORD: ${PHASE18_DB_PASSWORD:?missing}
+    command:
+      - postgres
+      - -c
+      - ssl=on
+      - -c
+      - ssl_cert_file=/var/lib/postgresql/certs/server.crt
+      - -c
+      - ssl_key_file=/var/lib/postgresql/certs/server.key
+      - -c
+      - password_encryption=scram-sha-256
+    volumes:
+      - phase18_pg_data:/var/lib/postgresql/data
+      - ${PHASE18_TLS_DIR:?missing}:/var/lib/postgresql/certs:ro
+      - ./init/01-phase18-init.sh:/docker-entrypoint-initdb.d/01-phase18-init.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U phase18_acceptance -d argin_phase18_acceptance -h 127.0.0.1"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+volumes:
+  phase18_pg_data:
