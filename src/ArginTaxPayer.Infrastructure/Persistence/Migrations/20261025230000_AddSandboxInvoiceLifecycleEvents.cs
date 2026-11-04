@@ -24,6 +24,11 @@ BEGIN
       AND current_user = 'phase18_acceptance'
       AND EXISTS (SELECT 1 FROM pg_stat_ssl WHERE pid = pg_backend_pid() AND ssl)
     )
+    OR (
+      current_database() = 'argintaxpayer_prod'
+      AND current_user = 'argin_prod_migrator'
+      AND EXISTS (SELECT 1 FROM pg_stat_ssl WHERE pid = pg_backend_pid() AND ssl)
+    )
   ) THEN
   RAISE EXCEPTION 'Invoice lifecycle audit migration only permits argintaxpayer_test';
  END IF;
