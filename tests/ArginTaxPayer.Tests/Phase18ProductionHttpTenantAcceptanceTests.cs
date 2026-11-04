@@ -98,6 +98,19 @@ public sealed class Phase18ProductionHttpTenantAcceptanceTests
             await GetAs(tokenB, $"/api/dev/taxpayers/{taxpayerB.Id}"));
         Assert.Equal(HttpStatusCode.NotFound,
             await GetAs(tokenB, $"/api/dev/taxpayers/{taxpayerA.Id}"));
+        // Invoice LIST authorization through actual Production HTTP middleware.
+        // These synthetic taxpayers have no invoice rows, so a populated
+        // invoice-IDOR acceptance remains a separate pre-Go-Live gate.
+        Assert.Equal(HttpStatusCode.OK,
+            await GetAs(tokenA, $"/api/dev/taxpayers/{taxpayerA.Id}/invoices"));
+        Assert.Equal(HttpStatusCode.NotFound,
+            await GetAs(tokenA, $"/api/dev/taxpayers/{taxpayerB.Id}/invoices"));
+        Assert.Equal(HttpStatusCode.OK,
+            await GetAs(tokenB, $"/api/dev/taxpayers/{taxpayerB.Id}/invoices"));
+        Assert.Equal(HttpStatusCode.NotFound,
+            await GetAs(tokenB, $"/api/dev/taxpayers/{taxpayerA.Id}/invoices"));
+        Assert.Equal(HttpStatusCode.Unauthorized,
+            (await client.GetAsync($"/api/dev/taxpayers/{taxpayerA.Id}/invoices")).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized,
             (await client.GetAsync($"/api/dev/taxpayers/{taxpayerA.Id}")).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized,
