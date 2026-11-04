@@ -28,16 +28,17 @@ sudo test -f /etc/argintaxpayer/api.env &&
   sudo test -f /etc/argintaxpayer/web.env || fail 'Missing private config'
 root=/opt/argintaxpayer
 release="$root/releases/$target"
-[[ -d "$release" && ! -L "$release" ]] || fail 'Release not staged'
+sudo test -d "$release" && sudo test ! -L "$release" || fail 'Release not staged'
 for path in api/ArginTaxPayer.Api.dll web/.next/BUILD_ID web/node_modules/next/dist/bin/next; do
-  [[ -f "$release/$path" ]] || fail "Incomplete staged release: missing $path"
+  sudo test -f "$release/$path" || fail "Incomplete staged release: missing $path"
+  sudo -u argintaxsvc test -r "$release/$path" || fail "Runtime service cannot read $path"
 done
-grep -Fxq "sha=$target" "$release/build-info.txt" || fail 'Release SHA mismatch'
+sudo grep -Fxq "sha=$target" "$release/build-info.txt" || fail 'Release SHA mismatch'
 previous=''
-if [[ -L "$root/current" ]]; then
-  previous=$(readlink -f "$root/current")
+if sudo test -L "$root/current"; then
+  previous=$(sudo readlink -f "$root/current")
   case "$previous" in "$root"/releases/*) ;; *) fail 'Unexpected active symlink target';; esac
-elif [[ -e "$root/current" ]]; then
+elif sudo test -e "$root/current"; then
   fail 'Existing current path is not a symlink'
 fi
 tmp="$root/.current-next-$"
