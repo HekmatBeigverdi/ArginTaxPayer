@@ -33,7 +33,7 @@ public sealed class Phase18DispatchOutcomeRepository(
             registeredProvider == TaxAuthorityEnvironment.Unknown ||
             acknowledged != (referenceNumber is not null) ||
             safeCode is not { Length: > 0 and <= 100 } ||
-            safeCode.Any(c => !(c is >= 'a' and <= 'z' || char.IsAsciiDigit(c) || c is '_' or '.')))
+            safeCode.Any(c => c is not (>= 'a' and <= 'z' or >= '0' and <= '9' or '_' or '.')))
             return new(Phase18DispatchOutcomeDecision.Invalid);
 
         var binding = await gate.ResolveAsync(operationId, customerUserId,
