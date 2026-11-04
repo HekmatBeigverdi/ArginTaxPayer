@@ -83,7 +83,7 @@ LIMIT 1
                 binding, binding, registeredProvider);
     }
 
-    internal static TaxAuthorityEnvironment FromPersistedValue(int value) =>
+    public static TaxAuthorityEnvironment FromPersistedValue(int value) =>
         Phase18PersistedAuthorityEnvironmentResolver.ToAuthorityEnvironment(
             Enum.IsDefined(typeof(FiscalConnectionEnvironment), value)
                 ? (FiscalConnectionEnvironment)value : null);
