@@ -14,7 +14,7 @@ test('Production login and dashboard are explicitly separate from full operation
   assert.match(api, /if \(identityDashboardOnlyEnabled\)[\s\S]*?app.MapPhase15DashboardEndpoints\(\)/);
   assert.match(api, /if \(identityDashboardOnlyEnabled\)[\s\S]*?else[\s\S]*?app.MapInvoiceDraftDevelopmentEndpoints/);
   assert.match(api, /if \(!allowed\)[\s\S]*?Status404NotFound/);
-  assert.match(api, /path === "\/api\/dev\/identity\/authorization\/me"/);
+  assert.match(api, /path == "\/api\/dev\/identity\/authorization\/me"/);
   assert.match(api, /path.StartsWith\("\/api\/dev\/dashboard\/"/);
 });
 
