@@ -16,9 +16,9 @@ for unit in argintaxpayer-api.service argintaxpayer-web.service; do
 done
 [[ ! -e /etc/argintaxpayer/phase18-activation-approved ]] || fail 'Activation marker present'
 sudo -n python3 - <<'PY'
-import os, stat, re, base64, pathlib
+import os, stat, re, base64, pathlib, grp
 root=pathlib.Path('/etc/argintaxpayer')
-assert root.is_dir() and stat.S_IMODE(root.stat().st_mode)==0o700, 'private config directory unsafe'
+assert root.is_dir() and stat.S_IMODE(root.stat().st_mode)==0o750 and root.stat().st_uid==0 and root.stat().st_gid==grp.getgrnam('argintaxsvc').gr_gid, 'private config directory unsafe'
 for name in ('api.env','web.env'):
     f=root/name
     s=f.stat()
@@ -48,7 +48,7 @@ assert all(s in cs for s in ('Host=127.0.0.1','Port=15434','Database=argintaxpay
 assert re.search(r'Password=[0-9a-f]{64}(?:;|$)',cs), 'invalid app credential'
 assert w['ARGIN_PRODUCTION_UI_ENABLED']=='false' and w['ARGIN_IDENTITY_UI_ENABLED']=='false'
 ca=root/'prod-db-ca.pem'
-assert ca.exists() and not ca.is_symlink() and ca.stat().st_uid==0 and stat.S_IMODE(ca.stat().st_mode)==0o644, 'unsafe CA'
+assert ca.exists() and not ca.is_symlink() and ca.stat().st_uid==0 and ca.stat().st_gid==grp.getgrnam('argintaxsvc').gr_gid and stat.S_IMODE(ca.stat().st_mode)==0o640, 'unsafe CA'
 print('[PASS] root-only 0600 files, independent 256-bit keys and dedicated TLS runtime DB config')
 print('[PASS] production authority/SMS/UI execution remains disabled')
 PY
