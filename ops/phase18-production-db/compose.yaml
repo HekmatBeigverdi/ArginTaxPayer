@@ -2,7 +2,7 @@
 name: argintaxpayer-phase18-production
 services:
   postgres:
-    image: postgres:17
+    image: ${PHASE18_PROD_POSTGRES_IMAGE:?Pinned PostgreSQL 17 digest required}
     container_name: argintaxpayer-phase18-production-postgres
     restart: "no"
     ports:
