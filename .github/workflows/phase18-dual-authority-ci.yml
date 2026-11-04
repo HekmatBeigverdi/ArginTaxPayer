@@ -36,7 +36,8 @@ jobs:
             apps/web/tests/phase18-step10-fiscal-environment-onboarding.test.mjs \
             apps/web/tests/phase18-step13-inquiry-isolation.test.mjs \
             apps/web/tests/phase18-step14-operation-authority.test.mjs \
-            apps/web/tests/phase18-step14-fiscal-key-ui-isolation.test.mjs
+            apps/web/tests/phase18-step14-fiscal-key-ui-isolation.test.mjs \
+            apps/web/tests/phase18-step15-incremental-migration.test.mjs
       - name: Restore and compile Release
         run: |
           dotnet restore ArginTaxPayer.sln
