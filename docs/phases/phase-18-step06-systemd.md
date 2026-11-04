@@ -23,7 +23,7 @@
 
 ### Service safeguards
 
-The unit files are `ops/phase18-systemd/argintaxpayer-api.service` and `argintaxpayer-web.service`. They have fixed loopback binding, distinct ports, Production runtime environment, `After` startup ordering, bounded failure restarts (`StartLimitBurst=3` in 300s, 10s restart delay), SIGTERM + timeout, locked-down `systemd` filesystem/permissions, no Linux capabilities, `UMask=0077`, dedicated state/runtime directories, journal logs, and a missing-by-design approval marker. Web has a narrowly scoped writable `.next/cache` exception because Next.js caches at runtime. During future staging this cache directory must exist, be writable to `argintaxsvc`, and contain **no application binaries or secrets**.
+The unit files are `ops/phase18-systemd/argintaxpayer-api.service` and `argintaxpayer-web.service`. The Web service executes its own dedicated Node binary from `/opt/argintaxpayer/runtime/node/bin/node`, not the host Node path. They have fixed loopback binding, distinct ports, Production runtime environment, `After` startup ordering, bounded failure restarts (`StartLimitBurst=3` in 300s, 10s restart delay), SIGTERM + timeout, locked-down `systemd` filesystem/permissions, no Linux capabilities, `UMask=0077`, dedicated state/runtime directories, journal logs, and a missing-by-design approval marker. Web has a narrowly scoped writable `.next/cache` exception because Next.js caches at runtime. During future staging this cache directory must exist, be writable to `argintaxsvc`, and contain **no application binaries or secrets**.
 
 The optional `EnvironmentFile` lines are **future wiring only**. They can override hard-coded environment variables, so Step08 MUST review them against all admission gates before starting the services. No unit performs schema migrations, automatic invoice inquiry, key generation, or provider calls. Even when an operator manually creates the activation marker, missing release paths and Production DB configuration remain startup blockers; NEVER treat creation of the marker as deployment approval.
 
@@ -58,7 +58,18 @@ node --test apps/web/tests/phase18-step06-systemd-contract.test.mjs
 PHASE18_EXPECTED_SHA='<FULL_MACOS_SHA>' bash scripts/phase18-step06-systemd-preflight.sh
 ```
 
-Do not proceed if macOS/Ubuntu SHAs differ or port 15090/15091 is occupied. The Ubuntu preflight also requires a **system-wide** Node.js 20+ and ASP.NET Core 9 runtime resolvable from `/usr/local/bin:/usr/bin:/bin`; `argindev`-only NVM or `~/.dotnet` installations are NOT accessible to the dedicated `argintaxsvc` system account. It refuses instead of modifying software installations. Resolve any missing system-wide runtime in a separately reviewed host preparation action. The preflight reports `unit-contract PASS`, `systemd-syntax PASS`, both ports FREE, and no currently active service.
+Do not proceed if macOS/Ubuntu SHAs differ or port 15090/15091 is occupied. The Ubuntu preflight requires a **dedicated, root-owned Node.js 20+** executable at `/opt/argintaxpayer/runtime/node/bin/node`, plus a system-wide ASP.NET Core 9 runtime. It does **not** require updating `/usr/bin/node`, NVM, or Node for unrelated services. A user-local `~/.dotnet` installation remains inaccessible to `argintaxsvc`; any missing system-wide .NET runtime needs separately reviewed host preparation.
+
+**If Ubuntu initially reports an outdated global Node**, choose an existing trusted Node 20+ executable (for example one installed by `argindev`'s NVM). Inspect `node --version`, `command -v node`, and `readlink -f "$(command -v node)"`. Provision a **separate copy** only for ArginTaxPayer using:
+
+```bash
+NODE_SOURCE="$(readlink -f "$(command -v node)")"
+"$NODE_SOURCE" --version
+# Must show Node 20 or newer, and be a trusted local executable.
+sudo bash scripts/phase18-step06-install-isolated-node.sh --copy-node "$NODE_SOURCE"
+```
+
+The guarded copy script refuses symlinks, world-writable binaries, temporary paths, existing targets and active service/activation states. It makes no apt changes and never replaces the system node. Re-run the original same-SHA Ubuntu preflight afterward; do not bypass its checks. The preflight reports `unit-contract PASS`, `systemd-syntax PASS`, both ports FREE, and no currently active service.
 
 ## Stage C: intentional Ubuntu installation — *DISABLED/INACTIVE*
 
