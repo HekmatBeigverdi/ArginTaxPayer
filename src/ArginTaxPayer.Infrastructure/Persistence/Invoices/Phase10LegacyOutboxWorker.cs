@@ -65,6 +65,8 @@ internal sealed class Phase10LegacyOutboxWorker(
         var customer = GuidField(root, "customerUserId");
         var taxpayer = GuidField(root, "taxpayerId");
         var memory = GuidField(root, "fiscalMemoryId");
+        // Legacy operations reference sandbox_fiscal_memories, not the separate
+        // regular fiscal_memories namespace (see the Phase10 FK alignment).
         // GET_TOKEN uses the six-character fiscal memory client ID, not
         // the 22-character invoice tax identifier.
         var connection = db.Database.GetDbConnection();
@@ -80,11 +82,9 @@ WHERE id=@memory AND customer_user_id=@owner AND taxpayer_id=@taxpayer
   AND current_database()='argintaxpayer_test'
   AND EXISTS (
     SELECT 1 FROM invoice_dispatch_operations d
-    JOIN fiscal_memories fm ON fm.id=d.fiscal_memory_id AND fm.taxpayer_id=d.taxpayer_id
     WHERE d.id=@operation AND d.customer_user_id=@owner
       AND d.taxpayer_id=@taxpayer AND d.fiscal_memory_id=@memory
       AND (to_jsonb(d)->>'authority_environment' IS NULL OR to_jsonb(d)->>'authority_environment'='2')
-      AND (to_jsonb(fm)->>'authority_environment' IS NULL OR to_jsonb(fm)->>'authority_environment'='2')
   )
 """;
             foreach(var (name,value) in new (string,object)[] {

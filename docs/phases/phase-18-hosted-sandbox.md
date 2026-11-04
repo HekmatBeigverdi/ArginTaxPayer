@@ -48,3 +48,34 @@ HTTP 401. Redirecting a disabled login is a failure. Disabled staging is reporte
 as `STAGED_ONLY` and does not establish application availability.
 Verify public HTTPS separately, then actual login/MFA, SMS and the requested
 business workflows. Passing build/tests is not evidence of those user journeys.
+
+## Observed deployment, 2026-11-05 Tehran time
+
+Owner approved copying existing accounts/data and the original MFA information.
+An independent restore in the dedicated container contains 135 accounts and 74
+migrations; the original shared database remains unchanged. Enabled MFA records
+are byte-identical to the source. Both decryptable original MFA records,
+including the actual Level1 account, were verified using the original key.
+Ten inherited synthetic/unreadable MFA fixtures were preserved rather than
+rewritten. The snapshot is encrypted and the recovery key is root-only.
+
+Release `2d7e72266a6405f565055d6fd71474424b165d2e` activated the complete
+application. A synthetic acceptance identity passed password + TOTP login,
+Secure/HttpOnly/SameSite cookies, nine protected pages, authenticated taxpayer
+BFF and cross-origin rejection through the actual public HTTPS/Nginx route.
+That identity was removed afterward. Ghasedak account authentication and
+available credit were verified read-only. No SMS or tax invoice was sent by
+deployment acceptance. The SMS root is bound to the original Level1 owner of
+the restored SMS settings to avoid ambiguity from historical test identities.
+
+The final legacy regression exposed three incorrect regular-memory lookups in
+Sandbox send/UID/reference inquiry. Their dispatch FK points to
+`sandbox_fiscal_memories`, not `fiscal_memories`. Read-only PostgreSQL tests
+exercise the actual queries using CTE fixtures with no regular-memory row,
+and retain Production-operation and foreign-owner denials. They also cover
+historical unclassified Sandbox operations without modifying prior evidence.
+
+The VPS has SDK 9.0.121 while the repository pins 9.0.202; its full source build
+therefore cannot be claimed to pass. The tested portable API package was built
+on macOS and the web package was built on Ubuntu; activation verified the real
+ASP.NET runtime, VerifyFull database readiness and public authenticated routes.

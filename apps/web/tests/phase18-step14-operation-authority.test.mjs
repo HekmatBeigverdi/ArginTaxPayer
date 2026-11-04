@@ -31,7 +31,9 @@ test('Sandbox worker and both inquiries cannot use a Production-classified opera
   for (const name of ['Phase10LegacyOutboxWorker.cs','Phase10LegacyUidInquiryService.cs','Phase10LegacyReferenceInquiryService.cs']) {
     const source = read(dir + name);
     assert.match(source, /to_jsonb\(d\)->>'authority_environment' IS NULL OR to_jsonb\(d\)->>'authority_environment'='2'/, name);
-    assert.match(source, /to_jsonb\(fm\)->>'authority_environment' IS NULL OR to_jsonb\(fm\)->>'authority_environment'='2'/, name);
+    // Legacy memory IDs belong to the dedicated Sandbox table. The PostgreSQL
+    // scope regression exercises this binding with no regular-memory row.
+    assert.match(source, /sandbox_fiscal_memories/, name);
   }
 });
 

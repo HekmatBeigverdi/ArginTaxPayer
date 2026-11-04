@@ -92,9 +92,6 @@ JOIN invoice_dispatch_receipts receipt ON receipt.operation_id=d.id AND receipt.
    AND m.customer_user_id=@owner AND m.taxpayer_id=@taxpayer
    AND o.event_type='invoice.sandbox.legacy.dispatch.requested'
    AND (to_jsonb(d)->>'authority_environment' IS NULL OR to_jsonb(d)->>'authority_environment'='2')
-   AND EXISTS(SELECT 1 FROM fiscal_memories fm
-       WHERE fm.id=d.fiscal_memory_id AND fm.taxpayer_id=d.taxpayer_id
-       AND (to_jsonb(fm)->>'authority_environment' IS NULL OR to_jsonb(fm)->>'authority_environment'='2'))
    AND o.payload_json::jsonb->>'environment'='Sandbox'
    AND o.payload_json::jsonb->>'schema'='phase10.sandbox.legacy.invoice.dispatch.v1'
    AND o.payload_json::jsonb->>'operationId'=d.id::text
