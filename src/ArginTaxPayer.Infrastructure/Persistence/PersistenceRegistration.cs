@@ -80,6 +80,7 @@ public static class PersistenceRegistration
             sp.GetRequiredService<Phase10LegacyOutboxWorker>());
         services.AddScoped<InvoiceDispatchAdmissionRepository>();
         services.AddScoped<Phase18PersistedAuthorityEnvironmentResolver>();
+        services.AddScoped<Phase18PersistedAuthorityOperationGate>();
         services.AddScoped<SandboxInvoiceFiscalSerialRepository>();
         services.AddScoped<IIdempotencyReservationWriter, EfIdempotencyReservationWriter>();
 
