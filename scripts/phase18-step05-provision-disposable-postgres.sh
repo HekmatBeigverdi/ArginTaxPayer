@@ -4,12 +4,12 @@
 set -Eeuo pipefail
 umask 077
 fail() { printf '[REFUSED] %s\n' "$*" >&2; exit 2; }
-cd "$(dirname "\${BASH_SOURCE[0]}")/.."
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
 [[ "$(uname -s)" == Linux ]] || fail 'Ubuntu/Linux required'
 [[ "$(id -u)" != 0 ]] || fail 'Run as argindev, not root'
 [[ "$(git branch --show-current)" == phase/18-production-deployment ]] || fail 'Wrong branch'
 [[ -z "$(git status --porcelain --untracked-files=no)" ]] || fail 'Tracked changes present'
-[[ "\${PHASE18_CREATE_DISPOSABLE_DB:-}" == YES ]] || fail 'Explicit PHASE18_CREATE_DISPOSABLE_DB=YES required'
+[[ "${PHASE18_CREATE_DISPOSABLE_DB:-}" == YES ]] || fail 'Explicit PHASE18_CREATE_DISPOSABLE_DB=YES required'
 for tool in sudo docker openssl psql git ss; do
   command -v "$tool" >/dev/null || fail "Missing: $tool"
 done
