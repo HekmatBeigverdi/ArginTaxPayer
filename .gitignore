@@ -60,3 +60,6 @@ artifacts/phase18-step05-integration/
 
 # Phase18 isolated disposable PostgreSQL acceptance logs
 artifacts/phase18-step05-db/
+
+# Phase18 final tenant and browser-facing BFF acceptance reports
+artifacts/phase18-step05-final/
