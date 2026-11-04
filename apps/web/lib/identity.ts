@@ -11,6 +11,9 @@ export function identityApiOrigin(): string {
       url.username || url.password || url.pathname !== "/" || url.search || url.hash) {
     throw new Error("Identity API must use a dedicated loopback HTTP origin.");
   }
+  if (process.env.NODE_ENV === "production" && url.origin !== "http://127.0.0.1:15090") {
+    throw new Error("Production identity API must use the dedicated loopback port 15090.");
+  }
   return url.origin;
 }
 
