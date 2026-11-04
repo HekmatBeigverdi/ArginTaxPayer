@@ -530,3 +530,14 @@ bash scripts/phase18-step05-production-integration.sh
 If failed, inspect only the specific private log under `artifacts/phase18-step05-integration/`, never post secrets. `dotnet test` exercises an ephemeral TestServer in-process, not public ports, Docker, or live databases. A production-mode startup failure means remediate and rerun before acceptance.
 
 **Hard remaining boundary:** This is *not* a real database-backed Production MFA/tenancy test. Such a test needs a newly provisioned, uniquely named, disposable PostgreSQL test database with a verified SSL connection configuration and safe isolated fixtures; never reuse the shared `argintaxpayer_test`, customers' actual DB, or fiscal memory credentials. It also needs legitimate route enrollment, tenant-isolation checks, browser BFF login and cookie/CSRF tests, a verified cleanup strategy, and absolutely no actual tax authority send. Do not claim Step05 final acceptance or production go-live from these tests alone. Public Nginx continues maintenance-only. Final release gate remains BLOCKED.
+
+### Step 05 — owner confirms macOS and Ubuntu integration parity (2026-11-04)
+
+Owner explicitly reports the **same** acceptance manifest on macOS and Ubuntu:
+- `production-api-isolation PASS`
+- `web-production-boundaries PASS`
+- `web-identity-regression PASS`
+- `production_mfa_tenancy PENDING_DEDICATED_DB`
+- `production_go_live BLOCKED`
+
+Accept the three isolated Production integration tests as **PASS (owner-reported on both platforms)**. The manifests as quoted do not contain a literal SHA; do not claim same-SHA parity for this new integration test execution until the SHA metadata is checked. The remaining gate is an independent and disposable PostgreSQL environment, TLS-verified connection, no real users/taxpayer data, controlled fixture setup/teardown, Production-authentication/MFA and tenant isolation, cookie/CSRF browser checks, without contacting tax authority. Existing `argintaxpayer_test` must not be reclassified or reused as Production database. Keep operational publishing disabled and Nginx maintenance page unchanged. Step05 is NOT yet finally accepted.
