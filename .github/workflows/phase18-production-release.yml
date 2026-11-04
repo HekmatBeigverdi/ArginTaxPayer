@@ -12,8 +12,8 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: argintaxpayer-production
-  cancel-in-progress: false
+  group: argintaxpayer-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'push' }}
 jobs:
   package:
     runs-on: ubuntu-24.04
