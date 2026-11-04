@@ -41,8 +41,9 @@ node_dir=/opt/argintaxpayer/runtime/node/bin
   die 'Locked production dependency installation failed'
 sudo install -d -o root -g root -m 0755 "/opt/argintaxpayer/releases/$sha"
 sudo cp -a "$tmp/stage/api" "$tmp/stage/web" "/opt/argintaxpayer/releases/$sha/"
-sudo chown -R root:root "/opt/argintaxpayer/releases/$sha"
-sudo chmod -R go-w "/opt/argintaxpayer/releases/$sha"
+sudo chown -R root:argintaxsvc "/opt/argintaxpayer/releases/$sha"
+# The service requires group read/traverse access, but never group write to deployed code.
+sudo chmod -R g+rX,g-w,o-rwx "/opt/argintaxpayer/releases/$sha"
 sudo install -d -o argintaxsvc -g argintaxsvc -m 0700 "/opt/argintaxpayer/releases/$sha/web/.next/cache"
-sudo install -o root -g root -m 0644 "$bundle/build-info.txt" "/opt/argintaxpayer/releases/$sha/build-info.txt"
+sudo install -o root -g argintaxsvc -m 0640 "$bundle/build-info.txt" "/opt/argintaxpayer/releases/$sha/build-info.txt"
 echo "[PASS] Staged release $sha, activation unchanged."
