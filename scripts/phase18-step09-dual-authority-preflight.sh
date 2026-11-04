@@ -6,6 +6,7 @@ sha=$(git rev-parse HEAD)
 [[ -z "$(git status --porcelain --untracked-files=no)" ]]
 [[ "${PHASE18_EXPECTED_SHA:-}" == "$sha" ]]
 node --test apps/web/tests/phase18-step09-dual-authority-audit.test.mjs
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --configuration Release --filter FullyQualifiedName~Phase18AuthorityRoutingPolicyTests
 echo "[PASS] Source boundary audit complete for $sha"
 echo "[BLOCKED] Persisted authority environment and production dual-routing not established"
 echo "[BLOCKED] Sandbox operations still bound to legacy test database"
