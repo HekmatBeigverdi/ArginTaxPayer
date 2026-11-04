@@ -3106,6 +3106,10 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<int?>("AuthorityEnvironment")
+                        .HasColumnType("integer")
+                        .HasColumnName("authority_environment");
+
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at_utc");
@@ -3148,6 +3152,8 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
 
                     b.ToTable("fiscal_memories", null, t =>
                         {
+                            t.HasCheckConstraint("ck_fiscal_memories_authority_environment", "authority_environment IS NULL OR authority_environment IN (1, 2)");
+
                             t.HasCheckConstraint("ck_fiscal_memories_identifier", "length(trim(memory_identifier)) > 0");
 
                             t.HasCheckConstraint("ck_fiscal_memories_revision", "revision > 0");
