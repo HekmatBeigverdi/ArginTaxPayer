@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 18: Controlled Production Deployment & Dual Tax-Authority Environments
 
-**Status:** Step 01 OWNER-APPROVED (2026-11-04); Step 02 architecture contract DOCUMENTED (awaiting owner acceptance); runtime implementation NOT STARTED.  
+**Status:** Steps 01 and 02 OWNER-APPROVED (2026-11-04); Step 03 read-only preflight script and hardening plan PREPARED; remote execution/operational hardening PENDING owner-run evidence. No production rollout.  
 **Date:** 2026-11-04  
 **Branch:** `phase/18-production-deployment`  
 **Starting main SHA:** `6ad5246a39cace77e76901a20d149c301094f7c3` (Phase 15 merge; release `phase-15-v1.0.0` reported in merge metadata).  
@@ -225,4 +225,63 @@ Operator: `argindev` via SSH/sudo on explicitly allowed commands; application ru
 
 **Not yet proven / blocked until later steps:** exact public VPS IP, authoritative DNS account, Nginx/systemd presence, production process registration refactor, Next.js BFF env names and all proxy policy, complete fiscal-memory schema/dispatch source audit, official live endpoint edition, VPS outbound connectivity, current production user onboarding, real fiscal credentials, operational tests, server capacity, certificate issuance, backup restore. No claim of deployed/live readiness.
 
-**Step 02 gate:** architecture contract is written with source-backed blocker; no infrastructure or code changes performed and no test PASS claimed. On owner acceptance proceed to Step 03 preflight and hardening; route-registration refactor must be resolved before Step 05/06 public launch and verified in Step 11. Record Step 02 owner signoff here on receipt.
+**Step 02 gate:** architecture contract completed and explicitly APPROVED by owner on 2026-11-04. No infrastructure or runtime changes were performed. Step 03 may proceed; route-registration refactor remains a hard Step 05/06/11 blocker.
+
+## 9. Step 03 — Ubuntu VPS readiness and non-disruptive hardening (2026-11-04)
+
+**Owner approval:** Step 02 explicitly approved 2026-11-04.  
+**Implementation state:** Read-only inspection script added at `scripts/phase18-step03-ubuntu-preflight.sh` (commit `f53738408dc7e0a4f5fce1763c84b160110c595f`). Execution on the actual VPS and any changes to firewall/SSH/packages were **not** performed. Do NOT mark Step 03 infrastructure acceptance PASS until actual logs are provided and reviewed.
+
+### 9.1 Existing Ubuntu environment and non-regression contract
+
+Source evidence: `scripts/ubuntu-dev.sh` uses `$HOME/.argintaxpayer-test/ubuntu.env`, local Postgres test database `argintaxpayer_test` at `127.0.0.1:5432`, test API at `127.0.0.1:15089`, test Next.js at `127.0.0.1:3000`, and local-only Adminer at `127.0.0.1:8081` when configured; `scripts/dev-up.zsh` uses AutoSSH 15432 for macOS development. These ports are **currently reserved for development when its processes are active**, not guaranteed to be free for production. Do not stop or replace `ubuntu-dev.sh`, its test database, the SSH tunnel or Adminer to make space. If active listeners conflict, allocate dedicated production loopback ports after gathering `ss` evidence, and record actual final ports in Step 06. Do not assume `postgresql.service` reflects containerized PostgreSQL status; inspect actual listeners and Docker separately.
+
+### 9.2 Safe operator workflow: read-only inspection
+
+Run from Ubuntu **as `argindev`, without sudo**:
+```bash
+cd ~/projects/ArginTaxPayer
+git fetch origin
+git switch phase/18-production-deployment
+git pull --ff-only origin phase/18-production-deployment
+git status --short
+git rev-parse HEAD
+bash scripts/phase18-step03-ubuntu-preflight.sh
+```
+The script rejects non-Ubuntu-24, root execution, dirty tracked worktrees and wrong branch. It only reads OS, time sync, capacity, runtime presence, TCP listeners, firewall state, SSH configuration validity, limited service status and file ownership. Reports are written in `artifacts/phase18-step03/` with private file permissions. **Do not upload raw report logs** to a public GitHub repository; redact IPs/hostnames and return summarized PASS/WARN values. If `artifacts/` is unexpectedly tracked, refuse to commit reports. The script does not restart services, access a production database, change routing, touch UFW, issue certificates or call the tax authority.
+
+Read-only comparison before/after any future infrastructure change:
+```bash
+bash scripts/ubuntu-dev.sh status
+ss -ltn
+sudo ufw status verbose
+sudo systemctl status ssh --no-pager --lines=0
+```
+The last two commands require authorized sudo privileges, are inspection-only, and can expose private network metadata; redact in shared output. Verify `ssh` access from a **second independent terminal** before future firewall/SSH changes. SSH daemon name is usually `ssh` on Ubuntu; confirm on this host, not assumed.
+
+### 9.3 Hardening changes permitted only after preflight approval
+
+1. Verify authenticated console/provider recovery path and obtain a provider VPS snapshot or consistent off-host backup with documented restoration. Snapshot completion is a **manual pending gate**, not claimed. Confirm spare disk/inodes/memory and time synchronization.
+2. Inventory real ingress listeners: TCP 22 (or actual SSH port) for admin with SSH keys, 80/443 public for Nginx only, 5432 DB/8081 Adminer/3000 web/15089 API and any other dev ports strictly loopback. Check provider edge firewall/NAT separately from UFW.
+3. Stage firewall rules **without enabling/reloading them in this step**. Preserve the verified SSH entry path (including the existing AutoSSH service); add only the actual SSH port/address and HTTP(S) rules in later maintenance with a proven console fallback. Evaluate IPv6 and VPN routes before enabling UFW. Avoid a blanket `ufw enable` command. Cloud firewall needs matching review.
+4. Validate `sshd -t` and SSH key login using an independent second session before modifying authentication policy. Do not disable password login or SSH port blindly; root login changes require proof that sudo and recovery both work.
+5. Ensure `unattended-upgrades` maintenance policy, security patches, fail2ban/rate-limiting and Nginx package installation are reviewed for service restart and source compatibility before applying. No automatic system-wide `apt upgrade` during an active dev/test session.
+6. Define non-login production application principal(s), reserved release/config/state directories and least privileges during Steps 05–08 only after ownership/permissions review. No `chmod -R 777`, no world-readable secrets.
+7. Record actual ports, DNS IP, resource sizing, backup policy and operational owner in the operator runbook. Defer changes requiring maintenance approval, not their risk tracking.
+
+### 9.4 Step 03 acceptance matrix
+
+| Gate | Evidence | Current state |
+|---|---|---|
+| Ubuntu release + runtime inventory | Local script platform/runtime logs | NOT RUN ON VPS |
+| CPU/memory/disk/inodes/time sync | Local script resources/platform logs | NOT RUN ON VPS |
+| Listening sockets/port conflicts | Local script sockets log + operator review | NOT RUN ON VPS |
+| SSH key access + recovery second session | Independently confirmed operator test | PENDING |
+| Firewall/public exposures reviewed | UFW + provider firewall + external ingress scan | PENDING |
+| Provider snapshot / encrypted off-host backup | Provider reference + tested restore plan | PENDING |
+| Existing test DB, AutoSSH and dev UI/API unaffected | `ubuntu-dev.sh status`, read-only DB health and external tunnel | PENDING |
+| Unauthorized public API and Postgres blocked | External network validation; no sensitive endpoint leak | PENDING |
+| DNS/TLS issued | Specifically Step 04, not counted in Step 03 | FUTURE |
+| Secure operational production API registration | Step 05/06/11 code and tests | BLOCKED UNTIL IMPLEMENTED |
+
+**Exit criteria:** This is an implementation artifact and precise operator procedure, **not** an assertion of a hardened VPS. Step 03 may only be approved as a server-readiness gate after the operator runs preflight and returns reviewed results, provider backup evidence, SSH fallback and non-disruption/ingress checks. No DNS/SSL, firewall, endpoint or tax authority changes are performed automatically. Never merge or release based on an unrun checklist.
