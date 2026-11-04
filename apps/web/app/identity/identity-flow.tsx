@@ -79,7 +79,7 @@ function getPasswordError(status: number) {
   return "نام کاربری یا رمز عبور نادرست است.";
 }
 
-export default function IdentityFlow() {
+export default function IdentityFlow({ restrictedLogin = false }: { restrictedLogin?: boolean }) {
   const router = useRouter();
 
   const [tab, setTab] = useState<Tab>("login");
@@ -201,6 +201,8 @@ export default function IdentityFlow() {
       return;
     }
 
+    if (restrictedLogin && (tab !== "login" || mode !== "password" || forgot))
+      return;
     setError("");
     setMessage("");
     setPending(true);
@@ -448,7 +450,7 @@ export default function IdentityFlow() {
               <h2>{tab === "login" ? "ورود به حساب کاربری" : "ایجاد حساب کاربری"}</h2>
               <p className="identity-muted">
                 {tab === "login"
-                  ? "با رمز عبور یا پیامک وارد شوید."
+                  ? restrictedLogin ? "با رمز عبور و در صورت نیاز تأیید دومرحله‌ای وارد شوید." : "با رمز عبور یا پیامک وارد شوید."
                   : "شماره موبایل را تأیید کنید یا از ثبت‌نام آزمایشی ایمیلی استفاده کنید."}
               </p>
             </div>
@@ -637,7 +639,7 @@ export default function IdentityFlow() {
             </button>
           )}
 
-          {!forgot && tab === "login" && step === "details" && (
+          {!restrictedLogin && !forgot && tab === "login" && step === "details" && (
             <button
               type="button"
               className="auth-text-link"
@@ -665,7 +667,7 @@ export default function IdentityFlow() {
         </p>
       </fieldset>
 
-      {step === "details" && !pending && !navigating && (
+      {!restrictedLogin && step === "details" && !pending && !navigating && (
         <div className="auth-secondary-links">
           {tab === "login" && !forgot && (
             <button
