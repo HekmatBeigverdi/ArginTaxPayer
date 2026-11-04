@@ -26,6 +26,12 @@ internal sealed class LegacyInvoiceSubmissionHttpTransport(
     internal static bool TryResolveSandboxBase(IConfiguration config, out Uri? endpoint)
     {
         endpoint = null;
+        // Existing Sandbox send now uses the same pinned-origin registry as
+        // future persisted-operation routing; no host fallback is allowed.
+        if (!Phase18LegacyAuthorityEndpointSelector.TryResolveConfiguredBase(
+                ArginTaxPayer.Domain.Invoices.TaxAuthorityEnvironment.Sandbox,
+                config, out _))
+            return false;
         if (config["SandboxInvoiceLegacy:Enabled"] != "true" ||
             config["SandboxInvoiceLegacy:OperatorApprovedEndpoint"] != "true")
             return false;
