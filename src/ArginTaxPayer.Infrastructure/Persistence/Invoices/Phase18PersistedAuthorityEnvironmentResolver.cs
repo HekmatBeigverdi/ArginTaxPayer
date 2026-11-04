@@ -31,6 +31,7 @@ public sealed class Phase18PersistedAuthorityEnvironmentResolver(ArginTaxPayerDb
                 on taxpayer.Id equals invoice.TaxpayerId
             where memory.Id == memoryId &&
                   memory.TaxpayerId == taxpayerId &&
+                  memory.Status == FiscalMemoryStatus.Active &&
                   taxpayer.CustomerUserId == customerUserId &&
                   invoice.Id == invoiceId &&
                   invoice.CustomerUserId == customerUserId &&
