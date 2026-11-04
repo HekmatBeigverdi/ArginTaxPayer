@@ -511,3 +511,22 @@ bash scripts/phase18-step05-production-negative-smoke.sh
 Before running, verify that port `15991` is not assigned to another service and current tracked worktree is clean. The script fails closed if busy. Do not run with sudo; if there is a failure, inspect local private logs, do not publish secrets.
 
 **Caveat:** Static source and negative smoke do not prove operational Production enabled, legitimate login, MFA, authorization, BFF CSRF/cookies, production database isolation, official authority Sandbox/Production per-fiscal-memory routing, idempotency or rollback. These need controlled isolated DB fixtures, real browser & integration tests, and subsequent Ph18 steps. The public Nginx maintenance host stays unchanged, and no real tax invoices are sent. New commit for runtime smoke invalidates prior same-SHA build parity by Git HEAD but does NOT invalidate accepted historical gate for the previous tested SHA; final release must be retested at its own HEAD.
+
+### Step 05 — Production-mode API integration test harness (2026-11-04)
+
+Following owner approval to implement integration acceptance, added:
+- `tests/ArginTaxPayer.Tests/Phase18ProductionIsolationTests.cs`: WebApplicationFactory tests starting the actual API composition with `Production` environment, operational endpoints **explicitly enabled**, configured HTTPS public URL and dedicated loopback URL `127.0.0.1:15090`; replaces the database connection in host configuration with intentionally unreachable `127.0.0.1:15992`, database `phase18_unreachable`, SSL Require, and disables real SMS and legacy Sandbox invoice dispatch configuration. It does **not** create or migrate any database or send invoices. Checks external (non-loopback) caller receives 404 for internal `/api/dev` routes, no production OpenAPI/dev health route, liveness 200; for loopback caller ensures development registration is disabled (404) even though other operational routes were registered.
+- `scripts/phase18-step05-production-integration.sh`: guarded runner requiring a clean tracked tree on `phase/18-production-deployment`, executes xUnit Production isolation test and Next.js production origin/cookie and identity regression tests; writes local-only logs under `artifacts/phase18-step05-integration/<sha>/<utc>`. This directory is gitignored.
+- This is a **source implementation only**; no tool in this conversation executed the macOS or Ubuntu xUnit/Next.js tests. Operator acceptance evidence is still required at the same SHA.
+
+**Run macOS first, Ubuntu second on identical SHA:**
+```bash
+git fetch origin
+git switch phase/18-production-deployment
+git pull --ff-only origin phase/18-production-deployment
+git rev-parse HEAD
+bash scripts/phase18-step05-production-integration.sh
+```
+If failed, inspect only the specific private log under `artifacts/phase18-step05-integration/`, never post secrets. `dotnet test` exercises an ephemeral TestServer in-process, not public ports, Docker, or live databases. A production-mode startup failure means remediate and rerun before acceptance.
+
+**Hard remaining boundary:** This is *not* a real database-backed Production MFA/tenancy test. Such a test needs a newly provisioned, uniquely named, disposable PostgreSQL test database with a verified SSL connection configuration and safe isolated fixtures; never reuse the shared `argintaxpayer_test`, customers' actual DB, or fiscal memory credentials. It also needs legitimate route enrollment, tenant-isolation checks, browser BFF login and cookie/CSRF tests, a verified cleanup strategy, and absolutely no actual tax authority send. Do not claim Step05 final acceptance or production go-live from these tests alone. Public Nginx continues maintenance-only. Final release gate remains BLOCKED.
