@@ -49,13 +49,21 @@ printf 'sha=%s\nutc=%s\ndotnet=%s\nnode=%s\nnext_build_id=%s\n' "$sha" "$stamp" 
 (cd "$out/stage" && tar -czf "$out/api.tar.gz" api && tar -czf "$out/web.tar.gz" web)
 (cd "$out" && $digest_cmd api.tar.gz web.tar.gz > SHA256SUMS)
 printf 'packaging\tBUILT_NOT_DEPLOYED\n' >> "$out/manifest.tsv"
-# Source checks are conservative blockers until full secured Production refactor.
-if grep -q 'if (identityDevelopmentEnabled)' src/ArginTaxPayer.Api/Program.cs; then
+# Phase18 static preflight does not certify runtime security or functional Production login.
+if grep -q 'var operationalEndpointsEnabled = identityDevelopmentEnabled || productionOperationalEnabled' src/ArginTaxPayer.Api/Program.cs &&
+   grep -q 'StartsWithSegments("/api/dev")' src/ArginTaxPayer.Api/Program.cs; then
+ printf 'api-prod-routes\tSOURCE_GATE_IMPLEMENTED_RUNTIME_QA_PENDING\n' >> "$out/manifest.tsv"
+else
  printf 'api-prod-routes\tBLOCKED_DEV_GATE\n' >> "$out/manifest.tsv"
 fi
-if grep -q 'process.env.NODE_ENV === "development"' apps/web/lib/identity.ts; then
+if grep -q 'ARGIN_PRODUCTION_UI_ENABLED' apps/web/lib/identity.ts &&
+   grep -q 'ARGIN_PUBLIC_BASE_URL' apps/web/lib/identity-origin.mjs &&
+   grep -q 'secure: process.env.NODE_ENV === "production"' 'apps/web/app/api/identity/[...path]/route.ts'; then
+ printf 'web-prod-auth\tSOURCE_GATE_IMPLEMENTED_RUNTIME_QA_PENDING\n' >> "$out/manifest.tsv"
+else
  printf 'web-prod-auth\tBLOCKED_DEV_GATE\n' >> "$out/manifest.tsv"
 fi
+printf 'production-deployment\tBLOCKED_PENDING_LIVE_RUNTIME_SECURITY_ACCEPTANCE\n' >> "$out/manifest.tsv"
 echo "[DONE] SHA $sha"
 echo "[DONE] Local artifacts: $out"
-echo "[WARNING] NOT APPROVED FOR PRODUCTION DEPLOYMENT. Verify packages for embedded secrets and resolve gates."
+echo "[WARNING] NOT APPROVED FOR PRODUCTION DEPLOYMENT. Run Production-mode auth, security and Ubuntu acceptance."
