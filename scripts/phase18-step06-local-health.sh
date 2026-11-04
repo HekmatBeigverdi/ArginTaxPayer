@@ -24,10 +24,23 @@ code() { curl --noproxy '*' -sS -o /dev/null -w '%{http_code}' --max-time 5 "$1"
 [[ "$(code "$api/health/live")" == 200 ]] || { echo '[FAIL] API liveness' >&2; exit 1; }
 [[ "$(code "$api/health/ready")" == 200 ]] || { echo '[FAIL] API PostgreSQL readiness' >&2; exit 1; }
 webcode=$(code "$web/identity")
-[[ "$webcode" == 200 || "$webcode" == 307 || "$webcode" == 308 || ( "$1" == "--probe-local-disabled-ui" && "$webcode" == 404 ) ]] ||
-  { echo '[FAIL] BFF web route not healthy' >&2; exit 1; }
+if [[ "$1" == "--probe-local-disabled-ui" ]]; then
+  [[ "$webcode" == 200 || "$webcode" == 307 || "$webcode" == 308 || "$webcode" == 404 ]] ||
+    { echo '[FAIL] Staged BFF process not healthy' >&2; exit 1; }
+else
+  [[ "$webcode" == 200 ]] ||
+    { echo "[FAIL] Login unavailable (HTTP $webcode); verify both identity UI switches in web.env" >&2; exit 1; }
+  [[ "$(code "$api/api/dev/identity/authorization/me")" == 401 ]] ||
+    { echo '[FAIL] Operational identity API unavailable or not session-protected; verify API activation' >&2; exit 1; }
+  [[ "$(code "$web/api/identity/me")" == 401 ]] ||
+    { echo '[FAIL] Identity BFF unavailable or not session-protected; verify UI activation' >&2; exit 1; }
+fi
 [[ "$(code "$api/health/dev-identity")" == 404 ]] ||
   { echo '[FAIL] Development diagnostics enabled in Production' >&2; exit 1; }
-echo '[PASS] Loopback API live/ready, web route and production dev-diagnostic isolation.'
-if [[ "$1" == "--probe-local-disabled-ui" ]]; then echo '[INFO] UI may remain disabled: no authenticated business endpoints tested.'; fi
+echo '[PASS] Loopback API live/ready and production dev-diagnostic isolation.'
+if [[ "$1" == "--probe-local-disabled-ui" ]]; then
+  echo '[STAGED_ONLY] UI may remain disabled: application login and business availability NOT verified.'
+else
+  echo '[PASS] Login available; API and BFF reject unauthenticated identity requests.'
+fi
 echo '[NOTE] This does not replace real HTTPS/Nginx/browser tests or tax authority checks.'

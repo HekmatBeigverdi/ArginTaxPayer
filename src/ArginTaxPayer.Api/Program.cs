@@ -29,6 +29,7 @@ using System.Threading.RateLimiting;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.AspNetCore.RateLimiting;
+using HostedSandboxDeployment = ArginTaxPayer.Infrastructure.Configuration.HostedSandboxDeployment;
 
 var builder = WebApplication.CreateBuilder(args);
 var identityDevelopmentEnabled = builder.Environment.IsDevelopment() &&
@@ -57,7 +58,10 @@ if (productionOperationalEnabled || identityDashboardOnlyEnabled)
         builder.Configuration.GetSection("Kestrel:Endpoints").Exists())
         throw new InvalidOperationException("Production API must bind exclusively to http://127.0.0.1:15090 with no Kestrel endpoint overrides.");
     var database = builder.Configuration.GetConnectionString("ArginTaxPayerDb")!;
-    if (database.Contains("argintaxpayer_test", StringComparison.OrdinalIgnoreCase))
+    var hostedSandbox = HostedSandboxDeployment.IsAllowed(database, builder.Configuration);
+    if (builder.Configuration.GetValue<bool>("ArginTaxPayer:HostedSandboxEnabled") && !hostedSandbox)
+        throw new InvalidOperationException("Hosted Sandbox requires its dedicated TLS database and Sandbox-only authority configuration.");
+    if (database.Contains("argintaxpayer_test", StringComparison.OrdinalIgnoreCase) && !hostedSandbox)
         throw new InvalidOperationException("Production operational endpoints cannot use the test database.");
 }
 // No anonymous customer registration or file-based OTP in publicly hosted Production.
