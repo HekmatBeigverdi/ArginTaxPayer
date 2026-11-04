@@ -1,10 +1,13 @@
+import { fileURLToPath } from "node:url";
+import { resolve } from "node:path";
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 // Source-only boundary audit. This intentionally DOES NOT claim dual-authority
 // routing exists. Tests must keep known blockers visible until real fixes land.
-const read = (relative) => readFileSync(relative, 'utf8');
+const repoRoot = fileURLToPath(new URL("../../../", import.meta.url));
+const read = (relative) => readFileSync(resolve(repoRoot, relative), "utf8");
 const root = 'src/ArginTaxPayer.Infrastructure/';
 const inv = root + 'Persistence/Invoices/';
 const signing = root + 'Persistence/Signing/';
