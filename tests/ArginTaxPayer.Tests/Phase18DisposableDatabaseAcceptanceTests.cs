@@ -24,6 +24,8 @@ public sealed class Phase18DisposableDatabaseAcceptanceTests
         if (parsed.Database != "argin_phase18_acceptance" ||
             parsed.Username != "phase18_acceptance" ||
             parsed.SslMode != SslMode.VerifyFull ||
+            parsed.Port != 15433 ||
+            string.IsNullOrWhiteSpace(parsed.RootCertificate) ||
             parsed.Host is not ("127.0.0.1" or "localhost"))
             throw new InvalidOperationException(
                 "Refused: dedicated loopback PostgreSQL database, role and VerifyFull TLS required.");
