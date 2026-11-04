@@ -635,3 +635,15 @@ dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj -c Release --fi
 bash scripts/phase18-step05-isolated-postgres-migrate-test.sh
 ```
 Do not reset/drop or migrate the shared `argintaxpayer_test`, normal VPS `postgres-postgres-1` database, or any future Production database. Production deployment remains **BLOCKED**; MFA/tenant/browser acceptance not yet established.
+
+### Step 05 — Ubuntu dedicated TLS DB migration and MFA/RBAC acceptance PASS (2026-11-04)
+
+Operator supplied command output for Git SHA `4a6958638c701a7523d8243555e454457214388e`. `bash scripts/phase18-step05-isolated-postgres-migrate-test.sh` performed the bounded exact-database/role/SSL/TLS verification and returned:
+- `[PASS] Dedicated QA database migrations completed.`
+- `[PASS] disposable DB MFA, sessions, roles`
+- `[PASS] Dedicated QA MFA and role acceptance`
+- `[DONE] Existing PostgreSQL and public site unchanged; test DB retained for explicit cleanup.`
+
+Private manifest (Ubuntu, operator-provided): `artifacts/phase18-step05-db/4a6958638c701a7523d8243555e454457214388e/20261104T104455Z/manifest.tsv`. This indicates **Ubuntu isolated PostgreSQL schema migration + service-layer MFA/RBAC fixture acceptance PASS**. The DB remains for controlled cleanup after all acceptance evidence. This does **not** establish that production BFF login cookies, browser CSRF defenses, HTTP-level authorization or actual cross-tenant taxpayer/invoice isolation have passed. The previous integration manifest likewise explicitly left `production_tenant_data_isolation` and `production_bff_browser_cookies` pending.
+
+**Decision:** Advance to Step05 scoped-tenant and browser BFF tests without enabling live tax dispatch, modifying Nginx, using existing customer DB, or deleting the disposable QA database. Production go-live remains BLOCKED until these controls and subsequent Phase18 steps are accepted.
