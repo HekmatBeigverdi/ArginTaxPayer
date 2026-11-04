@@ -1,8 +1,11 @@
+import { fileURLToPath } from "node:url";
+import { resolve } from "node:path";
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-const read = (path) => readFileSync(path, 'utf8');
+const repoRoot = fileURLToPath(new URL("../../../", import.meta.url));
+const read = (path) => readFileSync(resolve(repoRoot, path), "utf8");
 test('production systemd units remain activation-gated and services disabled by default', () => {
   const api = read('ops/phase18-systemd/argintaxpayer-api.service');
   const web = read('ops/phase18-systemd/argintaxpayer-web.service');
