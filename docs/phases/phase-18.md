@@ -613,3 +613,25 @@ bash scripts/phase18-step05-isolated-postgres-migrate-test.sh
 The script rechecks the exact TLS DB/role and accepts a nonempty QA schema only if EF migration history exists. Each PostgreSQL EF migration is transactionally committed, so the failing migration should remain pending; if the retry fails, stop and review its *new* private migration log rather than dropping any database. Do not apply these historical migration changes to a customer DB without a separate compatibility review.
 
 Production deployment still BLOCKED. This is a fix for initial schema creation, not approval for public data or tax dispatch.
+
+### Step 05 — Phase09/10 historical test-only migration admission gate (2026-11-04)
+
+Owner's isolated, TLS-verified PostgreSQL test passed database identity and least-privilege checks but failed when applying `20261020181500_AddPhase09SigningMetadata`, with PostgreSQL `P0001: Phase09 draft requires argintaxpayer_test`. Source inspection found **ten** legacy migrations in Phase09/10 that restrict the target to `argintaxpayer_test`. Single-migration fixes would merely fail later.
+
+For these ten migrations only, the prior SQL fail-closed guard is preserved as an explicitly bounded disjunction:
+- Existing, historically allowed `current_database()='argintaxpayer_test'` unchanged.
+- A **new narrow alternative** requiring **all** of `current_database()='argin_phase18_acceptance'`, `current_user='phase18_acceptance'` and the PostgreSQL backend's `pg_stat_ssl.ssl = true` for the current `pg_backend_pid()`.
+- Every other database and role is still refused. The guarded, Ubuntu-only Phase18 script verifies exact role/database, least-privilege, loopback port 15433, CA-validated `VerifyFull` TLS before invoking the EF migrator. SSL flag alone in SQL **does not prove VerifyFull**; the external runner's verification is required and must not be bypassed.
+- Historical migration IDs remain unchanged; do not apply these code edits to existing production/customer databases without independent migration-history and deployment compatibility review. Existing applied migrations are not automatically rerun.
+- Added xUnit `Phase18LegacyMigrationAdmissionTests` checking all ten migration UpOperations preserve narrow database, role and SSL conditions.
+
+**Source is committed, but neither the new tests nor the resumed migration have been executed by the assistant.** Owner's next step on Ubuntu:
+```bash
+git fetch origin
+git pull --ff-only origin phase/18-production-deployment
+dotnet build ArginTaxPayer.sln -c Release
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj -c Release --filter 'FullyQualifiedName~Phase18LegacyMigrationAdmissionTests|FullyQualifiedName~Phase18FreshCatalogMigrationOrderTests'
+# Only if both commands PASS:
+bash scripts/phase18-step05-isolated-postgres-migrate-test.sh
+```
+Do not reset/drop or migrate the shared `argintaxpayer_test`, normal VPS `postgres-postgres-1` database, or any future Production database. Production deployment remains **BLOCKED**; MFA/tenant/browser acceptance not yet established.
