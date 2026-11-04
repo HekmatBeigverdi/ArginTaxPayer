@@ -142,7 +142,7 @@ WHERE id={0} AND customer_user_id={1} AND taxpayer_id={2}
         var outcome = await outcomes.RecordAsync(operationId, owner, taxpayerId,
             invoiceId, attemptId, sendingRevision, provider, acknowledged,
             acknowledged ? "legacy_reference_acknowledged" : "legacy_outcome_indeterminate",
-            acknowledged ? response.ReferenceNumber : null, ct);
+            acknowledged ? response.ReferenceNumber : null, CancellationToken.None);
         if (outcome.Decision != Phase18DispatchOutcomeDecision.Recorded)
             return new("Indeterminate", "outcome_persistence_requires_reconciliation");
 
@@ -152,7 +152,7 @@ WHERE id={0} AND customer_user_id={1} AND taxpayer_id={2}
                 o.TaxpayerId == taxpayerId && o.EventType == eventType &&
                 o.ProcessedAtUtc == null)
             .ExecuteUpdateAsync(updates => updates
-                .SetProperty(o => o.ProcessedAtUtc, DateTime.UtcNow), ct);
+                .SetProperty(o => o.ProcessedAtUtc, DateTime.UtcNow), CancellationToken.None);
         return acknowledged
             ? new("Acknowledged", "legacy_reference_acknowledged", response.ReferenceNumber)
             : new("Indeterminate", "legacy_outcome_indeterminate");
