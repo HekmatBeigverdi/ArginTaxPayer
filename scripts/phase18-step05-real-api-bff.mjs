@@ -92,7 +92,9 @@ try {
   api = spawn("dotnet", [publishedApi], {
     cwd: resolve(project, "artifacts/phase18-step05-e2e/api"),
     env: {
-      ...process.env,
+      PATH: process.env.PATH || "/usr/local/bin:/usr/bin:/bin",
+      HOME: process.env.HOME || "/tmp",
+      ...(process.env.DOTNET_ROOT ? { DOTNET_ROOT: process.env.DOTNET_ROOT } : {}),
       ASPNETCORE_ENVIRONMENT: "Production",
       DOTNET_ENVIRONMENT: "Production",
       ASPNETCORE_URLS: "http://127.0.0.1:15090",
@@ -123,7 +125,8 @@ try {
   ], {
     cwd: web,
     env: {
-      ...process.env,
+      PATH: process.env.PATH || "/usr/local/bin:/usr/bin:/bin",
+      HOME: process.env.HOME || "/tmp",
       NODE_ENV: "production",
       ARGIN_PRODUCTION_UI_ENABLED: "true",
       ARGIN_IDENTITY_UI_ENABLED: "true",
