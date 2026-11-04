@@ -328,3 +328,9 @@ Owner **corrected** Section 9.7: the hosting provider DOES provide a reported **
 Step 03 backup gate status updated to **SNAPSHOT TAKEN (owner-reported); restore readiness unverified**. Before marking complete, check the provider panel reports the snapshot as completed/successful; record its reference/time, retention/expiry, coverage of attached volumes/PostgreSQL and the precise restore procedure, without publishing credentials or private material. Also verify independent AutoSSH access and ingress/loopback exposure. Avoid reboot/recovery tests on the active VPS; rehearse on a disposable recovery target if available.
 
 A single provider snapshot **does not replace** scheduled encrypted off-host PostgreSQL backups and restoration drills for real production operations, which remain Step 07/12 mandatory gates. Production go-live remains gated on tested recovery and additional Step 04–18 acceptance.
+
+### 9.9 Provider snapshot status confirmed by owner (2026-11-04)
+
+Owner explicitly confirms the just-created VPS snapshot is shown as **Successful** in the provider console. Record Step 03 pre-change provider snapshot as **PASS (owner-confirmed provider status)**. This does not independently establish a successful restore, recovery scope or retention. Keep database encrypted off-site backup and restore drill gates for Steps 07/12 before production go-live.
+
+Outstanding Step 03 server acceptance evidence: second independent AutoSSH session and verification that ArginTaxPayer API/DB ports are not publicly accessible (without changing 8080/8081, which belong to unrelated software); optionally confirm the snapshot expiry and recovery instructions. The successfully completed preflight checks and privileged sshd -t test are already recorded. Do not mark the entire Step 03 PASS until these remaining items have evidence.
