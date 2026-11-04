@@ -29,9 +29,9 @@ sudo test -f /etc/argintaxpayer/api.env &&
 root=/opt/argintaxpayer
 release="$root/releases/$target"
 [[ -d "$release" && ! -L "$release" ]] || fail 'Release not staged'
-[[ -f "$release/api/ArginTaxPayer.Api.dll" &&
-   -f "$release/web/.next/BUILD_ID" &&
-   -f "$release/web/node_modules/next/dist/bin/next" ]] || fail 'Incomplete staged release'
+for path in api/ArginTaxPayer.Api.dll web/.next/BUILD_ID web/node_modules/next/dist/bin/next; do
+  [[ -f "$release/$path" ]] || fail "Incomplete staged release: missing $path"
+done
 grep -Fxq "sha=$target" "$release/build-info.txt" || fail 'Release SHA mismatch'
 previous=''
 if [[ -L "$root/current" ]]; then
