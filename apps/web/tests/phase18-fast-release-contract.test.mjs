@@ -1,7 +1,10 @@
+import { fileURLToPath } from "node:url";
+import { resolve } from "node:path";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-const read = (p) => readFileSync(p, "utf8");
+const repoRoot = fileURLToPath(new URL("../../../", import.meta.url));
+const read = (p) => readFileSync(resolve(repoRoot, p), "utf8");
 test("release staging verifies SHA256 and never activates services", () => {
   const s=read("scripts/phase18-release-stage.sh");
   assert.match(s,/sha256sum -c --status SHA256SUMS/);
