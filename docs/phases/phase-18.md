@@ -713,3 +713,22 @@ PHASE18_EXPECTED_SHA='<FULL_MACOS_SHA>' bash scripts/phase18-step05-real-api-acc
 Expected private manifest checks: `real-production-http-tenant PASS`, `qa-api-publish PASS`, `real-production-api-bff PASS`. The final manifest explicitly leaves `production-https-browser DEFERRED_TO_SYSTEMD_NGINX`, `invoice-http-tenant-authorization PENDING_FIXTURE_QA` (populated invoice IDOR not yet covered), and `production-go-live BLOCKED`.
 
 **Status: SOURCE_IMPLEMENTED; NO EXECUTION PASS YET** for these new tests. The owner must provide macOS SHA/build and Ubuntu acceptance logs. A prior Step05 test PASS for mocked BFF + service-layer tenant scope remains valid, but cannot be upgraded to real HTTP/BFF PASS before this runner succeeds. Real external HTTPS reverse-proxy browser validation, actual MFA user journey, and populated invoice cross-tenant IDOR remain mandatory pre-Go-Live. Do not publish `tax.argin.ir` or enable tax dispatch to satisfy this QA.
+
+### Step 05 — real Production HTTP / BFF Ubuntu QA PASS (operator evidence, 2026-11-04)
+
+The operator executed `PHASE18_EXPECTED_SHA=fa757a90860f364a99d3f3a207b5c7151ba63c9c bash scripts/phase18-step05-real-api-acceptance.sh` on Ubuntu. The displayed report for exactly that SHA at `artifacts/phase18-step05-e2e/reports/fa757a90860f364a99d3f3a207b5c7151ba63c9c/20261104T112144Z/manifest.tsv` states:
+
+```text
+real-production-http-tenant  PASS
+qa-api-publish               PASS
+real-production-api-bff      PASS
+production-https-browser     DEFERRED_TO_SYSTEMD_NGINX
+invoice-http-tenant-authorization PENDING_FIXTURE_QA
+production-go-live           BLOCKED
+```
+
+**Accepted scope:** ASP.NET Core Production middleware with genuine isolated QA PostgreSQL, customer-owned/foreign taxpayer read denial and invoice-list scope, and actual locally running Next.js BFF connected to the actual local .NET API, using only synthetic QA credentials. Migration, MFA/RBAC persistence, earlier synthetic BFF cookie and tenant service tests passed separately.
+
+**Still not accepted:** a populated invoice document cross-tenant IDOR test, an actual browser through the real HTTPS Nginx proxy with a complete administrative MFA journey, and subsequent predeployment checks. Do not promote the three tests into a production release sign-off. Keep `tax.argin.ir` public maintenance isolation, fiscal dispatch disabled, and existing unrelated applications untouched.
+
+The Ubuntu acceptance runner received an exact expected SHA string; an independently captured macOS `git rev-parse HEAD` confirming that SHA has not been included in user-provided evidence, so macOS same-SHA parity remains an **evidence gap** even though its earlier local test manifest passed. Do not state parity is confirmed until documented.
