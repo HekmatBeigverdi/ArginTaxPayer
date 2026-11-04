@@ -4,7 +4,17 @@ set -Eeuo pipefail
 umask 077
 fail(){ echo "[REFUSED] $*" >&2; exit 2; }
 [[ "$(uname -s)" == Linux && "$(id -u)" != 0 ]] || fail 'Ubuntu nonroot only'
-[[ "$#" == 2 && "$1" == --promote ]] || fail 'Usage: --promote <40-character-SHA>'
+[[ ( "$#" == 2 || "$#" == 3 ) && "$1" == --promote ]] || fail 'Usage: --promote <40-character-SHA> [--initial-disabled-ui]'
+if [[ "$#" == 3 && "$3" != --initial-disabled-ui ]]; then fail 'Unknown mode'; fi
+health_mode=--probe-local
+if [[ "$#" == 3 ]]; then
+  health_mode=--probe-local-disabled-ui
+  # Explicitly ensure no production business/identity/SMS routes are exposed.
+  sudo grep -Fxq 'ArginTaxPayer__EnableOperationalEndpoints=false' /etc/argintaxpayer/api.env || fail 'Operational API not disabled'
+  sudo grep -Fxq 'Ghasedak__EnableLiveSending=false' /etc/argintaxpayer/api.env || fail 'Live SMS not disabled'
+  sudo grep -Fxq 'SandboxInvoiceLegacy__Enabled=false' /etc/argintaxpayer/api.env || fail 'Legacy Sandbox send not disabled'
+  sudo grep -Fxq 'ARGIN_PRODUCTION_UI_ENABLED=false' /etc/argintaxpayer/web.env || fail 'Production UI not disabled'
+fi
 target="$2"
 [[ "$target" =~ ^[a-f0-9]{40}$ ]] || fail 'Full Git SHA required'
 [[ "${PHASE18_OWNER_APPROVED_RELEASE:-}" == YES ]] || fail 'Explicit release approval required'
@@ -36,7 +46,7 @@ sudo ln -s "$release" "$tmp"
 sudo mv -Tf "$tmp" "$root/current"
 if sudo systemctl restart argintaxpayer-api.service &&
    sudo systemctl restart argintaxpayer-web.service &&
-   bash "$(dirname "$0")/phase18-step06-local-health.sh" --probe-local; then
+   bash "$(dirname "$0")/phase18-step06-local-health.sh" "$health_mode"; then
   echo "[PASS] Release $target promoted and loopback health PASS."
   [[ -z "$previous" ]] || echo '[INFO] Previous version retained for manual rollback.'
   exit 0
