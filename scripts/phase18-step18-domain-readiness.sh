@@ -28,6 +28,23 @@ elif sudo -n test -d /etc/argintaxpayer 2>/dev/null; then
 else
   record activation-marker UNKNOWN_NO_SUDO
 fi
+# Read flags by exact-match predicates; NEVER print secret environment values.
+flag() {
+  local label="$1" path="$2" name="$3"
+  if sudo -n grep -Fxq "$name=true" "$path" 2>/dev/null; then
+    record "$label" ENABLED
+  elif sudo -n grep -Fxq "$name=false" "$path" 2>/dev/null; then
+    record "$label" DISABLED
+  else
+    record "$label" UNKNOWN_OR_UNREADABLE
+  fi
+}
+flag operational-api /etc/argintaxpayer/api.env ArginTaxPayer__EnableOperationalEndpoints
+flag production-web /etc/argintaxpayer/web.env ARGIN_PRODUCTION_UI_ENABLED
+flag identity-web /etc/argintaxpayer/web.env ARGIN_IDENTITY_UI_ENABLED
+flag sandbox-legacy /etc/argintaxpayer/api.env SandboxInvoiceLegacy__Enabled
+flag production-legacy /etc/argintaxpayer/api.env ProductionInvoiceLegacy__Enabled
+
 for service in argintaxpayer-api.service argintaxpayer-web.service; do
   active=$(systemctl is-active "$service" 2>/dev/null || true)
   record "$service" "${active:-unknown}"
