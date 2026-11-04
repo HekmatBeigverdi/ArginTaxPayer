@@ -33,6 +33,20 @@ using Microsoft.AspNetCore.RateLimiting;
 var builder = WebApplication.CreateBuilder(args);
 var identityDevelopmentEnabled = builder.Environment.IsDevelopment() &&
     !string.IsNullOrWhiteSpace(builder.Configuration.GetConnectionString("ArginTaxPayerDb"));
+// Phase18: an explicit operational opt-in, never inferred from environment or a DB URL.
+// Existing /api/dev routes are an INTERNAL, loopback-only BFF contract for now.
+// Production requests must still pass each endpoint's authorization and tenant checks.
+var productionOperationalEnabled = builder.Environment.IsProduction() &&
+    builder.Configuration.GetValue<bool>("ArginTaxPayer:EnableOperationalEndpoints");
+var operationalEndpointsEnabled = identityDevelopmentEnabled || productionOperationalEnabled;
+if (productionOperationalEnabled &&
+    string.IsNullOrWhiteSpace(builder.Configuration.GetConnectionString("ArginTaxPayerDb")))
+    throw new InvalidOperationException("Production operational endpoints require a configured database.");
+// No anonymous customer registration or file-based OTP in publicly hosted Production.
+if (productionOperationalEnabled &&
+    (builder.Configuration.GetValue<bool>("Identity:AllowDevelopmentRegistration") ||
+     builder.Configuration["Identity:OtpDeliveryMode"] == "LocalFile"))
+    throw new InvalidOperationException("Unsafe development-only identity configuration in Production.");
 // JSON console output is machine-readable on macOS, Ubuntu and future containers.
 builder.Logging.ClearProviders();
 builder.Logging.AddJsonConsole(options => options.IncludeScopes = true);
@@ -47,7 +61,7 @@ if (identityDevelopmentEnabled &&
 
 // OpenAPI document generation is registered for API contract development.
 builder.Services.AddOpenApi();
-if (identityDevelopmentEnabled)
+if (operationalEndpointsEnabled)
 {
     builder.Services.AddPhase09KeyImport(builder.Configuration);
     builder.Services.AddPhase09KeyGeneration(builder.Configuration);
@@ -192,7 +206,20 @@ builder.Services.AddHealthChecks()
 
 var app = builder.Build();
 app.UseMiddleware<CorrelationIdMiddleware>();
-if (identityDevelopmentEnabled) app.UseRateLimiter();
+if (operationalEndpointsEnabled) app.UseRateLimiter();
+// Defense in depth. Existing internal BFF endpoints retain /api/dev paths until
+// their production API contracts are migrated, but cannot be reached remotely.
+// This does not depend on forwarded headers supplied by the caller.
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path.StartsWithSegments("/api/dev") &&
+        !IdentityDevelopmentEndpoints.IsLoopbackAddress(context.Connection.RemoteIpAddress))
+    {
+        context.Response.StatusCode = StatusCodes.Status404NotFound;
+        return;
+    }
+    await next(context);
+});
 
 // Never expose the API contract endpoint in Production by default.
 if (app.Environment.IsDevelopment())
@@ -231,8 +258,11 @@ if (app.Environment.IsDevelopment())
         });
     }).ExcludeFromDescription();
     app.MapOpenApi();
-    if (identityDevelopmentEnabled)
-    {
+}
+// Operational routes remain loopback-only (BFF via 127.0.0.1); no OpenAPI in Production.
+// Map registration is intentionally outside the Development diagnostics branch.
+if (operationalEndpointsEnabled)
+{
         app.MapIdentityDevelopmentEndpoints();
         app.MapSoftwareUserProfileEndpoints();
         app.MapTaxpayerDevelopmentEndpoints();
@@ -270,7 +300,6 @@ if (app.Environment.IsDevelopment())
         app.MapCustomerTaxpayerMembershipEndpoints();
         app.MapCustomerSelfServiceEndpoints();
         app.MapCatalogDevelopmentEndpoints();
-    }
 }
 
 // Preserve the existing bootstrap endpoint.
