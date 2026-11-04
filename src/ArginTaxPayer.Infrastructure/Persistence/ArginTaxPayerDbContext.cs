@@ -477,7 +477,7 @@ public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbConte
         memories.Property(x => x.Id).HasColumnName("id");
         memories.Property(x => x.TaxpayerId).HasColumnName("taxpayer_id").IsRequired();
         memories.Property(x => x.MemoryIdentifier).HasColumnName("memory_identifier").HasMaxLength(64).IsRequired();
-        memories.Property(x => x.AuthorityEnvironment).HasColumnName("authority_environment").HasConversion<int?>();
+        memories.Property(x => x.AuthorityEnvironment).HasColumnName("authority_environment").HasConversion<int>();
         memories.Property(x => x.Status).HasColumnName("status").HasConversion<int>().IsRequired();
         memories.Property(x => x.Revision).HasColumnName("revision").HasDefaultValue(1L).IsConcurrencyToken();
         memories.Property(x => x.CreatedAtUtc).HasColumnName("created_at_utc").HasColumnType("timestamp with time zone");
