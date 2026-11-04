@@ -56,6 +56,21 @@ if sudo systemctl restart argintaxpayer-api.service &&
     fi
     sleep 2
   done
+else
+  echo '[DIAGNOSTIC] A systemd restart command failed.' >&2
+fi
+if [[ "$startup_ok" != 1 ]]; then
+  # Re-run the health probe with its safe, fixed failure labels visible.
+  # Do NOT print environment files, connection strings or full exception logs.
+  echo '[DIAGNOSTIC] Final localhost health checks:' >&2
+  bash "$(dirname "$0")/phase18-step06-local-health.sh" "$health_mode" >&2 || true
+  echo '[DIAGNOSTIC] systemd unit states before rollback:' >&2
+  for unit in argintaxpayer-api.service argintaxpayer-web.service; do
+    systemctl show "$unit" --no-pager \
+      --property=ActiveState,SubState,Result,ExecMainCode,ExecMainStatus,ConditionResult \
+      | sed "s/^/[$unit] /" >&2
+  done
+  echo '[DIAGNOSTIC] For exception details inspect journalctl on the VPS; never paste secrets.' >&2
 fi
 if [[ "$startup_ok" == 1 ]]; then
   echo "[PASS] Release $target promoted and loopback health PASS."
