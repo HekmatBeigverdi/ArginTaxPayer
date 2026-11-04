@@ -3,7 +3,7 @@ import SubscriptionStatus from "../../components/subscription-status";
 import DashboardAnalytics from "./dashboard-analytics";
 import "./dashboard-design.css";
 import Link from "next/link";
-import { currentIdentity, identityDashboardOnlyEnabled } from "../../../lib/identity";
+import { currentIdentity } from "../../../lib/identity";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +33,8 @@ export default async function DashboardPage() {
   const admin = level1 || level2;
   const customer = actor.roles.includes("Customer");
   if (!admin && !customer) return null;
-  const dashboardOnly = identityDashboardOnlyEnabled();
+  const dashboardOnly = process.env.NODE_ENV === "production" &&
+    process.env.ARGIN_IDENTITY_DASHBOARD_ONLY === "true";
   const modules = admin ? adminModules : customerModules;
   return <>
         <DashboardAnalytics role={level1 ? "Level1" : level2 ? "Level2" : "Customer"}/>
