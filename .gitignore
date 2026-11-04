@@ -46,3 +46,8 @@ artifacts/phase15-step16/
 
 # Private Ubuntu Phase15 same-SHA QA evidence
 artifacts/phase15-step17/
+
+# Phase 18 local-only production readiness/build logs; never commit packaged server code or artifacts
+artifacts/phase18-step03/
+artifacts/phase18-step04/
+artifacts/phase18-step05/
