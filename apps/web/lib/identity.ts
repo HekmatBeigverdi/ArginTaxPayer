@@ -9,13 +9,18 @@ export function identityApiOrigin(): string {
   const url = new URL(value);
   if (url.protocol !== "http:" || !["127.0.0.1", "localhost", "::1"].includes(url.hostname) ||
       url.username || url.password || url.pathname !== "/" || url.search || url.hash) {
-    throw new Error("Identity API must use a dedicated local development HTTP origin.");
+    throw new Error("Identity API must use a dedicated loopback HTTP origin.");
   }
   return url.origin;
 }
 
 export function identityUiEnabled(): boolean {
-  return process.env.NODE_ENV === "development" && process.env.ARGIN_IDENTITY_UI_ENABLED === "true";
+  // Production activation requires an explicit, reviewed opt-in; never enabled by a build alone.
+  return (process.env.NODE_ENV === "development" ||
+      (process.env.NODE_ENV === "production" &&
+       process.env.ARGIN_PRODUCTION_UI_ENABLED === "true" &&
+       process.env.ARGIN_PUBLIC_BASE_URL === "https://tax.argin.ir")) &&
+    process.env.ARGIN_IDENTITY_UI_ENABLED === "true";
 }
 
 export async function identityBackend(path: string, options: RequestInit = {}) {
