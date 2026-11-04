@@ -59,7 +59,7 @@ public static class TaxpayerDevelopmentEndpoints
             {
                 FiscalMemoryOperationStatus.Unauthenticated => Results.Unauthorized(),
                 FiscalMemoryOperationStatus.Forbidden => Results.StatusCode(403),
-                FiscalMemoryOperationStatus.Invalid => Results.BadRequest(new { error = "invalid_memory_identifier" }),
+                FiscalMemoryOperationStatus.Invalid => Results.BadRequest(new { error = "invalid_memory_identifier_or_environment" }),
                 FiscalMemoryOperationStatus.NotFound => Results.NotFound(),
                 FiscalMemoryOperationStatus.Conflict => Results.Conflict(new { error = "memory_identifier_conflict" }),
                 FiscalMemoryOperationStatus.RequiresApprovedBindingReview => Results.Conflict(new { error = "binding_review_required" }),
