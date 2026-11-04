@@ -48,12 +48,16 @@ public sealed class SmsDispatchCoordinator(ArginTaxPayerDbContext db, IIdentityO
             logger.LogInformation("OTP_DISPATCH_DESTINATION_LOCK_ACQUIRED");
         }
         logger.LogInformation("OTP_DISPATCH_COOLDOWN_CHECK_STARTED");
-        if(!isLocal && await db.Database.SqlQueryRaw<int>("""
-            SELECT count(*)::integer AS "Value" FROM sms_provider_dispatches
-            WHERE destination_hash={0} AND (
-              state IN (1,3,6) AND created_at_utc>{1} OR
-              state=5 AND updated_at_utc>{2})
-            """,hash,DateTime.UtcNow.AddMinutes(-15),DateTime.UtcNow.AddMinutes(-3)).SingleAsync(ct)>0)
+        var now = DateTime.UtcNow;
+        var hasRecentDispatch = !isLocal && await db.Database.SqlQuery<bool>($"""
+            SELECT EXISTS (
+              SELECT 1 FROM sms_provider_dispatches
+              WHERE destination_hash={hash} AND (
+                state IN (1,3,6) AND created_at_utc>{now.AddMinutes(-15)} OR
+                state=5 AND updated_at_utc>{now.AddMinutes(-3)})
+            ) AS "Value"
+            """).SingleAsync(ct);
+        if (hasRecentDispatch)
             return new(SmsDispatchStatus.Unavailable,dispatchId);
         logger.LogInformation("OTP_DISPATCH_COOLDOWN_CHECK_PASSED");
         long reserved = 0;
