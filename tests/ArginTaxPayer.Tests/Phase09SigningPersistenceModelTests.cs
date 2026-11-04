@@ -177,7 +177,7 @@ public sealed class Phase09SigningPersistenceModelTests
         var script = db.GetService<IMigrator>().GenerateScript(
             MigrationId, "20261020104500_AddInvoiceWorkspaceRevisionAudit");
         Assert.Contains("Nonempty Phase09 history", script);
-        Phase18LegacyMigrationAdmissionTests.AssertIsolatedDatabaseAdmission(script);
+        Phase18LegacyMigrationAdmissionTests.AssertIsolatedDatabaseAdmission(script, allowProduction: false);
         Assert.DoesNotContain("CASCADE", script);
     }
 }

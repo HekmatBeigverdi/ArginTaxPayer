@@ -35,16 +35,24 @@ public sealed class Phase18LegacyMigrationAdmissionTests
             var sql = string.Join("\n", migration.UpOperations
                 .OfType<SqlOperation>().Select(o => o.Sql));
 
-            Assert.Matches(@"IF\s+NOT\s*\(\s*current_database\(\)\s*=\s*'argintaxpayer_test'\s*" +
-                @"OR\s*\(\s*current_database\(\)\s*=\s*'argin_phase18_acceptance'\s*" +
-                @"AND\s+current_user\s*=\s*'phase18_acceptance'\s*" +
-                @"AND\s+EXISTS\s*\(\s*SELECT\s+1\s+FROM\s+pg_stat_ssl\s*" +
-                @"WHERE\s+pid\s*=\s*pg_backend_pid\(\)\s+AND\s+ssl\s*\)\s*\)\s*" +
-                @"OR\s*\(\s*current_database\(\)\s*=\s*'argintaxpayer_prod'\s*" +
-                @"AND\s+current_user\s*=\s*'argin_prod_migrator'\s*" +
-                @"AND\s+EXISTS\s*\(\s*SELECT\s+1\s+FROM\s+pg_stat_ssl\s*" +
-                @"WHERE\s+pid\s*=\s*pg_backend_pid\(\)\s+AND\s+ssl\s*\)\s*\)\s*\)\s*THEN\s+RAISE\s+EXCEPTION", sql);
-            Assert.DoesNotContain("current_user = 'argin_prod_app'", sql);
+            AssertIsolatedDatabaseAdmission(sql);
         }
+    }
+
+    internal static void AssertIsolatedDatabaseAdmission(string sql, bool allowProduction = true)
+    {
+        var productionBranch = allowProduction
+            ? @"OR\s*\(\s*current_database\(\)\s*=\s*'argintaxpayer_prod'\s*" +
+              @"AND\s+current_user\s*=\s*'argin_prod_migrator'\s*" +
+              @"AND\s+EXISTS\s*\(\s*SELECT\s+1\s+FROM\s+pg_stat_ssl\s*" +
+              @"WHERE\s+pid\s*=\s*pg_backend_pid\(\)\s+AND\s+ssl\s*\)\s*\)\s*"
+            : "";
+        Assert.Matches(@"IF\s+NOT\s*\(\s*current_database\(\)\s*=\s*'argintaxpayer_test'\s*" +
+            @"OR\s*\(\s*current_database\(\)\s*=\s*'argin_phase18_acceptance'\s*" +
+            @"AND\s+current_user\s*=\s*'phase18_acceptance'\s*" +
+            @"AND\s+EXISTS\s*\(\s*SELECT\s+1\s+FROM\s+pg_stat_ssl\s*" +
+            @"WHERE\s+pid\s*=\s*pg_backend_pid\(\)\s+AND\s+ssl\s*\)\s*\)\s*" +
+            productionBranch + @"\)\s*THEN\s+RAISE\s+EXCEPTION", sql);
+        Assert.DoesNotContain("current_user = 'argin_prod_app'", sql);
     }
 }
