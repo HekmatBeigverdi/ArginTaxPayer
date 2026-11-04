@@ -22,7 +22,7 @@ done
 [[ -f "$PWD/artifacts/phase18-step07/production-private/compose.env" &&
     -f "$PWD/artifacts/phase18-step07/production-private/ca/ca.pem" ]] ||
   fail 'Step07 dedicated DB secrets or CA missing'
-for t in sudo openssl install mktemp stat; do command -v "$t" >/dev/null || fail "Missing $t"; done
+for t in sudo openssl install mktemp stat sed; do command -v "$t" >/dev/null || fail "Missing $t"; done
 sudo -v
 # Never overwrite an existing config or replace an existing signing/encryption secret.
 for f in /etc/argintaxpayer/api.env /etc/argintaxpayer/web.env; do
@@ -33,8 +33,15 @@ done
 # acceptance before the operational opt-in gate is ever considered.
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
-cat > "$tmp/api.env" <<'EOF'
-# Phase18 Step08: disabled-by-default; only a SAFE skeleton, NOT go-live ready.
+dbpass=$(sed -n 's/^PHASE18_PROD_APP_PASSWORD=//p' "$PWD/artifacts/phase18-step07/production-private/compose.env")
+[[ "$dbpass" =~ ^[a-f0-9]{64}$ ]] || fail 'Missing dedicated least-privileged DB app credential'
+# Generate once, in memory only, and write to root-owned private environment file.
+# BOTH keys are AES-256 32-byte base64, as required by the current source.
+mfa_key=$(openssl rand -base64 32 | tr -d '\\n')
+wrapping_key=$(openssl rand -base64 32 | tr -d '\\n')
+[[ -n "$mfa_key" && -n "$wrapping_key" && "$mfa_key" != "$wrapping_key" ]] || fail 'Failed to generate independent keys'
+cat > "$tmp/api.env" <<EOF
+# Phase18 Step08: private stable keys for NEW isolated Production DB, go-live still blocked.
 ASPNETCORE_ENVIRONMENT=Production
 DOTNET_ENVIRONMENT=Production
 ASPNETCORE_URLS=http://127.0.0.1:15090
@@ -44,8 +51,12 @@ SandboxInvoiceLegacy__Enabled=false
 SandboxInvoiceLegacy__OperatorApprovedEndpoint=false
 Phase11__EnableReadOnlyQueueObserver=false
 Identity__AllowDevelopmentRegistration=false
-# No connection string, passwords, cryptographic keys or live credentials present.
-# Populate separately under secure custody only after specific type/format review.
+Identity__MfaEncryptionKey=$mfa_key
+SigningKeyProtection__Enabled=true
+SigningKeyProtection__Provider=Database
+SigningKeyProtection__DatabaseMasterKey=$wrapping_key
+ConnectionStrings__ArginTaxPayerDb=Host=127.0.0.1;Port=15434;Database=argintaxpayer_prod;Username=argin_prod_app;Password=$dbpass;SSL Mode=VerifyFull;Root Certificate=/etc/argintaxpayer/prod-db-ca.pem;Timeout=5
+# API routes disabled; no real provider secrets or dispatch approvals staged.
 EOF
 cat > "$tmp/web.env" <<'EOF'
 NODE_ENV=production
@@ -57,12 +68,14 @@ ARGIN_IDENTITY_UI_ENABLED=false
 ARGIN_PRODUCTION_UI_ENABLED=false
 EOF
 sudo install -d -o root -g root -m 0700 /etc/argintaxpayer
+sudo install -o root -g root -m 0644 -T "$PWD/artifacts/phase18-step07/production-private/ca/ca.pem" /etc/argintaxpayer/prod-db-ca.pem
 sudo install -o root -g root -m 0600 -T "$tmp/api.env" /etc/argintaxpayer/api.env
 sudo install -o root -g root -m 0600 -T "$tmp/web.env" /etc/argintaxpayer/web.env
 for f in /etc/argintaxpayer/api.env /etc/argintaxpayer/web.env; do
   [[ "$(sudo stat -c %U:%G:%a "$f")" == root:root:600 ]] ||
     fail 'Unexpected ownership or mode after config staging'
 done
-echo '[PASS] Root-only 0600 configuration skeleton staged without secrets.'
-echo '[BLOCKED] Runtime database connection and crypto custody NOT configured; operational endpoints OFF.'
+unset dbpass mfa_key wrapping_key
+echo '[PASS] One-time root-only 0600 environment staged with dedicated DB app credential and two independent persistent 32-byte keys.'
+echo '[NOTE] Preserve both encryption keys across every restart/deploy; Step12 requires independently escrowed encrypted recovery.'
 echo '[BLOCKED] No systemd activation, tax authority, SMS, payments or Nginx changes.'
