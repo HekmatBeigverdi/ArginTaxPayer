@@ -647,3 +647,25 @@ Operator supplied command output for Git SHA `4a6958638c701a7523d8243555e4544572
 Private manifest (Ubuntu, operator-provided): `artifacts/phase18-step05-db/4a6958638c701a7523d8243555e454457214388e/20261104T104455Z/manifest.tsv`. This indicates **Ubuntu isolated PostgreSQL schema migration + service-layer MFA/RBAC fixture acceptance PASS**. The DB remains for controlled cleanup after all acceptance evidence. This does **not** establish that production BFF login cookies, browser CSRF defenses, HTTP-level authorization or actual cross-tenant taxpayer/invoice isolation have passed. The previous integration manifest likewise explicitly left `production_tenant_data_isolation` and `production_bff_browser_cookies` pending.
 
 **Decision:** Advance to Step05 scoped-tenant and browser BFF tests without enabling live tax dispatch, modifying Nginx, using existing customer DB, or deleting the disposable QA database. Production go-live remains BLOCKED until these controls and subsequent Phase18 steps are accepted.
+
+### Step 05 — final security acceptance implementation: tenant scope + real Next.js BFF runtime (2026-11-04)
+
+After successful Ubuntu isolated PostgreSQL VerifyFull migrations and MFA/RBAC acceptance at `4a695863`, owner requested completing Step05.
+
+**Implemented but not yet executed on operator machines:**
+1. `tests/ArginTaxPayer.Tests/Phase18TenantIsolationDatabaseTests.cs`: opt-in against *only* `argin_phase18_acceptance` at loopback port 15433 with role `phase18_acceptance` and CA-validated VerifyFull. Creates synthetic Level1, two Level2 and two customer identities, two owned taxpayer records and commercial owner rows. Confirms each customer sees only its own taxpayer; partner A/B see only owned taxpayer; MFA-authenticated Level1 sees both; cross-tenant reads and unknown IDs fail with NotFound; newly transferred ownership immediately revokes former partner read access with unchanged token. No genuine taxpayer data or invoice dispatch. Fixture is retained only in the dedicated disposable DB for operator-authorized cleanup.
+2. `scripts/phase18-step05-production-bff-runtime.mjs`: real local `next start` on 127.0.0.1:15994 and synthetic HTTP identity backend on 127.0.0.1:15090. **Refuses** if either port is taken; never contacts external services. Verifies Production BFF refuses missing, forged, insecure and foreign Origin/Host; no Set-Cookie on CSRF denial; accepts synthetic same-origin login and sets exactly two Secure/HttpOnly/SameSite=Strict cookies without exposing raw tokens; resolves synthetic cookie identity and checks logout cookie clearing. This is HTTP-level BFF integration with synthetic backend, NOT real human-browser acceptance or real API login.
+3. `scripts/phase18-step05-final-security-acceptance.sh`: clean-tree guarded macOS/Ubuntu runner, runs the real Next.js BFF runtime and existing production boundary tests, builds xUnit test project; Ubuntu additionally derives private credentials from preexisting ignored disposable DB environment and runs just the tenant-isolation database integration test. It intentionally does **not** rerun `Phase18DisposableDatabaseAcceptanceTests`, whose seed-on-empty requirement has already passed and would refuse the now-populated disposable database. Generated report: `artifacts/phase18-step05-final/<SHA>/<platform>-<UTC>/manifest.tsv`, gitignored.
+
+**Operator commands (run on both at the same new Git SHA, macOS first):**
+```bash
+git fetch origin
+git switch phase/18-production-deployment
+git pull --ff-only origin phase/18-production-deployment
+git rev-parse HEAD
+bash scripts/phase18-step05-build-release.sh
+bash scripts/phase18-step05-final-security-acceptance.sh
+```
+On Ubuntu, the dedicated QA PostgreSQL container on 127.0.0.1:15433 and existing CA/private environment must remain available. Do not start/restart services on 15090/15994; the test owns them temporarily and refuses to run if they are already in use. No Nginx, firewall, DNS, authority endpoints, or customer DB changes. A successful manifest should contain `browser-bff-runtime PASS`, `web-boundary-tests PASS`, `dotnet-tenant-compile PASS`, and `tenant-isolation-db PASS` on Ubuntu (`UBUNTU_ONLY` on macOS). The last lines deliberately keep `public-http-auth NOT_TESTED_NO_LIVE_SITE` and `production-go-live BLOCKED_PENDING_SUBSEQUENT_PHASE18_STEPS`.
+
+**Acceptance nuance:** The test asserts live persisted service-level taxpayer read scope, but it does not yet exercise actual invoice-domain cross-tenant HTTP request authorization or authenticated user flows in a real browser with the actual backend. These require distinct later end-to-end acceptance, not invented PASS claims. Since neither operator run has been supplied for the new final runner, mark `STEP05_FINAL_ACCEPTANCE_PENDING`; production publication is prohibited. Upon two-platform PASS and accepted residuals, close Step05 packaging/security test scope and proceed to Step06 isolated Systemd preparation while retaining the maintenance page.
