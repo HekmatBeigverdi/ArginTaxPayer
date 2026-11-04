@@ -9,11 +9,14 @@ umask 077
 command -v curl >/dev/null || exit 2
 command -v ss >/dev/null || exit 2
 for port in 15090 15091; do
-  # API and Web MUST not listen on a wildcard, IPv6 wildcard or public interface.
-  if ss -ltnH | awk '{print $4}' | grep -Eq "(^|[:.])(0\\.0\\.0\\.0|\\[::\\]|::):$port$"; then
-    echo "[FAIL] Possible public bind for reserved port $port" >&2
-    exit 1
-  fi
+  # Every bound address for a reserved port must be the exact IPv4 loopback.
+  # This rejects wildcard, public IPv4, and IPv6 wildcard exposure alike.
+  listeners=$(ss -ltnH | awk '{print $4}' | grep -E ":${port}$" || true)
+  [[ -n "$listeners" ]] || { echo "[FAIL] Nothing listening on $port" >&2; exit 1; }
+  while IFS= read -r addr; do
+    [[ "$addr" == "127.0.0.1:$port" ]] ||
+      { echo "[FAIL] Refusing non-loopback listener on reserved port $port" >&2; exit 1; }
+  done <<< "$listeners"
 done
 api="http://127.0.0.1:15090"
 web="http://127.0.0.1:15091"
