@@ -45,7 +45,7 @@ test("unified identity screen uses simple actions, OTP and recovery path", () =>
   const page = read("app/identity/page.tsx");
   const flow = read("app/identity/identity-flow.tsx");
   const proxy = read("app/api/identity/[...path]/route.ts");
-  assert.match(page, /<IdentityFlow \/>/);
+  assert.match(page, /<IdentityFlow restrictedLogin=\{identityDashboardOnlyEnabled\(\)\} \/>/);
   assert.doesNotMatch(flow, /role="tablist"/);
   assert.match(flow, /ورود به حساب/);
   assert.match(flow, /ایجاد حساب جدید/);
