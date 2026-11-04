@@ -86,23 +86,23 @@ unset bootstrap migrator app image_digest
 # Only the dedicated project/compose file is addressed; never run compose down.
 sudo docker compose --env-file "$root/compose.env" \
   -f ops/phase18-production-db/compose.yaml up -d
+migrator=$(sed -n 's/^PHASE18_PROD_MIGRATOR_PASSWORD=//p' "$root/compose.env")
+[[ "$migrator" =~ ^[0-9a-f]{64}$ ]] || fail 'Missing migrator credential'
+export PGPASSWORD="$migrator" PGSSLMODE=verify-full PGSSLROOTCERT="$root/ca/ca.pem"
+# pg_isready alone is insufficient: it may pass while postgres is in the
+# temporary bootstrap phase and the dedicated DB/roles are not yet initialized.
 ready=0
+proof=''
 for i in {1..60}; do
-  if sudo docker exec -u postgres argintaxpayer-phase18-production-postgres \
-    pg_isready -U argin_prod_migrator -d argintaxpayer_prod >/dev/null 2>&1; then
+  proof=$(psql -h 127.0.0.1 -p 15434 -U argin_prod_migrator -d argintaxpayer_prod -X -At \
+    -v ON_ERROR_STOP=1 -c "SELECT current_database(),current_user,(SELECT ssl FROM pg_stat_ssl WHERE pid=pg_backend_pid()),(SELECT rolsuper FROM pg_roles WHERE rolname=current_user),(SELECT rolcreatedb FROM pg_roles WHERE rolname=current_user);" 2>/dev/null) || proof=''
+  if [[ "$proof" == 'argintaxpayer_prod|argin_prod_migrator|t|f|f' ]]; then
     ready=1; break
   fi
   sleep 2
 done
-[[ "$ready" == 1 ]] || fail 'Isolated production database did not become ready'
-migrator=$(sed -n 's/^PHASE18_PROD_MIGRATOR_PASSWORD=//p' "$root/compose.env")
-[[ "$migrator" =~ ^[0-9a-f]{64}$ ]] || fail 'Missing migrator credential'
-export PGPASSWORD="$migrator" PGSSLMODE=verify-full PGSSLROOTCERT="$root/ca/ca.pem"
-proof=$(psql -h 127.0.0.1 -p 15434 -U argin_prod_migrator -d argintaxpayer_prod -X -At \
-  -v ON_ERROR_STOP=1 -c "SELECT current_database(),current_user,(SELECT ssl FROM pg_stat_ssl WHERE pid=pg_backend_pid()),(SELECT rolsuper FROM pg_roles WHERE rolname=current_user),(SELECT rolcreatedb FROM pg_roles WHERE rolname=current_user);" 2>/dev/null) ||
-  fail 'TLS VerifyFull production database login failed'
-[[ "$proof" == 'argintaxpayer_prod|argin_prod_migrator|t|f|f' ]] ||
-  fail 'Production database identity, TLS or privilege mismatch'
+[[ "$ready" == 1 ]] ||
+  fail 'Isolated production database never passed full TLS/identity/role readiness checks'
 unset migrator PGPASSWORD PGSSLMODE PGSSLROOTCERT
 echo '[PASS] Dedicated, TLS VerifyFull PostgreSQL 17 production instance provisioned.'
 echo '[PASS] Port 127.0.0.1:15434, separate container, volume, migrator and app roles.'
