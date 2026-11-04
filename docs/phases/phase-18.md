@@ -562,3 +562,33 @@ bash scripts/phase18-step05-disposable-db-acceptance.sh
 5. Run macOS through its existing protected localhost:15432 tunnel only if the TLS certificate's hostname validation can be satisfied; otherwise run on Ubuntu loopback on the dedicated Postgres instance and report macOS as NOT RUN for the database gate. Do not weaken TLS or reconfigure the shared test DB to work around certificates.
 
 **Important limitations:** Test does not yet prove real browser BFF cookie/session/CSRF behavior, cross-tenant ownership of fiscal entities, live Production tax authority routing, or the TLS certificate configuration of a future production database. Those remain separate **BLOCKED** gates. Step05 is **NOT FINALLY ACCEPTED**. No fabricated database or credential setup is claimed. Existing Nginx tax domain continues to serve its separate HTTPS maintenance site.
+
+### Step 05 — implementation: fully separate TLS PostgreSQL 17 QA instance on Ubuntu (2026-11-04)
+
+Owner authorized creating a **new disposable Docker database** on the existing Ubuntu VPS after confirmed existing `postgres-postgres-1` is PostgreSQL 17, bound to `127.0.0.1:5432`, and has `SHOW ssl = off`. Existing `argintaxpayer-adminer` is on `127.0.0.1:8081`. Existing DB and Adminer must never be modified to satisfy acceptance TLS.
+
+Source implementation:
+- `ops/phase18-disposable-db/compose.yaml`: dedicated Docker Compose project `argintaxpayer-phase18-qa`, separate PostgreSQL 17 container `argintaxpayer-phase18-postgres`, independent named volume `phase18_pg_data`, host binding `127.0.0.1:15433:5432`, no restart policy and TLS enabled.
+- `ops/phase18-disposable-db/init/01-phase18-init.sh`: fresh-volume-only PostgreSQL initialization. Private bootstrap role and a separate `phase18_acceptance` login with `NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION`; creates `argin_phase18_acceptance` owned by that role. Does not alter existing PostgreSQL container.
+- `scripts/phase18-step05-isolated-postgres-up.sh`: Ubuntu-only explicit provisioning, requires `sudo docker compose`, rejects already-running container, occupied 15433 or prior private directory. Generates locally random secrets and a short-lived self-signed **testing CA**; signs localhost/127.0.0.1 server certificate; CA private key is not mounted into container. Saves secrets in gitignored mode-600 `artifacts/phase18-step05-db/isolated/compose.env`; only dedicated TLS files are chowned to container postgres UID 999. The key and local CA are **not suitable for Production**. Leaves prior Docker resources untouched.
+- `scripts/phase18-step05-isolated-postgres-migrate-test.sh`: checks PostgreSQL `VerifyFull` using generated CA, exact role, exact DB, authenticated SSL and absence of privileged role flags. Refuses non-empty foreign schemas and requires `dotnet ef`. Applies complete EF migrations *only* to isolated acceptance database using explicit connection string. Then executes the guarded disposable DB MFA/RBAC acceptance test. All logs stay local in ignored artifacts. No data is automatically deleted.
+- Existing xUnit disposable DB admission has strengthened guard requiring port `15433` and explicit trust certificate in addition to exact DB, role, local hostname and `SslMode=VerifyFull`.
+
+**Execution only on Ubuntu, AFTER pulling same phase branch commit and verifying build:**
+```bash
+cd ~/projects/ArginTaxPayer
+git status --short
+git fetch origin
+git switch phase/18-production-deployment
+git pull --ff-only origin phase/18-production-deployment
+git rev-parse HEAD
+bash scripts/phase18-step05-isolated-postgres-up.sh
+sudo docker ps --filter name=argintaxpayer-phase18-postgres --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
+# Only after the independent container is healthy:
+bash scripts/phase18-step05-isolated-postgres-migrate-test.sh
+```
+Do **not** run these on macOS; the macOS UI/build tests already run independently. Do not add `argindev` to the Docker group merely for acceptance. The scripts expect `sudo` for Docker. If the TLS setup, tools, or migrations fail, stop and inspect only private logs, do not weaken VerifyFull or switch to existing DB.
+
+**Cleanup is intentionally operator-controlled:** `docker compose down --volumes` against this specific Compose project would irreversibly remove *only this QA project's* named volume, but should be executed only after explicit validation of container/project names, user approval and acceptance evidence. Generated private material under ignored artifacts needs separate manual cleanup; never run a broad `docker volume prune` or `docker system prune`. There is no automatic cleanup in scripts.
+
+**Acceptance status:** SOURCE_IMPLEMENTED_NOT_EXECUTED. Migration and MFA database tests on actual VPS still need owner execution and PASS outputs, then cross-tenant fiscal access and browser session/CSRF still pending. All Production Go-Live remains BLOCKED, no Tax Authority sends, no public DNS/Nginx changes.
