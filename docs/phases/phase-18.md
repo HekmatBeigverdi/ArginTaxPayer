@@ -833,3 +833,22 @@ Source paths:
 - **Step09 initial findings:** Existing separate Sandbox table `sandbox_fiscal_memories` and regular `fiscal_memories` exist. Current Sandbox send, inquiry and legal-child workflows enforce Sandbox-specific evidence; several write paths still guard exact database `argintaxpayer_test`, preventing Sandbox functionality on isolated `argintaxpayer_prod`. Current regular `FiscalMemory` has no persisted typed authority-environment property; a unified per-operation environment binding and verified real-authority connector are not yet implemented.
 - Added pure `Phase18AuthorityRoutingPolicy` and unit tests for unknown environment, provider mismatch, tenant, fiscal memory and legal-child scope. This foundational domain policy is **not yet wired to DB, send, or inquiry**, and thus grants no operational authority. Added source audit tests, read-only preflight and `docs/phases/phase-18-step09-fiscal-memory-routing.md`.
 - **Status:** Step09 implementation not complete; production-go-live remains BLOCKED. Do not bypass historic test DB guards. Additional migrations, server-owned authoritative binding, route enforcement and cross-platform tests are required before Step09 acceptance. No tax authority or billing operations invoked.
+
+## Accelerated deployment track — owner approved (2026-11-04)
+
+The owner requested an accelerated versioned application rollout instead of delaying all domain availability until every Phase18 tax-authority acceptance is complete. This **reorders** the work; it does not silently waive real tax dispatch safety, tenant authorization or key recovery.
+
+A. **Deploy app with provider operations off:** GitHub Actions builds a commit-addressed API/Web release, verifies tests and archives SHA256; the separate stage script writes only a new immutable release directory. After current DB/secrets/security checks, the approved promote script atomically switches the `current` symlink, restarts only the dedicated API/Web units and automatically reverts the application to the previous release if loopback health fails. Nginx's existing tax-only TLS maintenance vhost must be independently switched to loopback Next only after owner approval and browser security checks.
+
+B. **Dual-environment tax acceptance:** Do not bypass existing `argintaxpayer_test` guards; first complete explicit persisted-memory environment binding and test Sandbox on `argintaxpayer_prod`, then authenticated read-only real authority checks, and only then owner-authorized genuine real invoice submission. Fiscal-memory authority routing and signing correctness remain blocking.
+
+C. **Routine updates:** `.github/workflows/phase18-production-release.yml` packages releases automatically on main, with manually triggered environment-approved deployment. GitHub production Environment must have required reviewers, pinned SSH host key and restricted deploy identity. Passwordless sudo for unattended deployment is **not yet provisioned**; workflow deployment job currently cannot be treated as ready for unattended Production. Never use NOPASSWD:ALL. Database migrations are separate reviewed operations and not executed by deploy.
+
+Artifacts:
+- `scripts/phase18-release-stage.sh`
+- `scripts/phase18-release-promote.sh`
+- `apps/web/tests/phase18-fast-release-contract.test.mjs`
+- `.github/workflows/phase18-production-release.yml`
+- `docs/phases/phase-18-fast-release.md`
+
+**State:** Source implementation committed; no code proven deployed to VPS, no new public runtime started, no GitHub CI PASS observed in this turn, no provider operations performed. Detailed operator review and evidence still needed. Legacy Step09 routing blockers remain.
