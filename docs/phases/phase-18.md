@@ -295,3 +295,15 @@ Operator ran `sudo ufw status verbose`: active; incoming deny, outgoing allow, r
 Operator ran `sudo systemctl status ssh --no-pager --lines=0`: `ssh.service` active (running), triggered by `ssh.socket`, `sshd -t` startup check returned status 0. Disabling `ssh.service` in listing does not mean SSH unavailable; socket activation present. Existing administrator remote access must not be disrupted.
 
 **Remaining Step 03 blockers:** `phase18-step03-ubuntu-preflight.sh` output and capacity/listeners/time synchronization; provider snapshot/recovery evidence; second-session AutoSSH access; internet-side exposure check; SSH/DB non-regression. Do not mark Step 03 PASS on partial evidence. Operator explicitly prefers AutoSSH, including interactive VPS shell.
+
+### 9.6 Verified SSH diagnostic and preflight correction (2026-11-04)
+
+Owner provided a real Ubuntu preflight result from commit `26e1a1d11ab7831dc8a08506b99288fba7999514` at `artifacts/phase18-step03/ubuntu-20261104T071014Z`: platform, resources, runtime, sockets, firewall, services and disk_ownership = PASS (7/8); sshd_validation = WARN. The exact log reported `sshd: no hostkeys available -- exiting.` when run as unprivileged `argindev`. Owner then executed `sudo /usr/sbin/sshd -t` with **exit code 0**. Therefore **SSH daemon configuration validation is PASS based on the privileged test**, and the earlier warning was a script permission false positive, not evidence of missing SSH host keys. Do not generate or replace server host keys, restart sshd or alter ssh configuration on account of this warning.
+
+Script patched at `scripts/phase18-step03-ubuntu-preflight.sh` to attempt non-interactive privileged validation (`sudo -n`) or mark MANUAL_PENDING rather than raise a false security alarm. Script changed only; no host changes were performed remotely.
+
+Owner clarified that public UFW allowances 8080 and 8081 serve unrelated applications. They are **out of Phase 18 modification scope**, and no Phase 18 work may remove, block, rebind or take over these ports. Existing UFW policy remains unchanged. Test API/web being down is acceptable at this stage; do not assert they must be running for Phase 18 readiness.
+
+**Confirmed checks:** platform, resource script completion, runtime inventory script completion, socket inventory script completion, UFW presence/status, service inventory, disk ownership and privileged `sshd -t`. Note: a script PASS means a diagnostic command completed, not automatically that all infrastructure was hardened or correctly exposed.
+
+**Outstanding operational acceptance:** provider snapshot/off-host backup and recovery option not yet evidenced; second independent AutoSSH connection not separately evidenced; external exposure/loopback review and actual inventory contents not supplied. Step 03 remains **CONDITIONALLY READY / NOT YET FINAL PASS** until these conditions are verified or explicitly dispositioned by owner with appropriate risk control. Further checks must not interrupt unrelated applications.
