@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 18: Controlled Production Deployment & Dual Tax-Authority Environments
 
-**Status:** Steps 01–03 OWNER-APPROVED (2026-11-04; Step03 constrained pre-deployment acceptance); Step 04 DNS/TLS preflight STARTED, awaiting VPS/DNS evidence. No public production rollout.  
+**Status:** Steps 01–04 OWNER-APPROVED (2026-11-04; Step04 successful HTTPS/DNS/certificate/renewal reported by owner); Step 05 cross-platform release packaging IMPLEMENTED, acceptance tests pending. No operational Production app rollout.  
 **Date:** 2026-11-04  
 **Branch:** `phase/18-production-deployment`  
 **Starting main SHA:** `6ad5246a39cace77e76901a20d149c301094f7c3` (Phase 15 merge; release `phase-15-v1.0.0` reported in merge metadata).  
@@ -381,3 +381,52 @@ Next operator actions: confirm VPS public IPv4 from the provider and compare wit
 ### Step 04 — DNS A registration owner confirmation (2026-11-04)
 
 Owner confirms `tax.argin.ir` A record was created successfully at the DNS management provider. The target IPv4 and propagation were not independently observed in the conversation; authoritative and public `dig` checks, plus comparison to provider-verified VPS public IP, remain required before invoking ACME. UFW 80/443 openings are already reported. The next runbook is: install Nginx/Certbot if absent, configure a tax-only maintenance virtual host on port 80 (do not change unrelated 8080/8081), validate `nginx -t`, confirm external HTTP 200, then request `certbot --nginx -d tax.argin.ir --redirect`. Verify HTTPS hostname, HTTP redirect and certbot renew dry run. Do not expose Development-mode API. Step 04 is still open pending observed tests.
+
+## 11. Step 04 owner signoff and Step 05 reproducible release package (2026-11-04)
+
+**Step 04 accepted:** Owner reports successful DNS A registration and completed Nginx installation, Nginx configuration check, HTTP-to-HTTPS redirect, HTTPS response, certificate issuance and `certbot renew --dry-run`. This is **owner-reported PASS** (not independent API/browser check); no raw outputs, certificate fingerprint, issuance dates or DNS A answers retained in chat. The existing temporary maintenance host may remain until a secured Production app is available. DNS/certificate renew checks should be repeated in final Ubuntu acceptance; no tax authority connection/send was tested in Step 04.
+
+**Step 05 scope:** reproducible release compilation, test and non-deployed packaging. Files added: `scripts/phase18-step05-build-release.sh`; `.gitignore` ignores `artifacts/phase18-step03/`, `phase18-step04/`, `phase18-step05/` (private logs and packages must never be committed). The script (1) confirms correct Phase18 branch and clean tracked tree, (2) restores/builds/tests .NET Release then publishes API, (3) runs locked `npm ci`, all web tests, typecheck, production build, (4) stages API and Next.js build plus package manifests, (5) produces SHA256 hashes with macOS/Linux compatibility, and (6) reports source-backed Production deployment blockers. No database connection string, secret, TLS credential, official API request or web service is passed to it by the script. It writes artifacts only to `artifacts/phase18-step05/<git-sha>/<UTC-stamp>/` locally; the host remains untouched.
+
+**Verified source blockers, MUST be resolved before ANY public web application release:**
+- `src/ArginTaxPayer.Api/Program.cs`: `identityDevelopmentEnabled = builder.Environment.IsDevelopment() && connectionStringPresent`; most DI services and real API routes (including invoices/signing/identity/dashboards) are wrapped by `if(identityDevelopmentEnabled)`. Simply setting `ASPNETCORE_ENVIRONMENT=Production` prevents required APIs.
+- `apps/web/lib/identity.ts`: `identityUiEnabled()` requires `NODE_ENV === "development"`. Normal Next.js production builds cannot authenticate. Existing Next.js proxy routes call `/api/dev/*`; these paths require a security review/refactor rather than simply turning on development endpoints.
+- Keep `ASPNETCORE_ENVIRONMENT=Production`, `DOTNET_ENVIRONMENT=Production`, and Next.js `NODE_ENV=production`. Never work around these blockers with publicly exposed Development mode.
+- `appsettings.Production.json` currently contains only `DeploymentLabel=production`; actual secure config, credentials, host validation and database environment controls are Steps 06–11.
+- Build scripts only scan obvious secret file **names**. Do not consider this a comprehensive secret scanner; output could incorporate build-time environment values. Audit built contents and storage permissions before deployment and never upload artifacts to the public repo.
+
+**Step 05 execution (local macOS first; then Ubuntu at EXACT same commit):**
+
+```bash
+git fetch origin
+git switch phase/18-production-deployment
+git pull --ff-only origin phase/18-production-deployment
+git status --short
+git rev-parse HEAD
+bash scripts/phase18-step05-build-release.sh
+```
+
+For Ubuntu access user-mandated interactive AutoSSH:
+```bash
+AUTOSSH_GATETIME=0 autossh -M 0 \
+  -o ServerAliveInterval=15 \
+  -o ServerAliveCountMax=3 \
+  -o ConnectTimeout=10 \
+  argindev@85.133.244.156
+```
+
+Then on Ubuntu:
+```bash
+cd ~/projects/ArginTaxPayer
+git fetch origin
+git switch phase/18-production-deployment
+git pull --ff-only origin phase/18-production-deployment
+git rev-parse HEAD
+bash scripts/phase18-step05-build-release.sh
+```
+
+The same Git commit must be used, but macOS and Ubuntu build artifact SHA256 values are **not expected to be bit-identical** across OS: compare source SHA, tests, manifest, version, build outputs and runtime behavior; reproducible byte-for-byte build claims require a separate pinned identical build environment.
+
+**Acceptance:** macOS and Ubuntu automated tests plus Release builds PASS; package manifests and hashes recorded; no tracked modifications or leaked secret files; staging files remain off public Internet. The source-backed Production DI/identity restrictions remain **hard go-live blockers**, and require separate code changes, security review and Production-mode integration tests (start in Step 05 follow-up and complete before Steps 06/11). No false assertion that a successful build alone means the application is deployable.
+
+**Current evidence:** Implementation of script and documentation committed only. macOS/Ubuntu build/test command outputs **not yet supplied**; Step05 runtime verification remains OPEN. No files installed on VPS production paths and Nginx continues as configured in Step04.
