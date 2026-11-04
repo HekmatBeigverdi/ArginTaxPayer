@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-const read = name => readFileSync(new URL("../../ops/phase18-systemd/" + name, import.meta.url), "utf8");
+const read = name => readFileSync(new URL("../../../ops/phase18-systemd/" + name, import.meta.url), "utf8");
 const api = read("argintaxpayer-api.service");
 const web = read("argintaxpayer-web.service");
 const parse = text => {
