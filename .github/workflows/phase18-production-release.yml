@@ -1,7 +1,7 @@
 name: ArginTaxPayer versioned release
 on:
   push:
-    branches: [main]
+    branches: [main, phase/18-production-deployment]
   workflow_dispatch:
     inputs:
       deploy:
