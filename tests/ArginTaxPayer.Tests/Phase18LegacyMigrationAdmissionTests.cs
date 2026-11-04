@@ -5,8 +5,11 @@ using Xunit;
 
 namespace ArginTaxPayer.Tests;
 
-/// <summary>Ensures no migration relaxes access beyond the existing test DB
-/// and the single TLS-protected, restricted Phase18 disposable database.</summary>
+/// <summary>
+/// Old signing and sandbox migrations must remain restricted to exactly the
+/// historical test DB, dedicated Phase18 QA over SSL, or new Production migrator
+/// on the isolated Production database over SSL. Never the runtime app role.
+/// </summary>
 public sealed class Phase18LegacyMigrationAdmissionTests
 {
     private static readonly Type[] GuardedMigrations =
@@ -24,23 +27,24 @@ public sealed class Phase18LegacyMigrationAdmissionTests
     ];
 
     [Fact]
-    public void Historically_test_only_migrations_admit_only_exact_disposable_TLS_identity()
+    public void Guarded_migrations_require_exact_QA_or_Production_migrator_and_TLS()
     {
         foreach (var type in GuardedMigrations)
         {
             var migration = (Migration)Activator.CreateInstance(type)!;
             var sql = string.Join("\n", migration.UpOperations
                 .OfType<SqlOperation>().Select(o => o.Sql));
-            AssertIsolatedDatabaseAdmission(sql);
-        }
-    }
 
-    internal static void AssertIsolatedDatabaseAdmission(string sql)
-    {
-        Assert.Matches(@"IF\s+NOT\s*\(\s*current_database\(\)\s*=\s*'argintaxpayer_test'\s*" +
-            @"OR\s*\(\s*current_database\(\)\s*=\s*'argin_phase18_acceptance'\s*" +
-            @"AND\s+current_user\s*=\s*'phase18_acceptance'\s*" +
-            @"AND\s+EXISTS\s*\(\s*SELECT\s+1\s+FROM\s+pg_stat_ssl\s*" +
-            @"WHERE\s+pid\s*=\s*pg_backend_pid\(\)\s+AND\s+ssl\s*\)\s*\)\s*\)\s*THEN\s+RAISE\s+EXCEPTION", sql);
+            Assert.Matches(@"IF\s+NOT\s*\(\s*current_database\(\)\s*=\s*'argintaxpayer_test'\s*" +
+                @"OR\s*\(\s*current_database\(\)\s*=\s*'argin_phase18_acceptance'\s*" +
+                @"AND\s+current_user\s*=\s*'phase18_acceptance'\s*" +
+                @"AND\s+EXISTS\s*\(\s*SELECT\s+1\s+FROM\s+pg_stat_ssl\s*" +
+                @"WHERE\s+pid\s*=\s*pg_backend_pid\(\)\s+AND\s+ssl\s*\)\s*\)\s*" +
+                @"OR\s*\(\s*current_database\(\)\s*=\s*'argintaxpayer_prod'\s*" +
+                @"AND\s+current_user\s*=\s*'argin_prod_migrator'\s*" +
+                @"AND\s+EXISTS\s*\(\s*SELECT\s+1\s+FROM\s+pg_stat_ssl\s*" +
+                @"WHERE\s+pid\s*=\s*pg_backend_pid\(\)\s+AND\s+ssl\s*\)\s*\)\s*\)\s*THEN\s+RAISE\s+EXCEPTION", sql);
+            Assert.DoesNotContain("current_user = 'argin_prod_app'", sql);
+        }
     }
 }
