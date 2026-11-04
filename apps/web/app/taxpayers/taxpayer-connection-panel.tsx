@@ -8,7 +8,7 @@ import OperationMessageBox from "./operation-message-box";
 import SigningChangeRequestPanel from "./signing-change-request-panel";
 import SandboxFiscalMemoryPanel from "./sandbox-fiscal-memory-panel";
 
-type Memory = { id: string; taxpayerId: string; memoryIdentifier: string; status: number; revision: number };
+type Memory = { id: string; taxpayerId: string; memoryIdentifier: string; status: number; revision: number; authorityEnvironment: 1 | 2 | null };
 type KeyStatus = {
   hasKey: boolean; lifecycleState: number | null; recoveryAvailable: boolean;
   fingerprintSha256: string | null; configured: boolean; storageReady: boolean;
@@ -22,8 +22,12 @@ export default function TaxpayerConnectionPanel({ taxpayerId, memories, loadingM
   const [method, setMethod] = useState<Method>("existing");
   const [environment, setEnvironment] = useState<"production" | "sandbox">("production");
   const [selection, setSelection] = useState("");
-  const memoryId = memories.some(m => m.id === selection) ? selection : memories[0]?.id ?? "";
-  const currentMemory = memories.find(m => m.id === memoryId);
+  // A UI tab is a display filter only, never a tax-authority routing toggle.
+  // Unclassified and Sandbox fiscal memories must not enter Production signing UI.
+  const productionMemories = memories.filter(m => m.authorityEnvironment === 1);
+  const unclassifiedCount = memories.filter(m => m.authorityEnvironment == null).length;
+  const memoryId = productionMemories.some(m => m.id === selection) ? selection : productionMemories[0]?.id ?? "";
+  const currentMemory = productionMemories.find(m => m.id === memoryId);
   // Pass exactly the selected fiscal memory so all three independent actions
   // act on the same memory; never silently switch to a different key.
   const chosen = currentMemory ? [currentMemory] : [];
@@ -73,12 +77,15 @@ export default function TaxpayerConnectionPanel({ taxpayerId, memories, loadingM
       aria-labelledby="taxpayer-sandbox-tab"><SandboxFiscalMemoryPanel taxpayerId={taxpayerId}/></div> :
     <div id="taxpayer-production-connection" role="tabpanel"
       aria-labelledby="taxpayer-production-tab">
+    {unclassifiedCount > 0 && <OperationMessageBox kind="warning" title="حافظه با محیط نامشخص">
+      {unclassifiedCount} حافظه قدیمی محیط تأییدشده ندارد و برای اتصال Production در دسترس نیست.
+    </OperationMessageBox>}
     <div className="signing-status-bar">
       <label htmlFor="signing-memory-selector">حافظه مالیاتی
         <select id="signing-memory-selector" dir="ltr" disabled={reading || loadingMemories}
           value={memoryId} onChange={e => { setSelection(e.target.value); setMethod("existing"); }}>
-          {memories.length === 0 && <option value="">حافظه‌ای ثبت نشده</option>}
-          {memories.map(m => <option key={m.id} value={m.id}>{m.memoryIdentifier}</option>)}
+          {productionMemories.length === 0 && <option value="">حافظه Production تأییدشده‌ای وجود ندارد</option>}
+          {productionMemories.map(m => <option key={m.id} value={m.id}>{m.memoryIdentifier}</option>)}
         </select>
       </label>
       <div><small>وضعیت کلید</small><strong>{reading ? "در حال بررسی…" : statusLabel}</strong></div>
