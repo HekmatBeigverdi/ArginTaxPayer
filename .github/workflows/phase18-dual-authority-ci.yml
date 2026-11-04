@@ -39,7 +39,8 @@ jobs:
             apps/web/tests/phase18-step14-fiscal-key-ui-isolation.test.mjs \
             apps/web/tests/phase18-step15-incremental-migration.test.mjs \
             apps/web/tests/phase18-step16-routed-endpoint-source.test.mjs \
-            apps/web/tests/phase18-step17-attempt-admission.test.mjs
+            apps/web/tests/phase18-step17-attempt-admission.test.mjs \
+            apps/web/tests/phase18-step17-outcome-evidence.test.mjs
       - name: Restore and compile Release
         run: |
           dotnet restore ArginTaxPayer.sln
