@@ -6,7 +6,7 @@ set -Eeuo pipefail
 umask 077
 fail() { printf '[REFUSED] %s\n' "$*" >&2; exit 2; }
 [[ "${1:-}" == "--apply-reviewed-dispatch-environment" && "$#" == 1 ]] ||
-  fail 'Usage: --apply-reviewed-environment-column'
+  fail 'Usage: --apply-reviewed-dispatch-environment'
 [[ "$(uname -s)" == Linux && "$(id -u)" != 0 ]] || fail 'Run as nonroot Ubuntu operator'
 [[ "${PHASE18_OWNER_APPROVED_INCREMENTAL_MIGRATION:-}" == YES ]] ||
   fail 'Explicit owner approval is required'
@@ -79,6 +79,8 @@ ConnectionStrings__ArginTaxPayerDb="$offline" dotnet ef migrations script --idem
   --configuration Release --output "$tmp" >/dev/null
 [[ "$(sha256sum "$tmp" | cut -d' ' -f1)" == "$actual" ]] ||
   fail 'EF SQL generation mismatch; source or tooling changed'
+# Compare the exact reviewed idempotent output with the approved migration block.
+grep -Fq "$target" "$review" || fail 'Target migration absent from reviewed SQL'
 echo '[START] Isolated recovery drill before migration'
 PHASE18_RESTORE_DRILL_APPROVED=YES PHASE18_EXPECTED_SHA="$sha" \
   bash scripts/phase18-step07-backup-restore-drill.sh
@@ -92,7 +94,7 @@ ConnectionStrings__ArginTaxPayerDb="$connection" dotnet ef database update "$tar
 unset connection migrator
 latest=$(psql "${psql_args[@]}" -c 'SELECT "MigrationId" FROM "__EFMigrationsHistory" ORDER BY "MigrationId" DESC LIMIT 1;')
 column=$(psql "${psql_args[@]}" -c \
-  "SELECT count(*) FROM information_schema.columns WHERE table_schema='public' AND table_name='fiscal_memories' AND column_name='authority_environment' AND is_nullable='YES';")
+  "SELECT count(*) FROM information_schema.columns WHERE table_schema='public' AND table_name='invoice_dispatch_operations' AND column_name='authority_environment' AND is_nullable='YES';")
 [[ "$latest" == "$target" && "$column" == 1 ]] ||
   fail 'Postmigration verification failed; stop before application promotion'
 echo '[PASS] Exact Phase18 Step15 immutable dispatch authority environment migration installed.'
