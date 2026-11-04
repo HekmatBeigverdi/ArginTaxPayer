@@ -27,6 +27,10 @@ run(){
 }
 run unit-contract node --test apps/web/tests/phase18-step06-systemd-contract.test.mjs
 if [[ "$platform" == "Linux" ]]; then
+  [[ "${PHASE18_EXPECTED_SHA:-}" =~ ^[0-9a-f]{40}$ ]] ||
+    refuse 'Provide independently captured full macOS SHA as PHASE18_EXPECTED_SHA'
+  [[ "$sha" == "$PHASE18_EXPECTED_SHA" ]] ||
+    refuse 'macOS/Ubuntu SHA mismatch'
   command -v systemd-analyze >/dev/null || refuse 'systemd-analyze missing'
   command -v ss >/dev/null || refuse 'ss missing'
   run systemd-syntax systemd-analyze verify \
