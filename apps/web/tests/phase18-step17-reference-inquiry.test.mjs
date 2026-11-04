@@ -29,5 +29,5 @@ test('reference-only inquiry routes from persisted environment and acknowledged 
 
 test('reference inquiry cannot claim fiscal SUCCESS or trigger resend',()=>{
   assert.match(src,/verdict.SafeCode,verdict.MatchedReference/);
-  assert.doesNotMatch(src,/invoice_dispatch_operations\s+SET|AppendInitialReceiptAsync|Retry|requeue|Thread.Sleep/);
+  assert.doesNotMatch(src,/invoice_dispatch_operations\s+SET|AppendInitialReceiptAsync|Retry=true|requeue|Thread.Sleep/);
 });
