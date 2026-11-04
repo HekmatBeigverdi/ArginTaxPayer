@@ -6,7 +6,8 @@ die() { echo "[REFUSED] $*" >&2; exit 2; }
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 [[ "$(git branch --show-current)" == phase/18-production-deployment ]] || die "Wrong branch"
 [[ -z "$(git status --porcelain --untracked-files=no)" ]] || die "Dirty tracked files"
-for x in dotnet node npm tar sha256sum git; do command -v "$x" >/dev/null || die "Missing $x"; done
+for x in dotnet node npm tar git; do command -v "$x" >/dev/null || die "Missing $x"; done
+if command -v sha256sum >/dev/null; then digest_cmd=sha256sum; elif command -v shasum >/dev/null; then digest_cmd='shasum -a 256'; else die 'Missing SHA-256 utility'; fi
 [[ -f apps/web/package-lock.json ]] || die "Missing lockfile"
 sha="$(git rev-parse HEAD)"
 stamp="$(date -u +%Y%m%dT%H%M%SZ)"
@@ -46,7 +47,7 @@ if find "$out/stage" -type f \( -name '.env' -o -name '.env.*' -o -name '*.pem' 
 fi
 printf 'sha=%s\nutc=%s\ndotnet=%s\nnode=%s\nnext_build_id=%s\n' "$sha" "$stamp" "$(dotnet --version)" "$(node --version)" "$(cat apps/web/.next/BUILD_ID)" > "$out/build-info.txt"
 (cd "$out/stage" && tar -czf "$out/api.tar.gz" api && tar -czf "$out/web.tar.gz" web)
-(cd "$out" && sha256sum api.tar.gz web.tar.gz > SHA256SUMS)
+(cd "$out" && $digest_cmd api.tar.gz web.tar.gz > SHA256SUMS)
 printf 'packaging\tBUILT_NOT_DEPLOYED\n' >> "$out/manifest.tsv"
 # Source checks are conservative blockers until full secured Production refactor.
 if grep -q 'if (identityDevelopmentEnabled)' src/ArginTaxPayer.Api/Program.cs; then
