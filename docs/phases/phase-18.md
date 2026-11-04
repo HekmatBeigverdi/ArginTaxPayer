@@ -443,3 +443,43 @@ Owner ran `scripts/phase18-step05-build-release.sh` on macOS. Provided `manifest
 **Source audit expansion:** `src/ArginTaxPayer.Api/Identity/IdentityDevelopmentEndpoints.cs` explicitly defines `/api/dev/identity` and uses `IsLoopback(http)` checks, while `Phase10InvoiceDispatchDevelopmentEndpoints.cs` similarly maps `/api/dev/taxpayers/.../dispatch` with `Local(http)` restrictions. Next.js proxies call these via server-to-server loopback. Therefore a secure production refactor must classify **individual routes** by capabilities and authorization, not simply remove `if(identityDevelopmentEnabled)`, change `identityUiEnabled()`, or expose existing `/api/dev/*` paths to the public Internet. The Next.js BFF may communicate with the loopback API but must enforce own origin/session/auth policies, with the API binding loopback and independently validating bearer tokens and taxpayer ownership.
 
 **Required remediation before go-live:** establish production-safe DI registration, classify/rename API routes (identity, billing, signing and tax actions), remove/restrict development registration, diagnostics and fixture/bypass routes, review MFA/cookie/CSRF/session boundaries, create negative tests for public network endpoints and cross-tenant actions, and then re-enable necessary Next.js BFF functionality with a fail-closed production config. Versioned Sandbox/live fiscal-memory routing must be validated separately in Step09/10. Any changes must preserve local Development behavior and Phase10–15 regression. No official API call, DB migration, or deployment is authorized merely by this manifest.
+
+### Step 05 remediation implementation — guarded Production API + web (2026-11-04)
+
+**Owner instruction:** Continue and complete the two macOS `BLOCKED_DEV_GATE` remediation items. Source changes committed on the Phase18 branch; **runtime tests have NOT been executed here** (GitHub source inspection only; automated QA on macOS/Ubuntu still required).
+
+**Backend** `src/ArginTaxPayer.Api/Program.cs`:
+- Added explicit, default-off `ArginTaxPayer:EnableOperationalEndpoints` requirement when `IHostEnvironment.IsProduction()`; no automatic enabling from merely choosing Production or having a DB connection.
+- Production opt-in requires DB connection, rejects the test DB name, enforces the dedicated bind URL `http://127.0.0.1:15090`, and rejects Kestrel endpoint override configuration. Port 15090 differs from development 15089. Do not expose this port in Nginx or UFW.
+- Rejects `Identity:AllowDevelopmentRegistration=true` and `Identity:OtpDeliveryMode=LocalFile` for this Production mode.
+- Registers existing operational DI and API endpoints only for Development-with-DB or explicitly opted-in Production. Development OpenAPI and `/health/dev-identity` diagnostics stay inside the Development-only branch.
+- Adds additional server-side non-loopback denial for internal `/api/dev` routes, independently of any reverse proxy headers, while preserving existing per-endpoint bearer/tenant checks. The old internal route names are a compatibility bridge for BFF only, **not public API contracts**; audit and migration to dedicated non-dev names remain Step 06/11 work. A route becoming registered in Production does **not** certify its production readiness or actual authority routing.
+
+**Frontend** `apps/web/lib/identity.ts`, `apps/web/lib/identity-origin.mjs`, `apps/web/app/api/identity/[...path]/route.ts`:
+- Existing Development mode preserved.
+- Production requires `ARGIN_PRODUCTION_UI_ENABLED=true`, `ARGIN_IDENTITY_UI_ENABLED=true`, and `ARGIN_PUBLIC_BASE_URL=https://tax.argin.ir` to opt in. The internal API origin in Production is locked to `http://127.0.0.1:15090` (set `ARGIN_IDENTITY_API_INTERNAL_BASE_URL` accordingly at deployment).
+- Browser POST Origin must match exact `https://tax.argin.ir` with Host `tax.argin.ir`, not an arbitrary header, HTTPS downgrade, or loopback browser origin. This accounts for internal HTTP Next.js behind HTTPS Nginx.
+- Authentication cookies are HttpOnly, SameSite=Strict and now **Secure in Production**.
+- `apps/web/tests/identity-ui.test.mjs` assertions updated; new `apps/web/tests/phase18-production-boundaries.test.mjs` covers production flags, registration prevention, loopback/port constraints, strict HTTPS origin and development origin regression.
+
+**Release script:** `scripts/phase18-step05-build-release.sh` now distinguishes source-gate implementation (`SOURCE_GATE_IMPLEMENTED_RUNTIME_QA_PENDING`) from the old `BLOCKED_DEV_GATE` markers. It **always** retains `production-deployment=BLOCKED_PENDING_LIVE_RUNTIME_SECURITY_ACCEPTANCE`; packaging must not start or deploy services.
+
+**Production deployment (for future configuration in Step06, not permission to run now):**
+```text
+ASPNETCORE_ENVIRONMENT=Production
+DOTNET_ENVIRONMENT=Production
+ASPNETCORE_URLS=http://127.0.0.1:15090
+ArginTaxPayer__EnableOperationalEndpoints=true
+Identity__AllowDevelopmentRegistration=false
+# Backend secrets and dedicated real DB configuration supplied through protected env/credentials.
+
+NODE_ENV=production
+ARGIN_IDENTITY_UI_ENABLED=true
+ARGIN_PRODUCTION_UI_ENABLED=true
+ARGIN_PUBLIC_BASE_URL=https://tax.argin.ir
+ARGIN_IDENTITY_API_INTERNAL_BASE_URL=http://127.0.0.1:15090
+# Next.js must bind only 127.0.0.1:3000 or separately assigned internal production port.
+```
+**IMPORTANT:** Do not place actual production DB strings, secret key material, provider credentials or private keys in this document/GitHub; do not start this configuration until security and runtime tests, DB isolation and secrets recovery are accepted. The final decision on port 3000 vs a different dedicated web port belongs to Step06 and must not disturb the existing dev runner.
+
+**Remaining acceptance:** Pull the new HEAD on macOS and Ubuntu and run `bash scripts/phase18-step05-build-release.sh` on both at the exact same SHA. Require all tests, typecheck, publish and production build PASS, inspect `phase18-production-boundaries.test.mjs` results, verify `/api/dev/*` remote 404, `/health/dev-identity` and OpenAPI 404 in Production, test login/MFA/tenant isolation via HTTPS BFF with valid authorized test accounts and *without issuing an actual tax invoice*. Only then can Step05 source and runtime gates be accepted. **Live Production tax API and per-memory routing still require Steps09/10/15**. The user's prior macOS PASS manifest predates these code changes and cannot be reused as post-fix acceptance evidence.
