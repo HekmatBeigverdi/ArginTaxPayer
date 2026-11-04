@@ -26,6 +26,10 @@ email=$(psql "${psql_args[@]}" -c "SELECT u.normalized_email FROM taxpayer_profi
 unset PGPASSWORD PGSSLMODE PGSSLROOTCERT
 [[ -f apps/web/.next/BUILD_ID ]] || fail 'Next.js Production build required'
 sha=$(git rev-parse HEAD)
+[[ "${PHASE18_EXPECTED_SHA:-}" =~ ^[0-9a-f]{40}$ ]] ||
+  fail 'Provide full macOS SHA as PHASE18_EXPECTED_SHA (same-source parity gate)'
+[[ "$sha" == "$PHASE18_EXPECTED_SHA" ]] ||
+  fail 'macOS and Ubuntu SHA mismatch; do not run acceptance'
 out="$PWD/artifacts/phase18-step05-e2e/reports/$sha/$(date -u +%Y%m%dT%H%M%SZ)"
 mkdir -p "$out"; chmod 700 "$out"
 printf 'source_sha\t%s\ncheck\tresult\n' "$sha" > "$out/manifest.tsv"
