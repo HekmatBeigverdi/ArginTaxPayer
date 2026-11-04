@@ -44,7 +44,16 @@ run runtime bash -c 'for cmd in dotnet node npm psql nginx certbot docker; do if
 run sockets bash -c "ss -ltnH | awk '{print \$4}' | sort -u"
 run firewall bash -c 'if command -v ufw >/dev/null; then ufw status 2>&1 || true; else printf "ufw not installed\n"; fi'
 run services bash -c 'for svc in ssh sshd postgresql nginx docker; do state=$(systemctl is-active "$svc" 2>/dev/null || true); printf "%s=%s\n" "$svc" "$state"; done'
-run sshd_validation bash -c 'if command -v sshd >/dev/null; then if [ -x /usr/sbin/sshd ]; then /usr/sbin/sshd -t; else sshd -t; fi; else echo "sshd missing"; exit 1; fi'
+# sshd -t needs access to root-owned host keys. Never report an unprivileged
+# invocation's "no hostkeys available" as an SSH configuration failure.
+# sudo -n is deliberately non-interactive; no privilege escalation prompt here.
+if [[ -x /usr/sbin/sshd ]] && command -v sudo >/dev/null && sudo -n /usr/sbin/sshd -t > "$out/sshd_validation.log" 2>&1; then
+  printf '[PASS] sshd_validation (privileged)\n'
+  printf 'sshd_validation\tPASS\t%s\n' "$out/sshd_validation.log" >> "$manifest"
+else
+  printf '[PENDING] sshd_validation — run: sudo /usr/sbin/sshd -t\n'
+  printf 'sshd_validation\tMANUAL_PENDING\tRequires sudo /usr/sbin/sshd -t (host keys root-owned)\n' >> "$manifest"
+fi
 run disk_ownership bash -c 'stat -c "%A %U:%G %n" "$HOME" "$PWD" 2>/dev/null'
 # Public host/network probing is deferred until endpoints and authorized IP are verified.
 printf 'external_dns\tMANUAL_PENDING\tAuthoritative DNS provider/IPv4/AAAA/CDN not yet verified\n' >> "$manifest"
