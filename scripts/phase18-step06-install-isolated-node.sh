@@ -16,7 +16,7 @@ src="$2"
 realpath=$(readlink -f -- "$src")
 [[ "$realpath" == "$src" ]] || refuse 'Use the fully resolved Node path (no symlink)'
 [[ "$(stat -c %a "$src")" =~ ^[0-7]{3,4}$ ]] || refuse 'Invalid source file mode'
-[[ "$(stat -c %a "$src")" != *7 ]] || refuse 'World-writable binary refused'
+[[ -z "$(find "$src" -maxdepth 0 -perm /002 -print)" ]] || refuse 'World-writable binary refused'
 major=$("$src" -p 'Number(process.versions.node.split(".")[0])') ||
   refuse 'Cannot execute selected source Node'
 [[ "$major" =~ ^[0-9]+$ && "$major" -ge 20 ]] ||
