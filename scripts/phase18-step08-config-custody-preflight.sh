@@ -23,7 +23,20 @@ else
 fi
 bash -n scripts/phase18-step08-config-custody-preflight.sh
 bash -n scripts/phase18-step08-stage-private-config.sh
+bash -n scripts/phase18-step08-private-config-audit.sh
 printf 'bash-syntax\tPASS\n' >> "$out/manifest.tsv"
+if command -v dotnet >/dev/null 2>&1; then
+  echo '[START] cryptographic-custody-unit-tests'
+  if dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj --configuration Release --filter 'FullyQualifiedName~Phase09DatabaseCustodyEncryptionTests|FullyQualifiedName~Phase09SigningProtectionConfigurationTests|FullyQualifiedName~IdentityMfa' > "$out/crypto-unit-tests.log" 2>&1; then
+    printf 'crypto-unit-tests\tPASS\n' >> "$out/manifest.tsv"
+    echo '[PASS] crypto-unit-tests'
+  else
+    printf 'crypto-unit-tests\tFAIL\n' >> "$out/manifest.tsv"
+    fail "Crypto unit tests failed; see $out/crypto-unit-tests.log"
+  fi
+else
+  fail 'dotnet SDK needed for crypto-custody tests'
+fi
 if [[ "$platform" == Linux ]]; then
   [[ "${PHASE18_EXPECTED_SHA:-}" =~ ^[a-f0-9]{40}$ && "$sha" == "$PHASE18_EXPECTED_SHA" ]] ||
     fail 'Independent macOS/Ubuntu exact SHA required'
