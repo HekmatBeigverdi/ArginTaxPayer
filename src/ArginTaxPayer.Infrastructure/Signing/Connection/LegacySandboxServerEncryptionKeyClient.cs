@@ -28,7 +28,20 @@ internal sealed class LegacySandboxServerEncryptionKeyClient(
         ReadOnlyMemory<byte> publicSpki, CancellationToken ct = default)
     {
         if (!LegacyInvoiceSubmissionHttpTransport.TryResolveSandboxBase(
-                configuration, out var baseUri) || baseUri is null ||
+                configuration, out var baseUri) || baseUri is null)
+            return null;
+        return await RequestVerifiedEndpointAsync(
+            new Uri(baseUri, "self-tsp/sync/GET_SERVER_INFORMATION"),
+            fiscalMemoryCode, privateKey, publicSpki, ct);
+    }
+
+    // Only a server-verified persisted fiscal memory route may call the shared
+    // endpoint variant. The historic Sandbox path above remains Sandbox-only.
+    internal async Task<LegacySandboxEncryptionKey?> RequestVerifiedEndpointAsync(
+        Uri verifiedServerInfoEndpoint, string fiscalMemoryCode, SensitiveBytes privateKey,
+        ReadOnlyMemory<byte> publicSpki, CancellationToken ct = default)
+    {
+        if (!IsPinnedServerInfoEndpoint(verifiedServerInfoEndpoint) ||
             fiscalMemoryCode is not { Length: 6 } ||
             fiscalMemoryCode.Any(c => !char.IsAsciiLetterOrDigit(c)))
             return null;
@@ -56,7 +69,7 @@ internal sealed class LegacySandboxServerEncryptionKeyClient(
             AutomaticDecompression=DecompressionMethods.None
         }) { Timeout=TimeSpan.FromSeconds(15),MaxResponseContentBufferSize=262144 };
         using var request=new HttpRequestMessage(HttpMethod.Post,
-            new Uri(baseUri,"self-tsp/sync/GET_SERVER_INFORMATION")){
+            verifiedServerInfoEndpoint){
             Content=JsonContent.Create(new {
                 Signature=signature,SignatureKeyId=(string?)null,
                 Packet=new {
@@ -127,6 +140,15 @@ internal sealed class LegacySandboxServerEncryptionKeyClient(
             return null;
         }
     }
+
+    private static bool IsPinnedServerInfoEndpoint(Uri? endpoint) =>
+        endpoint is not null && endpoint.IsAbsoluteUri &&
+        endpoint.Scheme == Uri.UriSchemeHttps && endpoint.Port == 443 &&
+        (endpoint.Host.Equals("sandboxrc.tax.gov.ir", StringComparison.OrdinalIgnoreCase) ||
+         endpoint.Host.Equals("tp.tax.gov.ir", StringComparison.OrdinalIgnoreCase)) &&
+        endpoint.AbsolutePath == "/req/api/self-tsp/sync/GET_SERVER_INFORMATION" &&
+        string.IsNullOrEmpty(endpoint.Query) && string.IsNullOrEmpty(endpoint.Fragment) &&
+        string.IsNullOrEmpty(endpoint.UserInfo);
 
     private static bool Try(JsonElement value,string field,out JsonElement result)
     {
