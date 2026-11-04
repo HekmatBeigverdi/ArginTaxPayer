@@ -1,6 +1,6 @@
 # ArginTaxPayer — Phase 18: Controlled Production Deployment & Dual Tax-Authority Environments
 
-**Status:** STARTED — Step 01 planning/baseline recorded; runtime implementation and acceptance NOT STARTED.  
+**Status:** Step 01 OWNER-APPROVED (2026-11-04); Step 02 architecture contract DOCUMENTED (awaiting owner acceptance); runtime implementation NOT STARTED.  
 **Date:** 2026-11-04  
 **Branch:** `phase/18-production-deployment`  
 **Starting main SHA:** `6ad5246a39cace77e76901a20d149c301094f7c3` (Phase 15 merge; release `phase-15-v1.0.0` reported in merge metadata).  
@@ -115,4 +115,114 @@ Update **this same file** for each step with: start/end date, branch and commit 
 
 **Completed:** Phase 18 scope/step plan authored; base SHA and Phase 15 merge metadata inspected; roadmap and existing production appsettings reviewed; owner-confirmed already-separated fiscal memory definitions preserved as existing behavior rather than falsely billed as a new feature.  
 **Not completed:** Detailed routing code audit, remote Ubuntu inspection, actual database inspection, official API validation, DNS or HTTPS change, automated tests, real authority connection.  
-**Gate:** Await local/VPS baseline, detailed source audit, and owner review before marking Step 01 accepted.  
+**Gate:** Owner explicitly approved Step 01 on 2026-11-04. Source-level gaps discovered in Step 02 remain mandatory Step 03–11 blockers; no undocumented PASS or runtime deployment is implied.  
+
+## 8. Step 02 — Production architecture and deployment contract (2026-11-04)
+
+**Status:** Design/documentation completed on branch, awaiting explicit owner acceptance. No DNS/VPS/database changes made; no tests executed in this design-only step.
+
+### 8.1 Source-level findings and critical prerequisite
+
+Audited `src/ArginTaxPayer.Api/Program.cs`, `appsettings.json`, `appsettings.Production.json`, `apps/web/next.config.ts`, `apps/web/package.json`, and `apps/web/app/api/invoices/[...segments]/route.ts` at the Phase 18 branch. **Critical:** `Program.cs` currently guards the principal DI setup and most functional API endpoint maps behind `identityDevelopmentEnabled = builder.Environment.IsDevelopment() && connectionStringPresent`. In Production this evaluates false, disabling identity, taxpayers, invoices, dispatch, dashboard, signing and billing routes; health may still respond. This is a hard blocker. Many Next.js BFF proxies call backend paths under `/api/dev/*`. A production deployment MUST first refactor endpoint/service registration to an explicit secure production-capable structure, with real authentication/authorization and no development diagnostics, fixture paths or bypasses inadvertently exposed. Do NOT set `ASPNETCORE_ENVIRONMENT=Development` in public hosting to work around the blocker. Keep `/health/dev-identity` and development OpenAPI unreachable publicly. Phase 18 Step 05/06/11 require tests for route availability and role/tenant protections in Production mode.
+
+The existing `appsettings.Production.json` only supplies deployment label, not a deployable secure configuration. Next.js `npm start` already binds to 127.0.0.1 (port must be supplied); application package uses Next 15.5.28. Version choice is recorded, not an upgrade mandate.
+
+### 8.2 Network and trust zones
+
+```text
+User browser -- HTTPS:443 --> tax.argin.ir (Ubuntu VPS, Company B)
+                                    |
+                           Nginx TLS termination
+                                    |
+                   +----------------+------------------+
+                   |                                   |
+          127.0.0.1:3000                        (No public API)
+           Next.js server                                |
+                   |  server-to-server BFF               |
+                   +------> 127.0.0.1:15089 ASP.NET Core |
+                                        |                |
+                             127.0.0.1:5432 PostgreSQL <-+
+                                        |
+                            outbound HTTPS 443
+                       +------------------------+
+                       | Official Sandbox API   |
+                       | Official Production API|
+                       +------------------------+
+```
+
+Architecture **decision**: use existing Ubuntu VPS as one deploy host (single application instance and one controlled worker only if already implemented). Nginx is sole public HTTP server; Next.js API/BFF accesses loopback ASP.NET Core; the .NET API and Postgres must not bind public interfaces. The architecture is an explicit operational choice, **not** proof that nginx/systemd are installed. Prefer same-origin browser access only (`https://tax.argin.ir`); avoid permissive CORS. Preserve client's actual HTTPS origin safely through a narrowly trusted proxy setup and validate forwarded headers; never blindly trust public `X-Forwarded-*` headers. Use separate deployment directories, application identities and environment files; package service restart policy, shutdown, and health checks in later steps. No Docker requirement is introduced without verifying existing setup.
+
+Port contract (verify collisions during Step 03):
+| Component | Listen | Public | Allowed clients |
+|---|---|---|---|
+| Nginx | 0.0.0.0:80, :443 (+ IPv6 only if configured) | YES | internet; port 80 ACME/redirect |
+| Next.js | 127.0.0.1:3000 | NO | Nginx |
+| ASP.NET Core | 127.0.0.1:15089 | NO | local Next.js BFF / diagnostics |
+| PostgreSQL 17 | 127.0.0.1:5432 or isolated local network | NO | local API and authorized admin sessions |
+| Adminer | existing local-only :8081 if retained | NO | authenticated SSH tunnel only |
+
+Existing development services should not be overwritten or stopped without a separate maintenance decision; allocate alternative loopback ports if collision exists.
+
+### 8.3 DNS, TLS and origin contract
+
+- Retain authoritative nameserver delegation and cPanel site for apex `argin.ir` (company A), email MX/SPF/DKIM/DMARC and existing www records unchanged.
+- Create or update ONLY the `tax` A record at the currently authoritative DNS operator pointing to the **verified** public IPv4 of Ubuntu VPS company B. Check inherited wildcards, existing tax CNAME, AAAA records, Cloudflare proxy and CAA before applying; do not hard-code a guessed VPS IP.
+- Nginx `server_name tax.argin.ir`; ACME certificate via Let's Encrypt Certbot (or equivalently managed ACME), auto-renewal validated, HTTP 80 redirects to 443 after issuance. Establish HSTS after HTTPS works and all subdomain implications reviewed; do not enable `includeSubDomains` globally.
+- Browser public base URL = `https://tax.argin.ir`; backend base origin is loopback, never a tax-authority host. Ensure session cookie `Secure`, `HttpOnly`, suitable `SameSite` and trusted public host/origin checks. No open redirect, unvalidated host or mixed-content assets.
+- Maintenance preflight: `dig +short tax.argin.ir A`, `dig +short tax.argin.ir AAAA`, `curl -I https://tax.argin.ir`, `openssl s_client -connect tax.argin.ir:443 -servername tax.argin.ir </dev/null`; these are checks, not evidence yet.
+
+### 8.4 Database and migration isolation
+
+- One production database (proposed `argintaxpayer_prod`), application role with minimal DML privileges, migration role with narrowly controlled DDL permissions; neither may reuse `argintaxpayer_test` nor its credentials.
+- Lock down loopback DB; no public 5432/8081 and no uncontrolled macOS forwarded production access. The existing owner-mandated AutoSSH port 15432 points **only to the test Postgres transport** as previously approved, and must not be used for production schema updates without independently verifying the target database name and explicit approval.
+- Review migration history and EF model changes and generate an auditable migration SQL script before applying. Check database name, owner, expected schema, schema diff, backup freshness and restoring a separate copy. Rehearse on disposable copy, then run once under controlled maintenance; rollback preference is application/schema compatibility + database restore plan, not unreviewed reverse SQL.
+- Production must have its own key-encryption root and backup of wrapping keys, with tested decryptability after restart and restore, separated from sanitized developer/test keys.
+
+### 8.5 Tax authority environment invariants (existing feature preserved)
+
+Deployment mode = `Production` regardless of fiscal memory destination. Preserve **existing** separated Sandbox and real memory definitions. A server-side transaction resolves stored fiscal-memory environment and ownership, binds it to immutable invoice dispatch/inquiry metadata, signs with the correct key and selects only the matching officially verified origin/version. Never route by UI selection, environment variable alone, raw memory code prefix, or generic fallback. Deny unknown/mismatched mappings before network I/O. Amendment, cancellation and sales return inherit the original invoice's authority environment; inquiry uses original operation target and official reference identifier semantics.
+
+Official endpoint exact paths, auth/token formats, SDK edition and allowed egress addresses are to be established from the project archived SDK plus current official specification in Step 10. Preserve all existing Sandbox behavior; never silently enable live transmission on boot or as a smoke test. Live submission requires valid live identity, legitimate invoice and separately recorded operator authorization.
+
+### 8.6 Secret, egress and service operations
+
+- No encryption key, PEM, API token, DB password, SMS/API gateway credential or TLS private key in Git, `appsettings.*.json`, shell history, process arguments, Next.js `NEXT_PUBLIC_*`, browser response, or journald. Use root-controlled/unprivileged service-readable files (systemd `LoadCredential` or equivalent), managed KMS/Vault where genuinely available; file mode and ownership verified in Step 08.
+- Service identity must only access its own binaries/secrets and required runtime files. State/config shared across restarts securely; startup does not reinitialize memory key material. Secrets and database backups are encrypted, rotation and recovery documented.
+- Permit outgoing HTTPS to specific authoritative Sandbox/live FQDNs and configured OTP/payment provider hosts with TLS validation; do not claim actual network reachability before testing from VPS. Never disable TLS verification or follow cross-origin redirects with signed payloads/tokens.
+- Health checks distinguish process `/health/live` from database `/health/ready`; exposing them publicly requires review/minimal response. Audit actor, customer, memory, environment, operation ID, redacted response and correlation ID; do not log signed raw invoice/private data. Production operations must not depend on existing development-only observer/worker semantics.
+- Start with controlled release deployment (no immediate open public onboarding); backup and rollback to previous known-good version, do not auto-resend Indeterminate operations after service restart.
+
+### 8.7 Release layout and ownership
+
+Proposed file layout to implement in later steps (not yet created):
+```text
+/opt/argintaxpayer/releases/<sha>/{api,web}
+/opt/argintaxpayer/current -> /opt/argintaxpayer/releases/<sha>
+/etc/argintaxpayer/{api.env,web.env}     # restricted, never committed
+/etc/nginx/sites-available/tax.argin.ir
+/var/lib/argintaxpayer/                # app state, if required
+/var/backups/argintaxpayer/            # encrypted, protected, externally replicated
+```
+Operator: `argindev` via SSH/sudo on explicitly allowed commands; application runs as dedicated non-login, non-root identities. `root` interactive use not mandatory. Production deploy performed only from an accepted and pinned commit, not a mutable unverified local worktree.
+
+### 8.8 Threat model and fail-closed acceptance
+
+| Risk / failure | Mandatory control |
+|---|---|
+| Public Production app lacks functional API | Refactor development-only DI/route registration; Production mode integration smoke for every essential route |
+| Exposing dev bypass endpoints to internet | Explicit route authorization classification and negative Production tests; deny diagnostic/bootstrap secrets |
+| Sandbox invoice accidentally sent live | Persisted authority-environment binding + strict endpoint allowlist + mismatch rejection/negative tests |
+| Public Postgres/API/Adminer | Loopback bind + firewall/port scan acceptance |
+| Cross-tenant invoice or signing access | Backend policy + SQL scopes + cross-tenant negative tests |
+| Failed release/migration, lost encryption keys | Versioned build, SQL migration rehearsal, tested encrypted backup and restore with keys |
+| Duplicate official invoice after ambiguous result | Durable outbox guard, original-reference inquiry, never auto-resend Indeterminate |
+| DNS/certificate outage | Authoritative DNS preflight, ACME renew check, redirect and TLS validation |
+| Live tax/OTP/payment side effects during smoke | Safe read-only checks; real actions require explicit controlled approval |
+
+### 8.9 Decisions, approvals and transition
+
+**Fixed now:** public FQDN, company-A apex unchanged, company-B Ubuntu host, Nginx/TLS front, loopback Next/API/DB, separate production data/credentials, both tax authority environments available inside a production deployment, current memory definitions reused, fail-closed routing, single-host deployment and controlled rollback.
+
+**Not yet proven / blocked until later steps:** exact public VPS IP, authoritative DNS account, Nginx/systemd presence, production process registration refactor, Next.js BFF env names and all proxy policy, complete fiscal-memory schema/dispatch source audit, official live endpoint edition, VPS outbound connectivity, current production user onboarding, real fiscal credentials, operational tests, server capacity, certificate issuance, backup restore. No claim of deployed/live readiness.
+
+**Step 02 gate:** architecture contract is written with source-backed blocker; no infrastructure or code changes performed and no test PASS claimed. On owner acceptance proceed to Step 03 preflight and hardening; route-registration refactor must be resolved before Step 05/06 public launch and verified in Step 11. Record Step 02 owner signoff here on receipt.
