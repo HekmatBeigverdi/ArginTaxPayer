@@ -677,3 +677,39 @@ Operator supplied execution results from both macOS and Ubuntu for the final sec
 Earlier Ubuntu disposable DB migration + MFA/RBAC on the VerifyFull TLS isolated PostgreSQL also PASS. **Step05 scoped code/build/integration security acceptance: OPERATOR_PASS with explicit residuals.** Persisted tenant read queries and Level1-authorized audited partner transfer passed on disposable DB. Synthetic Next.js production BFF runtime tested cookies, origin/CSRF and logout; this was not a full user-controlled browser with real API.
 
 **Unresolved pre-Go-Live gates, do not mislabel as passing:** `public-http-auth NOT_TESTED_NO_LIVE_SITE`; authenticated real browser-to-backend login, post-login permissions and cookie/CSRF over actual HTTPS reverse proxy; invoice-domain HTTP cross-tenant authorization; separate final deployment checks. `production-go-live BLOCKED_PENDING_SUBSEQUENT_PHASE18_STEPS` remains mandatory. No change to Nginx, DNS, UFW, real production DB, SMS or tax authority dispatch. Proceed next to Phase18 Step06 isolated systemd unit preparation, keeping public maintenance response and fiscal dispatch disabled. Keep disposable QA database for remaining acceptance until explicit operator-approved disposal.
+
+### Step 05 — retained real HTTP + actual API/BFF loopback closure (2026-11-04)
+
+The owner authorized implementing the remaining **non-public** Step05 security QA, while deferring real HTTPS browser/reverse-proxy checks until services are staged in later Phase18 steps. The code now includes:
+
+- `tests/ArginTaxPayer.Tests/Phase18ProductionHttpTenantAcceptanceTests.cs`: opt-in ASP.NET `WebApplicationFactory<Program>` in **Production mode**, with actual routing/middleware and the previously accepted synthetic customer A/B fixture from the **sole** `argin_phase18_acceptance` database on loopback `15433`, with exact `phase18_acceptance` role and TLS `VerifyFull`. It checks customer A/B can read their own taxpayer, are denied other customers' taxpayer resources, unauthenticated/invalid-token denials, admin permission denial, internal-only API denial for simulated nonloopback callers, absence of Production diagnostics/OpenAPI, and **HTTP invoice list** admission (owner 200 vs foreign 404; unauthenticated 401). Synthetic QA customer logins may write only disposable session rows. It does **not** submit/send/mutate invoice data or validate cross-tenant reads of populated invoice documents.
+- `scripts/phase18-step05-real-api-bff.mjs`: locally starts the actual **Production .NET API** on `127.0.0.1:15090` and actual **Production Next.js** on `127.0.0.1:15994`, only if both ports are free. Actual customer login from the controlled synthetic fixture via Next.js BFF and backend is checked, including sessions and cookies (Secure/HttpOnly/SameSite=Strict), Origin CSRF rejection and logout cookie deletion. Disallows dev registration and requires DB readiness. The process environment is explicitly constrained so no live inherited application credentials or external signing configuration are supplied. No actual outside browser/proxy is involved, and no tax authority operations are called.
+- `scripts/phase18-step05-real-api-acceptance.sh`: guarded **Ubuntu-only** runner, refuses wrong branch or dirty tracked tree, requires existing private QA DB TLS files (without recreating or resetting DB), explicitly checks the exact TLS database/user and reads an existing synthetic customer fixture. Requires an **exact macOS full 40-character SHA** passed as `PHASE18_EXPECTED_SHA` before running anything. Builds a dedicated gitignored API publish directory, runs both real middleware + actual loopback BFF tests, generates private manifest under `artifacts/phase18-step05-e2e/reports/<SHA>/<UTC>/manifest.tsv`. Never touches existing PostgreSQL, Nginx, DNS or other web services; rejects occupied 15090/15994. 
+- `.gitignore` excludes all new local QA reports and binaries.
+
+To run macOS SHA/build first:
+```bash
+cd ~/projects/ArginTaxPayer
+git fetch origin
+git switch phase/18-production-deployment
+git pull --ff-only origin phase/18-production-deployment
+git status --short
+git rev-parse HEAD
+dotnet build tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj -c Release
+```
+
+Then on Ubuntu **the same SHA**, with existing QA PostgreSQL container and frontend Production build present:
+```bash
+cd ~/projects/ArginTaxPayer
+git fetch origin
+git switch phase/18-production-deployment
+git pull --ff-only origin phase/18-production-deployment
+git status --short
+git rev-parse HEAD
+# Replace the placeholder with the full hash printed on macOS.
+PHASE18_EXPECTED_SHA='<FULL_MACOS_SHA>' bash scripts/phase18-step05-real-api-acceptance.sh
+```
+
+Expected private manifest checks: `real-production-http-tenant PASS`, `qa-api-publish PASS`, `real-production-api-bff PASS`. The final manifest explicitly leaves `production-https-browser DEFERRED_TO_SYSTEMD_NGINX`, `invoice-http-tenant-authorization PENDING_FIXTURE_QA` (populated invoice IDOR not yet covered), and `production-go-live BLOCKED`.
+
+**Status: SOURCE_IMPLEMENTED; NO EXECUTION PASS YET** for these new tests. The owner must provide macOS SHA/build and Ubuntu acceptance logs. A prior Step05 test PASS for mocked BFF + service-layer tenant scope remains valid, but cannot be upgraded to real HTTP/BFF PASS before this runner succeeds. Real external HTTPS reverse-proxy browser validation, actual MFA user journey, and populated invoice cross-tenant IDOR remain mandatory pre-Go-Live. Do not publish `tax.argin.ir` or enable tax dispatch to satisfy this QA.
