@@ -58,7 +58,7 @@ node --test apps/web/tests/phase18-step06-systemd-contract.test.mjs
 PHASE18_EXPECTED_SHA='<FULL_MACOS_SHA>' bash scripts/phase18-step06-systemd-preflight.sh
 ```
 
-Do not proceed if macOS/Ubuntu SHAs differ or port 15090/15091 is occupied. The preflight reports `unit-contract PASS`, `systemd-syntax PASS`, both ports FREE, and no currently active service.
+Do not proceed if macOS/Ubuntu SHAs differ or port 15090/15091 is occupied. The Ubuntu preflight also requires a **system-wide** Node.js 20+ and ASP.NET Core 9 runtime resolvable from `/usr/local/bin:/usr/bin:/bin`; `argindev`-only NVM or `~/.dotnet` installations are NOT accessible to the dedicated `argintaxsvc` system account. It refuses instead of modifying software installations. Resolve any missing system-wide runtime in a separately reviewed host preparation action. The preflight reports `unit-contract PASS`, `systemd-syntax PASS`, both ports FREE, and no currently active service.
 
 ## Stage C: intentional Ubuntu installation — *DISABLED/INACTIVE*
 
