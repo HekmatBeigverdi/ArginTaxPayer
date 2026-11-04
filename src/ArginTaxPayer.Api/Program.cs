@@ -38,11 +38,17 @@ var identityDevelopmentEnabled = builder.Environment.IsDevelopment() &&
 // Production requests must still pass each endpoint's authorization and tenant checks.
 var productionOperationalEnabled = builder.Environment.IsProduction() &&
     builder.Configuration.GetValue<bool>("ArginTaxPayer:EnableOperationalEndpoints");
-var operationalEndpointsEnabled = identityDevelopmentEnabled || productionOperationalEnabled;
-if (productionOperationalEnabled &&
+// A separate Production mode exposes authenticated identity and read-only dashboard
+// only. It MUST NOT map invoice dispatch, payment, key or account mutation routes.
+var identityDashboardOnlyEnabled = builder.Environment.IsProduction() &&
+    builder.Configuration.GetValue<bool>("ArginTaxPayer:EnableIdentityDashboardOnly") &&
+    !productionOperationalEnabled;
+var operationalEndpointsEnabled =
+    identityDevelopmentEnabled || productionOperationalEnabled || identityDashboardOnlyEnabled;
+if ((productionOperationalEnabled || identityDashboardOnlyEnabled) &&
     string.IsNullOrWhiteSpace(builder.Configuration.GetConnectionString("ArginTaxPayerDb")))
     throw new InvalidOperationException("Production operational endpoints require a configured database.");
-if (productionOperationalEnabled)
+if (productionOperationalEnabled || identityDashboardOnlyEnabled)
 {
     // A defense-in-depth host binding requirement, independent of the per-route
     // loopback checks. Production uses port 15090 so it does not take over
@@ -55,7 +61,7 @@ if (productionOperationalEnabled)
         throw new InvalidOperationException("Production operational endpoints cannot use the test database.");
 }
 // No anonymous customer registration or file-based OTP in publicly hosted Production.
-if (productionOperationalEnabled &&
+if ((productionOperationalEnabled || identityDashboardOnlyEnabled) &&
     (builder.Configuration.GetValue<bool>("Identity:AllowDevelopmentRegistration") ||
      builder.Configuration["Identity:OtpDeliveryMode"] == "LocalFile"))
     throw new InvalidOperationException("Unsafe development-only identity configuration in Production.");
@@ -219,6 +225,37 @@ builder.Services.AddHealthChecks()
 var app = builder.Build();
 app.UseMiddleware<CorrelationIdMiddleware>();
 if (operationalEndpointsEnabled) app.UseRateLimiter();
+// The limited Production operator UI is NOT the global operational API.
+// This is an additional path/method allowlist in front of legacy /api/dev
+// handlers. All mutation, financial and tax authority routes remain absent.
+if (identityDashboardOnlyEnabled)
+{
+    app.Use(async (context, next) =>
+    {
+        if (context.Request.Path.StartsWithSegments("/api/dev"))
+        {
+            var path = context.Request.Path.Value ?? "";
+            var method = context.Request.Method;
+            var allowed =
+                method == "GET" &&
+                (path == "/api/dev/identity/authorization/me" ||
+                 path == "/api/dev/identity/mfa/status" ||
+                 path.StartsWith("/api/dev/dashboard/", StringComparison.Ordinal)) ||
+                method == "POST" &&
+                (path == "/api/dev/identity/login" ||
+                 path == "/api/dev/identity/refresh" ||
+                 path == "/api/dev/identity/logout" ||
+                 path == "/api/dev/identity/mfa/challenge" ||
+                 path == "/api/dev/identity/mfa/complete");
+            if (!allowed)
+            {
+                context.Response.StatusCode = StatusCodes.Status404NotFound;
+                return;
+            }
+        }
+        await next(context);
+    });
+}
 // Defense in depth. Existing internal BFF endpoints retain /api/dev paths until
 // their production API contracts are migrated, but cannot be reached remotely.
 // This does not depend on forwarded headers supplied by the caller.
@@ -276,6 +313,12 @@ if (app.Environment.IsDevelopment())
 if (operationalEndpointsEnabled)
 {
         app.MapIdentityDevelopmentEndpoints();
+        if (identityDashboardOnlyEnabled)
+        {
+            app.MapPhase15DashboardEndpoints();
+        }
+        else
+        {
         app.MapSoftwareUserProfileEndpoints();
         app.MapTaxpayerDevelopmentEndpoints();
         app.MapSigningImportEndpoints();
@@ -312,6 +355,7 @@ if (operationalEndpointsEnabled)
         app.MapCustomerTaxpayerMembershipEndpoints();
         app.MapCustomerSelfServiceEndpoints();
         app.MapCatalogDevelopmentEndpoints();
+        }
 }
 
 // Preserve the existing bootstrap endpoint.
