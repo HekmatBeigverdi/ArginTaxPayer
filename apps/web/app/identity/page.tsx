@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import Image from "next/image";
-import { currentIdentity, identityUiEnabled } from "../../lib/identity";
+import { currentIdentity, identityUiEnabled, identityDashboardOnlyEnabled } from "../../lib/identity";
 import IdentityFlow from "./identity-flow";
 
 export const dynamic = "force-dynamic";
@@ -15,7 +15,7 @@ export default async function IdentityPage() {
       <p className="identity-kicker">حساب کاربری</p>
       <h1>به آرگین خوش آمدید</h1>
       <p className="identity-muted">برای ورود به فضای کاری، اطلاعات حساب خود را وارد کنید.</p>
-      <IdentityFlow />
+      <IdentityFlow restrictedLogin={identityDashboardOnlyEnabled()} />
     </section>
     <p className="identity-note">{process.env.NODE_ENV === "production" ? "برای حفظ امنیت حساب، کد یک‌بارمصرف و اطلاعات ورود خود را با هیچ‌کس به اشتراک نگذارید." : "این بخش صرفاً در محیط توسعه فعال است. اطلاعات ورود خود را با دیگران به اشتراک نگذارید."}</p>
   </main>;
