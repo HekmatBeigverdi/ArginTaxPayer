@@ -11,7 +11,8 @@ test('existing Sandbox legacy transport is wired to pinned endpoint registry',()
   const source=read('src/ArginTaxPayer.Infrastructure/Signing/Connection/LegacyInvoiceSubmissionHttpTransport.cs');
   assert.match(source,/Phase18LegacyAuthorityEndpointSelector.TryResolveConfiguredBase/);
   assert.match(source,/TaxAuthorityEnvironment.Sandbox/);
-  assert.match(source,/new HttpRequestMessage\(HttpMethod.Post, InvoiceEndpoint\)/);
+  assert.match(source,/new HttpRequestMessage\(HttpMethod.Post, verifiedEndpoint\)/);
+  assert.match(source,/PostVerifiedEndpointAsync\(InvoiceEndpoint/);
 });
 
 test('new operation endpoint routing reads immutable persisted scope, never request environment',()=>{
