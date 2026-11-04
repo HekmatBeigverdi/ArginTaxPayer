@@ -592,3 +592,24 @@ Do **not** run these on macOS; the macOS UI/build tests already run independentl
 **Cleanup is intentionally operator-controlled:** `docker compose down --volumes` against this specific Compose project would irreversibly remove *only this QA project's* named volume, but should be executed only after explicit validation of container/project names, user approval and acceptance evidence. Generated private material under ignored artifacts needs separate manual cleanup; never run a broad `docker volume prune` or `docker system prune`. There is no automatic cleanup in scripts.
 
 **Acceptance status:** SOURCE_IMPLEMENTED_NOT_EXECUTED. Migration and MFA database tests on actual VPS still need owner execution and PASS outputs, then cross-tenant fiscal access and browser session/CSRF still pending. All Production Go-Live remains BLOCKED, no Tax Authority sends, no public DNS/Nginx changes.
+
+### Step 05 — fresh PostgreSQL Migration failure 42P01 / catalog order remediation (2026-11-04)
+
+Owner executed `scripts/phase18-step05-isolated-postgres-migrate-test.sh` on Ubuntu. The dedicated `argin_phase18_acceptance` database passed the script's VerifyFull TLS, exact database/role and least-privilege preflight, but `dotnet ef database update` failed: PostgreSQL error `42P01: relation "official_goods_service_entries" does not exist`. Investigation confirmed `20261016082706_AddOfficialGoodsCodeFormat` attempted to add a CHECK to the table *before* `20261016120000_AddPhase06CatalogFoundations` creates that table.
+
+Code correction:
+- Preserve the **historical migration ID** `20261016082706` but turn its Up/Down into deliberately inert ordering placeholders for fresh installs (existing DBs with this migration already applied are unaffected).
+- Create `ck_official_goods_code_format` immediately *after* the `official_goods_service_entries` table is created in `20261016120000_AddPhase06CatalogFoundations`. This preserves exact constraint name and 13-digit expression verified by `20261016150000_ValidateOfficialGoodsServiceIdentifiers`. Existing DB migration histories do not rerun the edited migrations.
+- Add `Phase18FreshCatalogMigrationOrderTests` to assert that early migration is inert, table creation precedes the constraint, and later validation remains in place.
+
+**Status: code committed; no test execution available via the GitHub editing connection.** Re-run on Ubuntu **only**, with the existing dedicated QA container left intact, after `git pull --ff-only`; no need to recreate container, reset/drop any DB, or weaken TLS. First:
+```bash
+dotnet test tests/ArginTaxPayer.Tests/ArginTaxPayer.Tests.csproj -c Release --filter FullyQualifiedName~Phase18FreshCatalogMigrationOrderTests
+```
+Then, only if PASS:
+```bash
+bash scripts/phase18-step05-isolated-postgres-migrate-test.sh
+```
+The script rechecks the exact TLS DB/role and accepts a nonempty QA schema only if EF migration history exists. Each PostgreSQL EF migration is transactionally committed, so the failing migration should remain pending; if the retry fails, stop and review its *new* private migration log rather than dropping any database. Do not apply these historical migration changes to a customer DB without a separate compatibility review.
+
+Production deployment still BLOCKED. This is a fix for initial schema creation, not approval for public data or tax dispatch.
