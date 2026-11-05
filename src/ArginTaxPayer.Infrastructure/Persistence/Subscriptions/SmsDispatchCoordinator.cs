@@ -32,14 +32,29 @@ public sealed class SmsDispatchCoordinator(ArginTaxPayerDbContext db, IIdentityO
                 root = owner?.RootLevel1UserId; partner = owner?.PartnerLevel2UserId;
             }
             else root = await owners.ResolveRootAsync(null, ct);
-            if (root is null || (snapshot = await settings.ReadForRootAsync(root.Value, ct)) is null)
+            if (root is null)
+            {
+                logger.LogWarning("OTP_DISPATCH_UNAVAILABLE reason=commercial_root_not_configured");
                 return new(SmsDispatchStatus.Unavailable,dispatchId);
+            }
+            if ((snapshot = await settings.ReadForRootAsync(root.Value, ct)) is null)
+            {
+                logger.LogWarning("OTP_DISPATCH_UNAVAILABLE reason=sms_service_settings_missing");
+                return new(SmsDispatchStatus.Unavailable,dispatchId);
+            }
             if (config["Ghasedak:CostUnit"]?.Trim().ToUpperInvariant() is not ("IRR" or "TOMAN"))
+            {
+                logger.LogWarning("OTP_DISPATCH_UNAVAILABLE reason=provider_cost_unit_not_configured");
                 return new(SmsDispatchStatus.Unavailable,dispatchId);
+            }
         }
         var customerBillingEnabled = !isLocal && (snapshot?.CustomerBillingEnabled ?? true);
         var pepper = config["Identity:OtpPepper"];
-        if (pepper is not { Length: >= 32 }) return new(SmsDispatchStatus.Unavailable,dispatchId);
+        if (pepper is not { Length: >= 32 })
+        {
+            logger.LogWarning("OTP_DISPATCH_UNAVAILABLE reason=otp_pepper_not_configured");
+            return new(SmsDispatchStatus.Unavailable,dispatchId);
+        }
         var hash = Convert.ToHexString(HMACSHA256.HashData(Encoding.UTF8.GetBytes(pepper),Encoding.UTF8.GetBytes(mobile)));
         await using var dispatchTransaction = await db.Database.BeginTransactionAsync(ct);
         if(!isLocal)
