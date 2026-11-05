@@ -842,13 +842,17 @@ A. **Deploy app with provider operations off:** GitHub Actions builds a commit-a
 
 B. **Dual-environment tax acceptance:** Do not bypass existing `argintaxpayer_test` guards; first complete explicit persisted-memory environment binding and test Sandbox on `argintaxpayer_prod`, then authenticated read-only real authority checks, and only then owner-authorized genuine real invoice submission. Fiscal-memory authority routing and signing correctness remain blocking.
 
-C. **Routine updates:** `.github/workflows/phase18-production-release.yml` packages releases automatically on main, with manually triggered environment-approved deployment. GitHub production Environment must have required reviewers, pinned SSH host key and restricted deploy identity. Passwordless sudo for unattended deployment is **not yet provisioned**; workflow deployment job currently cannot be treated as ready for unattended Production. Never use NOPASSWD:ALL. Database migrations are separate reviewed operations and not executed by deploy.
+C. **Routine updates:** `.github/workflows/phase18-production-release.yml` validates Pull Requests and packages the exact SHA. A push to `main` enters the `production` GitHub Environment approval gate, then deploys that same artifact through the fixed root-owned helper. GitHub branch rules, Environment reviewers/secrets, the restricted SSH account and one-time Ubuntu helper installation are operator setup items; no successful automated deployment is claimed until a real run is recorded. Database migrations are separate reviewed operations and are not executed by deploy.
 
 Artifacts:
 - `scripts/phase18-release-stage.sh`
 - `scripts/phase18-release-promote.sh`
 - `apps/web/tests/phase18-fast-release-contract.test.mjs`
 - `.github/workflows/phase18-production-release.yml`
+- `scripts/phase18-install-deploy-helper.sh`
+- `ops/phase18-deploy/phase18-release-root.sh`
+- `ops/phase18-deploy/release-core.sh`
+- `docs/phases/phase-18-github-release-operations.md`
 - `docs/phases/phase-18-fast-release.md`
 
 **State:** Source implementation committed; no code proven deployed to VPS, no new public runtime started, no GitHub CI PASS observed in this turn, no provider operations performed. Detailed operator review and evidence still needed. Legacy Step09 routing blockers remain.
