@@ -109,7 +109,9 @@ export default function InvoiceCorrectionModal({taxpayerId,invoiceId,onClose,onC
   }catch(e){
    if(e instanceof CorrectionActionError&&redirectForInvoiceSubscription({code:e.code}))return;
    setMessage("");
-   if(e instanceof CorrectionActionError&&e.code==="no_changes_to_correct"){
+   if(e instanceof CorrectionActionError&&e.code==="production_legal_successors_disabled"){
+    setError("ارسال انجام نشد؛ مسیر اصلاح فاکتور پروداکشن فعال نیست. پیش‌نویس حفظ شده است.");
+   }else if(e instanceof CorrectionActionError&&e.code==="no_changes_to_correct"){
     setError("تغییری نسبت به صورتحساب اصلی ثبت نشده است. ابتدا مبلغ، تعداد، تخفیف یا روش تسویه را اصلاح کنید؛ صورتحساب اصلاحی ارسال نشده است.");
    }else if(e instanceof CorrectionActionError&&e.result?.invoiceId){
     setReceipt(e.result);setSubmissionLocked(true);setDraft(null);onChanged();
