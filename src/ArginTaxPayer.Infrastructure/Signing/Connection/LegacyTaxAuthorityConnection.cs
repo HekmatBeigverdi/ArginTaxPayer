@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text.Json;
 using ArginTaxPayer.Application.Signing;
+using ArginTaxPayer.Domain.Taxpayers;
 using ArginTaxPayer.Infrastructure.Persistence;
 using ArginTaxPayer.Infrastructure.Persistence.Signing;
 using ArginTaxPayer.Infrastructure.Signing.Offline;
@@ -28,13 +29,13 @@ internal sealed class LegacyTaxAuthorityConnection(
 {
     internal const string BaseUrl = "https://tp.tax.gov.ir/req/api/";
     public void Dispose() => http.Dispose();
-    private static readonly Uri TokenUri = new(BaseUrl + "self-tsp/sync/GET_TOKEN");
-    private static readonly Uri FiscalUri = new(BaseUrl + "self-tsp/sync/GET_FISCAL_INFORMATION");
+    internal const string SandboxBaseUrl = "https://sandboxrc.tax.gov.ir/req/api/";
     internal const string FiscalInformationResponsePacketType = "FISCAL_INFORMATION";
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     public async Task<SigningConnectionTestResult> TestAsync(string? bearer, Guid taxpayerId,
-        Guid fiscalMemoryId, CancellationToken ct = default)
+        Guid fiscalMemoryId, CancellationToken ct = default,
+        FiscalConnectionEnvironment? oneTimeEnvironment = null)
     {
         SigningConnectionTestResult Outcome(SigningConnectionTestStatus status, FiscalInformationSnapshot? info = null) =>
             SigningConnectionTestResult.Create(status, DateTime.UtcNow) with { FiscalInformation = info };
@@ -49,12 +50,24 @@ internal sealed class LegacyTaxAuthorityConnection(
             // Authorization is checked before any query resolving the Vault key locator.
             var ownerId = await db.TaxpayerProfiles.AsNoTracking()
                 .Where(x => x.Id == taxpayerId).Select(x => x.CustomerUserId).SingleOrDefaultAsync(ct);
-            var fiscalId = await db.FiscalMemories.AsNoTracking()
+            var memory = await db.FiscalMemories.AsNoTracking()
                 .Where(x => x.Id == fiscalMemoryId && x.TaxpayerId == taxpayerId)
-                .Select(x => x.MemoryIdentifier).SingleOrDefaultAsync(ct);
-            if (ownerId is null || ownerId == Guid.Empty || string.IsNullOrWhiteSpace(fiscalId) || fiscalId.Length > 64 ||
+                .Select(x => new { x.MemoryIdentifier, x.AuthorityEnvironment, x.Status }).SingleOrDefaultAsync(ct);
+            var fiscalId = memory?.MemoryIdentifier;
+            if (memory is null || ownerId is null || ownerId == Guid.Empty ||
+                string.IsNullOrWhiteSpace(fiscalId) || fiscalId.Length > 64 ||
                 fiscalId.Any(x => !char.IsAsciiLetterOrDigit(x)))
                 return Outcome(SigningConnectionTestStatus.KeyNotReady);
+            // A legacy unclassified memory can be tested once against an
+            // explicitly chosen authority. This read-only probe never saves
+            // the classification and is unavailable after any dispatch.
+            var hasDispatchHistory = oneTimeEnvironment is not null &&
+                await db.Database.SqlQuery<bool>($"""
+                    SELECT EXISTS(SELECT 1 FROM invoice_dispatch_operations WHERE fiscal_memory_id={fiscalMemoryId}) AS "Value"
+                    """).SingleAsync(ct);
+            var testEnvironment = SelectReadOnlyTestEnvironment(memory.AuthorityEnvironment,
+                oneTimeEnvironment, memory.Status, hasDispatchHistory);
+            if (testEnvironment is null) return Outcome(SigningConnectionTestStatus.KeyNotReady);
             var owner = ownerId.Value;
 
             var selection = await db.SigningKeySelections.AsNoTracking()
@@ -77,22 +90,11 @@ internal sealed class LegacyTaxAuthorityConnection(
             if (envelope is null) return Outcome(SigningConnectionTestStatus.VaultUnavailable);
             using var secret = await protector.UnprotectAsync(identity, envelope.Envelope, ct);
 
-            // The same vault-bound key is used for imported AND generated credentials.
-            using var tokenResponse = await SendAsync(TokenUri, "GET_TOKEN", fiscalId,
-                new { Username = fiscalId }, secret, key.PublicSpkiDer, null, ct);
-            if (!TryGetSdkResponseData(tokenResponse, out var tokenData) ||
-                !TryProperty(tokenData, "token", out var tokenField) ||
-                tokenField.ValueKind != JsonValueKind.String ||
-                tokenField.GetString() is not { Length: > 0 and < 16384 } token ||
-                token.Any(ch => ch < 33 || ch > 126) ||
-                token.Any(char.IsWhiteSpace))
-                return Outcome(SigningConnectionTestStatus.Indeterminate);
-
-            using var fiscalResponse = await SendAsync(FiscalUri, "GET_FISCAL_INFORMATION", fiscalId,
-                fiscalId, secret, key.PublicSpkiDer, token, ct);
-            if (!TryGetSdkResponseData(fiscalResponse, out var fiscalData) ||
-                !TryReadFiscalInformation(fiscalData, out var fiscalInformation))
-                return Outcome(SigningConnectionTestStatus.Indeterminate);
+            // Persisted classification controls normal requests; the explicit
+            // one-time override only routes this read-only probe.
+            var fiscalInformation = await ProbeFiscalInformationAsync(testEnvironment,
+                fiscalId, secret, key.PublicSpkiDer, ct);
+            if (fiscalInformation is null) return Outcome(SigningConnectionTestStatus.Indeterminate);
 
             // Presence of a valid fiscal-info response establishes auth, not portal registration/activation.
             return Outcome(SigningConnectionTestStatus.Authenticated, fiscalInformation);
@@ -106,6 +108,53 @@ internal sealed class LegacyTaxAuthorityConnection(
         catch (HttpRequestException) { return Outcome(SigningConnectionTestStatus.EndpointUnavailable); }
         catch (JsonException) { return Outcome(SigningConnectionTestStatus.Indeterminate); }
         catch (CryptographicException) { return Outcome(SigningConnectionTestStatus.KeyNotReady); }
+    }
+
+    internal static FiscalConnectionEnvironment? SelectReadOnlyTestEnvironment(
+        FiscalConnectionEnvironment? storedEnvironment, FiscalConnectionEnvironment? oneTimeEnvironment,
+        FiscalMemoryStatus memoryStatus, bool hasDispatchHistory)
+    {
+        if (storedEnvironment is FiscalConnectionEnvironment.Production or FiscalConnectionEnvironment.Sandbox)
+            return oneTimeEnvironment is null ? storedEnvironment : null;
+        if (storedEnvironment is not null || oneTimeEnvironment is not
+                (FiscalConnectionEnvironment.Production or FiscalConnectionEnvironment.Sandbox) ||
+            memoryStatus != FiscalMemoryStatus.PendingVerification || hasDispatchHistory)
+            return null;
+        return oneTimeEnvironment;
+    }
+
+    internal async Task<FiscalInformationSnapshot?> ProbeFiscalInformationAsync(
+        FiscalConnectionEnvironment? environment, string fiscalId, SensitiveBytes secret,
+        byte[] publicSpki, CancellationToken ct)
+    {
+        var baseUrl = environment switch {
+            FiscalConnectionEnvironment.Production => BaseUrl,
+            FiscalConnectionEnvironment.Sandbox => SandboxBaseUrl,
+            _ => null
+        };
+        if (baseUrl is null) return null;
+
+        // Match the working TaxCollectData SDK sequence. The server-information
+        // call is unencrypted and unauthenticated; the SDK uses its payload to
+        // configure later invoice encryption before requesting the read-only token.
+        using var serverInformation = await SendAsync(new Uri(baseUrl + "self-tsp/sync/GET_SERVER_INFORMATION"),
+            "GET_SERVER_INFORMATION", fiscalId, null, secret, publicSpki, null, ct);
+        if (HasSdkErrors(serverInformation)) return null;
+
+        // The same vault-bound key is used for imported AND generated credentials.
+        using var tokenResponse = await SendAsync(new Uri(baseUrl + "self-tsp/sync/GET_TOKEN"),
+            "GET_TOKEN", fiscalId, new { Username = fiscalId }, secret, publicSpki, null, ct);
+        if (!TryGetSdkResponseData(tokenResponse, out var tokenData) ||
+            !TryProperty(tokenData, "token", out var tokenField) ||
+            tokenField.ValueKind != JsonValueKind.String ||
+            tokenField.GetString() is not { Length: > 0 and < 16384 } token ||
+            token.Any(ch => ch < 33 || ch > 126) || token.Any(char.IsWhiteSpace))
+            return null;
+
+        using var fiscalResponse = await SendAsync(new Uri(baseUrl + "self-tsp/sync/GET_FISCAL_INFORMATION"),
+            "GET_FISCAL_INFORMATION", fiscalId, fiscalId, secret, publicSpki, token, ct);
+        return TryGetSdkResponseData(fiscalResponse, out var fiscalData) &&
+            TryReadFiscalInformation(fiscalData, out var information) ? information : null;
     }
 
     private static bool TryProperty(JsonElement root, string name, out JsonElement found)
@@ -153,6 +202,11 @@ internal sealed class LegacyTaxAuthorityConnection(
             TryProperty(result, "data", out data) &&
             data.ValueKind != JsonValueKind.Null;
     }
+
+    private static bool HasSdkErrors(JsonDocument response) =>
+        TryProperty(response.RootElement, "errors", out var errors) &&
+        errors.ValueKind != JsonValueKind.Null &&
+        (errors.ValueKind != JsonValueKind.Array || errors.GetArrayLength() != 0);
 
     internal static bool TryReadFiscalInformation(JsonElement data, out FiscalInformationSnapshot information)
     {

@@ -7,7 +7,9 @@ import ConsoleLoader from "../components/console-loader";
 import TaxpayerConnectionPanel from "./taxpayer-connection-panel";
 
 type Taxpayer = { id: string; kind: number; normalizedIdentifier: string; displayName: string; status: number; revision: number };
-type Memory = { id: string; taxpayerId: string; memoryIdentifier: string; status: number; revision: number; authorityEnvironment: 1 | 2 | null };
+type Memory = { id: string; taxpayerId: string; memoryIdentifier: string; status: number; revision: number;
+  authorityEnvironment: 1 | 2 | null; lastConnectionTestSucceeded: boolean | null; lastConnectionTestAtUtc: string | null;
+  canVerifyAndActivate?: boolean };
 type Certificate = { id: string; fingerprintSha256: string; issuer: string | null; notBeforeUtc: string | null; notAfterUtc: string | null; status: number; origin: number };
 const memoryLabels: Record<number, string> = { 1: "در انتظار بررسی", 2: "فعال", 3: "تعلیق", 4: "بازنشسته" };
 const memoryEnvironmentLabels: Record<number, string> = { 1: "Production (اصلی)", 2: "Sandbox (آزمایشی)" };
@@ -197,7 +199,12 @@ export default function TaxpayerWorkspace({ isLevel1, initialTaxpayerId, showCre
           {memories.length === 0 ? <p className="identity-muted">هنوز حافظه‌ای ثبت نشده است.</p> :
             <ul className="taxpayer-memory-list">{memories.map(m => <li key={m.id}>
               <div><strong dir="ltr">{m.memoryIdentifier}</strong>
-                <span>{memoryLabels[m.status] ?? "نامشخص"} · {m.authorityEnvironment === null ? "محیط نیازمند بازبینی" : memoryEnvironmentLabels[m.authorityEnvironment] ?? "محیط نامعتبر"} · نسخه {m.revision}</span></div>
+                <span>{memoryLabels[m.status] ?? "نامشخص"} · {m.authorityEnvironment === null ? "محیط تأییدنشده" : memoryEnvironmentLabels[m.authorityEnvironment] ?? "محیط نامعتبر"} · نسخه {m.revision}</span>
+                {m.lastConnectionTestSucceeded !== null && <span className={`taxpayer-memory-connection taxpayer-memory-connection--${m.lastConnectionTestSucceeded ? "success" : "failed"}`}>
+                  {m.lastConnectionTestSucceeded ? "اتصال برقرار" : "آخرین آزمون اتصال ناموفق"}
+                  {m.lastConnectionTestAtUtc && <> · {new Date(m.lastConnectionTestAtUtc).toLocaleString("fa-IR")}</>}
+                </span>}
+              </div>
               {isLevel1 && <button type="button" className="identity-secondary" disabled={busy}
                 onClick={() => void revealCertificates(m.id)}>مشاهده گواهی‌ها</button>}
               {certificates[m.id] && <div className="taxpayer-certificates">
@@ -223,9 +230,8 @@ export default function TaxpayerWorkspace({ isLevel1, initialTaxpayerId, showCre
               <option value="2">Sandbox — آزمایشی</option>
             </select>
             <button className="identity-primary" disabled={busy || !newMemoryEnvironment}>ثبت اولیه حافظه</button>
-            <p className="field-hint">تأیید اتصال واقعی، تعویض حافظه و ورود کلید خصوصی در مراحل آتی فعال می‌شود.</p>
+            <p className="field-hint">ثبت حافظه به‌تنهایی اتصال را تأیید نمی‌کند؛ پس از ثبت، آزمون اتصال را در بخش کلید/توکن اجرا کنید.</p>
           </form>}
-          <p className="taxpayer-warning">تست واقعی ارتباط با سازمان مالیاتی و تأیید توکن هنوز فعال نیست؛ هیچ وضعیت «اتصال موفق» به‌صورت نمایشی ساخته نمی‌شود.</p>
           </>}
         </div></details>
         <details name="fiscal-sections" className="fiscal-section">
@@ -233,7 +239,8 @@ export default function TaxpayerWorkspace({ isLevel1, initialTaxpayerId, showCre
           <div className="fiscal-section-content taxpayer-token-panel">
             <TaxpayerConnectionPanel key={initialTaxpayerId || selectedId}
               taxpayerId={initialTaxpayerId || selectedId} memories={memories}
-              loadingMemories={detailsLoading} onLoadingChange={setImportLoading}/>
+              loadingMemories={detailsLoading} onLoadingChange={setImportLoading} isLevel1={isLevel1}
+              onMemoriesChanged={async()=>setMemories(await request<Memory[]>("/"+(initialTaxpayerId || selectedId)+"/memories"))}/>
         </div></details>
         </div>
       </>}

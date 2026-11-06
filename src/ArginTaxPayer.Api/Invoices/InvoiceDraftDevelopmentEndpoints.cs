@@ -36,7 +36,7 @@ public static class InvoiceDraftDevelopmentEndpoints
             var memories = await db.FiscalMemories.AsNoTracking()
                 .Where(m => m.TaxpayerId == taxpayerId)
                 .OrderBy(m => m.MemoryIdentifier)
-                .Select(m => new {m.Id,m.MemoryIdentifier,m.Status})
+                .Select(m => new {m.Id,m.MemoryIdentifier,m.Status,m.AuthorityEnvironment})
                 .ToArrayAsync(ct);
             // Sandbox fiscal-memory selection is scoped to the exact seller/owner,
             // kept separate from Production IDs and marked non-production.

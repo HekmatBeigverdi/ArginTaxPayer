@@ -1,5 +1,6 @@
 using ArginTaxPayer.Application.Invoices;
 using ArginTaxPayer.Application.Signing;
+using ArginTaxPayer.Domain.Taxpayers;
 using Xunit;
 
 namespace ArginTaxPayer.Tests;
@@ -13,7 +14,7 @@ public sealed class Phase10AuthorityAuthenticationTests
         public int Calls { get; private set; }
         public Task<SigningConnectionTestResult> TestAsync(
             string? bearer, Guid taxpayerId, Guid fiscalMemoryId,
-            CancellationToken ct = default)
+            CancellationToken ct = default, FiscalConnectionEnvironment? oneTimeEnvironment = null)
         {
             Calls++;
             Assert.Equal("synthetic-auth-session", bearer);

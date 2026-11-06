@@ -342,23 +342,29 @@ FROM sandbox_invoice_legal_relations
             if(opened)await connection.OpenAsync(ct);
             try
             {
-                await using var tableCheck=connection.CreateCommand();
-                tableCheck.CommandText="SELECT to_regclass('public.sandbox_authority_inquiry_reports')::text";
-                var reportTableExists=await tableCheck.ExecuteScalarAsync(ct) is not DBNull and not null;
+                await using var productionTableCheck=connection.CreateCommand();
+                productionTableCheck.CommandText="SELECT to_regclass('public.production_authority_inquiry_reports')::text";
+                var productionReportTableExists=await productionTableCheck.ExecuteScalarAsync(ct) is not DBNull and not null;
+                await using var sandboxTableCheck=connection.CreateCommand();
+                sandboxTableCheck.CommandText="SELECT to_regclass('public.sandbox_authority_inquiry_reports')::text";
+                var sandboxReportTableExists=await sandboxTableCheck.ExecuteScalarAsync(ct) is not DBNull and not null;
+                var reportQueries=new List<string>();
+                if(productionReportTableExists)reportQueries.Add("""
+(SELECT r.report_json->>'Status' FROM production_authority_inquiry_reports r
+ WHERE r.operation_id=d.id AND r.customer_user_id=d.customer_user_id
+  AND r.taxpayer_id=d.taxpayer_id AND r.invoice_id=d.invoice_id
+ ORDER BY r.observed_at_utc DESC,r.id DESC LIMIT 1)
+""");
+                if(sandboxReportTableExists)reportQueries.Add("""
+(SELECT r.report_json->>'Status' FROM sandbox_authority_inquiry_reports r
+ WHERE r.operation_id=d.id AND r.customer_user_id=d.customer_user_id
+  AND r.taxpayer_id=d.taxpayer_id AND r.invoice_id=d.invoice_id
+ ORDER BY r.observed_at_utc DESC,r.id DESC LIMIT 1)
+""");
+                var reportStatusExpression=reportQueries.Count==0?"NULL::text":$"COALESCE({string.Join(",",reportQueries)})";
                 await using var command=connection.CreateCommand();
-                command.CommandText=reportTableExists ? """
-SELECT d.invoice_id, d.state,
-       (SELECT r.report_json->>'Status' FROM sandbox_authority_inquiry_reports r
-        WHERE r.operation_id=d.id AND r.customer_user_id=d.customer_user_id
-          AND r.taxpayer_id=d.taxpayer_id AND r.invoice_id=d.invoice_id
-        ORDER BY r.observed_at_utc DESC, r.id DESC LIMIT 1) AS authority_status
-FROM invoice_dispatch_operations d
-WHERE d.invoice_id=ANY(@invoice_ids)
- AND d.customer_user_id=ANY(@owners)
- AND d.taxpayer_id=ANY(@taxpayers)
-ORDER BY d.invoice_revision DESC,d.created_at_utc DESC
-""" : """
-SELECT d.invoice_id,d.state,NULL::text AS authority_status
+                command.CommandText=$"""
+SELECT d.invoice_id, d.state, {reportStatusExpression} AS authority_status
 FROM invoice_dispatch_operations d
 WHERE d.invoice_id=ANY(@invoice_ids)
  AND d.customer_user_id=ANY(@owners)

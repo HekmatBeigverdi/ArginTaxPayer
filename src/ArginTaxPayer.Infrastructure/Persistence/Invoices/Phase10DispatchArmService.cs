@@ -15,6 +15,8 @@ public sealed class Phase10DispatchArmService(ArginTaxPayerDbContext db,
         var scoped=await reader.GetAsync(bearer,taxpayerId,invoiceId,ct);
         if(scoped.Decision!=InvoiceApiDecision.Success)
             return (scoped.Decision,"scope_denied");
+        if(scoped.Environment!="Sandbox" || !scoped.LegacySandbox)
+            return (InvoiceApiDecision.Invalid,"sandbox_required");
         if(scoped.Overview is null)
             return (InvoiceApiDecision.NotFound,"dispatch_not_prepared");
         if(scoped.Overview.Status=="Reserved")

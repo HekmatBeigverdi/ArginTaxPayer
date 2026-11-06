@@ -44,6 +44,9 @@ public sealed class InvoiceValidationReferenceService(
             InvoicePatternDecision.AllowedByReferencedEdition)
             Add("invoice.pattern.unsupported","header.inp",
                 "ترکیب نوع و الگوی صورتحساب در نسخه مستند فعلی پشتیبانی نمی‌شود.");
+        if (draft.Type != 1 || draft.Pattern is not (1 or 4))
+            Add("invoice.snapshot.pattern.unsupported","header.inp",
+                "ارسال فعلی فقط از صورتحساب نوع ۱ با الگوی فروش (۱) یا پیمانکاری (۴) پشتیبانی می‌کند.");
         if (draft.BuyerPartyId is null && draft.Type == 1 &&
             draft.Pattern is not (7 or 11))
             Add("invoice.header.buyer.required","header.buyer",
@@ -59,10 +62,23 @@ public sealed class InvoiceValidationReferenceService(
             if (line.Quantity <= 0)
                 Add("invoice.line.quantity.positive",$"body[{index}].quantity",
                     $"مقدار ردیف {index + 1} باید بزرگ‌تر از صفر باشد.");
+            if (line.UnitId is null)
+                Add("invoice.line.unit.required",$"body[{index}].unitId",
+                    $"واحد اندازه‌گیری ردیف {index + 1} را انتخاب کنید.");
+            if (line.OfficialIdentifierSnapshot is not { Length: 13 } ||
+                !line.OfficialIdentifierSnapshot.All(char.IsAsciiDigit))
+                Add("invoice.line.identifier_snapshot.required",$"body[{index}].sstid",
+                    $"شناسه رسمی ۱۳ رقمی ردیف {index + 1} در نسخه صورتحساب ذخیره نشده است؛ کالا را دوباره از کاتالوگ انتخاب و پیش‌نویس را ذخیره کنید.");
             if (line.VatRatePercent is null)
                 Add("invoice.line.vat.unverified",$"body[{index}].vatRate",
                     $"نرخ مالیات ردیف {index + 1} هنوز مشخص و تأیید نشده است.",true);
         }
+        if (draft.SettlementMethod == InvoiceDraftSettlementMethod.Unknown ||
+            !InvoiceDraftSettlementPolicy.IsConsistent(draft.SettlementMethod,
+                draft.CashAmountRial,draft.CreditAmountRial,draft.Lines,
+                draft.OtherTaxAndLegalFeesRial))
+            Add("invoice.settlement.snapshot_incomplete","footer.settlement",
+                "مبلغ نقدی و نسیه با جمع نهایی صورتحساب تطابق ندارد؛ روش و مبلغ تسویه را دوباره ذخیره کنید.");
         // The catalog's InternalCode is NOT the sstid/stid field on a
         // taxpayer-system invoice. A 13-digit official identifier must be
         // mapped to each selected item for its effective issue date.

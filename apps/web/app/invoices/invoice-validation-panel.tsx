@@ -37,7 +37,7 @@ type PanelProps = {
   revision: number;
   dirty: boolean;
   onSave: () => Promise<boolean>;
-  onPrepared?: () => void;
+  onPrepared?: (invoiceId: string) => void;
   onDraftChanged?: () => Promise<void>;
 };
 
@@ -117,8 +117,8 @@ function ValidationWarning({ report }: { report: Evaluation }) {
       <span>
         {" حتی اگر خطای فرم صفر باشد، صدور قطعی مستلزم شناسه رسمی ۱۳ رقمی تمام اقلام، "}
         {"حافظه معتبر در محیط انتخابی، تولید شناسه یکتای مالیاتی صورتحساب، "}
-        {"اعتبارسنجی قواعد معتبر و آماده‌سازی بسته امضاشده است. امکان ارسال Sandbox با "}
-        {"تست اتصال حافظه به‌تنهایی ایجاد نمی‌شود."}
+        {"اعتبارسنجی قواعد معتبر و آماده‌سازی بسته امضاشده است. این پیش‌بررسی به‌تنهایی "}
+        {"صورتحساب را ارسال نمی‌کند؛ پس از ثبت نسخه ثابت، دکمه ارسال در جزئیات صورتحساب نمایش داده می‌شود."}
       </span>
     </p>
   );
@@ -308,7 +308,7 @@ export default function InvoiceValidationPanel({
 
   async function prepareInternalSnapshot() {
     if (!report || dirty || preparing || !onPrepared || report.revision !== revision ||
-        report.selectedEnvironment !== "Sandbox" ||
+        !["Sandbox", "Production"].includes(report.selectedEnvironment ?? "Unselected") ||
         report.findings.some(f => f.severity === "error" ||
           (f.severity === "warning" && f.key !== "invoice.rules.not_approved"))) return;
     setPreparing(true);setError("");
@@ -326,15 +326,27 @@ export default function InvoiceValidationPanel({
           setError("طبق جدول ۴ مستند V7.9، زمان آینده در پیش‌نویس اصلاح با زمان فعلی UTC جایگزین شد. نسخه تازه را دوباره بررسی کنید و سپس ثبت نسخه ثابت را تکرار کنید.");
           return;
         }
+        const messages: Record<string,string> = {
+          invoice_snapshot_draft_invalid: "اطلاعات پیش‌نویس با مؤدی انتخاب‌شده هم‌خوانی ندارد؛ فاکتور را دوباره باز و ذخیره کنید.",
+          invoice_buyer_required: "خریدار صورتحساب انتخاب نشده است.",
+          invoice_lines_required: "حداقل یک ردیف کالا یا خدمت لازم است.",
+          invoice_memory_selection_invalid: "یک حافظه مالیاتی معتبر برای همین محیط انتخاب کنید.",
+          invoice_pattern_not_supported_for_submission: "ارسال فعلی برای نوع ۱ و الگوی فروش (۱) یا پیمانکاری (۴) فعال است؛ الگوی صورتحساب را اصلاح کنید.",
+          invoice_contract_number_required: "برای الگوی پیمانکاری، شماره قرارداد را تکمیل کنید.",
+          invoice_line_snapshot_incomplete: "برای همه ردیف‌ها کالا، شناسه رسمی ۱۳ رقمی، واحد اندازه‌گیری، مقدار و نرخ مالیات را تکمیل و پیش‌نویس را ذخیره کنید.",
+          invoice_settlement_required: "روش و مبلغ تسویه را تکمیل و پیش‌نویس را دوباره ذخیره کنید.",
+          invoice_settlement_mismatch: "مبالغ نقدی و نسیه با جمع صورتحساب تطابق ندارند؛ روش تسویه را دوباره انتخاب و ذخیره کنید."
+        };
+        if (messages[errorCode]) throw new Error(messages[errorCode]);
         throw new Error(response.status===409 ?
           "این نسخه قبلاً ثابت شده یا تغییر کرده است." + (errorCode ? ` (${errorCode})` : "") :
           "ثبت نسخه ثابت داخلی رد شد." + (errorCode ? `؛ علت: ${errorCode}` : ""));
       }
       const result = await response.json();
-      if(result.internalSnapshotCreated!==true || result.fiscalSubmissionAuthorized!==false ||
+      if(result.invoiceId!==draftId || result.internalSnapshotCreated!==true || result.fiscalSubmissionAuthorized!==false ||
         result.signedPacketAvailable!==false || result.environmentSubmissionEnabled!==false)
         throw new Error("پاسخ آماده‌سازی از نظر ایمنی معتبر نیست.");
-      onPrepared();
+      onPrepared(result.invoiceId);
     }catch(e){setError(e instanceof Error?e.message:"آماده‌سازی انجام نشد.");}
     finally{setPreparing(false);}
   }
@@ -370,14 +382,16 @@ export default function InvoiceValidationPanel({
       )}
       {error && <p role="alert" className="form-error">{error}</p>}
       {report && <ValidationReport report={report} />}
-      {report?.selectedEnvironment === "Sandbox" && (
+      {(report?.selectedEnvironment === "Sandbox" || report?.selectedEnvironment === "Production") && (
         <div className="invoice-validation__preparation">
           <button type="button" className="identity-secondary"
             disabled={dirty || busy || preparing || !onPrepared ||
               report.revision!==revision || report.findings.some(f=>
                 f.severity==="error"||(f.severity==="warning"&&f.key!=="invoice.rules.not_approved"))}
             onClick={()=>void prepareInternalSnapshot()}>
-            {preparing?"در حال ثبت نسخه ثابت…":"ثبت نسخه ثابت داخلی برای آماده‌سازی Sandbox"}
+            {preparing?"در حال ثبت نسخه ثابت…":report.selectedEnvironment === "Production"
+              ? "ثبت نسخه ثابت و ادامه به ارسال Production"
+              : "ثبت نسخه ثابت داخلی برای آماده‌سازی Sandbox"}
           </button>
           <p className="invoice-validation__warning">نسخه ثابت داخلی، ارسال مالیاتی نیست؛
           شناسه مالیاتی و بسته امضاشده هنوز ایجاد نشده‌اند.</p>

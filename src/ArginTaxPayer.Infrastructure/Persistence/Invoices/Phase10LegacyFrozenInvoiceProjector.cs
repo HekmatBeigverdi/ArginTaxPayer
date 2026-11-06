@@ -17,7 +17,8 @@ public static class Phase10LegacyFrozenInvoiceProjector
         IReadOnlyDictionary<Guid,string> verifiedUnitCodes, string? invoiceNumber = null,
         int? buyerPersonTypeOverride = null, long? totalOtherTaxAndLegalFeesOverride = null,
         string? buyerNationalOrForeignCode = null, string? buyerBranchCode = null,
-        string? buyerPostalCode = null, string? sellerBranchCode = null)
+        string? buyerPostalCode = null, string? sellerBranchCode = null,
+        AuthorityOperationBinding? validatedAuthorityBinding = null)
     {
         ArgumentNullException.ThrowIfNull(invoice);
         ArgumentNullException.ThrowIfNull(verifiedUnitCodes);
@@ -34,11 +35,11 @@ public static class Phase10LegacyFrozenInvoiceProjector
         using var source = JsonDocument.Parse(invoice.SnapshotJson);
         var root = source.RootElement;
         if (root.ValueKind != JsonValueKind.Object ||
-            root.GetProperty("environment").GetString() != "Sandbox" ||
+            !HasSupportedEnvironment(invoice, root, validatedAuthorityBinding) ||
             root.GetProperty("sourceWorkspaceId").GetGuid() != invoice.Id ||
             root.GetProperty("invoiceType").GetInt32() != 1 ||
             root.GetProperty("pattern").GetInt32() != 1)
-            throw new NotSupportedException("Only a finalized Sandbox Type1/Pattern1 snapshot is supported.");
+            throw new NotSupportedException("Only an explicitly scoped finalized Type1/Pattern1 snapshot is supported.");
 
         var entries = JsonSerializer.Deserialize<InvoiceEntryLine[]>(
             root.GetProperty("lines").GetRawText()) ?? [];
@@ -153,6 +154,23 @@ public static class Phase10LegacyFrozenInvoiceProjector
             BuyerBranchCode:buyerBranchCode,BuyerPostalCode:buyerPostalCode,
             SellerBranchCode:sellerBranchCode);
         return Phase10InvoiceWireMapper.Project(wire);
+    }
+
+    private static bool HasSupportedEnvironment(StoredInvoice invoice, JsonElement root,
+        AuthorityOperationBinding? production)
+    {
+        if (!root.TryGetProperty("environment", out var field) || field.ValueKind != JsonValueKind.String)
+            return false;
+        if (production is null) return field.GetString() == "Sandbox";
+        var binding = production.Value;
+        return field.GetString() == (binding.Environment == TaxAuthorityEnvironment.Production ? "Production" : "Sandbox") &&
+            invoice.Subject == InvoiceSubject.Original &&
+            binding.Environment is TaxAuthorityEnvironment.Production or TaxAuthorityEnvironment.Sandbox &&
+            binding.CustomerUserId != Guid.Empty && binding.CustomerUserId == invoice.CustomerUserId &&
+            binding.TaxpayerId != Guid.Empty && binding.TaxpayerId == invoice.TaxpayerId &&
+            binding.InvoiceId == invoice.Id && binding.FiscalMemoryId != Guid.Empty &&
+            root.TryGetProperty("fiscalMemoryId", out var memory) &&
+            memory.TryGetGuid(out var memoryId) && memoryId == binding.FiscalMemoryId;
     }
 
     private static long CheckedRial(decimal value)

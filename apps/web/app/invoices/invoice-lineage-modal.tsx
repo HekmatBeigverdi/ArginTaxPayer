@@ -6,7 +6,13 @@ type Node={invoiceId:string;subject:string;fiscalTaxId:string|null;
  issuedAtUtc:string;dispatchState:string;authorityReference:string|null;
  authorityStatus:string|null;sentAtUtc:string|null};
 type Graph={hasDispatchAttempt:boolean;hasChanges:boolean;outcomeUnknown:boolean;nodes:Node[]};
+type AuthorityIssue={code:string;message:string};
+type AuthorityReport={status:"FAILED"|"SUCCESS"|"PENDING"|"UNKNOWN";
+ errors:AuthorityIssue[];warnings:AuthorityIssue[];observedAtUtc:string};
 const label:Record<string,string>={Original:"اصلی",Correction:"اصلاحی",Cancellation:"ابطالی",SalesReturn:"برگشت از فروش"};
+const authorityStatusLabel:Record<string,string>={
+ FAILED:"رد شده توسط سازمان",SUCCESS:"نتیجه موفق سازمان",PENDING:"در انتظار بررسی سازمان",
+ UNKNOWN:"نتیجه سازمان نامشخص",ACKNOWLEDGED:"کد رهگیری دریافت شد",INDETERMINATE:"نتیجه نامشخص"};
 const date=(value:string|null)=>value?new Date(value).toLocaleString("fa-IR"):"—";
 export default function InvoiceLineageModal({taxpayerId,invoiceId,onClose}:{
  taxpayerId:string;invoiceId:string;onClose:()=>void}){
@@ -15,6 +21,7 @@ export default function InvoiceLineageModal({taxpayerId,invoiceId,onClose}:{
  const [reload,setReload]=useState(0);
  const [inquiryBusy,setInquiryBusy]=useState<string|null>(null);
  const [inquiryMessage,setInquiryMessage]=useState("");
+ const [inquiryReport,setInquiryReport]=useState<{invoiceId:string;report:AuthorityReport}|null>(null);
  const [loading,setLoading]=useState(true);
  useEffect(()=>{
   const controller=new AbortController();
@@ -56,6 +63,15 @@ export default function InvoiceLineageModal({taxpayerId,invoiceId,onClose}:{
     <button type="button" className="identity-secondary invoice-action-button" disabled={loading} onClick={()=>setReload(value=>value+1)}>تلاش دوباره</button>
    </div>}
    {inquiryMessage&&<p role="status">{inquiryMessage}</p>}
+   {inquiryReport&&<section className="invoice-authority-report" aria-label="گزارش استعلام سازمان">
+    <h3>گزارش استعلام سازمان: {authorityStatusLabel[inquiryReport.report.status]??inquiryReport.report.status}</h3>
+    <p>زمان استعلام: {date(inquiryReport.report.observedAtUtc)}</p>
+    <h4>خطاهای سازمان</h4>
+    {inquiryReport.report.errors.length?<ul>{inquiryReport.report.errors.map((item,index)=><li key={item.code+":"+index}><bdi dir="ltr">{item.code}</bdi> — {item.message}</li>)}</ul>:<p>خطایی گزارش نشده است.</p>}
+    <h4>هشدارهای سازمان</h4>
+    {inquiryReport.report.warnings.length?<ul>{inquiryReport.report.warnings.map((item,index)=><li key={item.code+":"+index}><bdi dir="ltr">{item.code}</bdi> — {item.message}</li>)}</ul>:<p>هشداری گزارش نشده است.</p>}
+    <p>این گزارش نتیجه استعلام است و به‌تنهایی پذیرش قطعی مالیاتی را ثبت نمی‌کند.</p>
+   </section>}
    {graph&&!graph.hasDispatchAttempt&&<p>برای این صورتحساب هنوز سابقه ارسال ثبت نشده است.</p>}
    {graph?.hasDispatchAttempt&&<div style={{display:"grid",gap:8,padding:10,maxHeight:"65dvh",overflow:"auto"}}>
     {graph.nodes.map((node,i)=><div key={node.invoiceId}>
@@ -69,19 +85,25 @@ export default function InvoiceLineageModal({taxpayerId,invoiceId,onClose}:{
         <span>صدور: {date(node.issuedAtUtc)}</span>
         <span>ارسال: {date(node.sentAtUtc)}</span>
         <span>وضعیت ارسال: {node.dispatchState}</span>
-        <span>نتیجه سازمان: {node.authorityStatus??"ثبت نشده"}</span>
+        <span>نتیجه سازمان: {authorityStatusLabel[
+         inquiryReport?.invoiceId===node.invoiceId?inquiryReport.report.status:(node.authorityStatus??"")
+        ]??node.authorityStatus??"ثبت نشده"}</span>
         <span>شماره رهگیری: <bdi dir="ltr">{node.authorityReference??"—"}</bdi></span>
        </div>
        {node.authorityReference&&<button type="button" className="identity-secondary invoice-lineage-inquiry" aria-busy={inquiryBusy===node.invoiceId}
         disabled={inquiryBusy!==null} onClick={()=>{
-         setInquiryBusy(node.invoiceId);setInquiryMessage("");
+         setInquiryBusy(node.invoiceId);setInquiryMessage("");setInquiryReport(null);
          void fetch("/api/invoice-dispatch/"+encodeURIComponent(taxpayerId)+"/"+
           encodeURIComponent(node.invoiceId)+"/inquiry-by-reference",
           {method:"POST",credentials:"same-origin",cache:"no-store"})
           .then(async resp=>{const result=await resp.json() as {
-           safeCode?:string;authorityResult?:{status:string}|null;error?:string};
+           safeCode?:string;authorityResult?:AuthorityReport|null;error?:string};
            if(!resp.ok)throw Error(String(result.error??resp.status));
-           setInquiryMessage("نتیجه استعلام: "+String(result.authorityResult?.status??result.safeCode??"در انتظار بررسی"));
+           const report=result.authorityResult;
+           if(report)setInquiryReport({invoiceId:node.invoiceId,report});
+           setInquiryMessage("نتیجه استعلام: "+(report
+            ?authorityStatusLabel[report.status]??report.status
+            :String(result.safeCode??"در انتظار بررسی")));
            setReload(v=>v+1);
           })
           .catch(e=>setInquiryMessage("استعلام ناموفق بود: "+(e as Error).message))

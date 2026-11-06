@@ -35,11 +35,16 @@ internal static class Phase10EffectiveInvoiceQuery
                   WHERE NOT r.successor_invoice_id=ANY(c.visited) AND c.depth<100
                 )
                 SELECT c.root_id,d.id,d.subject,d.issue_date_utc,
-                  COALESCE(NULLIF(report.status,'UNKNOWN'),CASE op.state
+                  COALESCE(NULLIF(production_report.status,'UNKNOWN'),NULLIF(report.status,'UNKNOWN'),CASE op.state
                     WHEN 5 THEN 'ACKNOWLEDGED' WHEN 4 THEN 'SENDING'
                     WHEN 6 THEN 'INDETERMINATE' ELSE 'NOT_SENT' END)
                 FROM chain c JOIN invoice_documents d ON d.id=c.invoice_id
                   AND d.customer_user_id=c.customer_user_id AND d.taxpayer_id=c.taxpayer_id
+                LEFT JOIN LATERAL (
+                  SELECT ar.report_json->>'Status' AS status FROM production_authority_inquiry_reports ar
+                  WHERE ar.invoice_id=d.id AND ar.customer_user_id=d.customer_user_id AND ar.taxpayer_id=d.taxpayer_id
+                  ORDER BY ar.observed_at_utc DESC,ar.id DESC LIMIT 1
+                ) production_report ON true
                 LEFT JOIN LATERAL (
                   SELECT ar.report_json->>'Status' AS status FROM sandbox_authority_inquiry_reports ar
                   WHERE ar.invoice_id=d.id AND ar.customer_user_id=d.customer_user_id AND ar.taxpayer_id=d.taxpayer_id
@@ -50,8 +55,8 @@ internal static class Phase10EffectiveInvoiceQuery
                   WHERE op.invoice_id=d.id AND op.customer_user_id=d.customer_user_id AND op.taxpayer_id=d.taxpayer_id
                   ORDER BY op.created_at_utc DESC,op.id DESC LIMIT 1
                 ) op ON true
-                WHERE report.status='SUCCESS'
-                  OR (d.subject=2 AND (op.state IN (4,5,6) OR report.status IS NOT NULL))
+                WHERE COALESCE(production_report.status,report.status)='SUCCESS'
+                  OR (d.subject=2 AND (op.state IN (4,5,6) OR COALESCE(production_report.status,report.status) IS NOT NULL))
                 ORDER BY c.depth DESC,c.created_at_utc DESC,d.id DESC
                 """;
             foreach (var (name, value) in new (string, object)[] { ("ids", ids), ("owners", owners), ("taxpayers", taxpayers) })

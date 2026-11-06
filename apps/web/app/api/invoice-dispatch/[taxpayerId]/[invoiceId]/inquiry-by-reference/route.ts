@@ -71,6 +71,7 @@ async function handle(request:NextRequest,context:Context,method:"GET"|"POST"){
     observedAtUtc:report.observedAtUtc};
   }
   return NextResponse.json({safeCode:result.safeCode,
+    ...(result.environment==="Production"||result.environment==="Sandbox"?{environment:result.environment}:{}),
     referenceNumber:result.referenceNumber??null,authorityResult,
     fiscalAccepted:false,authoritySubmitted:false},
    {headers:{"Cache-Control":"no-store"}});

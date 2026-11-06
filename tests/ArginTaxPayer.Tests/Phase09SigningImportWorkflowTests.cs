@@ -3,6 +3,7 @@ using ArginTaxPayer.Application.Signing;
 using ArginTaxPayer.Domain.Signing;
 using ArginTaxPayer.Infrastructure.Signing.Generation;
 using ArginTaxPayer.Infrastructure.Signing.Import;
+using ArginTaxPayer.Infrastructure.Signing.Protection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -32,6 +33,30 @@ public sealed class Phase09SigningImportWorkflowTests
         Assert.Equal(SigningGenerationStatus.Conflict, (await service.ImportAsync("token", request,
             Phase09SigningKeyImportTests.Input(other, SigningPrivateKeyFormat.Pkcs8Der))).Status);
         Assert.Equal(1, custody.Stages);
+    }
+
+    [Fact]
+    public async Task Reentering_the_current_private_key_restores_custody_without_replacing_public_key()
+    {
+        using var rsa = RSA.Create(2048);
+        var request = Request();
+        var spki = rsa.ExportSubjectPublicKeyInfo();
+        var fingerprint = Convert.ToHexString(SHA256.HashData(spki)).ToLowerInvariant();
+        var keyVersionId = Guid.NewGuid();
+        var journal = new Journal { SameKeyTarget = new(
+            new(Guid.NewGuid(), request.TaxpayerId, request.FiscalMemoryId, keyVersionId, Guid.NewGuid()),
+            new(SigningGenerationStatus.Replayed, new(keyVersionId, SigningOperationPolicy.LegacyProfile,
+                fingerprint, "public-key", "key.pem", 2, 2))) };
+        var custody = new Phase09SigningKeyGenerationTests.Custody();
+        var service = new SigningKeyImportService(journal, custody, new());
+
+        var result = await service.ImportAsync("token", request,
+            Phase09SigningKeyImportTests.Input(rsa, SigningPrivateKeyFormat.Pkcs8Pem));
+
+        Assert.Equal(SigningGenerationStatus.Replayed, result.Status);
+        Assert.Equal(fingerprint, result.PublicKey?.FingerprintSha256);
+        Assert.Equal(1, custody.Stages);
+        Assert.Equal(0, journal.Reservations);
     }
 
     [Fact]
@@ -94,11 +119,15 @@ public sealed class Phase09SigningImportWorkflowTests
     {
         public bool Deny;
         public int Reservations;
+        public ExistingKeyImportTarget? SameKeyTarget;
         private string? fingerprint;
         private readonly Phase09SigningKeyGenerationTests.Journal core = new();
         public Task<GenerationReservation> AuthorizeImportAsync(string? bearer, ImportSigningKeyRequest request, CancellationToken ct) =>
             Task.FromResult(new GenerationReservation(Deny ? SigningGenerationStatus.Forbidden : SigningGenerationStatus.Replayed,
                 new(core.Id.CustomerUserId, core.Id.TaxpayerId, core.Id.FiscalMemoryId), Guid.Empty, default));
+        public Task<ExistingKeyImportTarget?> FindSameKeyTargetAsync(string? bearer,
+            ImportSigningKeyRequest request, string fp, CancellationToken ct) =>
+            Task.FromResult(SameKeyTarget?.PublicKeyResult.PublicKey?.FingerprintSha256 == fp ? SameKeyTarget : null);
         public Task<GenerationReservation> ReserveImportAsync(string? bearer, ImportSigningKeyRequest request, string fp, CancellationToken ct)
         {
             Reservations++;

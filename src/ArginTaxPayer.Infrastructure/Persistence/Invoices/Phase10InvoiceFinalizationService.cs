@@ -7,7 +7,7 @@ using Npgsql;
 namespace ArginTaxPayer.Infrastructure.Persistence.Invoices;
 
 /// <summary>
-/// Finalizes only an internally validated, approved immutable Sandbox revision.
+/// Finalizes only an internally validated, approved immutable invoice revision.
 /// Does not certify fiscal rules, allocate a serial, or send an invoice.
 /// </summary>
 public sealed class Phase10InvoiceFinalizationService(
@@ -62,9 +62,13 @@ public sealed class Phase10InvoiceFinalizationService(
                         r.CustomerUserId == owner.Value && r.TaxpayerId == taxpayerId &&
                         r.SnapshotSha256 == invoice.SnapshotSha256 &&
                         r.SnapshotJson == invoice.SnapshotJson, ct);
-                if (!captured || !Phase10InternalInvoiceValidationService.ValidSandboxSnapshot(
+                if (!captured || !Phase10InternalInvoiceValidationService.ValidSnapshot(
                         invoice.SnapshotJson, invoice.SnapshotSha256, invoiceId))
                     return new Phase10InternalValidationResult(InvoiceApiDecision.Invalid, "snapshot_invalid");
+
+                if (!await Phase10InternalInvoiceValidationService.MemoryIsValidAsync(
+                        db, owner.Value, taxpayerId, invoiceId, invoice.SnapshotJson, ct))
+                    return new Phase10InternalValidationResult(InvoiceApiDecision.Invalid, "invoice_memory_environment_mismatch");
 
                 var changed = await db.InvoiceDocuments.Where(i =>
                         i.Id == invoiceId && i.TaxpayerId == taxpayerId &&

@@ -17,8 +17,8 @@ function message(code: string, status: number) {
   return 'سرویس نگهداری امن کلید در دسترس نیست یا نتیجه درخواست مشخص نشد. بازخوانی کنید؛ برای پیگیری، همان کلید را دوباره وارد کنید.';
 }
 
-export default function ExistingKeyImport({ taxpayerId, memories, loadingMemories, onLoadingChange, hideMemorySelector = false, onCompleted }:
-  { taxpayerId: string; memories: Memory[]; loadingMemories: boolean; onLoadingChange?: (value: boolean) => void; hideMemorySelector?: boolean; onCompleted?: () => void }) {
+export default function ExistingKeyImport({ taxpayerId, memories, loadingMemories, onLoadingChange, hideMemorySelector = false, allowExistingKeyEntry = false, onCompleted }:
+  { taxpayerId: string; memories: Memory[]; loadingMemories: boolean; onLoadingChange?: (value: boolean) => void; hideMemorySelector?: boolean; allowExistingKeyEntry?: boolean; onCompleted?: () => void }) {
   const [selected, setSelected] = useState('');
   const memoryId = memories.some(m => m.id === selected) ? selected : memories[0]?.id ?? '';
   const endpoint = `/api/signing/${taxpayerId}/${memoryId}`;
@@ -124,8 +124,13 @@ export default function ExistingKeyImport({ taxpayerId, memories, loadingMemorie
 
   if (loadingMemories) return <p className="field-hint">در حال دریافت حافظه مالیاتی…</p>;
   if (!memoryId) return <p className="field-hint">ابتدا کد حافظه مالیاتی را در بخش «حافظه‌های مالیاتی» ثبت کنید.</p>;
-  const sealed = state?.hasKey && state.lifecycleState !== 1 && !state.replacementApproved;
   const canImport = state?.configured === true && state.storageReady === true && state.freshLogin === true && !state.recoveryAvailable && !busy && !loading;
+  const existingKeyReady = state?.hasKey === true && state.lifecycleState === 2 && !state.replacementApproved;
+  if (existingKeyReady && !allowExistingKeyEntry) return <div className="existing-key-import" aria-busy={loading || busy}>
+    {loading && <p role="status" className="field-hint">در حال دریافت وضعیت کلید…</p>}
+    {error && <OperationMessageBox key={error} kind="error" title="وضعیت کلید دریافت نشد">{error}</OperationMessageBox>}
+    {notice && <OperationMessageBox key={notice} kind="success" title="عملیات انجام شد">{notice}</OperationMessageBox>}
+  </div>;
   return <div className="existing-key-import" aria-busy={loading || busy}>
     <div className="taxpayer-section-heading">
       {!hideMemorySelector && <label>حافظه مالیاتی
@@ -149,12 +154,16 @@ export default function ExistingKeyImport({ taxpayerId, memories, loadingMemorie
       <button type="button" className="identity-secondary" disabled={busy || loading || !state.freshLogin}
         onClick={() => void recoverPendingImport()}>{busy ? "در حال بازیابی…" : "بازیابی و نهایی‌سازی کلید ذخیره‌شده"}</button>
     </div>}
-    {sealed ? <p className="field-hint">کلید این حافظه ثبت شده است. تعریف کلید جایگزین به تأیید درخواست تغییر نیاز دارد.</p> : state && !loading && <>
+    {state?.hasKey && state.lifecycleState !== 1 && !state.replacementApproved && <OperationMessageBox kind="info"
+      title="ورود دوبارهٔ کلید همین حافظه">
+      کلید خصوصی را دوباره وارد کنید. اگر اثرانگشت کلید عمومی با کلید ثبت‌شدهٔ همین حافظه یکسان باشد، کلید رمزگذاری‌شده بررسی یا بازیابی می‌شود و کلید عمومی تغییر نمی‌کند. کلید متفاوت به تأیید درخواست جایگزینی نیاز دارد.
+    </OperationMessageBox>}
+    {state && !loading && <>
       {state.configured && !state.storageReady && <p role="alert" className="party-error">جدول نگهداری رمزگذاری‌شده کلید آماده نیست. Migration گام ۲۲ را روی دیتابیس تست بررسی کنید؛ تا زمان رفع مشکل، کلید خصوصی ارسال نمی‌شود.</p>}
       {!state.configured && <p role="status" className="field-hint">API در حال اجرا قابلیت ورود کلید را غیرفعال گزارش می‌کند. تنظیمات Provider=Database و MasterKey را در API بررسی و سرویس را مجدداً راه‌اندازی کنید. سلامت دیتابیس به معنی فعال‌بودن Vault نیست.</p>}
       {!state.freshLogin && <p className="field-hint">برای ورود کلید دوباره وارد حساب شوید و ظرف پنج دقیقه اقدام کنید.</p>}
       <form onSubmit={submit} autoComplete="off">
-        <p className="field-hint">متن فایل TXT کلید خصوصی قبلی را وارد کنید. قالب قابل قبول RSA 2048 و PKCS#8 با عنوان PRIVATE KEY یا ENCRYPTED PRIVATE KEY است. RSA PRIVATE KEY پشتیبانی نمی‌شود.</p>
+        <p className="field-hint">متن فایل TXT کلید خصوصی قبلی را وارد کنید. قالب قابل قبول RSA 2048 و PKCS#8 با عنوان PRIVATE KEY یا ENCRYPTED PRIVATE KEY است. RSA PRIVATE KEY پشتیبانی نمی‌شود. برای حافظه‌ای که کلید عمومی دارد، فقط کلید خصوصی متناظر با همان کلید عمومی بدون فرایند جایگزینی پذیرفته می‌شود.</p>
         <label>متن کلید خصوصی<textarea ref={privateKey} required maxLength={65536} rows={5} dir="ltr"
           autoComplete="off" spellCheck={false} disabled={!canImport} /></label>
         <label>رمز فایل کلید (فقط برای کلید رمزدار)<input ref={password} type="password" maxLength={1024}

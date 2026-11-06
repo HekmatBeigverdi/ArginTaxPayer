@@ -11,7 +11,10 @@ public sealed record LegacyCorrectionDraftResult(InvoiceApiDecision Decision,str
 /// <summary>Creates one linked editable draft after a fresh, correlated FAILED inquiry.
 /// Never alters the finalized invoice, its tax ID, signed payload or dispatch state.</summary>
 public sealed class LegacyInvoiceCorrectionDraftService(ArginTaxPayerDbContext db,
-    TaxpayerScopeService scope,Phase10LegacyReferenceInquiryService inquiry,
+    TaxpayerScopeService scope,Phase18InvoiceInquiryService inquiry,
+    Phase10InvoiceDispatchReadService dispatch,
+    Phase18ProductionAuthorityReportRepository productionReports,
+    LegacyAuthorityReportRepository sandboxReports,
     InvoiceEntryWorkspaceService workspaces)
 {
     public async Task<LegacyCorrectionDraftResult> CreateAsync(string? bearer,Guid taxpayerId,
@@ -42,10 +45,34 @@ public sealed class LegacyInvoiceCorrectionDraftService(ArginTaxPayerDbContext d
             return new(fresh.Decision,fresh.SafeCode);
         if(fresh.AuthorityResult?.CanPrepareCorrection!=true)
             return new(InvoiceApiDecision.Conflict,"authority_rejection_required");
-        var stored=await new LegacyAuthorityReportRepository(db).ReadAsync(owner.Value,taxpayerId,invoiceId,ct);
-        if(stored is null || !stored.Report.CanPrepareCorrection ||
-            stored.ReferenceNumber!=fresh.ReferenceNumber)
-            return new(InvoiceApiDecision.Conflict,"authority_rejection_required");
+        if(fresh.Environment is not ("Production" or "Sandbox"))
+            return new(InvoiceApiDecision.Conflict,"authority_environment_unavailable");
+        var production=fresh.Environment=="Production";
+        Guid operationId;
+        Guid? sandboxReportId=null;
+        if(production)
+        {
+            var current=await dispatch.GetAsync(bearer,taxpayerId,invoiceId,ct);
+            if(current.Decision!=InvoiceApiDecision.Success || current.Overview is not
+                {Status:"Acknowledged",Environment:"Production",ReferenceNumber:not null} sent ||
+                sent.ReferenceNumber!=fresh.ReferenceNumber)
+                return new(InvoiceApiDecision.Conflict,"authority_rejection_required");
+            operationId=sent.OperationId;
+            var stored=await productionReports.ReadAsync(owner.Value,taxpayerId,invoiceId,
+                operationId,sent.ReferenceNumber,ct);
+            if(stored?.CanPrepareCorrection!=true)
+                return new(InvoiceApiDecision.Conflict,"authority_rejection_required");
+        }
+        else
+        {
+            // Preserve the legacy Sandbox flow and its report-to-correction link.
+            var stored=await sandboxReports.ReadAsync(owner.Value,taxpayerId,invoiceId,ct);
+            if(stored is null || !stored.Report.CanPrepareCorrection ||
+                stored.ReferenceNumber!=fresh.ReferenceNumber)
+                return new(InvoiceApiDecision.Conflict,"authority_rejection_required");
+            operationId=stored.OperationId;
+            sandboxReportId=stored.Id;
+        }
 
         using var snapshot=JsonDocument.Parse(invoice.SnapshotJson);
         if (!snapshot.RootElement.TryGetProperty("sourceWorkspaceId", out var sourceElement) ||
@@ -59,11 +86,13 @@ public sealed class LegacyInvoiceCorrectionDraftService(ArginTaxPayerDbContext d
         if(source.Revision!=sourceRevision)
             return new(InvoiceApiDecision.Conflict,"source_workspace_revision_mismatch");
         var input=JsonSerializer.Deserialize<SaveInvoiceEntryRequest>(source.DraftJson);
-        if(input is null || input.SandboxFiscalMemoryId is null || input.FiscalMemoryId is not null)
-            return new(InvoiceApiDecision.Invalid,"sandbox_snapshot_required");
+        if(input is null || (production
+            ? input.FiscalMemoryId is null || input.SandboxFiscalMemoryId is not null
+            : input.SandboxFiscalMemoryId is null || input.FiscalMemoryId is not null))
+            return new(InvoiceApiDecision.Invalid,production?"production_snapshot_required":"sandbox_snapshot_required");
         var issueDateAdjusted=input.IssueDateUtc>DateTime.UtcNow;
         if(issueDateAdjusted)input=input with {IssueDateUtc=DateTime.UtcNow};
-        var key="sandbox-correction:"+stored.OperationId.ToString("N");
+        var key=(production?"production-resubmission:":"sandbox-correction:")+operationId.ToString("N");
         var stableId=InvoiceBulkIdentity.StableWorkspaceId(owner.Value,key);
         // Recover an already-created draft after an interrupted link write, including later user edits.
         var saved=await workspaces.GetAsync(bearer,stableId,ct);
@@ -84,6 +113,9 @@ public sealed class LegacyInvoiceCorrectionDraftService(ArginTaxPayerDbContext d
             return new(normalized.Decision,normalized.Code);
         issueDateAdjusted|=normalized.Adjusted;
 
+        if(production)
+            return new(InvoiceApiDecision.Success,"correction_draft_created",saved.Draft.Id,issueDateAdjusted);
+
         var connection=db.Database.GetDbConnection();
         var opened=connection.State!=ConnectionState.Open;
         if(opened)await connection.OpenAsync(ct);
@@ -101,7 +133,7 @@ WHERE EXISTS(SELECT 1 FROM sandbox_authority_inquiry_reports r
 ON CONFLICT(operation_id) DO NOTHING
 """;
             foreach(var (name,value) in new (string,object)[]{
-                ("operation",stored.OperationId),("report",stored.Id),("owner",owner.Value),
+                ("operation",operationId),("report",sandboxReportId!.Value),("owner",owner.Value),
                 ("taxpayer",taxpayerId),("invoice",invoiceId),("workspace",saved.Draft.Id),
                 ("actor",actor.ActorId),("now",DateTime.UtcNow)})
                 LegacyAuthorityReportRepository.Add(command,name,value);

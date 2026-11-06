@@ -1,5 +1,6 @@
 using System.Text.Json;
 using ArginTaxPayer.Domain.Invoices;
+using ArginTaxPayer.Infrastructure.Signing.Connection;
 using ArginTaxPayer.Infrastructure.Persistence.Taxpayers;
 using Microsoft.Extensions.Configuration;
 using Microsoft.EntityFrameworkCore;
@@ -14,7 +15,7 @@ public sealed record Phase10LiveSendReadiness(
     string Environment, bool ReadyForLiveSend, bool SubmissionEnabled,
     bool SignedPacketAvailable, bool FiscalAccepted, bool HasImmutableSnapshot,
     string InvoiceState, long InvoiceRevision, Guid? SandboxFiscalMemoryId,
-    string[] BlockingCodes);
+    string[] BlockingCodes, Guid? FiscalMemoryId = null);
 public sealed record Phase10LiveSendReadinessResult(
     InvoiceApiDecision Decision, Phase10LiveSendReadiness? Readiness=null);
 
@@ -41,7 +42,7 @@ public sealed class Phase10LiveSendReadinessService(
         var invoice=await db.InvoiceDocuments.AsNoTracking().Where(i=>
             i.Id==invoiceId && i.CustomerUserId==owner.Value &&
             i.TaxpayerId==taxpayerId)
-            .Select(i=>new{i.State,i.Revision,i.SnapshotJson}).SingleOrDefaultAsync(ct);
+            .Select(i=>new{i.State,i.Revision,i.SnapshotJson,i.SnapshotSha256}).SingleOrDefaultAsync(ct);
         if(invoice is null)return new(InvoiceApiDecision.NotFound);
 
         var reviewState=await db.InvoiceReviews.AsNoTracking()
@@ -49,6 +50,14 @@ public sealed class Phase10LiveSendReadinessService(
                 r.TaxpayerId==taxpayerId)
             .Select(r=>(InvoiceReviewState?)r.State).SingleOrDefaultAsync(ct)
             ?? InvoiceReviewState.Draft;
+        if (Phase18InvoiceMemoryBindingService.TryReadMemory(invoice.SnapshotJson,
+                out _, out var legacySandbox, out var selectedEnvironment) && !legacySandbox)
+        {
+            var binding = await new Phase18InvoiceMemoryBindingService(db, scope,
+                new Phase18PersistedAuthorityEnvironmentResolver(db)).ResolveAsync(bearer, taxpayerId, invoiceId, ct);
+            return await ReadScopedAsync(binding, selectedEnvironment, taxpayerId, invoiceId, invoice.State,
+                invoice.Revision, invoice.SnapshotJson, invoice.SnapshotSha256, reviewState, ct);
+        }
         var blockers=new List<string>();
         var environment="Unverified";
         var hasInternalSnapshot=false;
@@ -210,4 +219,86 @@ SELECT EXISTS(
             invoice.State.ToString(),invoice.Revision,sandboxFiscalMemoryId,
             blockers.Distinct().ToArray()));
     }
+    private async Task<Phase10LiveSendReadinessResult> ReadScopedAsync(
+        Phase18InvoiceMemoryBindingResult binding, TaxAuthorityEnvironment selectedEnvironment, Guid taxpayerId, Guid invoiceId,
+        InvoiceLifecycleState state, long revision, string snapshot, string snapshotHash,
+        InvoiceReviewState reviewState, CancellationToken ct)
+    {
+        var blockers = new List<string>();
+        var verified = binding.Decision == InvoiceApiDecision.Success &&
+            binding.Environment is TaxAuthorityEnvironment.Production or TaxAuthorityEnvironment.Sandbox;
+        var environment = verified ? binding.Environment.ToString() : "Unverified";
+        var provider = verified ? binding.Environment : selectedEnvironment;
+        var providerName = provider == TaxAuthorityEnvironment.Production ? "production" : "sandbox";
+        if (!verified) blockers.Add($"invoice.{providerName}.memory_not_bound");
+        var hasSnapshot = Phase10InternalInvoiceValidationService.ValidSnapshot(
+            snapshot, snapshotHash, invoiceId);
+        if (!hasSnapshot) blockers.Add("invoice.snapshot.not_internal_promoted");
+        if (state == InvoiceLifecycleState.Draft) blockers.Add("invoice.lifecycle.validation_required");
+        if (reviewState != InvoiceReviewState.Approved) blockers.Add("invoice.review.approval_required");
+        if (state != InvoiceLifecycleState.Finalized) blockers.Add("invoice.finalization.not_finalized");
+        var reserved = false;
+        var signed = false;
+        if (verified && state == InvoiceLifecycleState.Finalized)
+        {
+            var conn = db.Database.GetDbConnection();
+            var opened = conn.State != System.Data.ConnectionState.Open;
+            if (opened) await conn.OpenAsync(ct);
+            try
+            {
+                await using var command = conn.CreateCommand();
+                command.CommandText = """
+SELECT EXISTS(SELECT 1 FROM authority_invoice_fiscal_reservations r
+ WHERE r.customer_user_id=@owner AND r.taxpayer_id=@taxpayer AND r.invoice_id=@invoice
+ AND r.invoice_revision=@revision AND r.fiscal_memory_id=@memory AND r.fiscal_tax_id IS NOT NULL
+ AND r.authority_environment=@authority_environment),
+ EXISTS(SELECT 1 FROM invoice_dispatch_operations d
+ JOIN outbox_messages o ON o.id=d.id AND o.taxpayer_id=d.taxpayer_id
+ WHERE d.customer_user_id=@owner AND d.taxpayer_id=@taxpayer AND d.invoice_id=@invoice
+ AND d.invoice_revision=@revision AND d.fiscal_memory_id=@memory AND d.authority_environment=@authority_environment
+ AND o.event_type=@event
+ AND o.payload_json::jsonb->>'environment'=@environment
+ AND o.payload_json::jsonb->>'requestSha256'=d.payload_sha256
+ AND o.payload_json::jsonb->>'invoiceId'=@invoice_text
+ AND o.payload_json::jsonb->>'fiscalMemoryId'=@memory_text)
+""";
+                foreach (var (name, value) in new (string, object)[] {
+                    ("owner", binding.Owner), ("taxpayer", taxpayerId), ("invoice", invoiceId),
+                    ("revision", revision), ("memory", binding.MemoryId),
+                    ("authority_environment", provider == TaxAuthorityEnvironment.Production ? 1 : 2),
+                    ("event", $"invoice.{providerName}.legacy.dispatch.requested"), ("environment", environment),
+                    ("invoice_text", invoiceId.ToString("D")), ("memory_text", binding.MemoryId.ToString("D")) })
+                {
+                    var p = command.CreateParameter(); p.ParameterName = name; p.Value = value;
+                    command.Parameters.Add(p);
+                }
+                await using var reader = await command.ExecuteReaderAsync(ct);
+                if (await reader.ReadAsync(ct)) { reserved = reader.GetBoolean(0); signed = reader.GetBoolean(1); }
+            }
+            finally { if (opened) await conn.CloseAsync(); }
+        }
+        if (!reserved)
+        {
+            blockers.Add("invoice.fiscal_identifier.not_issued");
+            blockers.Add("invoice.serial.durable_reservation_required");
+        }
+        if (!signed)
+        {
+            blockers.Add("invoice.rules.not_submission_verified");
+            blockers.Add("invoice.signed_packet.not_prepared");
+            blockers.Add($"invoice.{providerName}_outbox.not_connected");
+        }
+        if (!Phase18LegacyAuthorityEndpointSelector.TryResolveConfiguredBase(
+                provider, configuration, out _))
+        {
+            blockers.Add(provider == TaxAuthorityEnvironment.Production
+                ? "invoice.production.transport_not_registered" : "invoice.legacy.transport_not_registered");
+            blockers.Add("invoice.transport.disabled");
+        }
+        var ready = verified && signed && blockers.Count == 0;
+        return new(InvoiceApiDecision.Success, new(environment, ready, ready, signed,
+            false, hasSnapshot, state.ToString(), revision, null, blockers.ToArray(),
+            verified ? binding.MemoryId : null));
+    }
+
 }

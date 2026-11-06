@@ -11,7 +11,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace ArginTaxPayer.Infrastructure.Persistence.Invoices;
 
-public sealed record Phase18ScopedInquiryResult(string Code, string? ReferenceNumber = null);
+public sealed record Phase18ScopedInquiryResult(string Code, string? ReferenceNumber = null,
+    LegacyAuthorityInquiryReport? AuthorityResult = null);
 
 /// <summary>
 /// At-most-one read-only inquiry per explicit invocation, never invoice POST.
@@ -24,7 +25,8 @@ internal sealed class Phase18ScopedLegacyReferenceInquiryService(
     Phase18PersistedAuthorityOperationGate gate,
     Phase18AuthorityEndpointRoutingService routes,
     DatabaseLegacySigningKeyLoader keys,
-    LegacyInvoiceAccessTokenClient tokens)
+    LegacyInvoiceAccessTokenClient tokens,
+    Phase18ProductionAuthorityReportRepository reports)
 {
     internal async Task<Phase18ScopedInquiryResult> InquireAsync(
         Guid operationId, Guid customerUserId, Guid taxpayerId, Guid invoiceId,
@@ -171,7 +173,15 @@ WHERE d.id=@operation AND d.customer_user_id=@customer
                 customerUserId,taxpayerId,trusted.FiscalMemoryId,
                 operationId.ToString("D"),"INVOICE.V01",memoryCode,reference);
             var verdict=Phase10InquiryReconciliation.Evaluate(expected,rows.GetRawText());
-            return new(verdict.SafeCode,verdict.MatchedReference);
+            var report=LegacyAuthorityInquiryReportParser.Parse(
+                expected,rows.GetRawText(),DateTime.UtcNow);
+            // A correlated, explicit authority rejection may be copied into a
+            // separate editable draft. This does not mutate or resend the
+            // acknowledged Production invoice, and is not fiscal acceptance.
+            if(report is not null && !await reports.AppendAsync(customerUserId,taxpayerId,
+                    invoiceId,operationId,reference,report,ct))
+                return new("inquiry_report_persist_failed",verdict.MatchedReference,report);
+            return new(verdict.SafeCode,verdict.MatchedReference,report);
         }
         catch (HttpRequestException){return new("inquiry_network_unavailable");}
         catch (JsonException){return new("inquiry_response_invalid");}

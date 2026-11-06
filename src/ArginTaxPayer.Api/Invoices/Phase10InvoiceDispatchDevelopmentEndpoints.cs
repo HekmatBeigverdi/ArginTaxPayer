@@ -1,5 +1,7 @@
 using System.Net;
 using ArginTaxPayer.Application.Invoices;
+using ArginTaxPayer.Domain.Invoices;
+using ArginTaxPayer.Infrastructure.Signing.Connection;
 using Microsoft.Extensions.Configuration;
 using ArginTaxPayer.Infrastructure.Persistence.Invoices;
 
@@ -8,8 +10,8 @@ namespace ArginTaxPayer.Api.Invoices;
 public sealed record SandboxFiscalSerialReservationRequest(long ExpectedRevision);
 
 /// <summary>
-/// Step16 loopback-only, authenticated and fail-closed dispatch UI boundary.
-/// Read-only status and readiness; no production or sandbox send routes.
+/// Loopback-only authenticated invoice dispatch UI boundary.
+/// Authority selection is bound to the owned persisted invoice memory.
 /// </summary>
 public static class Phase10InvoiceDispatchDevelopmentEndpoints
 {
@@ -167,11 +169,20 @@ public static class Phase10InvoiceDispatchDevelopmentEndpoints
             return result.Decision switch
             {
                 InvoiceApiDecision.Success => Results.Ok(new {
-                    environment = "Sandbox",
-                    submissionEnabled = configuration["SandboxInvoiceLegacy:Enabled"] == "true" &&
-                        configuration["SandboxInvoiceLegacy:OperatorApprovedEndpoint"] == "true" &&
-                        result.Overview?.Status == "Reserved",
-                    inquiryEnabled = result.Overview?.Status == "Acknowledged" &&
+                    environment = result.Environment,
+                    submissionEnabled = result.Environment == "Production"
+                        ? Phase18LegacyAuthorityEndpointSelector.TryResolveConfiguredBase(
+                            TaxAuthorityEnvironment.Production, configuration, out _) &&
+                          result.Overview?.Status == "Reserved"
+                        : result.Environment == "Sandbox" &&
+                          (result.LegacySandbox
+                            ? configuration["SandboxInvoiceLegacy:Enabled"] == "true" &&
+                              configuration["SandboxInvoiceLegacy:OperatorApprovedEndpoint"] == "true"
+                            : Phase18LegacyAuthorityEndpointSelector.TryResolveConfiguredBase(
+                                TaxAuthorityEnvironment.Sandbox, configuration, out _)) &&
+                          result.Overview?.Status == "Reserved",
+                    inquiryEnabled = result.Environment is "Production" or "Sandbox" &&
+                        result.Overview?.Status == "Acknowledged" &&
                         result.Overview?.ReferenceNumber is not null,
                     fiscalAccepted = false,
                     referenceNumber = result.Overview?.ReferenceNumber,
@@ -230,7 +241,7 @@ public static class Phase10InvoiceDispatchDevelopmentEndpoints
         });
 
         group.MapGet("/inquiry-by-reference", async (Guid taxpayerId, Guid invoiceId,
-            HttpContext http, Phase10LegacyReferenceInquiryService inquiry, CancellationToken ct) =>
+            HttpContext http, Phase18InvoiceInquiryService inquiry, CancellationToken ct) =>
         {
             if (!Local(http)) return Results.NotFound();
             http.Response.Headers.CacheControl = "no-store";
@@ -238,7 +249,7 @@ public static class Phase10InvoiceDispatchDevelopmentEndpoints
             return outcome.Decision switch {
                 InvoiceApiDecision.Success => Results.Ok(new {
                     safeCode=outcome.SafeCode, referenceNumber=outcome.ReferenceNumber,
-                    authorityResult=outcome.AuthorityResult,
+                    environment=outcome.Environment, authorityResult=outcome.AuthorityResult,
                     fiscalAccepted=false, authoritySubmitted=false }),
                 InvoiceApiDecision.Unauthenticated => Results.Unauthorized(),
                 InvoiceApiDecision.Forbidden => Results.StatusCode(403),
@@ -266,7 +277,7 @@ public static class Phase10InvoiceDispatchDevelopmentEndpoints
         });
 
         group.MapPost("/inquiry-by-reference", async (Guid taxpayerId, Guid invoiceId,
-            HttpContext http, Phase10LegacyReferenceInquiryService inquiry, CancellationToken ct) =>
+            HttpContext http, Phase18InvoiceInquiryService inquiry, CancellationToken ct) =>
         {
             if (!Local(http)) return Results.NotFound();
             http.Response.Headers.CacheControl = "no-store";
@@ -274,7 +285,7 @@ public static class Phase10InvoiceDispatchDevelopmentEndpoints
             return outcome.Decision switch {
                 InvoiceApiDecision.Success => Results.Ok(new {
                     safeCode=outcome.SafeCode, referenceNumber=outcome.ReferenceNumber,
-                    authorityResult=outcome.AuthorityResult,
+                    environment=outcome.Environment, authorityResult=outcome.AuthorityResult,
                     fiscalAccepted=false, authoritySubmitted=false }),
                 InvoiceApiDecision.Unauthenticated => Results.Unauthorized(),
                 InvoiceApiDecision.Forbidden => Results.StatusCode(403),
@@ -404,20 +415,20 @@ public static class Phase10InvoiceDispatchDevelopmentEndpoints
         });
 
         group.MapPost("/send-and-inquire", async (Guid taxpayerId,Guid invoiceId,
-            HttpContext http,Phase10OneClickSandboxSubmissionService workflow,CancellationToken ct)=>{
+            HttpContext http,Phase18InvoiceSubmissionService workflow,CancellationToken ct)=>{
             if(!Local(http))return Results.NotFound();
             http.Response.Headers.CacheControl="no-store";
             var result=await workflow.SendAsync(Token(http),taxpayerId,invoiceId,ct);
             return result.Decision switch{
                 InvoiceApiDecision.Success=>Results.Ok(new{status=result.Status,
                     safeCode=result.Code,referenceNumber=result.ReferenceNumber,
-                    inquiryCode=result.InquiryCode}),
+                    inquiryCode=result.InquiryCode,environment=result.Environment}),
                 InvoiceApiDecision.Unauthenticated=>Results.Unauthorized(),
                 InvoiceApiDecision.Forbidden=>Results.StatusCode(403),
                 InvoiceApiDecision.NotFound=>Results.NotFound(),
                 InvoiceApiDecision.Conflict=>Results.Conflict(new{error=result.Code,
-                    status=result.Status}),
-                _=>Results.BadRequest(new{error=result.Code})
+                    status=result.Status,environment=result.Environment}),
+                _=>Results.BadRequest(new{error=result.Code,environment=result.Environment})
             };
         });
 
@@ -434,6 +445,8 @@ public static class Phase10InvoiceDispatchDevelopmentEndpoints
                 return Results.StatusCode(403);
             if (result.Decision != InvoiceApiDecision.Success)
                 return Results.NotFound();
+            if (result.Environment != "Sandbox" || !result.LegacySandbox)
+                return Results.BadRequest(new { error = "sandbox_required", environment = result.Environment });
             if (configuration["SandboxInvoiceLegacy:Enabled"] != "true" ||
                 configuration["SandboxInvoiceLegacy:OperatorApprovedEndpoint"] != "true")
                 return Results.Json(new { error = "invoice_dispatch_not_enabled",

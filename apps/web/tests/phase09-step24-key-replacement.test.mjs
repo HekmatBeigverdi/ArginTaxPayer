@@ -26,10 +26,16 @@ test("key finalization consumes approval and selects new key in the same journal
   assert.doesNotMatch(journal,/DbSigningKeyEnvelopes\.Remove/);
 });
 
-test("existing and generated key entry both check active approval and never bypass fresh login",()=>{
+test("same public key can restore custody while different-key replacement still needs approval",()=>{
   const existing=ts("app/taxpayers/existing-key-import.tsx");
   const generation=ts("app/taxpayers/signing-key-generation.tsx");
   assert.match(existing,/state\.replacementApproved/);
+  assert.match(existing,/اگر اثرانگشت کلید عمومی با کلید ثبت‌شدهٔ همین حافظه یکسان باشد/);
+  const journal=cs("src/ArginTaxPayer.Infrastructure/Persistence/Signing/EfSigningImportJournal.cs");
+  const service=cs("src/ArginTaxPayer.Infrastructure/Signing/Import/SigningKeyImportService.cs");
+  assert.match(journal,/FindSameKeyTargetAsync/);
+  assert.match(service,/FindSameKeyTargetAsync/);
+  assert.match(service,/custody\.StageAsync\(sameKeyTarget\.Identity, key, ct\)/);
   assert.match(generation,/state\.hasKey && !state\.replacementApproved/);
   assert.match(generation,/state\.freshLogin/);
   assert.match(existing,/state\.freshLogin/);

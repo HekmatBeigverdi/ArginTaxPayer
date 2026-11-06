@@ -44,10 +44,14 @@ SELECT d.state,d.created_at_utc,
  (SELECT r.authority_reference FROM invoice_dispatch_receipts r
   WHERE r.operation_id=d.id AND r.receipt_kind=1
   ORDER BY r.observed_at_utc DESC LIMIT 1),
- (SELECT ir.report_json->>'Status' FROM sandbox_authority_inquiry_reports ir
+ COALESCE((SELECT ir.report_json->>'Status' FROM production_authority_inquiry_reports ir
   WHERE ir.operation_id=d.id AND ir.customer_user_id=d.customer_user_id
     AND ir.taxpayer_id=d.taxpayer_id AND ir.invoice_id=d.invoice_id
   ORDER BY ir.observed_at_utc DESC,ir.id DESC LIMIT 1),
+ (SELECT ir.report_json->>'Status' FROM sandbox_authority_inquiry_reports ir
+  WHERE ir.operation_id=d.id AND ir.customer_user_id=d.customer_user_id
+    AND ir.taxpayer_id=d.taxpayer_id AND ir.invoice_id=d.invoice_id
+  ORDER BY ir.observed_at_utc DESC,ir.id DESC LIMIT 1)),
  (SELECT f.fiscal_tax_id FROM sandbox_invoice_fiscal_reservations f
   WHERE f.invoice_id=d.invoice_id AND f.taxpayer_id=d.taxpayer_id
     AND f.customer_user_id=d.customer_user_id
@@ -87,10 +91,14 @@ SELECT d.id,d.subject,d.issue_date_utc,
  (SELECT f.fiscal_tax_id FROM sandbox_invoice_fiscal_reservations f
   WHERE f.invoice_id=d.id AND f.customer_user_id=d.customer_user_id
     AND f.taxpayer_id=d.taxpayer_id ORDER BY f.created_at_utc DESC LIMIT 1),
- (SELECT ir.report_json->>'Status' FROM sandbox_authority_inquiry_reports ir
+ COALESCE((SELECT ir.report_json->>'Status' FROM production_authority_inquiry_reports ir
   WHERE ir.invoice_id=d.id AND ir.customer_user_id=d.customer_user_id
     AND ir.taxpayer_id=d.taxpayer_id
   ORDER BY ir.observed_at_utc DESC,ir.id DESC LIMIT 1),
+ (SELECT ir.report_json->>'Status' FROM sandbox_authority_inquiry_reports ir
+  WHERE ir.invoice_id=d.id AND ir.customer_user_id=d.customer_user_id
+    AND ir.taxpayer_id=d.taxpayer_id
+  ORDER BY ir.observed_at_utc DESC,ir.id DESC LIMIT 1)),
  (SELECT rc.authority_reference FROM invoice_dispatch_receipts rc
   JOIN invoice_dispatch_operations op ON op.id=rc.operation_id
   WHERE op.invoice_id=d.id AND op.customer_user_id=d.customer_user_id

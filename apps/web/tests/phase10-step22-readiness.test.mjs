@@ -19,10 +19,10 @@ test("step22: readiness only returns owner-scoped invoice information",()=>{
  assert.match(service,/environment,ready,ready,signedPacketAvailable,false/);
  assert.doesNotMatch(service,/SendAsync\(|HttpClient|private_envelope_json/);
 });
-test("step22: BFF only enables readiness on a verified signed blocker-free Sandbox packet",()=>{
+test("step22: BFF only enables readiness on a verified signed blocker-free Production or Sandbox packet",()=>{
  assert.match(bff,/ACCESS_COOKIE/);
  assert.match(bff,/blockingCodes/);
- assert.match(bff,/data.environment!=="Sandbox"/);
+ assert.match(bff,/!\["Production","Sandbox"\]\.includes/);
  assert.match(bff,/signedPacketAvailable:data.signedPacketAvailable,fiscalAccepted:false/);
  assert.doesNotMatch(bff,/export async function POST/);
  assert.match(api,/MapGet\("\/readiness"/);

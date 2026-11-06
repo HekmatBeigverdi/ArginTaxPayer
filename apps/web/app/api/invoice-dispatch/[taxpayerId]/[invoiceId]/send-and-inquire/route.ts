@@ -29,6 +29,7 @@ export async function POST(request:NextRequest,context:Context){
   const data=parsed as Record<string,unknown>;
   if(!response.ok)return fail(response.status,typeof data.error==="string"?data.error:"send_failed");
   return NextResponse.json({
+   environment:data.environment==="Production"?"Production":data.environment==="Sandbox"?"Sandbox":undefined,
    status:data.status==="Acknowledged"?"Acknowledged":"Blocked",
    referenceNumber:typeof data.referenceNumber==="string"?data.referenceNumber:null,
    safeCode:typeof data.inquiryCode==="string"?data.inquiryCode:

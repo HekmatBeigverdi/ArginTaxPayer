@@ -58,7 +58,7 @@ type HeaderOptions = {
     displayName: string;
     normalizedIdentifier: string;
   };
-  memories: { id: string; memoryIdentifier: string; status: number }[];
+  memories: { id: string; memoryIdentifier: string; status: number; authorityEnvironment: 1 | 2 | null }[];
   sandboxMemories?: {
     id: string;
     memoryIdentifier: string;
@@ -284,6 +284,9 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   const [otherTaxInput,setOtherTaxInput] = useState("0");
   const nextKey = useRef(0);
   const [detail, setDetail] = useState<Invoice | null>(null);
+  const [autoOpenDispatchFor, setAutoOpenDispatchFor] = useState("");
+  const [rejectedDraftBusy,setRejectedDraftBusy]=useState(false);
+  const [rejectedDraftError,setRejectedDraftError]=useState("");
   const [correctionTarget,setCorrectionTarget]=useState<Invoice|null>(null);
   const [returnTarget,setReturnTarget]=useState<Invoice|null>(null);
   const [lineage, setLineage] = useState<Invoice | null>(null);
@@ -804,7 +807,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
               item.reviewState === "Approved" ? "تأیید داخلی" : "پیش‌نویس داخلی"}</td>
             <td><span style={{color:item.authorityStatus==="SUCCESS"?"#15803d":
               item.authorityStatus==="FAILED"?"#b91c1c":undefined,fontWeight:600}}>
-              {item.authorityStatus==="SUCCESS"?"تأیید شده در Sandbox":
+              {item.authorityStatus==="SUCCESS"?"نتیجه موفق سازمان":
                item.authorityStatus==="FAILED"?"رد شده توسط سازمان":
                item.authorityStatus==="PENDING"?"در انتظار بررسی":
                item.authorityStatus==="ACKNOWLEDGED"?"کد رهگیری دریافت شد":
@@ -817,7 +820,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
             <td>{item.kind === "workspace" ? <button type="button" className="console-row-action"
               onClick={() => void editDraft(item)}>ویرایش و ادامه</button> :
               <span style={{display:"inline-flex",gap:5,alignItems:"center",flexWrap:"wrap"}}>
-               <button type="button" className="console-row-action" onClick={()=>setDetail(item)}>مشاهده</button>
+               <button type="button" className="console-row-action" onClick={()=>{setAutoOpenDispatchFor("");setDetail(item);}}>مشاهده</button>
                {item.authorityStatus==="SUCCESS"&&["Original","SalesReturn"].includes(item.subject)&&
                 <button type="button" className="console-row-action" onClick={()=>setReturnTarget(item)}>برگشت از فروش</button>}
                {item.correctionInProgress&&<button type="button" className="console-row-action"
@@ -846,15 +849,36 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
       invoiceId={correctionTarget.effectiveInvoiceId ?? correctionTarget.id} onClose={()=>setCorrectionTarget(null)} onChanged={()=>void reload()}/>}
     {lineage&&<InvoiceLineageModal taxpayerId={lineage.taxpayerId} invoiceId={lineage.id} onClose={()=>setLineage(null)}/>}
     {detail && <div className="invoice-register__overlay" onMouseDown={e => {
-      if (e.currentTarget === e.target) {setDetail(null);void reload();}
+      if (e.currentTarget === e.target) {setDetail(null);setAutoOpenDispatchFor("");void reload();}
     }}>
       <div className="invoice-register__detail-modal" role="dialog" aria-modal="true"
         aria-label="جزئیات صورتحساب">
         <div className="invoice-register__dialog-header">
           <h2>جزئیات صورتحساب</h2>
-          <button type="button" className="identity-secondary" onClick={() => {setDetail(null);void reload();}}
+          <button type="button" className="identity-secondary" onClick={() => {setDetail(null);setAutoOpenDispatchFor("");void reload();}}
             aria-label="بستن جزئیات">×</button>
         </div>
+        {detail.authorityStatus==="FAILED"&&<section className="invoice-detail-section__content" aria-label="اصلاح صورتحساب ردشده">
+          <p className="field-hint">این صورتحساب توسط سازمان رد شده است. می‌توانید نسخهٔ پیش‌نویس جداگانه‌ای برای اصلاح باز کنید.</p>
+          <button type="button" className="identity-secondary" disabled={rejectedDraftBusy}
+            onClick={async()=>{
+              if(rejectedDraftBusy)return;
+              setRejectedDraftBusy(true);setRejectedDraftError("");
+              try{
+                const taxpayer=detail.taxpayerId;
+                const invoiceId=detail.effectiveInvoiceId??detail.id;
+                const response=await fetch("/api/invoice-dispatch/"+encodeURIComponent(taxpayer)+"/"+
+                  encodeURIComponent(invoiceId)+"/rejection-correction-draft",{
+                    method:"POST",cache:"no-store",credentials:"same-origin"});
+                const data=await response.json().catch(()=>({}));
+                if(!response.ok||data.authoritySubmitted!==false||typeof data.workspaceId!=="string")
+                  throw Error("ساخت پیش‌نویس اصلاح انجام نشد؛ ابتدا گزارش رد سازمان را تازه کنید و دوباره تلاش کنید.");
+                window.location.assign("/invoices?workspaceId="+encodeURIComponent(data.workspaceId)+
+                  (data.issueDateAdjusted===true?"&issueDateAdjusted=1":""));
+              }catch(e){setRejectedDraftError((e as Error).message);setRejectedDraftBusy(false);}
+            }}>{rejectedDraftBusy?"در حال آماده‌سازی پیش‌نویس…":"بازگشت به پیش‌نویس و اصلاح"}</button>
+          {rejectedDraftError&&<p className="form-error" role="alert">{rejectedDraftError}</p>}
+        </section>}
         <details name="invoice-detail-sections" className="fiscal-section invoice-detail-section" open key={"invoice-section:"+detail.id}><summary><span>صورتحساب فروش</span><span className="invoice-detail-section__summary-action">مشاهده جزئیات</span></summary>
         <div className="fiscal-section-content invoice-detail-section__content">
         <InvoiceFormalPreview key={"formal:"+detail.id} taxpayerId={detail.taxpayerId} invoiceId={detail.effectiveInvoiceId ?? detail.id} reference={detail.systemCode??""} authorityStatus={detail.authorityStatus} subject={detail.subject} onCancellationCompleted={()=>void reload()} onCorrectionCompleted={()=>void reload()} onSalesReturn={()=>setReturnTarget(detail)}/>
@@ -876,7 +900,8 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
         <p className="field-hint">این وضعیت به معنی تأیید سازمان امور مالیاتی نیست.</p>
         </div>
         </details>
-        <details name="invoice-detail-sections" className="fiscal-section invoice-detail-section"><summary><span>{detail.authorityStatus==="SUCCESS"||detail.authorityStatus==="FAILED"||detail.authorityStatus==="PENDING"||detail.authorityStatus==="ACKNOWLEDGED"?"استعلام و نتیجه سازمان":"ارسال به سامانه مؤدیان"}</span><span className="invoice-detail-section__summary-action">مشاهده جزئیات</span></summary>
+        <details name="invoice-detail-sections" className="fiscal-section invoice-detail-section"
+          open={autoOpenDispatchFor===detail.id}><summary><span>{detail.authorityStatus==="SUCCESS"||detail.authorityStatus==="FAILED"||detail.authorityStatus==="PENDING"||detail.authorityStatus==="ACKNOWLEDGED"?"استعلام و نتیجه سازمان":"ارسال به سامانه مؤدیان"}</span><span className="invoice-detail-section__summary-action">مشاهده جزئیات</span></summary>
         <div className="fiscal-section-content invoice-detail-section__content">
         <InvoiceSendReadinessPanel key={"readiness:"+(detail.effectiveInvoiceId ?? detail.id)}
           invoiceId={detail.effectiveInvoiceId ?? detail.id} taxpayerId={detail.taxpayerId}
@@ -934,9 +959,14 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
               <select id="invoice-memory" value={memoryId} disabled={headerLoading || !headerOptions}
                 onChange={e=>setMemoryId(e.target.value)}>
                 <option value="">بدون انتخاب حافظه مالیاتی</option>
-                {(headerOptions?.memories ?? []).map(m=><option key={m.id} value={m.id}>
-                  {m.memoryIdentifier} — {m.status}
-                </option>)}
+                {(headerOptions?.memories ?? []).map(m=>{
+                  const environment=m.authorityEnvironment===1?"Production (اصلی)":m.authorityEnvironment===2?"Sandbox (آزمایشی)":"محیط هنوز تأیید نشده";
+                  const memoryStatus=m.status===2?"فعال":m.status===3?"تعلیق‌شده":m.status===4?"بازنشسته":"در انتظار فعال‌سازی";
+                  return <option key={m.id} value={m.id}
+                    disabled={(m.authorityEnvironment!==1&&m.authorityEnvironment!==2)||m.status!==2}>
+                    {m.memoryIdentifier} — {environment}{m.authorityEnvironment===1||m.authorityEnvironment===2?` · ${memoryStatus}`:""}
+                  </option>;
+                })}
                 {(headerOptions?.sandboxMemories??[]).map(m=><option key={"sandbox:"+m.id} value={"sandbox:"+m.id}>
                   {m.memoryIdentifier} — Sandbox (آزمایشی)
                 </option>)}
@@ -944,6 +974,18 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
               {memoryId.startsWith("sandbox:")&&<small className="invoice-register__hint">
                 حافظه مالیاتی آزمایشی انتخاب شده است؛ این پیش‌نویس فقط برای مسیر Sandbox در نظر گرفته می‌شود.
                 انتخاب Sandbox به معنای آماده‌بودن ارسال صورتحساب نیست.
+              </small>}
+              {headerOptions?.memories.some(m=>m.authorityEnvironment!==1&&m.authorityEnvironment!==2)&&<small className="invoice-register__hint">
+                حافظه با محیط نامشخص قابل انتخاب نیست؛ آزمون موفق Production با تطابق هویت، محیط را ثبت می‌کند.
+              </small>}
+              {headerOptions?.memories.some(m=>m.authorityEnvironment===1&&m.status!==2)&&<small className="invoice-register__hint">
+                حافظه Production شناسایی شده، اما هنوز فعال نیست؛ مالک مؤدی می‌تواند در بخش مودیان «بررسی سازمان و فعال‌سازی حافظه» را انجام دهد.
+              </small>}
+              {memoryId&&!memoryId.startsWith("sandbox:")&&headerOptions?.memories.find(m=>m.id===memoryId)?.authorityEnvironment===1&&headerOptions?.memories.find(m=>m.id===memoryId)?.status!==2&&<small className="invoice-register__hint">
+                محیط حافظه Production ثبت شده، اما حافظه هنوز از سوی سازمان بررسی و فعال نشده است؛ تا آن زمان برای ارسال قابل انتخاب نیست.
+              </small>}
+              {memoryId&&!memoryId.startsWith("sandbox:")&&headerOptions?.memories.find(m=>m.id===memoryId)?.authorityEnvironment===1&&headerOptions?.memories.find(m=>m.id===memoryId)?.status===2&&<small className="invoice-register__hint">
+                حافظه اصلی فعال شده است؛ ارسال با اقدام شما به Production در tp.tax.gov.ir انجام می‌شود.
               </small>}
               {headerLoading && <small role="status">در حال دریافت اطلاعات مؤدی و حافظه مالیاتی…</small>}
               {headerError && <small role="alert" className="form-error">{headerError}</small>}
@@ -1160,7 +1202,15 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
                   setEditing(refreshed);setDate(refreshedTehran.date);setHour(refreshedTehran.time);
                   setSavedSnapshot(null);
                 }}
-                onPrepared={()=>{setModal(false);setNotice("نسخه ثابت داخلی ثبت شد؛ ارسال مالیاتی هنوز غیرفعال است.");void reload();}}/>}
+                onPrepared={invoiceId=>{
+                  setModal(false);
+                  setNotice("نسخه ثابت ثبت شد؛ پنل ارسال صورتحساب باز می‌شود.");
+                  setAutoOpenDispatchFor(invoiceId);
+                  void reload();
+                  void getJson<Invoice>(`/api/invoices/${encodeURIComponent(editing.taxpayerId)}/${encodeURIComponent(invoiceId)}`)
+                    .then(prepared=>setDetail(prepared))
+                    .catch(()=>{setAutoOpenDispatchFor("");setNotice("نسخه ثابت ثبت شد؛ برای ارسال، صورتحساب را از فهرست باز کنید.");});
+                }}/>}
               <p className="invoice-register__hint">
                 توضیحات و تسویه در پیش‌نویس قابل‌ویرایش ذخیره می‌شوند.
                 مبالغ مالیاتی و روش تسویه قبل از صدور رسمی باید در سرویس اعتبارسنجی

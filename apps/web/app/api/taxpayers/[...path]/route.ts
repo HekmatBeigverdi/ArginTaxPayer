@@ -15,7 +15,9 @@ function validPath(parts: string[], method: "GET" | "POST" | "PATCH") {
         uuid.test(parts[2]) && parts[3] === "certificates");
   }
   if (method === "POST") return (parts.length === 1 && parts[0] === "new") ||
-    (parts.length === 2 && uuid.test(parts[0]) && ["memories", "archive"].includes(parts[1]));
+    (parts.length === 2 && uuid.test(parts[0]) && ["memories", "archive"].includes(parts[1])) ||
+    (parts.length === 4 && uuid.test(parts[0]) && parts[1] === "memories" && uuid.test(parts[2]) &&
+      ["classify-authority", "verify-and-activate"].includes(parts[3]));
   return parts.length === 2 && uuid.test(parts[0]) &&
     ["display-name", "legal-identifier"].includes(parts[1]);
 }
@@ -37,7 +39,14 @@ async function proxy(req: NextRequest, params: Promise<{ path: string[] }>,
     try {
       payload = await req.text();
       if (payload.length > 2048 || !payload.trim()) return deny(400, "invalid_request");
-      JSON.parse(payload);
+      const parsed = JSON.parse(payload);
+      if (path.length === 4 && ["classify-authority", "verify-and-activate"].includes(path[3])) {
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed) ||
+            !Number.isSafeInteger(parsed.expectedRevision) || parsed.expectedRevision < 1 ||
+            Object.keys(parsed).some(key => !["expectedRevision", ...(path[3] === "classify-authority" ? ["authorityEnvironment"] : [])].includes(key)) ||
+            path[3] === "classify-authority" && ![1, 2].includes(parsed.authorityEnvironment))
+          return deny(400, "invalid_request");
+      }
     } catch { return deny(400, "invalid_request"); }
   }
   try {
@@ -47,7 +56,7 @@ async function proxy(req: NextRequest, params: Promise<{ path: string[] }>,
         Authorization: "Bearer " + token,
         ...(payload ? { "Content-Type": "application/json" } : {})
       }, ...(payload ? { body: payload } : {}),
-      cache: "no-store", redirect: "manual", signal: AbortSignal.timeout(10000)
+      cache: "no-store", redirect: "manual", signal: AbortSignal.timeout(path[3] === "verify-and-activate" ? 45000 : 10000)
     });
     if ([200, 201].includes(response.status)) {
       const body = await response.text();
@@ -56,7 +65,17 @@ async function proxy(req: NextRequest, params: Promise<{ path: string[] }>,
         "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store"
       } });
     }
-    const status = [400, 401, 403, 404, 409].includes(response.status) ? response.status : 502;
+    const status = [400, 401, 403, 404, 409, 422].includes(response.status) ? response.status : 502;
+    if (path.length === 4 && ["classify-authority", "verify-and-activate"].includes(path[3])) {
+      const raw = await response.text();
+      if (raw.length <= 4096) {
+        try {
+          const value = JSON.parse(raw);
+          if (typeof value?.error === "string" && /^[a-z0-9_.]{1,100}$/.test(value.error))
+            return deny(status, value.error);
+        } catch { /* Fall through to a bounded generic error. */ }
+      }
+    }
     return deny(status, status === 409 ? "conflict" : status === 404 ? "not_found" :
       status === 401 ? "unauthorized" : status === 403 ? "forbidden" : "request_rejected");
   } catch { return deny(503, "service_unavailable"); }
