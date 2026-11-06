@@ -4,7 +4,7 @@ This checklist is for the owner to run against an approved, isolated Production 
 
 ## Before testing
 
-1. Back up the current database and apply the additive migration `20261106010000_AddProductionLegalSuccessorRelations` using the approved Production migrator identity.
+1. The local `argintaxpayer_test` database already has `20261106010000_AddProductionLegalSuccessorRelations`. For any other target, verify the migration history; back up and use that environment's approved migrator process before testing there.
 2. Confirm the owner-approved invoice memory is classified as Production and that the existing Original send remains the passing baseline with an acknowledged dispatch.
 3. For a staged owner test instance only, set `Phase18Production__LegalSuccessorsEnabled=true` and `Phase18Production__LegalSuccessorsOperatorApproved=true` in its protected API environment file. Leave these unset/false elsewhere. Do not remove the existing service activation gate as part of this feature test.
 4. Inquire the predecessor and confirm the saved authority report says `SUCCESS`. An enqueue acknowledgement alone does not qualify.
