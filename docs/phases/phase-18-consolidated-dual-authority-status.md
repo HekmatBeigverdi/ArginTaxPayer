@@ -1,5 +1,13 @@
 # Phase 18 — consolidated dual-authority implementation status
 
+## Owner-confirmed workflow update (2026-11-06)
+
+- The owner reports the existing Production original-invoice send was tested live and works. Do not replace or refactor that sender.
+- The owner reports all Sandbox invoice operations (original, correction, cancellation and sales return) are tested and work. Keep their legacy tables, keys and service flow isolated.
+- This branch adds a version-pinned protocol profile and Production legal-successor persistence/dispatch. The new migration is additive and has **not** been applied to any database; Production legal successors have not been live-tested.
+- The authority inquiry must return `SUCCESS` for the predecessor before a legal successor can be prepared. A packet acknowledgement is not fiscal acceptance.
+- The modern SDK 2.0.32 remains inactive. See the owner test steps in `docs/phase18-production-invoice-operations-operator-checklist.md`.
+
 ## What was implemented in one branch
 
 1. `fiscal_memories.authority_environment`: nullable, explicit `Production=1/Sandbox=2`; legacy memories remain NULL and cannot authorize modern dispatch. API onboarding and Persian UI require explicit selection.

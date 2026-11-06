@@ -31,32 +31,32 @@ public static class Phase10InvoiceDispatchDevelopmentEndpoints
                 _=>Results.BadRequest(result)
             };
         group.MapPost("/correction-draft",async(Guid taxpayerId,Guid invoiceId,
-            HttpContext http,Phase10SandboxCorrectionService service,CancellationToken ct)=>{
+            HttpContext http,Phase18CorrectionServiceRouter service,CancellationToken ct)=>{
             if(!Local(http))return Results.NotFound();
             http.Response.Headers.CacheControl="no-store";
             return CorrectionResult(await service.OpenAsync(Token(http),taxpayerId,invoiceId,ct));
         });
         group.MapGet("/correction-draft",async(Guid taxpayerId,Guid invoiceId,
-            HttpContext http,Phase10SandboxCorrectionService service,CancellationToken ct)=>{
+            HttpContext http,Phase18CorrectionServiceRouter service,CancellationToken ct)=>{
             if(!Local(http))return Results.NotFound();
             http.Response.Headers.CacheControl="no-store";
             return CorrectionResult(await service.ReadAsync(Token(http),taxpayerId,invoiceId,ct));
         });
         group.MapPut("/correction-draft",async(Guid taxpayerId,Guid invoiceId,
             CorrectionSaveRequest input,HttpContext http,
-            Phase10SandboxCorrectionService service,CancellationToken ct)=>{
+            Phase18CorrectionServiceRouter service,CancellationToken ct)=>{
             if(!Local(http))return Results.NotFound();
             http.Response.Headers.CacheControl="no-store";
             return CorrectionResult(await service.SaveAsync(Token(http),taxpayerId,invoiceId,input,ct));
         });
         group.MapDelete("/correction-draft",async(Guid taxpayerId,Guid invoiceId,
-            HttpContext http,Phase10SandboxCorrectionService service,CancellationToken ct)=>{
+            HttpContext http,Phase18CorrectionServiceRouter service,CancellationToken ct)=>{
             if(!Local(http))return Results.NotFound();
             http.Response.Headers.CacheControl="no-store";
             return CorrectionResult(await service.DiscardAsync(Token(http),taxpayerId,invoiceId,ct));
         });
         group.MapPost("/correction-send-and-inquire",async(Guid taxpayerId,Guid invoiceId,
-            HttpContext http,Phase10SandboxCorrectionService service,CancellationToken ct)=>{
+            HttpContext http,Phase18CorrectionServiceRouter service,CancellationToken ct)=>{
             if(!Local(http))return Results.NotFound();
             http.Response.Headers.CacheControl="no-store";
             return CorrectionResult(await service.SubmitAsync(Token(http),taxpayerId,invoiceId,ct));
@@ -71,38 +71,38 @@ public static class Phase10InvoiceDispatchDevelopmentEndpoints
                 _=>Results.BadRequest(result)
             };
         group.MapPost("/sales-return-draft",async(Guid taxpayerId,Guid invoiceId,
-            HttpContext http,Phase10SandboxSalesReturnService service,CancellationToken ct)=>{
+            HttpContext http,Phase18SalesReturnServiceRouter service,CancellationToken ct)=>{
             if(!Local(http))return Results.NotFound();
             http.Response.Headers.CacheControl="no-store";
             return SalesReturnResult(await service.OpenAsync(Token(http),taxpayerId,invoiceId,ct));
         });
         group.MapGet("/sales-return-draft",async(Guid taxpayerId,Guid invoiceId,
-            HttpContext http,Phase10SandboxSalesReturnService service,CancellationToken ct)=>{
+            HttpContext http,Phase18SalesReturnServiceRouter service,CancellationToken ct)=>{
             if(!Local(http))return Results.NotFound();
             http.Response.Headers.CacheControl="no-store";
             return SalesReturnResult(await service.ReadAsync(Token(http),taxpayerId,invoiceId,ct));
         });
         group.MapPut("/sales-return-draft",async(Guid taxpayerId,Guid invoiceId,
             SalesReturnSaveRequest input,HttpContext http,
-            Phase10SandboxSalesReturnService service,CancellationToken ct)=>{
+            Phase18SalesReturnServiceRouter service,CancellationToken ct)=>{
             if(!Local(http))return Results.NotFound();
             http.Response.Headers.CacheControl="no-store";
             return SalesReturnResult(await service.SaveAsync(Token(http),taxpayerId,invoiceId,input,ct));
         });
         group.MapDelete("/sales-return-draft",async(Guid taxpayerId,Guid invoiceId,
-            HttpContext http,Phase10SandboxSalesReturnService service,CancellationToken ct)=>{
+            HttpContext http,Phase18SalesReturnServiceRouter service,CancellationToken ct)=>{
             if(!Local(http))return Results.NotFound();
             http.Response.Headers.CacheControl="no-store";
             return SalesReturnResult(await service.DiscardAsync(Token(http),taxpayerId,invoiceId,ct));
         });
         group.MapPost("/sales-return-send-and-inquire",async(Guid taxpayerId,Guid invoiceId,
-            HttpContext http,Phase10SandboxSalesReturnService service,CancellationToken ct)=>{
+            HttpContext http,Phase18SalesReturnServiceRouter service,CancellationToken ct)=>{
             if(!Local(http))return Results.NotFound();
             http.Response.Headers.CacheControl="no-store";
             return SalesReturnResult(await service.SubmitAsync(Token(http),taxpayerId,invoiceId,ct));
         });
         group.MapPost("/cancel-and-inquire",async(Guid taxpayerId,Guid invoiceId,
-            HttpContext http,Phase10SandboxCancellationService service,CancellationToken ct)=>{
+            HttpContext http,Phase18CancellationServiceRouter service,CancellationToken ct)=>{
             if(!Local(http))return Results.NotFound();
             http.Response.Headers.CacheControl="no-store";
             var result=await service.SendAsync(Token(http),taxpayerId,invoiceId,ct);
@@ -121,7 +121,7 @@ public static class Phase10InvoiceDispatchDevelopmentEndpoints
             };
         });
         group.MapGet("/cancellation-eligibility",async(Guid taxpayerId,Guid invoiceId,
-            HttpContext http,Phase10CancellationEligibilityService service,CancellationToken ct)=>{
+            HttpContext http,Phase18CancellationServiceRouter service,CancellationToken ct)=>{
             if(!Local(http))return Results.NotFound();
             http.Response.Headers.CacheControl="no-store";
             var value=await service.ReadAsync(Token(http),taxpayerId,invoiceId,ct);

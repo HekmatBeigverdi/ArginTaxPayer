@@ -14,10 +14,11 @@ using Npgsql;
 namespace ArginTaxPayer.Infrastructure.Persistence.Invoices;
 
 /// <summary>
-/// Prepares one owned finalized classified-memory Original Type1/Pattern1 invoice.
+/// Prepares one owned finalized classified-memory Type1/Pattern1 invoice.
 /// The frozen revision, exact active memory, serial, signed encrypted outbox and
-/// RESERVED operation are checked/committed atomically. This performs credential
-/// reads only; the explicitly invoked scoped worker owns the single invoice POST.
+/// RESERVED operation are checked/committed atomically. Legal successors require
+/// a same-memory predecessor relation backed by a persisted authority SUCCESS report.
+/// Credential reads precede the explicitly invoked scoped worker's single POST.
 /// </summary>
 public sealed class Phase18ProductionInvoicePreparationService(
     ArginTaxPayerDbContext db, TaxpayerScopeService scope, IServiceProvider services)
@@ -72,8 +73,9 @@ SELECT id FROM invoice_documents WHERE id=@invoice AND customer_user_id=@owner A
                 i.TaxpayerId==taxpayerId,ct);
         if(invoice is null)
             return new(InvoiceApiDecision.NotFound,"invoice_not_found");
-        if(invoice.Subject!=InvoiceSubject.Original)
-            return Denied("production_legal_successor_not_supported");
+        if(invoice.Subject is not (InvoiceSubject.Original or InvoiceSubject.Correction or
+            InvoiceSubject.Cancellation or InvoiceSubject.SalesReturn))
+            return Denied("production_invoice_subject_unsupported");
         if(invoice.State!=InvoiceLifecycleState.Finalized)
             return Denied("invoice_not_finalized");
         if(invoice.IssueDateUtc > DateTime.UtcNow)
@@ -125,6 +127,34 @@ FOR UPDATE OF m
         var environment=Phase18PersistedAuthorityOperationGate.FromPersistedValue(environmentValue);
         var environmentName=environment==TaxAuthorityEnvironment.Production?"Production":"Sandbox";
         if(env.GetString()!=environmentName)return Denied("invoice_memory_environment_mismatch");
+        if(invoice.Subject!=InvoiceSubject.Original)
+        {
+            if(environment!=TaxAuthorityEnvironment.Production)
+                return Denied("production_legal_relation_environment_required");
+            var predecessorReference = root.TryGetProperty("referenceTaxId", out var referenceField) &&
+                referenceField.ValueKind == JsonValueKind.String ? referenceField.GetString() : null;
+            if(predecessorReference is not { Length: 22 })
+                return Denied("production_legal_relation_not_verified");
+            var relationVerified=await Scalar(connection,transaction,"""
+SELECT EXISTS (
+ SELECT 1 FROM authority_invoice_legal_relations lr
+ JOIN authority_invoice_fiscal_reservations pr ON pr.customer_user_id=lr.customer_user_id
+   AND pr.taxpayer_id=lr.taxpayer_id AND pr.invoice_id=lr.predecessor_invoice_id
+   AND pr.fiscal_memory_id=@memory AND pr.authority_environment=1
+ JOIN production_authority_inquiry_reports ir ON ir.operation_id=lr.predecessor_operation_id
+   AND ir.customer_user_id=lr.customer_user_id AND ir.taxpayer_id=lr.taxpayer_id
+   AND ir.invoice_id=lr.predecessor_invoice_id
+ WHERE lr.customer_user_id=@owner AND lr.taxpayer_id=@taxpayer
+   AND lr.successor_invoice_id=@invoice AND lr.subject=@subject
+   AND lr.state IN (1,2,4) AND lr.predecessor_fiscal_tax_id=@reference
+   AND @environment=1
+   AND ir.report_json->>'Status'='SUCCESS'
+)
+""",ct, ("memory",memoryId),("environment",environmentValue),
+                ("owner",owner.Value),("taxpayer",taxpayerId),("invoice",invoiceId),
+                ("subject",(int)invoice.Subject),("reference",predecessorReference));
+            if(relationVerified is not true)return Denied("production_legal_relation_not_verified");
+        }
         var binding=new AuthorityOperationBinding(owner.Value,taxpayerId,invoiceId,memoryId,
             environment);
         var existing=await FindExistingAsync(connection,transaction,owner.Value,taxpayerId,invoiceId,invoice.Revision,memoryId,environmentValue,ct);

@@ -66,18 +66,21 @@
 
 **Files:**
 - Create: `src/ArginTaxPayer.Infrastructure/Persistence/Invoices/Phase18ProductionCorrectionService.cs`
+- Modify: `src/ArginTaxPayer.Infrastructure/Persistence/Invoices/Phase18ProductionInvoicePreparationService.cs`
+- Create: additive migration for Production legal-successor relations and correction workspaces
+- Modify: `src/ArginTaxPayer.Infrastructure/Persistence/Invoices/Phase18InvoiceMemoryBindingService.cs` only if successor binding needs a scoped predecessor resolution
+- Modify: `src/ArginTaxPayer.Api/Program.cs` for Production operation service registration
 - Modify: `src/ArginTaxPayer.Api/Invoices/Phase10InvoiceDispatchDevelopmentEndpoints.cs`
-- Modify: `apps/web/app/invoices/invoice-correction-modal.tsx`
-- Modify: `apps/web/app/api/invoice-dispatch/[taxpayerId]/[invoiceId]/correction-draft/route.ts`
-- Modify: `apps/web/app/api/invoice-dispatch/[taxpayerId]/[invoiceId]/correction-send-and-inquire/route.ts`
-- Test: `tests/ArginTaxPayer.Tests/Phase18ProductionCorrectionTests.cs`
-- Test: `apps/web/tests/phase18-production-correction.test.mjs`
+- Test: `tests/ArginTaxPayer.Tests/Phase18ProductionLegalSuccessorAdmissionTests.cs`
+- Test: `apps/web/tests/phase18-production-legal-successor-routing.test.mjs`
 
-- [ ] **Step 1: Write failing tests** for accepted Production predecessor requirement, separate immutable successor, allowed correction edits, revision CAS, shared correction/return claim, same-memory environment, and source immutability.
-- [ ] **Step 2: Run tests and confirm expected failures.**
-- [ ] **Step 3: Implement Production correction draft/read/save/prepare/send** using shared V7.9 domain validation, production-only persistence and Phase18 dispatch/outbox.
-- [ ] **Step 4: Route the existing correction UI action to the authenticated BFF/API** and display blockers/acknowledgement/authority status distinctly.
-- [ ] **Step 5: Run focused correction and Sandbox regression tests.**
+- [x] **Step 1: Add focused admission/lineage contracts** for accepted Production predecessor requirements, separate immutable successors, allowed correction edits, revision CAS, shared correction/return claim, same-memory environment, and source immutability.
+- [x] **Step 2: Confirm the admission tests expose the missing relation/preparation guard before implementation.**
+- [x] **Step 3: Implement Production correction draft/read/save/prepare/send** using shared V7.9 domain validation, production-only persistence and Phase18 dispatch/outbox.
+- [x] **Step 4: Route through the authenticated API/BFF.** The current UI/BFF already use these API routes and DTOs, so environment selection is in the API router and the UI is unchanged.
+- [x] **Step 5: Run focused correction and Sandbox rule regression tests.**
+
+**Plan amendment (2026-11-06):** Initial file list omitted schema admission and the existing Production preparation gate, which currently rejects all non-original subjects. Those are required for a real end-to-end path; changing them is limited to a persisted legal-relation-qualified successor and must preserve the Original path byte-for-byte at the protocol boundary. The API must resolve the persisted environment and dispatch to the Production or existing Sandbox implementation; it must never accept an environment from the caller.
 
 ### Task 4: Production cancellation successor
 
@@ -87,14 +90,14 @@
 - Modify: `apps/web/app/invoices/invoice-formal-preview.tsx`
 - Modify: `apps/web/app/api/invoice-dispatch/[taxpayerId]/[invoiceId]/cancel-and-inquire/route.ts`
 - Modify: `apps/web/app/api/invoice-dispatch/[taxpayerId]/[invoiceId]/cancellation-eligibility/route.ts`
-- Test: `tests/ArginTaxPayer.Tests/Phase18ProductionCancellationTests.cs`
-- Test: `apps/web/tests/phase18-production-cancellation.test.mjs`
+- Test: `tests/ArginTaxPayer.Tests/Phase18ProductionLegalSuccessorAdmissionTests.cs`
+- Test: `apps/web/tests/phase18-production-legal-successor-routing.test.mjs`
 
-- [ ] **Step 1: Write failing tests** for eligible predecessor resolution, one active cancellation claim, unchanged predecessor, cancellation wire projection, idempotent repeated request, and environment isolation.
-- [ ] **Step 2: Run tests and confirm expected failures.**
-- [ ] **Step 3: Implement Production cancellation successor persistence/admission/dispatch** using the versioned legacy profile and appropriate V7.9 rules.
-- [ ] **Step 4: Wire the existing cancellation UI and status display** to the Production path while retaining Sandbox behavior.
-- [ ] **Step 5: Run focused cancellation and Sandbox regression tests.**
+- [x] **Step 1: Add shared admission/environment contracts** and reuse existing cancellation-wire/domain tests.
+- [x] **Step 2: Confirm the relation/schema guards and route contracts are covered.**
+- [x] **Step 3: Implement Production cancellation successor persistence/admission/dispatch** using the versioned legacy profile and V7.9 rules.
+- [x] **Step 4: Wire the existing cancellation UI/API route** through the Production or Sandbox router.
+- [x] **Step 5: Run focused cancellation and Sandbox regression tests.**
 
 ### Task 5: Production sales-return successor
 
@@ -104,14 +107,16 @@
 - Modify: `apps/web/app/invoices/invoice-sales-return-modal.tsx`
 - Modify: `apps/web/app/api/invoice-dispatch/[taxpayerId]/[invoiceId]/sales-return-draft/route.ts`
 - Modify: `apps/web/app/api/invoice-dispatch/[taxpayerId]/[invoiceId]/sales-return-send-and-inquire/route.ts`
-- Test: `tests/ArginTaxPayer.Tests/Phase18ProductionSalesReturnTests.cs`
-- Test: `apps/web/tests/phase18-production-sales-return.test.mjs`
+- Test: `tests/ArginTaxPayer.Tests/Phase18ProductionLegalSuccessorAdmissionTests.cs`
+- Test: `apps/web/tests/phase18-production-legal-successor-routing.test.mjs`
 
-- [ ] **Step 1: Write failing tests** for accepted predecessor requirement, nonincreasing remaining quantities, at least one decrease, no all-zero return, unchanged protected values, correction/return exclusivity, and immutable source.
-- [ ] **Step 2: Run tests and confirm expected failures.**
-- [ ] **Step 3: Implement Production return draft/save/prepare/send** using shared V7.9 rules and Production-specific lineage/storage.
-- [ ] **Step 4: Wire the existing return UI/BFF** and surface clear per-step readiness and result states.
-- [ ] **Step 5: Run focused return and Sandbox regression tests.**
+- [x] **Step 1: Add shared admission/environment contracts** and reuse existing V7.9 sales-return rule tests.
+- [x] **Step 2: Confirm the relation/schema guards and route contracts are covered.**
+- [x] **Step 3: Implement Production return draft/save/prepare/send** using shared V7.9 rules and Production-specific lineage/storage.
+- [x] **Step 4: Wire the existing return UI/BFF route** through the Production or Sandbox router.
+- [x] **Step 5: Run focused return and Sandbox regression tests.**
+
+**Tasks 3–5 implementation note:** The authenticated UI/BFF routes and response types already covered the same draft and result contract, so all three environment selections are performed in small API routers. Common production relation/reservation and environment-isolation contracts are tested together; existing V7.9 correction, cancellation and return rule tests remain the domain-level behavior checks. No database integration test is available without an approved migrated test database.
 
 ### Task 6: SDK upgrade contract, staged operator checklist, and release gate
 
@@ -125,6 +130,8 @@
 - [ ] **Step 2: Document the SDK upgrade sequence:** preserve archive/checksum; compare official guide and public API; add a version-specific adapter without altering the active legacy profile; add contract fixtures; run Sandbox contract tests and applicable cross-environment checks; obtain owner approval; pin on deployment; retain rollback.
 - [ ] **Step 3: Write one-at-a-time manual test steps** for Correction, Cancellation and Sales Return; include Original as an existing passing baseline, and document expected acknowledgement/status transitions, indeterminate handling and safe stop conditions.
 - [ ] **Step 4: Run all relevant .NET tests, web tests, typecheck and build** without live tax-authority calls; report any blocked contract compatibility or credentials rather than claiming live readiness.
+
+**Task 6 verification note:** Focused .NET, SDK profile, routing contracts, typecheck and web build pass. The full web suite currently has 10 failures across existing unrelated UI contract files (719 total, 709 passed); therefore the plan's all-web-tests completion gate remains open. No database migration or authority call was run.
 
 ## Completion boundary
 
