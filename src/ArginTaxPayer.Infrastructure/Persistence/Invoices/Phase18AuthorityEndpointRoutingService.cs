@@ -1,4 +1,5 @@
 using ArginTaxPayer.Domain.Invoices;
+using ArginTaxPayer.Application.Invoices;
 using ArginTaxPayer.Infrastructure.Signing.Connection;
 using Microsoft.Extensions.Configuration;
 
@@ -10,7 +11,8 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Invoices;
 /// durable send-attempt state before invoking any transport. No HTTP here.
 /// </summary>
 public sealed class Phase18AuthorityEndpointRoutingService(
-    Phase18PersistedAuthorityOperationGate gate, IConfiguration configuration)
+    Phase18PersistedAuthorityOperationGate gate, IConfiguration configuration,
+    IAuthorityInvoiceProvider protocol)
 {
     public async Task<Uri?> ResolveAsync(Guid operationId, Guid customerUserId,
         Guid taxpayerId, Guid invoiceId, TaxAuthorityEnvironment registeredProvider,
@@ -18,6 +20,8 @@ public sealed class Phase18AuthorityEndpointRoutingService(
     {
         if (registeredProvider is TaxAuthorityEnvironment.Unknown ||
             !Enum.IsDefined(registeredProvider))
+            return null;
+        if (!AuthorityProtocolProfile.CanUseLegacyRoute(protocol, registeredProvider))
             return null;
 
         // Read BOTH database-stored classifications: immutable operation and
