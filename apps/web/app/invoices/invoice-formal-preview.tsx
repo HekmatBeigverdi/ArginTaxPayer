@@ -335,7 +335,10 @@ export default function InvoiceFormalPreview({
            setCancelSucceeded(true);
            onCancellationCompleted?.();
           })
-          .catch(e=>{setCancelEligible(false);setCancelOutcome("وضعیت ابطال نیازمند بررسی است: "+(e as Error).message+"؛ درخواست را تکرار نکنید.");})
+          .catch(e=>{setCancelEligible(false);const code=(e as Error).message;
+           setCancelOutcome(code==="production_legal_successors_disabled"
+            ?"ابطال ارسال نشد؛ مسیر عملیات پروداکشن فعال نیست. پس از فعال‌سازی، دوباره صلاحیت را بررسی کنید."
+            :"وضعیت ابطال نیازمند بررسی است: "+code+"؛ درخواست را تکرار نکنید.");})
           .finally(()=>setCancelSubmitting(false));}}> {cancelSubmitting?"در حال ارسال…":"تأیید و ارسال ابطال"}</button></div>}
       </div>}
       {correctionOpen&&<InvoiceCorrectionModal taxpayerId={taxpayerId} invoiceId={correctionOpen}

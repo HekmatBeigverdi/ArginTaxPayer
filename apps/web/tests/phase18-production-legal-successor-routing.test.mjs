@@ -58,3 +58,14 @@ test("legal successors preserve their source and share V7.9 quantity/edit rules"
   assert.match(salesReturn,/return_quantity_exceeded/);
   assert.match(salesReturn,/UPDATE authority_invoice_sales_return_workspaces SET state=2/);
 });
+
+test("known Production gate refusals stay distinct from uncertain sends across legal actions",()=>{
+  const correction=read("apps/web/app/invoices/invoice-correction-modal.tsx");
+  const salesReturn=read("apps/web/app/invoices/invoice-sales-return-modal.tsx");
+  const cancellation=read("apps/web/app/invoices/invoice-formal-preview.tsx");
+  for(const source of [correction,salesReturn,cancellation])
+    assert.match(source,/production_legal_successors_disabled/);
+  assert.match(correction,/ارسال انجام نشد/);
+  assert.match(salesReturn,/پیش‌نویس حفظ شده است/);
+  assert.match(cancellation,/ابطال ارسال نشد/);
+});
