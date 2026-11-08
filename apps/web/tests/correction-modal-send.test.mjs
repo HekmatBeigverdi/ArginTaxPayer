@@ -67,6 +67,14 @@ test('an unchanged correction is explained as a validation refusal, not an uncer
  assert.ok(result.state[0]);assert.equal(result.state[9],'');assert.equal(result.changed,0);
 });
 
+test('a Production feature gate refusal is reported as not sent and leaves the draft retryable',{timeout:3000},async()=>{
+ const result=await send({sendStatus:400,sendCode:'production_legal_successors_disabled'});
+ assert.notEqual(result.state[14],true);
+ assert.ok(result.state[0]);
+ assert.match(result.state[8],/ارسال انجام نشد/);
+ assert.doesNotMatch(result.state[8],/نتیجه ارسال نیازمند بررسی|بدون استعلام/);
+});
+
 function findConfirmation(element){
  if(!element||typeof element!=='object')return null;
  if(Array.isArray(element))return element.map(findConfirmation).find(Boolean);

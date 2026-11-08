@@ -4,7 +4,7 @@ import { ACCESS_COOKIE, REFRESH_COOKIE, identityBackend, identityUiEnabled } fro
 
 type TokenResponse = { accessToken: string; refreshToken: string; accessExpiresAtUtc?: string; refreshExpiresAtUtc?: string };
 const operations = new Set(["register", "login", "logout", "mfa/challenge", "mfa/complete", "mfa/enroll", "mfa/confirm", "refresh", "me", "sessions", "sessions/revoke", "phone/request", "phone/register/complete", "phone/login/complete", "phone/reset/complete", "admin/customers"]);
-const cookieOptions = { httpOnly: true, sameSite: "strict" as const, secure: false, path: "/" };
+const cookieOptions = { httpOnly: true, sameSite: "strict" as const, secure: process.env.NODE_ENV === "production", path: "/" };
 operations.add("mfa/status");
 operations.add("roles/level2/nominate");
 operations.add("mfa/level2/reset");
@@ -96,12 +96,16 @@ async function callIdentity(operation: string, req: NextRequest, method: "GET" |
       return NextResponse.json({ error: "otp_cooldown", retryAfterSeconds: remaining },
         { status: 429, headers: { "Cache-Control": "no-store" } });
     }
+    if (operation === "phone/request" && response.status === 404)
+      return errorResult(404, "mobile_not_registered");
     if (operation === "phone/request" && response.status === 409)
       return errorResult(409, "mobile_already_registered");
     if (operation === "phone/request" && response.status === 503)
       return errorResult(503, "otp_unavailable");
     if (operation === "phone/request" && response.status === 402)
       return errorResult(402, "insufficient_sms_credit");
+    if (operation === "phone/register/complete" && response.status === 503)
+      return errorResult(503, "registration_unavailable");
     const result = await response.text();
     // Never expose raw upstream diagnostics; for enrollment only, explicitly return
     // the one-time provisioning secret to an authenticated local development user.

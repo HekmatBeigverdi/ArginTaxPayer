@@ -109,7 +109,9 @@ export default function InvoiceSalesReturnModal({taxpayerId,invoiceId,onClose,on
   }catch(e){
    if(e instanceof SalesReturnActionError&&redirectForInvoiceSubscription({code:e.code}))return;
    setMessage("");
-   if(e instanceof SalesReturnActionError&&e.code==="no_changes_to_correct"){
+   if(e instanceof SalesReturnActionError&&e.code==="production_legal_successors_disabled"){
+    setError("برگشت از فروش ارسال نشد؛ مسیر عملیات پروداکشن فعال نیست. پیش‌نویس حفظ شده است.");
+   }else if(e instanceof SalesReturnActionError&&e.code==="no_changes_to_correct"){
     setError("تغییری نسبت به صورتحساب اصلی ثبت نشده است. ابتدا مبلغ، تعداد، تخفیف یا روش تسویه را برگشت از فروش کنید؛ صورتحساب برگشتی ارسال نشده است.");
    }else if(e instanceof SalesReturnActionError&&e.result?.invoiceId){
     setReceipt(e.result);setSubmissionLocked(true);setDraft(null);onChanged();

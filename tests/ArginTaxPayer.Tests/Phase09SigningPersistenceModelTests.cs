@@ -143,7 +143,7 @@ public sealed class Phase09SigningPersistenceModelTests
         Assert.Contains(MigrationId, db.Database.GetMigrations());
         var script = db.GetService<IMigrator>().GenerateScript(
             "20261020104500_AddInvoiceWorkspaceRevisionAudit", MigrationId);
-        Assert.Contains("current_database() <> 'argintaxpayer_test'", script);
+        Phase18LegacyMigrationAdmissionTests.AssertIsolatedDatabaseAdmission(script);
         foreach (var table in new[] { "signing_operations", "signing_consents", "signing_key_versions",
                      "signing_key_selections", "signing_change_requests", "signing_audit_events" })
             Assert.Contains("CREATE TABLE " + table, script);
@@ -177,7 +177,7 @@ public sealed class Phase09SigningPersistenceModelTests
         var script = db.GetService<IMigrator>().GenerateScript(
             MigrationId, "20261020104500_AddInvoiceWorkspaceRevisionAudit");
         Assert.Contains("Nonempty Phase09 history", script);
-        Assert.Contains("current_database() <> 'argintaxpayer_test'", script);
+        Phase18LegacyMigrationAdmissionTests.AssertIsolatedDatabaseAdmission(script, allowProduction: false);
         Assert.DoesNotContain("CASCADE", script);
     }
 }

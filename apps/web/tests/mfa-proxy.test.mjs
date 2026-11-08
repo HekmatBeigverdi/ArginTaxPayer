@@ -17,6 +17,7 @@ function proxy(backend) {
   const exports = {};
   runInNewContext(compiled, {
     exports,
+    process: { env: { NODE_ENV: "development" } },
     require(name) {
       if (name.endsWith("/lib/identity")) return {
         ACCESS_COOKIE: "argin_identity_access", REFRESH_COOKIE: "argin_identity_refresh",

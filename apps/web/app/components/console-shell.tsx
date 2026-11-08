@@ -18,8 +18,8 @@ const base: Item[] = [
   { title: "حساب و امنیت", path: "/account", glyph: "⚙" }
 ];
 
-export default function ConsoleShell({ roles, userId, children }:
-  { roles: string[]; userId: string; children: ReactNode }) {
+export default function ConsoleShell({ roles, userId, dashboardOnly = false, children }:
+  { roles: string[]; userId: string; dashboardOnly?: boolean; children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -31,18 +31,18 @@ export default function ConsoleShell({ roles, userId, children }:
   const admin = roles.includes("Level1") || roles.includes("Level2");
   const role = roles.includes("Level1") ? "مدیر سطح یک" :
     roles.includes("Level2") ? "مدیر سطح دو" : "کاربر پنل";
-  const navigation = admin ? [base[0],
+  const navigation = dashboardOnly ? [base[0]] : admin ? [base[0],
     { title: "کاربران نرم‌افزار", path: "/users", glyph: "♟" },
     ...(roles.includes("Level1") ? [{ title: "تأیید تغییر کلید", path: "/signing-approvals", glyph: "✓" }] : []),
     base[1], base[2], base[3],
     { title: "اشتراک‌ها و امور مالی", path: "/subscriptions", glyph: "▥" }, base[4]] : base;
-  const accountNavigation: Item[] = admin ? [] : [
+  const accountNavigation: Item[] = (dashboardOnly || admin) ? [] : [
     ...(roles.includes("Customer") ? [{ title: "پلن‌های نرم‌افزار", path: "/customer-plans", glyph: "▣" }] : []),
     ...(roles.includes("Customer") ? [{ title: "اعتبار پیامک", path: "/sms-credit", glyph: "✉" }] : []),
     { title: "پرداخت‌ها و اشتراک‌ها", path: "/financial-history", glyph: "▤" }
   ];
   useEffect(() => { setMenuOpen(false); setNavigatingTo(null); }, [pathname]);
-  const requiresProfile = roles.includes("Customer");
+  const requiresProfile = !dashboardOnly && roles.includes("Customer");
   // Read the verified profile once per signed-in user (or explicit retry), NOT once
   // per navigation. Route changes must never reset a completed profile to checking.
   useEffect(() => {
@@ -76,8 +76,9 @@ export default function ConsoleShell({ roles, userId, children }:
   }, [userId]);
 
   useEffect(() => {
-    if (profileState === "incomplete" && pathname !== "/profile") router.replace("/profile");
-  }, [profileState, pathname, router]);
+    if (dashboardOnly && pathname !== "/dashboard") router.replace("/dashboard");
+    if (!dashboardOnly && profileState === "incomplete" && pathname !== "/profile") router.replace("/profile");
+  }, [dashboardOnly, profileState, pathname, router]);
   useEffect(() => {
     function dismiss(e: MouseEvent) { if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false); }
     function escape(e: KeyboardEvent) { if (e.key === "Escape") setMenuOpen(false); }
@@ -114,7 +115,7 @@ export default function ConsoleShell({ roles, userId, children }:
           <span className="console-nav-label"><span aria-hidden="true">{n.glyph}</span>{n.title}</span>
           <span aria-hidden="true">←</span></Link>)}
       </nav>
-      <footer className="app-sidebar-footer"><span>نسخه توسعه</span><p>دسترسی‌ها براساس نقش و مالکیت کنترل می‌شوند.</p></footer>
+      <footer className="app-sidebar-footer"><span>{dashboardOnly ? "نمایش محدود Production" : "نسخه توسعه"}</span><p>دسترسی‌ها براساس نقش و مالکیت کنترل می‌شوند.</p></footer>
     </aside>
     <div className="app-main">
       <header className="app-topbar">
@@ -129,20 +130,21 @@ export default function ConsoleShell({ roles, userId, children }:
             </button>
             {menuOpen && <div className="console-account-dropdown" role="menu" aria-label="حساب کاربری">
               <p className="console-menu-identity">شناسه حساب <bdi dir="ltr">{userId.slice(0, 8)}…</bdi></p>
+              {!dashboardOnly && <>
               <Link role="menuitem" href="/profile" onClick={() => setMenuOpen(false)}>پروفایل و حساب من</Link>
-              <Link role="menuitem" href="/account" onClick={() => setMenuOpen(false)}>حساب و امنیت</Link>
+              <Link role="menuitem" href="/account" onClick={() => setMenuOpen(false)}>حساب و امنیت</Link></>}
               {accountNavigation.map(item => <Link key={item.path} role="menuitem" href={item.path}
                 aria-current={pathname === item.path ? "page" : undefined}
                 onClick={() => setMenuOpen(false)}>{item.title}</Link>)}
-              {roles.includes("Level1") && <Link role="menuitem" href="/admin-settings" onClick={() => setMenuOpen(false)}>تنظیمات مدیریت</Link>}
+              {!dashboardOnly && roles.includes("Level1") && <Link role="menuitem" href="/admin-settings" onClick={() => setMenuOpen(false)}>تنظیمات مدیریت</Link>}
               <div className="console-menu-divider"/>
               <button role="menuitem" type="button" onClick={() => void logout()} disabled={exiting}>
                 {exiting ? "در حال خروج…" : "خروج از حساب"}
               </button>
             </div>}
           </div>
-          {roles.includes("Customer") && !admin && <SubscriptionStatus compact/>}
-          {roles.includes("Customer") && !admin && <Link href="/sms-credit" className="subscription-status-compact">خرید اعتبار پیامک</Link>}
+          {!dashboardOnly && roles.includes("Customer") && !admin && <SubscriptionStatus compact/>}
+          {!dashboardOnly && roles.includes("Customer") && !admin && <Link href="/sms-credit" className="subscription-status-compact">خرید اعتبار پیامک</Link>}
         </div>
       </header>
       <div className="app-content console-content-host" id="console-content" aria-busy={Boolean(navigatingTo)}>

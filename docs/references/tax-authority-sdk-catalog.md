@@ -39,6 +39,13 @@
 3. Isolate secrets and certificates behind protected signer abstractions; store no private keys in source, plaintext databases or logs.
 4. Current action is **analysis/documentation only**. No SDK adoption, live endpoint call, signing, build, security audit, migration or production integration was performed.
 
+### Phase 18 follow-up status (2026-11-06)
+
+- The owner confirmed the existing Production original-invoice sender works and has been live-tested, and all Sandbox invoice operations are working. These tested paths are preserved.
+- New legal-successor work uses the explicit `legacy-self-tsp/0.0.34` profile for the existing wire contract. The archived `modern-rest/2.0.32` family remains a distinct, inactive adapter; no automatic SDK selection or version upgrade is allowed.
+- Correction, cancellation and sales-return support is being added on Production-classified operations with separate Production legal relations/workspaces and accepted-predecessor inquiry evidence. This does not certify the current official API endpoint or authorize Production activation.
+- See `docs/phase18-production-invoice-operations-operator-checklist.md` for the one-at-a-time owner test and future SDK upgrade sequence.
+
 
 ## Mandatory source-governance policy (owner directive, 2026-10-17)
 

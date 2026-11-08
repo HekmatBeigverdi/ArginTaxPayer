@@ -52,10 +52,21 @@ internal sealed class Phase10LegacyOutboxWorker(
         using var payload = JsonDocument.Parse(message.PayloadJson,
             new JsonDocumentOptions { MaxDepth = 24 });
         var root = payload.RootElement;
+        // The legacy worker is exclusively a Sandbox transport. Never permit a
+        // Production or unclassified outbox payload to select its credentials.
+        if (!root.TryGetProperty("environment", out var environmentField) ||
+            environmentField.ValueKind != JsonValueKind.String ||
+            environmentField.GetString() != "Sandbox" ||
+            !root.TryGetProperty("schema", out var schemaField) ||
+            schemaField.ValueKind != JsonValueKind.String ||
+            schemaField.GetString() != "phase10.sandbox.legacy.invoice.dispatch.v1")
+            return new("Blocked", "outbox_environment_or_schema_mismatch");
         var operationId = GuidField(root, "operationId");
         var customer = GuidField(root, "customerUserId");
         var taxpayer = GuidField(root, "taxpayerId");
         var memory = GuidField(root, "fiscalMemoryId");
+        // Legacy operations reference sandbox_fiscal_memories, not the separate
+        // regular fiscal_memories namespace (see the Phase10 FK alignment).
         // GET_TOKEN uses the six-character fiscal memory client ID, not
         // the 22-character invoice tax identifier.
         var connection = db.Database.GetDbConnection();
@@ -68,9 +79,17 @@ internal sealed class Phase10LegacyOutboxWorker(
             cmd.CommandText = """
 SELECT memory_identifier FROM sandbox_fiscal_memories
 WHERE id=@memory AND customer_user_id=@owner AND taxpayer_id=@taxpayer
+  AND current_database()='argintaxpayer_test'
+  AND EXISTS (
+    SELECT 1 FROM invoice_dispatch_operations d
+    WHERE d.id=@operation AND d.customer_user_id=@owner
+      AND d.taxpayer_id=@taxpayer AND d.fiscal_memory_id=@memory
+      AND (to_jsonb(d)->>'authority_environment' IS NULL OR to_jsonb(d)->>'authority_environment'='2')
+  )
 """;
             foreach(var (name,value) in new (string,object)[] {
-                ("memory",memory),("owner",customer),("taxpayer",taxpayer) })
+                ("memory",memory),("owner",customer),("taxpayer",taxpayer),
+                ("operation",operationId) })
             {
                 var parameter=cmd.CreateParameter();
                 parameter.ParameterName=name;

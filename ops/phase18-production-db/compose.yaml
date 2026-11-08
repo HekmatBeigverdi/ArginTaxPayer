@@ -1,0 +1,39 @@
+# Phase18 Step07: dedicated PostgreSQL 17 instance. NO shared postgres/QA volume.
+name: argintaxpayer-phase18-production
+services:
+  postgres:
+    image: ${PHASE18_PROD_POSTGRES_IMAGE:?Pinned PostgreSQL 17 digest required}
+    container_name: argintaxpayer-phase18-production-postgres
+    restart: "no"
+    ports:
+      - "127.0.0.1:15434:5432"
+    environment:
+      POSTGRES_USER: argin_prod_bootstrap
+      POSTGRES_PASSWORD: ${PHASE18_PROD_BOOTSTRAP_PASSWORD:?missing}
+      POSTGRES_DB: postgres
+      PHASE18_PROD_MIGRATOR_PASSWORD: ${PHASE18_PROD_MIGRATOR_PASSWORD:?missing}
+      PHASE18_PROD_APP_PASSWORD: ${PHASE18_PROD_APP_PASSWORD:?missing}
+      POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+    command:
+      - postgres
+      - -c
+      - ssl=on
+      - -c
+      - ssl_cert_file=/var/lib/postgresql/certs/server.crt
+      - -c
+      - ssl_key_file=/var/lib/postgresql/certs/server.key
+      - -c
+      - ssl_min_protocol_version=TLSv1.2
+      - -c
+      - password_encryption=scram-sha-256
+    volumes:
+      - prod_pgdata:/var/lib/postgresql/data
+      - ${PHASE18_PROD_TLS_DIR:?missing}:/var/lib/postgresql/certs:ro
+      - ./init/01-init-production.sh:/docker-entrypoint-initdb.d/01-init-production.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U argin_prod_migrator -d argintaxpayer_prod -h 127.0.0.1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+volumes:
+  prod_pgdata:

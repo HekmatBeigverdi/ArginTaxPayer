@@ -6,7 +6,8 @@ const require=createRequire(import.meta.url);
 const React=require('react');
 const {renderToStaticMarkup}=require('react-dom/server');
 function modal(initial=[]){
- const state=[null,'',0,null,'',true];Object.assign(state,initial);
+ const state=[initial[0]??null,initial[1]??'',initial[2]??0,initial[3]??null,
+  initial[4]??'',null,initial[5]??true];
  let slot=0;
  const Component=loadTsx(new URL('../app/invoices/invoice-lineage-modal.tsx',import.meta.url),{
   modules:{react:{...React,useEffect:()=>{},useState(value){
@@ -36,4 +37,10 @@ test('refresh keeps existing chain visible and announces the refresh',()=>{
  const {html}=modal([{hasDispatchAttempt:true,hasChanges:true,nodes:[]},'',0,null,'',true]);
  assert.match(html,/در حال به‌روزرسانی زنجیره/);
  assert.doesNotMatch(html,/invoice-lineage-skeleton/);
+});
+test('only a production correction with a safe server resume flag offers continuation',()=>{
+ const node={invoiceId:'successor',subject:'Correction',fiscalTaxId:null,issuedAtUtc:'2026-11-01T00:00:00Z',
+  dispatchState:'NotPrepared',authorityReference:null,authorityStatus:null,sentAtUtc:null,canResumeSubmission:true};
+ const {html}=modal([{hasDispatchAttempt:true,hasChanges:true,nodes:[node]},'',0,null,'',false]);
+ assert.match(html,/ادامه ارسال همین اصلاحیه/);
 });

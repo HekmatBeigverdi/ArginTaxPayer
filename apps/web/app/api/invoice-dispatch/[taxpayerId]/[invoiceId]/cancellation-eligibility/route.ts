@@ -13,7 +13,7 @@ export async function GET(request:NextRequest,context:Context){
  try{
   const upstream=await fetch(identityApiOrigin()+"/api/dev/taxpayers/"+
    taxpayerId+"/invoices/"+invoiceId+"/dispatch/cancellation-eligibility",{
-   cache:"no-store",redirect:"manual",signal:AbortSignal.timeout(12000),
+   cache:"no-store",redirect:"manual",signal:AbortSignal.timeout(30000),
    headers:{Authorization:"Bearer "+token}});
   if(![200,401,403,404,409].includes(upstream.status))return fail(502,"preflight_unavailable");
   const raw=await upstream.text();

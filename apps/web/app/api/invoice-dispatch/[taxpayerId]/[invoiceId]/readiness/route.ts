@@ -7,6 +7,9 @@ const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const codes=new Set([
  "invoice.snapshot.invalid",
  "invoice.snapshot.not_internal_promoted",
+ "invoice.production.memory_not_bound",
+ "invoice.production.transport_not_registered",
+ "invoice.production_outbox.not_connected",
  "invoice.sandbox.memory_not_bound",
  "invoice.lifecycle.validation_required",
  "invoice.review.approval_required",
@@ -50,13 +53,18 @@ export async function GET(request:NextRequest,context:Context){
    typeof data.hasImmutableSnapshot!=="boolean"||
    !Number.isSafeInteger(data.invoiceRevision)||Number(data.invoiceRevision)<1||
    (data.sandboxFiscalMemoryId!==null&&typeof data.sandboxFiscalMemoryId!=="string")||
-   !["Sandbox","Unverified"].includes(String(data.environment))||
+   !["Production","Sandbox","Unverified"].includes(String(data.environment))||
    !["Draft","Validated","Finalized"].includes(String(data.invoiceState))||
    !Array.isArray(data.blockingCodes)||data.blockingCodes.length>20||
    data.blockingCodes.some((item:unknown)=>typeof item!=="string"||!codes.has(item)))
    return error(502,"invalid_readiness_policy");
+  if((data.fiscalMemoryId!=null&&
+      (typeof data.fiscalMemoryId!=="string"||!uuid.test(data.fiscalMemoryId)||data.sandboxFiscalMemoryId!==null))||
+     (data.environment==="Production"&&data.fiscalMemoryId==null)||
+     (data.environment==="Unverified"&&data.fiscalMemoryId!=null))
+   return error(502,"invalid_readiness_policy");
   if((data.readyForLiveSend||data.submissionEnabled)&&
-     (data.environment!=="Sandbox"||data.signedPacketAvailable!==true||
+     (!["Production","Sandbox"].includes(String(data.environment))||data.signedPacketAvailable!==true||
       !data.readyForLiveSend||!data.submissionEnabled||
       (data.blockingCodes as unknown[]).length!==0))
    return error(502,"invalid_readiness_policy");
@@ -65,6 +73,7 @@ export async function GET(request:NextRequest,context:Context){
    hasImmutableSnapshot:data.hasImmutableSnapshot,
    invoiceRevision:data.invoiceRevision,
    sandboxFiscalMemoryId:data.sandboxFiscalMemoryId,
+   ...(data.fiscalMemoryId!=null?{fiscalMemoryId:data.fiscalMemoryId}:{}),
    readyForLiveSend:data.readyForLiveSend,submissionEnabled:data.submissionEnabled,
    signedPacketAvailable:data.signedPacketAvailable,fiscalAccepted:false,
    blockingCodes:data.blockingCodes

@@ -12,10 +12,11 @@ test('connection checks origin, session and avoids cache', () => {
   assert.match(route, /ACCESS_COOKIE/);
   assert.match(route, /no-store/);
 });
-test('connection accepts an empty POST body without mistaking the request stream for payload', () => {
+test('connection accepts an empty body or a bounded explicit one-time environment', () => {
   assert.match(route, /getReader\(\)/);
   assert.match(route, /reader\.read\(\)/);
-  assert.match(route, /bodyBytes > 0/);
+  assert.match(route, /testEnvironment/);
+  assert.match(route, /length > 256/);
   assert.doesNotMatch(route, /if \(req\.body\) return fail\(413/);
 });
 test('connection result only exposes known public metadata', () => {
@@ -23,6 +24,7 @@ test('connection result only exposes known public metadata', () => {
   assert.match(route, /portalRegistrationConfirmed: false/);
   assert.match(route, /fiscalMemoryActivationConfirmed: false/);
   assert.match(route, /fiscalInformation: authenticated \? fiscalInformation : null/);
+  assert.match(route, /oneTimeTest: parsed\.environment !== null/);
 });
 test('taxpayer workspace exposes read-only connection test', () => {
   assert.match(ui, /تست اتصال/);

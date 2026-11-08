@@ -24,8 +24,8 @@ test("return editor does not allow price or VAT changes",()=>{
  assert.match(code,/setSubmissionLocked\(true\)/);
  assert.match(code,/InvoiceCorrectionReceipt/);
 });
-test("list exposes return action on accepted invoice and keeps original identity",()=>{
+test("list exposes return action on sent effective node while retaining original row identity",()=>{
  const code=read("app/invoices/workspace.tsx");
  assert.match(code,/setReturnTarget\(item\)/);
- assert.match(code,/invoiceId=\{returnTarget\.id\}/);
+ assert.match(code,/invoiceId=\{returnTarget\.effectiveInvoiceId\?\?returnTarget\.id\}/);
 });

@@ -15,13 +15,16 @@ test("identity and account pages use Persian RTL and server-side identity checks
   assert.match(account, /currentIdentity\(\)/);
 });
 
-test("identity proxy fails closed outside development and keeps credentials HttpOnly", () => {
+test("identity proxy requires explicit Production opt-in and keeps credentials HttpOnly", () => {
   const proxy = read("app/api/identity/[...path]/route.ts");
   const server = read("lib/identity.ts");
   assert.match(server, /NODE_ENV === "development"/);
+  assert.match(server, /ARGIN_PRODUCTION_UI_ENABLED/);
+  assert.match(server, /https:\/\/tax\.argin\.ir/);
   assert.match(server, /ARGIN_IDENTITY_UI_ENABLED/);
   assert.match(server, /\["127\.0\.0\.1", "localhost", "::1"\]/);
   assert.match(proxy, /httpOnly: true/);
+  assert.match(proxy, /secure: process\.env\.NODE_ENV === "production"/);
   assert.match(proxy, /sameSite: "strict"/);
   assert.match(proxy, /sameOrigin\(req\)/);
   assert.match(proxy, /identityUiEnabled\(\)/);
@@ -42,7 +45,7 @@ test("unified identity screen uses simple actions, OTP and recovery path", () =>
   const page = read("app/identity/page.tsx");
   const flow = read("app/identity/identity-flow.tsx");
   const proxy = read("app/api/identity/[...path]/route.ts");
-  assert.match(page, /<IdentityFlow \/>/);
+  assert.match(page, /<IdentityFlow restrictedLogin=\{identityDashboardOnlyEnabled\(\)\} \/>/);
   assert.doesNotMatch(flow, /role="tablist"/);
   assert.match(flow, /ورود به حساب/);
   assert.match(flow, /ایجاد حساب جدید/);

@@ -29,10 +29,46 @@ using System.Threading.RateLimiting;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.AspNetCore.RateLimiting;
+using HostedSandboxDeployment = ArginTaxPayer.Infrastructure.Configuration.HostedSandboxDeployment;
 
 var builder = WebApplication.CreateBuilder(args);
 var identityDevelopmentEnabled = builder.Environment.IsDevelopment() &&
     !string.IsNullOrWhiteSpace(builder.Configuration.GetConnectionString("ArginTaxPayerDb"));
+// Phase18: an explicit operational opt-in, never inferred from environment or a DB URL.
+// Existing /api/dev routes are an INTERNAL, loopback-only BFF contract for now.
+// Production requests must still pass each endpoint's authorization and tenant checks.
+var productionOperationalEnabled = builder.Environment.IsProduction() &&
+    builder.Configuration.GetValue<bool>("ArginTaxPayer:EnableOperationalEndpoints");
+// A separate Production mode exposes authenticated identity and read-only dashboard
+// only. It MUST NOT map invoice dispatch, payment, key or account mutation routes.
+var identityDashboardOnlyEnabled = builder.Environment.IsProduction() &&
+    builder.Configuration.GetValue<bool>("ArginTaxPayer:EnableIdentityDashboardOnly") &&
+    !productionOperationalEnabled;
+var operationalEndpointsEnabled =
+    identityDevelopmentEnabled || productionOperationalEnabled || identityDashboardOnlyEnabled;
+if ((productionOperationalEnabled || identityDashboardOnlyEnabled) &&
+    string.IsNullOrWhiteSpace(builder.Configuration.GetConnectionString("ArginTaxPayerDb")))
+    throw new InvalidOperationException("Production operational endpoints require a configured database.");
+if (productionOperationalEnabled || identityDashboardOnlyEnabled)
+{
+    // A defense-in-depth host binding requirement, independent of the per-route
+    // loopback checks. Production uses port 15090 so it does not take over
+    // development API port 15089. Never expose this listener through Nginx.
+    if (builder.Configuration["urls"] != "http://127.0.0.1:15090" ||
+        builder.Configuration.GetSection("Kestrel:Endpoints").Exists())
+        throw new InvalidOperationException("Production API must bind exclusively to http://127.0.0.1:15090 with no Kestrel endpoint overrides.");
+    var database = builder.Configuration.GetConnectionString("ArginTaxPayerDb")!;
+    var hostedSandbox = HostedSandboxDeployment.IsAllowed(database, builder.Configuration);
+    if (builder.Configuration.GetValue<bool>("ArginTaxPayer:HostedSandboxEnabled") && !hostedSandbox)
+        throw new InvalidOperationException("Hosted Sandbox requires its dedicated TLS database and Sandbox-only authority configuration.");
+    if (database.Contains("argintaxpayer_test", StringComparison.OrdinalIgnoreCase) && !hostedSandbox)
+        throw new InvalidOperationException("Production operational endpoints cannot use the test database.");
+}
+// No anonymous customer registration or file-based OTP in publicly hosted Production.
+if ((productionOperationalEnabled || identityDashboardOnlyEnabled) &&
+    (builder.Configuration.GetValue<bool>("Identity:AllowDevelopmentRegistration") ||
+     builder.Configuration["Identity:OtpDeliveryMode"] == "LocalFile"))
+    throw new InvalidOperationException("Unsafe development-only identity configuration in Production.");
 // JSON console output is machine-readable on macOS, Ubuntu and future containers.
 builder.Logging.ClearProviders();
 builder.Logging.AddJsonConsole(options => options.IncludeScopes = true);
@@ -47,7 +83,7 @@ if (identityDevelopmentEnabled &&
 
 // OpenAPI document generation is registered for API contract development.
 builder.Services.AddOpenApi();
-if (identityDevelopmentEnabled)
+if (operationalEndpointsEnabled)
 {
     builder.Services.AddPhase09KeyImport(builder.Configuration);
     builder.Services.AddPhase09KeyGeneration(builder.Configuration);
@@ -151,6 +187,17 @@ if (identityDevelopmentEnabled)
     builder.Services.AddScoped<Phase10InternalInvoiceValidationService>();
     builder.Services.AddScoped<Phase10InvoiceFinalizationService>();
     builder.Services.AddScoped<Phase10LegacyInvoicePreparationService>();
+    builder.Services.AddScoped<Phase18ProductionInvoicePreparationService>();
+    builder.Services.AddScoped<Phase18InvoiceMemoryBindingService>();
+    builder.Services.AddScoped<Phase18ProductionCorrectionService>();
+    builder.Services.AddScoped<Phase18CorrectionServiceRouter>();
+    builder.Services.AddScoped<Phase18ProductionCancellationService>();
+    builder.Services.AddScoped<Phase18CancellationServiceRouter>();
+    builder.Services.AddScoped<Phase18ProductionSalesReturnService>();
+    builder.Services.AddScoped<Phase18SalesReturnServiceRouter>();
+    builder.Services.AddScoped<Phase18InvoiceSubmissionService>();
+    builder.Services.AddScoped<Phase18InvoiceInquiryService>();
+    builder.Services.AddScoped<FiscalMemoryAuthorityOnboardingService>();
     builder.Services.AddScoped<Phase10InvoiceDispatchReadService>();
     builder.Services.AddScoped<Phase10InvoicePrintPreviewService>();
     builder.Services.AddScoped<Phase10OneClickSandboxSubmissionService>();
@@ -192,7 +239,51 @@ builder.Services.AddHealthChecks()
 
 var app = builder.Build();
 app.UseMiddleware<CorrelationIdMiddleware>();
-if (identityDevelopmentEnabled) app.UseRateLimiter();
+if (operationalEndpointsEnabled) app.UseRateLimiter();
+// The limited Production operator UI is NOT the global operational API.
+// This is an additional path/method allowlist in front of legacy /api/dev
+// handlers. All mutation, financial and tax authority routes remain absent.
+if (identityDashboardOnlyEnabled)
+{
+    app.Use(async (context, next) =>
+    {
+        if (context.Request.Path.StartsWithSegments("/api/dev"))
+        {
+            var path = context.Request.Path.Value ?? "";
+            var method = context.Request.Method;
+            var allowed =
+                method == "GET" &&
+                (path == "/api/dev/identity/authorization/me" ||
+                 path == "/api/dev/identity/mfa/status" ||
+                 path.StartsWith("/api/dev/dashboard/", StringComparison.Ordinal)) ||
+                method == "POST" &&
+                (path == "/api/dev/identity/login" ||
+                 path == "/api/dev/identity/refresh" ||
+                 path == "/api/dev/identity/logout" ||
+                 path == "/api/dev/identity/mfa/challenge" ||
+                 path == "/api/dev/identity/mfa/complete");
+            if (!allowed)
+            {
+                context.Response.StatusCode = StatusCodes.Status404NotFound;
+                return;
+            }
+        }
+        await next(context);
+    });
+}
+// Defense in depth. Existing internal BFF endpoints retain /api/dev paths until
+// their production API contracts are migrated, but cannot be reached remotely.
+// This does not depend on forwarded headers supplied by the caller.
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path.StartsWithSegments("/api/dev") &&
+        !IdentityDevelopmentEndpoints.IsLoopbackAddress(context.Connection.RemoteIpAddress))
+    {
+        context.Response.StatusCode = StatusCodes.Status404NotFound;
+        return;
+    }
+    await next(context);
+});
 
 // Never expose the API contract endpoint in Production by default.
 if (app.Environment.IsDevelopment())
@@ -231,9 +322,18 @@ if (app.Environment.IsDevelopment())
         });
     }).ExcludeFromDescription();
     app.MapOpenApi();
-    if (identityDevelopmentEnabled)
-    {
+}
+// Operational routes remain loopback-only (BFF via 127.0.0.1); no OpenAPI in Production.
+// Map registration is intentionally outside the Development diagnostics branch.
+if (operationalEndpointsEnabled)
+{
         app.MapIdentityDevelopmentEndpoints();
+        if (identityDashboardOnlyEnabled)
+        {
+            app.MapPhase15DashboardEndpoints();
+        }
+        else
+        {
         app.MapSoftwareUserProfileEndpoints();
         app.MapTaxpayerDevelopmentEndpoints();
         app.MapSigningImportEndpoints();
@@ -270,7 +370,7 @@ if (app.Environment.IsDevelopment())
         app.MapCustomerTaxpayerMembershipEndpoints();
         app.MapCustomerSelfServiceEndpoints();
         app.MapCatalogDevelopmentEndpoints();
-    }
+        }
 }
 
 // Preserve the existing bootstrap endpoint.

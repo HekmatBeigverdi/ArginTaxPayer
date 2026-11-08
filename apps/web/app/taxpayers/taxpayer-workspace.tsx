@@ -7,9 +7,12 @@ import ConsoleLoader from "../components/console-loader";
 import TaxpayerConnectionPanel from "./taxpayer-connection-panel";
 
 type Taxpayer = { id: string; kind: number; normalizedIdentifier: string; displayName: string; status: number; revision: number };
-type Memory = { id: string; taxpayerId: string; memoryIdentifier: string; status: number; revision: number };
+type Memory = { id: string; taxpayerId: string; memoryIdentifier: string; status: number; revision: number;
+  authorityEnvironment: 1 | 2 | null; lastConnectionTestSucceeded: boolean | null; lastConnectionTestAtUtc: string | null;
+  canVerifyAndActivate?: boolean };
 type Certificate = { id: string; fingerprintSha256: string; issuer: string | null; notBeforeUtc: string | null; notAfterUtc: string | null; status: number; origin: number };
 const memoryLabels: Record<number, string> = { 1: "در انتظار بررسی", 2: "فعال", 3: "تعلیق", 4: "بازنشسته" };
+const memoryEnvironmentLabels: Record<number, string> = { 1: "Production (اصلی)", 2: "Sandbox (آزمایشی)" };
 const taxpayerLabels: Record<number, string> = { 1: "فعال", 2: "تعلیق", 3: "بایگانی" };
 const certificateLabels: Record<number, string> = { 1: "فقط فراداده", 2: "معتبر", 3: "منقضی", 4: "لغوشده" };
 
@@ -53,6 +56,7 @@ export default function TaxpayerWorkspace({ isLevel1, initialTaxpayerId, showCre
   const [editName, setEditName] = useState("");
   const [editIdentifier, setEditIdentifier] = useState("");
   const [newMemory, setNewMemory] = useState("");
+  const [newMemoryEnvironment, setNewMemoryEnvironment] = useState<"" | "1" | "2">("");
 
   const reload = useCallback(async () => {
     setLoading(true); setError("");
@@ -120,12 +124,12 @@ export default function TaxpayerWorkspace({ isLevel1, initialTaxpayerId, showCre
     finally { setBusy(false); }
   }
   async function addMemory(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); if (!details || busy) return;
+    event.preventDefault(); if (!details || busy || !newMemoryEnvironment) return;
     setBusy(true); setError(""); setNotice("");
     try {
-      await request("/" + details.id + "/memories", "POST", { memoryIdentifier: newMemory });
+      await request("/" + details.id + "/memories", "POST", { memoryIdentifier: newMemory, authorityEnvironment: Number(newMemoryEnvironment) });
       setNotice("حافظه مالیاتی به‌عنوان اطلاعات تأییدنشده ثبت شد. این کار به معنی اتصال موفق نیست.");
-      setNewMemory("");
+      setNewMemory(""); setNewMemoryEnvironment("");
       setMemories(await request<Memory[]>("/" + details.id + "/memories"));
     } catch (ex) { setError((ex as Error).message); } finally { setBusy(false); }
   }
@@ -195,7 +199,12 @@ export default function TaxpayerWorkspace({ isLevel1, initialTaxpayerId, showCre
           {memories.length === 0 ? <p className="identity-muted">هنوز حافظه‌ای ثبت نشده است.</p> :
             <ul className="taxpayer-memory-list">{memories.map(m => <li key={m.id}>
               <div><strong dir="ltr">{m.memoryIdentifier}</strong>
-                <span>{memoryLabels[m.status] ?? "نامشخص"} · نسخه {m.revision}</span></div>
+                <span>{memoryLabels[m.status] ?? "نامشخص"} · {m.authorityEnvironment === null ? "محیط تأییدنشده" : memoryEnvironmentLabels[m.authorityEnvironment] ?? "محیط نامعتبر"} · نسخه {m.revision}</span>
+                {m.lastConnectionTestSucceeded !== null && <span className={`taxpayer-memory-connection taxpayer-memory-connection--${m.lastConnectionTestSucceeded ? "success" : "failed"}`}>
+                  {m.lastConnectionTestSucceeded ? "اتصال برقرار" : "آخرین آزمون اتصال ناموفق"}
+                  {m.lastConnectionTestAtUtc && <> · {new Date(m.lastConnectionTestAtUtc).toLocaleString("fa-IR")}</>}
+                </span>}
+              </div>
               {isLevel1 && <button type="button" className="identity-secondary" disabled={busy}
                 onClick={() => void revealCertificates(m.id)}>مشاهده گواهی‌ها</button>}
               {certificates[m.id] && <div className="taxpayer-certificates">
@@ -213,10 +222,16 @@ export default function TaxpayerWorkspace({ isLevel1, initialTaxpayerId, showCre
             <label htmlFor="new-memory">کد حافظه مالیاتی موجود</label>
             <input id="new-memory" dir="ltr" required maxLength={64} pattern="[A-Za-z0-9]+"
               value={newMemory} onChange={e => setNewMemory(e.target.value)}/>
-            <button className="identity-primary" disabled={busy}>ثبت اولیه حافظه</button>
-            <p className="field-hint">تأیید اتصال واقعی، تعویض حافظه و ورود کلید خصوصی در مراحل آتی فعال می‌شود.</p>
+            <label htmlFor="new-memory-environment">محیط حافظه مالیاتی</label>
+            <select id="new-memory-environment" required value={newMemoryEnvironment}
+              onChange={e => setNewMemoryEnvironment(e.target.value as "" | "1" | "2")}>
+              <option value="">محیط را صریحاً انتخاب کنید</option>
+              <option value="1">Production — اصلی</option>
+              <option value="2">Sandbox — آزمایشی</option>
+            </select>
+            <button className="identity-primary" disabled={busy || !newMemoryEnvironment}>ثبت اولیه حافظه</button>
+            <p className="field-hint">ثبت حافظه به‌تنهایی اتصال را تأیید نمی‌کند؛ پس از ثبت، آزمون اتصال را در بخش کلید/توکن اجرا کنید.</p>
           </form>}
-          <p className="taxpayer-warning">تست واقعی ارتباط با سازمان مالیاتی و تأیید توکن هنوز فعال نیست؛ هیچ وضعیت «اتصال موفق» به‌صورت نمایشی ساخته نمی‌شود.</p>
           </>}
         </div></details>
         <details name="fiscal-sections" className="fiscal-section">
@@ -224,7 +239,8 @@ export default function TaxpayerWorkspace({ isLevel1, initialTaxpayerId, showCre
           <div className="fiscal-section-content taxpayer-token-panel">
             <TaxpayerConnectionPanel key={initialTaxpayerId || selectedId}
               taxpayerId={initialTaxpayerId || selectedId} memories={memories}
-              loadingMemories={detailsLoading} onLoadingChange={setImportLoading}/>
+              loadingMemories={detailsLoading} onLoadingChange={setImportLoading} isLevel1={isLevel1}
+              onMemoriesChanged={async()=>setMemories(await request<Memory[]>("/"+(initialTaxpayerId || selectedId)+"/memories"))}/>
         </div></details>
         </div>
       </>}

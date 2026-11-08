@@ -34,6 +34,9 @@ CREATE TABLE official_goods_service_entries (
  CONSTRAINT ck_official_goods_kind CHECK(kind IN (1,2)),
  CONSTRAINT ck_official_goods_verification CHECK(verification_status IN (1,2)));
 CREATE UNIQUE INDEX ux_official_goods_release_kind_code ON official_goods_service_entries(release_id,kind,code);
+-- The table now exists; add the invariant required by the subsequent validator.
+ALTER TABLE official_goods_service_entries
+  ADD CONSTRAINT ck_official_goods_code_format CHECK (code ~ '^[0-9]{13}$');
 
 CREATE TABLE vat_classification_entries (
  id uuid PRIMARY KEY, release_id uuid NOT NULL REFERENCES catalog_reference_releases(id) ON DELETE RESTRICT,

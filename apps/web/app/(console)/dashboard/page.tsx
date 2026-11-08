@@ -33,11 +33,16 @@ export default async function DashboardPage() {
   const admin = level1 || level2;
   const customer = actor.roles.includes("Customer");
   if (!admin && !customer) return null;
+  const dashboardOnly = typeof process !== "undefined" && process.env.NODE_ENV === "production" &&
+    process.env.ARGIN_IDENTITY_DASHBOARD_ONLY === "true";
   const modules = admin ? adminModules : customerModules;
   return <>
         <DashboardAnalytics role={level1 ? "Level1" : level2 ? "Level2" : "Customer"}/>
-        {customer && <SubscriptionStatus/>}
-        <details className="argin-dashboard__legacy">
+        {customer && !dashboardOnly && <SubscriptionStatus/>}
+        {dashboardOnly && <section className="intro" role="status">
+          <p>این نسخه برای ورود امن و مشاهده داشبورد فعال است. ثبت، تغییر و ارسال صورتحساب و عملیات مالیاتی هنوز غیرفعال‌اند.</p>
+        </section>}
+        {!dashboardOnly && <details className="argin-dashboard__legacy">
           <summary>
             <span className="argin-dashboard__legacy-heading"><DashboardIcon name="modules" />دسترسی به سایر بخش‌های سامانه</span>
             <span>نمایش میان‌برها</span>
@@ -52,6 +57,6 @@ export default async function DashboardPage() {
           </article>)}
         </section>
         <div className="app-help">برای حفظ امنیت، امکانات مدیریت مشتریان فقط در محدوده مجوزهای نقش فعلی در دسترس هستند.</div>
-        </details>
+        </details>}
   </>;
 }
