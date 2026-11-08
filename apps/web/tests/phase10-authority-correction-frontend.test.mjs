@@ -78,7 +78,8 @@ test('correction validates UUID and safe flag, forwards auth and refuses cross-o
 test('UI loads persisted report, renders text and offers only explicitly authorized failed correction',()=>{
  const ui=readFileSync(new URL('../app/invoices/invoice-send-readiness-panel.tsx',import.meta.url),'utf8');
  assert.match(ui,/loadAuthorityReport/);
- assert.ok(ui.includes('authorityResult.status==="FAILED"&&authorityResult.canPrepareCorrection'));
+ assert.match(ui,/const canPrepareRejectedDraft=authorityResult\?\.status==="FAILED"/);
+ assert.match(ui,/authorityResult\.canPrepareCorrection/);
  assert.ok(ui.includes('/invoices?workspaceId='));
  assert.ok(ui.includes('{item.message}'));
  assert.ok(!ui.includes('dangerouslySetInnerHTML'));

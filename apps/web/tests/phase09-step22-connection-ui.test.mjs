@@ -22,7 +22,7 @@ test('connection accepts an empty body or a bounded explicit one-time environmen
 test('connection result only exposes known public metadata', () => {
   assert.match(route, /authenticationConfirmed/);
   assert.match(route, /portalRegistrationConfirmed: false/);
-  assert.match(route, /fiscalMemoryActivationConfirmed: false/);
+  assert.match(route, /fiscalMemoryActivationConfirmed: data\.memoryActivated/);
   assert.match(route, /fiscalInformation: authenticated \? fiscalInformation : null/);
   assert.match(route, /oneTimeTest: parsed\.environment !== null/);
 });

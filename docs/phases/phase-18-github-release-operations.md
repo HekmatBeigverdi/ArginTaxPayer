@@ -10,6 +10,14 @@ In repository **Settings → Rules → Rulesets** (or branch protection rules), 
 
 The workflow also runs for Pull Requests to `phase/18-production-deployment` during Phase 18 development. Deployment is possible only for a successful `push` to `main`; a feature branch, pull request, or phase branch cannot enter the production deployment job.
 
+### Approve the post-merge Production deployment
+
+Pull Request approval and Production deployment approval are separate actions. After the reviewed PR is merged to `main`, wait for the `package` job to pass. The `deploy` job references the GitHub Environment named `production`; when that Environment has a required reviewer configured, GitHub pauses the job at **Waiting** before it can read Environment secrets or contact the VPS.
+
+To release that exact merge SHA, open the repository's **Actions** tab, select the `ArginTaxPayer versioned release` run for the `main` push, choose **Review deployments**, select `production`, add a short release note if desired, and choose **Approve and deploy**. Rejecting leaves the release undeployed. After approval, the job verifies the artifact SHA/checksums, uses pinned-host-key SSH, and invokes the fixed VPS helper. The helper promotes the package and performs its health check/rollback; it does not run migrations or change fiscal-authority settings.
+
+The reviewer gate exists only if a required reviewer has been configured in **Settings → Environments → production**. `environment: production` in YAML associates the job and its secrets with that Environment; it does not by itself require manual approval. If **Prevent self-review** is enabled, the person who triggered the workflow cannot approve that deployment. GitHub's required-reviewer availability for private repositories depends on the repository plan.
+
 ### Configure the production approval gate
 
 Create repository **Settings → Environments → New environment → `production`**. Add the designated owner/operator as a required reviewer, prevent self-review if available, and enable administrator bypass protection where available. Add these as **Environment secrets**, not repository-wide secrets:

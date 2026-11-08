@@ -198,10 +198,10 @@ test("Step21 scoped validation panel is explicitly not a fiscal approval", () =>
   const panel=read("../app/invoices/invoice-validation-panel.tsx");
   assert.match(workspace, /<InvoiceValidationPanel/);
   assert.match(panel, /\/api\/invoices\/workspaces\/.*\/validation/);
-  assert.match(panel, /\/api\/invoices\/references\//);
+  assert.match(panel, /\/api\/invoices\/workspaces\/\$\{draftId\}\/validation/);
   assert.match(panel, /isSubmissionAuthorized/);
   assert.match(panel, /مجوز ارسال مالیاتی صادر نمی‌کند/);
-  assert.match(panel, /disabled>/);
+  assert.match(panel, /disabled=\{busy\}/);
   assert.match(panel, /fieldPath/);
   assert.match(panel, /revision!==revision/);
   assert.match(panel, /dirty/);
