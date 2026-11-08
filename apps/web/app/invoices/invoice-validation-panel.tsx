@@ -19,34 +19,14 @@ type Evaluation = {
   selectedEnvironment?: "Sandbox" | "Production" | "Unselected";
 };
 
-type Reference = {
-  id: string;
-  subject: string;
-  state: string;
-  issueDateUtc: string;
-  revision: number;
-  fiscalIdentifierVerified: boolean;
-  fiscalIdentifier: string | null;
-};
-
-type Subject = "Original" | "Correction" | "Cancellation" | "SalesReturn";
-
 type PanelProps = {
   draftId: string;
-  taxpayerId: string;
   revision: number;
   dirty: boolean;
   onSave: () => Promise<boolean>;
   onPrepared?: (invoiceId: string) => void;
   onDraftChanged?: () => Promise<void>;
 };
-
-const SUBJECT_OPTIONS: ReadonlyArray<{ value: Subject; label: string }> = [
-  { value: "Original", label: "اصلی" },
-  { value: "Correction", label: "اصلاحی" },
-  { value: "Cancellation", label: "ابطالی" },
-  { value: "SalesReturn", label: "برگشت از فروش" },
-];
 
 async function readJson<T>(url: string): Promise<T> {
   const response = await fetch(url, {
@@ -136,90 +116,8 @@ function ValidationReport({ report }: { report: Evaluation }) {
   );
 }
 
-function ReferenceHistory({ references }: { references: Reference[] }) {
-  if (references.length === 0) return null;
-
-  return (
-    <div className="invoice-validation__history">
-      <strong>سوابق داخلی همین مؤدی ({references.length} رکورد)</strong>
-      <ul>
-        {references.map(reference => (
-          <li key={reference.id}>
-            <bdi dir="ltr">{reference.id.slice(0, 8)}…</bdi>
-            <span>
-              {reference.subject} · {reference.state} · نسخه {reference.revision}
-            </span>
-            <small>شناسه مالیاتی رسمی: تأیید نشده</small>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function ReferenceSection({
-  subject,
-  references,
-  selectedReference,
-  onSubjectChange,
-  onReferenceChange,
-}: {
-  subject: Subject;
-  references: Reference[];
-  selectedReference: string;
-  onSubjectChange: (value: Subject) => void;
-  onReferenceChange: (value: string) => void;
-}) {
-  const hasReferenceSubject = subject !== "Original";
-
-  return (
-    <div className="invoice-validation__reference">
-      <label htmlFor="invoice-reference-subject">
-        موضوع صورتحساب برای بررسی ارجاع
-      </label>
-      <select
-        id="invoice-reference-subject"
-        value={subject}
-        onChange={event => onSubjectChange(event.target.value as Subject)}
-      >
-        {SUBJECT_OPTIONS.map(option => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-
-      {hasReferenceSubject && (
-        <>
-          <label htmlFor="invoice-reference-candidate">
-            صورتحساب مرتبط (فقط سابقه داخلی)
-          </label>
-          <select
-            id="invoice-reference-candidate"
-            value={selectedReference}
-            onChange={event => onReferenceChange(event.target.value)}
-          >
-            <option value="">مرجع تأییدشده‌ای در دسترس نیست</option>
-            {references.map(reference => (
-              <option key={reference.id} value={reference.id} disabled>
-                {reference.id.slice(0, 8)} · {reference.subject} · {reference.state}
-              </option>
-            ))}
-          </select>
-          <p className="invoice-validation__warning">
-            مرجع فقط با شناسه مالیاتی معتبر، سابقه ثبت رسمی و بررسی زنجیره قابل انتخاب است.
-            رکوردهای محلی فعلی چنین شواهدی ندارند و عمداً غیرفعال‌اند.
-          </p>
-          <ReferenceHistory references={references} />
-        </>
-      )}
-    </div>
-  );
-}
-
 export default function InvoiceValidationPanel({
   draftId,
-  taxpayerId,
   revision,
   dirty,
   onSave,
@@ -227,9 +125,6 @@ export default function InvoiceValidationPanel({
   onDraftChanged,
 }: PanelProps) {
   const [report, setReport] = useState<Evaluation | null>(null);
-  const [references, setReferences] = useState<Reference[]>([]);
-  const [subject, setSubject] = useState<Subject>("Original");
-  const [selectedReference, setSelectedReference] = useState("");
   const [loading, setLoading] = useState(false);
   const [checkingAfterSave, setCheckingAfterSave] = useState(false);
   const [error, setError] = useState("");
@@ -245,10 +140,7 @@ export default function InvoiceValidationPanel({
     setError("");
 
     try {
-      const [checks, source] = await Promise.all([
-        readJson<Evaluation>(`/api/invoices/workspaces/${draftId}/validation`),
-        readJson<Reference[]>(`/api/invoices/references/${taxpayerId}`),
-      ]);
+      const checks = await readJson<Evaluation>(`/api/invoices/workspaces/${draftId}/validation`);
 
       // A report from another draft revision is stale and cannot be shown.
       if (checks.revision !== revision) { // revision!==revision
@@ -258,7 +150,6 @@ export default function InvoiceValidationPanel({
       }
 
       setReport(checks);
-      setReferences(source);
     } catch (cause) {
       setError((cause as Error).message);
     } finally {
@@ -286,17 +177,9 @@ export default function InvoiceValidationPanel({
     });
   }
 
-  function selectSubject(value: Subject) {
-    setSubject(value);
-    setSelectedReference("");
-  }
-
   useEffect(() => {
     setReport(null);
-    setReferences([]);
-    setSubject("Original");
-    setSelectedReference("");
-  }, [draftId, revision, taxpayerId]);
+  }, [draftId, revision]);
 
   useEffect(() => {
     if (checkingAfterSave && !dirty) {
@@ -384,7 +267,7 @@ export default function InvoiceValidationPanel({
       {report && <ValidationReport report={report} />}
       {(report?.selectedEnvironment === "Sandbox" || report?.selectedEnvironment === "Production") && (
         <div className="invoice-validation__preparation">
-          <button type="button" className="identity-secondary"
+          <button type="button" className="invoice-validation__prepare-button"
             disabled={dirty || busy || preparing || !onPrepared ||
               report.revision!==revision || report.findings.some(f=>
                 f.severity==="error"||(f.severity==="warning"&&f.key!=="invoice.rules.not_approved"))}
@@ -399,13 +282,6 @@ export default function InvoiceValidationPanel({
       )}
 
 
-      <ReferenceSection
-        subject={subject}
-        references={references}
-        selectedReference={selectedReference}
-        onSubjectChange={selectSubject}
-        onReferenceChange={setSelectedReference}
-      />
     </section>
   );
 }

@@ -29,6 +29,10 @@ internal static class Phase10EffectiveInvoiceQuery
                     UNION ALL
                     SELECT predecessor_invoice_id,successor_invoice_id,customer_user_id,taxpayer_id,created_at_utc,state
                     FROM authority_invoice_legal_relations
+                    UNION ALL
+                    SELECT predecessor_invoice_id,successor_invoice_id,customer_user_id,taxpayer_id,
+                      created_at_utc,1 AS state
+                    FROM invoice_rejection_replacements
                   ) r
                   WHERE r.predecessor_invoice_id=ANY(@ids)
                     AND r.state IN (1,2,4)
@@ -42,6 +46,10 @@ internal static class Phase10EffectiveInvoiceQuery
                     UNION ALL
                     SELECT predecessor_invoice_id,successor_invoice_id,customer_user_id,taxpayer_id,created_at_utc,state
                     FROM authority_invoice_legal_relations
+                    UNION ALL
+                    SELECT predecessor_invoice_id,successor_invoice_id,customer_user_id,taxpayer_id,
+                      created_at_utc,1 AS state
+                    FROM invoice_rejection_replacements
                   ) r
                     ON r.predecessor_invoice_id=c.invoice_id
                     AND r.customer_user_id=c.customer_user_id AND r.taxpayer_id=c.taxpayer_id
@@ -72,6 +80,10 @@ internal static class Phase10EffectiveInvoiceQuery
                 WHERE COALESCE(production_report.status,report.status)='SUCCESS'
                   OR (d.subject IN (2,3,4) AND
                     (op.state IN (4,5,6) OR COALESCE(production_report.status,report.status) IS NOT NULL))
+                  OR EXISTS(SELECT 1 FROM invoice_rejection_replacements rejected
+                    WHERE rejected.successor_invoice_id=d.id
+                      AND rejected.customer_user_id=d.customer_user_id
+                      AND rejected.taxpayer_id=d.taxpayer_id)
                 ORDER BY c.depth DESC,c.created_at_utc DESC,d.id DESC
                 """;
             foreach (var (name, value) in new (string, object)[] { ("ids", ids), ("owners", owners), ("taxpayers", taxpayers) })

@@ -842,7 +842,8 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
                 </button>}
                {item.correctionInProgress&&<button type="button" className="console-row-action"
                 onClick={()=>setCorrectionTarget(item)}>ادامه ویرایش</button>}
-               {["ACKNOWLEDGED","SUCCESS","FAILED","PENDING","IN_PROGRESS","INDETERMINATE","SENDING"].includes(item.authorityStatus??"")&&
+               {(!!item.effectiveInvoiceId && item.effectiveInvoiceId !== item.id ||
+                 ["ACKNOWLEDGED","SUCCESS","FAILED","PENDING","IN_PROGRESS","INDETERMINATE","SENDING"].includes(item.authorityStatus??""))&&
                 <button type="button" className="console-row-action" title="نمایش سوابق و شناسه‌های مالیاتی" onClick={()=>setLineage(item)}>
                  ⛓ زنجیره
                 </button>}
@@ -1216,7 +1217,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
               </div>
               {editing && <InvoiceHistoryPanel workspaceId={editing.id}/>}
               {editing && <InvoiceValidationPanel
-                draftId={editing.id} taxpayerId={editing.taxpayerId}
+                draftId={editing.id}
                 revision={editing.revision} dirty={validationDirty}
                 onSave={()=>saveWorkspace(step===2 && settlement===0 ? 1 : step,false,false,true)}
                 onDraftChanged={async()=>{

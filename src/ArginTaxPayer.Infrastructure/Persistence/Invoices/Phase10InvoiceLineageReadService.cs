@@ -12,8 +12,8 @@ public sealed record InvoiceLineageView(bool HasDispatchAttempt,bool HasChanges,
     bool OutcomeUnknown,IReadOnlyList<InvoiceLineageNode> Nodes);
 
 /// <summary>
-/// First Step25 slice: read the genuine dispatched document without inventing
-/// predecessor links. Related document edges require durable legal relations.
+/// Reads dispatched documents and durable legal or rejected-send replacement
+/// relations without inventing predecessor links.
 /// </summary>
 public sealed class Phase10InvoiceLineageReadService(
     ArginTaxPayerDbContext db,TaxpayerScopeService scope)
@@ -30,7 +30,7 @@ public sealed class Phase10InvoiceLineageReadService(
             .Where(t=>t.Id==taxpayerId).Select(t=>t.CustomerUserId)
             .SingleOrDefaultAsync(ct);
         if(owner is null)return (InvoiceApiDecision.NotFound,null);
-        invoiceId=await RejectedInvoiceReplacementQuery.ResolveAsync(db,owner.Value,taxpayerId,invoiceId,ct);
+        invoiceId=await ResolveLineageRootAsync(db,owner.Value,taxpayerId,invoiceId,ct);
         var invoice=await db.InvoiceDocuments.AsNoTracking()
             .Where(i=>i.Id==invoiceId&&i.TaxpayerId==taxpayerId&&i.CustomerUserId==owner.Value)
             .Select(i=>new{i.Id,i.Subject,i.IssueDateUtc})
@@ -127,6 +127,10 @@ WITH RECURSIVE lineage AS (
   SELECT id,predecessor_invoice_id,successor_invoice_id,predecessor_fiscal_tax_id,customer_user_id,taxpayer_id,
    created_at_utc,subject,state,true AS is_production
   FROM authority_invoice_legal_relations
+  UNION ALL
+  SELECT id,predecessor_invoice_id,successor_invoice_id,NULL::varchar AS predecessor_fiscal_tax_id,
+   customer_user_id,taxpayer_id,created_at_utc,1 AS subject,1 AS state,true AS is_production
+  FROM invoice_rejection_replacements
  ) r
  WHERE r.predecessor_invoice_id=@invoice
   AND r.customer_user_id=@owner AND r.taxpayer_id=@taxpayer
@@ -144,6 +148,10 @@ WITH RECURSIVE lineage AS (
   SELECT id,predecessor_invoice_id,successor_invoice_id,predecessor_fiscal_tax_id,customer_user_id,taxpayer_id,
    created_at_utc,subject,state,true AS is_production
   FROM authority_invoice_legal_relations
+  UNION ALL
+  SELECT id,predecessor_invoice_id,successor_invoice_id,NULL::varchar AS predecessor_fiscal_tax_id,
+   customer_user_id,taxpayer_id,created_at_utc,1 AS subject,1 AS state,true AS is_production
+  FROM invoice_rejection_replacements
  ) r ON r.predecessor_invoice_id=lineage.successor_invoice_id
   AND r.customer_user_id=lineage.customer_user_id AND r.taxpayer_id=lineage.taxpayer_id
  WHERE lineage.depth<100 AND NOT r.successor_invoice_id=ANY(lineage.visited)
@@ -176,7 +184,10 @@ SELECT d.id,d.subject,d.issue_date_utc,
     AND op.taxpayer_id=d.taxpayer_id
   ORDER BY op.created_at_utc DESC LIMIT 1),
   lineage.is_production,lineage.state,lineage.depth,lineage.created_at_utc,lineage.id,
-  (SELECT sr.system_code FROM invoice_support_references sr
+  (SELECT CASE WHEN EXISTS(SELECT 1 FROM invoice_rejection_replacements rr
+      WHERE rr.id=lineage.id AND rr.successor_invoice_id=d.id)
+     THEN @root_system_code ELSE sr.system_code END
+   FROM invoice_support_references sr
    WHERE sr.source_id=d.id AND sr.source_kind='document' LIMIT 1),
   lineage.predecessor_fiscal_tax_id
 FROM lineage
@@ -186,7 +197,8 @@ WHERE lineage.customer_user_id=@owner AND lineage.taxpayer_id=@taxpayer
 ORDER BY lineage.depth,lineage.created_at_utc,lineage.id
 """;
             foreach(var (name,value) in new (string,object)[]{
-                ("invoice",invoiceId),("taxpayer",taxpayerId),("owner",owner.Value)})
+                ("invoice",invoiceId),("taxpayer",taxpayerId),("owner",owner.Value),
+                ("root_system_code",rootSystemCode is null?DBNull.Value:rootSystemCode)})
             {var p=related.CreateParameter();p.ParameterName=name;p.Value=value;related.Parameters.Add(p);}
             await using var next=await related.ExecuteReaderAsync(ct);
             while(await next.ReadAsync(ct))
@@ -211,5 +223,42 @@ ORDER BY lineage.depth,lineage.created_at_utc,lineage.id
                 new(attempted,nodes.Count>1,state is 4 or 6,nodes));
         }
         finally{if(opened)await conn.CloseAsync();}
+    }
+
+    private static async Task<Guid> ResolveLineageRootAsync(ArginTaxPayerDbContext db,
+        Guid owner,Guid taxpayer,Guid invoiceId,CancellationToken ct)
+    {
+        var connection=db.Database.GetDbConnection();
+        var opened=connection.State!=System.Data.ConnectionState.Open;
+        if(opened)await connection.OpenAsync(ct);
+        try
+        {
+            await using var command=connection.CreateCommand();
+            command.CommandText="""
+WITH RECURSIVE ancestors AS (
+ SELECT @invoice::uuid AS invoice_id,0 AS depth,ARRAY[@invoice::uuid] AS visited
+ UNION ALL
+ SELECT r.predecessor_invoice_id,a.depth+1,a.visited||r.predecessor_invoice_id
+ FROM ancestors a JOIN (
+  SELECT predecessor_invoice_id,successor_invoice_id,customer_user_id,taxpayer_id
+  FROM sandbox_invoice_legal_relations
+  UNION ALL
+  SELECT predecessor_invoice_id,successor_invoice_id,customer_user_id,taxpayer_id
+  FROM authority_invoice_legal_relations
+  UNION ALL
+  SELECT predecessor_invoice_id,successor_invoice_id,customer_user_id,taxpayer_id
+  FROM invoice_rejection_replacements
+ ) r ON r.successor_invoice_id=a.invoice_id
+  AND r.customer_user_id=@owner AND r.taxpayer_id=@taxpayer
+ WHERE a.depth<100 AND NOT r.predecessor_invoice_id=ANY(a.visited)
+)
+SELECT invoice_id FROM ancestors ORDER BY depth DESC LIMIT 1
+""";
+            foreach(var (name,value) in new (string,object)[]{("invoice",invoiceId),
+                ("owner",owner),("taxpayer",taxpayer)})
+            {var p=command.CreateParameter();p.ParameterName=name;p.Value=value;command.Parameters.Add(p);}
+            return await command.ExecuteScalarAsync(ct) is Guid root?root:invoiceId;
+        }
+        finally{if(opened)await connection.CloseAsync();}
     }
 }

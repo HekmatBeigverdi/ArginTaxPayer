@@ -197,6 +197,16 @@ public sealed class InvoiceDraftApplicationService(
         var allowed = scope.ScopedQuery(principal.ActorId, principal.Level1)
             .Select(x => x.Id);
         var replaced=db.Database.SqlQueryRaw<Guid>("SELECT predecessor_invoice_id AS \"Value\" FROM invoice_successful_rejection_replacements");
+        // Keep an in-flight rejected-invoice replacement under its predecessor's
+        // human identifier. Once the authority confirms it, the existing
+        // successful-replacement projection displays the successor as effective.
+        var pendingRejectedSuccessors=db.Database.SqlQueryRaw<Guid>("""
+SELECT r.successor_invoice_id AS "Value"
+FROM invoice_rejection_replacements r
+WHERE NOT EXISTS(
+ SELECT 1 FROM invoice_successful_rejection_replacements s
+ WHERE s.successor_invoice_id=r.successor_invoice_id)
+""");
         // Legal successor documents remain immutable, but the workspace overview
         // displays exactly one row for the root chain, before pagination.
         var legalSuccessors=db.Database.SqlQueryRaw<Guid>("""
@@ -208,7 +218,7 @@ FROM authority_invoice_legal_relations
 """);
         var documents = db.InvoiceDocuments.AsNoTracking()
             .Where(x => allowed.Contains(x.TaxpayerId) && !legalSuccessors.Contains(x.Id)
-                && !replaced.Contains(x.Id))
+                && !replaced.Contains(x.Id) && !pendingRejectedSuccessors.Contains(x.Id))
             .Select(x => new {
                 x.Id, x.CustomerUserId, x.TaxpayerId, x.Revision,
                 x.IssueDateUtc, x.UpdatedAtUtc,
