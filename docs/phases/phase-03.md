@@ -110,20 +110,20 @@ Expected: `20261012010000_AddIdentityFoundation` is applied, `identity_users` an
 
 ### Step 01 — Complete macOS-to-Ubuntu Tunnel and Migration Acceptance Runbook
 
-**Execution order is mandatory**; do not omit the SSH tunnel or PostgreSQL verification. The Ubuntu host from the Phase 02 runbook is `argindev@85.133.244.156`; the Docker Compose PostgreSQL service binds the VPS loopback port `5432`. These commands are for an operator with an existing SSH login and the test PostgreSQL password.
+**Execution order is mandatory**; do not omit the SSH tunnel or PostgreSQL verification. The Ubuntu host from the Phase 02 runbook is `argindev@109.70.78.95`; the Docker Compose PostgreSQL service binds the VPS loopback port `5432`. These commands are for an operator with an existing SSH login and the test PostgreSQL password.
 
 **A. macOS terminal 1: keep SSH tunnel open**
 
 ```bash
 ssh -N -o ExitOnForwardFailure=yes \
   -L 127.0.0.1:15432:127.0.0.1:5432 \
-  argindev@85.133.244.156
+  argindev@109.70.78.95
 ```
 
 **B. Ubuntu: verify or create the dedicated test database (once)**
 
 ```bash
-ssh argindev@85.133.244.156
+ssh argindev@109.70.78.95
 PG_ID=$(sudo docker ps -q --filter label=com.docker.compose.service=postgres | head -n 1)
 test -n "$PG_ID" || { echo "PostgreSQL container missing"; exit 1; }
 sudo docker exec "$PG_ID" psql -U argintaxpayer -d postgres -tAc \
@@ -173,7 +173,7 @@ Expected: applied `20261012010000_AddIdentityFoundation`; both identity tables v
 **E. Ubuntu code verification (no second schema mutation)**
 
 ```bash
-ssh argindev@85.133.244.156
+ssh argindev@109.70.78.95
 cd ~/projects/ArginTaxPayer
 git fetch origin
 git switch phase/03-identity-authorization
@@ -202,7 +202,7 @@ AUTOSSH_GATETIME=0 autossh -M 0 -N \
   -o ConnectTimeout=10 \
   -o ExitOnForwardFailure=yes \
   -L 127.0.0.1:15432:127.0.0.1:5432 \
-  argindev@85.133.244.156
+  argindev@109.70.78.95
 ```
 2. In macOS Terminal 2, from the repository root:
 ```bash
@@ -235,7 +235,7 @@ Expected: `201`, `409`, `200` with `sessionIssued:false`, then `401`. Since user
 
 **Ubuntu build and regression tests (no second migration):**
 ```bash
-ssh argindev@85.133.244.156
+ssh argindev@109.70.78.95
 cd ~/projects/ArginTaxPayer
 git fetch origin
 git switch phase/03-identity-authorization
@@ -268,7 +268,7 @@ AUTOSSH_GATETIME=0 autossh -M 0 -N \
   -o ConnectTimeout=10 \
   -o ExitOnForwardFailure=yes \
   -L 127.0.0.1:15432:127.0.0.1:5432 \
-  argindev@85.133.244.156
+  argindev@109.70.78.95
 ```
 
 macOS Terminal B — from project root, after preserving any uncommitted changes:
@@ -308,7 +308,7 @@ Expected: `STEP 03 SESSION SMOKE PASSED`. This smoke creates a disposable Custom
 
 Ubuntu VPS — do **not** apply the migration again:
 ```bash
-ssh argindev@85.133.244.156
+ssh argindev@109.70.78.95
 cd ~/projects/ArginTaxPayer
 git fetch origin
 git switch phase/03-identity-authorization
@@ -342,7 +342,7 @@ Terminal A — keep the SSH tunnel open until all macOS DB/API testing is finish
 ```bash
 ssh -N -o ExitOnForwardFailure=yes \
   -L 127.0.0.1:15432:127.0.0.1:5432 \
-  argindev@85.133.244.156
+  argindev@109.70.78.95
 ```
 
 Terminal B — checkout and regression tests:
@@ -404,7 +404,7 @@ For an existing Level 1 test account requiring first-time MFA enrollment, substi
 
 **Ubuntu VPS (build/regression only):**
 ```bash
-ssh argindev@85.133.244.156
+ssh argindev@109.70.78.95
 cd ~/projects/ArginTaxPayer
 git fetch origin
 git switch phase/03-identity-authorization
@@ -490,7 +490,7 @@ AUTOSSH_GATETIME=0 autossh -M 0 -N \
   -o ConnectTimeout=10 \
   -o ExitOnForwardFailure=yes \
   -L 127.0.0.1:15432:127.0.0.1:5432 \
-  argindev@85.133.244.156
+  argindev@109.70.78.95
 
 # Terminal 2: from repo root, in a shell that has the test DB connection and persistent MFA key
 git fetch origin
@@ -531,7 +531,7 @@ If the same-shell `ConnectionStrings__ArginTaxPayerDb` variable is absent, resto
 ```bash
 ssh -N -o ExitOnForwardFailure=yes \
   -L 127.0.0.1:15432:127.0.0.1:5432 \
-  argindev@85.133.244.156
+  argindev@109.70.78.95
 ```
 
 **2. Terminal B — macOS repository root, inspect local modifications before switching:**
@@ -579,7 +579,7 @@ Expected `STEP 05 RBAC SMOKE PASSED`. Script does not output raw credentials or 
 
 **7. Ubuntu VPS — same branch, no database migration:**
 ```bash
-ssh argindev@85.133.244.156
+ssh argindev@109.70.78.95
 cd ~/projects/ArginTaxPayer
 git fetch origin
 git switch phase/03-identity-authorization
@@ -615,7 +615,7 @@ Terminal 1 — open and keep the PostgreSQL SSH tunnel alive:
 ```bash
 ssh -N -o ExitOnForwardFailure=yes \
   -L 127.0.0.1:15432:127.0.0.1:5432 \
-  argindev@85.133.244.156
+  argindev@109.70.78.95
 ```
 
 Terminal 2 — pull source and run regression tests:
@@ -660,7 +660,7 @@ Expected final marker: `STEP 06 RESOURCE SCOPE SMOKE PASSED`. The HTTP smoke cre
 
 **Ubuntu VPS build and test:**
 ```bash
-ssh argindev@85.133.244.156
+ssh argindev@109.70.78.95
 cd ~/projects/ArginTaxPayer
 git fetch origin
 git switch phase/03-identity-authorization
@@ -750,7 +750,7 @@ AUTOSSH_GATETIME=0 autossh -M 0 -N \
   -o ConnectTimeout=10 \
   -o ExitOnForwardFailure=yes \
   -L 127.0.0.1:15432:127.0.0.1:5432 \
-  argindev@85.133.244.156
+  argindev@109.70.78.95
 ```
 
 **PostgreSQL test identity verification (Terminal B):**
@@ -778,7 +778,7 @@ Expected `STEP 07 ACCOUNT PROTECTION SMOKE PASSED`. Smoke generates one disposab
 
 **Ubuntu VPS Build/tests:**
 ```bash
-ssh argindev@85.133.244.156
+ssh argindev@109.70.78.95
 cd ~/projects/ArginTaxPayer
 git fetch origin
 git switch phase/03-identity-authorization
@@ -840,7 +840,7 @@ AUTOSSH_GATETIME=0 autossh -M 0 -N \
   -o ConnectTimeout=10 \
   -o ExitOnForwardFailure=yes \
   -L 127.0.0.1:15432:127.0.0.1:5432 \
-  argindev@85.133.244.156
+  argindev@109.70.78.95
 ```
 
 Terminal B — use the **owner-confirmed zsh** command in the SAME shell as the API:
@@ -896,7 +896,7 @@ Run the Python commands from repo root in a separate terminal while the .NET API
 
 **Ubuntu VPS test runbook:**
 ```bash
-ssh argindev@85.133.244.156
+ssh argindev@109.70.78.95
 cd ~/projects/ArginTaxPayer
 git fetch origin
 git switch phase/03-identity-authorization
@@ -1065,7 +1065,7 @@ AUTOSSH_GATETIME=0 autossh -M 0 -N \
   -o ConnectTimeout=10 \
   -o ExitOnForwardFailure=yes \
   -L 127.0.0.1:15432:127.0.0.1:5432 \
-  argindev@85.133.244.156
+  argindev@109.70.78.95
 ```
 Use the **owner-verified macOS zsh command** in the same shell that will run `.NET` API/tests:
 ```zsh
@@ -1104,7 +1104,7 @@ python3 scripts/phase-03-step-08-ui-smoke.py
 
 **Ubuntu VPS build and tests (no public API port):**
 ```bash
-ssh argindev@85.133.244.156
+ssh argindev@109.70.78.95
 cd ~/projects/ArginTaxPayer
 git fetch origin
 git switch phase/03-identity-authorization
@@ -1129,10 +1129,10 @@ AUTOSSH_GATETIME=0 autossh -M 0 -N \
   -o ConnectTimeout=10 \
   -o ExitOnForwardFailure=yes \
   -L 127.0.0.1:15432:127.0.0.1:5432 \
-  argindev@85.133.244.156
+  argindev@109.70.78.95
 ```
 
-Do not introduce an old `ssh -N -L` variant in new phase instructions. AutoSSH repairs dropped SSH tunnels, but it does **not** restart the .NET API, restart a crashed PostgreSQL service, or make an incorrectly configured database safe. This tunnel is for local testing against PostgreSQL via Ubuntu only; distinguish it from the ordinary `ssh argindev@85.133.244.156` command used to open an Ubuntu remote shell. Keep `argintaxpayer_test` database identity verification as a hard gate before migrations/tests. Do not insert non-breaking-space (NBSP) characters from chat formatting into terminal commands.
+Do not introduce an old `ssh -N -L` variant in new phase instructions. AutoSSH repairs dropped SSH tunnels, but it does **not** restart the .NET API, restart a crashed PostgreSQL service, or make an incorrectly configured database safe. This tunnel is for local testing against PostgreSQL via Ubuntu only; distinguish it from the ordinary `ssh argindev@109.70.78.95` command used to open an Ubuntu remote shell. Keep `argintaxpayer_test` database identity verification as a hard gate before migrations/tests. Do not insert non-breaking-space (NBSP) characters from chat formatting into terminal commands.
 
 ### Step 09 — Practical Browser Acceptance: Local OTP Without Ghasedak Cost (2026-10-12)
 
@@ -1148,7 +1148,7 @@ AUTOSSH_GATETIME=0 autossh -M 0 -N \
   -o ConnectTimeout=10 \
   -o ExitOnForwardFailure=yes \
   -L 127.0.0.1:15432:127.0.0.1:5432 \
-  argindev@85.133.244.156
+  argindev@109.70.78.95
 ```
 AutoSSH prerequisite: `brew install autossh` if needed. Keep this foreground terminal open.
 
@@ -1240,7 +1240,7 @@ AUTOSSH_GATETIME=0 autossh -M 0 -N \
   -o ConnectTimeout=10 \
   -o ExitOnForwardFailure=yes \
   -L 127.0.0.1:15432:127.0.0.1:5432 \
-  argindev@85.133.244.156
+  argindev@109.70.78.95
 ```
 Never paste chat-formatted nonbreaking spaces into shell. This is a tunnel to the **test** PostgreSQL only, not public API hosting.
 
@@ -1369,7 +1369,7 @@ zsh scripts/dev-up.zsh
 zsh scripts/dev-status.zsh
 zsh scripts/dev-down.zsh
 ```
-The launcher starts the exact approved `AUTOSSH_GATETIME=0 autossh -M 0 -N` tunnel at local `127.0.0.1:15432` (with ServerAliveInterval 15, ServerAliveCountMax 3, ConnectTimeout 10, ExitOnForwardFailure, host `argindev@85.133.244.156`), followed by .NET API `127.0.0.1:15089`, Next.js `127.0.0.1:3000`. It loads `.env.dev.local` and `.env.ghasedak.local` in the very same child process environment, preserves `~/.argintaxpayer-test/otp-pepper`, preflights dedicated test DB and identity readiness, checks Ghasedak configuration booleans, identifies whether **real SMS is enabled**, and stores local logs in `~/.argintaxpayer-test/` with owner-only directory access. It never creates migrations, charges customers or triggers an SMS by itself. **AutoSSH in this runner uses BatchMode=yes, so SSH key-based authentication must be set up**; otherwise run the user's foreground AutoSSH command and then relaunch the runner. Do not run this development stack publicly or in Production.
+The launcher starts the exact approved `AUTOSSH_GATETIME=0 autossh -M 0 -N` tunnel at local `127.0.0.1:15432` (with ServerAliveInterval 15, ServerAliveCountMax 3, ConnectTimeout 10, ExitOnForwardFailure, host `argindev@109.70.78.95`), followed by .NET API `127.0.0.1:15089`, Next.js `127.0.0.1:3000`. It loads `.env.dev.local` and `.env.ghasedak.local` in the very same child process environment, preserves `~/.argintaxpayer-test/otp-pepper`, preflights dedicated test DB and identity readiness, checks Ghasedak configuration booleans, identifies whether **real SMS is enabled**, and stores local logs in `~/.argintaxpayer-test/` with owner-only directory access. It never creates migrations, charges customers or triggers an SMS by itself. **AutoSSH in this runner uses BatchMode=yes, so SSH key-based authentication must be set up**; otherwise run the user's foreground AutoSSH command and then relaunch the runner. Do not run this development stack publicly or in Production.
 
 **Operator smoke checklist:** (a) correct Build; (b) `dotnet test` baseline; (c) PostgreSQL tests with `RUN_ARGINTAXPAYER_PG_INTEGRATION=1` only after checking the exact DB name; (d) Login button stays busy/disabled until navigation; (e) Level 1/2 with MFA sees Customer creation form; (f) required phone + password, optional email creates a Customer without sending SMS; (g) normal Customer cannot call the endpoint, return 403; (h) invalid/duplicate phone/email denied; (i) previously existing email/phone login, Customer SMS OTP, TOTP admin MFA and role policies remain intact; (j) dev-up, dev-status and dev-down verify usable workflow.
 
@@ -1405,7 +1405,7 @@ Confirm `current_database() = 'argintaxpayer_test'` before DB integration; use `
 
 **Ubuntu session, no credentials pasted into chat:**
 ```bash
-ssh argindev@85.133.244.156
+ssh argindev@109.70.78.95
 cd ~/projects/ArginTaxPayer
 git status --short
 git fetch origin
@@ -1474,7 +1474,7 @@ Keep these as foreground test processes. Do not open public firewall ports or ex
 
 **Mac-only private UI forwarding:** From a macOS terminal (independent of the owner's regular AutoSSH PostgreSQL tunnel), connect to the VPS loopback Next.js port:
 ```bash
-AUTOSSH_GATETIME=0 autossh -M 0 -N -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -o ConnectTimeout=10 -o ExitOnForwardFailure=yes -L 127.0.0.1:13000:127.0.0.1:3000 argindev@85.133.244.156
+AUTOSSH_GATETIME=0 autossh -M 0 -N -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -o ConnectTimeout=10 -o ExitOnForwardFailure=yes -L 127.0.0.1:13000:127.0.0.1:3000 argindev@109.70.78.95
 ```
 Open `http://127.0.0.1:13000/identity` in the Mac browser. Next.js will call the Ubuntu-local API using `ARGIN_IDENTITY_API_INTERNAL_BASE_URL`; there is no need to expose API port 15089. If browser Same-Origin validation fails because port 13000 is forwarded, test using the original, localhost-only macOS browser route or adjust the local-origin policy as a separate reviewed security change—never bypass it globally.
 
@@ -1576,7 +1576,7 @@ Do not reuse the Mac-only zsh AutoSSH runner on Ubuntu. The isolated Ubuntu test
 
 **Ubuntu update-only operator command** (do not run tests or restart services automatically):
 ```bash
-ssh argindev@85.133.244.156
+ssh argindev@109.70.78.95
 cd ~/projects/ArginTaxPayer
 git status --short
 git fetch origin

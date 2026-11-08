@@ -146,7 +146,7 @@ To see the VPS UI from the Mac browser, open a tunnel in a separate **Mac** term
 ```bash
 ssh -N -o ExitOnForwardFailure=yes \
   -L 127.0.0.1:13000:127.0.0.1:3000 \
-  argindev@85.133.244.156
+  argindev@109.70.78.95
 ```
 
 Then visit `http://127.0.0.1:13000/` on Mac. The API health probe happens on the VPS server-side Next.js process, not in the Mac browser; do not open public ports 3000 or 5088. Stop services and SSH tunnel after testing.

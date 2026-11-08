@@ -105,7 +105,7 @@ Expected final output: `STEP 20 INTEGRATION SMOKE PASSED`, exit 0. Store the act
 Prerequisites: the same tools and available loopback test ports; Ubuntu VPS checkout at `~/projects/ArginTaxPayer`. Inspect previously reported local modifications before pull. No public network ports or actual credentials are required.
 
 ```bash
-ssh argindev@85.133.244.156
+ssh argindev@109.70.78.95
 cd ~/projects/ArginTaxPayer
 git status --short
 git diff --stat

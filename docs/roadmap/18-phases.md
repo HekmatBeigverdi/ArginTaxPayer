@@ -96,7 +96,7 @@ AUTOSSH_GATETIME=0 autossh -M 0 -N \
   -o ConnectTimeout=10 \
   -o ExitOnForwardFailure=yes \
   -L 127.0.0.1:15432:127.0.0.1:5432 \
-  argindev@85.133.244.156
+  argindev@109.70.78.95
 ```
 
 The tunnel is only transport. All migrations and database tests must independently check `current_database() = 'argintaxpayer_test'` before execution. Ordinary `ssh` for opening the Ubuntu remote shell remains unaffected. This convention applies to all future phase master plans and operator checklists.

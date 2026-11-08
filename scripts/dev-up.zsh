@@ -85,7 +85,7 @@ if ! lsof -nP -iTCP:15432 -sTCP:LISTEN >/dev/null 2>&1; then
   AUTOSSH_GATETIME=0 nohup autossh -M 0 -N \
     -o BatchMode=yes -o ServerAliveInterval=15 -o ServerAliveCountMax=3 \
     -o ConnectTimeout=10 -o ExitOnForwardFailure=yes \
-    -L 127.0.0.1:15432:127.0.0.1:5432 argindev@85.133.244.156 \
+    -L 127.0.0.1:15432:127.0.0.1:5432 argindev@109.70.78.95 \
     > "$STATE/autossh.log" 2>&1 < /dev/null &
   echo $! > "$STATE/autossh.pid"
   started_pids+=("$!")
@@ -112,7 +112,7 @@ if ! lsof -nP -iTCP:18081 -sTCP:LISTEN >/dev/null 2>&1; then
   AUTOSSH_GATETIME=0 nohup autossh -M 0 -N \
     -o BatchMode=yes -o ServerAliveInterval=15 -o ServerAliveCountMax=3 \
     -o ConnectTimeout=10 -o ExitOnForwardFailure=yes \
-    -L 127.0.0.1:18081:127.0.0.1:8081 argindev@85.133.244.156 \
+    -L 127.0.0.1:18081:127.0.0.1:8081 argindev@109.70.78.95 \
     > "$STATE/adminer.log" 2>&1 < /dev/null &
   adminer_pid="$!"
   started_pids+=("$adminer_pid")
