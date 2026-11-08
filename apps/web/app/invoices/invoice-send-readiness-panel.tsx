@@ -20,12 +20,13 @@ function flattenWire(value:unknown,path=""):WireField[]{
  }
  return [{path,value:JSON.stringify(value)}];
 }
-type AuthorityResult={status:"FAILED"|"SUCCESS"|"PENDING"|"UNKNOWN";
+type AuthorityResult={status:"FAILED"|"SUCCESS"|"PENDING"|"IN_PROGRESS"|"UNKNOWN";
  errors:{code:string;message:string}[];warnings:{code:string;message:string}[];
  canPrepareCorrection:boolean;observedAtUtc:string};
 const authorityLabels:Record<AuthorityResult["status"],string>={
  FAILED:"رد شده توسط سازمان",SUCCESS:"نتیجه موفق در Sandbox",
- PENDING:"در انتظار نتیجه سازمان",UNKNOWN:"نتیجه سازمان نامشخص است"};
+ PENDING:"در انتظار نتیجه سازمان",IN_PROGRESS:"در صف ارسال به سازمان",
+ UNKNOWN:"نتیجه سازمان نامشخص است"};
 const formatObservedAt=(value:string)=>{
  const date=new Date(value);
  if(Number.isNaN(date.getTime()))return value;
@@ -671,6 +672,8 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
    <ul>{authorityResult.errors.map((item,index)=><li key={index}><b dir="ltr">{item.code}</b> — {item.message}</li>)}</ul>
    <h5>هشدارهای سازمان</h5>
    <ul>{authorityResult.warnings.map((item,index)=><li key={index}><b dir="ltr">{item.code}</b> — {item.message}</li>)}</ul>
+   {authorityResult.status==="IN_PROGRESS"&&
+    <p>درخواست صورتحساب در صف ارسال به سازمان است؛ منتظر بمانید. در ساعات آینده برای استعلام دوباره اقدام کنید و صورتحساب را دوباره ارسال نکنید.</p>}
    {(authorityResult.status==="PENDING"||authorityResult.status==="UNKNOWN")&&
     <p>نتیجه قطعی مشخص نیست؛ ارسال را تکرار نکنید.</p>}
    {authorityResult.status==="SUCCESS"&&(report?.environment==="Sandbox"?<p>این نتیجه مربوط به Sandbox است؛ پذیرش قطعی مالیاتی ثبت نشده است.</p>:<p>نتیجه سازمان دریافت شده است؛ وضعیت پذیرش قطعی مالیاتی هنوز تأیید نشده است.</p>)}
@@ -683,7 +686,9 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
   {correctionUrl&&<a href={correctionUrl}>باز کردن پیش‌نویس اصلاح برای ویرایش</a>}
   {dispatch?.status==="Reserved"&&!dispatch.submissionEnabled&&
    <p role="alert" className="form-error">عملیات Reserved است، اما تنظیمات فعال‌سازی ارسال Legacy در Backend کامل نیست.</p>}
-  {dispatch?.status==="Acknowledged"&&<p role="status" className="field-hint">وضعیت ارسال {environmentLabel}: <strong>{dispatch.status}</strong>
+  {dispatch?.status==="Acknowledged"&&<p role="status" className="field-hint">وضعیت ارسال {environmentLabel}: <strong>
+   {authorityResult?.status==="IN_PROGRESS"?"در صف ارسال به سازمان":"کد رهگیری دریافت شد"}
+  </strong>
    {dispatch.referenceNumber&&<> — شماره پیگیری: <b dir="ltr">{dispatch.referenceNumber}</b></>}</p>}
   {verifiedEnvironment&&
    dispatch?.status!=="Acknowledged"&&dispatch?.status!=="Indeterminate"&&

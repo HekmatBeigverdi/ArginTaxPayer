@@ -14,6 +14,7 @@ import InvoiceSalesReturnModal from "./invoice-sales-return-modal";
 import InvoiceSubjectBadge from "./invoice-subject-badge";
 import InvoiceDispatchHistory from "./invoice-dispatch-history";
 import InvoiceLineageModal from "./invoice-lineage-modal";
+import InvoicePrintAction from "./invoice-print-action";
 import InvoiceImportPanel, {type ImportValues} from "./invoice-import-panel";
 import BulkInvoiceImportPanel from "./bulk-invoice-import-panel";
 import {invoicePreview} from "./invoice-financial-preview.mjs";
@@ -246,6 +247,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   const [step, setStep] = useState<Step>(0);
   const [savedSnapshot,setSavedSnapshot] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const saveRequestInFlight = useRef(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const dialog = useRef<HTMLDivElement>(null);
@@ -542,6 +544,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
     // Opening the settlement screen does not complete it. Persist the lines
     // as step 1, then navigate to step 2; enforce terms on final completion only.
     const persistedStep: Step = !exit && step===1 && completeStep===2 ? 1 : completeStep;
+    if (saveRequestInFlight.current) return false;
     if (busy || !taxpayerId || !headerCustomer) {
       setError("ابتدا مشتری و مؤدی صادرکننده را انتخاب کنید."); return false;
     }
@@ -627,6 +630,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
         officialIdentifierSnapshot:r.officialIdentifierSnapshot??null
       }))
     };
+    saveRequestInFlight.current = true;
     setBusy(true);setError("");
     try {
       const saved = await getJson<SavedEntry>("/api/invoices/workspaces",{
@@ -644,7 +648,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
       if(navigateToBuyers) window.location.assign("/parties");
       return true;
     } catch(e) {setError((e as Error).message);return false;}
-    finally {setBusy(false);}
+    finally {saveRequestInFlight.current = false;setBusy(false);}
   }
   function nextStep() {
     if(step===0 && !taxpayerId){setError("مؤدی صادرکننده را انتخاب کنید.");return;}
@@ -806,10 +810,11 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
               item.reviewState === "ChangesRequested" ? "نیازمند اصلاح" :
               item.reviewState === "Approved" ? "تأیید داخلی" : "پیش‌نویس داخلی"}</td>
             <td><span style={{color:item.authorityStatus==="SUCCESS"?"#15803d":
-              item.authorityStatus==="FAILED"?"#b91c1c":undefined,fontWeight:600}}>
+              item.authorityStatus==="FAILED"?"#b91c1c":item.authorityStatus==="IN_PROGRESS"?"#9a6700":undefined,fontWeight:600}}>
               {item.authorityStatus==="SUCCESS"?"نتیجه موفق سازمان":
                item.authorityStatus==="FAILED"?"رد شده توسط سازمان":
                item.authorityStatus==="PENDING"?"در انتظار بررسی":
+               item.authorityStatus==="IN_PROGRESS"?"در صف ارسال به سازمان":
                item.authorityStatus==="ACKNOWLEDGED"?"کد رهگیری دریافت شد":
                item.authorityStatus==="INDETERMINATE"?"نتیجه نامشخص":
                item.authorityStatus==="RESERVED"?"آماده ارسال":
@@ -821,11 +826,16 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
               onClick={() => void editDraft(item)}>ویرایش و ادامه</button> :
               <span style={{display:"inline-flex",gap:5,alignItems:"center",flexWrap:"wrap"}}>
                <button type="button" className="console-row-action" onClick={()=>{setAutoOpenDispatchFor("");setDetail(item);}}>مشاهده</button>
-               {item.authorityStatus==="SUCCESS"&&["Original","SalesReturn"].includes(item.subject)&&
-                <button type="button" className="console-row-action" onClick={()=>setReturnTarget(item)}>برگشت از فروش</button>}
+               <InvoicePrintAction taxpayerId={item.taxpayerId}
+                invoiceId={item.effectiveInvoiceId??item.id} reference={item.systemCode??""} subject={item.subject}/>
+               {((item.authorityStatus==="SUCCESS"&&["Original","Correction","SalesReturn"].includes(item.subject))||
+                 (item.authorityStatus==="FAILED"&&item.subject==="SalesReturn"))&&
+                <button type="button" className="console-row-action" onClick={()=>setReturnTarget(item)}>
+                 {item.authorityStatus==="FAILED"?"ویرایش و تلاش مجدد برگشت":"برگشت از فروش"}
+                </button>}
                {item.correctionInProgress&&<button type="button" className="console-row-action"
                 onClick={()=>setCorrectionTarget(item)}>ادامه ویرایش</button>}
-               {["ACKNOWLEDGED","SUCCESS","FAILED","PENDING","INDETERMINATE","SENDING"].includes(item.authorityStatus??"")&&
+               {["ACKNOWLEDGED","SUCCESS","FAILED","PENDING","IN_PROGRESS","INDETERMINATE","SENDING"].includes(item.authorityStatus??"")&&
                 <button type="button" className="console-row-action" title="نمایش سوابق و شناسه‌های مالیاتی" onClick={()=>setLineage(item)}>
                  ⛓ زنجیره
                 </button>}
@@ -858,9 +868,9 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
           <button type="button" className="identity-secondary" onClick={() => {setDetail(null);setAutoOpenDispatchFor("");void reload();}}
             aria-label="بستن جزئیات">×</button>
         </div>
-        {detail.authorityStatus==="FAILED"&&<section className="invoice-detail-section__content" aria-label="اصلاح صورتحساب ردشده">
-          <p className="field-hint">این صورتحساب توسط سازمان رد شده است. می‌توانید نسخهٔ پیش‌نویس جداگانه‌ای برای اصلاح باز کنید.</p>
-          <button type="button" className="identity-secondary" disabled={rejectedDraftBusy}
+        {detail.authorityStatus==="FAILED"&&detail.subject!=="SalesReturn"&&<section className="invoice-rejected-correction" aria-label="اصلاح صورتحساب ردشده">
+          <p className="field-hint">فاکتور اصلی به سازمان ارسال شده، اما با خطا رد شده است. با این گزینه یک پیش‌نویس جداگانه برای اصلاح باز می‌شود؛ پیش‌نویس جدید هنوز ارسال نشده است.</p>
+          <button type="button" className="invoice-rejected-correction__button" disabled={rejectedDraftBusy}
             onClick={async()=>{
               if(rejectedDraftBusy)return;
               setRejectedDraftBusy(true);setRejectedDraftError("");
@@ -871,13 +881,17 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
                   encodeURIComponent(invoiceId)+"/rejection-correction-draft",{
                     method:"POST",cache:"no-store",credentials:"same-origin"});
                 const data=await response.json().catch(()=>({}));
+                if(response.status===409&&data.error==="rejected_invoice_already_replaced"){
+                  await reload();setDetail(null);setRejectedDraftBusy(false);
+                  setNotice("نسخهٔ اصلاح‌شدهٔ این صورتحساب قبلاً با موفقیت ارسال شده است.");return;
+                }
                 if(!response.ok||data.authoritySubmitted!==false||typeof data.workspaceId!=="string")
                   throw Error("ساخت پیش‌نویس اصلاح انجام نشد؛ ابتدا گزارش رد سازمان را تازه کنید و دوباره تلاش کنید.");
                 window.location.assign("/invoices?workspaceId="+encodeURIComponent(data.workspaceId)+
                   (data.issueDateAdjusted===true?"&issueDateAdjusted=1":""));
               }catch(e){setRejectedDraftError((e as Error).message);setRejectedDraftBusy(false);}
-            }}>{rejectedDraftBusy?"در حال آماده‌سازی پیش‌نویس…":"بازگشت به پیش‌نویس و اصلاح"}</button>
-          {rejectedDraftError&&<p className="form-error" role="alert">{rejectedDraftError}</p>}
+            }}><svg className="invoice-rejected-correction__icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 14 5 10l4-4"/><path d="M5 10h8a6 6 0 0 1 0 12h-2"/><path d="M15 2h4a2 2 0 0 1 2 2v4"/></svg>{rejectedDraftBusy?"در حال آماده‌سازی پیش‌نویس…":"بازگشت به پیش‌نویس"}</button>
+          {rejectedDraftError&&<p className="form-error invoice-rejected-correction__error" role="alert">{rejectedDraftError}</p>}
         </section>}
         <details name="invoice-detail-sections" className="fiscal-section invoice-detail-section" open key={"invoice-section:"+detail.id}><summary><span>صورتحساب فروش</span><span className="invoice-detail-section__summary-action">مشاهده جزئیات</span></summary>
         <div className="fiscal-section-content invoice-detail-section__content">
@@ -901,7 +915,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
         </div>
         </details>
         <details name="invoice-detail-sections" className="fiscal-section invoice-detail-section"
-          open={autoOpenDispatchFor===detail.id}><summary><span>{detail.authorityStatus==="SUCCESS"||detail.authorityStatus==="FAILED"||detail.authorityStatus==="PENDING"||detail.authorityStatus==="ACKNOWLEDGED"?"استعلام و نتیجه سازمان":"ارسال به سامانه مؤدیان"}</span><span className="invoice-detail-section__summary-action">مشاهده جزئیات</span></summary>
+          open={autoOpenDispatchFor===detail.id}><summary><span>{detail.authorityStatus==="SUCCESS"||detail.authorityStatus==="FAILED"||detail.authorityStatus==="PENDING"||detail.authorityStatus==="IN_PROGRESS"||detail.authorityStatus==="ACKNOWLEDGED"?"استعلام و نتیجه سازمان":"ارسال به سامانه مؤدیان"}</span><span className="invoice-detail-section__summary-action">مشاهده جزئیات</span></summary>
         <div className="fiscal-section-content invoice-detail-section__content">
         <InvoiceSendReadinessPanel key={"readiness:"+(detail.effectiveInvoiceId ?? detail.id)}
           invoiceId={detail.effectiveInvoiceId ?? detail.id} taxpayerId={detail.taxpayerId}
@@ -917,7 +931,9 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
     </div>}
 
     {returnTarget&&<InvoiceSalesReturnModal taxpayerId={returnTarget.taxpayerId}
-      invoiceId={returnTarget.id} onClose={()=>setReturnTarget(null)} onChanged={()=>void reload()}/>}
+      invoiceId={returnTarget.effectiveInvoiceId??returnTarget.id}
+      onClose={()=>{setReturnTarget(null);setDetail(null);void reload();}}
+      onChanged={()=>{setDetail(null);void reload();}}/>}
 
     {modal && <div className="invoice-register__overlay" onMouseDown={e => {
       if (e.target === e.currentTarget) close();

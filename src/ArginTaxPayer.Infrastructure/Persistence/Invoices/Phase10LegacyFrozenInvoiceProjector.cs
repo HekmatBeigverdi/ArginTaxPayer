@@ -164,8 +164,9 @@ public static class Phase10LegacyFrozenInvoiceProjector
         if (production is null) return field.GetString() == "Sandbox";
         var binding = production.Value;
         return field.GetString() == (binding.Environment == TaxAuthorityEnvironment.Production ? "Production" : "Sandbox") &&
-            invoice.Subject == InvoiceSubject.Original &&
-            binding.Environment is TaxAuthorityEnvironment.Production or TaxAuthorityEnvironment.Sandbox &&
+            (invoice.Subject is InvoiceSubject.Original or InvoiceSubject.Correction or
+                InvoiceSubject.Cancellation or InvoiceSubject.SalesReturn) &&
+            (binding.Environment is TaxAuthorityEnvironment.Production or TaxAuthorityEnvironment.Sandbox) &&
             binding.CustomerUserId != Guid.Empty && binding.CustomerUserId == invoice.CustomerUserId &&
             binding.TaxpayerId != Guid.Empty && binding.TaxpayerId == invoice.TaxpayerId &&
             binding.InvoiceId == invoice.Id && binding.FiscalMemoryId != Guid.Empty &&

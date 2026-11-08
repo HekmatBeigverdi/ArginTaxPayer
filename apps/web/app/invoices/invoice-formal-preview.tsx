@@ -1,7 +1,7 @@
 "use client";
 
 import {redirectForInvoiceSubscription} from "../../lib/invoice-subscription";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import InvoiceCorrectionModal from "./invoice-correction-modal";
 
 type Line = {
@@ -10,18 +10,28 @@ type Line = {
   quantity: number;
   unitPriceRial: number;
   discountRial: number;
+  grossRial?:number;
   netRial: number;
   vatRatePercent: number;
   vatRial: number;
   totalRial: number;
 };
+type Participant={name:string|null;identity:string|null;economicCode:string|null;
+ registrationNumber:string|null;branchCode:string|null;postalCode:string|null;
+ province:string|null;city:string|null;address:string|null;phone:string|null;kind:string|null};
 
 type Invoice = {
   issueDateUtc: string;
   revision: number;
   uniqueInvoiceId: string | null;
+  referenceFiscalTaxId?:string|null;
+  invoiceLogoDataUrl:string|null;
+  invoiceType:string|null;
+  pattern:string|null;
   seller: string | null;
   buyer: string | null;
+  sellerDetails:Participant|null;
+  buyerDetails:Participant|null;
   description: string | null;
   contractNumber: string | null;
   settlementMethod: string | null;
@@ -31,6 +41,10 @@ type Invoice = {
   netRial: number;
   vatRial: number;
   totalRial: number;
+  otherTaxAndLegalFeesRial:number;
+  cashAmountRial:number|null;
+  creditAmountRial:number|null;
+  paymentDateUtc:string|null;
 };
 
 type InvoiceFormalPreviewProps = {
@@ -40,6 +54,12 @@ type InvoiceFormalPreviewProps = {
   authorityStatus?: string;
   subject?: string;
   readOnly?: boolean;
+  authorityReference?: string|null;
+  referenceFiscalTaxId?:string|null;
+  printLayout?:boolean;
+  invoiceSubject?:string;
+  onPreviewReady?:()=>void;
+  onPreviewError?:(message:string)=>void;
   onCancellationCompleted?:()=>void;
   onCorrectionCompleted?:()=>void;
   onSalesReturn?:()=>void;
@@ -120,9 +140,11 @@ async function fetchInvoicePreview(
 function InvoiceHeader({
   invoice,
   reference,
+  authorityReference,
 }: {
   invoice: Invoice;
   reference: string;
+  authorityReference?:string|null;
 }) {
   return (
     <>
@@ -140,11 +162,12 @@ function InvoiceHeader({
         <span>
           نسخه: <strong>{invoice.revision}</strong>
         </span>
-        <span>
-          شناسه یکتای فاکتور (شناسه یکتای مالیاتی):{" "}
-          <strong dir="ltr">
+        <span className="invoice-tax-identifiers">
+          <strong>شماره مالیاتی</strong>
+          <span>شناسه منحصربه‌فرد مالیاتی: <bdi dir="ltr">
             {invoice.uniqueInvoiceId ?? "در انتظار تخصیص"}
-          </strong>
+          </bdi></span>
+          {authorityReference!==undefined&&<span>شماره مرجع: <bdi dir="ltr">{authorityReference??"—"}</bdi></span>}
         </span>
         {reference && (
           <span>
@@ -159,6 +182,112 @@ function InvoiceHeader({
       </div>
     </>
   );
+}
+
+const paperDate=(value:string|null|undefined)=>value
+ ?new Date(value).toLocaleString("fa-IR-u-ca-persian",{year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"})
+ :"—";
+const faDigits=(value:string|number|null|undefined)=>value==null?"—":String(value).replace(/[0-9]/g,d=>"۰۱۲۳۴۵۶۷۸۹"[Number(d)]);
+const underThousandWords=(value:number):string=>{
+ const ones=["","یک","دو","سه","چهار","پنج","شش","هفت","هشت","نه","ده","یازده","دوازده","سیزده","چهارده","پانزده","شانزده","هفده","هجده","نوزده"];
+ const tens=["","","بیست","سی","چهل","پنجاه","شصت","هفتاد","هشتاد","نود"];
+ const hundreds=["","یکصد","دویست","سیصد","چهارصد","پانصد","ششصد","هفتصد","هشتصد","نهصد"];
+ const parts:string[]=[];const h=Math.floor(value/100),rest=value%100;
+ if(h)parts.push(hundreds[h]);
+ if(rest<20){if(rest)parts.push(ones[rest]);}
+ else{parts.push(tens[Math.floor(rest/10)]);if(rest%10)parts.push(ones[rest%10]);}
+ return parts.join(" و ");
+};
+const rialInWords=(value:number):string=>{
+ if(!Number.isFinite(value))return "—";
+ let amount=Math.round(Math.abs(value));
+ if(amount===0)return "صفر ریال";
+ const scales=["","هزار","میلیون","میلیارد","تریلیون","کوادریلیون"];
+ const parts:string[]=[];let group=0;
+ while(amount>0&&group<scales.length){
+  const chunk=amount%1000;
+  if(chunk)parts.unshift([underThousandWords(chunk),scales[group]].filter(Boolean).join(" "));
+  amount=Math.floor(amount/1000);group++;
+ }
+ return (value<0?"منفی ":"")+parts.join(" و ")+" ریال";
+};
+const paperSubject:Record<string,string>={Original:"اصلی",Correction:"اصلاحی",Cancellation:"ابطالی",SalesReturn:"برگشت از فروش"};
+const invoiceTypeLabel:Record<string,string>={"1":"نوع اول","2":"نوع دوم","3":"نوع سوم"};
+
+function PaperParticipant({title,participant,fallbackName,fallbackIdentity}: {
+ title:string;participant:Participant|null;fallbackName:string|null;fallbackIdentity:string|null
+}){
+ const p=participant;
+ const fields:[string,string|null|undefined][]=[
+  ["کد اقتصادی",p?.economicCode],["شماره ثبت",p?.registrationNumber],
+  ["شناسه ملی",p?.identity??fallbackIdentity],["شماره شعبه",p?.branchCode],
+  ["استان",p?.province],["شهرستان",p?.city],["کدپستی",p?.postalCode],
+  ["تلفن",p?.phone]
+ ];
+ return <section className="invoice-paper__party" aria-label={title}>
+  <h4 className="invoice-paper__section-title">{title}</h4>
+  <div className="invoice-paper__party-grid">
+   <div className="invoice-paper__cell invoice-paper__cell--wide"><strong>نام شخص {p?.kind==="NaturalPerson"?"حقیقی":"حقیقی / حقوقی"}:</strong><span>{p?.name??fallbackName??"—"}</span></div>
+   {fields.map(([label,value])=><div className="invoice-paper__cell" key={label}><strong>{label}:</strong><span>{faDigits(value)}</span></div>)}
+   <div className="invoice-paper__cell invoice-paper__cell--wide"><strong>نشانی:</strong><span>{p?.address??"—"}</span></div>
+  </div>
+ </section>;
+}
+
+function InvoicePaper({invoice,reference,referenceFiscalTaxId,invoiceSubject}: {
+ invoice:Invoice;reference:string;referenceFiscalTaxId?:string|null;invoiceSubject?:string
+}){
+ const lineCount=Math.max(5,invoice.lines.length);
+ return <div className="invoice-paper" dir="rtl">
+  <header className="invoice-paper__header">
+   <div className="invoice-paper__tax-number"><strong>شماره مالیاتی</strong>
+    <span>شماره منحصربه‌فرد مالیاتی: <bdi>{faDigits(invoice.uniqueInvoiceId)}</bdi></span>
+    <span>شماره مرجع: <bdi dir="ltr">{invoiceSubject==="Original"?"":faDigits(referenceFiscalTaxId??invoice.referenceFiscalTaxId)}</bdi></span>
+    <span>تاریخ ارسال: {paperDate(invoice.paymentDateUtc)}</span>
+   </div>
+   <h3>صورتحساب فروش کالا و خدمات</h3>
+   <div className="invoice-paper__number"><strong>شماره: <bdi>{faDigits(reference)}</bdi></strong>
+    <span>تاریخ: {paperDate(invoice.issueDateUtc)}</span>
+   </div>
+  </header>
+  <PaperParticipant title="مشخصات فروشنده" participant={invoice.sellerDetails} fallbackName={invoice.seller} fallbackIdentity={null}/>
+  <PaperParticipant title="مشخصات خریدار" participant={invoice.buyerDetails} fallbackName={invoice.buyer} fallbackIdentity={null}/>
+  <section className="invoice-paper__items">
+   <h4 className="invoice-paper__section-title">مشخصات کالا / خدمات</h4>
+   <table><thead><tr><th>ردیف</th><th>شرح کالا یا خدمات</th><th>تعداد</th>
+    <th>مبلغ واحد (ریال)</th><th>مبلغ کل (ریال)</th><th>مبلغ تخفیف (ریال)</th>
+    <th>مبلغ کل پس از تخفیف (ریال)</th><th>جمع مالیات و عوارض (ریال)</th>
+    <th>جمع مبلغ کل با مالیات و عوارض (ریال)</th></tr></thead>
+    <tbody>{Array.from({length:lineCount},(_,index)=>{
+     const line=invoice.lines[index];
+     return <tr key={index}><td>{faDigits(index+1)}</td><td>{line?.description??""}{line?.officialIdentifier&&<small>شناسه کالا/خدمت: <bdi>{faDigits(line.officialIdentifier)}</bdi></small>}</td>
+      <td>{line?money(line.quantity):""}</td><td>{line?money(line.unitPriceRial):""}</td>
+      <td>{line?money(line.grossRial??line.quantity*line.unitPriceRial):""}</td>
+      <td>{line?money(line.discountRial):""}</td><td>{line?money(line.netRial):""}</td>
+      <td>{line?money(line.vatRial):""}</td><td>{line?money(line.totalRial):""}</td></tr>;
+    })}</tbody>
+    <tfoot><tr><th colSpan={9}>مبلغ قابل پرداخت: {money(invoice.totalRial)} ریال
+     — به حروف: {rialInWords(invoice.totalRial)}</th></tr></tfoot>
+   </table>
+  </section>
+  <footer className="invoice-paper__footer">
+   <div className="invoice-paper__footer-payment">
+    <strong>روش تسویه: {invoice.settlementMethod??"نامشخص"}</strong>
+    <span>تاریخ پرداخت: {paperDate(invoice.paymentDateUtc)}</span>
+    {invoice.cashAmountRial!==null&&<span>مبلغ نقدی: {money(invoice.cashAmountRial)} ریال</span>}
+    {invoice.creditAmountRial!==null&&<span>مبلغ نسیه: {money(invoice.creditAmountRial)} ریال</span>}
+   </div>
+   <div className="invoice-paper__footer-subject">
+    نوع صورتحساب: {invoiceTypeLabel[invoice.invoiceType??""]??invoice.invoiceType??"نوع اول"}
+    <br/>موضوع صورتحساب: {paperSubject[invoiceSubject??""]??"اصلی"}
+   </div>
+   <div className="invoice-paper__footer-mark">
+    {invoice.invoiceLogoDataUrl&&<img src={invoice.invoiceLogoDataUrl} alt="لوگوی شرکت"/>}
+   </div>
+   <div className="invoice-paper__footer-seller"><strong>مهر و امضاء فروشنده:</strong></div>
+   <div className="invoice-paper__footer-buyer"><strong>مهر و امضاء خریدار:</strong></div>
+  </footer>
+ </div>;
 }
 
 function InvoiceLines({ lines }: { lines: Line[] }) {
@@ -238,11 +367,19 @@ function InvoiceTotals({ invoice }: { invoice: Invoice }) {
 function AuthorityActions({authorityStatus,subject,onCancel,onCorrect,onSalesReturn}:{
  authorityStatus?:string;subject?:string;onCancel:()=>void;onCorrect:()=>void;onSalesReturn?:()=>void
 }){
- if(authorityStatus!=="SUCCESS" || subject?.toLowerCase()==="cancellation")return null;
+ const canEdit=authorityStatus==="SUCCESS"&&subject?.toLowerCase()!=="cancellation";
+ const canPrepareSalesReturn=!!onSalesReturn&&
+  ((authorityStatus==="SUCCESS"&&["Original","Correction","SalesReturn"].includes(subject??""))||
+   (authorityStatus==="FAILED"&&subject==="SalesReturn"));
+ if(!canEdit&&!canPrepareSalesReturn)return null;
  return <div style={actionsStyle}>
-  <button type="button" className="identity-secondary" onClick={onCorrect}>اصلاح</button>
-  <button type="button" className="identity-secondary" onClick={onCancel}>ابطال</button>
-  {onSalesReturn&&["Original","SalesReturn"].includes(subject??"")&&<button type="button" className="identity-secondary" onClick={onSalesReturn}>برگشت از فروش</button>}
+  {canEdit&&<>
+   <button type="button" className="identity-secondary" onClick={onCorrect}>اصلاح</button>
+   <button type="button" className="identity-secondary" onClick={onCancel}>ابطال</button>
+  </>}
+  {canPrepareSalesReturn&&<button type="button" className="identity-secondary" onClick={onSalesReturn}>
+   {authorityStatus==="FAILED"?"ویرایش و تلاش مجدد برگشت":"برگشت از فروش"}
+  </button>}
  </div>;
 }
 
@@ -253,6 +390,12 @@ export default function InvoiceFormalPreview({
   authorityStatus,
   subject,
   readOnly = false,
+  authorityReference,
+  referenceFiscalTaxId,
+  printLayout=false,
+  invoiceSubject,
+  onPreviewReady,
+  onPreviewError,
   onCancellationCompleted,
   onCorrectionCompleted,
   onSalesReturn,
@@ -268,6 +411,10 @@ export default function InvoiceFormalPreview({
   const [cancelOutcome,setCancelOutcome]=useState("");
   const [cancelSucceeded,setCancelSucceeded]=useState(false);
   const [cancelInquiry,setCancelInquiry]=useState<{status:string;reference:string;code:string}>({status:"",reference:"",code:""});
+  const onPreviewReadyRef=useRef(onPreviewReady);
+  onPreviewReadyRef.current=onPreviewReady;
+  const onPreviewErrorRef=useRef(onPreviewError);
+  onPreviewErrorRef.current=onPreviewError;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -283,10 +430,14 @@ export default function InvoiceFormalPreview({
           controller.signal,
         );
 
-        if (!controller.signal.aborted) setInvoice(data);
+        if (!controller.signal.aborted) {
+          setInvoice(data);
+          onPreviewReadyRef.current?.();
+        }
       } catch (caughtError) {
         if (!controller.signal.aborted) {
           setError((caughtError as Error).message);
+          onPreviewErrorRef.current?.((caughtError as Error).message);
         }
       }
     })();
@@ -300,9 +451,9 @@ export default function InvoiceFormalPreview({
       aria-label="نمای رسمی صورتحساب"
       style={previewStyle}
     >
-      <h3 style={{ textAlign: "center", margin: "2px 0 8px" }}>
+      {!printLayout&&<h3 style={{ textAlign: "center", margin: "2px 0 8px" }}>
         صورتحساب فروش کالا و خدمات
-      </h3>
+      </h3>}
 
       {error && <p role="alert" className="form-error">{error}</p>}
 
@@ -345,9 +496,13 @@ export default function InvoiceFormalPreview({
        onClose={()=>setCorrectionOpen(null)} onChanged={()=>onCorrectionCompleted?.()}/>}
       {invoice && (
         <>
-          <InvoiceHeader invoice={invoice} reference={reference} />
-          <InvoiceLines lines={invoice.lines} />
-          <InvoiceTotals invoice={invoice} />
+          {printLayout?<InvoicePaper invoice={invoice} reference={reference}
+            referenceFiscalTaxId={referenceFiscalTaxId} invoiceSubject={invoiceSubject}/>:<>
+           <InvoiceHeader invoice={invoice} reference={reference}
+            authorityReference={authorityReference}/>
+           <InvoiceLines lines={invoice.lines} />
+           <InvoiceTotals invoice={invoice} />
+          </>}
           {!readOnly && <AuthorityActions authorityStatus={authorityStatus} subject={subject} onSalesReturn={onSalesReturn}
            onCorrect={()=>setCorrectionOpen(invoiceId)} onCancel={()=>{
             setCancelOpen(true);setCancelChecking(true);setCancelEligibility("");setCancelEligible(false);setCancelOutcome("");setCancelSucceeded(false);setCancelInquiry({status:"",reference:"",code:""});

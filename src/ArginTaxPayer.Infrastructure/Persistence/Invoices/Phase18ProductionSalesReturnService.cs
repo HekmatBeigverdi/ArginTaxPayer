@@ -32,6 +32,11 @@ public sealed class Phase18ProductionSalesReturnService(
     Phase18InvoiceSubmissionService sender,
     IConfiguration config)
 {
+    internal static bool CanBeSalesReturnPredecessor(
+        InvoiceSubject subject, InvoiceLifecycleState state) =>
+        state == InvoiceLifecycleState.Finalized &&
+        subject is InvoiceSubject.Original or InvoiceSubject.Correction or InvoiceSubject.SalesReturn;
+
     public async Task<SalesReturnOperationResult> OpenAsync(
         string? bearer,
         Guid taxpayerId,
@@ -42,6 +47,34 @@ public sealed class Phase18ProductionSalesReturnService(
         if (owner is null)
         {
             return new(InvoiceApiDecision.Forbidden, "not_authorized");
+        }
+
+        JsonObject? retrySnapshot = null;
+        Guid? retryRelationId = null;
+        var selected = await db.InvoiceDocuments.AsNoTracking().FirstOrDefaultAsync(x =>
+            x.Id == predecessorId && x.TaxpayerId == taxpayerId && x.CustomerUserId == owner.Value, ct);
+        if (selected?.Subject == InvoiceSubject.SalesReturn)
+        {
+            var failed = await inquiry.ReadAsync(bearer, taxpayerId, predecessorId, ct);
+            if (failed.Decision == InvoiceApiDecision.Success && failed.AuthorityResult?.Status == "FAILED")
+            {
+                var relationId = await db.Database.SqlQuery<Guid?>($"""
+                    SELECT id AS "Value"
+                    FROM authority_invoice_legal_relations
+                    WHERE customer_user_id={owner.Value} AND taxpayer_id={taxpayerId}
+                      AND successor_invoice_id={predecessorId} AND subject=4 AND state IN (1,2,4)
+                    LIMIT 1
+                    """).FirstOrDefaultAsync(ct);
+                if (relationId is { } foundRelation)
+                {
+                    predecessorId = await db.Database.SqlQuery<Guid>($"""
+                        SELECT predecessor_invoice_id AS "Value" FROM authority_invoice_legal_relations
+                        WHERE id={foundRelation} AND customer_user_id={owner.Value} AND taxpayer_id={taxpayerId}
+                        """).SingleAsync(ct);
+                    retryRelationId = foundRelation;
+                    retrySnapshot = JsonNode.Parse(selected.SnapshotJson)?.AsObject();
+                }
+            }
         }
 
         var current = await FindActiveDraftAsync(owner.Value, taxpayerId, predecessorId, ct);
@@ -59,7 +92,7 @@ public sealed class Phase18ProductionSalesReturnService(
         {
             return new(InvoiceApiDecision.NotFound, "not_found");
         }
-        if (original.State != InvoiceLifecycleState.Finalized || original.Subject != InvoiceSubject.Original)
+        if (!CanBeSalesReturnPredecessor(original.Subject, original.State))
         {
             return new(InvoiceApiDecision.Conflict, "invalid_predecessor");
         }
@@ -67,13 +100,7 @@ public sealed class Phase18ProductionSalesReturnService(
         var sourceDispatch = await dispatch.GetAsync(bearer,taxpayerId,predecessorId,ct);
         if(sourceDispatch.Decision!=InvoiceApiDecision.Success || sourceDispatch.Overview is not
             {Status:"Acknowledged",Environment:"Production",ReferenceNumber:not null} sourceOperation)
-            return new(InvoiceApiDecision.Conflict,"accepted_predecessor_required");
-        var official = await inquiry.ReadAsync(bearer, taxpayerId, predecessorId, ct);
-        if (official.Decision != InvoiceApiDecision.Success || official.AuthorityResult?.Status != "SUCCESS" ||
-            official.ReferenceNumber!=sourceOperation.ReferenceNumber)
-        {
-            return new(InvoiceApiDecision.Conflict, "accepted_predecessor_required");
-        }
+            return new(InvoiceApiDecision.Conflict,"sent_predecessor_required");
 
         var referenceTaxId = await db.Database.SqlQuery<string>($"""
             SELECT fiscal_tax_id AS "Value" FROM authority_invoice_fiscal_reservations
@@ -87,14 +114,15 @@ public sealed class Phase18ProductionSalesReturnService(
         if (await db.Database.SqlQuery<int>($"""
             SELECT 1 AS "Value" FROM authority_invoice_legal_relations
             WHERE customer_user_id={owner.Value} AND taxpayer_id={taxpayerId}
-             AND predecessor_invoice_id={predecessorId} AND subject IN (2,3)
+             AND predecessor_invoice_id={predecessorId} AND subject IN (2,3,4)
+             AND ({retryRelationId.HasValue}=false OR id<>{retryRelationId ?? Guid.Empty})
              AND state IN (1,2,4) LIMIT 1
             """).AnyAsync(ct))
         {
             return new(InvoiceApiDecision.Conflict, "active_related_invoice");
         }
 
-        var snapshot = JsonNode.Parse(original.SnapshotJson)?.AsObject();
+        var snapshot = retrySnapshot ?? JsonNode.Parse(original.SnapshotJson)?.AsObject();
         if (snapshot is null || (string?)snapshot["environment"] != "Production" ||
             (int?)snapshot["invoiceType"] != 1 || (int?)snapshot["pattern"] != 1)
         {
@@ -107,15 +135,40 @@ public sealed class Phase18ProductionSalesReturnService(
         snapshot["predecessorInvoiceId"] = predecessorId.ToString("D");
         snapshot["predecessorOperationId"] = sourceOperation.OperationId.ToString("D");
         snapshot["legalSubject"] = 4;
-        var invoiceLines = JsonSerializer.Deserialize<InvoiceEntryLine[]>(snapshot["lines"]!.ToJsonString()) ?? [];
+        using var originalDocument = JsonDocument.Parse(original.SnapshotJson);
+        var invoiceLines = JsonSerializer.Deserialize<InvoiceEntryLine[]>(
+            originalDocument.RootElement.GetProperty("lines").GetRawText()) ?? [];
         snapshot["originalQuantities"] = JsonSerializer.SerializeToNode(invoiceLines.Select(x => x.Quantity).ToArray());
-        snapshot["otherTaxAndLegalFeesRial"] = 0;
-        if (snapshot["lines"] is JsonArray zeroLines)
-            foreach (var line in zeroLines) if (line is JsonObject item)
-                item[item.ContainsKey("Quantity") ? "Quantity" : "quantity"] = 0;
+        if (retrySnapshot is null)
+        {
+            snapshot["otherTaxAndLegalFeesRial"] = 0;
+            if (snapshot["lines"] is JsonArray zeroLines)
+                foreach (var line in zeroLines) if (line is JsonObject item)
+                    item[item.ContainsKey("Quantity") ? "Quantity" : "quantity"] = 0;
+        }
         var json = snapshot.ToJsonString();
         try
         {
+            await using var tx = await db.Database.BeginTransactionAsync(ct);
+            if (retryRelationId is { } previousRelation)
+            {
+                var deactivated = await db.Database.ExecuteSqlInterpolatedAsync($"""
+                    UPDATE authority_invoice_legal_relations SET state=3
+                    WHERE id={previousRelation} AND customer_user_id={owner.Value} AND taxpayer_id={taxpayerId}
+                      AND predecessor_invoice_id={predecessorId} AND subject=4 AND state IN (1,2,4)
+                    """, ct);
+                if (deactivated != 1)
+                {
+                    await tx.RollbackAsync(ct);
+                    current = await FindActiveDraftAsync(owner.Value, taxpayerId, predecessorId, ct);
+                    if (current is { } concurrentDraft)
+                    {
+                        return new(InvoiceApiDecision.Success, "existing_draft",
+                            CreateDraftView(concurrentDraft.Id, predecessorId, concurrentDraft.Revision, concurrentDraft.Json));
+                    }
+                    return new(InvoiceApiDecision.Conflict, "return_attempt_changed");
+                }
+            }
             await db.Database.ExecuteSqlInterpolatedAsync($"""
                 INSERT INTO authority_invoice_sales_return_workspaces
                 (id,customer_user_id,taxpayer_id,predecessor_invoice_id,predecessor_fiscal_tax_id,
@@ -123,6 +176,7 @@ public sealed class Phase18ProductionSalesReturnService(
                 VALUES({id},{owner.Value},{taxpayerId},{predecessorId},{referenceTaxId},
                  1,CAST({json} AS jsonb),1,{now},{now})
                 """, ct);
+            await tx.CommitAsync(ct);
         }
         catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.UniqueViolation)
         {
@@ -342,7 +396,7 @@ public sealed class Phase18ProductionSalesReturnService(
 
         var original = await db.InvoiceDocuments.AsNoTracking().FirstAsync(x =>
             x.Id == predecessorId && x.TaxpayerId == taxpayerId && x.CustomerUserId == owner.Value, ct);
-        if (original.Subject != InvoiceSubject.Original || original.State != InvoiceLifecycleState.Finalized)
+        if (!CanBeSalesReturnPredecessor(original.Subject, original.State))
             return new(InvoiceApiDecision.Conflict, "invalid_predecessor");
         var root = JsonNode.Parse(savedDraft.Json)!.AsObject();
         using var origDoc = JsonDocument.Parse(original.SnapshotJson);
@@ -458,6 +512,13 @@ public sealed class Phase18ProductionSalesReturnService(
                     WHERE id={write.PredecessorInvoiceId} AND taxpayer_id={taxpayerId}
                       AND customer_user_id={owner}
                     """, ct);
+                if (await db.Database.SqlQuery<int>($"""
+                    SELECT 1 AS "Value" FROM authority_invoice_legal_relations
+                    WHERE customer_user_id={owner} AND taxpayer_id={taxpayerId}
+                      AND predecessor_invoice_id={write.PredecessorInvoiceId}
+                      AND subject IN (2,3,4) AND state IN (1,2,4) LIMIT 1
+                    """).AnyAsync(ct))
+                    return new(InvoiceApiDecision.Conflict,"active_related_invoice");
                 using var returnDocument = JsonDocument.Parse(write.Invoice.SnapshotJson);
                 var returnLines = JsonSerializer.Deserialize<InvoiceEntryLine[]>(
                     returnDocument.RootElement.GetProperty("lines").GetRawText()) ?? [];

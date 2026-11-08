@@ -141,12 +141,17 @@ public sealed class InvoiceDraftApplicationService(
         var access = await AuthorizeAsync(token, taxpayerId, ct);
         if (access.Decision != InvoiceApiDecision.Success)
             return new(access.Decision);
+        invoiceId=await RejectedInvoiceReplacementQuery.ResolveAsync(db,access.CustomerId,
+            taxpayerId,invoiceId,ct);
         var invoice = await db.InvoiceDocuments.AsNoTracking()
             .SingleOrDefaultAsync(x => x.Id == invoiceId &&
                 x.TaxpayerId == taxpayerId &&
                 x.CustomerUserId == access.CustomerId, ct);
-        return invoice is null ? new(InvoiceApiDecision.NotFound)
-            : new(InvoiceApiDecision.Success, View(invoice));
+        if(invoice is null)return new(InvoiceApiDecision.NotFound);
+        var codes=await RejectedInvoiceReplacementQuery.ReadEffectiveSystemCodesAsync(db,
+            [invoice.Id],[access.CustomerId],[taxpayerId],ct);
+        return new(InvoiceApiDecision.Success,View(invoice) with {
+            SystemCode=codes.GetValueOrDefault(invoice.Id)});
     }
 
     public async Task<(InvoiceApiDecision Decision, InvoiceDraftView[] Data)> ListAsync(
@@ -155,14 +160,18 @@ public sealed class InvoiceDraftApplicationService(
         var access = await AuthorizeAsync(token, taxpayerId, ct);
         if (access.Decision != InvoiceApiDecision.Success)
             return (access.Decision, Array.Empty<InvoiceDraftView>());
+        var replaced=db.Database.SqlQueryRaw<Guid>("SELECT predecessor_invoice_id AS \"Value\" FROM invoice_successful_rejection_replacements");
         var invoices = await db.InvoiceDocuments.AsNoTracking()
             .Where(x => x.CustomerUserId == access.CustomerId &&
-                x.TaxpayerId == taxpayerId)
+                x.TaxpayerId == taxpayerId && !replaced.Contains(x.Id))
             .OrderByDescending(x => x.UpdatedAtUtc)
             .ThenBy(x => x.Id)
             .Take(100)
             .ToArrayAsync(ct);
-        return (InvoiceApiDecision.Success, invoices.Select(View).ToArray());
+        var codes=await RejectedInvoiceReplacementQuery.ReadEffectiveSystemCodesAsync(db,
+            invoices.Select(x=>x.Id).ToArray(),[access.CustomerId],[taxpayerId],ct);
+        return (InvoiceApiDecision.Success, invoices.Select(x=>View(x) with {
+            SystemCode=codes.GetValueOrDefault(x.Id)}).ToArray());
     }
 
     /// <summary>Read all visible invoices, optionally scoped to one customer or taxpayer.</summary>
@@ -187,14 +196,19 @@ public sealed class InvoiceDraftApplicationService(
         // supplied customer ID can extend its reach.
         var allowed = scope.ScopedQuery(principal.ActorId, principal.Level1)
             .Select(x => x.Id);
+        var replaced=db.Database.SqlQueryRaw<Guid>("SELECT predecessor_invoice_id AS \"Value\" FROM invoice_successful_rejection_replacements");
         // Legal successor documents remain immutable, but the workspace overview
         // displays exactly one row for the root chain, before pagination.
         var legalSuccessors=db.Database.SqlQueryRaw<Guid>("""
 SELECT successor_invoice_id AS "Value"
 FROM sandbox_invoice_legal_relations
+UNION
+SELECT successor_invoice_id AS "Value"
+FROM authority_invoice_legal_relations
 """);
         var documents = db.InvoiceDocuments.AsNoTracking()
-            .Where(x => allowed.Contains(x.TaxpayerId) && !legalSuccessors.Contains(x.Id))
+            .Where(x => allowed.Contains(x.TaxpayerId) && !legalSuccessors.Contains(x.Id)
+                && !replaced.Contains(x.Id))
             .Select(x => new {
                 x.Id, x.CustomerUserId, x.TaxpayerId, x.Revision,
                 x.IssueDateUtc, x.UpdatedAtUtc,
@@ -236,10 +250,16 @@ FROM sandbox_invoice_legal_relations
             var value = search.Trim();
             var normalizedCode = value.ToUpperInvariant();
             var pattern = "%" + value.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_") + "%";
+            var codeTaxpayers=await allowed.ToArrayAsync(ct);
+            var inheritedCodeMatches=await RejectedInvoiceReplacementQuery.FindBySystemCodeAsync(
+                db,normalizedCode,codeTaxpayers,ct);
+            var replacementSuccessors=db.Database.SqlQueryRaw<Guid>("SELECT successor_invoice_id AS \"Value\" FROM invoice_successful_rejection_replacements");
             query = query.Where(x => db.InvoiceHumanReferences.Any(r =>
                     r.SourceId == x.Id &&
                     r.SourceKind == (x.Source == 1 ? "workspace" : "document") &&
-                    r.SystemCode == normalizedCode) ||
+                    r.SystemCode == normalizedCode &&
+                    (x.Source == 1 || !replacementSuccessors.Contains(x.Id))) ||
+                inheritedCodeMatches.Contains(x.Id) ||
                 db.TaxpayerProfiles.Any(t => t.Id == x.TaxpayerId &&
                     t.CustomerUserId == x.CustomerUserId &&
                     (EF.Functions.ILike(t.DisplayName, pattern) ||
@@ -286,6 +306,9 @@ FROM sandbox_invoice_legal_relations
             .Select(r => new { r.SourceId, r.SourceKind, r.SystemCode }).ToArrayAsync(ct);
         var referenceCodes = referenceRows.ToDictionary(
             r => (r.SourceKind, r.SourceId), r => r.SystemCode);
+        var inheritedCodes=await RejectedInvoiceReplacementQuery.ReadEffectiveSystemCodesAsync(db,
+            rows.Where(x=>x.Source==0).Select(x=>x.Id).ToArray(),
+            rows.Select(x=>x.CustomerUserId).Distinct().ToArray(),taxpayerIds,ct);
         var internalSnapshots = new HashSet<Guid>();
         var workspaceReviews = new Dictionary<Guid,string>();
         var buyers = new Dictionary<Guid, string?>();
@@ -385,7 +408,7 @@ ORDER BY d.invoice_revision DESC,d.created_at_utc DESC
                     if(authorityByInvoice.ContainsKey(id))continue;
                     var state=reader.GetInt32(1);
                     var reported=reader.IsDBNull(2)?null:reader.GetString(2);
-                    authorityByInvoice[id]=reported is "SUCCESS" or "FAILED" or "PENDING"
+                    authorityByInvoice[id]=reported is "SUCCESS" or "FAILED" or "PENDING" or "IN_PROGRESS"
                         ?reported:state switch{
                             5=>"ACKNOWLEDGED",6=>"INDETERMINATE",
                             4=>"SENDING",3=>"RESERVED",1=>"PREPARED",
@@ -434,7 +457,9 @@ WHERE predecessor_invoice_id=ANY(@ids)
                     internalSnapshots.Contains(x.Id) ? "internalSnapshot" : null, x.Step,
                 x.Source == 1 ? workspaceReviews.GetValueOrDefault(x.Id,"WorkingDraft") :
                     ((InvoiceReviewState)(x.Review ?? 1)).ToString(),
-                referenceCodes.GetValueOrDefault((x.Source == 1 ? "workspace" : "document", x.Id)),
+                x.Source==0?inheritedCodes.GetValueOrDefault(x.Id,
+                    referenceCodes.GetValueOrDefault(("document",x.Id))):
+                    referenceCodes.GetValueOrDefault(("workspace",x.Id)),
                 names.GetValueOrDefault(x.TaxpayerId),
                 buyers.GetValueOrDefault(x.Id),
                 effectiveByRoot.TryGetValue(x.Id,out var effectiveStatus)?effectiveStatus.Status:

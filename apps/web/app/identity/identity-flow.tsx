@@ -7,6 +7,7 @@ type Tab = "login" | "register";
 type Mode = "password" | "otp";
 type Step = "details" | "code" | "mfa";
 type Purpose = "register" | "login" | "reset";
+export type AuthVisualState="login"|"register"|"recovery";
 
 const purposeCaptions: Record<Purpose, string> = {
   register: "تأیید شماره همراه",
@@ -82,7 +83,9 @@ function getPasswordError(status: number) {
   return "نام کاربری یا رمز عبور نادرست است.";
 }
 
-export default function IdentityFlow({ restrictedLogin = false }: { restrictedLogin?: boolean }) {
+export default function IdentityFlow({ restrictedLogin = false,onVisualStateChange }: {
+  restrictedLogin?: boolean;onVisualStateChange?:(state:AuthVisualState)=>void
+}) {
   const router = useRouter();
 
   const [tab, setTab] = useState<Tab>("login");
@@ -108,6 +111,10 @@ export default function IdentityFlow({ restrictedLogin = false }: { restrictedLo
 
   const purpose = getPurpose(tab, forgot);
   const phoneOtp = usesPhoneOtp(tab, mode, forgot, emailRegistration);
+
+  useEffect(()=>{
+    onVisualStateChange?.(forgot?"recovery":tab==="register"?"register":"login");
+  },[forgot,tab,onVisualStateChange]);
 
   useEffect(() => {
     if (retryAfter <= 0) {

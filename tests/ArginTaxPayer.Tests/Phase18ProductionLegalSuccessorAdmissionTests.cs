@@ -1,4 +1,5 @@
 using System.IO;
+using ArginTaxPayer.Infrastructure.Persistence.Invoices;
 using Xunit;
 
 namespace ArginTaxPayer.Tests;
@@ -23,6 +24,26 @@ public sealed class Phase18ProductionLegalSuccessorAdmissionTests
         Assert.DoesNotContain("production_legal_successor_not_supported", source);
         Assert.Contains("authority_invoice_legal_relations", source);
         Assert.Contains("production_legal_relation_not_verified", source);
+    }
+
+    [Fact]
+    public void Existing_correction_can_resume_only_when_it_has_no_dispatch_or_fiscal_reservation()
+    {
+        Assert.True(Phase18ProductionCorrectionService.CanResumeUnpreparedSuccessor(
+            productionRelation: true, activeRelation: true,
+            hasDispatch: false, hasFiscalReservation: false));
+        Assert.False(Phase18ProductionCorrectionService.CanResumeUnpreparedSuccessor(
+            productionRelation: false, activeRelation: true,
+            hasDispatch: false, hasFiscalReservation: false));
+        Assert.False(Phase18ProductionCorrectionService.CanResumeUnpreparedSuccessor(
+            productionRelation: true, activeRelation: false,
+            hasDispatch: false, hasFiscalReservation: false));
+        Assert.False(Phase18ProductionCorrectionService.CanResumeUnpreparedSuccessor(
+            productionRelation: true, activeRelation: true,
+            hasDispatch: true, hasFiscalReservation: false));
+        Assert.False(Phase18ProductionCorrectionService.CanResumeUnpreparedSuccessor(
+            productionRelation: true, activeRelation: true,
+            hasDispatch: false, hasFiscalReservation: true));
     }
 
     private static string Find(string name)

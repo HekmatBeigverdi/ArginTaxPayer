@@ -20,3 +20,8 @@ test("UI shows preflight and routes confirmed cancellation to dedicated backend"
  assert.ok(s.includes("در حال بررسی سند مرجع"));
  assert.ok(s.includes("/cancel-and-inquire"));
 });
+test("cancellation preflight proxy allows the API its observed response time",()=>{
+ const route=read("apps/web/app/api/invoice-dispatch/[taxpayerId]/[invoiceId]/cancellation-eligibility/route.ts");
+ const timeout=Number(route.match(/AbortSignal\.timeout\((\d+)\)/)?.[1]??0);
+ assert.ok(timeout>=30000,`expected at least 30 seconds, got ${timeout}`);
+});

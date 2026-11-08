@@ -62,7 +62,7 @@ async function handle(request:NextRequest,context:Context,method:"GET"|"POST"){
     return output;
    };
    const errors=messages(report.errors),warnings=messages(report.warnings);
-   if(typeof report.status!=="string"||!["FAILED","SUCCESS","PENDING","UNKNOWN"].includes(report.status)||
+   if(typeof report.status!=="string"||!["FAILED","SUCCESS","PENDING","IN_PROGRESS","UNKNOWN"].includes(report.status)||
      !errors||!warnings||typeof report.canPrepareCorrection!=="boolean"||
      typeof report.observedAtUtc!=="string"||report.observedAtUtc.length>80||
      !Number.isFinite(Date.parse(report.observedAtUtc)))return reject(502,"inquiry_response_invalid");

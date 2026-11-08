@@ -320,7 +320,8 @@ public sealed class Phase18ProductionCorrectionService(
         var draft = await FindActiveDraftAsync(owner.Value, taxpayerId, predecessorId, ct);
         if (draft is not { } savedDraft)
         {
-            return new(InvoiceApiDecision.NotFound, "draft_not_found");
+            return await ResumeUnpreparedSuccessorAsync(
+                bearer, owner.Value, taxpayerId, predecessorId, ct);
         }
 
         var sourceDispatch = await dispatch.GetAsync(bearer, taxpayerId, predecessorId, ct);
@@ -431,6 +432,94 @@ public sealed class Phase18ProductionCorrectionService(
             InvoiceId: invoiceId,
             Status: result.Status,
             ReferenceNumber: result.ReferenceNumber,
+            InquiryCode: result.InquiryCode);
+    }
+
+    internal static bool CanResumeUnpreparedSuccessor(bool productionRelation,
+        bool activeRelation, bool hasDispatch, bool hasFiscalReservation) =>
+        productionRelation && activeRelation && !hasDispatch && !hasFiscalReservation;
+
+    private async Task<CorrectionOperationResult> ResumeUnpreparedSuccessorAsync(
+        string? bearer, Guid owner, Guid taxpayerId, Guid predecessorId,
+        CancellationToken ct)
+    {
+        if (config["Phase18Production:LegalSuccessorsEnabled"] != "true" ||
+            config["Phase18Production:LegalSuccessorsOperatorApproved"] != "true")
+            return new(InvoiceApiDecision.Conflict, "production_legal_successors_disabled");
+
+        var successor = await db.Database.SqlQuery<Guid>($"""
+            SELECT successor_invoice_id AS "Value"
+            FROM authority_invoice_legal_relations
+            WHERE customer_user_id={owner} AND taxpayer_id={taxpayerId}
+             AND predecessor_invoice_id={predecessorId}
+             AND subject=2 AND state IN (1,2,4)
+            """).SingleOrDefaultAsync(ct);
+        if (successor == Guid.Empty)
+            return new(InvoiceApiDecision.NotFound, "draft_not_found");
+
+        var predecessorDispatch = await dispatch.GetAsync(bearer, taxpayerId, predecessorId, ct);
+        if (predecessorDispatch.Decision != InvoiceApiDecision.Success ||
+            predecessorDispatch.Overview is not { Status: "Acknowledged", Environment: "Production",
+                ReferenceNumber: not null } sourceOperation)
+            return new(InvoiceApiDecision.Conflict, "predecessor_not_accepted");
+        var accepted = await inquiry.ReadAsync(bearer, taxpayerId, predecessorId, ct);
+        if (accepted.Decision != InvoiceApiDecision.Success ||
+            accepted.AuthorityResult?.Status != "SUCCESS" ||
+            accepted.ReferenceNumber != sourceOperation.ReferenceNumber)
+            return new(InvoiceApiDecision.Conflict, "predecessor_not_accepted");
+
+        var document = await db.InvoiceDocuments.AsNoTracking()
+            .Where(x => x.Id == successor && x.CustomerUserId == owner &&
+                x.TaxpayerId == taxpayerId && x.Subject == InvoiceSubject.Correction &&
+                x.State == InvoiceLifecycleState.Finalized)
+            .Select(x => x.SnapshotJson)
+            .SingleOrDefaultAsync(ct);
+        if (document is null)
+            return new(InvoiceApiDecision.Conflict, "correction_successor_invalid");
+
+        string? referenceTaxId;
+        try
+        {
+            using var snapshot = JsonDocument.Parse(document);
+            referenceTaxId = snapshot.RootElement.GetProperty("referenceTaxId").GetString();
+            if (snapshot.RootElement.GetProperty("environment").GetString() != "Production" ||
+                referenceTaxId is not { Length: 22 })
+                return new(InvoiceApiDecision.Conflict, "correction_successor_invalid");
+        }
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException or KeyNotFoundException)
+        {
+            return new(InvoiceApiDecision.Conflict, "correction_successor_invalid");
+        }
+
+        var relationVerified = await db.Database.SqlQuery<int>($"""
+            SELECT 1 AS "Value" FROM authority_invoice_legal_relations
+            WHERE customer_user_id={owner} AND taxpayer_id={taxpayerId}
+             AND predecessor_invoice_id={predecessorId} AND successor_invoice_id={successor}
+             AND predecessor_operation_id={sourceOperation.OperationId}
+             AND predecessor_fiscal_tax_id={referenceTaxId}
+             AND subject=2 AND state IN (1,2,4)
+            LIMIT 1
+            """).AnyAsync(ct);
+        if (!relationVerified)
+            return new(InvoiceApiDecision.Conflict, "correction_relation_not_verified");
+
+        var existingDispatch = await db.Database.SqlQuery<int>($"""
+            SELECT 1 AS "Value" FROM invoice_dispatch_operations
+            WHERE customer_user_id={owner} AND taxpayer_id={taxpayerId} AND invoice_id={successor}
+            LIMIT 1
+            """).AnyAsync(ct);
+        var existingFiscalReservation = await db.Database.SqlQuery<int>($"""
+            SELECT 1 AS "Value" FROM authority_invoice_fiscal_reservations
+            WHERE customer_user_id={owner} AND taxpayer_id={taxpayerId} AND invoice_id={successor}
+            LIMIT 1
+            """).AnyAsync(ct);
+        if (!CanResumeUnpreparedSuccessor(productionRelation: true,
+            activeRelation: relationVerified, existingDispatch, existingFiscalReservation))
+            return new(InvoiceApiDecision.Conflict, "correction_retry_requires_reconciliation");
+
+        var result = await sender.SendAsync(bearer, taxpayerId, successor, ct);
+        return new(result.Decision, result.Code, Draft: null, InvoiceId: successor,
+            Status: result.Status, ReferenceNumber: result.ReferenceNumber,
             InquiryCode: result.InquiryCode);
     }
 

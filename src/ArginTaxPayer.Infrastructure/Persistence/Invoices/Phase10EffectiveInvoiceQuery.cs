@@ -23,15 +23,29 @@ internal static class Phase10EffectiveInvoiceQuery
                   SELECT r.predecessor_invoice_id AS root_id,r.successor_invoice_id AS invoice_id,
                     r.customer_user_id,r.taxpayer_id,r.created_at_utc,1 AS depth,
                     ARRAY[r.predecessor_invoice_id,r.successor_invoice_id] AS visited
-                  FROM sandbox_invoice_legal_relations r
+                  FROM (
+                    SELECT predecessor_invoice_id,successor_invoice_id,customer_user_id,taxpayer_id,created_at_utc,state
+                    FROM sandbox_invoice_legal_relations
+                    UNION ALL
+                    SELECT predecessor_invoice_id,successor_invoice_id,customer_user_id,taxpayer_id,created_at_utc,state
+                    FROM authority_invoice_legal_relations
+                  ) r
                   WHERE r.predecessor_invoice_id=ANY(@ids)
+                    AND r.state IN (1,2,4)
                     AND r.customer_user_id=ANY(@owners) AND r.taxpayer_id=ANY(@taxpayers)
                   UNION ALL
                   SELECT c.root_id,r.successor_invoice_id,r.customer_user_id,r.taxpayer_id,
                     r.created_at_utc,c.depth+1,c.visited||r.successor_invoice_id
-                  FROM chain c JOIN sandbox_invoice_legal_relations r
+                  FROM chain c JOIN (
+                    SELECT predecessor_invoice_id,successor_invoice_id,customer_user_id,taxpayer_id,created_at_utc,state
+                    FROM sandbox_invoice_legal_relations
+                    UNION ALL
+                    SELECT predecessor_invoice_id,successor_invoice_id,customer_user_id,taxpayer_id,created_at_utc,state
+                    FROM authority_invoice_legal_relations
+                  ) r
                     ON r.predecessor_invoice_id=c.invoice_id
                     AND r.customer_user_id=c.customer_user_id AND r.taxpayer_id=c.taxpayer_id
+                    AND r.state IN (1,2,4)
                   WHERE NOT r.successor_invoice_id=ANY(c.visited) AND c.depth<100
                 )
                 SELECT c.root_id,d.id,d.subject,d.issue_date_utc,
@@ -56,7 +70,8 @@ internal static class Phase10EffectiveInvoiceQuery
                   ORDER BY op.created_at_utc DESC,op.id DESC LIMIT 1
                 ) op ON true
                 WHERE COALESCE(production_report.status,report.status)='SUCCESS'
-                  OR (d.subject=2 AND (op.state IN (4,5,6) OR COALESCE(production_report.status,report.status) IS NOT NULL))
+                  OR (d.subject IN (2,3,4) AND
+                    (op.state IN (4,5,6) OR COALESCE(production_report.status,report.status) IS NOT NULL))
                 ORDER BY c.depth DESC,c.created_at_utc DESC,d.id DESC
                 """;
             foreach (var (name, value) in new (string, object)[] { ("ids", ids), ("owners", owners), ("taxpayers", taxpayers) })

@@ -18,11 +18,13 @@ test('inquiry report is expandable and old report is not fetched on modal open',
  assert.ok(s.includes('onToggle={event=>'));
  assert.ok(!s.includes('void loadAuthorityReport(controller.signal);\n  return()=>controller.abort()'));
 });
-test('row actions require authoritative success; cancellation does not mutate original invoice',()=>{
+test('edit and cancel require success while return prep stays available on sent chain nodes',()=>{
  const s=read('apps/web/app/invoices/workspace.tsx');
  assert.ok(s.includes('authorityStatus={detail.authorityStatus}'));
  const preview=read('apps/web/app/invoices/invoice-formal-preview.tsx');
- assert.ok(preview.includes('if(authorityStatus!=="SUCCESS" || subject?.toLowerCase()==="cancellation")return null;'));
+ assert.ok(preview.includes('const canEdit=authorityStatus==="SUCCESS"'));
+ assert.ok(preview.includes('const canPrepareSalesReturn=!!onSalesReturn'));
+ assert.ok(preview.includes('["Original","Correction","SalesReturn"].includes(subject??"")'));
  const b=read('apps/web/app/api/invoice-dispatch/[taxpayerId]/[invoiceId]/print-preview/route.ts');
  assert.ok(b.includes('ACCESS_COOKIE'));
  assert.ok(b.includes('no-store'));

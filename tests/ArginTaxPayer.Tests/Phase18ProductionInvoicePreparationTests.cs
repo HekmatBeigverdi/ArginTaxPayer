@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using ArginTaxPayer.Domain.Invoices;
 using ArginTaxPayer.Infrastructure.Persistence.Invoices;
 using Xunit;
@@ -68,13 +69,21 @@ public sealed class Phase18ProductionInvoicePreparationTests
     [InlineData(InvoiceSubject.Correction)]
     [InlineData(InvoiceSubject.Cancellation)]
     [InlineData(InvoiceSubject.SalesReturn)]
-    public void Production_legal_successors_wait_for_verified_original_workflow(InvoiceSubject subject)
+    public void Explicit_owned_production_binding_projects_legal_successors(InvoiceSubject subject)
     {
         var invoice=Invoice();invoice.Subject=subject;
-        Assert.Throws<NotSupportedException>(() => Phase10LegacyFrozenInvoiceProjector.Project(
+        var reference=Phase10FiscalInvoiceIdentifier.Generate("ABC123",41,invoice.IssueDateUtc);
+        var snapshot=JsonNode.Parse(invoice.SnapshotJson)!.AsObject();
+        snapshot["referenceTaxId"]=reference;
+        invoice.SnapshotJson=snapshot.ToJsonString();
+        var wire=Phase10LegacyFrozenInvoiceProjector.Project(
             invoice,Phase10FiscalInvoiceIdentifier.Generate("ABC123",42,invoice.IssueDateUtc),
             "12345678901","98765432101",new Dictionary<Guid,string>{{Unit,"1"}},
-            validatedAuthorityBinding:Binding(invoice)));
+            validatedAuthorityBinding:Binding(invoice));
+        using var parsed=JsonDocument.Parse(wire.Json);
+        var header=parsed.RootElement.GetProperty("header");
+        Assert.Equal((int)subject,header.GetProperty("ins").GetInt32());
+        Assert.Equal(reference,header.GetProperty("irtaxid").GetString());
     }
 
     [Theory]

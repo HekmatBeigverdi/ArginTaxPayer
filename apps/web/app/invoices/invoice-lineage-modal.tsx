@@ -1,17 +1,19 @@
 "use client";
-import {useEffect,useState} from "react";
+import {useEffect,useRef,useState} from "react";
 import InvoiceFormalPreview from "./invoice-formal-preview";
 
 type Node={invoiceId:string;subject:string;fiscalTaxId:string|null;
  issuedAtUtc:string;dispatchState:string;authorityReference:string|null;
- authorityStatus:string|null;sentAtUtc:string|null};
+ authorityStatus:string|null;sentAtUtc:string|null;canResumeSubmission:boolean;
+ systemCode?:string|null;referenceFiscalTaxId?:string|null};
 type Graph={hasDispatchAttempt:boolean;hasChanges:boolean;outcomeUnknown:boolean;nodes:Node[]};
 type AuthorityIssue={code:string;message:string};
-type AuthorityReport={status:"FAILED"|"SUCCESS"|"PENDING"|"UNKNOWN";
+type AuthorityReport={status:"FAILED"|"SUCCESS"|"PENDING"|"IN_PROGRESS"|"UNKNOWN";
  errors:AuthorityIssue[];warnings:AuthorityIssue[];observedAtUtc:string};
 const label:Record<string,string>={Original:"اصلی",Correction:"اصلاحی",Cancellation:"ابطالی",SalesReturn:"برگشت از فروش"};
 const authorityStatusLabel:Record<string,string>={
  FAILED:"رد شده توسط سازمان",SUCCESS:"نتیجه موفق سازمان",PENDING:"در انتظار بررسی سازمان",
+ IN_PROGRESS:"در صف ارسال به سازمان",
  UNKNOWN:"نتیجه سازمان نامشخص",ACKNOWLEDGED:"کد رهگیری دریافت شد",INDETERMINATE:"نتیجه نامشخص"};
 const date=(value:string|null)=>value?new Date(value).toLocaleString("fa-IR"):"—";
 export default function InvoiceLineageModal({taxpayerId,invoiceId,onClose}:{
@@ -22,7 +24,37 @@ export default function InvoiceLineageModal({taxpayerId,invoiceId,onClose}:{
  const [inquiryBusy,setInquiryBusy]=useState<string|null>(null);
  const [inquiryMessage,setInquiryMessage]=useState("");
  const [inquiryReport,setInquiryReport]=useState<{invoiceId:string;report:AuthorityReport}|null>(null);
+ const [printTargetId,setPrintTargetId]=useState<string|null>(null);
+ const [printBusyId,setPrintBusyId]=useState<string|null>(null);
+ const [printReady,setPrintReady]=useState<Record<string,boolean>>({});
+ const previewDetails=useRef<Record<string,HTMLDetailsElement|null>>({});
  const [loading,setLoading]=useState(true);
+ const resumeCorrection=async(node:Node)=>{
+  setInquiryBusy(node.invoiceId);setInquiryMessage("");setInquiryReport(null);
+  try{
+   const response=await fetch("/api/invoice-dispatch/"+encodeURIComponent(taxpayerId)+"/"+
+    encodeURIComponent(invoiceId)+"/correction-send-and-inquire",{
+    method:"POST",credentials:"same-origin",cache:"no-store",signal:AbortSignal.timeout(115000)});
+   const result=await response.json() as {code?:string;status?:string;invoiceId?:string|null;
+    referenceNumber?:string|null;error?:string};
+   if(!response.ok)throw Error(String(result.code??result.error??response.status));
+   setInquiryMessage("نتیجه ادامه ارسال: "+String(result.code??"نامشخص")+
+    (result.status?" — وضعیت "+result.status:""));
+   if(result.invoiceId&&result.referenceNumber){
+    const inquiry=await fetch("/api/invoice-dispatch/"+encodeURIComponent(taxpayerId)+"/"+
+     encodeURIComponent(result.invoiceId)+"/inquiry-by-reference",{
+     method:"POST",credentials:"same-origin",cache:"no-store",signal:AbortSignal.timeout(40000)});
+    const report=await inquiry.json() as {authorityResult?:AuthorityReport|null;safeCode?:string;error?:string};
+    if(!inquiry.ok)throw Error(String(report.error??inquiry.status));
+    if(report.authorityResult)setInquiryReport({invoiceId:result.invoiceId,report:report.authorityResult});
+    setInquiryMessage("ارسال: "+String(result.code??"نامشخص")+
+     "؛ استعلام: "+(report.authorityResult
+      ?authorityStatusLabel[report.authorityResult.status]??report.authorityResult.status
+      :String(report.safeCode??"در انتظار بررسی")));
+   }
+  }catch(e){setInquiryMessage("ادامه ارسال یا استعلام ناموفق بود: "+(e as Error).message);}
+  finally{setInquiryBusy(null);setReload(value=>value+1);}
+ };
  useEffect(()=>{
   const controller=new AbortController();
   setLoading(true);setError("");
@@ -39,6 +71,30 @@ export default function InvoiceLineageModal({taxpayerId,invoiceId,onClose}:{
   })();
   return()=>controller.abort();
  },[taxpayerId,invoiceId,reload]);
+ useEffect(()=>{
+  if(!printTargetId||!printReady[printTargetId])return;
+  const paper=previewDetails.current[printTargetId]?.querySelector<HTMLElement>(".invoice-paper");
+  if(!paper){setPrintBusyId(null);setPrintTargetId(null);return;}
+  const printRoot=document.createElement("div");
+  printRoot.id="invoice-lineage-print-root";
+  printRoot.dir="rtl";
+  printRoot.append(paper.cloneNode(true));
+  document.body.append(printRoot);
+  document.body.classList.add("invoice-lineage-printing");
+  const afterPrint=()=>{
+   if(printTargetId)previewDetails.current[printTargetId]?.removeAttribute("open");
+   document.body.classList.remove("invoice-lineage-printing");
+   printRoot.remove();
+   setPrintBusyId(null);
+   setPrintTargetId(null);
+  };
+  window.addEventListener("afterprint",afterPrint,{once:true});
+  const logo=printRoot.querySelector<HTMLImageElement>("img");
+  const imageReady=logo?.decode().catch(()=>undefined)??Promise.resolve();
+  const timer=window.setTimeout(()=>{void imageReady.then(()=>window.print());},100);
+  return()=>{window.clearTimeout(timer);window.removeEventListener("afterprint",afterPrint);
+   document.body.classList.remove("invoice-lineage-printing");printRoot.remove();};
+ },[printTargetId,printReady]);
  return <div className="invoice-register__overlay" onMouseDown={e=>{if(e.target===e.currentTarget)onClose();}}>
   <section className="invoice-register__detail-modal" dir="rtl" role="dialog" aria-modal="true" aria-label="زنجیره صورتحساب">
    <header className="invoice-register__dialog-header"><h2>زنجیره صورتحساب</h2>
@@ -73,14 +129,33 @@ export default function InvoiceLineageModal({taxpayerId,invoiceId,onClose}:{
     <p>این گزارش نتیجه استعلام است و به‌تنهایی پذیرش قطعی مالیاتی را ثبت نمی‌کند.</p>
    </section>}
    {graph&&!graph.hasDispatchAttempt&&<p>برای این صورتحساب هنوز سابقه ارسال ثبت نشده است.</p>}
-   {graph?.hasDispatchAttempt&&<div style={{display:"grid",gap:8,padding:10,maxHeight:"65dvh",overflow:"auto"}}>
-    {graph.nodes.map((node,i)=><div key={node.invoiceId}>
+    {graph?.hasDispatchAttempt&&<div className="invoice-lineage-nodes" style={{display:"grid",gap:8,padding:10,maxHeight:"65dvh",overflow:"auto"}}>
+    {graph.nodes.map((node,i)=><div className="invoice-lineage-node" key={node.invoiceId}>
       {i>0&&<div style={{textAlign:"center",fontSize:12,color:"#607981",padding:6}}>
        ↓ ارجاع به شناسه مالیاتی سند مرجع
       </div>}
-      <article style={{border:"1px solid #bedad5",borderRadius:9,padding:12,background:"#f8fbfa"}}>
+      <article className="invoice-lineage-node__card" style={{border:"1px solid #bedad5",borderRadius:9,padding:12,background:"#f8fbfa"}}>
        <strong>{label[node.subject]??node.subject}</strong>
+       <button type="button" className="identity-secondary invoice-lineage-print-button"
+        aria-label={printBusyId===node.invoiceId||!printReady[node.invoiceId]?"در حال آماده‌سازی چاپ":"چاپ صورتحساب"}
+        title={printBusyId===node.invoiceId||!printReady[node.invoiceId]?"در حال آماده‌سازی چاپ":"چاپ صورتحساب"}
+        aria-busy={printBusyId===node.invoiceId||!printReady[node.invoiceId]}
+        disabled={!printReady[node.invoiceId]||printBusyId!==null} onClick={()=>{
+         if(printReady[node.invoiceId]){
+          previewDetails.current[node.invoiceId]?.setAttribute("open","");
+          setPrintBusyId(node.invoiceId);
+          setPrintTargetId(node.invoiceId);
+         }
+        }}>
+        {printBusyId===node.invoiceId||!printReady[node.invoiceId]
+         ?<span className="invoice-lineage-print-spinner" aria-hidden="true"/>
+         :<svg className="invoice-lineage-print-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M7 8V3h10v5M7 17H5a2 2 0 0 1-2-2v-4a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v4a2 2 0 0 1-2 2h-2M7 14h10v7H7z"/>
+          <path d="M18 11h.01"/>
+         </svg>}
+       </button>
        <div style={{fontSize:12,display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(190px,1fr))",gap:6,marginTop:8}}>
+        <span>شماره صورتحساب: <bdi dir="ltr">{node.systemCode??"—"}</bdi></span>
         <span>شناسه مالیاتی: <bdi dir="ltr">{node.fiscalTaxId??"تخصیص نیافته"}</bdi></span>
         <span>صدور: {date(node.issuedAtUtc)}</span>
         <span>ارسال: {date(node.sentAtUtc)}</span>
@@ -109,10 +184,25 @@ export default function InvoiceLineageModal({taxpayerId,invoiceId,onClose}:{
           .catch(e=>setInquiryMessage("استعلام ناموفق بود: "+(e as Error).message))
           .finally(()=>setInquiryBusy(null));
         }}>{inquiryBusy===node.invoiceId?<><span className="argin-loader-spinner" aria-hidden="true"/>در حال استعلام…</>:"استعلام این سند از سازمان"}</button>}
-       <details className="fiscal-section" style={{marginTop:10}}>
+       {node.canResumeSubmission&&<button type="button" className="identity-secondary invoice-lineage-inquiry"
+        disabled={inquiryBusy!==null} aria-busy={inquiryBusy===node.invoiceId}
+        onClick={()=>void resumeCorrection(node)}>
+        {inquiryBusy===node.invoiceId?<><span className="argin-loader-spinner" aria-hidden="true"/>در حال ادامه ارسال همین اصلاحیه…</>:"ادامه ارسال همین اصلاحیه"}
+       </button>}
+       <details className="fiscal-section" style={{marginTop:10}}
+        ref={element=>{previewDetails.current[node.invoiceId]=element;}}>
         <summary>مشاهده صورتحساب در همین مرحله</summary>
-        <div className="fiscal-section-content">
-         <InvoiceFormalPreview taxpayerId={taxpayerId} invoiceId={node.invoiceId} reference="" authorityStatus={node.authorityStatus??undefined} readOnly/>
+        <div className="fiscal-section-content invoice-lineage-print-sheet"
+         data-printing={printTargetId===node.invoiceId?"true":"false"}>
+         <div className="invoice-lineage-preview-scroll">
+         <InvoiceFormalPreview taxpayerId={taxpayerId} invoiceId={node.invoiceId}
+          reference={node.systemCode??""} authorityReference={node.authorityReference}
+          referenceFiscalTaxId={node.referenceFiscalTaxId}
+          authorityStatus={node.authorityStatus??undefined} subject={node.subject}
+          invoiceSubject={node.subject} printLayout readOnly
+          onPreviewReady={()=>setPrintReady(current=>current[node.invoiceId]?current:
+           {...current,[node.invoiceId]:true})}/>
+         </div>
         </div>
        </details>
       </article>
