@@ -14,7 +14,7 @@ test("printed tax identity comes from reserved 22-character fiscal taxid, never 
  assert.ok(backend.includes("FROM sandbox_invoice_fiscal_reservations"));
  assert.ok(backend.includes("uniqueInvoiceId=fiscalTaxId"));
  assert.ok(!backend.includes('uniqueInvoiceId=invoiceId.ToString("D")'));
- assert.ok(preview.includes("شناسه یکتای مالیاتی"));
+ assert.ok(preview.includes("شناسه منحصربه‌فرد مالیاتی"));
  assert.ok(preview.includes("در انتظار تخصیص"));
 });
 test("invoice list wires the completion callback and refreshes when closing detail modal",()=>{
@@ -43,7 +43,10 @@ test("return preparation is available on sent nonterminal correction and return 
  for(const subject of ["Original","Correction","SalesReturn"]){
   for(const authorityStatus of ["ACKNOWLEDGED","SUCCESS","PENDING","UNKNOWN","FAILED","INDETERMINATE","SENDING"]){
    const props={subject,authorityStatus,onSalesReturn:()=>{},onCancel:()=>{},onCorrect:()=>{}};
-   assert.ok(renderToStaticMarkup(React.createElement(exports.Actions,props)).includes("برگشت از فروش"),subject+" "+authorityStatus);
+   const allowed=(authorityStatus==="SUCCESS"||authorityStatus==="FAILED"&&subject==="SalesReturn");
+   const markup=renderToStaticMarkup(React.createElement(exports.Actions,props));
+   const label=authorityStatus==="FAILED"?"ویرایش و تلاش مجدد برگشت":"برگشت از فروش";
+   assert.equal(markup.includes(label),allowed,subject+" "+authorityStatus);
   }
  }
  const terminal={subject:"Cancellation",authorityStatus:"SUCCESS",onSalesReturn:()=>{},onCancel:()=>{},onCorrect:()=>{}};

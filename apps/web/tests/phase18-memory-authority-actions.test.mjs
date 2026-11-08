@@ -29,7 +29,7 @@ test('classification is explicit, scoped, revision-bound, and refreshes server m
  assert.equal(ui.calls[0].options.credentials,'same-origin');assert.equal(ui.refreshed(),1);
 });
 test('activation needs a separate action after a successful read-only test for the same selected memory',async()=>{
- const selected={id:mid,memoryIdentifier:'REAL01',status:1,revision:8,authorityEnvironment:1};
+ const selected={id:mid,memoryIdentifier:'REAL01',status:1,revision:8,authorityEnvironment:1,canVerifyAndActivate:true};
  const pending=harness({memories:[],selectedMemory:selected});
  assert.equal(nodes(pending.render(),'button')[0].props.disabled,true);
  const ready=harness({memories:[],selectedMemory:selected,testedMemoryId:mid});const tree=ready.render();

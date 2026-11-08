@@ -13,12 +13,18 @@ test("main invoice overview hides successor before paging and retains original s
  assert.ok(s.includes("EffectiveInvoiceId"));
  assert.ok(s.includes("buyerPartyIdsByInvoice"));
  assert.ok(s.includes("Parties.AsNoTracking"));
- assert.ok(s.includes('referenceCodes.GetValueOrDefault((x.Source == 1 ? "workspace" : "document", x.Id))'));
+ assert.ok(s.includes('x.Source==0?inheritedCodes.GetValueOrDefault(x.Id'));
+ assert.ok(s.includes('referenceCodes.GetValueOrDefault(("document",x.Id))'));
+ assert.ok(s.includes('referenceCodes.GetValueOrDefault(("workspace",x.Id))'));
+ assert.ok(s.includes('var pendingRejectedSuccessors=db.Database.SqlQueryRaw<Guid>'));
+ assert.ok(s.includes('!pendingRejectedSuccessors.Contains(x.Id)'));
 });
 test("lineage includes independently stored related invoices and same-taxpayer scope",()=>{
  const s=read("src/ArginTaxPayer.Infrastructure/Persistence/Invoices/Phase10InvoiceLineageReadService.cs");
  assert.ok(s.includes("FROM sandbox_invoice_legal_relations"));
  assert.ok(s.includes("FROM authority_invoice_legal_relations"));
+ assert.ok(s.includes("FROM invoice_rejection_replacements"));
+ assert.ok(s.includes("ResolveLineageRootAsync"));
  assert.ok(s.includes("WITH RECURSIVE lineage AS ("));
  assert.ok(s.includes("d.id=lineage.successor_invoice_id"));
  assert.ok(s.includes("lineage.customer_user_id=@owner AND lineage.taxpayer_id=@taxpayer"));
