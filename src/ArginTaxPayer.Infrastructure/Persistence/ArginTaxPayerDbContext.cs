@@ -469,14 +469,19 @@ public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbConte
         memories.ToTable("fiscal_memories", table =>
         {
             table.HasCheckConstraint("ck_fiscal_memories_status", "status IN (1, 2, 3, 4)");
+            table.HasCheckConstraint("ck_fiscal_memories_authority_environment", "authority_environment IS NULL OR authority_environment IN (1, 2)");
             table.HasCheckConstraint("ck_fiscal_memories_identifier", "length(trim(memory_identifier)) > 0");
             table.HasCheckConstraint("ck_fiscal_memories_revision", "revision > 0");
+            table.HasCheckConstraint("ck_fiscal_memories_connection_test", "(last_connection_test_succeeded IS NULL AND last_connection_test_at_utc IS NULL) OR (last_connection_test_succeeded IS NOT NULL AND last_connection_test_at_utc IS NOT NULL)");
         });
         memories.HasKey(x => x.Id);
         memories.Property(x => x.Id).HasColumnName("id");
         memories.Property(x => x.TaxpayerId).HasColumnName("taxpayer_id").IsRequired();
         memories.Property(x => x.MemoryIdentifier).HasColumnName("memory_identifier").HasMaxLength(64).IsRequired();
+        memories.Property(x => x.AuthorityEnvironment).HasColumnName("authority_environment").HasConversion<int>();
         memories.Property(x => x.Status).HasColumnName("status").HasConversion<int>().IsRequired();
+        memories.Property(x => x.LastConnectionTestSucceeded).HasColumnName("last_connection_test_succeeded");
+        memories.Property(x => x.LastConnectionTestAtUtc).HasColumnName("last_connection_test_at_utc").HasColumnType("timestamp with time zone");
         memories.Property(x => x.Revision).HasColumnName("revision").HasDefaultValue(1L).IsConcurrencyToken();
         memories.Property(x => x.CreatedAtUtc).HasColumnName("created_at_utc").HasColumnType("timestamp with time zone");
         memories.Property(x => x.UpdatedAtUtc).HasColumnName("updated_at_utc").HasColumnType("timestamp with time zone");

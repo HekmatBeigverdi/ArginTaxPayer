@@ -18,7 +18,7 @@ public sealed class Phase10DispatchDatabaseContractsTests
         up.Invoke(migration, new object[] { builder });
         var sql = string.Join("\n", builder.Operations.OfType<SqlOperation>()
             .Select(x => x.Sql));
-        Assert.Contains("current_database() <> 'argintaxpayer_test'", sql);
+        Phase18LegacyMigrationAdmissionTests.AssertIsolatedDatabaseAdmission(sql);
         Assert.Contains("CREATE TABLE invoice_dispatch_operations", sql);
         Assert.Contains("CREATE TABLE invoice_dispatch_attempts", sql);
         Assert.Contains("CREATE TABLE invoice_dispatch_receipts", sql);

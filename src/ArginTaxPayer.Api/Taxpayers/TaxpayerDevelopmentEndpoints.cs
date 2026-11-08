@@ -59,7 +59,7 @@ public static class TaxpayerDevelopmentEndpoints
             {
                 FiscalMemoryOperationStatus.Unauthenticated => Results.Unauthorized(),
                 FiscalMemoryOperationStatus.Forbidden => Results.StatusCode(403),
-                FiscalMemoryOperationStatus.Invalid => Results.BadRequest(new { error = "invalid_memory_identifier" }),
+                FiscalMemoryOperationStatus.Invalid => Results.BadRequest(new { error = "invalid_memory_identifier_or_environment" }),
                 FiscalMemoryOperationStatus.NotFound => Results.NotFound(),
                 FiscalMemoryOperationStatus.Conflict => Results.Conflict(new { error = "memory_identifier_conflict" }),
                 FiscalMemoryOperationStatus.RequiresApprovedBindingReview => Results.Conflict(new { error = "binding_review_required" }),
@@ -80,6 +80,26 @@ public static class TaxpayerDevelopmentEndpoints
                 FiscalMemoryOperationStatus.NotFound => Results.NotFound(),
                 _ => Results.Ok(result.Memories)
             };
+        }).WithTags("Fiscal Memories (Development)");
+
+        routes.MapPost("/api/dev/taxpayers/{taxpayerId:guid}/memories/{memoryId:guid}/classify-authority", async (
+            Guid taxpayerId, Guid memoryId, [FromBody] ClassifyFiscalMemoryAuthorityRequest request,
+            HttpContext http, FiscalMemoryAuthorityOnboardingService service, CancellationToken ct) =>
+        {
+            if (!IsLocal(http)) return Results.NotFound();
+            var result = await service.ClassifyAsync(Bearer(http), taxpayerId, memoryId, request, ct);
+            return result.StatusCode == 200 ? Results.Ok(result.Memory)
+                : Results.Json(new { error = result.Code }, statusCode: result.StatusCode);
+        }).WithTags("Fiscal Memories (Development)");
+
+        routes.MapPost("/api/dev/taxpayers/{taxpayerId:guid}/memories/{memoryId:guid}/verify-and-activate", async (
+            Guid taxpayerId, Guid memoryId, [FromBody] VerifyFiscalMemoryRequest request,
+            HttpContext http, FiscalMemoryAuthorityOnboardingService service, CancellationToken ct) =>
+        {
+            if (!IsLocal(http)) return Results.NotFound();
+            var result = await service.VerifyAndActivateAsync(Bearer(http), taxpayerId, memoryId, request, ct);
+            return result.StatusCode == 200 ? Results.Ok(result.Memory)
+                : Results.Json(new { error = result.Code }, statusCode: result.StatusCode);
         }).WithTags("Fiscal Memories (Development)");
 
         routes.MapPut("/api/dev/taxpayers/{taxpayerId:guid}/memories/{memoryId:guid}/status", async (

@@ -1,6 +1,7 @@
 import {test} from "node:test";
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
+import {assertIsolatedDatabaseAdmission} from "./helpers/migration-admission.mjs";
 
 const api=readFileSync("../../src/ArginTaxPayer.Api/Taxpayers/SandboxFiscalMemoryDevelopmentEndpoints.cs","utf8");
 const store=readFileSync("../../src/ArginTaxPayer.Infrastructure/Persistence/Signing/SandboxFiscalMemoryMetadataService.cs","utf8");
@@ -13,7 +14,7 @@ const identity=readFileSync("../../src/ArginTaxPayer.Infrastructure/Signing/Prot
 const offline=readFileSync("app/api/sandbox-memory/[taxpayerId]/key-self-test/route.ts","utf8");
 
 test("sandbox metadata is additive test-only and never writes Production key tables",()=>{
-  assert.match(migration,/current_database\(\) <> 'argintaxpayer_test'/);
+  assertIsolatedDatabaseAdmission(migration);
   assert.match(migration,/CREATE TABLE sandbox_fiscal_memories/);
   assert.doesNotMatch(migration,/ALTER TABLE fiscal_memories|DROP TABLE|DELETE FROM/);
   assert.match(store,/current_database\(\)/);

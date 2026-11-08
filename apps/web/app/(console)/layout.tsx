@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { currentIdentity, identityUiEnabled } from "../../lib/identity";
+import { currentIdentity, identityUiEnabled, identityDashboardOnlyEnabled } from "../../lib/identity";
 import ConsoleShell from "../components/console-shell";
 
 export const dynamic = "force-dynamic";
@@ -7,5 +7,5 @@ export default async function ConsoleLayout({ children }: Readonly<{ children: R
   if (!identityUiEnabled()) redirect("/");
   const actor = await currentIdentity();
   if (!actor) redirect("/identity");
-  return <ConsoleShell roles={actor.roles} userId={actor.userId}>{children}</ConsoleShell>;
+  return <ConsoleShell roles={actor.roles} userId={actor.userId} dashboardOnly={identityDashboardOnlyEnabled()}>{children}</ConsoleShell>;
 }

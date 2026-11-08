@@ -48,7 +48,7 @@ async function dispatch(request: NextRequest, context: Context, method: "GET" | 
     const value = payload as Record<string, unknown>;
     // Only a small bounded and explicitly allowlisted status reaches the browser.
     return NextResponse.json({
-      environment: value.environment === "Sandbox" ? "Sandbox" : "Mock",
+      environment: value.environment === "Production" ? "Production" : value.environment === "Sandbox" ? "Sandbox" : "Mock",
       submissionEnabled: value.submissionEnabled === true,
       inquiryEnabled: value.inquiryEnabled === true,
       fiscalAccepted: false,

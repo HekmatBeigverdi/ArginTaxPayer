@@ -28,7 +28,7 @@ function actions(props){
  const node=find(tree,x=>x.type?.name==='AuthorityActions');
  return node?node.type(node.props):null;
 }
-for(const subject of ['Original','SalesReturn']){
+for(const subject of ['Original','Correction','SalesReturn']){
  test('preview return button opens the shared return action: '+subject,()=>{
   let opened=0;
   const tree=actions({subject,authorityStatus:'SUCCESS',onSalesReturn:()=>opened++});
@@ -37,7 +37,7 @@ for(const subject of ['Original','SalesReturn']){
   button.props.onClick();assert.equal(opened,1);
  });
 }
-for(const props of [{subject:'Original',authorityStatus:'PENDING'},{subject:'Correction',authorityStatus:'SUCCESS'},{subject:'Cancellation',authorityStatus:'SUCCESS'},{subject:'Original',authorityStatus:'SUCCESS',readOnly:true}]){
+for(const props of [{subject:'Original'},{subject:'Original',authorityStatus:'PREPARED'},{subject:'Cancellation',authorityStatus:'SUCCESS'},{subject:'Original',authorityStatus:'SUCCESS',readOnly:true}]){
  test('preview excludes unavailable return action: '+JSON.stringify(props),()=>{
   assert.equal(find(actions({...props,onSalesReturn:()=>assert.fail('must not run')}),x=>x.type==='button'&&x.props.children==='برگشت از فروش'),null);
  });

@@ -7,6 +7,29 @@ internal sealed record LegacyInvoicePreparationCredentials(
 {
     public void Dispose() => EncryptionKey?.Dispose();
 
+    internal static async Task<LegacyInvoicePreparationCredentials> RequestVerifiedAsync(
+        LegacyInvoiceAccessTokenClient tokens, LegacySandboxServerEncryptionKeyClient encryption,
+        Uri tokenEndpoint, Uri serverInformationEndpoint,
+        string memoryCode, SensitiveBytes privateKey, ReadOnlyMemory<byte> publicKey,
+        CancellationToken ct)
+    {
+        var tokenTask = tokens.RequestVerifiedEndpointAsync(
+            tokenEndpoint, memoryCode, privateKey, publicKey, ct);
+        var encryptionTask = encryption.RequestVerifiedEndpointAsync(
+            serverInformationEndpoint, memoryCode, privateKey, publicKey, ct);
+        try
+        {
+            await Task.WhenAll(tokenTask, encryptionTask);
+            return new(await tokenTask, await encryptionTask);
+        }
+        catch
+        {
+            if (encryptionTask.IsCompletedSuccessfully)
+                encryptionTask.Result?.Dispose();
+            throw;
+        }
+    }
+
     internal static async Task<LegacyInvoicePreparationCredentials> RequestAsync(
         LegacyInvoiceAccessTokenClient tokens, LegacySandboxServerEncryptionKeyClient encryption,
         string memoryCode, SensitiveBytes privateKey, ReadOnlyMemory<byte> publicKey,

@@ -21,7 +21,22 @@ SET LOCAL lock_timeout='5s';
 SET LOCAL statement_timeout='60s';
 DO $$
 BEGIN
- IF current_database()<>'argintaxpayer_test' THEN
+ IF NOT (
+    current_database() = 'argintaxpayer_test'
+    OR (
+      current_database() = 'argin_phase18_acceptance'
+      AND current_user = 'phase18_acceptance'
+      AND EXISTS (
+        SELECT 1 FROM pg_stat_ssl
+         WHERE pid = pg_backend_pid() AND ssl
+      )
+    )
+    OR (
+      current_database() = 'argintaxpayer_prod'
+      AND current_user = 'argin_prod_migrator'
+      AND EXISTS (SELECT 1 FROM pg_stat_ssl WHERE pid = pg_backend_pid() AND ssl)
+    )
+  ) THEN
    RAISE EXCEPTION 'Sandbox fiscal reservation migration requires argintaxpayer_test';
  END IF;
 END $$;

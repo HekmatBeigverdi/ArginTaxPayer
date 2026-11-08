@@ -20,6 +20,7 @@
 node_modules/
 .next/
 .next-dev/
+.next-*/
 next-env.d.ts
 dist/
 bin/
@@ -46,3 +47,29 @@ artifacts/phase15-step16/
 
 # Private Ubuntu Phase15 same-SHA QA evidence
 artifacts/phase15-step17/
+
+# Phase 18 local-only production readiness/build logs; never commit packaged server code or artifacts
+artifacts/phase18-step03/
+artifacts/phase18-step04/
+artifacts/phase18-step05/
+
+# Phase18 isolated Production-mode runtime smoke reports
+artifacts/phase18-step05-runtime/
+
+# Phase18 local non-mutating Production integration acceptance logs
+artifacts/phase18-step05-integration/
+
+# Phase18 isolated disposable PostgreSQL acceptance logs
+artifacts/phase18-step05-db/
+
+# Phase18 final tenant and browser-facing BFF acceptance reports
+artifacts/phase18-step05-final/
+
+# Phase18 loopback-only actual API + BFF acceptance reports and binaries
+artifacts/phase18-step05-e2e/
+
+# Step06 Systemd private preflight and installation audit reports
+artifacts/phase18-step06/
+
+# Phase18 Step07: sensitive Production DB CA, passwords, backups, SQL reviews and audit logs
+artifacts/phase18-step07/

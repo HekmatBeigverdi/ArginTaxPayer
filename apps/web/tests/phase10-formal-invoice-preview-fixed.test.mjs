@@ -8,6 +8,11 @@ test("snapshot preview reads PascalCase DTO line fields and scoped party names",
  assert.ok(s.includes("db.Parties"));
  assert.ok(s.includes("OwnerCustomerUserId==owner.Value"));
 });
+test("formal preview resolves the fiscal reference from Sandbox and Production reservations",()=>{
+ const s=read("src/ArginTaxPayer.Infrastructure/Persistence/Invoices/Phase10InvoicePrintPreviewService.cs");
+ assert.ok(s.includes("authority_invoice_fiscal_reservations"));
+ assert.ok(s.includes("sandbox_invoice_fiscal_reservations"));
+});
 test("compact formal invoice shows busy spinner and operations live inside invoice not table",()=>{
  const p=read("apps/web/app/invoices/invoice-formal-preview.tsx");
  const page=read("apps/web/app/invoices/workspace.tsx");

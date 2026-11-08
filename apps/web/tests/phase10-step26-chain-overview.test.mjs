@@ -17,9 +17,16 @@ test("main invoice overview hides successor before paging and retains original s
 });
 test("lineage includes independently stored related invoices and same-taxpayer scope",()=>{
  const s=read("src/ArginTaxPayer.Infrastructure/Persistence/Invoices/Phase10InvoiceLineageReadService.cs");
- assert.ok(s.includes("sandbox_invoice_legal_relations rel"));
- assert.ok(s.includes("d.id=rel.successor_invoice_id"));
- assert.ok(s.includes("rel.customer_user_id=@owner AND rel.taxpayer_id=@taxpayer"));
+ assert.ok(s.includes("FROM sandbox_invoice_legal_relations"));
+ assert.ok(s.includes("FROM authority_invoice_legal_relations"));
+ assert.ok(s.includes("WITH RECURSIVE lineage AS ("));
+ assert.ok(s.includes("d.id=lineage.successor_invoice_id"));
+ assert.ok(s.includes("lineage.customer_user_id=@owner AND lineage.taxpayer_id=@taxpayer"));
  assert.ok(s.includes("nodes.Add(new(next.GetGuid(0)"));
  assert.ok(s.includes("new(attempted,nodes.Count>1"));
+});
+test("latest correction return or cancellation becomes the effective chain node",()=>{
+ const s=read("src/ArginTaxPayer.Infrastructure/Persistence/Invoices/Phase10EffectiveInvoiceQuery.cs");
+ assert.ok(s.includes("d.subject IN (2,3,4)"));
+ assert.ok(s.includes("ORDER BY c.depth DESC,c.created_at_utc DESC,d.id DESC"));
 });

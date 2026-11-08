@@ -44,6 +44,25 @@ internal sealed class SigningKeyImportService(ISigningImportJournal journal, IGe
                         return new(SigningGenerationStatus.Invalid);
                 }
                 ct.ThrowIfCancellationRequested();
+                // A customer migrating from an earlier invoicing application may
+                // already have this public key registered. Re-entering the matching
+                // private key can restore its encrypted custody envelope in place;
+                // it never replaces the public key or changes key selection.
+                var sameKeyTarget = await journal.FindSameKeyTargetAsync(bearer, request,
+                    key.PublicFingerprintSha256, ct);
+                if (sameKeyTarget is not null)
+                {
+                    await custody.EnsureReadyAsync(ct);
+                    var stored = await custody.StageAsync(sameKeyTarget.Identity, key, ct);
+                    if (stored.Identity != sameKeyTarget.Identity ||
+                        stored.PublicFingerprintSha256 != key.PublicFingerprintSha256 ||
+                        sameKeyTarget.PublicKeyResult.Status != SigningGenerationStatus.Replayed ||
+                        sameKeyTarget.PublicKeyResult.PublicKey is null ||
+                        sameKeyTarget.PublicKeyResult.PublicKey.KeyVersionId != sameKeyTarget.Identity.KeyVersionId ||
+                        sameKeyTarget.PublicKeyResult.PublicKey.FingerprintSha256 != key.PublicFingerprintSha256)
+                        return new(SigningGenerationStatus.IntegrityFailure);
+                    return sameKeyTarget.PublicKeyResult;
+                }
                 var reservation = await journal.ReserveImportAsync(bearer, request, key.PublicFingerprintSha256, ct);
                 if (reservation.Status is not (SigningGenerationStatus.Created or SigningGenerationStatus.Replayed))
                     return new(reservation.Status);

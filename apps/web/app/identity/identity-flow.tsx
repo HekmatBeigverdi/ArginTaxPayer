@@ -7,6 +7,7 @@ type Tab = "login" | "register";
 type Mode = "password" | "otp";
 type Step = "details" | "code" | "mfa";
 type Purpose = "register" | "login" | "reset";
+export type AuthVisualState="login"|"register"|"recovery";
 
 const purposeCaptions: Record<Purpose, string> = {
   register: "تأیید شماره همراه",
@@ -65,7 +66,10 @@ function getOtpCompletionRequest(
   };
 }
 
-function getOtpError(status: number) {
+function getOtpError(status: number, error?: string) {
+  if (status === 503 && error === "registration_unavailable") {
+    return "کد پذیرفته شد، اما ساخت حساب کامل نشد. دوباره کد ثبت‌نام بگیرید.";
+  }
   return status === 429
     ? "تعداد تلاش‌ها زیاد است."
     : "کد تأیید اشتباه یا منقضی شده است.";
@@ -79,7 +83,9 @@ function getPasswordError(status: number) {
   return "نام کاربری یا رمز عبور نادرست است.";
 }
 
-export default function IdentityFlow() {
+export default function IdentityFlow({ restrictedLogin = false,onVisualStateChange }: {
+  restrictedLogin?: boolean;onVisualStateChange?:(state:AuthVisualState)=>void
+}) {
   const router = useRouter();
 
   const [tab, setTab] = useState<Tab>("login");
@@ -105,6 +111,10 @@ export default function IdentityFlow() {
 
   const purpose = getPurpose(tab, forgot);
   const phoneOtp = usesPhoneOtp(tab, mode, forgot, emailRegistration);
+
+  useEffect(()=>{
+    onVisualStateChange?.(forgot?"recovery":tab==="register"?"register":"login");
+  },[forgot,tab,onVisualStateChange]);
 
   useEffect(() => {
     if (retryAfter <= 0) {
@@ -201,6 +211,8 @@ export default function IdentityFlow() {
       return;
     }
 
+    if (restrictedLogin && (tab !== "login" || mode !== "password" || forgot))
+      return;
     setError("");
     setMessage("");
     setPending(true);
@@ -313,6 +325,11 @@ export default function IdentityFlow() {
           return;
         }
 
+        if (response.status === 404 && result.error === "mobile_not_registered") {
+          setError("این شماره هنوز ثبت‌نام نشده است. ابتدا ثبت‌نام کنید.");
+          return;
+        }
+
         if (response.status === 429) {
           const seconds =
             typeof result.retryAfterSeconds === "number" &&
@@ -346,10 +363,10 @@ export default function IdentityFlow() {
       }
 
       const request = getOtpCompletionRequest(purpose, identifier, code, password);
-      const { response } = await api(request.path, request.body);
+      const { response, result } = await api(request.path, request.body);
 
       if (!response.ok) {
-        setError(getOtpError(response.status));
+        setError(getOtpError(response.status, result.error));
         return;
       }
 
@@ -443,12 +460,12 @@ export default function IdentityFlow() {
             </p>
           </div>
         ) : (
-          step !== "mfa" && (
+          step !== "mfa" && tab !== "login" && (
             <div className="auth-section-heading">
               <h2>{tab === "login" ? "ورود به حساب کاربری" : "ایجاد حساب کاربری"}</h2>
               <p className="identity-muted">
                 {tab === "login"
-                  ? "با رمز عبور یا پیامک وارد شوید."
+                  ? restrictedLogin ? "با رمز عبور و در صورت نیاز تأیید دومرحله‌ای وارد شوید." : "با رمز عبور یا پیامک وارد شوید."
                   : "شماره موبایل را تأیید کنید یا از ثبت‌نام آزمایشی ایمیلی استفاده کنید."}
               </p>
             </div>
@@ -637,7 +654,7 @@ export default function IdentityFlow() {
             </button>
           )}
 
-          {!forgot && tab === "login" && step === "details" && (
+          {!restrictedLogin && !forgot && tab === "login" && step === "details" && (
             <button
               type="button"
               className="auth-text-link"
@@ -665,7 +682,7 @@ export default function IdentityFlow() {
         </p>
       </fieldset>
 
-      {step === "details" && !pending && !navigating && (
+      {!restrictedLogin && step === "details" && !pending && !navigating && (
         <div className="auth-secondary-links">
           {tab === "login" && !forgot && (
             <button

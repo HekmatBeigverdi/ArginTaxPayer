@@ -35,6 +35,20 @@ internal sealed class LegacyInvoiceAccessTokenClient(
         if (!LegacyInvoiceSubmissionHttpTransport.TryResolveSandboxBase(configuration, out var baseUri) ||
             baseUri is null)
             return new(false, "sandbox_legacy_token_disabled");
+        return await RequestVerifiedEndpointAsync(
+            new Uri(baseUri, "self-tsp/sync/GET_TOKEN"),
+            fiscalId, signingKey, expectedPublicSpki, ct);
+    }
+
+    // Callers outside the historical Sandbox path must obtain this exact URL
+    // through Phase18AuthorityEndpointRoutingService first. No arbitrary HTTP
+    // or client-provided target may be passed to the signed token request.
+    internal async Task<LegacyInvoiceAccessTokenResult> RequestVerifiedEndpointAsync(
+        Uri verifiedTokenEndpoint, string fiscalId, SensitiveBytes signingKey,
+        ReadOnlyMemory<byte> expectedPublicSpki, CancellationToken ct)
+    {
+        if (!IsPinnedTokenEndpoint(verifiedTokenEndpoint))
+            return new(false, "legacy_token_endpoint_not_authorized");
         if (fiscalId is not { Length: >= 6 and <= 32 } ||
             fiscalId.Any(c => !char.IsAsciiLetterOrDigit(c)))
             return new(false, "sandbox_legacy_token_invalid");
@@ -64,7 +78,7 @@ internal sealed class LegacyInvoiceAccessTokenClient(
             new Dictionary<string, string> { ["requestTraceId"] = trace, ["timestamp"] = timestamp })
             .SignatureBase64;
 
-        var endpoint = new Uri(baseUri, "self-tsp/sync/GET_TOKEN");
+        var endpoint = verifiedTokenEndpoint;
         // Sign first so reuse cannot bypass private/public key integrity checks.
         var identity = (endpoint, fiscalId, Convert.ToHexString(SHA256.HashData(expectedPublicSpki.Span)));
         if (tokens.TryGetValue(identity, out var cached) && requestedAt < cached.ReuseUntil)
@@ -118,6 +132,15 @@ internal sealed class LegacyInvoiceAccessTokenClient(
             return new(false, "sandbox_legacy_token_unavailable");
         }
     }
+
+    private static bool IsPinnedTokenEndpoint(Uri? candidate) =>
+        candidate is not null && candidate.IsAbsoluteUri &&
+        candidate.Scheme == Uri.UriSchemeHttps && candidate.Port == 443 &&
+        (candidate.Host.Equals("sandboxrc.tax.gov.ir", StringComparison.OrdinalIgnoreCase) ||
+         candidate.Host.Equals("tp.tax.gov.ir", StringComparison.OrdinalIgnoreCase)) &&
+        candidate.AbsolutePath == "/req/api/self-tsp/sync/GET_TOKEN" &&
+        string.IsNullOrEmpty(candidate.Query) && string.IsNullOrEmpty(candidate.Fragment) &&
+        string.IsNullOrEmpty(candidate.UserInfo);
 
     private static bool TryReadToken(JsonDocument document, out string token)
     {

@@ -79,6 +79,18 @@ public static class PersistenceRegistration
         services.AddScoped<ArginTaxPayer.Application.Invoices.IPhase10LegacyOutboxWorker>(sp =>
             sp.GetRequiredService<Phase10LegacyOutboxWorker>());
         services.AddScoped<InvoiceDispatchAdmissionRepository>();
+        services.AddScoped<Phase18PersistedAuthorityEnvironmentResolver>();
+        services.AddScoped<Phase18PersistedAuthorityOperationGate>();
+        services.AddScoped<Phase18AuthorityEndpointRoutingService>();
+        services.AddScoped<Phase18ScopedLegacyEnqueueTransport>();
+        services.AddScoped<Phase18ScopedLegacyTokenService>();
+        services.AddScoped<Phase18ScopedLegacyCredentialsService>();
+        services.AddScoped<Phase18DispatchAttemptAdmissionService>();
+        services.AddScoped<Phase18DispatchOutcomeRepository>();
+        services.AddScoped<Phase18LegalSuccessorAuthorityGate>();
+        services.AddScoped<Phase18ScopedLegacyOutboxWorker>();
+        services.AddScoped<Phase18ScopedLegacyReferenceInquiryService>();
+        services.AddScoped<Phase18ProductionAuthorityReportRepository>();
         services.AddScoped<SandboxInvoiceFiscalSerialRepository>();
         services.AddScoped<IIdempotencyReservationWriter, EfIdempotencyReservationWriter>();
 

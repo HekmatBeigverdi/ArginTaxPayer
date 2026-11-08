@@ -1,3 +1,5 @@
+using ArginTaxPayer.Domain.Taxpayers;
+
 namespace ArginTaxPayer.Application.Signing;
 
 /// <summary>
@@ -50,7 +52,8 @@ public sealed record FiscalInformationSnapshot(
 public interface ISigningReadOnlyConnectionTest
 {
     Task<SigningConnectionTestResult> TestAsync(
-        string? bearer, Guid taxpayerId, Guid fiscalMemoryId, CancellationToken ct = default);
+        string? bearer, Guid taxpayerId, Guid fiscalMemoryId, CancellationToken ct = default,
+        FiscalConnectionEnvironment? oneTimeEnvironment = null);
 }
 
 /// <summary>
@@ -60,7 +63,8 @@ public interface ISigningReadOnlyConnectionTest
 public sealed class UnavailableSigningReadOnlyConnectionTest : ISigningReadOnlyConnectionTest
 {
     public Task<SigningConnectionTestResult> TestAsync(
-        string? bearer, Guid taxpayerId, Guid fiscalMemoryId, CancellationToken ct = default)
+        string? bearer, Guid taxpayerId, Guid fiscalMemoryId, CancellationToken ct = default,
+        FiscalConnectionEnvironment? oneTimeEnvironment = null)
     {
         ct.ThrowIfCancellationRequested();
         return Task.FromResult(SigningConnectionTestResult.Create(

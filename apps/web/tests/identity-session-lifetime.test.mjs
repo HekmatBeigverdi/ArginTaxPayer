@@ -6,9 +6,12 @@ import {isSameLocalOrigin} from '../lib/identity-origin.mjs';
 const require=createRequire(import.meta.url);
 const {NextRequest}=require('next/server');
 
-test('login and refresh keep access cookies for 30 minutes',async()=>{
+for(const environment of ['development','production']){
+test(`login and refresh keep access cookies for 30 minutes in ${environment}`,async()=>{
  for(const operation of ['login','refresh','mfa/complete','phone/login/complete']){
-  const api=loadTsx(new URL('../app/api/identity/[...path]/route.ts',import.meta.url),{modules:{
+  const api=loadTsx(new URL('../app/api/identity/[...path]/route.ts',import.meta.url),{
+   globals:{process:{env:{NODE_ENV:environment}}},
+   modules:{
    '../../../../lib/identity':{
     ACCESS_COOKIE:'access',REFRESH_COOKIE:'refresh',identityUiEnabled:()=>true,
     identityBackend:async()=>Response.json({accessToken:'new-access',refreshToken:'new-refresh'})
@@ -21,7 +24,10 @@ test('login and refresh keep access cookies for 30 minutes',async()=>{
   assert.equal(response.status,200);
   assert.equal(response.cookies.get('access').maxAge,1800);
   assert.equal(response.cookies.get('access').httpOnly,true);
+  assert.equal(response.cookies.get('access').secure,environment==='production');
   assert.equal(response.cookies.get('refresh').maxAge,7*86400);
+  assert.equal(response.cookies.get('refresh').secure,environment==='production');
   assert.deepEqual(await response.json(),{status:'authenticated'});
  }
 });
+}

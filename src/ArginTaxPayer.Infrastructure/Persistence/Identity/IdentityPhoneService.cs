@@ -61,6 +61,11 @@ public sealed class IdentityPhoneService(ArginTaxPayerDbContext db, IIdentityOtp
             logger.LogInformation("OTP_REQUEST_SKIPPED reason=mobile_already_registered");
             return new(PhoneOtpRequestStatus.AlreadyRegistered);
         }
+        if (purpose == "login" && actor is null)
+        {
+            logger.LogInformation("OTP_REQUEST_SKIPPED reason=account_not_registered");
+            return new(PhoneOtpRequestStatus.NotRegistered);
+        }
         if (purpose != "register" && (actor is null || !actor.IsActive ||
             actor.MobileVerifiedAtUtc is null))
         {
@@ -195,11 +200,20 @@ public sealed class IdentityPhoneService(ArginTaxPayerDbContext db, IIdentityOtp
         });
         try
         {
-            await using var transaction = await db.Database.BeginTransactionAsync(ct);
-            await db.SaveChangesAsync(ct);
-            if(smsCredit is not null) await smsCredit.GrantInitialCustomerCreditWithinTransactionAsync(id, now, ct);
-            if(smsDispatch is not null) await smsDispatch.LinkRegistrationDispatchWithinTransactionAsync(id,proof.Mobile,ct);
-            await transaction.CommitAsync(ct);
+            // Retry account creation as one unit, independently of the consumed OTP.
+            // Keep inserts pending until commit so a rolled-back attempt can replay.
+            await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+            {
+                // A lost commit acknowledgement may leave the complete account
+                // persisted. The server-generated ID identifies this operation only.
+                if (await db.IdentityUsers.AsNoTracking().AnyAsync(x => x.Id == id, ct)) return;
+                await using var transaction = await db.Database.BeginTransactionAsync(ct);
+                await db.SaveChangesAsync(acceptAllChangesOnSuccess: false, cancellationToken: ct);
+                if(smsCredit is not null) await smsCredit.GrantInitialCustomerCreditWithinTransactionAsync(id, now, ct);
+                if(smsDispatch is not null) await smsDispatch.LinkRegistrationDispatchWithinTransactionAsync(id,proof.Mobile,ct);
+                await transaction.CommitAsync(ct);
+            });
+            db.ChangeTracker.AcceptAllChanges();
             return true;
         }
         catch (DbUpdateException error) when (error.InnerException is Npgsql.PostgresException
@@ -242,6 +256,7 @@ public enum PhoneOtpRequestStatus
     Sent,
     Invalid,
     AlreadyRegistered,
+    NotRegistered,
     RateLimited,
     InsufficientCredit,
     Unavailable

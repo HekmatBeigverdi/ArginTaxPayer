@@ -1,6 +1,7 @@
 import {test} from "node:test";
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
+import {assertIsolatedDatabaseAdmission} from "./helpers/migration-admission.mjs";
 const repo=readFileSync("../../src/ArginTaxPayer.Infrastructure/Persistence/Invoices/SandboxInvoiceFiscalSerialRepository.cs","utf8");
 const migration=readFileSync("../../src/ArginTaxPayer.Infrastructure/Persistence/Migrations/20261025183000_AddSandboxInvoiceFiscalReservations.cs","utf8");
 const registration=readFileSync("../../src/ArginTaxPayer.Infrastructure/Persistence/PersistenceRegistration.cs","utf8");
@@ -25,7 +26,7 @@ test("serial allocation is locked, idempotent and never reuses a consumed serial
  assert.match(migration,/ux_sandbox_invoice_once/);
  assert.match(migration,/ux_sandbox_memory_serial/);
  assert.match(migration,/trg_sandbox_invoice_fiscal_immutable/);
- assert.match(migration,/current_database\(\)<>\x27argintaxpayer_test\x27/);
+ assertIsolatedDatabaseAdmission(migration);
  assert.match(migration,/throw new NotSupportedException/);
 });
 test("serial reservation is registered in the development persistence boundary",()=>{
