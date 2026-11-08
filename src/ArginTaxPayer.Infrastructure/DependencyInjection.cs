@@ -1,11 +1,13 @@
 using ArginTaxPayer.Application.Abstractions.Security;
 using ArginTaxPayer.Infrastructure.Security;
+using ArginTaxPayer.Application.Invoices;
+using ArginTaxPayer.Infrastructure.Signing.Connection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace ArginTaxPayer.Infrastructure;
 
-/// <summary>Infrastructure composition entry point; concrete adapters are added in later steps.</summary>
+/// <summary>Infrastructure composition entry point.</summary>
 public static class DependencyInjection
 {
     public static IServiceCollection AddArginTaxPayerInfrastructure(this IServiceCollection services)
@@ -15,6 +17,7 @@ public static class DependencyInjection
         // A harmless registration verifies this composition root is called by both hosts.
         // No database, credentials, external adapter, or hosted service is registered here.
         services.TryAddSingleton<AssemblyMarker>();
+        services.TryAddSingleton<IAuthorityInvoiceProvider, AuthorityProtocolProfile>();
         services.TryAddSingleton<ISecretProvider>(_ =>
             new EnvironmentSecretProvider(Environment.GetEnvironmentVariable));
         return services;

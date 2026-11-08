@@ -82,6 +82,26 @@ public static class TaxpayerDevelopmentEndpoints
             };
         }).WithTags("Fiscal Memories (Development)");
 
+        routes.MapPost("/api/dev/taxpayers/{taxpayerId:guid}/memories/{memoryId:guid}/classify-authority", async (
+            Guid taxpayerId, Guid memoryId, [FromBody] ClassifyFiscalMemoryAuthorityRequest request,
+            HttpContext http, FiscalMemoryAuthorityOnboardingService service, CancellationToken ct) =>
+        {
+            if (!IsLocal(http)) return Results.NotFound();
+            var result = await service.ClassifyAsync(Bearer(http), taxpayerId, memoryId, request, ct);
+            return result.StatusCode == 200 ? Results.Ok(result.Memory)
+                : Results.Json(new { error = result.Code }, statusCode: result.StatusCode);
+        }).WithTags("Fiscal Memories (Development)");
+
+        routes.MapPost("/api/dev/taxpayers/{taxpayerId:guid}/memories/{memoryId:guid}/verify-and-activate", async (
+            Guid taxpayerId, Guid memoryId, [FromBody] VerifyFiscalMemoryRequest request,
+            HttpContext http, FiscalMemoryAuthorityOnboardingService service, CancellationToken ct) =>
+        {
+            if (!IsLocal(http)) return Results.NotFound();
+            var result = await service.VerifyAndActivateAsync(Bearer(http), taxpayerId, memoryId, request, ct);
+            return result.StatusCode == 200 ? Results.Ok(result.Memory)
+                : Results.Json(new { error = result.Code }, statusCode: result.StatusCode);
+        }).WithTags("Fiscal Memories (Development)");
+
         routes.MapPut("/api/dev/taxpayers/{taxpayerId:guid}/memories/{memoryId:guid}/status", async (
             Guid taxpayerId, Guid memoryId, [FromBody] ChangeFiscalMemoryStatusRequest request,
             HttpContext http, FiscalMemoryManagementService service, CancellationToken ct) =>

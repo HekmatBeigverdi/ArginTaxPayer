@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
-import Image from "next/image";
 import { currentIdentity, identityUiEnabled, identityDashboardOnlyEnabled } from "../../lib/identity";
-import IdentityFlow from "./identity-flow";
+import IdentityScreen from "./identity-screen";
 
 export const dynamic = "force-dynamic";
 
@@ -10,13 +9,6 @@ export default async function IdentityPage() {
   const actor = await currentIdentity();
   if (actor) redirect("/dashboard");
   return <main className="identity-layout" dir="rtl" lang="fa">
-    <div className="identity-brand"><Image className="argin-brand-logo argin-login-logo" src="/brand/argin-logo.png" width={54} height={54} alt="نشان آرگین" priority unoptimized /><div><strong>آرگین</strong><span>سامانه مدیریت امور مالیاتی</span></div></div>
-    <section className="identity-card auth-simplified-card" aria-label="ورود و ثبت‌نام">
-      <p className="identity-kicker">حساب کاربری</p>
-      <h1>به آرگین خوش آمدید</h1>
-      <p className="identity-muted">برای ورود به فضای کاری، اطلاعات حساب خود را وارد کنید.</p>
-      <IdentityFlow restrictedLogin={identityDashboardOnlyEnabled()} />
-    </section>
-    <p className="identity-note">{process.env.NODE_ENV === "production" ? "برای حفظ امنیت حساب، کد یک‌بارمصرف و اطلاعات ورود خود را با هیچ‌کس به اشتراک نگذارید." : "این بخش صرفاً در محیط توسعه فعال است. اطلاعات ورود خود را با دیگران به اشتراک نگذارید."}</p>
+    <IdentityScreen restrictedLogin={identityDashboardOnlyEnabled()}/>
   </main>;
 }

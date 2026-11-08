@@ -37,6 +37,7 @@ public static class LegacyAuthorityInquiryReportParser
                 "FAILED" => "FAILED",
                 "SUCCESS" => "SUCCESS",
                 "PENDING" => "PENDING",
+                "IN_PROGRESS" => "IN_PROGRESS",
                 _ => "UNKNOWN"
             };
             IReadOnlyList<LegacyAuthorityIssue> errors = Array.Empty<LegacyAuthorityIssue>();

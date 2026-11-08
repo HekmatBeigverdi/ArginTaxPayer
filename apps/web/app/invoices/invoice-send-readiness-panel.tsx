@@ -3,11 +3,11 @@ import {useCallback,useEffect,useRef,useState} from "react";
 import {redirectForInvoiceSubscription} from "../../lib/invoice-subscription";
 import InvoiceDispatchHistory from "./invoice-dispatch-history";
 
-type Report={environment:"Sandbox"|"Unverified";invoiceState:"Draft"|"Validated"|"Finalized";
- hasImmutableSnapshot:boolean;invoiceRevision:number;sandboxFiscalMemoryId:string|null;
+type Report={environment:"Production"|"Sandbox"|"Unverified";invoiceState:"Draft"|"Validated"|"Finalized";
+ hasImmutableSnapshot:boolean;invoiceRevision:number;sandboxFiscalMemoryId:string|null;fiscalMemoryId?:string|null;
  readyForLiveSend:boolean;submissionEnabled:boolean;
  signedPacketAvailable:boolean;fiscalAccepted:false;blockingCodes:string[]};
-type DispatchStatus={status:string;submissionEnabled:boolean;referenceNumber?:string;safeCode?:string;fiscalAccepted:false};
+type DispatchStatus={environment?:"Production"|"Sandbox"|"Mock";status:string;submissionEnabled:boolean;referenceNumber?:string;safeCode?:string;fiscalAccepted:false};
 type CalculationFinding={code:"0204501"|"0304401"|"0200201"|"00010"|"00026";
  field:string;message:string;expected:string|null;actual:string|null};
 type CalculationAudit={invoiceRevision:number;canResend:boolean;findings:CalculationFinding[]};
@@ -20,12 +20,13 @@ function flattenWire(value:unknown,path=""):WireField[]{
  }
  return [{path,value:JSON.stringify(value)}];
 }
-type AuthorityResult={status:"FAILED"|"SUCCESS"|"PENDING"|"UNKNOWN";
+type AuthorityResult={status:"FAILED"|"SUCCESS"|"PENDING"|"IN_PROGRESS"|"UNKNOWN";
  errors:{code:string;message:string}[];warnings:{code:string;message:string}[];
  canPrepareCorrection:boolean;observedAtUtc:string};
 const authorityLabels:Record<AuthorityResult["status"],string>={
  FAILED:"رد شده توسط سازمان",SUCCESS:"نتیجه موفق در Sandbox",
- PENDING:"در انتظار نتیجه سازمان",UNKNOWN:"نتیجه سازمان نامشخص است"};
+ PENDING:"در انتظار نتیجه سازمان",IN_PROGRESS:"در صف ارسال به سازمان",
+ UNKNOWN:"نتیجه سازمان نامشخص است"};
 const formatObservedAt=(value:string)=>{
  const date=new Date(value);
  if(Number.isNaN(date.getTime()))return value;
@@ -38,6 +39,9 @@ type Review={state:"Draft"|"InReview"|"ChangesRequested"|"Approved";revision:num
 const labels:Record<string,string>={
  "invoice.snapshot.invalid":"ساختار نسخه ذخیره‌شده قابل تأیید نیست",
  "invoice.snapshot.not_internal_promoted":"نسخه ثابت داخلی هنوز ایجاد یا شناسایی نشده است",
+ "invoice.production.memory_not_bound":"حافظه اصلی معتبر به این نسخه متصل نیست",
+ "invoice.production.transport_not_registered":"مسیر ارسال اصلی در Backend فعال یا تنظیم نشده است",
+ "invoice.production_outbox.not_connected":"بسته امضاشده به مسیر ارسال اصلی متصل نیست",
  "invoice.sandbox.memory_not_bound":"حافظه Sandbox معتبر به این نسخه متصل نیست",
  "invoice.lifecycle.validation_required":"اعتبارسنجی داخلی صورتحساب هنوز تکمیل نشده است",
  "invoice.review.approval_required":"تأیید بازبینی صورتحساب هنوز ثبت نشده است",
@@ -76,6 +80,12 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
  const [sendProgress,setSendProgress]=useState<{stage:"sending"|"inquiring";referenceNumber?:string}|null>(null);
  const authorityScope=taxpayerId+"/"+invoiceId;
  const authorityResult=authority?.scope===authorityScope?authority.result:null;
+ const verifiedEnvironment=report?.environment==="Production"||report?.environment==="Sandbox";
+ const canPrepareRejectedDraft=authorityResult?.status==="FAILED"&&
+  (authorityResult.canPrepareCorrection||
+   (report?.environment==="Production"&&authorityResult.errors.length>0));
+ const environmentLabel=report?.environment==="Production"?"Production (اصلی)":report?.environment==="Sandbox"?"Sandbox (آزمایشی)":"محیط تأیید نشده";
+ const authorityResultLabel=authorityResult?.status==="SUCCESS"&&report?.environment==="Production"?"نتیجه موفق سازمان":authorityResult?authorityLabels[authorityResult.status]:"";
  const authorityController=useRef<AbortController|null>(null);
  const authoritySequence=useRef(0);
  const inquiryDetailsRef=useRef<HTMLDetailsElement|null>(null);
@@ -129,7 +139,7 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
   return()=>{controller.abort();inquiryController.current?.abort();};
  },[loadAuthorityReport]);
  const prepareCorrection=useCallback(async()=>{
-  if(actionBusy||authorityResult?.status!=="FAILED"||!authorityResult.canPrepareCorrection)return;
+  if(actionBusy||!canPrepareRejectedDraft)return;
   const signal=authorityController.current?.signal;
   setActionBusy(true);setError("");setCorrectionUrl("");
   try{
@@ -166,7 +176,7 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
    window.location.assign(url);
   }catch(e){if(!signal?.aborted)setError((e as Error).message);}
   finally{if(!signal?.aborted)setActionBusy(false);}
- },[actionBusy,authorityResult,taxpayerId,invoiceId]);
+ },[actionBusy,canPrepareRejectedDraft,taxpayerId,invoiceId]);
  const refresh=useCallback(async(signal?:AbortSignal)=>{
   if(isWorkspace)return;
   setBusy(true);setError("");
@@ -211,7 +221,9 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
     if(typeof candidate.status==="string"&&typeof candidate.submissionEnabled==="boolean"&&
        candidate.fiscalAccepted===false){
         setDispatch(candidate);setDispatchError("");
-        setDispatchFeedback("آخرین وضعیت دریافتی: "+candidate.status+(candidate.submissionEnabled?" — ارسال فعال است.":" — ارسال غیرفعال است."));
+        setDispatchFeedback(candidate.status==="Acknowledged"
+         ?"وضعیت عملیات ارسال: رسید سامانه دریافت شده است؛ نتیجه مالیاتی را در گزارش استعلام ببینید."
+         :"وضعیت عملیات ارسال: "+candidate.status+(candidate.submissionEnabled?" — ارسال فعال است.":" — ارسال غیرفعال است."));
        }
     else {setDispatch(null);setDispatchError("پاسخ وضعیت ارسال ساختار معتبر ندارد.");setDispatchFeedback("");}
    }else {setDispatch(null);setDispatchError("پاسخ وضعیت ارسال خالی یا نامعتبر است.");setDispatchFeedback("");}
@@ -264,6 +276,7 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
   setActionBusy(true);setError("");setNotice("");setAuthorityError("");
   setSendProgress({stage:"sending"});
   let referenceNumber:string|null=null;
+  let sentEnvironment:string|undefined;
   let inquiryRequest:AbortController|null=null;
   try{
    try{
@@ -273,6 +286,7 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
     if(signal?.aborted)return;
     if(!response.ok&&redirectForInvoiceSubscription(result))return;
     if(!response.ok)throw Error("send_response_unavailable");
+    sentEnvironment=result.environment;
     if(result.status==="Acknowledged"&&typeof result.referenceNumber==="string"&&result.referenceNumber)
      referenceNumber=result.referenceNumber;
    }catch{
@@ -281,6 +295,7 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
     const response=await fetch(base,{method:"GET",cache:"no-store",credentials:"same-origin",signal});
     const state=await response.json();
     if(signal?.aborted)return;
+    sentEnvironment=state.environment;
     if(response.ok&&state.status==="Acknowledged"&&typeof state.referenceNumber==="string"&&state.referenceNumber)
      referenceNumber=state.referenceNumber;
    }
@@ -304,7 +319,7 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
     setAuthority({scope:taxpayerId+"/"+invoiceId,result:data.authorityResult??null,
      referenceNumber:data.referenceNumber??referenceNumber});
     setNotice("فاکتور با موفقیت ارسال شد. شماره رهگیری: "+referenceNumber+
-     (data.authorityResult?" — نتیجه استعلام: "+authorityLabels[(data.authorityResult as AuthorityResult).status]:
+     (data.authorityResult?" — نتیجه استعلام: "+(sentEnvironment==="Production"&&(data.authorityResult as AuthorityResult).status==="SUCCESS"?"نتیجه موفق سازمان":authorityLabels[(data.authorityResult as AuthorityResult).status]):
       " — نتیجه نهایی سازمان هنوز آماده نیست؛ می‌توانید دوباره استعلام بگیرید."));
    }catch{
     if(!signal?.aborted&&!inquiryRequest.signal.aborted)setAuthorityError("ارسال موفق بود، اما نتیجه استعلام در دسترس نیست. بدون ارسال مجدد فاکتور، دوباره استعلام بگیرید.");
@@ -617,6 +632,7 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
     </ol>
    </div>
   </div>}
+  {report&&<p className="field-hint">محیط ارسال: <strong>{environmentLabel}</strong></p>}
   {notice&&<p role="status" className="field-hint">{notice}</p>}
   {dispatch?.status!=="Acknowledged"&&<button type="button" className="identity-secondary" disabled={busy||actionBusy||dispatchLoading}
    onClick={()=>void loadDispatch()}>{dispatchLoading?"در حال دریافت وضعیت…":"به‌روزرسانی وضعیت عملیات ارسال"}</button>}
@@ -639,16 +655,16 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
    }}>
    <summary><span>برای مشاهده استعلام و گزارش نتیجه سازمان کلیک کنید</span><span className="invoice-inquiry-section__action">مشاهده گزارش</span></summary>
   {authorityLoading&&<p className="invoice-inquiry-section__loading" role="status" aria-live="polite"><span aria-hidden="true"/>در حال دریافت گزارش استعلام…</p>}
-  {report?.environment==="Sandbox"&&dispatch?.status==="Acknowledged"&&
+  {verifiedEnvironment&&dispatch?.status==="Acknowledged"&&
    <button type="button" className="identity-secondary" disabled={actionBusy||busy}
-    onClick={()=>void inquireByReference()}>{actionBusy?"در حال استعلام…":"استعلام شماره رهگیری از Sandbox"}</button>}
-  {report?.environment==="Sandbox"&&dispatch?.status==="Indeterminate"&&
+    onClick={()=>void inquireByReference()}>{actionBusy?"در حال استعلام…":"استعلام شماره رهگیری از "+environmentLabel}</button>}
+  {report?.environment==="Sandbox"&&!report.fiscalMemoryId&&dispatch?.status==="Indeterminate"&&
    <button type="button" className="identity-secondary" disabled={actionBusy||busy}
     onClick={()=>void inquireByUid()}>{actionBusy?"در حال استعلام…":"استعلام نتیجه ارسال قبلی از Sandbox با UID"}</button>}
 
      {authorityError&&<p role="alert" className="form-error">{authorityError}</p>}
   {authorityResult&&<div aria-label="گزارش نتیجه سازمان">
-   <h4>نتیجه استعلام سازمان: {authorityLabels[authorityResult.status]}</h4>
+   <h4>نتیجه استعلام سازمان: {authorityResultLabel}</h4>
    <p className="field-hint">شماره رهگیری: رسید درخواست، نه تأیید نهایی.</p>
    {authority?.referenceNumber&&<p>شماره مرجع: <b dir="ltr">{authority.referenceNumber}</b></p>}
    <p>زمان مشاهده: <time dir="ltr" dateTime={authorityResult.observedAtUtc}>{formatObservedAt(authorityResult.observedAtUtc)}</time></p>
@@ -656,10 +672,12 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
    <ul>{authorityResult.errors.map((item,index)=><li key={index}><b dir="ltr">{item.code}</b> — {item.message}</li>)}</ul>
    <h5>هشدارهای سازمان</h5>
    <ul>{authorityResult.warnings.map((item,index)=><li key={index}><b dir="ltr">{item.code}</b> — {item.message}</li>)}</ul>
+   {authorityResult.status==="IN_PROGRESS"&&
+    <p>درخواست صورتحساب در صف ارسال به سازمان است؛ منتظر بمانید. در ساعات آینده برای استعلام دوباره اقدام کنید و صورتحساب را دوباره ارسال نکنید.</p>}
    {(authorityResult.status==="PENDING"||authorityResult.status==="UNKNOWN")&&
     <p>نتیجه قطعی مشخص نیست؛ ارسال را تکرار نکنید.</p>}
-   {authorityResult.status==="SUCCESS"&&<p>این نتیجه مربوط به Sandbox است؛ پذیرش قطعی مالیاتی ثبت نشده است.</p>}
-   {authorityResult.status==="FAILED"&&authorityResult.canPrepareCorrection&&
+   {authorityResult.status==="SUCCESS"&&(report?.environment==="Sandbox"?<p>این نتیجه مربوط به Sandbox است؛ پذیرش قطعی مالیاتی ثبت نشده است.</p>:<p>نتیجه سازمان دریافت شده است؛ وضعیت پذیرش قطعی مالیاتی هنوز تأیید نشده است.</p>)}
+   {canPrepareRejectedDraft&&
     <button type="button" className="identity-secondary" disabled={actionBusy||!!correctionUrl}
      onClick={()=>void prepareCorrection()}>بازگشت به پیش‌نویس اصلاحی</button>}
   </div>}
@@ -668,9 +686,11 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
   {correctionUrl&&<a href={correctionUrl}>باز کردن پیش‌نویس اصلاح برای ویرایش</a>}
   {dispatch?.status==="Reserved"&&!dispatch.submissionEnabled&&
    <p role="alert" className="form-error">عملیات Reserved است، اما تنظیمات فعال‌سازی ارسال Legacy در Backend کامل نیست.</p>}
-  {dispatch?.status==="Acknowledged"&&<p role="status" className="field-hint">وضعیت ارسال Sandbox: <strong>{dispatch.status}</strong>
+  {dispatch?.status==="Acknowledged"&&<p role="status" className="field-hint">وضعیت ارسال {environmentLabel}: <strong>
+   {authorityResult?.status==="IN_PROGRESS"?"در صف ارسال به سازمان":"کد رهگیری دریافت شد"}
+  </strong>
    {dispatch.referenceNumber&&<> — شماره پیگیری: <b dir="ltr">{dispatch.referenceNumber}</b></>}</p>}
-  {report?.environment==="Sandbox"&&
+  {verifiedEnvironment&&
    dispatch?.status!=="Acknowledged"&&dispatch?.status!=="Indeterminate"&&
    dispatch?.status!=="Sending"&&
    <button type="button" className="identity-primary" disabled={actionBusy||busy||dispatchLoading}

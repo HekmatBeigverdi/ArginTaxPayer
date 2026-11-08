@@ -11,7 +11,9 @@ public sealed record RegisterFiscalMemoryRequest(string? MemoryIdentifier,
 public sealed record ChangeFiscalMemoryStatusRequest(FiscalMemoryStatus Status, long ExpectedRevision);
 public sealed record FiscalMemoryView(Guid Id, Guid TaxpayerId, string MemoryIdentifier,
     FiscalMemoryStatus Status, long Revision,
-    FiscalConnectionEnvironment? AuthorityEnvironment = null);
+    FiscalConnectionEnvironment? AuthorityEnvironment = null,
+    bool? LastConnectionTestSucceeded = null, DateTime? LastConnectionTestAtUtc = null,
+    bool CanVerifyAndActivate = false);
 public enum FiscalMemoryOperationStatus
 {
     Success, Invalid, Unauthenticated, Forbidden, NotFound, Conflict,
@@ -119,12 +121,29 @@ public sealed class FiscalMemoryManagementService(
     {
         var denied = await AuthenticateParticipantAsync(bearer, taxpayerId, ct);
         if (denied is { } failure) return (failure, null);
+        var principal = await taxpayerScope.ResolveAsync(bearer, ct);
+        var owner = await taxpayerScope.ScopedQuery(principal.ActorId, principal.Level1)
+            .Where(t => t.Id == taxpayerId && t.Status == TaxpayerStatus.Active)
+            .Select(t => t.CustomerUserId).SingleOrDefaultAsync(ct);
+        var canVerifyAndActivate = principal.Level1 || owner == principal.ActorId;
         var list = await db.FiscalMemories.AsNoTracking()
             .Where(x => x.TaxpayerId == taxpayerId)
             .OrderBy(x => x.CreatedAtUtc)
-            .Select(x => new FiscalMemoryView(x.Id, x.TaxpayerId, x.MemoryIdentifier, x.Status, x.Revision, x.AuthorityEnvironment))
+            .Select(x => new FiscalMemoryView(x.Id, x.TaxpayerId, x.MemoryIdentifier, x.Status, x.Revision,
+                x.AuthorityEnvironment, x.LastConnectionTestSucceeded, x.LastConnectionTestAtUtc,
+                canVerifyAndActivate))
             .ToArrayAsync(ct);
         return (FiscalMemoryOperationStatus.Success, list);
+    }
+
+    public async Task RecordConnectionTestAsync(string? bearer, Guid taxpayerId, Guid memoryId,
+        bool succeeded, DateTime testedAtUtc, CancellationToken ct = default)
+    {
+        if (await AuthenticateParticipantAsync(bearer, taxpayerId, ct) is not null) return;
+        await db.FiscalMemories.Where(x => x.Id == memoryId && x.TaxpayerId == taxpayerId)
+            .ExecuteUpdateAsync(update => update
+                .SetProperty(x => x.LastConnectionTestSucceeded, succeeded)
+                .SetProperty(x => x.LastConnectionTestAtUtc, testedAtUtc), ct);
     }
 
     public async Task<FiscalMemoryOperationResult> TransitionAsync(
@@ -164,5 +183,6 @@ public sealed class FiscalMemoryManagementService(
     }
 
     private static FiscalMemoryView ToView(FiscalMemory memory) =>
-        new(memory.Id, memory.TaxpayerId, memory.MemoryIdentifier, memory.Status, memory.Revision, memory.AuthorityEnvironment);
+        new(memory.Id, memory.TaxpayerId, memory.MemoryIdentifier, memory.Status, memory.Revision,
+            memory.AuthorityEnvironment, memory.LastConnectionTestSucceeded, memory.LastConnectionTestAtUtc);
 }

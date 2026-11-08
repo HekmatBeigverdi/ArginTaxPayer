@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using ArginTaxPayer.Domain.Invoices;
+using ArginTaxPayer.Domain.Taxpayers;
 using ArginTaxPayer.Infrastructure.Persistence.Parties;
 using ArginTaxPayer.Infrastructure.Persistence.Taxpayers;
 using Microsoft.EntityFrameworkCore;
@@ -89,25 +90,31 @@ public sealed class InvoiceWorkspacePromotionService(
                 }
                 var input=JsonSerializer.Deserialize<SaveInvoiceEntryRequest>(
                     draft.DraftJson);
-                if(input is null||input.TaxpayerId!=draft.TaxpayerId||
-                    input.BuyerPartyId is null||
-                    input.Lines is not {Length: > 0 and <= 150} ||
-                    input.FiscalMemoryId.HasValue == input.SandboxFiscalMemoryId.HasValue ||
-                    input.SandboxFiscalMemoryId is null ||
-                    input.Type!=1 || input.Pattern is not (1 or 4) ||
-                    (input.Pattern==4 && string.IsNullOrWhiteSpace(input.ContractNumber)) ||
-                    input.Lines.Any(x=>x.CatalogItemId is null ||
+                if(input is null || input.TaxpayerId!=draft.TaxpayerId)
+                    return new InvoiceWorkspacePromotionResult(InvoiceApiDecision.Invalid,
+                        Code:"invoice_snapshot_draft_invalid");
+                if(input.BuyerPartyId is null)
+                    return new(InvoiceApiDecision.Invalid,Code:"invoice_buyer_required");
+                if(input.Lines is not {Length: > 0 and <= 150})
+                    return new(InvoiceApiDecision.Invalid,Code:"invoice_lines_required");
+                if(input.FiscalMemoryId.HasValue == input.SandboxFiscalMemoryId.HasValue)
+                    return new(InvoiceApiDecision.Invalid,Code:"invoice_memory_selection_invalid");
+                if(input.Type!=1 || input.Pattern is not (1 or 4))
+                    return new(InvoiceApiDecision.Invalid,Code:"invoice_pattern_not_supported_for_submission");
+                if(input.Pattern==4 && string.IsNullOrWhiteSpace(input.ContractNumber))
+                    return new(InvoiceApiDecision.Invalid,Code:"invoice_contract_number_required");
+                if(input.Lines.Any(x=>x.CatalogItemId is null ||
                         x.OfficialIdentifierSnapshot is not {Length:13} ||
-                        !x.OfficialIdentifierSnapshot.All(char.IsAsciiDigit) ||
-                        x.UnitId is null||x.Quantity<=0||x.UnitPriceRial<0||
-                        x.VatRatePercent is null) ||
-                    input.SettlementMethod==InvoiceDraftSettlementMethod.Unknown ||
-                    input.CashAmountRial is null||input.CreditAmountRial is null ||
-                    !InvoiceDraftSettlementPolicy.IsConsistent(input.SettlementMethod,
+                        !x.OfficialIdentifierSnapshot.All(char.IsAsciiDigit) || x.UnitId is null || x.Quantity<=0 ||
+                        x.UnitPriceRial<0 || x.VatRatePercent is null))
+                    return new(InvoiceApiDecision.Invalid,Code:"invoice_line_snapshot_incomplete");
+                if(input.SettlementMethod==InvoiceDraftSettlementMethod.Unknown ||
+                    input.CashAmountRial is null || input.CreditAmountRial is null)
+                    return new(InvoiceApiDecision.Invalid,Code:"invoice_settlement_required");
+                if(!InvoiceDraftSettlementPolicy.IsConsistent(input.SettlementMethod,
                         input.CashAmountRial,input.CreditAmountRial,input.Lines,
                         input.OtherTaxAndLegalFeesRial ?? 0m))
-                    return new InvoiceWorkspacePromotionResult(InvoiceApiDecision.Invalid,
-                        Code:"invoice_not_ready_for_snapshot");
+                    return new(InvoiceApiDecision.Invalid,Code:"invoice_settlement_mismatch");
 
                 if(draft.IssueDateUtc > DateTime.UtcNow)
                 {
@@ -166,10 +173,21 @@ public sealed class InvoiceWorkspacePromotionService(
                         Code:"official_item_identifier_invalid");
                 // Production tax memory must be owned by this seller; Sandbox
                 // memory must be an independent, key-ready row of same owner.
-                if(input.FiscalMemoryId is { } production){
-                    if(!await db.FiscalMemories.AsNoTracking().AnyAsync(m=>
-                        m.Id==production&&m.TaxpayerId==draft.TaxpayerId,ct))
-                        return new(InvoiceApiDecision.Invalid,Code:"production_memory_not_owned");
+                var authorityEnvironment = "Sandbox";
+                if(input.FiscalMemoryId is { } modern){
+                    var selectedEnvironment = await db.FiscalMemories.AsNoTracking()
+                        .Where(m=>m.Id==modern&&m.TaxpayerId==draft.TaxpayerId&&
+                            m.Status==FiscalMemoryStatus.Active&&
+                            (m.AuthorityEnvironment==FiscalConnectionEnvironment.Production ||
+                             m.AuthorityEnvironment==FiscalConnectionEnvironment.Sandbox)&&
+                            m.Taxpayer.CustomerUserId==draft.CustomerUserId&&
+                            db.CustomerTaxpayerMemberships.Any(link=>
+                                link.CustomerUserId==draft.CustomerUserId&&
+                                link.TaxpayerId==draft.TaxpayerId&&link.UnlinkedAtUtc==null))
+                        .Select(m=>m.AuthorityEnvironment).SingleOrDefaultAsync(ct);
+                    if(selectedEnvironment is null)
+                        return new(InvoiceApiDecision.Invalid,Code:"fiscal_memory_not_owned_active_or_classified");
+                    authorityEnvironment = selectedEnvironment.Value.ToString();
                 }else{
                     var conn=db.Database.GetDbConnection();
                     await using var cmd=conn.CreateCommand();
@@ -219,7 +237,7 @@ AND private_envelope_json IS NOT NULL)
                 // fiscal invoice ID, legal signoff, provider receipt or token.
                 var canonical=JsonSerializer.Serialize(new{
                     sourceWorkspaceId=draft.Id,sourceRevision=draft.Revision,
-                    environment=input.SandboxFiscalMemoryId.HasValue?"Sandbox":"Production",
+                    environment=authorityEnvironment,
                     sandboxFiscalMemoryId=input.SandboxFiscalMemoryId,
                     fiscalMemoryId=input.FiscalMemoryId,
                     invoiceType=input.Type,pattern=input.Pattern,

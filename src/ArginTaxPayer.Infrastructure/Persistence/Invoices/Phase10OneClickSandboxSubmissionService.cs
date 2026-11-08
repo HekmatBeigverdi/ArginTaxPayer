@@ -14,7 +14,8 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Invoices;
 /// indeterminate or already-started operation; no second enqueue is allowed.
 /// </summary>
 public sealed record Phase10OneClickResult(InvoiceApiDecision Decision,string Code,
-    string Status="Blocked",string? ReferenceNumber=null,string? InquiryCode=null);
+    string Status="Blocked",string? ReferenceNumber=null,string? InquiryCode=null,
+    string? Environment=null);
 
 public sealed class Phase10OneClickSandboxSubmissionService(
     ArginTaxPayerDbContext db,

@@ -10,7 +10,7 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Invoices;
 public sealed record Phase10InternalValidationResult(InvoiceApiDecision Decision, string Code);
 
 /// <summary>
-/// Validates the existing immutable internal Sandbox snapshot before the
+/// Validates an existing immutable internal Sandbox or Production snapshot before the
 /// separate review and fiscal-rule approval process. No sending or signing.
 /// </summary>
 public sealed class Phase10InternalInvoiceValidationService(
@@ -63,8 +63,11 @@ public sealed class Phase10InternalInvoiceValidationService(
             !string.Equals(captured.SnapshotSha256, invoice.SnapshotSha256,
                 StringComparison.OrdinalIgnoreCase) ||
             captured.SnapshotJson != invoice.SnapshotJson ||
-            !ValidSandboxSnapshot(invoice.SnapshotJson, invoice.SnapshotSha256, invoiceId))
+            !ValidSnapshot(invoice.SnapshotJson, invoice.SnapshotSha256, invoiceId))
             return new(InvoiceApiDecision.Invalid, "sandbox_snapshot_validation_failed");
+
+        if (!await MemoryIsValidAsync(db, owner.Value, taxpayerId, invoiceId, invoice.SnapshotJson, ct))
+            return new(InvoiceApiDecision.Invalid, "invoice_memory_environment_mismatch");
 
         // State mutation and append-only audit must commit or roll back together.
         // The dedicated test-db migration is required before this endpoint is used.
@@ -98,7 +101,23 @@ VALUES ({Guid.NewGuid()}, {owner.Value}, {taxpayerId}, {invoiceId}, {expectedRev
         });
     }
 
-    internal static bool ValidSandboxSnapshot(string raw, string expectedHash, Guid invoiceId)
+    internal static bool ValidSandboxSnapshot(string raw, string expectedHash, Guid invoiceId) =>
+        Phase18InvoiceMemoryBindingService.TryReadMemory(raw, out _, out var sandbox) && sandbox &&
+        ValidSnapshot(raw, expectedHash, invoiceId);
+
+    internal static async Task<bool> MemoryIsValidAsync(ArginTaxPayerDbContext db,
+        Guid owner, Guid taxpayerId, Guid invoiceId, string raw, CancellationToken ct)
+    {
+        if (!Phase18InvoiceMemoryBindingService.TryReadMemory(raw, out var memoryId, out var sandbox, out var selectedEnvironment))
+            return false;
+        // Historical Sandbox commands retain their existing database checks in
+        // reservation/preparation. Modern memories must prove their live active persisted authority.
+        if (sandbox) return true;
+        return await new Phase18PersistedAuthorityEnvironmentResolver(db).ResolveAsync(
+            owner, taxpayerId, invoiceId, memoryId, ct) == selectedEnvironment;
+    }
+
+    internal static bool ValidSnapshot(string raw, string expectedHash, Guid invoiceId)
     {
         if (expectedHash is not { Length: 64 } || !expectedHash.All(Uri.IsHexDigit)) return false;
         try
@@ -110,10 +129,7 @@ VALUES ({Guid.NewGuid()}, {owner.Value}, {taxpayerId}, {invoiceId}, {expectedRev
                 !source.TryGetGuid(out var sourceId) || sourceId != invoiceId ||
                 !root.TryGetProperty("sourceRevision", out var revision) ||
                 !revision.TryGetInt64(out var value) || value < 1 ||
-                !root.TryGetProperty("environment", out var environment) ||
-                environment.GetString() != "Sandbox" ||
-                !root.TryGetProperty("sandboxFiscalMemoryId", out var memory) ||
-                !memory.TryGetGuid(out var memoryId) || memoryId == Guid.Empty ||
+                !Phase18InvoiceMemoryBindingService.TryReadMemory(raw, out _, out _) ||
                 !root.TryGetProperty("buyerPartyId", out var buyer) ||
                 !buyer.TryGetGuid(out var buyerId) || buyerId == Guid.Empty ||
                 !root.TryGetProperty("lines", out var lines) ||

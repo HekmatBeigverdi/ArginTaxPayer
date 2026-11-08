@@ -16,19 +16,37 @@ const fail = (status: number, error: string) => NextResponse.json({ error }, {
   status, headers: { 'Cache-Control': 'no-store', Pragma: 'no-cache' }
 });
 
-async function hasRequestBody(req: NextRequest): Promise<boolean> {
+async function readTestEnvironment(req: NextRequest): Promise<
+  { error: number } | { environment: 'Production' | 'Sandbox' | null }> {
   const declaredLength = req.headers.get('content-length');
-  if (declaredLength !== null && (!/^\d+$/.test(declaredLength) || Number(declaredLength) > 0))
-    return true;
-  if (!req.body) return false;
+  if (declaredLength !== null && (!/^\d+$/.test(declaredLength) || Number(declaredLength) > 256))
+    return { error: 413 };
+  if (declaredLength === '0' || !req.body) return { environment: null };
   const reader = req.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let length = 0;
   try {
-    const first = await reader.read();
-    const bodyBytes = first.done ? 0 : first.value?.byteLength ?? 0;
-    return bodyBytes > 0;
-  } finally {
-    await reader.cancel().catch(() => undefined);
-  }
+    while (true) {
+      const part = await reader.read();
+      if (part.done) break;
+      length += part.value.byteLength;
+      if (length > 256) { await reader.cancel().catch(() => undefined); return { error: 413 }; }
+      chunks.push(part.value);
+    }
+  } finally { reader.releaseLock(); }
+  if (!length) return { environment: null };
+  if (!/^application\/json(?:\s*;|$)/i.test(req.headers.get('content-type') ?? '')) return { error: 415 };
+  try {
+    const bytes = new Uint8Array(length);
+    let offset = 0;
+    for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+    const parsed: unknown = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) ||
+      Object.keys(parsed).length !== 1 || !('testEnvironment' in parsed)) return { error: 400 };
+    const environment = (parsed as { testEnvironment?: unknown }).testEnvironment;
+    return environment === 'Production' || environment === 'Sandbox'
+      ? { environment } : { error: 400 };
+  } catch { return { error: 400 }; }
 }
 
 export const dynamic = 'force-dynamic';
@@ -40,12 +58,16 @@ export async function POST(req: NextRequest, ctx: Context) {
     return fail(403, 'origin_not_allowed');
   const bearer = req.cookies.get(ACCESS_COOKIE)?.value;
   if (!bearer) return fail(401, 'unauthorized');
+  // The sole optional input is a bounded, one-time read-only test environment.
   // No client-supplied endpoint, profile, signing bytes or secrets are accepted.
-  if (await hasRequestBody(req)) return fail(413, 'request_too_large');
+  const parsed = await readTestEnvironment(req);
+  if ('error' in parsed) return fail(parsed.error, parsed.error === 413 ? 'request_too_large' : 'invalid_request');
+  const body = parsed.environment ? JSON.stringify({ testEnvironment: parsed.environment }) : undefined;
   try {
     const upstream = await fetch(identityApiOrigin() +
       `/api/dev/signing/${taxpayerId}/${memoryId}/connection-test`, {
-      method: 'POST', headers: { Authorization: 'Bearer ' + bearer },
+      method: 'POST', headers: { Authorization: 'Bearer ' + bearer,
+        ...(body ? { 'Content-Type': 'application/json' } : {}) }, body,
       redirect: 'manual', cache: 'no-store', signal: AbortSignal.timeout(30000)
     });
     if (!upstream.ok) {
@@ -55,7 +77,13 @@ export async function POST(req: NextRequest, ctx: Context) {
     }
     const data = await upstream.json().catch(() => null);
     if (!data || !allowedStatuses.has(data.status) || !allowedCodes.has(data.safeCode) ||
-      typeof data.testedAtUtc !== 'string' || !Number.isFinite(Date.parse(data.testedAtUtc))) {
+      typeof data.testedAtUtc !== 'string' || !Number.isFinite(Date.parse(data.testedAtUtc)) ||
+      typeof data.environmentPersisted !== 'boolean' ||
+      typeof data.memoryActivated !== 'boolean' ||
+      data.environmentPersisted && (data.status !== 'Authenticated' || !data.oneTimeTest) ||
+      data.memoryActivated && data.status !== 'Authenticated' ||
+      data.oneTimeTest !== (parsed.environment !== null) ||
+      data.testEnvironment !== parsed.environment) {
       return fail(502, 'invalid_response');
     }
     // Fail closed: do not trust externally supplied success flags.
@@ -75,8 +103,12 @@ export async function POST(req: NextRequest, ctx: Context) {
     return NextResponse.json({
       status: data.status, safeCode: data.safeCode, testedAtUtc: data.testedAtUtc,
       authenticationConfirmed: authenticated,
-      portalRegistrationConfirmed: false, fiscalMemoryActivationConfirmed: false,
-      fiscalInformation: authenticated ? fiscalInformation : null
+      environmentPersisted: data.environmentPersisted,
+      memoryActivated: data.memoryActivated,
+      portalRegistrationConfirmed: false, fiscalMemoryActivationConfirmed: data.memoryActivated,
+      fiscalInformation: authenticated ? fiscalInformation : null,
+      oneTimeTest: parsed.environment !== null,
+      testEnvironment: parsed.environment
     }, { status: 200, headers: { 'Cache-Control': 'no-store', Pragma: 'no-cache' } });
   } catch {
     return fail(503, 'service_unavailable');
