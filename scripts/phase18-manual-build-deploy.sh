@@ -76,6 +76,7 @@ cp -a "$release_dir/api-publish/." "$bundle/stage/api/"
 cp apps/web/package.json apps/web/package-lock.json "$bundle/stage/web/"
 cp -a apps/web/.next "$bundle/stage/web/"
 if [[ -d apps/web/public ]]; then cp -a apps/web/public "$bundle/stage/web/"; fi
+run web-runtime-dependencies npm --prefix "$bundle/stage/web" ci --omit=dev --no-audit --no-fund
 
 if find "$bundle/stage" -type f \
   \( -name '.env' -o -name '.env.*' -o -name '*.key' -o -name '*.pem' -o -name '*.pfx' -o -name '*.p12' \) \
@@ -86,6 +87,7 @@ fi
 [[ -s "$bundle/stage/api/ArginTaxPayer.Api.dll" ]] || die 'Published API assembly is missing'
 [[ -s "$bundle/stage/web/.next/BUILD_ID" ]] || die 'Next.js BUILD_ID is missing'
 [[ -s "$bundle/stage/web/package-lock.json" ]] || die 'Web lockfile is missing'
+[[ -s "$bundle/stage/web/node_modules/next/dist/bin/next" ]] || die 'Next.js runtime dependencies are missing'
 
 (cd "$bundle/stage" && tar -czf "$bundle/api.tar.gz" api && tar -czf "$bundle/web.tar.gz" web)
 printf 'sha=%s\n' "$sha" > "$bundle/build-info.txt"
