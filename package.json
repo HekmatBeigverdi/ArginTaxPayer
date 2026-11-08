@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "npm --prefix apps/web test"
+    "test": "npm --prefix apps/web test",
+    "typecheck": "npm --prefix apps/web run typecheck"
   },
   "keywords": [],
   "author": "",
