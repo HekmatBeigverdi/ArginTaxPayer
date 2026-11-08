@@ -37,7 +37,10 @@ export default function IdentityScreen({restrictedLogin=false}:{restrictedLogin?
   </section>
   <aside className="identity-screen__visual" aria-hidden="true" data-state={visualState}>
    <div className="identity-screen__mesh"/>
-   <div className="identity-screen__visual-brand"><span className="identity-screen__brand-mark">آ</span><span>آرگین</span></div>
+   <div className="identity-screen__visual-brand">
+    <Image className="identity-screen__brand-logo" src="/brand/argin-logo.png" width={52} height={52} alt="نشان آرگین" unoptimized/>
+    <div><strong>آرگین</strong><span>سامانه مدیریت امور مالیاتی</span></div>
+   </div>
    <div className="identity-screen__art-wrap"><IdentityIllustration state={visualState}/></div>
    <div className="identity-screen__visual-copy" key={visualState}>
     <span>{copy.eyebrow}</span><h2>{copy.title}</h2><p>{copy.body}</p>

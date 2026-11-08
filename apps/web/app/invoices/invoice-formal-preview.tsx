@@ -159,11 +159,7 @@ function InvoiceHeader({
         <span>
           تاریخ: <strong>{formatIssueDate(invoice.issueDateUtc)}</strong>
         </span>
-        <span>
-          نسخه: <strong>{invoice.revision}</strong>
-        </span>
         <span className="invoice-tax-identifiers">
-          <strong>شماره مالیاتی</strong>
           <span>شناسه منحصربه‌فرد مالیاتی: <bdi dir="ltr">
             {invoice.uniqueInvoiceId ?? "در انتظار تخصیص"}
           </bdi></span>

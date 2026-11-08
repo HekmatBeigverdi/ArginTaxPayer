@@ -825,7 +825,14 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
             <td>{item.kind === "workspace" ? <button type="button" className="console-row-action"
               onClick={() => void editDraft(item)}>ویرایش و ادامه</button> :
               <span style={{display:"inline-flex",gap:5,alignItems:"center",flexWrap:"wrap"}}>
-               <button type="button" className="console-row-action" onClick={()=>{setAutoOpenDispatchFor("");setDetail(item);}}>مشاهده</button>
+               <button type="button" className="identity-secondary invoice-lineage-print-button invoice-table-print-button"
+                aria-label="مشاهده صورتحساب" title="مشاهده صورتحساب"
+                onClick={()=>{setAutoOpenDispatchFor("");setDetail(item);}}>
+                <svg className="invoice-lineage-print-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                 <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z"/>
+                 <circle cx="12" cy="12" r="3"/>
+                </svg>
+               </button>
                <InvoicePrintAction taxpayerId={item.taxpayerId}
                 invoiceId={item.effectiveInvoiceId??item.id} reference={item.systemCode??""} subject={item.subject}/>
                {((item.authorityStatus==="SUCCESS"&&["Original","Correction","SalesReturn"].includes(item.subject))||

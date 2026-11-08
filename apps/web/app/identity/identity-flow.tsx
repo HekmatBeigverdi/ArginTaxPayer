@@ -460,7 +460,7 @@ export default function IdentityFlow({ restrictedLogin = false,onVisualStateChan
             </p>
           </div>
         ) : (
-          step !== "mfa" && (
+          step !== "mfa" && tab !== "login" && (
             <div className="auth-section-heading">
               <h2>{tab === "login" ? "ورود به حساب کاربری" : "ایجاد حساب کاربری"}</h2>
               <p className="identity-muted">
