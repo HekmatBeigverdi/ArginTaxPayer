@@ -4,7 +4,7 @@ import {readFileSync} from "node:fs";
 
 const paths=[
  "../app/components/console-shell.tsx",
- "../app/identity/page.tsx"
+ "../app/identity/identity-screen.tsx"
 ];
 test("logo uses Next public URL instead of static PNG module imports on Ubuntu",()=>{
  for(const path of paths){

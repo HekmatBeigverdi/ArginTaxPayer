@@ -77,7 +77,8 @@ test("validation references remain unverified and outside fiscal issuance", () =
   assert.match(service, /false,null/);
   assert.match(service, /scope\.ScopedQuery/);
   assert.match(service, /false,findings\.AsReadOnly\(\)/);
-  assert.match(component, /disabled>/);
+  assert.doesNotMatch(component, /invoice-reference-subject|invoice-reference-candidate/);
+  assert.match(component, /invoice-validation__prepare-button/);
   assert.match(component, /isSubmissionAuthorized/);
   assert.match(component, /dirty/);
 });

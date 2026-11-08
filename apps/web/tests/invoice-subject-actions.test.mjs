@@ -22,7 +22,7 @@ function find(element,predicate){
 function actions(props){
  let slot=0;
  const Preview=loadTsx(new URL('../app/invoices/invoice-formal-preview.tsx',import.meta.url),{
-  modules:{react:{...React,useEffect:()=>{},useState(initial){return [slot++===0?{}:initial,()=>{}];}}}
+  modules:{react:{...React,useEffect:()=>{},useRef:initial=>({current:initial}),useState(initial){return [slot++===0?{}:initial,()=>{}];}}}
  }).default;
  const tree=Preview({taxpayerId:'taxpayer',invoiceId:'latest-invoice',reference:'root-code',...props});
  const node=find(tree,x=>x.type?.name==='AuthorityActions');

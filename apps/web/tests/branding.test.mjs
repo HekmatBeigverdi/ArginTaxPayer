@@ -18,16 +18,16 @@ test("owner-supplied Argin logo is available as a nonempty PNG", () => {
 test("same logo is used for login, sidebar, header and metadata", () => {
   assert.match(read("app/layout.tsx"), /icons:/);
   assert.match(read("app/layout.tsx"), /\/brand\/argin-logo\.png/);
-  const login = read("app/identity/page.tsx");
+  const login = read("app/identity/identity-screen.tsx");
   const shell = read("app/components/console-shell.tsx");
   assert.match(login, /src="\/brand\/argin-logo\.png"/);
   assert.match(shell, /src="\/brand\/argin-logo\.png"/);
   assert.equal((login.match(/src="\/brand\/argin-logo\.png"/g) ?? []).length, 1);
   assert.equal((shell.match(/src="\/brand\/argin-logo\.png"/g) ?? []).length, 2);
-  assert.match(login, /argin-login-logo/);
+  assert.match(login, /identity-screen__brand-logo/);
   assert.match(shell, /argin-sidebar-logo/);
   assert.match(shell, /argin-header-logo/);
-  assert.equal((login.match(/unoptimized/g) ?? []).length, 1);
+  assert.equal((login.match(/unoptimized/g) ?? []).length, 2);
   assert.equal((shell.match(/unoptimized/g) ?? []).length, 2);
   assert.match(read("app/globals.css"), /\.argin-brand-logo\{/);
 });

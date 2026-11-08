@@ -6,11 +6,11 @@ const require=createRequire(import.meta.url);
 const React=require('react');
 const {renderToStaticMarkup}=require('react-dom/server');
 function modal(initial=[]){
- const state=[initial[0]??null,initial[1]??'',initial[2]??0,initial[3]??null,
-  initial[4]??'',null,initial[5]??true];
+ const state=[initial[0]??null,initial[1]??'',initial[2]??0,null,
+  initial[3]??'',initial[4]??null,null,null,{},initial[5]??true];
  let slot=0;
  const Component=loadTsx(new URL('../app/invoices/invoice-lineage-modal.tsx',import.meta.url),{
-  modules:{react:{...React,useEffect:()=>{},useState(value){
+  modules:{react:{...React,useEffect:()=>{},useRef:value=>({current:value}),useState(value){
    const index=slot++;return [state[index]??value,next=>{state[index]=typeof next==='function'?next(state[index]):next;}];
   }}}
  }).default;
