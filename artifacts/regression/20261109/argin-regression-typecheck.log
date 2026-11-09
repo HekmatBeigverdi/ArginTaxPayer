@@ -1,0 +1,8 @@
+
+> ArginTaxPayer@1.0.0 typecheck
+> npm --prefix apps/web run typecheck
+
+
+> @argin/taxpayer-web@0.1.0 typecheck
+> tsc --noEmit
+

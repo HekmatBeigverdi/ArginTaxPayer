@@ -12,7 +12,7 @@ function read(name) {
 for (const name of ['Phase10LegacyUidInquiryService.cs', 'Phase10LegacyReferenceInquiryService.cs']) {
   test(name + ' prevents cross-environment legacy inquiry', () => {
     const source = read(name);
-    assert.match(source, /databaseName != "argintaxpayer_test"/);
+    assert.match(source, /!ArginTaxPayer\.Infrastructure\.Configuration\.HostedSandboxDeployment\.IsSandboxStoreDatabaseName\(databaseName\)/);
     assert.match(source, /sandbox_database_required/);
     assert.match(source, /o.payload_json::jsonb->>'environment'='Sandbox'/);
     assert.match(source, /o.payload_json::jsonb->>'schema'='phase10.sandbox.legacy.invoice.dispatch.v1'/);

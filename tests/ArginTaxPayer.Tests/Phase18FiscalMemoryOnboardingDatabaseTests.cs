@@ -69,7 +69,7 @@ public sealed class Phase18FiscalMemoryOnboardingDatabaseTests
     }
 
     [Phase18OnboardingPostgresFact]
-    public async Task Customer_and_administrator_without_current_mfa_cannot_classify_or_activate()
+    public async Task Customer_cannot_classify_but_can_activate_own_classified_memory()
     {
         await using var f = await Fixture.CreateAsync();
         await using var db = f.Context();
@@ -77,7 +77,27 @@ public sealed class Phase18FiscalMemoryOnboardingDatabaseTests
         var service = f.Service(db, connection);
         Assert.Equal(403, (await service.ClassifyAsync(f.CustomerToken, f.Taxpayer, f.Memory,
             new(FiscalConnectionEnvironment.Production, 1))).StatusCode);
-        Assert.Equal(403, (await service.VerifyAndActivateAsync(f.CustomerToken, f.Taxpayer, f.Memory, new(1))).StatusCode);
+        var unclassified = await service.VerifyAndActivateAsync(f.CustomerToken, f.Taxpayer, f.Memory, new(1));
+        Assert.Equal(409, unclassified.StatusCode);
+        Assert.Equal("memory_environment_unclassified", unclassified.Code);
+        Assert.Equal(0, connection.Calls);
+        Assert.Equal(0, await f.ScalarAsync("SELECT count(*) FROM fiscal_memory_authority_events"));
+        Assert.Equal(200, (await service.ClassifyAsync(f.RootToken, f.Taxpayer, f.Memory,
+            new(FiscalConnectionEnvironment.Production, 1))).StatusCode);
+        Assert.Equal(200, (await service.VerifyAndActivateAsync(f.CustomerToken, f.Taxpayer, f.Memory, new(2))).StatusCode);
+        Assert.Equal(FiscalMemoryStatus.Active, (await db.FiscalMemories.AsNoTracking().SingleAsync()).Status);
+        Assert.Equal(1, connection.Calls);
+        Assert.Equal((f.CustomerToken, f.Taxpayer, f.Memory), connection.LastScope);
+        Assert.Equal(2, await f.ScalarAsync("SELECT count(*) FROM fiscal_memory_authority_events"));
+    }
+
+    [Phase18OnboardingPostgresFact]
+    public async Task Administrator_without_current_mfa_cannot_classify_or_activate()
+    {
+        await using var f = await Fixture.CreateAsync();
+        await using var db = f.Context();
+        var connection = new FakeConnection(f.Identifier);
+        var service = f.Service(db, connection);
         await f.ExecuteAsync("DELETE FROM identity_mfa_states");
         Assert.Equal(401, (await service.ClassifyAsync(f.RootToken, f.Taxpayer, f.Memory,
             new(FiscalConnectionEnvironment.Production, 1))).StatusCode);

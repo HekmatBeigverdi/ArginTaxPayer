@@ -1,0 +1,19 @@
+.....................ssss..
+----------------------------------------------------------------------
+Ran 27 tests in 4.222s
+
+OK (skipped=4)
+TRX: total=5, executed=5, passed=5, failed=0, notExecuted=0
+Database guard: argintaxpayer_test confirmed (read-only query).
+TRX: total=10, executed=10, passed=10, failed=0, notExecuted=0
+TRX: total=5, executed=5, passed=5, failed=0, notExecuted=0
+TRX: total=10, executed=10, passed=10, failed=0, notExecuted=0
+TRX: total=4, executed=4, passed=4, failed=0, notExecuted=0
+TRX: total=10, executed=10, passed=10, failed=0, notExecuted=0
+TRX: total=5, executed=5, passed=5, failed=0, notExecuted=0
+TRX: total=21, executed=21, passed=21, failed=0, notExecuted=0
+TRX: total=8, executed=8, passed=8, failed=0, notExecuted=0
+TRX: total=10, executed=10, passed=10, failed=0, notExecuted=0
+TRX: total=6, executed=6, passed=6, failed=0, notExecuted=0
+Vault gate: isolated test endpoint only; .NET verifies TLS/version/token/key before secret use.
+TRX: total=1, executed=1, passed=1, failed=0, notExecuted=0

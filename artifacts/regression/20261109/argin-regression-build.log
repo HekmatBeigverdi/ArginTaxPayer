@@ -1,0 +1,148 @@
+
+> @argin/taxpayer-web@0.1.0 build
+> next build
+
+ ⚠ Warning: Next.js inferred your workspace root, but it may not be correct.
+ We detected multiple lockfiles and selected the directory of /Users/greedydev/Desktop/WORKS/NeginHesab/ArginTaxPayer/ArginTaxPayer/pnpm-lock.yaml as the root directory.
+ To silence this warning, set `outputFileTracingRoot` in your Next.js config, or consider removing one of the lockfiles if it's not needed.
+   See https://nextjs.org/docs/app/api-reference/config/next-config-js/output#caveats for more information.
+ Detected additional lockfiles: 
+   * /Users/greedydev/Desktop/WORKS/NeginHesab/ArginTaxPayer/ArginTaxPayer/apps/web/package-lock.json
+
+   ▲ Next.js 15.5.28
+
+   Creating an optimized production build ...
+<w> [webpack.cache.PackFileCacheStrategy] Skipped not serializable cache item 'Compilation/modules|/Users/greedydev/Desktop/WORKS/NeginHesab/ArginTaxPayer/ArginTaxPayer/apps/web/node_modules/next/dist/build/webpack/loaders/css-loader/src/index.js??ruleSet[1].rules[14].oneOf[10].use[2]!/Users/greedydev/Desktop/WORKS/NeginHesab/ArginTaxPayer/ArginTaxPayer/apps/web/node_modules/next/dist/build/webpack/loaders/postcss-loader/src/index.js??ruleSet[1].rules[14].oneOf[10].use[3]!/Users/greedydev/Desktop/WORKS/NeginHesab/ArginTaxPayer/ArginTaxPayer/apps/web/app/globals.css': No serializer registered for Warning
+<w> while serializing webpack/lib/cache/PackFileCacheStrategy.PackContentItems -> webpack/lib/NormalModule -> Array { 4 items } -> webpack/lib/ModuleWarning -> Warning
+ ⚠ Compiled with warnings in 962ms
+
+./app/globals.css.webpack[javascript/auto]!=!./node_modules/next/dist/build/webpack/loaders/css-loader/src/index.js??ruleSet[1].rules[14].oneOf[10].use[2]!./node_modules/next/dist/build/webpack/loaders/postcss-loader/src/index.js??ruleSet[1].rules[14].oneOf[10].use[3]!./app/globals.css
+Warning
+
+(28:1769) autoprefixer: start value has mixed support, consider using flex-start instead
+
+Import trace for requested module:
+./app/globals.css.webpack[javascript/auto]!=!./node_modules/next/dist/build/webpack/loaders/css-loader/src/index.js??ruleSet[1].rules[14].oneOf[10].use[2]!./node_modules/next/dist/build/webpack/loaders/postcss-loader/src/index.js??ruleSet[1].rules[14].oneOf[10].use[3]!./app/globals.css
+./app/globals.css
+
+./app/globals.css.webpack[javascript/auto]!=!./node_modules/next/dist/build/webpack/loaders/css-loader/src/index.js??ruleSet[1].rules[14].oneOf[10].use[2]!./node_modules/next/dist/build/webpack/loaders/postcss-loader/src/index.js??ruleSet[1].rules[14].oneOf[10].use[3]!./app/globals.css
+Warning
+
+(40:29) autoprefixer: end value has mixed support, consider using flex-end instead
+
+Import trace for requested module:
+./app/globals.css.webpack[javascript/auto]!=!./node_modules/next/dist/build/webpack/loaders/css-loader/src/index.js??ruleSet[1].rules[14].oneOf[10].use[2]!./node_modules/next/dist/build/webpack/loaders/postcss-loader/src/index.js??ruleSet[1].rules[14].oneOf[10].use[3]!./app/globals.css
+./app/globals.css
+
+./app/globals.css.webpack[javascript/auto]!=!./node_modules/next/dist/build/webpack/loaders/css-loader/src/index.js??ruleSet[1].rules[14].oneOf[10].use[2]!./node_modules/next/dist/build/webpack/loaders/postcss-loader/src/index.js??ruleSet[1].rules[14].oneOf[10].use[3]!./app/globals.css
+Warning
+
+(580:41) autoprefixer: end value has mixed support, consider using flex-end instead
+
+Import trace for requested module:
+./app/globals.css.webpack[javascript/auto]!=!./node_modules/next/dist/build/webpack/loaders/css-loader/src/index.js??ruleSet[1].rules[14].oneOf[10].use[2]!./node_modules/next/dist/build/webpack/loaders/postcss-loader/src/index.js??ruleSet[1].rules[14].oneOf[10].use[3]!./app/globals.css
+./app/globals.css
+
+./app/globals.css.webpack[javascript/auto]!=!./node_modules/next/dist/build/webpack/loaders/css-loader/src/index.js??ruleSet[1].rules[14].oneOf[10].use[2]!./node_modules/next/dist/build/webpack/loaders/postcss-loader/src/index.js??ruleSet[1].rules[14].oneOf[10].use[3]!./app/globals.css
+Warning
+
+(1094:46) autoprefixer: start value has mixed support, consider using flex-start instead
+
+Import trace for requested module:
+./app/globals.css.webpack[javascript/auto]!=!./node_modules/next/dist/build/webpack/loaders/css-loader/src/index.js??ruleSet[1].rules[14].oneOf[10].use[2]!./node_modules/next/dist/build/webpack/loaders/postcss-loader/src/index.js??ruleSet[1].rules[14].oneOf[10].use[3]!./app/globals.css
+./app/globals.css
+
+ ✓ Compiled successfully in 2.9s
+   Linting and checking validity of types ...
+   Collecting page data ...
+   Generating static pages (0/5) ...
+   Generating static pages (1/5) 
+   Generating static pages (2/5) 
+   Generating static pages (3/5) 
+ ✓ Generating static pages (5/5)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                                                                          Size  First Load JS
+┌ ƒ /                                                                               263 B         103 kB
+├ ○ /_not-found                                                                      1 kB         104 kB
+├ ƒ /account                                                                      11.6 kB         114 kB
+├ ƒ /admin-settings                                                               2.31 kB         105 kB
+├ ƒ /api/admin/signing-change-requests                                              263 B         103 kB
+├ ƒ /api/admin/signing-change-requests/[requestId]/decision                         263 B         103 kB
+├ ƒ /api/catalog/[...segments]                                                      263 B         103 kB
+├ ƒ /api/customer-checkout                                                          263 B         103 kB
+├ ƒ /api/customer-finance                                                           263 B         103 kB
+├ ƒ /api/customer-owners/[...path]                                                  263 B         103 kB
+├ ƒ /api/customer-subscription                                                      263 B         103 kB
+├ ƒ /api/dashboard/[section]                                                        263 B         103 kB
+├ ƒ /api/fiscal-participants                                                        263 B         103 kB
+├ ƒ /api/identity/[...path]                                                         263 B         103 kB
+├ ƒ /api/invoice-dispatch/[taxpayerId]/[invoiceId]                                  263 B         103 kB
+├ ƒ /api/invoice-dispatch/[taxpayerId]/[invoiceId]/abandon-failed-successor         263 B         103 kB
+├ ƒ /api/invoice-dispatch/[taxpayerId]/[invoiceId]/arm                              263 B         103 kB
+├ ƒ /api/invoice-dispatch/[taxpayerId]/[invoiceId]/calculation-audit                263 B         103 kB
+├ ƒ /api/invoice-dispatch/[taxpayerId]/[invoiceId]/cancel-and-inquire               263 B         103 kB
+├ ƒ /api/invoice-dispatch/[taxpayerId]/[invoiceId]/cancellation-eligibility         263 B         103 kB
+├ ƒ /api/invoice-dispatch/[taxpayerId]/[invoiceId]/correction-draft                 263 B         103 kB
+├ ƒ /api/invoice-dispatch/[taxpayerId]/[invoiceId]/correction-send-and-inquire      263 B         103 kB
+├ ƒ /api/invoice-dispatch/[taxpayerId]/[invoiceId]/finalize-internal                263 B         103 kB
+├ ƒ /api/invoice-dispatch/[taxpayerId]/[invoiceId]/history                          263 B         103 kB
+├ ƒ /api/invoice-dispatch/[taxpayerId]/[invoiceId]/inquiry-by-reference             263 B         103 kB
+├ ƒ /api/invoice-dispatch/[taxpayerId]/[invoiceId]/inquiry-by-uid                   263 B         103 kB
+├ ƒ /api/invoice-dispatch/[taxpayerId]/[invoiceId]/lineage                          263 B         103 kB
+├ ƒ /api/invoice-dispatch/[taxpayerId]/[invoiceId]/prepare-legacy                   263 B         103 kB
+├ ƒ /api/invoice-dispatch/[taxpayerId]/[invoiceId]/print-preview                    263 B         103 kB
+├ ƒ /api/invoice-dispatch/[taxpayerId]/[invoiceId]/readiness                        263 B         103 kB
+├ ƒ /api/invoice-dispatch/[taxpayerId]/[invoiceId]/rejection-correction-draft       263 B         103 kB
+├ ƒ /api/invoice-dispatch/[taxpayerId]/[invoiceId]/review-action                    263 B         103 kB
+├ ƒ /api/invoice-dispatch/[taxpayerId]/[invoiceId]/review-status                    263 B         103 kB
+├ ƒ /api/invoice-dispatch/[taxpayerId]/[invoiceId]/sales-return-draft               263 B         103 kB
+├ ƒ /api/invoice-dispatch/[taxpayerId]/[invoiceId]/sales-return-send-and-inquire    263 B         103 kB
+├ ƒ /api/invoice-dispatch/[taxpayerId]/[invoiceId]/send-and-inquire                 263 B         103 kB
+├ ƒ /api/invoice-dispatch/[taxpayerId]/[invoiceId]/serial-reservation               263 B         103 kB
+├ ƒ /api/invoice-dispatch/[taxpayerId]/[invoiceId]/validate-internal                263 B         103 kB
+├ ƒ /api/invoices/[...segments]                                                     263 B         103 kB
+├ ƒ /api/invoices/bulk-template                                                     263 B         103 kB
+├ ƒ /api/invoices/template                                                          263 B         103 kB
+├ ƒ /api/party-workspace/[...path]                                                  263 B         103 kB
+├ ƒ /api/payments/sep/sms/callback                                                  263 B         103 kB
+├ ƒ /api/phase12/[...parts]                                                         263 B         103 kB
+├ ƒ /api/sandbox-memory/[taxpayerId]                                                263 B         103 kB
+├ ƒ /api/sandbox-memory/[taxpayerId]/connection-test                                263 B         103 kB
+├ ƒ /api/sandbox-memory/[taxpayerId]/key-self-test                                  263 B         103 kB
+├ ƒ /api/sandbox-memory/[taxpayerId]/private-key                                    263 B         103 kB
+├ ƒ /api/signing/[taxpayerId]/[memoryId]                                            263 B         103 kB
+├ ƒ /api/signing/[taxpayerId]/[memoryId]/change-requests                            263 B         103 kB
+├ ƒ /api/signing/[taxpayerId]/[memoryId]/connection-test                            263 B         103 kB
+├ ƒ /api/signing/[taxpayerId]/[memoryId]/generate                                   263 B         103 kB
+├ ƒ /api/signing/[taxpayerId]/[memoryId]/recover-import                             263 B         103 kB
+├ ƒ /api/sms-credit                                                                 263 B         103 kB
+├ ƒ /api/software-profile/[...path]                                                 263 B         103 kB
+├ ƒ /api/taxpayers/[...path]                                                        263 B         103 kB
+├ ƒ /catalog                                                                      8.57 kB         111 kB
+├ ƒ /customer-plans                                                               2.62 kB         105 kB
+├ ƒ /dashboard                                                                    14.2 kB         120 kB
+├ ƒ /financial-history                                                            1.99 kB         105 kB
+├ ○ /icon.png                                                                         0 B            0 B
+├ ƒ /identity                                                                      5.4 kB         114 kB
+├ ƒ /invoices                                                                     49.9 kB         156 kB
+├ ƒ /keys                                                                         1.37 kB         104 kB
+├ ƒ /parties                                                                        27 kB         130 kB
+├ ƒ /profile                                                                      3.48 kB         106 kB
+├ ƒ /signing-approvals                                                            2.39 kB         105 kB
+├ ƒ /sms-credit                                                                   2.34 kB         105 kB
+├ ƒ /subscriptions                                                                15.2 kB         118 kB
+├ ƒ /taxpayers                                                                      263 B         103 kB
+└ ƒ /users                                                                        5.28 kB         108 kB
++ First Load JS shared by all                                                      103 kB
+  ├ chunks/1255-dc3ddf72a1dc71a7.js                                               46.6 kB
+  ├ chunks/4bd1b696-f785427dddbba9fb.js                                           54.2 kB
+  └ other shared chunks (total)                                                   1.95 kB
+
+
+ƒ Middleware                                                                      34.4 kB
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+

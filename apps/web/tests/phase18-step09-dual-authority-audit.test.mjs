@@ -4,8 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-// Source-only boundary audit. This intentionally DOES NOT claim dual-authority
-// routing exists. Tests must keep known blockers visible until real fixes land.
+// Source-only boundary audit; runtime admission and routing have separate .NET tests.
 const repoRoot = fileURLToPath(new URL("../../../", import.meta.url));
 const read = (relative) => readFileSync(resolve(repoRoot, relative), "utf8");
 const root = 'src/ArginTaxPayer.Infrastructure/';
@@ -54,10 +53,10 @@ test('Sandbox inquiry is pinned to Sandbox operation and Sandbox memory', () => 
   }
 });
 
-test('known blocker: Sandbox onboarding and dispatch still require legacy test database', () => {
+test('Sandbox onboarding and dispatch use the shared approved store guard', () => {
   for (const name of ['sandbox','prepare','arm','cancellation','correction','returns']) {
-    assert.match(read(paths[name]), /argintaxpayer_test/,
-      name + ' must remain explicitly identified as legacy test-DB-only until safely refactored');
+    assert.match(read(paths[name]), /!ArginTaxPayer\.Infrastructure\.Configuration\.HostedSandboxDeployment\.IsSandboxStoreDatabaseName\(/,
+      name + ' must reject databases outside the approved Sandbox stores');
   }
 });
 

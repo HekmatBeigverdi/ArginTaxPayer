@@ -22,7 +22,7 @@ test('Legacy operation and signed Outbox are written in one transaction',()=>{
  assert.ok(s.indexOf('INSERT INTO invoice_dispatch_operations')<
            s.indexOf('INSERT INTO outbox_messages'));
  assert.ok(s.indexOf('INSERT INTO outbox_messages')<s.indexOf('CommitAsync(ct)'));
- assert.ok(s.includes('argintaxpayer_test'));
+ assert.ok(s.includes('!ArginTaxPayer.Infrastructure.Configuration.HostedSandboxDeployment.IsSandboxStoreDatabaseName('));
  assert.ok(s.includes('dispatch_operation_requires_reconciliation'));
 });
 test('Signed packet type and embedded FiscalId match archived Legacy SDK',()=>{

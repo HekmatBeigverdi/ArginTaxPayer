@@ -7,7 +7,7 @@ const root=resolve(dirname(fileURLToPath(import.meta.url)),"../../..");
 const read=p=>readFileSync(resolve(root,p),"utf8");
 test("one-click cancel has separate immutable successor and fiscal reference",()=>{
  const service=read("src/ArginTaxPayer.Infrastructure/Persistence/Invoices/Phase10SandboxCancellationService.cs");
- for(const name of ["InvoiceSubject.Cancellation","InvoiceDocumentRevisions.Add","sandbox_invoice_legal_relations","referenceTaxId","submission.SendAsync","argintaxpayer_test"])
+ for(const name of ["InvoiceSubject.Cancellation","InvoiceDocumentRevisions.Add","sandbox_invoice_legal_relations","referenceTaxId","submission.SendAsync","!ArginTaxPayer.Infrastructure.Configuration.HostedSandboxDeployment.IsSandboxStoreDatabaseName("])
   assert.ok(service.includes(name),name);
  assert.ok(service.includes(":attempt:"));
  assert.ok(service.includes("LegacyAuthorityReportRepository"));

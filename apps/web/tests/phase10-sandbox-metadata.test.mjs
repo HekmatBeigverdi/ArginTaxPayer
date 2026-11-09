@@ -13,12 +13,12 @@ const custody=readFileSync("app/api/sandbox-memory/[taxpayerId]/private-key/rout
 const identity=readFileSync("../../src/ArginTaxPayer.Infrastructure/Signing/Protection/KeyProtectionContracts.cs","utf8");
 const offline=readFileSync("app/api/sandbox-memory/[taxpayerId]/key-self-test/route.ts","utf8");
 
-test("sandbox metadata is additive test-only and never writes Production key tables",()=>{
+test("sandbox metadata uses the approved store and never writes Production key tables",()=>{
   assertIsolatedDatabaseAdmission(migration);
   assert.match(migration,/CREATE TABLE sandbox_fiscal_memories/);
   assert.doesNotMatch(migration,/ALTER TABLE fiscal_memories|DROP TABLE|DELETE FROM/);
   assert.match(store,/current_database\(\)/);
-  assert.match(store,/argintaxpayer_test/);
+  assert.match(store,/!ArginTaxPayer\.Infrastructure\.Configuration\.HostedSandboxDeployment\.IsSandboxStoreDatabaseName\(/);
   assert.match(store,/scope\.ScopedQuery\(/);
   assert.match(store,/customer_user_id=@owner/);
   assert.match(store,/ON CONFLICT\(customer_user_id,taxpayer_id\) DO UPDATE SET/);
