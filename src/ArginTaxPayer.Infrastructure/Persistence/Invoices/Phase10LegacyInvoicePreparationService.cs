@@ -201,7 +201,7 @@ public sealed class Phase10LegacyInvoicePreparationService(
             await using var tx=await conn.BeginTransactionAsync(IsolationLevel.Serializable,ct);
             try
             {
-                if((string?)await Scalar(conn,tx,"SELECT current_database()",ct)!="argintaxpayer_test")
+                if(!ArginTaxPayer.Infrastructure.Configuration.HostedSandboxDeployment.IsSandboxStoreDatabaseName((string?)await Scalar(conn,tx,"SELECT current_database()",ct)))
                     return Denied("sandbox_database_required");
                 var current=await Scalar(conn,tx,"""
 SELECT snapshot_sha256 FROM invoice_documents

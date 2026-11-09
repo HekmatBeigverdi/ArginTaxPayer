@@ -64,8 +64,9 @@ WHERE id={operationId} AND customer_user_id={customerUserId} AND taxpayer_id={ta
             {
                 await using var database = Command(connection, tx,
                     "SELECT current_database()");
-                if ((string?)await database.ExecuteScalarAsync(ct) != "argintaxpayer_test")
-                    throw new InvalidOperationException("Phase10 dispatch requires isolated test DB.");
+                if (!ArginTaxPayer.Infrastructure.Configuration.HostedSandboxDeployment.IsSandboxStoreDatabaseName(
+                    (string?)await database.ExecuteScalarAsync(ct)))
+                    throw new InvalidOperationException("Phase10 dispatch requires an approved sandbox data store.");
 
                 var now = DateTime.UtcNow;
                 await using var advance = Command(connection, tx, """

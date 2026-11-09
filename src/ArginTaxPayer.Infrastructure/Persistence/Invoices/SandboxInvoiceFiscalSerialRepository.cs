@@ -39,7 +39,7 @@ public sealed class SandboxInvoiceFiscalSerialRepository(
             await using var tx=await conn.BeginTransactionAsync(IsolationLevel.Serializable,ct);
             try{
                 var database=await Scalar(conn,tx,"SELECT current_database()",ct);
-                if(database is not string name||name!="argintaxpayer_test")
+                if(database is not string name||!ArginTaxPayer.Infrastructure.Configuration.HostedSandboxDeployment.IsSandboxStoreDatabaseName(name))
                     return new(SandboxSerialStatus.Denied);
 
                 await using var invoiceCmd=Command(conn,tx,"""

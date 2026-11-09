@@ -36,8 +36,8 @@ public sealed class Phase10DispatchArmService(ArginTaxPayerDbContext db,
                 {
                     guard.Transaction=tx;
                     guard.CommandText="SELECT current_database()";
-                    if((string?)await guard.ExecuteScalarAsync(ct)!="argintaxpayer_test")
-                        throw new InvalidOperationException("Sandbox arm requires isolated test DB.");
+                    if(!ArginTaxPayer.Infrastructure.Configuration.HostedSandboxDeployment.IsSandboxStoreDatabaseName((string?)await guard.ExecuteScalarAsync(ct)))
+                        throw new InvalidOperationException("Sandbox arm requires an approved sandbox data store.");
                 }
                 await using var cmd=conn.CreateCommand();
                 cmd.Transaction=tx;

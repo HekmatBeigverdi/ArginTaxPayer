@@ -387,7 +387,7 @@ public sealed class Phase10SandboxSalesReturnService(
         }
 
         var database = await db.Database.SqlQueryRaw<string>("SELECT current_database() AS \"Value\"").SingleAsync(ct);
-        if (database != "argintaxpayer_test")
+        if (!ArginTaxPayer.Infrastructure.Configuration.HostedSandboxDeployment.IsSandboxStoreDatabaseName(database))
         {
             return new(InvoiceApiDecision.Forbidden, "sandbox_database_required");
         }

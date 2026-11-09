@@ -78,7 +78,7 @@ FROM sandbox_fiscal_memories WHERE taxpayer_id=@taxpayer AND customer_user_id=@o
                 await using var guard=conn.CreateCommand();
                 guard.Transaction=tx;
                 guard.CommandText="SELECT current_database()";
-                if((string?)await guard.ExecuteScalarAsync(ct)!="argintaxpayer_test")
+                if(!ArginTaxPayer.Infrastructure.Configuration.HostedSandboxDeployment.IsSandboxStoreDatabaseName((string?)await guard.ExecuteScalarAsync(ct)))
                     return new(503,"sandbox_test_database_required");
 
                 // A record without private custody is recoverable: replace only the
@@ -168,7 +168,7 @@ FROM sandbox_fiscal_memories
 WHERE customer_user_id=@owner AND taxpayer_id=@taxpayer FOR UPDATE
 """;
                     Add(read,"owner",authorized.Owner);Add(read,"taxpayer",taxpayerId);
-                    if((string?)await ScalarDatabaseAsync(conn,tx,ct)!="argintaxpayer_test")
+                    if(!ArginTaxPayer.Infrastructure.Configuration.HostedSandboxDeployment.IsSandboxStoreDatabaseName((string?)await ScalarDatabaseAsync(conn,tx,ct)))
                         return new(503,"sandbox_test_database_required");
                     Guid memoryId,keyId,operationId;
                     byte[] registeredSpki;

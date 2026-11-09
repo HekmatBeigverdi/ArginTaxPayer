@@ -54,8 +54,8 @@ public sealed class InvoiceDispatchFaultRepository(ArginTaxPayerDbContext db)
                 identityCommand.Transaction = tx;
                 identityCommand.CommandText = "SELECT current_database()";
                 var dbName = (string?)await identityCommand.ExecuteScalarAsync(ct);
-                if (dbName != "argintaxpayer_test")
-                    throw new InvalidOperationException("Step12 writes require isolated test DB.");
+                if (!ArginTaxPayer.Infrastructure.Configuration.HostedSandboxDeployment.IsSandboxStoreDatabaseName(dbName))
+                    throw new InvalidOperationException("Step12 writes require an approved sandbox data store.");
 
                 const string sql = """
 UPDATE invoice_dispatch_operations

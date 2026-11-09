@@ -77,9 +77,9 @@ public sealed class Phase10DispatchEvidenceRepository(ArginTaxPayerDbContext db)
                 IsolationLevel.ReadCommitted, ct);
             try
             {
-                if ((string?)await Scalar(connection, tx, "SELECT current_database()", ct) !=
-                    "argintaxpayer_test")
-                    throw new InvalidOperationException("Phase10 evidence requires isolated test DB.");
+                if (!ArginTaxPayer.Infrastructure.Configuration.HostedSandboxDeployment.IsSandboxStoreDatabaseName(
+                    (string?)await Scalar(connection, tx, "SELECT current_database()", ct)))
+                    throw new InvalidOperationException("Phase10 evidence requires an approved sandbox data store.");
 
                 await using var lockCommand = Command(connection, tx, """
 SELECT state,state_revision

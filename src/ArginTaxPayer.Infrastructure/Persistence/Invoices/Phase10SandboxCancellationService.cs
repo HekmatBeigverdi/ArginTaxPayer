@@ -40,7 +40,7 @@ public sealed class Phase10SandboxCancellationService(
    if(current is null)return new(InvoiceApiDecision.NotFound,"not_found");
    if(current.Subject!=InvoiceSubject.Original||current.State!=InvoiceLifecycleState.Finalized)
     return new(InvoiceApiDecision.Conflict,"invalid_predecessor");
-   if(await db.Database.SqlQueryRaw<string>("SELECT current_database() AS \"Value\"").SingleAsync(ct)!="argintaxpayer_test")
+   if(!ArginTaxPayer.Infrastructure.Configuration.HostedSandboxDeployment.IsSandboxStoreDatabaseName(await db.Database.SqlQueryRaw<string>("SELECT current_database() AS \"Value\"").SingleAsync(ct)))
     return new(InvoiceApiDecision.Forbidden,"sandbox_database_required");
    // Release a stale active relation only when its latest authority report is
    // terminally FAILED. Pending or acknowledged attempts remain protected.

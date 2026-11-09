@@ -36,8 +36,8 @@ public sealed class InvoiceDispatchAdmissionRepository(ArginTaxPayerDbContext db
             {
                 var databaseName = await ScalarAsync<string>(connection, transaction,
                     "SELECT current_database()", Array.Empty<(string, object)>(), ct);
-                if (databaseName != "argintaxpayer_test")
-                    throw new InvalidOperationException("Dispatch admission restricted to test database.");
+                if (!ArginTaxPayer.Infrastructure.Configuration.HostedSandboxDeployment.IsSandboxStoreDatabaseName(databaseName))
+                    throw new InvalidOperationException("Dispatch admission restricted to an approved sandbox data store.");
 
                 var now = DateTime.UtcNow;
                 const string sql = """

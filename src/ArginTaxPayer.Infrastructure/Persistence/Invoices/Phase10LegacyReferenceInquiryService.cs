@@ -61,7 +61,7 @@ public sealed class Phase10LegacyReferenceInquiryService(
         // Never obtain a Sandbox credential or call an authority from Production DB.
         var databaseName = await db.Database.SqlQueryRaw<string>(
             "SELECT current_database() AS \"Value\"").SingleAsync(ct);
-        if (databaseName != "argintaxpayer_test")
+        if (!ArginTaxPayer.Infrastructure.Configuration.HostedSandboxDeployment.IsSandboxStoreDatabaseName(databaseName))
             return new(InvoiceApiDecision.Invalid, "sandbox_database_required");
         if(!LegacyInvoiceSubmissionHttpTransport.TryResolveSandboxBase(config,out var baseUrl)||
             baseUrl is null)

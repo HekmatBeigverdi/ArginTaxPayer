@@ -60,7 +60,11 @@ if (productionOperationalEnabled || identityDashboardOnlyEnabled)
     var database = builder.Configuration.GetConnectionString("ArginTaxPayerDb")!;
     var hostedSandbox = HostedSandboxDeployment.IsAllowed(database, builder.Configuration);
     if (builder.Configuration.GetValue<bool>("ArginTaxPayer:HostedSandboxEnabled") && !hostedSandbox)
-        throw new InvalidOperationException("Hosted Sandbox requires its dedicated TLS database and Sandbox-only authority configuration.");
+        throw new InvalidOperationException("Hosted dual-authority mode requires the dedicated TLS application database and both pinned authority configurations.");
+    var sandboxAuthorityEnabled = builder.Configuration.GetValue<bool>("SandboxInvoiceLegacy:Enabled") ||
+        builder.Configuration.GetValue<bool>("SandboxInvoiceLegacy:OperatorApprovedEndpoint");
+    if (builder.Environment.IsProduction() && sandboxAuthorityEnabled && !hostedSandbox)
+        throw new InvalidOperationException("Production Sandbox requires the explicitly approved shared dual-authority database configuration.");
     if (database.Contains("argintaxpayer_test", StringComparison.OrdinalIgnoreCase) && !hostedSandbox)
         throw new InvalidOperationException("Production operational endpoints cannot use the test database.");
 }

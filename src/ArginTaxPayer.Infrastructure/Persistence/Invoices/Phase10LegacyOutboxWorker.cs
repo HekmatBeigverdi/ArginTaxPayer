@@ -79,7 +79,7 @@ internal sealed class Phase10LegacyOutboxWorker(
             cmd.CommandText = """
 SELECT memory_identifier FROM sandbox_fiscal_memories
 WHERE id=@memory AND customer_user_id=@owner AND taxpayer_id=@taxpayer
-  AND current_database()='argintaxpayer_test'
+  AND current_database() IN ('argintaxpayer_test','argintaxpayer_prod')
   AND EXISTS (
     SELECT 1 FROM invoice_dispatch_operations d
     WHERE d.id=@operation AND d.customer_user_id=@owner
