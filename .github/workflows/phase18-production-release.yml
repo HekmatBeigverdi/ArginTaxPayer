@@ -1,5 +1,7 @@
 name: ArginTaxPayer versioned release
 
+# Resolved merge: keep PR validation and main-only production deployment,
+# while preserving the reviewed SHA artifact and Environment approval gate.
 on:
   push:
     branches: [main, phase/18-production-deployment]
