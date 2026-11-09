@@ -44,7 +44,11 @@ for(const [name,draftSuffix,sendSuffix] of [
  test(`${name} saves edits then redirects on exhaustion without inquiry or locking the draft`,async()=>{
   const line={description:'item',quantity:2,unitPriceRial:100,discountPerUnitRial:0,vatRatePercent:10,officialIdentifierSnapshot:'1234567890123'};
   const draft={workspaceId:id,predecessorInvoiceId:id,revision:1,lines:[line],originalQuantities:[3],settlementMethod:1,cashAmountRial:220,creditAmountRial:0};
-  const state=[draft,[line],1,220,0,false,'',false,'','', 'items'];let index=0;
+  const isCorrection=name==='invoice-correction-modal.tsx';
+  const state=isCorrection
+   ?[draft,[line],1,220,0,false,'','','items',null,null,null,false]
+   :[draft,[line],1,220,0,false,'','','','', 'items',null,null,null,false];let index=0;
+  const lockedStateIndex=isCorrection?12:14;
   const requests=[],navigations=[];
   const component=loadTsx(new URL(`../app/invoices/${name}`,import.meta.url),{
    globals:{AbortSignal,window:{location:{assign:path=>navigations.push(path)}},fetch:async(url,options)=>{
@@ -68,6 +72,6 @@ for(const [name,draftSuffix,sendSuffix] of [
   await confirmation.props.onConfirm();
   assert.deepEqual(navigations,['/customer-plans']);
   assert.equal(requests.length,2);assert.ok(requests[0].url.endsWith('/'+draftSuffix));assert.ok(requests[1].url.endsWith('/'+sendSuffix));
-  assert.equal(state[0].revision,2);assert.notEqual(state[14],true);
+  assert.equal(state[0].revision,2);assert.notEqual(state[lockedStateIndex],true);
  });
 }

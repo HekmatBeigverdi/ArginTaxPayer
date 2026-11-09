@@ -34,7 +34,8 @@ public sealed class Phase18ProductionSalesReturnChainTests
         Assert.Contains("invoice_id={predecessorId} LIMIT 1", source);
         Assert.Contains("snapshot[\"referenceTaxId\"] = referenceTaxId", source);
         Assert.Contains("snapshot[\"predecessorInvoiceId\"] = predecessorId.ToString(\"D\")", source);
-        Assert.Contains("using var origDoc = JsonDocument.Parse(original.SnapshotJson)", source);
+        Assert.Contains("ReadSalesReturnBasisAsync(", source);
+        Assert.Contains("returnBasis.Lines", source);
         Assert.Contains("write.PredecessorInvoiceId},{invoiceId}", source);
     }
 
@@ -43,7 +44,8 @@ public sealed class Phase18ProductionSalesReturnChainTests
     {
         var source = File.ReadAllText(FindService());
         Assert.Contains("AND predecessor_invoice_id={write.PredecessorInvoiceId}", source);
-        Assert.Contains("AND subject IN (2,3,4) AND state IN (1,2,4)", source);
+        Assert.Contains("AND subject IN (2,3) AND state IN (1,2,4)", source);
+        Assert.Contains("AllowedLines(returnBasis.Lines,returnLines,returnBasis.AlreadyReturned)", source);
         Assert.Contains("active_related_invoice", source);
     }
 

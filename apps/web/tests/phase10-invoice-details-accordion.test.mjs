@@ -17,7 +17,8 @@ test("edit and cancellation need success while return preparation follows a sent
  const inquiry=read("apps/web/app/invoices/invoice-send-readiness-panel.tsx");
  assert.ok(preview.includes('const canEdit=authorityStatus==="SUCCESS"'));
  assert.ok(preview.includes('const canPrepareSalesReturn=!!onSalesReturn'));
- assert.ok(inquiry.includes('const canPrepareRejectedDraft=authorityResult?.status==="FAILED"'));
+ assert.ok(inquiry.includes('const canPrepareRejectedDraft=allowRejectedDraft&&authorityResult?.status==="FAILED"'));
+ assert.ok(read("apps/web/app/invoices/workspace.tsx").includes('allowRejectedDraft={detail.subject==="Original"}'));
  assert.ok(inquiry.includes("بازگشت به پیش‌نویس اصلاحی"));
 });
 test("history section has neutral treatment and no nested accordion",()=>{
