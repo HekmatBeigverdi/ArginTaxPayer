@@ -52,14 +52,16 @@ test('return action remains available on sent nonterminal nodes; cancellation st
  runInNewContext(ts.transpileModule(actions+'\nexports.Actions=AuthorityActions;',{
   compilerOptions:{jsx:ts.JsxEmit.ReactJSX,module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}
  }).outputText,{exports,require,React,actionsStyle:{}});
- const returnStatuses=['ACKNOWLEDGED','SUCCESS','FAILED','PENDING','UNKNOWN','INDETERMINATE','SENDING'];
+ const returnStatuses=['Acknowledged','ACKNOWLEDGED','SUCCESS','FAILED','PENDING','UNKNOWN','INDETERMINATE','SENDING'];
  for(const authorityStatus of [undefined,'SUCCESS','Acknowledged','ACKNOWLEDGED','FAILED','PENDING','UNKNOWN','INDETERMINATE','SENDING','success']){
   for(const subject of ['Original','Correction','SalesReturn','Cancellation']){
    const returnEligible=returnStatuses.includes(authorityStatus)&&['Original','Correction','SalesReturn'].includes(subject);
    const editEligible=authorityStatus==='SUCCESS'&&subject!=='Cancellation';
    const props={authorityStatus,subject,onSalesReturn:()=>{},onCancel:()=>{},onCorrect:()=>{}};
    const html=renderToStaticMarkup(React.createElement(exports.Actions,props));
-   assert.equal(html.includes('>برگشت از فروش</button>'),returnEligible,String(authorityStatus)+' '+subject);
+   const returnLabel=authorityStatus==='FAILED'&&subject==='SalesReturn'
+    ?'>ویرایش و تلاش مجدد برگشت</button>':'>برگشت از فروش</button>';
+   assert.equal(html.includes(returnLabel),returnEligible,String(authorityStatus)+' '+subject);
    assert.equal(html.includes('>ابطال</button>'),editEligible,String(authorityStatus)+' '+subject);
    assert.equal(html.includes('>اصلاح</button>'),editEligible,String(authorityStatus)+' '+subject);
   }

@@ -1,7 +1,7 @@
 # ArginTaxPayer — Phase 18: Controlled Production Deployment & Dual Tax-Authority Environments
 
-**Status:** Steps 01–06 OWNER-APPROVED; Step 07 OWNER-APPROVED (2026-11-04) with isolated PostgreSQL 17, TLS VerifyFull, 72 EF history rows and pre-migration restore confirmed; post-migration audit/restore outputs have not been independently provided in this conversation. Step 08 source-level configuration and custody controls IMPLEMENTED and macOS/Ubuntu preflight reported PASS by owner; private config staged with read-only security audit PASS and services disabled. Step 09 source audit in progress: Sandbox-on-Production and real authority routing NOT YET IMPLEMENTED. Public Production application remains disabled.
-**Date:** 2026-11-04  
+**Status (2026-11-08):** The owner confirms Sandbox and Production fiscal-memory flows, including a real Production invoice submission using the intended fiscal-memory code, have been activated and tested. Treat earlier Step09/dual-authority blockers below as historical source-audit findings superseded by this owner acceptance. The remaining objective in the current work item is to finish and verify GitHub Actions release automation, then merge the reviewed changes into `main` and confirm automatic VPS deployment. The acceptance is owner-reported here; this update does not attach raw logs or credentials.
+**Date:** 2026-11-08
 **Branch:** `phase/18-production-deployment`  
 **Starting main SHA:** `6ad5246a39cace77e76901a20d149c301094f7c3` (Phase 15 merge; release `phase-15-v1.0.0` reported in merge metadata).  
 **Target:** `https://tax.argin.ir`, Ubuntu 24 VPS; ASP.NET Core API + Next.js production build + PostgreSQL 17.  
@@ -842,13 +842,17 @@ A. **Deploy app with provider operations off:** GitHub Actions builds a commit-a
 
 B. **Dual-environment tax acceptance:** Do not bypass existing `argintaxpayer_test` guards; first complete explicit persisted-memory environment binding and test Sandbox on `argintaxpayer_prod`, then authenticated read-only real authority checks, and only then owner-authorized genuine real invoice submission. Fiscal-memory authority routing and signing correctness remain blocking.
 
-C. **Routine updates:** `.github/workflows/phase18-production-release.yml` packages releases automatically on main, with manually triggered environment-approved deployment. GitHub production Environment must have required reviewers, pinned SSH host key and restricted deploy identity. Passwordless sudo for unattended deployment is **not yet provisioned**; workflow deployment job currently cannot be treated as ready for unattended Production. Never use NOPASSWD:ALL. Database migrations are separate reviewed operations and not executed by deploy.
+C. **Routine updates:** `.github/workflows/phase18-production-release.yml` validates Pull Requests and packages the exact SHA. A push to `main` enters the `production` GitHub Environment approval gate, then deploys that same artifact through the fixed root-owned helper. GitHub branch rules, Environment reviewers/secrets, the restricted SSH account and one-time Ubuntu helper installation are operator setup items; no successful automated deployment is claimed until a real run is recorded. Database migrations are separate reviewed operations and are not executed by deploy.
 
 Artifacts:
 - `scripts/phase18-release-stage.sh`
 - `scripts/phase18-release-promote.sh`
 - `apps/web/tests/phase18-fast-release-contract.test.mjs`
 - `.github/workflows/phase18-production-release.yml`
+- `scripts/phase18-install-deploy-helper.sh`
+- `ops/phase18-deploy/phase18-release-root.sh`
+- `ops/phase18-deploy/release-core.sh`
+- `docs/phases/phase-18-github-release-operations.md`
 - `docs/phases/phase-18-fast-release.md`
 
 **State:** Source implementation committed; no code proven deployed to VPS, no new public runtime started, no GitHub CI PASS observed in this turn, no provider operations performed. Detailed operator review and evidence still needed. Legacy Step09 routing blockers remain.

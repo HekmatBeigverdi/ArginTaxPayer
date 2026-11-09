@@ -52,7 +52,7 @@ test("the internal snapshot cannot be quietly overwritten, duplicated or misrepr
   assert.match(validation,/نسخه ثابت داخلی، ارسال مالیاتی نیست/);
   assert.match(ui,/onPrepared=/);
   assert.match(validation,/prepareInternalSnapshot/);
-  assert.match(validation,/report\.selectedEnvironment !== "Sandbox"/);
+  assert.match(validation,/!\["Sandbox", "Production"\]\.includes\(report\.selectedEnvironment \?\? "Unselected"\)/);
   assert.match(validation,/fiscalSubmissionAuthorized!==false/);
   assert.match(bff,/"prepare"/);
   assert.match(bff,/invalid_snapshot_revision/);

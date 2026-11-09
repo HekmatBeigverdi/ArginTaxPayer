@@ -1,19 +1,18 @@
 name: ArginTaxPayer versioned release
+
 on:
   push:
     branches: [main, phase/18-production-deployment]
-  workflow_dispatch:
-    inputs:
-      deploy:
-        description: "Promote this verified main-branch build to the VPS (requires production approval)"
-        required: true
-        type: boolean
-        default: false
+  pull_request:
+    branches: [main, phase/18-production-deployment]
+
 permissions:
   contents: read
+
 concurrency:
-  group: argintaxpayer-${{ github.ref }}-${{ github.event_name }}
-  cancel-in-progress: ${{ github.event_name == 'push' }}
+  group: argintaxpayer-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   package:
     runs-on: ubuntu-24.04
@@ -47,13 +46,15 @@ jobs:
           npm --prefix apps/web test
           npm --prefix apps/web run typecheck
           npm --prefix apps/web run build
+          npm --prefix apps/web ci --omit=dev --ignore-scripts --no-audit --no-fund
       - name: Package immutable application, excluding secrets
         run: |
           set -Eeuo pipefail
-          mkdir -p bundle/stage/api bundle/stage/web bundle/scripts
+          mkdir -p bundle/stage/api bundle/stage/web bundle/scripts bundle/deploy
           cp -a "$RUNNER_TEMP/api/." bundle/stage/api/
           cp apps/web/package.json apps/web/package-lock.json bundle/stage/web/
           cp -a apps/web/.next bundle/stage/web/
+          cp -a apps/web/node_modules bundle/stage/web/
           if [[ -d apps/web/public ]]; then cp -a apps/web/public bundle/stage/web/; fi
           if find bundle/stage -type f \( -name '.env' -o -name '.env.*' -o -name '*.key' -o -name '*.pem' -o -name '*.pfx' \) | grep -q .; then
             echo 'Unexpected private configuration in build' >&2; exit 1
@@ -62,23 +63,29 @@ jobs:
           (cd bundle && sha256sum api.tar.gz web.tar.gz > SHA256SUMS)
           printf 'sha=%s\n' "$GITHUB_SHA" > bundle/build-info.txt
           cp scripts/phase18-release-stage.sh scripts/phase18-release-promote.sh scripts/phase18-step06-local-health.sh bundle/scripts/
+          cp ops/phase18-deploy/phase18-release-root.sh ops/phase18-deploy/release-core.sh bundle/deploy/
+          cp scripts/phase18-install-deploy-helper.sh bundle/deploy/
           rm -rf bundle/stage
       - uses: actions/upload-artifact@v4
         with:
-          name: argintaxpayer-release
+          name: argintaxpayer-release-${{ github.sha }}
           path: bundle/
           if-no-files-found: error
           retention-days: 14
+
   deploy:
-    if: github.event_name == 'workflow_dispatch' && inputs.deploy && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: package
     runs-on: ubuntu-24.04
     environment: production
+    concurrency:
+      group: argintaxpayer-production-deploy
+      cancel-in-progress: false
     timeout-minutes: 20
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: argintaxpayer-release
+          name: argintaxpayer-release-${{ github.sha }}
           path: bundle
       - name: Configure verified deploy SSH
         env:
@@ -92,7 +99,7 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
-      - name: Upload and promote reviewed release
+      - name: Verify and promote the reviewed SHA
         env:
           DEPLOY_HOST: ${{ secrets.ARGIN_DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.ARGIN_DEPLOY_USER }}
@@ -102,7 +109,11 @@ jobs:
           [[ "$DEPLOY_HOST" =~ ^[a-zA-Z0-9.-]+$ ]]
           [[ "$DEPLOY_USER" =~ ^[a-z_][a-z0-9_-]*$ ]]
           [[ "$SOURCE_SHA" =~ ^[a-f0-9]{40}$ ]]
+          grep -Fxq "sha=$SOURCE_SHA" bundle/build-info.txt
+          (cd bundle && sha256sum -c SHA256SUMS)
           target="$DEPLOY_USER@$DEPLOY_HOST"
-          ssh -o StrictHostKeyChecking=yes "$target" 'mkdir -p ~/argin-deploy-incoming'
-          scp -o StrictHostKeyChecking=yes -r bundle/. "$target:argin-deploy-incoming/"
-          ssh -o StrictHostKeyChecking=yes "$target" "cd ~/argin-deploy-incoming && bash scripts/phase18-release-stage.sh --stage '$SOURCE_SHA' --bundle-dir \"\$PWD\" --sha256-manifest \"\$PWD/SHA256SUMS\" && PHASE18_OWNER_APPROVED_RELEASE=YES bash scripts/phase18-release-promote.sh --promote '$SOURCE_SHA'"
+          ssh_opts=(-o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -o StrictHostKeyChecking=yes)
+          incoming="/var/lib/argin-taxpayer-deploy/incoming/$SOURCE_SHA"
+          ssh "${ssh_opts[@]}" "$target" "mkdir -p -- '$incoming'"
+          scp "${ssh_opts[@]}" -r bundle/. "$target:$incoming/"
+          ssh "${ssh_opts[@]}" "$target" "sudo -n /usr/local/sbin/argin-taxpayer-release --sha '$SOURCE_SHA'"

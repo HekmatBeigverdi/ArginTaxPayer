@@ -77,7 +77,7 @@ test("validation references remain unverified and outside fiscal issuance", () =
   assert.match(service, /false,null/);
   assert.match(service, /scope\.ScopedQuery/);
   assert.match(service, /false,findings\.AsReadOnly\(\)/);
-  assert.match(component, /disabled>/);
+  assert.match(component, /disabled=\{busy\}/);
   assert.match(component, /isSubmissionAuthorized/);
   assert.match(component, /dirty/);
 });

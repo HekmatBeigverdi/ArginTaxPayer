@@ -364,9 +364,9 @@ function AuthorityActions({authorityStatus,subject,onCancel,onCorrect,onSalesRet
  authorityStatus?:string;subject?:string;onCancel:()=>void;onCorrect:()=>void;onSalesReturn?:()=>void
 }){
  const canEdit=authorityStatus==="SUCCESS"&&subject?.toLowerCase()!=="cancellation";
+ const dispatchedStatuses=["SUCCESS","Acknowledged","ACKNOWLEDGED","FAILED","PENDING","IN_PROGRESS","UNKNOWN","INDETERMINATE","SENDING"];
  const canPrepareSalesReturn=!!onSalesReturn&&
-  ((authorityStatus==="SUCCESS"&&["Original","Correction","SalesReturn"].includes(subject??""))||
-   (authorityStatus==="FAILED"&&subject==="SalesReturn"));
+  (dispatchedStatuses.includes(authorityStatus??"")&&["Original","Correction","SalesReturn"].includes(subject??""));
  if(!canEdit&&!canPrepareSalesReturn)return null;
  return <div style={actionsStyle}>
   {canEdit&&<>
@@ -374,7 +374,7 @@ function AuthorityActions({authorityStatus,subject,onCancel,onCorrect,onSalesRet
    <button type="button" className="identity-secondary" onClick={onCancel}>ابطال</button>
   </>}
   {canPrepareSalesReturn&&<button type="button" className="identity-secondary" onClick={onSalesReturn}>
-   {authorityStatus==="FAILED"?"ویرایش و تلاش مجدد برگشت":"برگشت از فروش"}
+   {authorityStatus==="FAILED"&&subject==="SalesReturn"?"ویرایش و تلاش مجدد برگشت":"برگشت از فروش"}
   </button>}
  </div>;
 }

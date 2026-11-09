@@ -43,9 +43,11 @@ test("protected account separates MFA security from sessions and retains shell l
 
 test("unified identity screen uses simple actions, OTP and recovery path", () => {
   const page = read("app/identity/page.tsx");
+  const screen = read("app/identity/identity-screen.tsx");
   const flow = read("app/identity/identity-flow.tsx");
   const proxy = read("app/api/identity/[...path]/route.ts");
-  assert.match(page, /<IdentityFlow restrictedLogin=\{identityDashboardOnlyEnabled\(\)\} \/>/);
+  assert.match(page, /<IdentityScreen restrictedLogin=\{identityDashboardOnlyEnabled\(\)\}\/>/);
+  assert.match(screen, /<IdentityFlow restrictedLogin=\{restrictedLogin\} onVisualStateChange=\{handleVisualStateChange\}\s*\/>/);
   assert.doesNotMatch(flow, /role="tablist"/);
   assert.match(flow, /ورود به حساب/);
   assert.match(flow, /ایجاد حساب جدید/);

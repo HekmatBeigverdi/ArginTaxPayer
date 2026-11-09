@@ -20,6 +20,6 @@ test("formal invoice prints unique identifier and textual settlement method with
  const ui=read("apps/web/app/invoices/invoice-formal-preview.tsx");
  assert.ok(backend.includes('uniqueInvoiceId=fiscalTaxId'));
  for(const x of ["نقدی","نسیه","نقدی و نسیه"])assert.ok(backend.includes(x));
- assert.ok(ui.includes("شناسه یکتای فاکتور"));
+ assert.ok(ui.includes("شماره منحصربه‌فرد مالیاتی"));
  for(const x of ["سربرگ صورتحساب","بدنه صورتحساب","پاورقی و جمع مبالغ"])assert.ok(!ui.includes(x));
 });

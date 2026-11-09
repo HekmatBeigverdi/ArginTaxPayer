@@ -1,5 +1,9 @@
 # Phase 18 — consolidated dual-authority implementation status
 
+## Owner acceptance update — 2026-11-08
+
+The owner confirms that both Sandbox and Production fiscal-memory flows are active and tested, including submission of a real Production invoice using the intended fiscal-memory code. This newer operator acceptance supersedes the earlier pending/blocked acceptance statements in this file. It is recorded from the owner's confirmation; supporting run logs and identifiers were not included in this documentation update. The remaining current Phase 18 work item is the reviewed release-automation PR, merge to `main`, and verification of the automatic VPS release. Do not reopen authority implementation unless the release checks identify a regression.
+
 ## Owner-confirmed workflow update (2026-11-06)
 
 - The owner reports the existing Production original-invoice send was tested live and works. Do not replace or refactor that sender.

@@ -22,7 +22,7 @@ function find(element,predicate){
 function actions(props){
  let slot=0;
  const Preview=loadTsx(new URL('../app/invoices/invoice-formal-preview.tsx',import.meta.url),{
-  modules:{react:{...React,useEffect:()=>{},useState(initial){return [slot++===0?{}:initial,()=>{}];}}}
+  modules:{react:{...React,useEffect:()=>{},useRef:initial=>({current:initial}),useState(initial){return [slot++===0?{}:initial,()=>{}];}}}
  }).default;
  const tree=Preview({taxpayerId:'taxpayer',invoiceId:'latest-invoice',reference:'root-code',...props});
  const node=find(tree,x=>x.type?.name==='AuthorityActions');
@@ -32,13 +32,13 @@ for(const subject of ['Original','Correction','SalesReturn']){
  test('preview return button opens the shared return action: '+subject,()=>{
   let opened=0;
   const tree=actions({subject,authorityStatus:'SUCCESS',onSalesReturn:()=>opened++});
-  const button=find(tree,x=>x.type==='button'&&x.props.children==='برگشت از فروش');
+  const button=find(tree,x=>x.type==='button'&&String(x.props.children).includes('برگشت'));
   assert.ok(button);assert.ok(!button.props.disabled);assert.equal(typeof button.props.onClick,'function');
   button.props.onClick();assert.equal(opened,1);
  });
 }
 for(const props of [{subject:'Original'},{subject:'Original',authorityStatus:'PREPARED'},{subject:'Cancellation',authorityStatus:'SUCCESS'},{subject:'Original',authorityStatus:'SUCCESS',readOnly:true}]){
  test('preview excludes unavailable return action: '+JSON.stringify(props),()=>{
-  assert.equal(find(actions({...props,onSalesReturn:()=>assert.fail('must not run')}),x=>x.type==='button'&&x.props.children==='برگشت از فروش'),null);
+  assert.equal(find(actions({...props,onSalesReturn:()=>assert.fail('must not run')}),x=>x.type==='button'&&String(x.props.children).includes('برگشت')),null);
  });
 }

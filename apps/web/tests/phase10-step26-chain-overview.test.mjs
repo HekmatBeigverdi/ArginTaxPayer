@@ -13,7 +13,8 @@ test("main invoice overview hides successor before paging and retains original s
  assert.ok(s.includes("EffectiveInvoiceId"));
  assert.ok(s.includes("buyerPartyIdsByInvoice"));
  assert.ok(s.includes("Parties.AsNoTracking"));
- assert.ok(s.includes('referenceCodes.GetValueOrDefault((x.Source == 1 ? "workspace" : "document", x.Id))'));
+ assert.ok(s.includes('referenceCodes.GetValueOrDefault(("document",x.Id))'));
+ assert.ok(s.includes('referenceCodes.GetValueOrDefault(("workspace",x.Id))'));
 });
 test("lineage includes independently stored related invoices and same-taxpayer scope",()=>{
  const s=read("src/ArginTaxPayer.Infrastructure/Persistence/Invoices/Phase10InvoiceLineageReadService.cs");
