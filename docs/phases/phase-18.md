@@ -93,7 +93,7 @@ AUTOSSH_GATETIME=0 autossh -M 0 -N \
   -o ServerAliveCountMax=3 \
   -o ConnectTimeout=10 \
   -o ExitOnForwardFailure=yes \
-  -L 127.0.0.1:15432:127.0.0.1:5432 \
+  -L 127.0.0.1:15432:127.0.0.1:15432 \
   argindev@109.70.78.95
 ```
 

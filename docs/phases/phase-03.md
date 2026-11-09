@@ -116,7 +116,7 @@ Expected: `20261012010000_AddIdentityFoundation` is applied, `identity_users` an
 
 ```bash
 ssh -N -o ExitOnForwardFailure=yes \
-  -L 127.0.0.1:15432:127.0.0.1:5432 \
+  -L 127.0.0.1:15432:127.0.0.1:15432 \
   argindev@109.70.78.95
 ```
 
@@ -201,7 +201,7 @@ AUTOSSH_GATETIME=0 autossh -M 0 -N \
   -o ServerAliveCountMax=3 \
   -o ConnectTimeout=10 \
   -o ExitOnForwardFailure=yes \
-  -L 127.0.0.1:15432:127.0.0.1:5432 \
+  -L 127.0.0.1:15432:127.0.0.1:15432 \
   argindev@109.70.78.95
 ```
 2. In macOS Terminal 2, from the repository root:
@@ -267,7 +267,7 @@ AUTOSSH_GATETIME=0 autossh -M 0 -N \
   -o ServerAliveCountMax=3 \
   -o ConnectTimeout=10 \
   -o ExitOnForwardFailure=yes \
-  -L 127.0.0.1:15432:127.0.0.1:5432 \
+  -L 127.0.0.1:15432:127.0.0.1:15432 \
   argindev@109.70.78.95
 ```
 
@@ -341,7 +341,7 @@ dotnet test ArginTaxPayer.sln -c Release --no-build
 Terminal A — keep the SSH tunnel open until all macOS DB/API testing is finished:
 ```bash
 ssh -N -o ExitOnForwardFailure=yes \
-  -L 127.0.0.1:15432:127.0.0.1:5432 \
+  -L 127.0.0.1:15432:127.0.0.1:15432 \
   argindev@109.70.78.95
 ```
 
@@ -489,7 +489,7 @@ AUTOSSH_GATETIME=0 autossh -M 0 -N \
   -o ServerAliveCountMax=3 \
   -o ConnectTimeout=10 \
   -o ExitOnForwardFailure=yes \
-  -L 127.0.0.1:15432:127.0.0.1:5432 \
+  -L 127.0.0.1:15432:127.0.0.1:15432 \
   argindev@109.70.78.95
 
 # Terminal 2: from repo root, in a shell that has the test DB connection and persistent MFA key
@@ -530,7 +530,7 @@ If the same-shell `ConnectionStrings__ArginTaxPayerDb` variable is absent, resto
 **1. Terminal A — SSH tunnel, remain connected throughout DB tests:**
 ```bash
 ssh -N -o ExitOnForwardFailure=yes \
-  -L 127.0.0.1:15432:127.0.0.1:5432 \
+  -L 127.0.0.1:15432:127.0.0.1:15432 \
   argindev@109.70.78.95
 ```
 
@@ -614,7 +614,7 @@ dotnet build tools/ArginTaxPayer.IdentityOperator/ArginTaxPayer.IdentityOperator
 Terminal 1 — open and keep the PostgreSQL SSH tunnel alive:
 ```bash
 ssh -N -o ExitOnForwardFailure=yes \
-  -L 127.0.0.1:15432:127.0.0.1:5432 \
+  -L 127.0.0.1:15432:127.0.0.1:15432 \
   argindev@109.70.78.95
 ```
 
@@ -749,7 +749,7 @@ AUTOSSH_GATETIME=0 autossh -M 0 -N \
   -o ServerAliveCountMax=3 \
   -o ConnectTimeout=10 \
   -o ExitOnForwardFailure=yes \
-  -L 127.0.0.1:15432:127.0.0.1:5432 \
+  -L 127.0.0.1:15432:127.0.0.1:15432 \
   argindev@109.70.78.95
 ```
 
@@ -839,7 +839,7 @@ AUTOSSH_GATETIME=0 autossh -M 0 -N \
   -o ServerAliveCountMax=3 \
   -o ConnectTimeout=10 \
   -o ExitOnForwardFailure=yes \
-  -L 127.0.0.1:15432:127.0.0.1:5432 \
+  -L 127.0.0.1:15432:127.0.0.1:15432 \
   argindev@109.70.78.95
 ```
 
@@ -1064,7 +1064,7 @@ AUTOSSH_GATETIME=0 autossh -M 0 -N \
   -o ServerAliveCountMax=3 \
   -o ConnectTimeout=10 \
   -o ExitOnForwardFailure=yes \
-  -L 127.0.0.1:15432:127.0.0.1:5432 \
+  -L 127.0.0.1:15432:127.0.0.1:15432 \
   argindev@109.70.78.95
 ```
 Use the **owner-verified macOS zsh command** in the same shell that will run `.NET` API/tests:
@@ -1128,7 +1128,7 @@ AUTOSSH_GATETIME=0 autossh -M 0 -N \
   -o ServerAliveCountMax=3 \
   -o ConnectTimeout=10 \
   -o ExitOnForwardFailure=yes \
-  -L 127.0.0.1:15432:127.0.0.1:5432 \
+  -L 127.0.0.1:15432:127.0.0.1:15432 \
   argindev@109.70.78.95
 ```
 
@@ -1147,7 +1147,7 @@ AUTOSSH_GATETIME=0 autossh -M 0 -N \
   -o ServerAliveCountMax=3 \
   -o ConnectTimeout=10 \
   -o ExitOnForwardFailure=yes \
-  -L 127.0.0.1:15432:127.0.0.1:5432 \
+  -L 127.0.0.1:15432:127.0.0.1:15432 \
   argindev@109.70.78.95
 ```
 AutoSSH prerequisite: `brew install autossh` if needed. Keep this foreground terminal open.
@@ -1239,7 +1239,7 @@ AUTOSSH_GATETIME=0 autossh -M 0 -N \
   -o ServerAliveCountMax=3 \
   -o ConnectTimeout=10 \
   -o ExitOnForwardFailure=yes \
-  -L 127.0.0.1:15432:127.0.0.1:5432 \
+  -L 127.0.0.1:15432:127.0.0.1:15432 \
   argindev@109.70.78.95
 ```
 Never paste chat-formatted nonbreaking spaces into shell. This is a tunnel to the **test** PostgreSQL only, not public API hosting.

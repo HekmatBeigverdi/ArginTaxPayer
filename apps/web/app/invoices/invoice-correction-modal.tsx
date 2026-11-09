@@ -5,7 +5,7 @@ import InvoiceCorrectionReceipt,{type CorrectionReceiptValue} from "./invoice-co
 import {redirectForInvoiceSubscription} from "../../lib/invoice-subscription";
 import {fetchWithSessionRefresh} from "../../lib/session-fetch";
 type Line={description:string;quantity:number;unitPriceRial:number;discountPerUnitRial:number;vatRatePercent:number|null;officialIdentifierSnapshot:string|null};
-type Draft={workspaceId:string;predecessorInvoiceId:string;revision:number;lines:Line[];settlementMethod:number;cashAmountRial:number;creditAmountRial:number};
+type Draft={workspaceId:string;predecessorInvoiceId:string;revision:number;lines:Line[];settlementMethod:number;cashAmountRial:number;creditAmountRial:number;remainingQuantities?:number[]};
 type Result={decision:number;code:string;draft?:Draft|null;invoiceId?:string|null;status?:string|null;referenceNumber?:string|null;inquiryCode?:string|null};
 type Entry={quantity:number;unitPriceRial:number;discountPerUnitRial:number};
 class CorrectionActionError extends Error{
@@ -14,16 +14,14 @@ class CorrectionActionError extends Error{
  }
 }
 const fa=(v:number)=>v.toLocaleString("fa-IR",{maximumFractionDigits:2});
-export default function InvoiceCorrectionModal({taxpayerId,invoiceId,onClose,onChanged}:{
- taxpayerId:string;invoiceId:string;onClose:()=>void;onChanged:()=>void}){
+export default function InvoiceCorrectionModal({taxpayerId,invoiceId,resumeDraft=false,onClose,onChanged}:{
+ taxpayerId:string;invoiceId:string;resumeDraft?:boolean;onClose:()=>void;onChanged:()=>void}){
  const url="/api/invoice-dispatch/"+encodeURIComponent(taxpayerId)+"/"+encodeURIComponent(invoiceId);
  const [draft,setDraft]=useState<Draft|null>(null);
  const [entries,setEntries]=useState<Entry[]>([]);
  const [settlement,setSettlement]=useState(1);
  const [cash,setCash]=useState(0);
  const [credit,setCredit]=useState(0);
- const [mistake,setMistake]=useState(false);
- const [mistakeEvidence,setMistakeEvidence]=useState("");
  const [busy,setBusy]=useState(false);
  const [error,setError]=useState("");
  const [message,setMessage]=useState("");
@@ -32,9 +30,9 @@ export default function InvoiceCorrectionModal({taxpayerId,invoiceId,onClose,onC
  const [progress,setProgress]=useState<"saving"|"sending"|"inquiring"|null>(null);
  const [receipt,setReceipt]=useState<CorrectionReceiptValue|null>(null);
  const [submissionLocked,setSubmissionLocked]=useState(false);
- const apply=(v:Draft)=>{
-  setDraft(v);setEntries(v.lines.map(x=>({
-   quantity:x.quantity,unitPriceRial:x.unitPriceRial,discountPerUnitRial:x.discountPerUnitRial
+ const apply=(v:Draft,startFromBaseline=false)=>{
+  setDraft(v);setEntries(v.lines.map((x,index)=>({
+   quantity:startFromBaseline?v.remainingQuantities?.[index]??x.quantity:x.quantity,unitPriceRial:x.unitPriceRial,discountPerUnitRial:x.discountPerUnitRial
   })));setSettlement(v.settlementMethod);setCash(v.cashAmountRial);setCredit(v.creditAmountRial);
  };
  const action=useCallback(async(method:"GET"|"POST"|"PUT"|"DELETE",suffix:string,body?:unknown):Promise<Result>=>{
@@ -50,10 +48,10 @@ export default function InvoiceCorrectionModal({taxpayerId,invoiceId,onClose,onC
  },[url]);
  useEffect(()=>{
   let live=true;
-  void action("POST","correction-draft").then(r=>{if(live&&r.draft)apply(r.draft);})
+  void action("POST","correction-draft").then(r=>{if(live&&r.draft)apply(r.draft,!resumeDraft);})
    .catch(e=>{if(live)setError("باز کردن پیش‌نویس اصلاحی ناموفق بود: "+(e as Error).message);});
   return()=>{live=false;};
- },[action]);
+ },[action,resumeDraft]);
  const change=(i:number,key:keyof Entry,value:number)=>{
   setEntries(prev=>prev.map((e,index)=>index===i?{...e,[key]:value}:e));
  };
@@ -62,7 +60,7 @@ export default function InvoiceCorrectionModal({taxpayerId,invoiceId,onClose,onC
   const result=await action("PUT","correction-draft",{
    expectedRevision:draft.revision,lines:entries,settlementMethod:settlement,
    cashAmountRial:cash,creditAmountRial:credit,
-   reductionCorrectsOriginalMistake:mistake,reductionEvidenceReference:mistake?mistakeEvidence:null
+   reductionCorrectsOriginalMistake:false,reductionEvidenceReference:null
   });
   if(!result.draft)throw Error("پاسخ ذخیره پیش‌نویس معتبر نیست؛ وضعیت پیش‌نویس را بررسی کنید.");
   apply(result.draft);
@@ -175,14 +173,7 @@ export default function InvoiceCorrectionModal({taxpayerId,invoiceId,onClose,onC
       <td>{line.vatRatePercent??"—"}٪</td>
      </tr>)}</tbody>
     </table>
-    <label><input type="checkbox" disabled={busy} checked={mistake} onChange={e=>setMistake(e.target.checked)}/>
-     کاهش مقدار صرفاً برای اصلاح اشتباه ثبت اولیه است (نه برگشت واقعی کالا)
-    </label>
-    {mistake&&<label>مرجع مستند اصلاح اشتباه اولیه
-     <input type="text" maxLength={256} disabled={busy} value={mistakeEvidence}
-      onChange={e=>setMistakeEvidence(e.target.value)}
-      placeholder="شماره یا کد مستند مربوط به اشتباه اولیه"/>
-    </label>}
+    <p className="field-hint">تعداد مبنا، مقدار باقی‌مانده پس از برگشت‌های قبلی است. کاهش تعداد در این فرم به‌عنوان اصلاح مقدار ثبت‌شده ذخیره می‌شود.</p>
     </div>}
     {stage==="settlement"&&<div style={{display:"grid",gap:10}}>
      <label>روش تسویه
@@ -201,7 +192,7 @@ export default function InvoiceCorrectionModal({taxpayerId,invoiceId,onClose,onC
      <table className="console-table"><thead><tr><th>قلم</th><th>فی قبلی</th><th>فی جدید</th><th>تعداد قبلی</th><th>تعداد جدید</th></tr></thead>
       <tbody>{draft.lines.map((line,i)=><tr key={i}><td>{line.description}</td>
        <td>{fa(line.unitPriceRial)}</td><td>{fa(entries[i]?.unitPriceRial??0)}</td>
-       <td>{fa(line.quantity)}</td><td>{fa(entries[i]?.quantity??0)}</td></tr>)}</tbody>
+       <td>{fa(draft.remainingQuantities?.[i]??line.quantity)}</td><td>{fa(entries[i]?.quantity??0)}</td></tr>)}</tbody>
      </table>
     </div>}
     <div className="invoice-correction-actions">

@@ -21,9 +21,9 @@ if curl --noproxy '*' -fsS http://127.0.0.1:15089/health/dev-identity 2>/dev/nul
 else
   print 'NOT READY OTP environment'
 fi
-if curl --noproxy "*" -fsS --max-time 3 http://127.0.0.1:18081/ > /dev/null 2>&1; then
+if curl --noproxy "*" -fsS --max-time 3 http://127.0.0.1:18081/ 2>/dev/null | grep -qi 'Adminer'; then
   print "READY Adminer at http://127.0.0.1:18081"
 else
-  print "NOT READY Adminer (VPS service or tunnel unavailable)"
+  print "NOT READY Adminer (VPS Docker service or SSH tunnel unavailable)"
 fi
 print "Log files: $STATE/api.log, $STATE/web.log, $STATE/autossh.log, $STATE/adminer.log"

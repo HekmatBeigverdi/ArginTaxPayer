@@ -50,6 +50,7 @@ type Invoice = {
 type InvoiceFormalPreviewProps = {
   taxpayerId: string;
   invoiceId: string;
+  correctionInvoiceId?: string;
   reference: string;
   authorityStatus?: string;
   subject?: string;
@@ -382,6 +383,7 @@ function AuthorityActions({authorityStatus,subject,onCancel,onCorrect,onSalesRet
 export default function InvoiceFormalPreview({
   taxpayerId,
   invoiceId,
+  correctionInvoiceId,
   reference,
   authorityStatus,
   subject,
@@ -500,7 +502,7 @@ export default function InvoiceFormalPreview({
            <InvoiceTotals invoice={invoice} />
           </>}
           {!readOnly && <AuthorityActions authorityStatus={authorityStatus} subject={subject} onSalesReturn={onSalesReturn}
-           onCorrect={()=>setCorrectionOpen(invoiceId)} onCancel={()=>{
+           onCorrect={()=>setCorrectionOpen(correctionInvoiceId??invoiceId)} onCancel={()=>{
             setCancelOpen(true);setCancelChecking(true);setCancelEligibility("");setCancelEligible(false);setCancelOutcome("");setCancelSucceeded(false);setCancelInquiry({status:"",reference:"",code:""});
             void fetch("/api/invoice-dispatch/"+encodeURIComponent(taxpayerId)+"/"+encodeURIComponent(invoiceId)+"/cancellation-eligibility",{cache:"no-store",credentials:"same-origin"})
               .then(async response=>{const value=await response.json();setCancelEligible(response.ok&&value.eligible===true);setCancelEligibility(response.ok&&value.eligible===true?"سند مرجع برای درخواست ابطال معتبر است.":"امکان ابطال تأیید نشد: "+String(value.code??value.error??response.status));})

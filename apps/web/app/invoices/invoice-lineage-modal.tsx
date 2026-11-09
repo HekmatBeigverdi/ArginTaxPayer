@@ -16,8 +16,8 @@ const authorityStatusLabel:Record<string,string>={
  IN_PROGRESS:"در صف ارسال به سازمان",
  UNKNOWN:"نتیجه سازمان نامشخص",ACKNOWLEDGED:"کد رهگیری دریافت شد",INDETERMINATE:"نتیجه نامشخص"};
 const date=(value:string|null)=>value?new Date(value).toLocaleString("fa-IR"):"—";
-export default function InvoiceLineageModal({taxpayerId,invoiceId,onClose}:{
- taxpayerId:string;invoiceId:string;onClose:()=>void}){
+export default function InvoiceLineageModal({taxpayerId,invoiceId,onClose,onChanged}:{
+ taxpayerId:string;invoiceId:string;onClose:()=>void;onChanged?:()=>void}){
  const [graph,setGraph]=useState<Graph|null>(null);
  const [error,setError]=useState("");
  const [reload,setReload]=useState(0);
@@ -53,7 +53,7 @@ export default function InvoiceLineageModal({taxpayerId,invoiceId,onClose}:{
       :String(report.safeCode??"در انتظار بررسی")));
    }
   }catch(e){setInquiryMessage("ادامه ارسال یا استعلام ناموفق بود: "+(e as Error).message);}
-  finally{setInquiryBusy(null);setReload(value=>value+1);}
+  finally{setInquiryBusy(null);setReload(value=>value+1);onChanged?.();}
  };
  useEffect(()=>{
   const controller=new AbortController();
@@ -180,6 +180,7 @@ export default function InvoiceLineageModal({taxpayerId,invoiceId,onClose}:{
             ?authorityStatusLabel[report.status]??report.status
             :String(result.safeCode??"در انتظار بررسی")));
            setReload(v=>v+1);
+           onChanged?.();
           })
           .catch(e=>setInquiryMessage("استعلام ناموفق بود: "+(e as Error).message))
           .finally(()=>setInquiryBusy(null));

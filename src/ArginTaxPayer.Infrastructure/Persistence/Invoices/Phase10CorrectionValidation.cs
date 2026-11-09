@@ -5,6 +5,14 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Invoices;
 /// <summary>Archived V7.9 correction restrictions checked against immutable predecessor lines.</summary>
 public static class Phase10CorrectionValidation
 {
+ // Choosing the correction workflow and reducing a quantity records a quantity
+ // correction. The caller persists that intent with the correction workspace.
+ public static bool IsQuantityCorrection(
+  IReadOnlyList<InvoiceEntryLine> original,
+  IReadOnlyList<InvoiceEntryLine> changed,
+  bool declaredCorrection) => declaredCorrection ||
+   (original.Count == changed.Count && original.Zip(changed).Any(x => x.Second.Quantity < x.First.Quantity));
+
  public static bool AllowedLines(
   IReadOnlyList<InvoiceEntryLine> original,
   IReadOnlyList<InvoiceEntryLine> changed,

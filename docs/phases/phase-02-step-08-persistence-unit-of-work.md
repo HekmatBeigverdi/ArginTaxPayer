@@ -59,7 +59,7 @@ Keep the SSH port forward active in another macOS terminal:
 
 ```bash
 ssh -N -o ExitOnForwardFailure=yes \
-  -L 127.0.0.1:15432:127.0.0.1:5432 \
+  -L 127.0.0.1:15432:127.0.0.1:15432 \
   -L 127.0.0.1:18081:127.0.0.1:8081 \
   argindev@YOUR_VPS_IP
 ```

@@ -134,6 +134,7 @@ WITH RECURSIVE lineage AS (
  ) r
  WHERE r.predecessor_invoice_id=@invoice
   AND r.customer_user_id=@owner AND r.taxpayer_id=@taxpayer
+  AND r.state IN (1,2,4)
  UNION ALL
  SELECT r.id,r.predecessor_invoice_id,r.successor_invoice_id,r.predecessor_fiscal_tax_id,
   r.customer_user_id,r.taxpayer_id,
@@ -155,6 +156,7 @@ WITH RECURSIVE lineage AS (
  ) r ON r.predecessor_invoice_id=lineage.successor_invoice_id
   AND r.customer_user_id=lineage.customer_user_id AND r.taxpayer_id=lineage.taxpayer_id
  WHERE lineage.depth<100 AND NOT r.successor_invoice_id=ANY(lineage.visited)
+  AND r.state IN (1,2,4)
 )
 SELECT d.id,d.subject,d.issue_date_utc,
   (SELECT f.fiscal_tax_id FROM (

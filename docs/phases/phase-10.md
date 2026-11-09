@@ -1325,7 +1325,7 @@ git status --short
 AUTOSSH_GATETIME=0 autossh -M 0 -N \
  -o ServerAliveInterval=15 -o ServerAliveCountMax=3 \
  -o ConnectTimeout=10 -o ExitOnForwardFailure=yes \
- -L 127.0.0.1:15432:127.0.0.1:5432 \
+ -L 127.0.0.1:15432:127.0.0.1:15432 \
  argindev@109.70.78.95
 ```
 2. Another Terminal, set test-only connection environment **interactively and privately**. Prefer `read -s` or an existing private env file; example:

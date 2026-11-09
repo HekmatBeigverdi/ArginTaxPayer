@@ -1,0 +1,18 @@
+name: argintaxpayer-adminer
+
+services:
+  adminer:
+    image: adminer:6.3.0-standalone
+    container_name: argintaxpayer-adminer
+    restart: unless-stopped
+    environment:
+      ADMINER_DEFAULT_SERVER: argintaxpayer-test-db
+    ports:
+      - "127.0.0.1:18082:8080"
+    networks:
+      - test_db
+
+networks:
+  test_db:
+    external: true
+    name: argintaxpayer-adminer-test-db
