@@ -14,7 +14,7 @@ function findSend(element){
  return findSend(element.props?.children);
 }
 async function send({saveStatus=200,sendStatus=200,sendCode='acknowledged',inquiryStatus=200,cancel=false,sendResult={}}={}){
- const state=[draft,[{quantity:2,unitPriceRial:150,discountPerUnitRial:0}],1,220,0,false,'',false,'','', 'items'];
+ const state=[draft,[{quantity:2,unitPriceRial:150,discountPerUnitRial:0}],1,220,0,false,'','', 'items'];
  let index=0;let finish;let changed=0;const requests=[];
  const finished=new Promise(resolve=>{finish=resolve;});
  const component=loadTsx(new URL('../app/invoices/invoice-correction-modal.tsx',import.meta.url),{
@@ -27,7 +27,7 @@ async function send({saveStatus=200,sendStatus=200,sendCode='acknowledged',inqui
   modules:{react:{...React,useEffect:()=>{},useCallback:fn=>fn,useState(initial){
    const slot=index++;return [state[slot]??initial,value=>{
     state[slot]=typeof value==='function'?value(state[slot]):value;
-    if(slot===7&&value===false)finish();
+    if(slot===5&&value===false)finish();
    }];
   }}}
  });
@@ -49,30 +49,30 @@ test('sending an edited correction saves the current form before submitting once
  const saved=JSON.parse(result.requests[0].options.body);
  assert.equal(saved.expectedRevision,1);assert.equal(saved.lines[0].unitPriceRial,150);
  assert.ok(result.requests[1].url.endsWith('/correction-send-and-inquire'));
- assert.ok(result.changed>=1);assert.equal(result.state[8],'');
+ assert.ok(result.changed>=1);assert.equal(result.state[6],'');
 });
 
 test('a failed save prevents submission and retains the edited form',{timeout:3000},async()=>{
  const result=await send({saveStatus:409});
  assert.deepEqual(result.requests.map(x=>x.options.method),['PUT']);
  assert.equal(result.state[0],draft);assert.equal(result.state[1][0].unitPriceRial,150);
- assert.doesNotMatch(result.state[8],/نتیجه ارسال نیازمند بررسی/);
- assert.equal(result.state[9],'');assert.equal(result.changed,0);
+ assert.doesNotMatch(result.state[6],/نتیجه ارسال نیازمند بررسی/);
+ assert.equal(result.state[7],'');assert.equal(result.changed,0);
 });
 
 test('an unchanged correction is explained as a validation refusal, not an uncertain send',{timeout:3000},async()=>{
  const result=await send({sendStatus:400,sendCode:'no_changes_to_correct'});
- assert.match(result.state[8],/تغییری/);
- assert.doesNotMatch(result.state[8],/نتیجه ارسال نیازمند بررسی|no_changes_to_correct/);
- assert.ok(result.state[0]);assert.equal(result.state[9],'');assert.equal(result.changed,0);
+ assert.match(result.state[6],/تغییری/);
+ assert.doesNotMatch(result.state[6],/نتیجه ارسال نیازمند بررسی|no_changes_to_correct/);
+ assert.ok(result.state[0]);assert.equal(result.state[7],'');assert.equal(result.changed,0);
 });
 
 test('a Production feature gate refusal is reported as not sent and leaves the draft retryable',{timeout:3000},async()=>{
  const result=await send({sendStatus:400,sendCode:'production_legal_successors_disabled'});
- assert.notEqual(result.state[14],true);
+ assert.notEqual(result.state[12],true);
  assert.ok(result.state[0]);
- assert.match(result.state[8],/ارسال انجام نشد/);
- assert.doesNotMatch(result.state[8],/نتیجه ارسال نیازمند بررسی|بدون استعلام/);
+ assert.match(result.state[6],/ارسال انجام نشد/);
+ assert.doesNotMatch(result.state[6],/نتیجه ارسال نیازمند بررسی|بدون استعلام/);
 });
 
 function findConfirmation(element){
@@ -89,21 +89,21 @@ test('failed authority inquiry retains the receipt and never repeats submission'
  assert.equal(result.requests.filter(x=>x.url.endsWith('/correction-send-and-inquire')).length,1);
  assert.ok(result.requests[2].url.includes('/'+id+'/inquiry-by-reference'));
  assert.equal(result.state[0],null);
- assert.match(result.state[8],/استعلام/);
- assert.equal(result.state[13].referenceNumber,'REF-1');
+ assert.match(result.state[6],/استعلام/);
+ assert.equal(result.state[11].referenceNumber,'REF-1');
 });
 test('uncertain submission blocks another submission and asks for reconciliation',async()=>{
  const result=await send({sendStatus:503,sendCode:'correction_api_unavailable'});
  assert.equal(result.requests.length,2);
- assert.equal(result.state[14],true);
- assert.match(result.state[8],/بدون استعلام/);
+ assert.equal(result.state[12],true);
+ assert.match(result.state[6],/بدون استعلام/);
 });
 
 test('a created but indeterminate correction keeps its structured receipt',async()=>{
  const result=await send({sendStatus:409,sendCode:'dispatch_requires_reconciliation',sendResult:{invoiceId:id,status:'Indeterminate',referenceNumber:null}});
- assert.equal(result.state[13]?.invoiceId,id);
- assert.equal(result.state[13]?.status,'Indeterminate');
- assert.equal(result.state[14],true);assert.equal(result.state[0],null);
+ assert.equal(result.state[11]?.invoiceId,id);
+ assert.equal(result.state[11]?.status,'Indeterminate');
+ assert.equal(result.state[12],true);assert.equal(result.state[0],null);
  assert.equal(result.requests.length,2);
- assert.doesNotMatch(result.state[8],new RegExp(id));
+ assert.doesNotMatch(result.state[6],new RegExp(id));
 });

@@ -34,6 +34,24 @@ test('opening and resuming a correction preserve the editable draft contract',as
  }
 });
 
+test('the remaining quantity is distinct from the saved editable correction quantity',async()=>{
+ const api=route(async()=>Response.json({code:'existing_draft',draft:{
+  ...draft,lines:[{...line,quantity:1}],remainingQuantities:[2]
+ }}));
+ const response=await api.POST(request('POST'),context);
+ assert.equal(response.status,200);
+ const data=await response.json();
+ assert.equal(data.draft.lines[0].quantity,1);
+ assert.deepEqual(data.draft.remainingQuantities,[2]);
+});
+
+test('malformed remaining quantities are rejected before reaching the editor',async()=>{
+ for(const remainingQuantities of [[-1],[],['2']]){
+  const api=route(async()=>Response.json({code:'existing_draft',draft:{...draft,remainingQuantities}}));
+  assert.equal((await api.POST(request('POST'),context)).status,502);
+ }
+});
+
 test('saving forwards editable values and revision, while discard uses DELETE',async()=>{
  const calls=[];
  const api=route(async(url,options)=>{calls.push(options);return Response.json({code:'draft_saved',draft});});

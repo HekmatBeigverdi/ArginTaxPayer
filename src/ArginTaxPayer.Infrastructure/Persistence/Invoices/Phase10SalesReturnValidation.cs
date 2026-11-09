@@ -26,7 +26,7 @@ public static class Phase10SalesReturnValidation
             var next = selected[i];
             var used = alreadyReturned[i];
             if (old.Quantity <= 0 || used < 0 || used > old.Quantity ||
-                next.Quantity < 0 || next.Quantity > old.Quantity - used ||
+                next.Quantity < 0 || next.Quantity > old.Quantity - used - 1m ||
                 next.CatalogItemId != old.CatalogItemId ||
                 next.UnitId != old.UnitId ||
                 next.OfficialIdentifierSnapshot != old.OfficialIdentifierSnapshot ||

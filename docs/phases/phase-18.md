@@ -93,13 +93,13 @@ AUTOSSH_GATETIME=0 autossh -M 0 -N \
   -o ServerAliveCountMax=3 \
   -o ConnectTimeout=10 \
   -o ExitOnForwardFailure=yes \
-  -L 127.0.0.1:15432:127.0.0.1:5432 \
-  argindev@85.133.244.156
+  -L 127.0.0.1:15432:127.0.0.1:15432 \
+  argindev@109.70.78.95
 ```
 
 Ubuntu shell:
 ```bash
-ssh argindev@85.133.244.156
+ssh argindev@109.70.78.95
 cd ~/projects/ArginTaxPayer
 git fetch origin
 git status --short
@@ -343,7 +343,7 @@ Other Step 03 owner-confirmed results: privileged `sudo /usr/sbin/sshd -t` exit 
 
 ## 10. Step 03 final signoff / Step 04 initiation (2026-11-04)
 
-**Owner acceptance:** The owner explicitly confirmed successful second independent interactive **AutoSSH** connection to `argindev@85.133.244.156` and instructed finalizing Step 03. Step 03 is **ACCEPTED as Ubuntu pre-deployment readiness** at reported audit SHA `26e1a1d11ab7831dc8a08506b99288fba7999514`, with final PASS for `sudo /usr/sbin/sshd -t`, owner-confirmed completed provider snapshot, Ubuntu preflight results, loopback-only docker-proxy PostgreSQL `127.0.0.1:5432`, and independent AutoSSH login. This does NOT establish tested full disaster recovery, an internet-side port scan, or production application readiness. Carry these as mandatory Step 04/07/11/12 release gates; no risk is silently waived. Ports 8080 and 8081 belong to another application and must remain unchanged. Owner prefers AutoSSH for every future interactive VPS command, not plain SSH.
+**Owner acceptance:** The owner explicitly confirmed successful second independent interactive **AutoSSH** connection to `argindev@109.70.78.95` and instructed finalizing Step 03. Step 03 is **ACCEPTED as Ubuntu pre-deployment readiness** at reported audit SHA `26e1a1d11ab7831dc8a08506b99288fba7999514`, with final PASS for `sudo /usr/sbin/sshd -t`, owner-confirmed completed provider snapshot, Ubuntu preflight results, loopback-only docker-proxy PostgreSQL `127.0.0.1:5432`, and independent AutoSSH login. This does NOT establish tested full disaster recovery, an internet-side port scan, or production application readiness. Carry these as mandatory Step 04/07/11/12 release gates; no risk is silently waived. Ports 8080 and 8081 belong to another application and must remain unchanged. Owner prefers AutoSSH for every future interactive VPS command, not plain SSH.
 
 ### Step 04 — DNS and HTTPS rollout plan (STARTED; not yet deployed)
 
@@ -376,7 +376,7 @@ Owner-provided `dns.log` reports apex authoritative NS: `omid.shetabanhost.com`,
 
 Owner already executed `sudo ufw allow 80/tcp` and `sudo ufw allow 443/tcp`; UFW reported rules added for IPv4 and IPv6. SSH 22 and unrelated 8080/8081 must remain unchanged. This confirms rules were inserted, **not** that external reachability, Nginx installation, active listeners or provider-level firewall access have been tested. Avoid claiming HTTPS is available.
 
-Next operator actions: confirm VPS public IPv4 from the provider and compare with its observed management SSH target (historically `85.133.244.156`), then create only the `tax` A record with TTL 300 at the authoritative DNS zone, leaving apex, NS, mail and unrelated records untouched. No AAAA unless IPv6 is intentionally configured. Validate authoritative response via `dig @omid.shetabanhost.com tax.argin.ir A +short` and public resolvers; note DNS propagation. Install and verify Nginx + Certbot if not yet installed, ensuring Nginx default site has no conflicting effect on other software. Stage a dedicated `server_name tax.argin.ir` maintenance-only vhost before ACME; issue cert only when domain resolves to confirmed VPS IP and port 80 responds from public internet; test TLS and renewal. Do not start development-mode API publicly or submit any tax invoice in Step 04.
+Next operator actions: confirm VPS public IPv4 from the provider and compare with its observed management SSH target (historically `109.70.78.95`), then create only the `tax` A record with TTL 300 at the authoritative DNS zone, leaving apex, NS, mail and unrelated records untouched. No AAAA unless IPv6 is intentionally configured. Validate authoritative response via `dig @omid.shetabanhost.com tax.argin.ir A +short` and public resolvers; note DNS propagation. Install and verify Nginx + Certbot if not yet installed, ensuring Nginx default site has no conflicting effect on other software. Stage a dedicated `server_name tax.argin.ir` maintenance-only vhost before ACME; issue cert only when domain resolves to confirmed VPS IP and port 80 responds from public internet; test TLS and renewal. Do not start development-mode API publicly or submit any tax invoice in Step 04.
 
 ### Step 04 — DNS A registration owner confirmation (2026-11-04)
 
@@ -412,7 +412,7 @@ AUTOSSH_GATETIME=0 autossh -M 0 \
   -o ServerAliveInterval=15 \
   -o ServerAliveCountMax=3 \
   -o ConnectTimeout=10 \
-  argindev@85.133.244.156
+  argindev@109.70.78.95
 ```
 
 Then on Ubuntu:

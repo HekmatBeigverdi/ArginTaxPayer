@@ -80,7 +80,7 @@ Keep a dedicated terminal on macOS running the SSH tunnel:
 
 ```bash
 ssh -N -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 \
-  -L 127.0.0.1:15432:127.0.0.1:5432 \
+  -L 127.0.0.1:15432:127.0.0.1:15432 \
   -L 127.0.0.1:18081:127.0.0.1:8081 \
   argindev@YOUR_VPS_IP
 ```

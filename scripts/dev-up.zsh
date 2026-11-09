@@ -85,7 +85,7 @@ if ! lsof -nP -iTCP:15432 -sTCP:LISTEN >/dev/null 2>&1; then
   AUTOSSH_GATETIME=0 nohup autossh -M 0 -N \
     -o BatchMode=yes -o ServerAliveInterval=15 -o ServerAliveCountMax=3 \
     -o ConnectTimeout=10 -o ExitOnForwardFailure=yes \
-    -L 127.0.0.1:15432:127.0.0.1:5432 argindev@85.133.244.156 \
+    -L 127.0.0.1:15432:127.0.0.1:15432 argindev@109.70.78.95 \
     > "$STATE/autossh.log" 2>&1 < /dev/null &
   echo $! > "$STATE/autossh.pid"
   started_pids+=("$!")
@@ -104,15 +104,14 @@ if (( ! tunnel_ready )); then
   exit 1
 fi
 
-# Optional, separately managed Adminer forward. Independent of PostgreSQL tunnel.
-# Failures do not disable the API or database. The VPS Adminer service must
-# already be available at 127.0.0.1:8081; no public VPS port is opened here.
+# Optional Adminer forward. Adminer runs in Docker on the VPS and is published
+# only on VPS loopback port 18082. This avoids unrelated services on 8080/8081.
 if ! lsof -nP -iTCP:18081 -sTCP:LISTEN >/dev/null 2>&1; then
   print 'Starting AutoSSH Adminer tunnel...'
   AUTOSSH_GATETIME=0 nohup autossh -M 0 -N \
     -o BatchMode=yes -o ServerAliveInterval=15 -o ServerAliveCountMax=3 \
     -o ConnectTimeout=10 -o ExitOnForwardFailure=yes \
-    -L 127.0.0.1:18081:127.0.0.1:8081 argindev@85.133.244.156 \
+    -L 127.0.0.1:18081:127.0.0.1:18082 argindev@109.70.78.95 \
     > "$STATE/adminer.log" 2>&1 < /dev/null &
   adminer_pid="$!"
   started_pids+=("$adminer_pid")
@@ -121,8 +120,16 @@ if ! lsof -nP -iTCP:18081 -sTCP:LISTEN >/dev/null 2>&1; then
 else
   print 'Port 18081 already in use; not starting or taking ownership of an Adminer tunnel.'
 fi
-if lsof -nP -iTCP:18081 -sTCP:LISTEN >/dev/null 2>&1; then
-  print 'Adminer forward: http://127.0.0.1:18081 (requires VPS Adminer service)'
+adminer_ready=0
+for i in {1..20}; do
+  if curl --noproxy '*' -fsS --max-time 2 http://127.0.0.1:18081/ 2>/dev/null | grep -qi 'Adminer'; then
+    adminer_ready=1
+    break
+  fi
+  sleep 1
+done
+if (( adminer_ready )); then
+  print 'Adminer ready: http://127.0.0.1:18081'
 else
   print 'Adminer forward unavailable; inspect ~/.argintaxpayer-test/adminer.log'
 fi

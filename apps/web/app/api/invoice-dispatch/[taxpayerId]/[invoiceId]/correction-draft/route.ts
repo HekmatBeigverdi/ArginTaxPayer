@@ -141,10 +141,14 @@ function readDraft(value: unknown, predecessorId: string) {
       officialIdentifierSnapshot: line.officialIdentifierSnapshot,
     });
   }
+  const remainingQuantities = value.remainingQuantities ?? lines.map(line => line.quantity);
+  if (!Array.isArray(remainingQuantities) || remainingQuantities.length !== lines.length
+    || remainingQuantities.some(quantity => !isNumber(quantity) || quantity < 0)) return null;
   return {
     workspaceId: value.workspaceId, predecessorInvoiceId: value.predecessorInvoiceId,
     revision: value.revision, lines, settlementMethod: value.settlementMethod,
     cashAmountRial: value.cashAmountRial, creditAmountRial: value.creditAmountRial,
+    remainingQuantities,
   };
 }
 

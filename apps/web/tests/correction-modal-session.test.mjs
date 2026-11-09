@@ -18,7 +18,7 @@ function findSaveButton(element){
 for(const canRefresh of [true,false]){
  test(`draft save ${canRefresh?'recovers the expired session':'keeps edits when session recovery fails'}`,{timeout:3000},async()=>{
   const edits=[{quantity:2,unitPriceRial:150,discountPerUnitRial:0}];
-  const state=[draft,edits,1,220,0,false,'',false,'','', 'items'];
+  const state=[draft,edits,1,220,0,false,'','', 'items'];
   const requests=[];let index=0;let finish;
   const saved=new Promise(resolve=>{finish=resolve;});
   const component=loadTsx(new URL('../app/invoices/invoice-correction-modal.tsx',import.meta.url),{
@@ -31,7 +31,7 @@ for(const canRefresh of [true,false]){
    modules:{react:{...React,useCallback:fn=>fn,useEffect:()=>{},useState(initial){
     const slot=index++;return [state[slot]??initial,value=>{
      state[slot]=typeof value==='function'?value(state[slot]):value;
-     if(slot===7&&value===false)finish();
+     if(slot===5&&value===false)finish();
     }];
    }}}
   });
@@ -39,14 +39,14 @@ for(const canRefresh of [true,false]){
   const button=findSaveButton(view);assert.ok(button);button.props.onClick();await saved;
   assert.equal(requests[0].options.method,'PUT');
   assert.equal(JSON.parse(requests[0].options.body).lines[0].unitPriceRial,150);
-  assert.equal(state[7],false);
+  assert.equal(state[5],false);
   if(canRefresh){
    assert.equal(requests.length,3);assert.equal(state[0].revision,2);
-   assert.match(state[9],/ذخیره شد/);assert.equal(state[8],'');
+   assert.match(state[7],/ذخیره شد/);assert.equal(state[6],'');
   }else{
    assert.equal(requests.length,2);assert.equal(state[0],draft);assert.equal(state[1],edits);
-   assert.match(state[8],/تغییرات فرم حفظ شده‌اند/);
-   assert.doesNotMatch(state[8],/unauthorized/);
+   assert.match(state[6],/تغییرات فرم حفظ شده‌اند/);
+   assert.doesNotMatch(state[6],/unauthorized/);
   }
  });
 }

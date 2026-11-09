@@ -57,8 +57,8 @@ const labels:Record<string,string>={
  "invoice.transport.disabled":"ارسال واقعی در Backend غیرفعال است",
  "invoice.owner_live_send_approval.required":"مجوز جداگانه ارسال واقعی دریافت نشده است"
 };
-export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorkspace,hideHistory=false,onCompleted}:
- {invoiceId:string;taxpayerId:string;isWorkspace:boolean;hideHistory?:boolean;onCompleted?:()=>void}){
+export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorkspace,hideHistory=false,onCompleted,allowRejectedDraft=true}:
+ {invoiceId:string;taxpayerId:string;isWorkspace:boolean;hideHistory?:boolean;onCompleted?:()=>void;allowRejectedDraft?:boolean}){
  const [report,setReport]=useState<Report|null>(null);
  const [busy,setBusy]=useState(false);
  const [error,setError]=useState("");
@@ -81,7 +81,7 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
  const authorityScope=taxpayerId+"/"+invoiceId;
  const authorityResult=authority?.scope===authorityScope?authority.result:null;
  const verifiedEnvironment=report?.environment==="Production"||report?.environment==="Sandbox";
- const canPrepareRejectedDraft=authorityResult?.status==="FAILED"&&
+ const canPrepareRejectedDraft=allowRejectedDraft&&authorityResult?.status==="FAILED"&&
   (authorityResult.canPrepareCorrection||
    (report?.environment==="Production"&&authorityResult.errors.length>0));
  const environmentLabel=report?.environment==="Production"?"Production (اصلی)":report?.environment==="Sandbox"?"Sandbox (آزمایشی)":"محیط تأیید نشده";

@@ -95,8 +95,8 @@ AUTOSSH_GATETIME=0 autossh -M 0 -N \
   -o ServerAliveCountMax=3 \
   -o ConnectTimeout=10 \
   -o ExitOnForwardFailure=yes \
-  -L 127.0.0.1:15432:127.0.0.1:5432 \
-  argindev@85.133.244.156
+  -L 127.0.0.1:15432:127.0.0.1:15432 \
+  argindev@109.70.78.95
 ```
 
 The tunnel is only transport. All migrations and database tests must independently check `current_database() = 'argintaxpayer_test'` before execution. Ordinary `ssh` for opening the Ubuntu remote shell remains unaffected. This convention applies to all future phase master plans and operator checklists.
@@ -135,7 +135,7 @@ The project-root untracked `.env.dev.local` (copy from `.env.dev.local.example`,
 ## Owner-Approved Phase Test Cadence and Short Commands (2026-10-13)
 
 **Persistent owner workflow (all future phases and chat sessions):**
-- **Every implementation step:** run focused .NET/unit/frontend regression tests and use the Mac UI test environment only when relevant. For interactive local testing run `zsh scripts/dev-up.zsh`; check `zsh scripts/dev-status.zsh`; stop with `zsh scripts/dev-down.zsh`. The Mac environment accesses **only** the dedicated `argintaxpayer_test` database on the Ubuntu VPS via the documented persistent AutoSSH `127.0.0.1:15432 -> VPS:5432` tunnel. These are the standard commands to supply to the owner; do not repeat multi-terminal environment variables or SSH instructions at each step unless troubleshooting.
+- **Every implementation step:** run focused .NET/unit/frontend regression tests and use the Mac UI test environment only when relevant. For interactive local testing run `zsh scripts/dev-up.zsh`; check `zsh scripts/dev-status.zsh`; stop with `zsh scripts/dev-down.zsh`. The Mac environment accesses **only** the dedicated `argintaxpayer_test` database on the Ubuntu VPS via AutoSSH `127.0.0.1:15432 -> VPS:15432`. Adminer is available at `http://127.0.0.1:18081` through a separate SSH tunnel to VPS loopback `18082`; ports 8080/8081 remain untouched. These are the standard commands to supply to the owner; do not repeat multi-terminal environment variables or SSH instructions at each step unless troubleshooting.
 - **Final verification once per completed phase, BEFORE phase signoff/document completion:** perform a clean Ubuntu `bash scripts/ubuntu-dev.sh verify` against the same dedicated VPS **test** database. Then `bash scripts/ubuntu-dev.sh up`, manually verify the phase's UI/API/security matrix through private SSH port-forwarding from Mac, and `bash scripts/ubuntu-dev.sh down` afterward. All Ubuntu Development ports bind loopback; never open these endpoints publicly. `verify` forces real SMS sending off. Separate explicitly authorized single-recipient Ghasedak tests must be planned independently.
 - **Exceptions requiring Ubuntu verification sooner than phase end:** changes to Ubuntu system configuration, networking/AutoSSH/PostgreSQL connectivity, EF migrations or database schemas that might behave differently, deployment/runtime configuration, cross-platform dependencies, or a failure that cannot be reproduced on macOS. Security-critical functionality must still receive focused automated tests in **each step**, not deferred until phase completion.
 - **Signoff stages:** Step implementation + focused tests → Mac functional test as needed → accumulated phase regression on macOS → one Ubuntu phase acceptance run → record evidence in the phase's single canonical `docs/phases/phase-XX.md` file → owner approval → phase close. No main merge, immutable tag, GitHub Release or production deployment without the separately established gates.

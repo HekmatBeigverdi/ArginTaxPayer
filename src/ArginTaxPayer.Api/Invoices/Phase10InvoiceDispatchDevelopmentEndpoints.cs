@@ -276,6 +276,22 @@ public static class Phase10InvoiceDispatchDevelopmentEndpoints
             };
         });
 
+        group.MapPost("/abandon-failed-successor", async (Guid taxpayerId, Guid invoiceId,
+            HttpContext http, FailedLegalSuccessorAbandonService service, CancellationToken ct) =>
+        {
+            if (!Local(http)) return Results.NotFound();
+            http.Response.Headers.CacheControl = "no-store";
+            var outcome = await service.AbandonAsync(Token(http), taxpayerId, invoiceId, ct);
+            return outcome.Decision switch {
+                InvoiceApiDecision.Success => Results.Ok(new { restored=true }),
+                InvoiceApiDecision.Unauthenticated => Results.Unauthorized(),
+                InvoiceApiDecision.Forbidden => Results.StatusCode(403),
+                InvoiceApiDecision.NotFound => Results.NotFound(),
+                InvoiceApiDecision.Conflict => Results.Conflict(new { error=outcome.SafeCode }),
+                _ => Results.BadRequest(new { error=outcome.SafeCode })
+            };
+        });
+
         group.MapPost("/inquiry-by-reference", async (Guid taxpayerId, Guid invoiceId,
             HttpContext http, Phase18InvoiceInquiryService inquiry, CancellationToken ct) =>
         {

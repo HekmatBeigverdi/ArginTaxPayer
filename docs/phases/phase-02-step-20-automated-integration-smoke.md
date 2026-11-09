@@ -80,7 +80,7 @@ Check the command exit status immediately after running with `echo $?`. Success 
 From macOS first connect over SSH:
 
 ```bash
-ssh argindev@85.133.244.156
+ssh argindev@109.70.78.95
 ```
 
 Inside Ubuntu (important: the VPS previously had staged/unstaged changes):

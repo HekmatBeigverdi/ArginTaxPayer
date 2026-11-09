@@ -5,7 +5,7 @@
 ## Standard order
 
 1. From macOS repository root: `git status --short`, `git fetch origin --prune`, `git switch phase/10-invoice-submission`, `git pull --ff-only origin phase/10-invoice-submission`.
-2. Launch **existing project helper**: `zsh scripts/dev-status.zsh`; if stopped run **`zsh scripts/dev-up.zsh`**, then `zsh scripts/dev-status.zsh`. `dev-up.zsh` loads gitignored `.env.dev.local`, starts AutoSSH `127.0.0.1:15432`, API and Next.js, and preflights `argintaxpayer_test`; do not suggest a second manual AutoSSH tunnel. If API/Web already running, do not restart needlessly.
+2. Launch **existing project helper**: `zsh scripts/dev-status.zsh`; if stopped run **`zsh scripts/dev-up.zsh`**, then `zsh scripts/dev-status.zsh`. `dev-up.zsh` loads gitignored `.env.dev.local`, starts AutoSSH `127.0.0.1:15432` to VPS `127.0.0.1:15432`, starts API and Next.js, and preflights `argintaxpayer_test`; do not suggest a second manual AutoSSH tunnel. Adminer is at `http://127.0.0.1:18081` through the separate tunnel to VPS loopback `18082`. The SSH key must be authorized for `argindev` because AutoSSH runs in batch mode. If API/Web are already running, do not restart needlessly.
 3. **The launcher's exported environment does not propagate to the invoking shell.** For subsequent `dotnet ef` or `psql` in that terminal run:
    ```zsh
    set -a

@@ -41,7 +41,7 @@ In one macOS terminal, keep the tunnel open:
 
 ```bash
 ssh -N -o ExitOnForwardFailure=yes \
-  -L 127.0.0.1:15432:127.0.0.1:5432 \
+  -L 127.0.0.1:15432:127.0.0.1:15432 \
   argindev@YOUR_VPS_IP
 ```
 

@@ -98,7 +98,7 @@ Do not run this against unrelated services bound to the same test ports.
 Prerequisites: the same SDK, Node.js 22/npm >=10, Git, package sources and free loopback ports. No sudo, publicly opened frontend port or DB secrets needed for the offline smoke. Prior Ubuntu working-tree modifications must be inspected before pull.
 
 ```bash
-ssh argindev@85.133.244.156
+ssh argindev@109.70.78.95
 cd ~/projects/ArginTaxPayer
 git status --short
 git diff --stat

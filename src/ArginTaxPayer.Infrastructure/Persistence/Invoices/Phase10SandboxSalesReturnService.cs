@@ -91,7 +91,7 @@ public sealed class Phase10SandboxSalesReturnService(
         {
             return new(InvoiceApiDecision.NotFound, "not_found");
         }
-        if (original.State != InvoiceLifecycleState.Finalized || original.Subject != InvoiceSubject.Original)
+        if (!Phase18ProductionSalesReturnService.CanBeSalesReturnPredecessor(original.Subject, original.State))
         {
             return new(InvoiceApiDecision.Conflict, "invalid_predecessor");
         }
@@ -133,8 +133,10 @@ public sealed class Phase10SandboxSalesReturnService(
         snapshot["referenceTaxId"] = referenceTaxId;
         snapshot["predecessorInvoiceId"] = predecessorId.ToString("D");
         snapshot["legalSubject"] = 4;
-        var invoiceLines = JsonSerializer.Deserialize<InvoiceEntryLine[]>(snapshot["lines"]!.ToJsonString()) ?? [];
-        snapshot["originalQuantities"] = JsonSerializer.SerializeToNode(invoiceLines.Select(x => x.Quantity).ToArray());
+        var returnBasis = await InvoiceLegalQuantityAdjustments.ReadSalesReturnBasisAsync(
+            db, owner.Value, taxpayerId, predecessorId, production: false, ct);
+        var availableLines = returnBasis.AvailableLines(reserveOne: true);
+        snapshot["originalQuantities"] = JsonSerializer.SerializeToNode(availableLines.Select(x => x.Quantity).ToArray());
         snapshot["otherTaxAndLegalFeesRial"] = 0;
         if (snapshot["lines"] is JsonArray zeroLines)
             foreach (var line in zeroLines) if (line is JsonObject item)
@@ -214,11 +216,9 @@ public sealed class Phase10SandboxSalesReturnService(
             return new(InvoiceApiDecision.Conflict, "stale_revision");
         }
 
-        var source = await db.InvoiceDocuments.AsNoTracking().FirstAsync(x =>
-            x.Id == predecessorId && x.TaxpayerId == taxpayerId && x.CustomerUserId == owner.Value, ct);
-        using var originalDoc = JsonDocument.Parse(source.SnapshotJson);
-        var baseline = JsonSerializer.Deserialize<InvoiceEntryLine[]>(
-            originalDoc.RootElement.GetProperty("lines").GetRawText()) ?? [];
+        var returnBasis = await InvoiceLegalQuantityAdjustments.ReadSalesReturnBasisAsync(
+            db, owner.Value, taxpayerId, predecessorId, production: false, ct);
+        var baseline = returnBasis.Lines;
         if (false && input.ReductionCorrectsOriginalMistake &&
             (string.IsNullOrWhiteSpace(input.ReductionEvidenceReference) || input.ReductionEvidenceReference.Length > 256))
         {
@@ -234,7 +234,7 @@ public sealed class Phase10SandboxSalesReturnService(
             }
             : line).ToArray();
         if (input.Lines.Length != baseline.Length ||
-            !Phase10SalesReturnValidation.AllowedLines(baseline, edited, new decimal[baseline.Length]))
+            !Phase10SalesReturnValidation.AllowedLines(baseline, edited, returnBasis.AlreadyReturned))
         {
             return new(InvoiceApiDecision.Invalid, "illegal_return_fields");
         }
@@ -363,36 +363,23 @@ public sealed class Phase10SandboxSalesReturnService(
 
         var original = await db.InvoiceDocuments.AsNoTracking().FirstAsync(x =>
             x.Id == predecessorId && x.TaxpayerId == taxpayerId && x.CustomerUserId == owner.Value, ct);
-        if (original.Subject != InvoiceSubject.Original || original.State != InvoiceLifecycleState.Finalized)
+        if (!Phase18ProductionSalesReturnService.CanBeSalesReturnPredecessor(original.Subject, original.State))
             return new(InvoiceApiDecision.Conflict, "invalid_predecessor");
         var root = JsonNode.Parse(savedDraft.Json)!.AsObject();
-        using var origDoc = JsonDocument.Parse(original.SnapshotJson);
-        var originalLines = JsonSerializer.Deserialize<InvoiceEntryLine[]>(
-            origDoc.RootElement.GetProperty("lines").GetRawText()) ?? [];
         var changedLines = JsonSerializer.Deserialize<InvoiceEntryLine[]>(
             root["lines"]!.ToJsonString()) ?? [];
-        var reductionCorrectsOriginalMistake = (bool?)root["reductionCorrectsOriginalMistake"] ?? false;
-        if (!Phase10SalesReturnValidation.AllowedLines(originalLines, changedLines, new decimal[originalLines.Length]))
+        var returnBasis = await InvoiceLegalQuantityAdjustments.ReadSalesReturnBasisAsync(
+            db, owner.Value, taxpayerId, predecessorId, production: false, ct);
+        if (!Phase10SalesReturnValidation.AllowedLines(returnBasis.Lines, changedLines, returnBasis.AlreadyReturned))
         {
             return new(InvoiceApiDecision.Invalid, "invalid_return_lines");
         }
 
-        var linesChanged = originalLines.Zip(changedLines).Any(pair =>
-            pair.First.Quantity != pair.Second.Quantity ||
-            pair.First.UnitPriceRial != pair.Second.UnitPriceRial ||
-            pair.First.DiscountPerUnitRial != pair.Second.DiscountPerUnitRial);
-        if (!linesChanged &&
-            origDoc.RootElement.GetProperty("settlementMethod").GetInt32() == (int?)root["settlementMethod"] &&
-            origDoc.RootElement.GetProperty("cashAmountRial").GetDecimal() == (decimal?)root["cashAmountRial"] &&
-            origDoc.RootElement.GetProperty("creditAmountRial").GetDecimal() == (decimal?)root["creditAmountRial"])
+        if (!changedLines.Any(line => line.Quantity > 0))
         {
             return new(InvoiceApiDecision.Invalid, "no_return_quantity");
         }
 
-        if (false && reductionCorrectsOriginalMistake && string.IsNullOrWhiteSpace((string?)root["reductionEvidenceReference"]))
-        {
-            return new(InvoiceApiDecision.Invalid, "original_mistake_evidence_required");
-        }
         if (config["SandboxInvoiceLegacy:Enabled"] != "true" ||
             config["SandboxInvoiceLegacy:OperatorApprovedEndpoint"] != "true")
         {
@@ -449,7 +436,7 @@ public sealed class Phase10SandboxSalesReturnService(
         };
         var write = new SalesReturnSuccessorWrite(
             savedDraft.Id, savedDraft.Revision, predecessorId,
-            successor, successorRevision, successorReview, (string?)root["referenceTaxId"] ?? "", originalLines);
+            successor, successorRevision, successorReview, (string?)root["referenceTaxId"] ?? "", returnBasis.Lines);
         var persistenceResult = await PersistSuccessorAsync(write, ct);
         if (persistenceResult is not null)
         {
@@ -507,26 +494,9 @@ public sealed class Phase10SandboxSalesReturnService(
                 using var returnDocument = JsonDocument.Parse(write.Invoice.SnapshotJson);
                 var returnLines = JsonSerializer.Deserialize<InvoiceEntryLine[]>(
                     returnDocument.RootElement.GetProperty("lines").GetRawText()) ?? [];
-                var used = new decimal[write.PredecessorLines.Length];
-                for (var i = 0; i < used.Length; i++)
-                {
-                    var index = i + 1;
-                    used[i] = await db.Database.SqlQueryRaw<decimal>($"""
-                        SELECT COALESCE(SUM((COALESCE(items.value->>'Quantity',items.value->>'quantity'))::numeric),0) AS "Value"
-                        FROM sandbox_invoice_legal_relations rel
-                        JOIN invoice_documents successor
-                          ON successor.id=rel.successor_invoice_id
-                         AND successor.taxpayer_id=rel.taxpayer_id
-                         AND successor.customer_user_id=rel.customer_user_id
-                        CROSS JOIN LATERAL jsonb_array_elements(successor.snapshot_json::jsonb->'lines')
-                          WITH ORDINALITY AS items(value,position)
-                        WHERE rel.customer_user_id='{owner}' AND rel.taxpayer_id='{taxpayerId}'
-                          AND rel.predecessor_invoice_id='{write.PredecessorInvoiceId}'
-                          AND rel.subject=4 AND rel.state IN (1,2,4)
-                          AND items.position={index}
-                        """).SingleAsync(ct);
-                }
-                if (!Phase10SalesReturnValidation.AllowedLines(write.PredecessorLines,returnLines,used))
+                var returnBasis = await InvoiceLegalQuantityAdjustments.ReadSalesReturnBasisAsync(
+                    db, owner, taxpayerId, write.PredecessorInvoiceId, production: false, ct);
+                if (!Phase10SalesReturnValidation.AllowedLines(returnBasis.Lines,returnLines,returnBasis.AlreadyReturned))
                     return new(InvoiceApiDecision.Conflict,"return_quantity_exceeded");
                 var updated = await db.Database.ExecuteSqlInterpolatedAsync($"""
                     UPDATE sandbox_invoice_sales_return_workspaces SET state=2,updated_at_utc={now}

@@ -32,7 +32,8 @@ public sealed record CorrectionDraftView(
     InvoiceEntryLine[] Lines,
     int SettlementMethod,
     decimal CashAmountRial,
-    decimal CreditAmountRial);
+    decimal CreditAmountRial,
+    decimal[]? RemainingQuantities = null);
 
 public sealed record CorrectionOperationResult(
     InvoiceApiDecision Decision,
@@ -77,10 +78,12 @@ public sealed class Phase10SandboxCorrectionService(
         var current = await FindActiveDraftAsync(owner.Value, taxpayerId, predecessorId, ct);
         if (current is { } existingDraft)
         {
+            var existingWithBaseline = await InvoiceLegalQuantityAdjustments.CorrectionDraftWithBaselineAsync(
+                db, owner.Value, taxpayerId, predecessorId, existingDraft.Json, production: false, ct);
             return new(
                 InvoiceApiDecision.Success,
                 "existing_draft",
-                CreateDraftView(existingDraft.Id, predecessorId, existingDraft.Revision, existingDraft.Json));
+                CreateDraftView(existingDraft.Id, predecessorId, existingDraft.Revision, existingWithBaseline));
         }
 
         var original = await db.InvoiceDocuments.AsNoTracking().FirstOrDefaultAsync(x =>
@@ -112,7 +115,7 @@ public sealed class Phase10SandboxCorrectionService(
         if (await db.Database.SqlQueryRaw<int>($"""
             SELECT 1 AS "Value" FROM sandbox_invoice_legal_relations
             WHERE customer_user_id='{owner.Value}' AND taxpayer_id='{taxpayerId}'
-             AND predecessor_invoice_id='{predecessorId}' AND subject IN (2,4)
+             AND predecessor_invoice_id='{predecessorId}' AND subject=2
              AND state IN (1,2,4) LIMIT 1
             """).AnyAsync(ct))
         {
@@ -131,6 +134,11 @@ public sealed class Phase10SandboxCorrectionService(
         snapshot["referenceTaxId"] = referenceTaxId;
         snapshot["predecessorInvoiceId"] = predecessorId.ToString("D");
         snapshot["legalSubject"] = 2;
+        var correctionBasis = await InvoiceLegalQuantityAdjustments.ReadSalesReturnBasisAsync(
+            db, owner.Value, taxpayerId, predecessorId, production: false, ct);
+        var correctedBaseline = correctionBasis.AvailableLines(reserveOne: false);
+        snapshot["lines"] = JsonSerializer.SerializeToNode(correctedBaseline);
+        snapshot["correctionBaselineQuantities"] = JsonSerializer.SerializeToNode(correctedBaseline.Select(x => x.Quantity));
         var json = snapshot.ToJsonString();
         try
         {
@@ -177,10 +185,12 @@ public sealed class Phase10SandboxCorrectionService(
             return new(InvoiceApiDecision.NotFound, "draft_not_found");
         }
 
+        var savedWithBaseline = await InvoiceLegalQuantityAdjustments.CorrectionDraftWithBaselineAsync(
+            db, owner.Value, taxpayerId, predecessorId, savedDraft.Json, production: false, ct);
         return new(
             InvoiceApiDecision.Success,
             "draft_loaded",
-            CreateDraftView(savedDraft.Id, predecessorId, savedDraft.Revision, savedDraft.Json));
+            CreateDraftView(savedDraft.Id, predecessorId, savedDraft.Revision, savedWithBaseline));
     }
 
     public async Task<CorrectionOperationResult> SaveAsync(
@@ -211,8 +221,10 @@ public sealed class Phase10SandboxCorrectionService(
         using var originalDoc = JsonDocument.Parse(source.SnapshotJson);
         var baseline = JsonSerializer.Deserialize<InvoiceEntryLine[]>(
             originalDoc.RootElement.GetProperty("lines").GetRawText()) ?? [];
-        if (input.ReductionCorrectsOriginalMistake &&
-            (string.IsNullOrWhiteSpace(input.ReductionEvidenceReference) || input.ReductionEvidenceReference.Length > 256))
+        var correctionBasis = await InvoiceLegalQuantityAdjustments.ReadSalesReturnBasisAsync(
+            db, owner.Value, taxpayerId, predecessorId, production: false, ct);
+        baseline = correctionBasis.AvailableLines(reserveOne: false);
+        if (input.ReductionEvidenceReference is { Length: > 256 })
         {
             return new(InvoiceApiDecision.Invalid, "original_mistake_evidence_required");
         }
@@ -225,8 +237,10 @@ public sealed class Phase10SandboxCorrectionService(
                 DiscountPerUnitRial = input.Lines[index].DiscountPerUnitRial
             }
             : line).ToArray();
+        var quantityCorrection = Phase10CorrectionValidation.IsQuantityCorrection(
+            baseline, edited, input.ReductionCorrectsOriginalMistake);
         if (input.Lines.Length != baseline.Length ||
-            !Phase10CorrectionValidation.AllowedLines(baseline, edited, input.ReductionCorrectsOriginalMistake))
+            !Phase10CorrectionValidation.AllowedLines(baseline, edited, quantityCorrection))
         {
             return new(InvoiceApiDecision.Invalid, "illegal_correction_fields");
         }
@@ -277,14 +291,18 @@ public sealed class Phase10SandboxCorrectionService(
 
         var root = JsonNode.Parse(savedDraft.Json)!.AsObject();
         root["lines"] = JsonSerializer.SerializeToNode(edited);
+        root["correctionBaselineQuantities"] = JsonSerializer.SerializeToNode(baseline.Select(x => x.Quantity));
         root["settlementMethod"] = input.SettlementMethod;
         root["cashAmountRial"] = cashAmount;
         root["creditAmountRial"] = creditAmount;
         root["financialSummary"] = JsonSerializer.SerializeToNode(new InvoiceDraftFinancialSummary(
             financial.BeforeDiscountRial, financial.DiscountRial, financial.AfterDiscountRial,
             financial.VatRial ?? 0m, financial.GrandTotalRial ?? 0m));
-        root["reductionCorrectsOriginalMistake"] = input.ReductionCorrectsOriginalMistake;
-        root["reductionEvidenceReference"] = input.ReductionCorrectsOriginalMistake ? input.ReductionEvidenceReference : null;
+        root["reductionCorrectsOriginalMistake"] = quantityCorrection;
+        root["reductionEvidenceReference"] = quantityCorrection
+            ? string.IsNullOrWhiteSpace(input.ReductionEvidenceReference)
+                ? "correction-workspace:" + savedDraft.Id.ToString("D") : input.ReductionEvidenceReference
+            : null;
         var json = root.ToJsonString();
         var now = DateTime.UtcNow;
         var rows = await db.Database.ExecuteSqlInterpolatedAsync($"""
@@ -359,6 +377,10 @@ public sealed class Phase10SandboxCorrectionService(
         using var origDoc = JsonDocument.Parse(original.SnapshotJson);
         var originalLines = JsonSerializer.Deserialize<InvoiceEntryLine[]>(
             origDoc.RootElement.GetProperty("lines").GetRawText()) ?? [];
+        var issuedOriginalLines = originalLines;
+        var correctionBasis = await InvoiceLegalQuantityAdjustments.ReadSalesReturnBasisAsync(
+            db, owner.Value, taxpayerId, predecessorId, production: false, ct);
+        originalLines = correctionBasis.AvailableLines(reserveOne: false);
         var changedLines = JsonSerializer.Deserialize<InvoiceEntryLine[]>(
             root["lines"]!.ToJsonString()) ?? [];
         var reductionCorrectsOriginalMistake = (bool?)root["reductionCorrectsOriginalMistake"] ?? false;
@@ -367,7 +389,9 @@ public sealed class Phase10SandboxCorrectionService(
             return new(InvoiceApiDecision.Invalid, "invalid_correction_lines");
         }
 
-        var linesChanged = originalLines.Zip(changedLines).Any(pair =>
+        // A quantity reduced by an already issued sales return is itself a valid
+        // correction relative to the immutable invoice, even if it matches the adjusted baseline.
+        var linesChanged = issuedOriginalLines.Zip(changedLines).Any(pair =>
             pair.First.Quantity != pair.Second.Quantity ||
             pair.First.UnitPriceRial != pair.Second.UnitPriceRial ||
             pair.First.DiscountPerUnitRial != pair.Second.DiscountPerUnitRial);
@@ -600,6 +624,9 @@ public sealed class Phase10SandboxCorrectionService(
             lines,
             root.GetProperty("settlementMethod").GetInt32(),
             root.GetProperty("cashAmountRial").GetDecimal(),
-            root.GetProperty("creditAmountRial").GetDecimal());
+            root.GetProperty("creditAmountRial").GetDecimal(),
+            root.TryGetProperty("correctionBaselineQuantities", out var baselineQuantities)
+                ? JsonSerializer.Deserialize<decimal[]>(baselineQuantities.GetRawText())
+                : lines.Select(x => x.Quantity).ToArray());
     }
 }
