@@ -49,7 +49,7 @@ jobs:
       - name: Build versioned API/Web
         run: |
           product_version="$(node -p "require('./apps/web/package.json').version")"
-          release_version="${product_version}+ci.${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}.${GITHUB_SHA:0:8}"
+          release_version="${product_version} (Build ${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT})"
           echo "ARGIN_RELEASE_VERSION=$release_version" >> "$GITHUB_ENV"
           dotnet publish src/ArginTaxPayer.Api/ArginTaxPayer.Api.csproj -c Release --no-restore -o "$RUNNER_TEMP/api"
           npm --prefix apps/web ci --no-audit --no-fund
@@ -69,7 +69,7 @@ jobs:
           fi
           (cd bundle/stage && tar -czf ../api.tar.gz api && tar -czf ../web.tar.gz web)
           (cd bundle && sha256sum api.tar.gz web.tar.gz > SHA256SUMS)
-          printf 'sha=%s\n' "$GITHUB_SHA" > bundle/build-info.txt
+          printf 'version=%s\nsha=%s\n' "$release_version" "$GITHUB_SHA" > bundle/build-info.txt
           cp scripts/phase18-release-stage.sh scripts/phase18-release-promote.sh scripts/phase18-step06-local-health.sh bundle/scripts/
           rm -rf bundle/stage
       - uses: actions/upload-artifact@v4
