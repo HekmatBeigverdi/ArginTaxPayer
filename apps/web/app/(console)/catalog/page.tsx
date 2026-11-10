@@ -12,6 +12,7 @@ export default async function CatalogPage() {
         <p>تعاریف اختصاصی مشتری، واحدها و نگاشت شناسه مالیاتی</p>
       </div>
     </div>
-    <CatalogWorkspace actorId={actor.userId} />
+    <CatalogWorkspace actorId={actor.userId}
+      isAdmin={actor.roles.includes("Level1") || actor.roles.includes("Level2")} />
   </div>;
 }

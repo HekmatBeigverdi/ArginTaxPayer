@@ -1,3 +1,4 @@
+using System.Data;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
@@ -59,6 +60,42 @@ public sealed class IdentityMfaService(ArginTaxPayerDbContext db, IdentityMfaCry
         await db.SaveChangesAsync(ct);
         // The URI/secret is available only during enrollment and must not be logged.
         return new MfaEnrollment(secret, IdentityTotp.Uri(user.NormalizedEmail ?? user.NormalizedMobile ?? user.Id.ToString("N"), secret));
+    }
+
+    /// <summary>Re-display an enabled TOTP factor only after a fresh, unused TOTP proof.</summary>
+    public async Task<MfaEnrollment?> RevealEnabledSecretForSessionAsync(
+        string? bearer, string? totpCode, CancellationToken ct = default)
+    {
+        var userId = await sessions.AuthenticateAsync(bearer, ct);
+        if (userId is null) return null;
+        return await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+        {
+            await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+            await db.Database.ExecuteSqlInterpolatedAsync(
+                $"SELECT id FROM identity_users WHERE id = {userId.Value} FOR UPDATE", ct);
+            if (await sessions.AuthenticateAsync(bearer, ct) != userId ||
+                !await db.IdentityUsers.AsNoTracking().AnyAsync(u => u.Id == userId.Value && u.IsActive &&
+                    u.Roles.Any(r => r.Role == IdentityRoleNames.Level1 || r.Role == IdentityRoleNames.Level2), ct))
+                return null;
+
+            var state = await db.IdentityMfaStates.AsNoTracking()
+                .SingleOrDefaultAsync(x => x.UserId == userId.Value && x.EnabledAtUtc != null, ct);
+            if (state is null) return null;
+            var secret = crypto.Decrypt(state.EncryptedSecret);
+            var step = IdentityTotp.MatchStep(secret, totpCode, DateTime.UtcNow, state.LastAcceptedTotpStep);
+            if (step is null) return null;
+            var claimed = await db.IdentityMfaStates
+                .Where(x => x.UserId == userId.Value && x.EnabledAtUtc != null &&
+                    x.LastAcceptedTotpStep < step.Value)
+                .ExecuteUpdateAsync(s => s.SetProperty(x => x.LastAcceptedTotpStep, step.Value), ct);
+            if (claimed != 1) return null;
+
+            var user = await db.IdentityUsers.AsNoTracking().Where(x => x.Id == userId.Value)
+                .Select(x => new { x.NormalizedEmail, x.NormalizedMobile }).SingleAsync(ct);
+            var label = user.NormalizedEmail ?? user.NormalizedMobile ?? userId.Value.ToString("N");
+            await tx.CommitAsync(ct);
+            return new MfaEnrollment(secret, IdentityTotp.Uri(label, secret));
+        });
     }
 
     /// <summary>Complete enrollment: issue hashed one-use recovery codes only after TOTP proof.</summary>

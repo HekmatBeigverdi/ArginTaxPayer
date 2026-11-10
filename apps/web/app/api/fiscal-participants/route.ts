@@ -7,7 +7,7 @@ export async function GET(req: NextRequest) {
   const token = req.cookies.get(ACCESS_COOKIE)?.value;
   if (!token) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
   const allowed = new URLSearchParams();
-  for (const key of ["page", "pageSize", "type", "kind", "query"]) {
+  for (const key of ["page", "pageSize", "type", "kind", "query", "customerId"]) {
     const value = req.nextUrl.searchParams.get(key);
     if (value !== null) allowed.set(key, value.slice(0, 120));
   }

@@ -30,9 +30,11 @@ public sealed class TaxIdentifierMappingService(
     private Task<bool> HasScopeAsync(Guid actor, Guid customer, CancellationToken ct) =>
         db.IdentityUsers.AsNoTracking().AnyAsync(user => user.Id == actor && user.IsActive &&
             db.IdentityUsers.Any(target => target.Id == customer && target.IsActive &&
-                target.Roles.Any(role => role.Role == IdentityRoleNames.Customer)) &&
-            (user.Id == customer && user.Roles.Any(role => role.Role == IdentityRoleNames.Customer) ||
-             db.CustomerCommercialOwners.Any(owner => owner.CustomerUserId == customer &&
+                target.Roles.Any(role => role.Role == IdentityRoleNames.Customer) &&
+                !target.Roles.Any(role => role.Role == IdentityRoleNames.Level1 || role.Role == IdentityRoleNames.Level2)) &&
+            (user.Id == customer && user.Roles.Any(role => role.Role == IdentityRoleNames.Customer) &&
+                !user.Roles.Any(role => role.Role == IdentityRoleNames.Level1 || role.Role == IdentityRoleNames.Level2) ||
+             user.Id != customer && db.CustomerCommercialOwners.Any(owner => owner.CustomerUserId == customer &&
                 db.IdentityMfaStates.Any(m => m.UserId == actor && m.EnabledAtUtc != null) &&
                 (owner.RootLevel1UserId == actor &&
                  user.Roles.Any(role => role.Role == IdentityRoleNames.Level1) ||

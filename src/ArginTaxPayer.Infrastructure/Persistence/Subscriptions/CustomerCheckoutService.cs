@@ -201,8 +201,10 @@ public sealed class CustomerCheckoutService(ArginTaxPayerDbContext db,
     {
         var user=await identity.CurrentUserIdAsync(bearer,ct)
             ?? throw new UnauthorizedAccessException("Authentication required.");
-        if(!await db.IdentityUsers.AsNoTracking().AnyAsync(x=>x.Id==user && x.IsActive,ct))
-            throw new UnauthorizedAccessException("Inactive customer.");
+        if(!await db.IdentityUsers.AsNoTracking().AnyAsync(x=>x.Id==user && x.IsActive &&
+            x.Roles.Any(r=>r.Role==IdentityRoleNames.Customer) &&
+            !x.Roles.Any(r=>r.Role==IdentityRoleNames.Level1 || r.Role==IdentityRoleNames.Level2),ct))
+            throw new UnauthorizedAccessException("Active customer role required.");
         return user;
     }
     private static void Add(DbCommand cmd,string name,object value)

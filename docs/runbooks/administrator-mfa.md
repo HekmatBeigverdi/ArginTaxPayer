@@ -19,6 +19,13 @@ enrollment requests return 503 instead of suggesting that MFA is already enabled
    the pending assignment and revokes previous sessions. Save the once-displayed
    recovery codes and sign in again with password plus Authenticator.
 
+An already-enrolled Level1/Level2 administrator can reveal the same QR again from
+`/account` after proving a fresh, unused Authenticator code. That proof code is
+consumed, failed attempts are throttled, and each successful reveal is logged
+without the secret. Anyone who scans the QR receives the same login factor;
+separate admin accounts with separate factors are safer when several people use
+the software.
+
 An already-enrolled nominee can receive the active role immediately. Ordinary
 customers cannot access the status, enroll or confirm HTTP endpoints. Existing
 customer MFA remains enforced at login; this change does not disable existing factors.

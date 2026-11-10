@@ -226,6 +226,7 @@ function PaperParticipant({title,participant,fallbackName,fallbackIdentity}: {
   <div className="invoice-paper__party-grid">
    <div className="invoice-paper__cell invoice-paper__cell--wide"><strong>نام شخص {p?.kind==="NaturalPerson"?"حقیقی":"حقیقی / حقوقی"}:</strong><span>{p?.name??fallbackName??"—"}</span></div>
    {fields.map(([label,value])=><div className="invoice-paper__cell" key={label}><strong>{label}:</strong><span>{faDigits(value)}</span></div>)}
+   {fields.length%3!==0&&<div className="invoice-paper__cell invoice-paper__cell--spacer" aria-hidden="true"/>}
    <div className="invoice-paper__cell invoice-paper__cell--wide"><strong>نشانی:</strong><span>{p?.address??"—"}</span></div>
   </div>
  </section>;
@@ -235,8 +236,12 @@ function InvoicePaper({invoice,reference,referenceFiscalTaxId,invoiceSubject}: {
  invoice:Invoice;reference:string;referenceFiscalTaxId?:string|null;invoiceSubject?:string
 }){
  const lineCount=Math.max(5,invoice.lines.length);
- return <div className="invoice-paper" dir="rtl">
+ return <div className="invoice-paper-print-sheet" dir="rtl">
+  <div className="invoice-paper">
   <header className="invoice-paper__header">
+   <div className="invoice-paper__header-logo">
+    {invoice.invoiceLogoDataUrl&&<img className="invoice-paper__company-logo" src={invoice.invoiceLogoDataUrl} alt="لوگوی شرکت"/>}
+   </div>
    <div className="invoice-paper__tax-number"><strong>شماره مالیاتی</strong>
     <span>شماره منحصربه‌فرد مالیاتی: <bdi>{faDigits(invoice.uniqueInvoiceId)}</bdi></span>
     <span>شماره مرجع: <bdi dir="ltr">{invoiceSubject==="Original"?"":faDigits(referenceFiscalTaxId??invoice.referenceFiscalTaxId)}</bdi></span>
@@ -278,12 +283,18 @@ function InvoicePaper({invoice,reference,referenceFiscalTaxId,invoiceSubject}: {
     نوع صورتحساب: {invoiceTypeLabel[invoice.invoiceType??""]??invoice.invoiceType??"نوع اول"}
     <br/>موضوع صورتحساب: {paperSubject[invoiceSubject??""]??"اصلی"}
    </div>
-   <div className="invoice-paper__footer-mark">
-    {invoice.invoiceLogoDataUrl&&<img src={invoice.invoiceLogoDataUrl} alt="لوگوی شرکت"/>}
+   <div className="invoice-paper__footer-qr">
+    <img src="/invoice-sample-qr.png" alt="نمونه کد QR؛ لینک صورتحساب در آینده اضافه می‌شود"/>
+    <small>نمونه QR</small>
    </div>
    <div className="invoice-paper__footer-seller"><strong>مهر و امضاء فروشنده:</strong></div>
    <div className="invoice-paper__footer-buyer"><strong>مهر و امضاء خریدار:</strong></div>
   </footer>
+  </div>
+  <div className="invoice-paper-brand-footer">
+   <img src="/brand/argin-logo.png" alt="نشان آرگین"/>
+   <span>نرم افزار حسابداری و مودیان آرگین</span>
+  </div>
  </div>;
 }
 

@@ -106,7 +106,8 @@
 .app-shell{display:grid;grid-template-columns:252px minmax(0,1fr);min-height:100vh;direction:rtl;background:#f5f7fb;color:#1e3146;font-family:"Vazirmatn",Tahoma,Arial,sans-serif}
 .app-sidebar{background:#10283f;color:#eaf1f8;padding:26px 17px;display:flex;flex-direction:column;gap:20px;min-height:100vh}
 .app-brand{display:flex;align-items:center;gap:12px;text-decoration:none;padding:6px 9px}.app-brand-mark{display:grid;place-items:center;width:46px;height:46px;border-radius:14px;background:#24a5a3;color:white;font-size:26px;font-weight:800}.app-brand strong,.app-brand small{display:block}.app-brand strong{font-size:22px}.app-brand small{color:#b7c9d8;font-size:11px}
-.app-nav-heading{color:#8eaabb;font-size:12px;padding:8px 13px 0}.app-nav{display:grid;gap:5px}.app-nav a{display:flex;justify-content:space-between;align-items:center;text-decoration:none;border-radius:11px;padding:13px 14px;color:#dbe8f2;font-size:14px}.app-nav a[aria-current=page],.app-nav a:hover{background:#244863;color:white}.app-nav a span{opacity:.65}.app-sidebar-footer{margin-top:auto;border-top:1px solid #35516a;padding:18px 11px;color:#aec3d2;font-size:12px;line-height:1.9}.app-sidebar-footer span{display:inline-block;border:1px solid #618096;padding:3px 10px;border-radius:99px}
+.app-nav-heading{color:#8eaabb;font-size:12px;padding:8px 13px 0}.app-nav{display:grid;gap:5px}.app-nav a{display:flex;justify-content:space-between;align-items:center;text-decoration:none;border-radius:11px;padding:13px 14px;color:#dbe8f2;font-size:14px}.app-nav a[aria-current=page],.app-nav a:hover{background:#244863;color:white}.app-nav a span{opacity:.65}.app-sidebar-footer{margin-top:auto;border-top:1px solid #35516a;padding:18px 11px;color:#aec3d2;font-size:12px;line-height:1.9;text-align:center}.app-sidebar-footer>span{display:inline-block;margin-bottom:10px;border:1px solid #618096;border-radius:99px;padding:3px 10px}.app-sidebar-company-logos{display:flex;align-items:center;justify-content:center;gap:12px}.app-sidebar-company-logos img{flex:none;width:32px;height:32px;object-fit:contain;filter:brightness(1.3) saturate(.42)}.app-sidebar-copyright{display:block;margin-top:6px;color:#a8becd;font-size:8px;line-height:1.6;white-space:nowrap}
+.app-update-notice{display:flex;justify-content:space-between;align-items:center;gap:16px;margin:0 0 18px;padding:13px 16px;border:1px solid #80b6da;border-radius:12px;background:#eaf6ff;color:#17466a;font-size:14px}.app-update-notice button{flex:none;border:0;border-radius:8px;padding:9px 14px;background:#17466a;color:#fff;font:inherit;cursor:pointer}
 .app-main{min-width:0}.app-topbar{height:78px;background:white;border-bottom:1px solid #e5eaf1;display:flex;align-items:center;justify-content:space-between;padding:0 36px;color:#64748b;font-size:13px}.app-topbar-user{display:flex;align-items:center;gap:14px}.app-topbar-user a{color:#215978;text-decoration:none;font-weight:700}.app-role{border-radius:99px;background:#e8f5f3;padding:7px 12px;color:#176965;font-weight:700}
 .app-content{max-width:1320px;margin:auto;padding:33px 36px 55px}.app-welcome{display:flex;justify-content:space-between;align-items:center;background:linear-gradient(115deg,#e6f5f5,#f8fbfd);border:1px solid #d5e8e8;border-radius:22px;padding:28px 35px;min-height:186px}.app-kicker{font-size:12px;color:#1f827e;font-weight:800}.app-welcome h1{font-size:clamp(24px,3vw,34px);margin:0 0 10px}.app-welcome p:last-of-type{margin:0;color:#5b7081;line-height:2}.app-welcome-graphic{width:108px;height:108px;border-radius:28px;background:#167d82;color:#fff;display:grid;place-items:center;font-weight:900;font-size:62px;box-shadow:0 12px 30px #257e8626}
 .app-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:15px;margin:20px 0 29px}.app-summary>div{background:white;border:1px solid #e4eaf2;border-radius:15px;padding:19px 22px;min-width:0}.app-summary small{display:block;color:#73849a;margin-bottom:9px}.app-summary strong{font-size:16px}.app-section-title{margin:0 0 16px}.app-section-title h2{margin:0;font-size:20px}.app-section-title p{margin:7px 0 0;color:#708096;font-size:13px}
@@ -148,6 +149,16 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 .console-account-dropdown>button{color:#b23838;font-weight:700}.console-menu-identity{padding:9px 12px;font-size:11px;color:var(--argin-muted);margin:0}.console-menu-divider{height:1px;background:var(--argin-line);margin:7px 0}
 .console-page-heading{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:18px}.console-page-heading h1{font-size:24px;margin:0 0 6px;color:#20344b}.console-page-heading p:last-child{margin:0;color:var(--argin-muted);font-size:13px}
 .console-account-actions .console-account-dropdown{direction:rtl}
+.about-page{max-width:1180px;margin:0 auto;padding:8px 0 28px;color:var(--argin-text)}
+.about-hero{display:flex;align-items:center;justify-content:space-between;gap:28px;min-height:240px;padding:36px 42px;border:1px solid #d4e8e6;border-radius:22px;background:radial-gradient(circle at 10% 15%,#d4efec 0,transparent 34%),linear-gradient(115deg,#eef8f6,#fff 65%)}
+.about-hero__copy{max-width:760px}.about-hero__copy h1{margin:0 0 12px;color:#17364b;font-size:clamp(30px,4vw,42px)}.about-hero__copy>p:last-child{max-width:720px;margin:0;color:#5f7485;font-size:15px;line-height:2.1}
+.about-hero__logo{flex:none;width:126px;height:126px;object-fit:contain;border-radius:25px;background:#fff;padding:12px;box-shadow:0 15px 36px #173c4c15}
+.about-story{margin-top:20px;padding:24px 28px;border:1px solid var(--argin-line);border-radius:17px;background:#fff}.about-story-layout{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(280px,.75fr);align-items:center;gap:24px}.about-story-copy{display:grid;gap:10px;min-width:0}.about-story-copy>p{margin:0;color:#526b7c;font-size:13px;line-height:2.15}.about-visual{min-width:0;margin:0;overflow:hidden;border:1px solid #e4ebee;border-radius:14px;background:#f4f7f8}.about-visual img{display:block;width:100%;height:auto;aspect-ratio:3/2;object-fit:cover}.about-visual figcaption{padding:9px 12px;color:#667b8b;font-size:11px}
+.about-section,.about-makers{margin-top:32px}.about-section__heading{display:flex;align-items:end;justify-content:space-between;gap:18px;margin-bottom:16px}.about-section__heading h2,.about-makers__heading h2{margin:0;font-size:21px;color:#203a4e}.about-section__heading>p,.about-makers__heading>p:last-child{margin:0;color:var(--argin-muted);font-size:13px;line-height:1.9}.about-feature-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}.about-feature{min-height:183px;padding:20px;background:#fff;border:1px solid var(--argin-line);border-radius:15px}.about-feature__icon{display:grid;place-items:center;width:40px;height:40px;margin-bottom:15px;border-radius:12px;background:#e8f4f3;color:#177f81;font-size:19px;font-weight:800}.about-feature h3{margin:0 0 8px;font-size:15px}.about-feature p{margin:0;color:var(--argin-muted);font-size:12px;line-height:1.9}
+.about-companies{display:grid;gap:0;margin-top:10px;border-top:1px solid #e8eef2}.about-company{display:flex;align-items:center;gap:14px;min-height:76px;padding:10px 4px;border-bottom:1px solid #e8eef2}.about-company__details{display:grid;gap:3px}.about-company h2{margin:0;color:#203a4e;font-size:15px}.about-company__details p{margin:0;color:#708395;font-size:11px;line-height:1.8}.about-company__logo{flex:none;width:54px;height:54px;object-fit:contain}.about-footer{margin:22px 0 0;text-align:center;color:#1b6873;font-size:14px;font-weight:800;line-height:1.9}
+@media(max-width:900px){.about-feature-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.about-section__heading{align-items:flex-start;flex-direction:column}}
+@media(max-width:850px){.about-story-layout{grid-template-columns:1fr}.about-visual{max-width:560px;width:100%;margin:4px auto 0}}
+@media(max-width:600px){.about-page{padding-top:0}.about-hero{min-height:0;padding:24px 20px}.about-hero__logo{width:68px;height:68px;border-radius:17px;padding:7px}.about-hero__copy>p:last-child{font-size:13px}.about-story{padding:18px}.about-feature-grid{grid-template-columns:1fr}.about-feature{min-height:0}}
 .customer-plans-workspace{display:grid;gap:16px;color:var(--argin-text)}
 .customer-plans-intro{display:flex;align-items:center;gap:15px;padding:20px 22px;background:linear-gradient(120deg,#eaf6f5,#f8fbfc);border:1px solid #d8e9e7;border-radius:15px}
 .customer-plans-intro__icon{display:grid;place-items:center;flex:0 0 48px;width:48px;height:48px;border-radius:14px;background:#d8efeb;color:#177f81;font-size:25px}
@@ -1335,12 +1346,18 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 .invoice-tax-identifiers>span:first-child{white-space:nowrap}
 .invoice-tax-identifiers>strong{color:#36566d}
 .invoice-lineage-print-sheet .invoice-tax-identifiers{grid-column:1/-1}
+.invoice-paper-print-sheet{width:100%;margin:0 auto;break-inside:avoid;page-break-inside:avoid}
 .invoice-paper{width:100%;min-width:1080px;margin:0 auto;color:#20252a;background:#fff;font-family:inherit;font-size:10px;line-height:1.45;border:1px solid #77838d;border-radius:8px;overflow:hidden}
-.invoice-paper__header{display:grid;grid-template-columns:1fr 1.3fr 1fr;align-items:center;min-height:48px;border:1px solid #69727a;text-align:center}
+.invoice-paper-brand-footer{display:flex;align-items:center;justify-content:center;gap:2mm;padding:2mm 0 0;color:#263849;font-size:8pt;line-height:1.3}
+.invoice-paper-brand-footer img{display:block;width:7mm;height:7mm;object-fit:contain}
+.invoice-paper__header{position:relative;display:grid;grid-template-columns:1.1fr 1.3fr 1fr .7fr;grid-template-areas:"tax title number logo";align-items:center;min-height:60px;border:1px solid #69727a;text-align:center}
 .invoice-paper__header>div{display:grid;gap:2px;text-align:right;padding:5px 8px}
-.invoice-paper__header>h3{margin:0;font-size:14px;text-align:center}
-.invoice-paper__tax-number{border-inline-end:1px solid #69727a}
-.invoice-paper__number{border-inline-start:1px solid #69727a}
+.invoice-paper__header>h3{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:max-content;max-width:30%;margin:0;font-size:14px;text-align:center}
+.invoice-paper__tax-number{grid-area:tax;border:0}
+.invoice-paper__number{grid-area:number;border:0}
+.invoice-paper__header>div.invoice-paper__number{justify-items:stretch;text-align:left;padding:5px 0 5px 2px}
+.invoice-paper__header-logo{grid-area:logo;display:flex;flex-direction:column;align-items:center;justify-content:center;align-self:stretch;gap:4px;border:0;padding:4px 0 4px 4px}
+.invoice-paper__company-logo{display:block;max-width:100%;max-height:78px;object-fit:contain}
 .invoice-paper__section-title{margin:0;padding:4px 6px;border:1px solid #69727a;border-top:0;background:#d9dcdf;text-align:center;font-size:10px;font-weight:700}
 .invoice-paper__party-grid{display:grid;grid-template-columns:1fr 1fr 1fr;border-inline:1px solid #77838d;border-bottom:1px solid #77838d}
 .invoice-paper__cell{display:flex;align-items:center;gap:4px;min-height:25px;padding:4px 6px;border-inline-start:1px solid #77838d;border-top:1px solid #77838d;overflow-wrap:anywhere}
@@ -1358,8 +1375,9 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 .invoice-paper__footer>div{padding:5px 7px;border-inline-end:1px solid #69727a;border-bottom:1px solid #69727a}
 .invoice-paper__footer-payment{grid-area:payment;display:grid;gap:2px}
 .invoice-paper__footer-subject{grid-area:subject;align-content:center}
-.invoice-paper__footer-mark{grid-area:mark;display:grid;place-items:center;border-bottom:0!important;background:#fff}
-.invoice-paper__footer-mark img{display:block;width:auto;max-width:92%;height:auto;max-height:70px;object-fit:contain}
+.invoice-paper__footer-qr{grid-area:mark;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border-bottom:0!important;background:#fff}
+.invoice-paper__footer-qr img{display:block;width:69px;height:69px;object-fit:contain}
+.invoice-paper__footer-qr small{font-size:6px;line-height:1.2;color:#4b5560}
 .invoice-paper__footer-seller{grid-area:seller;border-bottom:0!important}
 .invoice-paper__footer-buyer{grid-area:buyer;border-bottom:0!important}
 @page{size:A4 landscape;margin:8mm}
@@ -1369,17 +1387,22 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
  body.invoice-lineage-printing>*:not(#invoice-lineage-print-root) *{display:none!important}
  #invoice-lineage-print-root{display:block!important;position:static!important;width:100%!important;max-height:none!important;overflow:visible!important;margin:0!important;padding:0!important;border:0!important;background:#fff!important;color:#172b3d!important;visibility:visible!important}
  #invoice-lineage-print-root *{visibility:visible!important}
- #invoice-lineage-print-root .invoice-paper{break-inside:avoid!important;page-break-inside:avoid!important}
+ #invoice-lineage-print-root .invoice-paper-print-sheet,#invoice-lineage-print-root .invoice-paper{break-inside:avoid!important;page-break-inside:avoid!important}
  #invoice-lineage-print-root table{width:100%!important;min-width:0!important;font-size:8pt!important}
  #invoice-lineage-print-root th,#invoice-lineage-print-root td{padding:1mm!important;color:#172b3d!important}
  .invoice-paper__items th{background:#d8dcdf!important}
  .invoice-paper__items tbody tr:nth-child(odd) td{background:#f0f0f0!important}
  .invoice-paper{width:100%!important;min-width:0!important;font-size:8pt!important;line-height:1.3!important;border-radius:2mm!important}
  .invoice-paper,.invoice-paper *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
- .invoice-paper__footer-mark img{max-height:20mm!important}
- .invoice-paper__header{min-height:14mm!important}
+ .invoice-paper__company-logo{max-height:19.5mm!important}
+ .invoice-paper-brand-footer{padding-top:2mm!important;font-size:8pt!important}
+ .invoice-paper-brand-footer img{width:7mm!important;height:7mm!important}
+ .invoice-paper__footer-qr img{width:19.5mm!important;height:19.5mm!important}
+ .invoice-paper__footer-qr small{font-size:6pt!important}
+ .invoice-paper__header{min-height:17mm!important}
  .invoice-paper__header>h3{font-size:12pt!important}
  .invoice-paper__header>div{padding:2mm 3mm!important}
+ .invoice-paper__header>div.invoice-paper__number{padding:2mm 0 2mm 1mm!important;text-align:left!important}
  .invoice-paper__section-title{padding:1.2mm!important;font-size:8pt!important}
  .invoice-paper__cell{min-height:4.4mm!important;padding:.5mm 1mm!important}
  .invoice-paper__cell strong{font-size:7pt!important}
@@ -1388,7 +1411,7 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
  .invoice-paper__items tbody tr{height:7mm!important}
  .invoice-paper__items td:nth-child(2){min-width:0!important}
  .invoice-paper__items td small{font-size:6pt!important}
- .invoice-paper__footer{grid-template-rows:minmax(8mm,auto) minmax(15mm,auto)!important}
+ .invoice-paper__footer{grid-template-rows:minmax(8mm,auto) minmax(21mm,auto)!important}
  .invoice-paper__footer>div{padding:1.5mm!important}
 }
 @media(prefers-reduced-motion:reduce){.invoice-lineage-print-spinner{animation:none}}

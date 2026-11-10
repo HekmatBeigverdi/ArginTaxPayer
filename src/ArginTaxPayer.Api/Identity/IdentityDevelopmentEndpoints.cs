@@ -131,6 +131,41 @@ public static class IdentityDevelopmentEndpoints
             return enrollment is null ? Results.BadRequest(new { error = "mfa_unavailable" }) : Results.Ok(enrollment);
         });
 
+        group.MapPost("/mfa/reveal", async ([FromBody] MfaRevealRequest request, HttpContext http,
+            IdentityAuthorizationService authorization, IServiceProvider provider,
+            IdentityProtectionService protection, ArginTaxPayerDbContext db,
+            ILoggerFactory loggerFactory, CancellationToken ct) =>
+        {
+            if (!IsLoopback(http)) return Results.NotFound();
+            http.Response.Headers.CacheControl = "no-store";
+            var token = ReadBearer(http);
+            var userId = await authorization.CurrentUserIdAsync(token, ct);
+            if (userId is null) return Results.Unauthorized();
+            var roles = await authorization.GetCurrentRolesAsync(token, ct);
+            if (roles is null || !roles.Any(role => role is IdentityRoleNames.Level1 or IdentityRoleNames.Level2))
+                return Results.StatusCode(403);
+            if (request.Code is not { Length: 6 } || request.Code.Any(ch => ch is < '0' or > '9'))
+                return Results.BadRequest(new { error = "invalid_code" });
+            var service = provider.GetService<IdentityMfaService>();
+            if (service is null) return Results.Json(new { error = "mfa_not_configured" }, statusCode: 503);
+
+            if (!await db.IdentityUsers.AsNoTracking().AnyAsync(user =>
+                user.Id == userId.Value && user.IsActive, ct)) return Results.Unauthorized();
+            var protectionKey = "mfa-secret-reveal:" + userId.Value.ToString("N");
+            var now = DateTime.UtcNow;
+            if (protection.IsBlocked(protectionKey, now)) return Results.StatusCode(429);
+            var enrollment = await service.RevealEnabledSecretForSessionAsync(token, request.Code, ct);
+            if (enrollment is null)
+            {
+                protection.RecordFailure(protectionKey, now, "mfa_secret_reveal");
+                return Results.Unauthorized();
+            }
+            protection.RecordSuccess(protectionKey, "mfa_secret_reveal");
+            loggerFactory.CreateLogger("ArginTaxPayer.Identity.MfaSecretReveal")
+                .LogWarning("IDENTITY_MFA_SECRET_REVEAL user={UserId}", userId.Value);
+            return Results.Ok(enrollment);
+        }).RequireRateLimiting("signing-import");
+
         group.MapPost("/mfa/confirm", async ([FromBody] TotpConfirmRequest request,
             HttpContext http, IdentitySessionService sessions, IdentityAuthorizationService authorization,
             IServiceProvider provider, CancellationToken ct) =>
@@ -457,6 +492,7 @@ public sealed record IdentityCredentials(string? Email, string? Password);
 public sealed record RefreshRequest(string? RefreshToken);
 
 public sealed record TotpConfirmRequest(string? Code);
+public sealed record MfaRevealRequest(string? Code);
 public sealed record MfaCompleteRequest(string? Challenge, string? Code, bool UseRecoveryCode);
 
 public sealed record Level2GrantRequest(Guid TargetUserId);

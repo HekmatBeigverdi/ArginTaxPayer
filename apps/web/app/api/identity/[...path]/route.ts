@@ -6,6 +6,7 @@ type TokenResponse = { accessToken: string; refreshToken: string; accessExpiresA
 const operations = new Set(["register", "login", "logout", "mfa/challenge", "mfa/complete", "mfa/enroll", "mfa/confirm", "refresh", "me", "sessions", "sessions/revoke", "phone/request", "phone/register/complete", "phone/login/complete", "phone/reset/complete", "admin/customers"]);
 const cookieOptions = { httpOnly: true, sameSite: "strict" as const, secure: process.env.NODE_ENV === "production", path: "/" };
 operations.add("mfa/status");
+operations.add("mfa/reveal");
 operations.add("roles/level2/nominate");
 operations.add("mfa/level2/reset");
 const errorResult = (code: number, message: string) =>
@@ -46,6 +47,7 @@ async function callIdentity(operation: string, req: NextRequest, method: "GET" |
     register: "register", login: "login", refresh: "refresh", me: "authorization/me",
     "mfa/challenge": "mfa/challenge", "mfa/complete": "mfa/complete",
     "mfa/enroll": "mfa/enroll", "mfa/confirm": "mfa/confirm",
+    "mfa/reveal": "mfa/reveal",
     "mfa/level2/reset": "mfa/level2/reset", "mfa/status": "mfa/status", "roles/level2/nominate": "roles/level2/nominate",
     sessions: "resources/sessions",
     "phone/request": "phone/request",
@@ -62,7 +64,7 @@ async function callIdentity(operation: string, req: NextRequest, method: "GET" |
   }
   const path = backendPath[operation];
   if (!path) return errorResult(404, "unavailable");
-  if (["me", "sessions", "mfa/enroll", "mfa/confirm", "mfa/status", "roles/level2/nominate", "sessions/revoke", "admin/customers", "mfa/level2/reset"].includes(operation) && !token)
+  if (["me", "sessions", "mfa/enroll", "mfa/confirm", "mfa/reveal", "mfa/status", "roles/level2/nominate", "sessions/revoke", "admin/customers", "mfa/level2/reset"].includes(operation) && !token)
     return errorResult(401, "unauthorized");
 
   let payload: unknown = undefined;
@@ -110,7 +112,7 @@ async function callIdentity(operation: string, req: NextRequest, method: "GET" |
     // Never expose raw upstream diagnostics; for enrollment only, explicitly return
     // the one-time provisioning secret to an authenticated local development user.
     if (response.ok) {
-      if (operation === "mfa/enroll" || operation === "mfa/confirm" || operation === "mfa/status" || operation === "sessions" || operation === "me" || operation === "mfa/challenge") {
+      if (operation === "mfa/enroll" || operation === "mfa/confirm" || operation === "mfa/reveal" || operation === "mfa/status" || operation === "sessions" || operation === "me" || operation === "mfa/challenge") {
         const forwarded = new NextResponse(result, { status: response.status, headers: {
           "Content-Type": "application/json", "Cache-Control": "no-store"
         } });

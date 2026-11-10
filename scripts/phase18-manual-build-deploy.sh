@@ -44,6 +44,8 @@ systemctl cat argintaxpayer-web.service >/dev/null || die 'Web systemd unit is a
 
 release_root="$HOME/.cache/argin-taxpayer/manual-releases"
 build_stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+product_version="$(node -p "require('./apps/web/package.json').version")"
+release_version="${product_version}+manual.${build_stamp}.${sha:0:8}"
 release_dir="$release_root/${sha}-${build_stamp}"
 bundle="$release_dir/bundle"
 [[ ! -e "$release_dir" ]] || die "Build directory already exists: $release_dir"
@@ -70,7 +72,7 @@ run dotnet-api-publish dotnet publish src/ArginTaxPayer.Api/ArginTaxPayer.Api.cs
 run web-dependencies npm --prefix apps/web ci --no-audit --no-fund
 run web-tests npm --prefix apps/web test
 run web-typecheck npm --prefix apps/web run typecheck
-run web-production-build env NODE_ENV=production npm --prefix apps/web run build
+run web-production-build env NODE_ENV=production NEXT_PUBLIC_APP_VERSION="$release_version" npm --prefix apps/web run build
 
 cp -a "$release_dir/api-publish/." "$bundle/stage/api/"
 cp apps/web/package.json apps/web/package-lock.json "$bundle/stage/web/"
@@ -90,7 +92,7 @@ fi
 [[ -s "$bundle/stage/web/node_modules/next/dist/bin/next" ]] || die 'Next.js runtime dependencies are missing'
 
 (cd "$bundle/stage" && tar -czf "$bundle/api.tar.gz" api && tar -czf "$bundle/web.tar.gz" web)
-printf 'sha=%s\n' "$sha" > "$bundle/build-info.txt"
+printf 'version=%s\nsha=%s\n' "$release_version" "$sha" > "$bundle/build-info.txt"
 cp scripts/phase18-release-stage.sh scripts/phase18-release-promote.sh \
   scripts/phase18-step06-local-health.sh "$bundle/scripts/"
 (cd "$bundle" && sha256sum api.tar.gz web.tar.gz > SHA256SUMS && sha256sum -c SHA256SUMS)
