@@ -4,9 +4,9 @@ using Npgsql;
 namespace ArginTaxPayer.Infrastructure.Configuration;
 
 /// <summary>
-/// Runs the existing Sandbox application with Production HTTP/security settings.
-/// Its historical database name is permitted only inside the dedicated TLS
-/// container, never through the development/shared database tunnel.
+/// Allows the hosted application to use Sandbox and Production fiscal memories
+/// against the dedicated TLS production database. Dispatch authority remains
+/// selected by each fiscal memory's persisted authority environment.
 /// </summary>
 public static class HostedSandboxDeployment
 {
@@ -15,14 +15,14 @@ public static class HostedSandboxDeployment
         if (!configuration.GetValue<bool>("ArginTaxPayer:HostedSandboxEnabled") ||
             configuration["ArginTaxPayer:PublicBaseUrl"] != "https://tax.argin.ir" ||
             configuration["SandboxInvoiceLegacy:ApiBaseUrl"] != "https://sandboxrc.tax.gov.ir/req/api/" ||
-            configuration.GetValue<bool>("ProductionInvoiceLegacy:Enabled"))
+            !configuration.GetValue<bool>("ProductionInvoiceLegacy:Enabled"))
             return false;
 
         try
         {
             var database = new NpgsqlConnectionStringBuilder(connectionString);
             return database.Host == "127.0.0.1" && database.Port == 15434 &&
-                database.Database == "argintaxpayer_test" &&
+                database.Database == "argintaxpayer_prod" &&
                 database.Username == "argin_prod_app" &&
                 database.SslMode == SslMode.VerifyFull &&
                 database.RootCertificate == "/etc/argintaxpayer/prod-db-ca.pem";
