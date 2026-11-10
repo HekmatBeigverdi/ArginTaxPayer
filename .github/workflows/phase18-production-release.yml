@@ -130,3 +130,33 @@ jobs:
           ssh -o BatchMode=yes -o ConnectTimeout=15 -o StrictHostKeyChecking=yes \
             "$target" "sudo -n /usr/local/sbin/argin-taxpayer-release --deploy '$SOURCE_SHA'"
 
+  port-2222-connectivity:
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'test/phase18-ssh-2222-connectivity' && github.event.pull_request.user.login == 'HekmatBeigverdi'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Probe SSH TCP ports from GitHub runner
+        env:
+          TARGET_HOST: 109.70.78.95
+        run: |
+          python3 - <<'PY'
+          import socket
+          import sys
+
+          host = "109.70.78.95"
+          reachable_2222 = False
+          for port in (22, 2222):
+              try:
+                  with socket.create_connection((host, port), timeout=8) as conn:
+                      conn.settimeout(3)
+                      banner = conn.recv(128).decode("ascii", "replace").strip()
+                      is_ssh = banner.startswith("SSH-")
+                      print(f"{host}:{port} TCP=OPEN SSH_BANNER={banner!r}")
+                      if port == 2222:
+                          reachable_2222 = is_ssh
+              except (OSError, TimeoutError) as exc:
+                  print(f"{host}:{port} TCP=FAILED {type(exc).__name__}: {exc}")
+          if not reachable_2222:
+              sys.exit("GitHub runner could not verify an SSH banner on port 2222")
+          print("PASS: GitHub runner can reach the SSH service on port 2222")
+          PY
