@@ -12,7 +12,7 @@ if command -v sha256sum >/dev/null; then digest_cmd=sha256sum; elif command -v s
 sha="$(git rev-parse HEAD)"
 stamp="$(date -u +%Y%m%dT%H%M%SZ)"
 product_version="$(node -p "require('./apps/web/package.json').version")"
-release_version="${product_version}+local.${stamp}.${sha:0:8}"
+release_version="${product_version} (Local ${stamp})"
 out="$PWD/artifacts/phase18-step05/$sha/$stamp"
 mkdir -p "$out/logs" "$out/stage/api" "$out/stage/web"
 chmod 700 "$out" "$out/logs"
