@@ -6,7 +6,7 @@ namespace ArginTaxPayer.Tests;
 
 public sealed class HostedSandboxDeploymentTests
 {
-    private const string Connection = "Host=127.0.0.1;Port=15434;Database=argintaxpayer_test;Username=argin_prod_app;SSL Mode=VerifyFull;Root Certificate=/etc/argintaxpayer/prod-db-ca.pem";
+    private const string Connection = "Host=127.0.0.1;Port=15434;Database=argintaxpayer_prod;Username=argin_prod_app;SSL Mode=VerifyFull;Root Certificate=/etc/argintaxpayer/prod-db-ca.pem";
 
     private static IConfiguration Config(params (string Key, string Value)[] overrides)
     {
@@ -15,20 +15,21 @@ public sealed class HostedSandboxDeploymentTests
             ["ArginTaxPayer:HostedSandboxEnabled"] = "true",
             ["ArginTaxPayer:PublicBaseUrl"] = "https://tax.argin.ir",
             ["SandboxInvoiceLegacy:ApiBaseUrl"] = "https://sandboxrc.tax.gov.ir/req/api/",
-            ["ProductionInvoiceLegacy:Enabled"] = "false"
+            ["ProductionInvoiceLegacy:Enabled"] = "true"
         };
         foreach (var (key, value) in overrides) values[key] = value;
         return new ConfigurationBuilder().AddInMemoryCollection(values).Build();
     }
 
     [Fact]
-    public void Explicit_hosted_sandbox_uses_only_the_dedicated_TLS_database()
+    public void Hosted_dual_authority_accepts_the_dedicated_TLS_production_database()
         => Assert.True(HostedSandboxDeployment.IsAllowed(Connection, Config()));
 
     [Theory]
     [InlineData("Port=15434", "Port=15432")]
     [InlineData("Host=127.0.0.1", "Host=localhost")]
-    [InlineData("Database=argintaxpayer_test", "Database=argintaxpayer_prod")]
+    [InlineData("Database=argintaxpayer_prod", "Database=argintaxpayer_test")]
+    [InlineData("Database=argintaxpayer_prod", "Database=argintaxpayer_dev")]
     [InlineData("Username=argin_prod_app", "Username=argintaxpayer")]
     [InlineData("SSL Mode=VerifyFull", "SSL Mode=Require")]
     [InlineData("Root Certificate=/etc/argintaxpayer/prod-db-ca.pem", "Root Certificate=/tmp/other.pem")]
@@ -39,8 +40,8 @@ public sealed class HostedSandboxDeploymentTests
     [InlineData("ArginTaxPayer:HostedSandboxEnabled", "false")]
     [InlineData("ArginTaxPayer:PublicBaseUrl", "http://tax.argin.ir")]
     [InlineData("SandboxInvoiceLegacy:ApiBaseUrl", "https://tp.tax.gov.ir/req/api/")]
-    [InlineData("ProductionInvoiceLegacy:Enabled", "true")]
-    public void Sandbox_needs_explicit_activation_and_cannot_enable_real_tax_dispatch(string key, string value)
+    [InlineData("ProductionInvoiceLegacy:Enabled", "false")]
+    public void Both_authorities_and_the_production_host_must_be_explicitly_enabled(string key, string value)
         => Assert.False(HostedSandboxDeployment.IsAllowed(Connection, Config((key, value))));
 
     [Fact]
