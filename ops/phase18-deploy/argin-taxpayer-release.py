@@ -346,7 +346,6 @@ def prepare_release(sha, deployment, service_gid):
             **ENV, 'PATH': str(RUNTIME) + ':' + ENV['PATH'],
             'HOME': deployment.pw_dir, 'NODE_ENV': 'production',
             'NPM_CONFIG_USERCONFIG': '/dev/null',
-            'NPM_CONFIG_GLOBALCONFIG': '/dev/null',
             'NPM_CONFIG_CACHE': deployment.pw_dir + '/.npm',
             'NPM_CONFIG_IGNORE_SCRIPTS': 'true',
         }
