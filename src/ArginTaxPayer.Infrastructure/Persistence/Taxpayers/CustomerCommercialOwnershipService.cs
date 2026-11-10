@@ -178,7 +178,8 @@ public sealed class CustomerCommercialOwnershipService(
         // awaiting supervised attribution. Partners only see explicitly owned accounts.
         var rows = await (
             from u in db.IdentityUsers.AsNoTracking()
-            where u.Roles.Any(role => role.Role == IdentityRoleNames.Customer)
+            where u.Roles.Any(role => role.Role == IdentityRoleNames.Customer) &&
+                !u.Roles.Any(role => role.Role == IdentityRoleNames.Level1 || role.Role == IdentityRoleNames.Level2)
             join assignment in db.CustomerCommercialOwners.AsNoTracking()
                 on u.Id equals assignment.CustomerUserId into matches
             from o in matches.DefaultIfEmpty()
@@ -284,7 +285,8 @@ public sealed class CustomerCommercialOwnershipService(
 
         var accounts = await (
             from u in db.IdentityUsers.AsNoTracking()
-            where u.Roles.Any(role => role.Role == IdentityRoleNames.Customer)
+            where u.Roles.Any(role => role.Role == IdentityRoleNames.Customer) &&
+                !u.Roles.Any(role => role.Role == IdentityRoleNames.Level1 || role.Role == IdentityRoleNames.Level2)
             join assignment in db.CustomerCommercialOwners.AsNoTracking()
                 on u.Id equals assignment.CustomerUserId into matches
             from o in matches.DefaultIfEmpty()
@@ -344,7 +346,7 @@ public sealed class CustomerCommercialOwnershipService(
         string? bearer, int page, int pageSize, string? query, string? ownership,
         CancellationToken ct = default)
     {
-        var accounts = await ListCustomerAccountsPageAsync(bearer, page, pageSize, query, ownership, ct);
+        var accounts = await ListCustomerAccountsPageAsync(bearer, page, pageSize, query, ownership, ct, "customer");
         if (accounts.Decision != CustomerOwnershipDecision.Success)
             return new(accounts.Decision, [], accounts.Page, accounts.PageSize, accounts.Total);
         var actor = await identity.CurrentUserIdAsync(bearer, ct);

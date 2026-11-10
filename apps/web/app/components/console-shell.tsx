@@ -27,15 +27,18 @@ export default function ConsoleShell({ roles, userId, dashboardOnly = false, chi
   const [exiting, setExiting] = useState(false);
   const [profileState, setProfileState] = useState<"checking" | "complete" | "incomplete" | "error">("checking");
   const [profileRetry, setProfileRetry] = useState(0);
+  const [newVersion, setNewVersion] = useState("");
+  const appVersion = process.env.NEXT_PUBLIC_APP_VERSION || "development";
   const menuRef = useRef<HTMLDivElement>(null);
   const admin = roles.includes("Level1") || roles.includes("Level2");
   const role = roles.includes("Level1") ? "مدیر سطح یک" :
     roles.includes("Level2") ? "مدیر سطح دو" : "کاربر پنل";
-  const navigation = dashboardOnly ? [base[0]] : admin ? [base[0],
+  const about: Item = { title: "درباره ما", path: "/about", glyph: "ⓘ" };
+  const navigation = dashboardOnly ? [base[0], about] : admin ? [base[0],
     { title: "کاربران نرم‌افزار", path: "/users", glyph: "♟" },
     ...(roles.includes("Level1") ? [{ title: "تأیید تغییر کلید", path: "/signing-approvals", glyph: "✓" }] : []),
     base[1], base[2], base[3],
-    { title: "اشتراک‌ها و امور مالی", path: "/subscriptions", glyph: "▥" }, base[4]] : base;
+    { title: "اشتراک‌ها و امور مالی", path: "/subscriptions", glyph: "▥" }, base[4], about] : [...base, about];
   const accountNavigation: Item[] = (dashboardOnly || admin) ? [] : [
     ...(roles.includes("Customer") ? [{ title: "پلن‌های نرم‌افزار", path: "/customer-plans", glyph: "▣" }] : []),
     ...(roles.includes("Customer") ? [{ title: "اعتبار پیامک", path: "/sms-credit", glyph: "✉" }] : []),
@@ -76,7 +79,24 @@ export default function ConsoleShell({ roles, userId, dashboardOnly = false, chi
   }, [userId]);
 
   useEffect(() => {
-    if (dashboardOnly && pathname !== "/dashboard") router.replace("/dashboard");
+    let active = true;
+    const checkVersion = async () => {
+      try {
+        const response = await fetch("/api/app-version", { cache: "no-store" });
+        if (!response.ok) return;
+        const current = await response.json() as { version?: unknown };
+        if (active && typeof current.version === "string" && current.version !== appVersion) {
+          setNewVersion(current.version);
+        }
+      } catch { /* Version checks must not interrupt normal console work. */ }
+    };
+    void checkVersion();
+    const timer = window.setInterval(() => void checkVersion(), 5 * 60 * 1000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [appVersion]);
+
+  useEffect(() => {
+    if (dashboardOnly && pathname !== "/dashboard" && pathname !== "/about") router.replace("/dashboard");
     if (!dashboardOnly && profileState === "incomplete" && pathname !== "/profile") router.replace("/profile");
   }, [dashboardOnly, profileState, pathname, router]);
   useEffect(() => {
@@ -115,7 +135,14 @@ export default function ConsoleShell({ roles, userId, dashboardOnly = false, chi
           <span className="console-nav-label"><span aria-hidden="true">{n.glyph}</span>{n.title}</span>
           <span aria-hidden="true">←</span></Link>)}
       </nav>
-      <footer className="app-sidebar-footer"><span>{dashboardOnly ? "نمایش محدود Production" : "نسخه توسعه"}</span><p>دسترسی‌ها براساس نقش و مالکیت کنترل می‌شوند.</p></footer>
+      <footer className="app-sidebar-footer" aria-label="شرکت‌های آرگین">
+        <span>{dashboardOnly ? "نمایش محدود Production" : `نسخه ${appVersion}`}</span>
+        <div className="app-sidebar-company-logos">
+          <Image src="/brand/companies/negin-hesab-vira.png" width={38} height={38} alt="نگین حساب ویرا" unoptimized />
+          <Image src="/brand/companies/hamgam-afzar.png" width={38} height={38} alt="داده پردازی همگام افزار" unoptimized />
+        </div>
+        <small className="app-sidebar-copyright">حقوق نرم افزار آرگین برای صاحبان نرم افزار محفوظ است</small>
+      </footer>
     </aside>
     <div className="app-main">
       <header className="app-topbar">
@@ -148,6 +175,10 @@ export default function ConsoleShell({ roles, userId, dashboardOnly = false, chi
         </div>
       </header>
       <div className="app-content console-content-host" id="console-content" aria-busy={Boolean(navigatingTo)}>
+        {newVersion && <div className="app-update-notice" role="status">
+          <span>نسخه جدید نرم‌افزار آماده است ({newVersion}). برای دریافت به‌روزرسانی، صفحه را تازه کنید.</span>
+          <button type="button" onClick={() => window.location.reload()}>به‌روزرسانی</button>
+        </div>}
         {(profileState === "complete" || pathname === "/profile") ? children :
           profileState === "checking" ?
             <ConsoleLoader label="در حال بررسی وضعیت پروفایل…" /> :

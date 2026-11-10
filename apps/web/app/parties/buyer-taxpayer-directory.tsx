@@ -20,6 +20,13 @@ type Row = { id: string; buyerId: string; type: "buyer" | "taxpayer"; kind: numb
   name: string; identifier: string; status: string; ownerName: string };
 
 const kindLabel = (kind: number | null) => kind === 1 ? "شخص حقیقی" : kind === 2 ? "شخص حقوقی" : "تعیین‌نشده";
+const customerOptionLabel = (account: Buyer) => {
+  const name = account.companyName?.trim() || account.personName?.trim();
+  if (name) return name;
+  const contact = account.mobile?.trim() || account.email?.trim();
+  if (contact) return contact;
+  return `حساب بدون نام · ${account.customerUserId.slice(0, 8)}…`;
+};
 const formatError = (status: number) => status === 401 ? "نشست معتبر نیست." :
   status === 403 ? "مجوز دسترسی ندارید." : status === 409 ? "اطلاعات تکراری است." :
   "دریافت یا ذخیره اطلاعات با خطا مواجه شد.";
@@ -34,6 +41,7 @@ export default function BuyerTaxpayerDirectory({ admin, level1, actorUserId }: {
   const requestVersion = useRef(0);
   const [buyers, setBuyers] = useState<Buyer[]>([]);
   const [registrationBuyers, setRegistrationBuyers] = useState<Buyer[]>([]);
+  const [customerFilter, setCustomerFilter] = useState("");
   const [selectedRecord, setSelectedRecord] = useState<Row | null>(null);
   const [registerMode, setRegisterMode] = useState<"buyer" | "seller" | null>(null);
   const [filter, setFilter] = useState<"all" | "buyer" | "taxpayer">("all");
@@ -54,6 +62,7 @@ export default function BuyerTaxpayerDirectory({ admin, level1, actorUserId }: {
       const parameters = new URLSearchParams({ page: String(page), pageSize: String(pageSize),
         type: filter, ...(kind === "all" ? {} : { kind }) });
       if (query.trim()) parameters.set("query", query.trim());
+      if (customerFilter) parameters.set("customerId", customerFilter);
       // This is a fiscal row query, not a query of software login accounts.
       const fiscal = await get<FiscalPage>("/api/fiscal-participants?" + parameters);
       if (version !== requestVersion.current) return;
@@ -85,11 +94,22 @@ export default function BuyerTaxpayerDirectory({ admin, level1, actorUserId }: {
         setRefreshedAt(new Date().toLocaleTimeString("fa-IR"));
       }
     }
-  }, [admin, page, pageSize, query, filter, kind]);
+  }, [admin, page, pageSize, query, filter, kind, customerFilter]);
   useEffect(() => {
     void reload();
     return () => { requestVersion.current++; };
   }, [reload]);
+
+  useEffect(() => {
+    if (!admin) return;
+    let active = true;
+    void get<Buyer[]>("/api/customer-owners/accounts").then(accounts => {
+      if (active) setBuyers(accounts);
+    }).catch(e => {
+      if (active) setError((e as Error).message);
+    });
+    return () => { active = false; };
+  }, [admin]);
 
   const maxPage = Math.max(1, Math.ceil(total / pageSize));
   const activePage = Math.min(page, maxPage);
@@ -99,7 +119,8 @@ export default function BuyerTaxpayerDirectory({ admin, level1, actorUserId }: {
     if (!admin) { setRegisterMode(mode); return; }
     try {
       const all = await get<Buyer[]>("/api/customer-owners/accounts");
-      setRegistrationBuyers(all.filter(x => canRegisterParticipant(x)));
+      setBuyers(all);
+      setRegistrationBuyers(all.filter(x => x.customerUserId !== actorUserId && canRegisterParticipant(x)));
       setRegisterMode(mode);
     } catch (e) {
       setError((e as Error).message);
@@ -119,6 +140,14 @@ export default function BuyerTaxpayerDirectory({ admin, level1, actorUserId }: {
       <button type="button" className="identity-secondary" onClick={() => { setError(""); void reload(); }} disabled={loading}>بازخوانی فهرست</button>
     </div>}
       <div className="console-directory-filters">
+        {admin && <label>حساب مشتری
+          <select value={customerFilter} onChange={e => { setCustomerFilter(e.target.value); setPage(1); }}>
+            <option value="">همه مشتریان زیرمجموعه مجاز</option>
+            {buyers.filter(account => account.customerUserId !== actorUserId).map(account => <option key={account.customerUserId} value={account.customerUserId}>
+              {customerOptionLabel(account)}
+            </option>)}
+          </select>
+        </label>}
         <label>نوع رکورد<select value={filter} onChange={e => { setFilter(e.target.value as typeof filter); setPage(1); }}>
           <option value="all">همه</option><option value="buyer">خریداران</option><option value="taxpayer">مؤدیان</option>
         </select></label>

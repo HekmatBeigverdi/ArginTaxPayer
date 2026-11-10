@@ -53,8 +53,8 @@ const normalizeDigits = (value: string) => value
   .replace(/[۰-۹]/g, digit => String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)))
   .replace(/\D/g, "")
   .slice(0, 13);
-export default function CatalogWorkspace({ actorId }: { actorId: string }) {
-  const [customer, setCustomer] = useState(actorId);
+export default function CatalogWorkspace({ actorId, isAdmin }: { actorId: string; isAdmin: boolean }) {
+  const [customer, setCustomer] = useState(isAdmin ? "" : actorId);
   const [accounts, setAccounts] = useState<OwnerAccount[]>([]);
   const [actorLabel, setActorLabel] = useState("حساب واردشده");
   const tableVersion = useRef(0);
@@ -114,9 +114,12 @@ export default function CatalogWorkspace({ actorId }: { actorId: string }) {
     void loadAccounts();
     return () => { live = false; };
   }, []);
-  const customerLabel = customer === actorId ? actorLabel :
+  const customerLabel = !customer ? "مشتری انتخاب نشده" : customer === actorId ? actorLabel :
     (accountName(accounts.find(a => a.customerUserId === customer) ?? { customerUserId: customer }) || "حساب انتخاب‌شده");
   const load = useCallback(async () => {
+    if (kind !== "official" && !customer && isAdmin) {
+      setRows([]); setMore(false); setLoading(false); setError(""); return;
+    }
     if (kind !== "official" && !guid(customer)) { setError("شناسه مشتری باید UUID معتبر باشد."); return; }
     const version = ++tableVersion.current;
     setLoading(true); setError("");
@@ -131,7 +134,7 @@ export default function CatalogWorkspace({ actorId }: { actorId: string }) {
       setRows([]); setMore(false); setError(e instanceof Error ? e.message : "خطای دریافت اطلاعات");
     } }
     finally { if (version === tableVersion.current) setLoading(false); }
-  }, [customer, kind, page, query]);
+  }, [customer, isAdmin, kind, page, query]);
 
   useEffect(() => { void load(); }, [load]);
   useEffect(() => {
@@ -245,10 +248,10 @@ export default function CatalogWorkspace({ actorId }: { actorId: string }) {
             onClick={() => { setKind(value); setPage(1); setRows([]); setSelected(null); setEdit(null); setError(""); }}>{label}</button>)}
       </div>
       <div className="catalog-filters">
-        {kind !== "official" && <label>حساب / مشتری هدف
+        {kind !== "official" && isAdmin && <label>حساب / مشتری هدف
           <select aria-label="انتخاب مشتری بر اساس نام" value={customer}
             onChange={e=> {tableVersion.current++; setCustomer(e.target.value); setPage(1); setRows([]); setSelected(null);}}>
-            <option value={actorId}>{actorLabel} (حساب فعلی)</option>
+            <option value="">انتخاب مشتری زیرمجموعه</option>
             {accounts.filter(a=>a.customerUserId!==actorId && a.isActive !== false && accountName(a).length>0).map(a=><option
               key={a.customerUserId} value={a.customerUserId}>
               {accountName(a)}
@@ -261,7 +264,7 @@ export default function CatalogWorkspace({ actorId }: { actorId: string }) {
         </label>
         <button type="button" className="identity-secondary" disabled={loading} onClick={()=>void load()}>بازخوانی</button>
       </div>
-      {kind !== "official" && <p className="catalog-help">نمایش و ثبت فقط برای حساب انتخاب‌شده: <strong>{customerLabel}</strong>. «کد داخلی» برای مدیریت کالا در ArginTaxPayer است. برای صورتحساب مؤدیان، پس از ثبت کالا در جدول روی «نگاشت» کلیک کنید و شناسه رسمی ۱۳ رقمی را از مرجع فعال انتخاب کنید. دسترسی توسط سرور و مالکیت تجاری کنترل می‌شود.</p>}
+      {kind !== "official" && <p className="catalog-help">{isAdmin ? "نمایش و ثبت فقط برای مشتری انتخاب‌شده" : "نمایش و ثبت در حساب شما"}: <strong>{customerLabel}</strong>. «کد داخلی» برای مدیریت کالا در ArginTaxPayer است. برای صورتحساب مؤدیان، پس از ثبت کالا در جدول روی «نگاشت» کلیک کنید و شناسه رسمی ۱۳ رقمی را از مرجع فعال انتخاب کنید. دسترسی توسط سرور و مالکیت تجاری کنترل می‌شود.</p>}
     </section>
     {error && <p className="form-error" role="alert">{error}</p>}
     {info && <p className="catalog-message" role="status">{info}</p>}

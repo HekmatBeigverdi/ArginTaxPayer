@@ -46,11 +46,13 @@ public sealed class TaxpayerScopeService(ArginTaxPayerDbContext db, IdentityAuth
     private IQueryable<TaxpayerProfile> ScopedProfiles(Guid actorId) =>
         db.TaxpayerProfiles.Where(p => p.CustomerUserId.HasValue &&
             db.IdentityUsers.Any(customer => customer.Id == p.CustomerUserId &&
-                customer.IsActive && customer.Roles.Any(r => r.Role == IdentityRoleNames.Customer)) &&
+                customer.IsActive && customer.Roles.Any(r => r.Role == IdentityRoleNames.Customer) &&
+                !customer.Roles.Any(r => r.Role == IdentityRoleNames.Level1 || r.Role == IdentityRoleNames.Level2)) &&
             db.IdentityUsers.Any(u => u.Id == actorId && u.IsActive &&
                 (u.Id == p.CustomerUserId &&
-                    u.Roles.Any(r => r.Role == IdentityRoleNames.Customer) ||
-                 db.IdentityMfaStates.Any(m => m.UserId == actorId && m.EnabledAtUtc != null) &&
+                    u.Roles.Any(r => r.Role == IdentityRoleNames.Customer) &&
+                    !u.Roles.Any(r => r.Role == IdentityRoleNames.Level1 || r.Role == IdentityRoleNames.Level2) ||
+                 u.Id != p.CustomerUserId && db.IdentityMfaStates.Any(m => m.UserId == actorId && m.EnabledAtUtc != null) &&
                  (u.Roles.Any(r => r.Role == IdentityRoleNames.Level1) ||
                  db.CustomerCommercialOwners.Any(o => o.CustomerUserId == p.CustomerUserId &&
                       u.Roles.Any(r => r.Role == IdentityRoleNames.Level2) &&

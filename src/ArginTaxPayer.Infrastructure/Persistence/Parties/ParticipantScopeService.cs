@@ -17,15 +17,17 @@ public sealed class ParticipantScopeService(ArginTaxPayerDbContext db)
         return await db.IdentityUsers.AsNoTracking().AnyAsync(u =>
             u.Id == actor && u.IsActive &&
             db.IdentityUsers.Any(target => target.Id == customer && target.IsActive &&
-                target.Roles.Any(r => r.Role == IdentityRoleNames.Customer)) &&
-            (db.IdentityMfaStates.Any(m => m.UserId == actor && m.EnabledAtUtc != null) &&
+                target.Roles.Any(r => r.Role == IdentityRoleNames.Customer) &&
+                !target.Roles.Any(r => r.Role == IdentityRoleNames.Level1 || r.Role == IdentityRoleNames.Level2)) &&
+            (actor != customer && db.IdentityMfaStates.Any(m => m.UserId == actor && m.EnabledAtUtc != null) &&
                 u.Roles.Any(r => r.Role == IdentityRoleNames.Level1) ||
             db.SoftwareUserProfiles.Any(profile => profile.UserId == customer &&
                 profile.FirstName.Length >= 2 && profile.LastName.Length >= 2 &&
                 profile.Address.Length >= 2) &&
             (
-                u.Id == customer && u.Roles.Any(r => r.Role == IdentityRoleNames.Customer) ||
-                db.IdentityMfaStates.Any(m => m.UserId == actor && m.EnabledAtUtc != null) &&
+                u.Id == customer && u.Roles.Any(r => r.Role == IdentityRoleNames.Customer) &&
+                    !u.Roles.Any(r => r.Role == IdentityRoleNames.Level1 || r.Role == IdentityRoleNames.Level2) ||
+                actor != customer && db.IdentityMfaStates.Any(m => m.UserId == actor && m.EnabledAtUtc != null) &&
                 db.CustomerCommercialOwners.Any(o => o.CustomerUserId == customer &&
                     u.Roles.Any(r => r.Role == IdentityRoleNames.Level2) &&
                         o.PartnerLevel2UserId == actor)

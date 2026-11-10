@@ -739,7 +739,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
           <select id="invoice-list-customer" value={filterCustomer}
             onChange={e=>{setFilterCustomer(e.target.value);setFilterTaxpayer("");setListPage(1);}}>
             <option value="">همه مشتریان زیرمجموعه</option>
-            {accounts.map(a=><option key={a.customerUserId} value={a.customerUserId}>
+            {accounts.filter(a=>a.customerUserId!==actorId).map(a=><option key={a.customerUserId} value={a.customerUserId}>
               {a.companyName || a.personName || "حساب مشتری"}
             </option>)}
           </select>
@@ -993,7 +993,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
                 <select id="invoice-header-customer" value={headerCustomer} required
                   onChange={e=>{setHeaderCustomer(e.target.value);setTaxpayerId("");setMemoryId("");setHeaderOptions(null);setBuyerId("");setBuyerQuery("");setBuyerOpen(false);}}>
                   <option value="">انتخاب مشتری</option>
-                  {accounts.map(a=><option key={a.customerUserId} value={a.customerUserId}>
+                  {accounts.filter(a=>a.customerUserId!==actorId).map(a=><option key={a.customerUserId} value={a.customerUserId}>
                     {a.companyName || a.personName || "مشتری مجاز"}
                   </option>)}
                 </select>

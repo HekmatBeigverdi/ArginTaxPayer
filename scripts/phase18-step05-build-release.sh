@@ -11,6 +11,8 @@ if command -v sha256sum >/dev/null; then digest_cmd=sha256sum; elif command -v s
 [[ -f apps/web/package-lock.json ]] || die "Missing lockfile"
 sha="$(git rev-parse HEAD)"
 stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+product_version="$(node -p "require('./apps/web/package.json').version")"
+release_version="${product_version}+local.${stamp}.${sha:0:8}"
 out="$PWD/artifacts/phase18-step05/$sha/$stamp"
 mkdir -p "$out/logs" "$out/stage/api" "$out/stage/web"
 chmod 700 "$out" "$out/logs"
@@ -35,7 +37,7 @@ run dotnet-publish dotnet publish src/ArginTaxPayer.Api/ArginTaxPayer.Api.csproj
 run web-install bash -c 'cd apps/web && npm ci'
 run web-tests bash -c 'cd apps/web && npm test'
 run web-typecheck bash -c 'cd apps/web && npm run typecheck'
-run web-production-build bash -c 'cd apps/web && NODE_ENV=production npm run build'
+run web-production-build env NODE_ENV=production NEXT_PUBLIC_APP_VERSION="$release_version" npm --prefix apps/web run build
 [[ -s "$out/stage/api/ArginTaxPayer.Api.dll" ]] || die "API assembly missing"
 [[ -f apps/web/.next/BUILD_ID ]] || die "Next.js BUILD_ID missing"
 cp apps/web/package.json apps/web/package-lock.json "$out/stage/web/"
@@ -45,7 +47,7 @@ cp -a apps/web/.next "$out/stage/web/"
 if find "$out/stage" -type f \( -name '.env' -o -name '.env.*' -o -name '*.pem' -o -name '*.pfx' -o -name '*.p12' -o -name '*.key' \) | grep -q .; then
  die "Sensitive filename detected in staging; inspect before packaging"
 fi
-printf 'sha=%s\nutc=%s\ndotnet=%s\nnode=%s\nnext_build_id=%s\n' "$sha" "$stamp" "$(dotnet --version)" "$(node --version)" "$(cat apps/web/.next/BUILD_ID)" > "$out/build-info.txt"
+printf 'version=%s\nsha=%s\nutc=%s\ndotnet=%s\nnode=%s\nnext_build_id=%s\n' "$release_version" "$sha" "$stamp" "$(dotnet --version)" "$(node --version)" "$(cat apps/web/.next/BUILD_ID)" > "$out/build-info.txt"
 (cd "$out/stage" && tar -czf "$out/api.tar.gz" api && tar -czf "$out/web.tar.gz" web)
 (cd "$out" && $digest_cmd api.tar.gz web.tar.gz > SHA256SUMS)
 printf 'packaging\tBUILT_NOT_DEPLOYED\n' >> "$out/manifest.tsv"

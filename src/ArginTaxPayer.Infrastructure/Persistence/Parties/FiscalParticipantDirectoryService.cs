@@ -32,12 +32,14 @@ public sealed class FiscalParticipantDirectoryService(
         // Access is recomputed for every read against current roles, MFA and commercial ownership.
         var allowedCustomers =
             from customer in db.IdentityUsers.AsNoTracking()
-            where customer.IsActive && customer.Roles.Any(r => r.Role == IdentityRoleNames.Customer)
+            where customer.IsActive && customer.Roles.Any(r => r.Role == IdentityRoleNames.Customer) &&
+                !customer.Roles.Any(r => r.Role == IdentityRoleNames.Level1 || r.Role == IdentityRoleNames.Level2)
             where db.IdentityUsers.Any(actorUser =>
                 actorUser.Id == actor.Value && actorUser.IsActive &&
                 (actorUser.Id == customer.Id &&
-                    actorUser.Roles.Any(r => r.Role == IdentityRoleNames.Customer) ||
-                 db.IdentityMfaStates.Any(m =>
+                    actorUser.Roles.Any(r => r.Role == IdentityRoleNames.Customer) &&
+                    !actorUser.Roles.Any(r => r.Role == IdentityRoleNames.Level1 || r.Role == IdentityRoleNames.Level2) ||
+                 actorUser.Id != customer.Id && db.IdentityMfaStates.Any(m =>
                     m.UserId == actor.Value && m.EnabledAtUtc != null) &&
                  (actorUser.Roles.Any(r => r.Role == IdentityRoleNames.Level1) ||
                  db.CustomerCommercialOwners.Any(o =>
