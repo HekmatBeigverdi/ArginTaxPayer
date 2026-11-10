@@ -73,12 +73,12 @@ export default function InvoiceLineageModal({taxpayerId,invoiceId,onClose,onChan
  },[taxpayerId,invoiceId,reload]);
  useEffect(()=>{
   if(!printTargetId||!printReady[printTargetId])return;
-  const paper=previewDetails.current[printTargetId]?.querySelector<HTMLElement>(".invoice-paper");
-  if(!paper){setPrintBusyId(null);setPrintTargetId(null);return;}
+  const sheet=previewDetails.current[printTargetId]?.querySelector<HTMLElement>(".invoice-paper-print-sheet");
+  if(!sheet){setPrintBusyId(null);setPrintTargetId(null);return;}
   const printRoot=document.createElement("div");
   printRoot.id="invoice-lineage-print-root";
   printRoot.dir="rtl";
-  printRoot.append(paper.cloneNode(true));
+  printRoot.append(sheet.cloneNode(true));
   document.body.append(printRoot);
   document.body.classList.add("invoice-lineage-printing");
   const afterPrint=()=>{
@@ -89,8 +89,8 @@ export default function InvoiceLineageModal({taxpayerId,invoiceId,onClose,onChan
    setPrintTargetId(null);
   };
   window.addEventListener("afterprint",afterPrint,{once:true});
-  const logo=printRoot.querySelector<HTMLImageElement>("img");
-  const imageReady=logo?.decode().catch(()=>undefined)??Promise.resolve();
+  const imageReady=Promise.all(Array.from(printRoot.querySelectorAll<HTMLImageElement>("img"),image=>
+   image.decode().catch(()=>undefined)));
   const timer=window.setTimeout(()=>{void imageReady.then(()=>window.print());},100);
   return()=>{window.clearTimeout(timer);window.removeEventListener("afterprint",afterPrint);
    document.body.classList.remove("invoice-lineage-printing");printRoot.remove();};

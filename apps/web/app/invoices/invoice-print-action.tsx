@@ -15,12 +15,12 @@ export default function InvoicePrintAction({taxpayerId,invoiceId,reference,subje
  },[]);
  useEffect(()=>{
   if(!requested||!ready)return;
-  const paper=document.querySelector<HTMLElement>(".invoice-table-print-source .invoice-paper");
-  if(!paper){setError("نمای چاپ صورتحساب آماده نشد.");setRequested(false);setReady(false);return;}
+  const sheet=document.querySelector<HTMLElement>(".invoice-table-print-source .invoice-paper-print-sheet");
+  if(!sheet){setError("نمای چاپ صورتحساب آماده نشد.");setRequested(false);setReady(false);return;}
   const root=document.createElement("div");
   root.id="invoice-lineage-print-root";
   root.dir="rtl";
-  root.append(paper.cloneNode(true));
+  root.append(sheet.cloneNode(true));
   document.body.append(root);
   document.body.classList.add("invoice-lineage-printing");
   const afterPrint=()=>{
@@ -28,8 +28,8 @@ export default function InvoicePrintAction({taxpayerId,invoiceId,reference,subje
    setRequested(false);setReady(false);
   };
   window.addEventListener("afterprint",afterPrint,{once:true});
-  const logo=root.querySelector<HTMLImageElement>("img");
-  const imageReady=logo?.decode().catch(()=>undefined)??Promise.resolve();
+  const imageReady=Promise.all(Array.from(root.querySelectorAll<HTMLImageElement>("img"),image=>
+   image.decode().catch(()=>undefined)));
   const timer=window.setTimeout(()=>{void imageReady.then(()=>window.print());},100);
   return()=>{
    window.clearTimeout(timer);window.removeEventListener("afterprint",afterPrint);
