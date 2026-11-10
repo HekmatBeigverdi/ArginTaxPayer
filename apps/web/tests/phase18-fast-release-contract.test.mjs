@@ -23,7 +23,7 @@ test("release promotion requires explicit approval and activation marker", () =>
   assert.doesNotMatch(s,/dotnet ef database update/);
 });
 test("GitHub workflow never deploys automatically on push", () => {
-  const s=read(".github/workflows/phase18-production-release.yml");
+  const s=read(".github/workflows/production-release.yml");
   assert.match(s,/workflow_dispatch/);
   assert.match(s,/github\.event_name == 'workflow_dispatch'/);
   assert.match(s,/environment: production/);
