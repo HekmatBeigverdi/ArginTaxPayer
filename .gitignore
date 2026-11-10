@@ -29,13 +29,6 @@ obj/
 .idea/
 .DS_Store
 
-# Python test/runtime artifacts
-__pycache__/
-*.py[cod]
-
-# Generated local logs
-*.log
-
 # Local phase 09 acceptance evidence (may contain host metadata)
 artifacts/phase09-step25-acceptance.json
 

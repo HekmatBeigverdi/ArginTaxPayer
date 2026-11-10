@@ -45,7 +45,7 @@ systemctl cat argintaxpayer-web.service >/dev/null || die 'Web systemd unit is a
 release_root="$HOME/.cache/argin-taxpayer/manual-releases"
 build_stamp="$(date -u +%Y%m%dT%H%M%SZ)"
 product_version="$(node -p "require('./apps/web/package.json').version")"
-release_version="${product_version} (Manual ${build_stamp})"
+release_version="${product_version}+manual.${build_stamp}.${sha:0:8}"
 release_dir="$release_root/${sha}-${build_stamp}"
 bundle="$release_dir/bundle"
 [[ ! -e "$release_dir" ]] || die "Build directory already exists: $release_dir"

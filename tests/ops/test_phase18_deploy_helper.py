@@ -174,11 +174,11 @@ class HelperTests(unittest.TestCase):
         current = self.root / 'current'
         current.symlink_to(old)
         def restart():
-            if current.resolve() == new.resolve():
+            if current.resolve() == new:
                 raise RuntimeError('service failed')
         with self.assertRaises(self.h.Refused):
             self.h.promote(new, current, restart, lambda: True)
-        self.assertEqual(current.resolve(), old.resolve())
+        self.assertEqual(current.resolve(), old)
 
     def test_disconnect_immediately_after_symlink_switch_rolls_back(self):
         old, new = self.root / ('a'*40), self.root / ('b'*40)
@@ -194,7 +194,7 @@ class HelperTests(unittest.TestCase):
         with patch.object(self.h, 'atomic_current', switch_then_disconnect):
             with self.assertRaises(self.h.Refused):
                 self.h.promote(new, current, lambda: None, lambda: True)
-        self.assertEqual(current.resolve(), old.resolve())
+        self.assertEqual(current.resolve(), old)
 
     def test_upload_rejects_wrong_owner(self):
         (self.root / 'file').write_bytes(b'data')
@@ -253,9 +253,9 @@ class HelperTests(unittest.TestCase):
         def restart():
             attempts.append(current.resolve())
         with self.assertRaises(self.h.Refused):
-            self.h.promote(new, current, restart, lambda: current.resolve() == old.resolve())
-        self.assertEqual(current.resolve(), old.resolve())
-        self.assertEqual(attempts, [new.resolve(), old.resolve()])
+            self.h.promote(new, current, restart, lambda: current.resolve() == old)
+        self.assertEqual(current.resolve(), old)
+        self.assertEqual(attempts, [new, old])
 
     def test_failed_first_release_stops_services_and_removes_current(self):
         new = self.root / ('a'*40)
@@ -275,7 +275,7 @@ class HelperTests(unittest.TestCase):
         current = self.root / 'current'
         current.symlink_to(old)
         self.h.promote(new, current, lambda: None, lambda: True)
-        self.assertEqual(current.resolve(), new.resolve())
+        self.assertEqual(current.resolve(), new)
         self.assertTrue(old.is_dir())
 
 if __name__ == '__main__':
