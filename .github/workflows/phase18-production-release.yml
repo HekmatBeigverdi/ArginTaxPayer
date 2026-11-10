@@ -122,11 +122,11 @@ jobs:
             exit 1
           }
           target="$DEPLOY_USER@$DEPLOY_HOST"
-          ssh -o BatchMode=yes -o ConnectTimeout=15 -o StrictHostKeyChecking=yes \
+          ssh -p 2222 -o BatchMode=yes -o ConnectTimeout=15 -o StrictHostKeyChecking=yes \
             "$target" "umask 077; mkdir -p ~/argin-deploy-incoming/$SOURCE_SHA"
-          scp -o BatchMode=yes -o ConnectTimeout=15 -o StrictHostKeyChecking=yes \
+          scp -P 2222 -o BatchMode=yes -o ConnectTimeout=15 -o StrictHostKeyChecking=yes \
             bundle/api.tar.gz bundle/web.tar.gz bundle/build-info.txt bundle/SHA256SUMS \
             "$target:argin-deploy-incoming/$SOURCE_SHA/"
-          ssh -o BatchMode=yes -o ConnectTimeout=15 -o StrictHostKeyChecking=yes \
+          ssh -p 2222 -o BatchMode=yes -o ConnectTimeout=15 -o StrictHostKeyChecking=yes \
             "$target" "sudo -n /usr/local/sbin/argin-taxpayer-release --deploy '$SOURCE_SHA'"
 
