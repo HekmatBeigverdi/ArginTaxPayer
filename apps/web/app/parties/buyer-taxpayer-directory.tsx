@@ -120,7 +120,8 @@ export default function BuyerTaxpayerDirectory({ admin, level1, actorUserId }: {
     try {
       const all = await get<Buyer[]>("/api/customer-owners/accounts");
       setBuyers(all);
-      setRegistrationBuyers(all.filter(x => x.customerUserId !== actorUserId && canRegisterParticipant(x)));
+      setRegistrationBuyers(all.filter(x => x.customerUserId !== actorUserId)
+        .filter(x => canRegisterParticipant(x)));
       setRegisterMode(mode);
     } catch (e) {
       setError((e as Error).message);

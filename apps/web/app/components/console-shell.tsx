@@ -34,7 +34,7 @@ export default function ConsoleShell({ roles, userId, dashboardOnly = false, chi
   const role = roles.includes("Level1") ? "مدیر سطح یک" :
     roles.includes("Level2") ? "مدیر سطح دو" : "کاربر پنل";
   const about: Item = { title: "درباره ما", path: "/about", glyph: "ⓘ" };
-  const navigation = dashboardOnly ? [base[0], about] : admin ? [base[0],
+  const navigation = dashboardOnly ? [base[0]] : admin ? [base[0],
     { title: "کاربران نرم‌افزار", path: "/users", glyph: "♟" },
     ...(roles.includes("Level1") ? [{ title: "تأیید تغییر کلید", path: "/signing-approvals", glyph: "✓" }] : []),
     base[1], base[2], base[3],
@@ -96,7 +96,7 @@ export default function ConsoleShell({ roles, userId, dashboardOnly = false, chi
   }, [appVersion]);
 
   useEffect(() => {
-    if (dashboardOnly && pathname !== "/dashboard" && pathname !== "/about") router.replace("/dashboard");
+    if (dashboardOnly && pathname !== "/dashboard") router.replace("/dashboard");
     if (!dashboardOnly && profileState === "incomplete" && pathname !== "/profile") router.replace("/profile");
   }, [dashboardOnly, profileState, pathname, router]);
   useEffect(() => {
@@ -138,8 +138,8 @@ export default function ConsoleShell({ roles, userId, dashboardOnly = false, chi
       <footer className="app-sidebar-footer" aria-label="شرکت‌های آرگین">
         <span>{dashboardOnly ? "نمایش محدود Production" : `نسخه ${appVersion}`}</span>
         <div className="app-sidebar-company-logos">
-          <Image src="/brand/companies/negin-hesab-vira.png" width={38} height={38} alt="نگین حساب ویرا" unoptimized />
-          <Image src="/brand/companies/hamgam-afzar.png" width={38} height={38} alt="داده پردازی همگام افزار" unoptimized />
+          <Image src="/brand/companies/negin-hesab-vira.png" width={38} height={38} alt="نگین حساب ویرا" />
+          <Image src="/brand/companies/hamgam-afzar.png" width={38} height={38} alt="داده پردازی همگام افزار" />
         </div>
         <small className="app-sidebar-copyright">حقوق نرم افزار آرگین برای صاحبان نرم افزار محفوظ است</small>
       </footer>
