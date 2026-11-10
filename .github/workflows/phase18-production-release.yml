@@ -1,7 +1,9 @@
 name: ArginTaxPayer versioned release
 on:
   push:
-    branches: [main, phase/18-production-deployment]
+    branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
     inputs:
       deploy:
@@ -12,8 +14,8 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: argintaxpayer-${{ github.ref }}-${{ github.event_name }}
-  cancel-in-progress: ${{ github.event_name == 'push' }}
+  group: argintaxpayer-release-${{ github.ref }}
+  cancel-in-progress: false
 jobs:
   package:
     runs-on: ubuntu-24.04
@@ -28,6 +30,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+      - name: Verify restricted deployment boundary
+        run: |
+          python3 -m unittest discover -s tests/ops -p 'test_phase18_deploy_helper.py' -v
+          bash -n scripts/phase18-install-deploy-helper.sh
       - uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
@@ -70,11 +76,11 @@ jobs:
           if-no-files-found: error
           retention-days: 14
   deploy:
-    if: github.event_name == 'workflow_dispatch' && inputs.deploy && github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.deploy))
     needs: package
     runs-on: ubuntu-24.04
     environment: production
-    timeout-minutes: 20
+    timeout-minutes: 35
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -97,12 +103,27 @@ jobs:
           DEPLOY_HOST: ${{ secrets.ARGIN_DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.ARGIN_DEPLOY_USER }}
           SOURCE_SHA: ${{ github.sha }}
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
         run: |
           set -Eeuo pipefail
           [[ "$DEPLOY_HOST" =~ ^[a-zA-Z0-9.-]+$ ]]
           [[ "$DEPLOY_USER" =~ ^[a-z_][a-z0-9_-]*$ ]]
           [[ "$SOURCE_SHA" =~ ^[a-f0-9]{40}$ ]]
+          latest_sha="$(curl --fail --silent --show-error \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'Accept: application/vnd.github+json' \
+            "https://api.github.com/repos/$REPOSITORY/git/ref/heads/main" | jq -er '.object.sha')"
+          [[ "$SOURCE_SHA" == "$latest_sha" ]] || {
+            echo 'Refusing an obsolete main release; approve the latest run instead.' >&2
+            exit 1
+          }
           target="$DEPLOY_USER@$DEPLOY_HOST"
-          ssh -o StrictHostKeyChecking=yes "$target" 'mkdir -p ~/argin-deploy-incoming'
-          scp -o StrictHostKeyChecking=yes -r bundle/. "$target:argin-deploy-incoming/"
-          ssh -o StrictHostKeyChecking=yes "$target" "cd ~/argin-deploy-incoming && bash scripts/phase18-release-stage.sh --stage '$SOURCE_SHA' --bundle-dir \"\$PWD\" --sha256-manifest \"\$PWD/SHA256SUMS\" && PHASE18_OWNER_APPROVED_RELEASE=YES bash scripts/phase18-release-promote.sh --promote '$SOURCE_SHA'"
+          ssh -o BatchMode=yes -o ConnectTimeout=15 -o StrictHostKeyChecking=yes \
+            "$target" "umask 077; mkdir -p ~/argin-deploy-incoming/$SOURCE_SHA"
+          scp -o BatchMode=yes -o ConnectTimeout=15 -o StrictHostKeyChecking=yes \
+            bundle/api.tar.gz bundle/web.tar.gz bundle/build-info.txt bundle/SHA256SUMS \
+            "$target:argin-deploy-incoming/$SOURCE_SHA/"
+          ssh -o BatchMode=yes -o ConnectTimeout=15 -o StrictHostKeyChecking=yes \
+            "$target" "sudo -n /usr/local/sbin/argin-taxpayer-release --deploy '$SOURCE_SHA'"
+
