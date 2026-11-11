@@ -1,5 +1,7 @@
 # Phase 18 — consolidated dual-authority implementation status
 
+> **Historical snapshot:** Sections below record implementation findings and blockers as of 2026-11-06. They are not the current phase status. Phase 18 was subsequently completed and owner-accepted on 2026-11-11; see [Phase 18 final acceptance](./phase-18-final-acceptance.md). The dated blockers below are retained for audit history and are superseded by that closeout.
+
 ## Owner-confirmed workflow update (2026-11-06)
 
 - The owner reports the existing Production original-invoice send was tested live and works. Do not replace or refactor that sender.
@@ -43,3 +45,8 @@ bash scripts/phase18-step14-one-shot-source-acceptance.sh
 ```
 
 Offline success is not a go-live certificate. Retain `ArginTaxPayer__EnableOperationalEndpoints=false`, `SandboxInvoiceLegacy__Enabled=false` and `ARGIN_PRODUCTION_UI_ENABLED=false` on the Ubuntu Production deployment until every listed blocker is explicitly resolved and live acceptance is independently confirmed.
+
+
+## Final owner acceptance (2026-11-11)
+
+The owner confirms that the remaining Phase 18 production and dual-authority acceptance checks are complete. The successful automatic deployment of main SHA `1b7ff365d903989cd1879e0dc3850b46ad1152b4` is independently recorded in GitHub Actions run [#42865118907](https://github.com/HekmatBeigverdi/ArginTaxPayer/actions/runs/42865118907): package and deploy jobs passed, and the deploy helper reported immutable release promotion plus loopback health PASS. The owner also confirmed the final site/application checks passed. The exact final acceptance scope and tag/Release procedure are in [phase-18-final-acceptance.md](./phase-18-final-acceptance.md).

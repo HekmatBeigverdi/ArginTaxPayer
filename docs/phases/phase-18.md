@@ -1,7 +1,7 @@
 # ArginTaxPayer — Phase 18: Controlled Production Deployment & Dual Tax-Authority Environments
 
-**Status:** Steps 01–06 OWNER-APPROVED; Step 07 OWNER-APPROVED (2026-11-04) with isolated PostgreSQL 17, TLS VerifyFull, 72 EF history rows and pre-migration restore confirmed; post-migration audit/restore outputs have not been independently provided in this conversation. Step 08 source-level configuration and custody controls IMPLEMENTED and macOS/Ubuntu preflight reported PASS by owner; private config staged with read-only security audit PASS and services disabled. Step 09 source audit in progress: Sandbox-on-Production and real authority routing NOT YET IMPLEMENTED. Public Production application remains disabled.
-**Date:** 2026-11-04  
+**Current status: COMPLETE — owner accepted 2026-11-11.** Phase 18 production deployment, dual-authority operation, final HTTPS/application acceptance, and automatic `main` deployment are complete. The historical step-by-step records below preserve what was known at each date; any earlier `PENDING`, `BLOCKED`, or “not deployed” status is a dated snapshot and is superseded by the final acceptance record at the end of this document. See [Phase 18 final acceptance](./phase-18-final-acceptance.md) for the closing evidence and release instructions.
+**Plan started:** 2026-11-04  
 **Branch:** `phase/18-production-deployment`  
 **Starting main SHA:** `6ad5246a39cace77e76901a20d149c301094f7c3` (Phase 15 merge; release `phase-15-v1.0.0` reported in merge metadata).  
 **Target:** `https://tax.argin.ir`, Ubuntu 24 VPS; ASP.NET Core API + Next.js production build + PostgreSQL 17.  
@@ -852,3 +852,8 @@ Artifacts:
 - `docs/phases/phase-18-fast-release.md`
 
 **State:** Source implementation committed; no code proven deployed to VPS, no new public runtime started, no GitHub CI PASS observed in this turn, no provider operations performed. Detailed operator review and evidence still needed. Legacy Step09 routing blockers remain.
+
+
+## Final acceptance and closure (2026-11-11)
+
+Phase 18 is **CLOSED / OWNER-ACCEPTED**. The current closeout supersedes earlier pending/blocker statements in the historical log above. Deployment and acceptance evidence is recorded in [phase-18-final-acceptance.md](./phase-18-final-acceptance.md). The official GitHub tag and Release are the remaining repository bookkeeping action; create them from the reviewed final `main` commit after merging the documentation closeout and confirming the resulting main deployment succeeds.
