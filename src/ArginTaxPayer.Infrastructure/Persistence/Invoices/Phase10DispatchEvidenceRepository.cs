@@ -1,3 +1,5 @@
+using ArginTaxPayer.Infrastructure.Configuration;
+using Microsoft.Extensions.Configuration;
 using System.Data;
 using ArginTaxPayer.Infrastructure.Persistence.Subscriptions;
 using System.Data.Common;
@@ -25,7 +27,7 @@ public sealed record Phase10DispatchEvidenceResult(
 /// operation with an exact state-revision CAS. Inquiry evidence is append-only
 /// and deliberately does not turn correlation into fiscal acceptance.
 /// </summary>
-public sealed class Phase10DispatchEvidenceRepository(ArginTaxPayerDbContext db)
+public sealed class Phase10DispatchEvidenceRepository(ArginTaxPayerDbContext db, IConfiguration? configuration = null)
 {
     public Task<Phase10DispatchEvidenceResult> AppendInitialReceiptAsync(
         Guid operationId, Guid customerUserId, Guid taxpayerId, Guid attemptId,
@@ -77,8 +79,7 @@ public sealed class Phase10DispatchEvidenceRepository(ArginTaxPayerDbContext db)
                 IsolationLevel.ReadCommitted, ct);
             try
             {
-                if ((string?)await Scalar(connection, tx, "SELECT current_database()", ct) !=
-                    "argintaxpayer_test")
+                if (!SandboxDatabasePolicy.IsAllowed((string?)await Scalar(connection, tx, "SELECT current_database()", ct), connection, configuration))
                     throw new InvalidOperationException("Phase10 evidence requires isolated test DB.");
 
                 await using var lockCommand = Command(connection, tx, """

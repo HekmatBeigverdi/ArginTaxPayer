@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import ExistingKeyImport from "./existing-key-import";
 import SigningKeyGeneration from "./signing-key-generation";
 import SigningConnectionTest from "./signing-connection-test";
@@ -8,157 +8,148 @@ import OperationMessageBox from "./operation-message-box";
 import SigningChangeRequestPanel from "./signing-change-request-panel";
 import SandboxFiscalMemoryPanel from "./sandbox-fiscal-memory-panel";
 import FiscalMemoryAuthorityActions from "./fiscal-memory-authority-actions";
+import ConnectionSummary from "./connection-summary";
+import FiscalMemoryChangeRequestPanel from "./fiscal-memory-change-request-panel";
+import { getConnectionPresentation, historyWithLegacyAttempt, projectConnectionHistory, sandboxSourceChoice, type ConnectionHistory } from "../../lib/fiscal-connection-status";
 
 type Memory = { id: string; taxpayerId: string; memoryIdentifier: string; status: number; revision: number;
   authorityEnvironment: 1 | 2 | null; lastConnectionTestSucceeded: boolean | null; lastConnectionTestAtUtc: string | null;
   canVerifyAndActivate?: boolean };
-type KeyStatus = {
-  hasKey: boolean; lifecycleState: number | null; recoveryAvailable: boolean;
-  fingerprintSha256: string | null; configured: boolean; storageReady: boolean;
-};
-type Method = "existing" | "generate";
+type KeyStatus = { hasKey: boolean; lifecycleState: number | null; recoveryAvailable: boolean;
+  fingerprintSha256: string | null; configured: boolean; storageReady: boolean; connectionHistory: ConnectionHistory };
+type Legacy = { memoryIdentifier: string; keyCustodyReady: boolean; publicFingerprintSha256?: string };
+const activationLabels: Record<number,string> = {1:"در انتظار بررسی و فعال‌سازی",2:"فعال",3:"تعلیق",4:"بازنشسته"};
 
-export default function TaxpayerConnectionPanel({ taxpayerId, memories, loadingMemories, onLoadingChange, isLevel1 = false, onMemoriesChanged }: {
-  taxpayerId: string; memories: Memory[]; loadingMemories: boolean;
-  onLoadingChange?: (value: boolean) => void;
-  isLevel1?: boolean; onMemoriesChanged?: () => Promise<void>;
+export default function TaxpayerConnectionPanel({ taxpayerId, memories, loadingMemories, onLoadingChange, isLevel1 = false, onMemoriesChanged, memoryRegistration }: {
+  taxpayerId: string; memories: Memory[]; loadingMemories: boolean; onLoadingChange?: (value: boolean) => void;
+  isLevel1?: boolean; onMemoriesChanged?: () => Promise<void>; memoryRegistration?: ReactNode;
 }) {
-  const [method, setMethod] = useState<Method>("existing");
-  const [environment, setEnvironment] = useState<"production" | "sandbox">("production");
-  const [selection, setSelection] = useState("");
-  // A UI tab is a display filter only, never a tax-authority routing toggle.
-  // Legacy unclassified memories may use the isolated, one-time read-only probe.
-  const productionMemories = memories.filter(m => m.authorityEnvironment === 1);
-  const unclassifiedMemories = memories.filter(m => m.authorityEnvironment == null);
-  const productionSelectableMemories = [...productionMemories, ...unclassifiedMemories];
-  const unclassifiedCount = memories.filter(m => m.authorityEnvironment == null).length;
-  const memoryId = productionSelectableMemories.some(m => m.id === selection) ? selection : productionSelectableMemories[0]?.id ?? "";
-  const currentProductionMemory = productionSelectableMemories.find(m => m.id === memoryId);
-  const classifiedSandboxMemories = memories.filter(m => m.authorityEnvironment === 2);
+  const [method,setMethod] = useState<"existing"|"generate">("existing");
+  // A UI tab is a display filter only; persisted bindings select every authority operation.
+  const [environment,setEnvironment] = useState<"production"|"sandbox">("production");
+  const [selection,setSelection] = useState("");
   const [sandboxSelection,setSandboxSelection] = useState("");
-  const sandboxMemoryId = classifiedSandboxMemories.some(m => m.id === sandboxSelection) ? sandboxSelection : classifiedSandboxMemories[0]?.id ?? "";
-  const selectedMemoryId = environment === "production" ? memoryId : sandboxMemoryId;
-  const [allowExistingKeyEntry, setAllowExistingKeyEntry] = useState(false);
-  useEffect(() => { setAllowExistingKeyEntry(false); }, [taxpayerId, selectedMemoryId]);
-  const currentMemory = environment === "production" ? currentProductionMemory : classifiedSandboxMemories.find(m => m.id === sandboxMemoryId);
-  const [testedMemoryId,setTestedMemoryId] = useState("");
-  // Pass exactly the selected fiscal memory so all three independent actions
-  // act on the same memory; never silently switch to a different key.
+  const productionSelectableMemories = memories.filter(m=>m.authorityEnvironment===1 || m.authorityEnvironment==null);
+  const classifiedSandboxMemories = memories.filter(m=>m.authorityEnvironment===2);
+  const available = environment==="production" ? productionSelectableMemories : classifiedSandboxMemories;
+  const selected = environment==="production" ? selection : sandboxSelection;
+  const selectedMemoryId = available.some(m=>m.id===selected) ? selected : available[0]?.id ?? "";
+  const currentMemory = available.find(m=>m.id===selectedMemoryId);
   const chosen = currentMemory ? [currentMemory] : [];
-  const [status, setStatus] = useState<KeyStatus | null>(null);
-  const [statusError, setStatusError] = useState("");
-  const [reading, setReading] = useState(false);
-  const [revision, setRevision] = useState(0);
+  const [managing,setManaging] = useState(false);
+  const [source,setSource] = useState<""|"legacy"|"registered">("");
+  const [testedMemoryId,setTestedMemoryId] = useState("");
+  const [status,setStatus] = useState<KeyStatus|null>(null);
+  const [statusError,setStatusError] = useState("");
+  const [reading,setReading] = useState(false);
+  const [revision,setRevision] = useState(0);
+  const [legacy,setLegacy] = useState<Legacy|null>(null);
+  const [legacyReading,setLegacyReading] = useState(true);
+  const [legacyError,setLegacyError] = useState("");
+  const entry = useRef<HTMLDivElement>(null);
+  const refresh = useCallback(()=>{setRevision(v=>v+1);setTestedMemoryId("");},[]);
+  const changed = async()=>{await onMemoriesChanged?.();refresh();};
 
-  const refresh = useCallback(() => { setRevision(v => v + 1); setTestedMemoryId(""); }, []);
-  const memoriesChanged = async () => { await onMemoriesChanged?.(); refresh(); };
-  useEffect(() => {
-    if (!selectedMemoryId) { setStatus(null); setStatusError(""); return; }
-    let active = true;
-    setReading(true); setStatusError(""); setStatus(null);
-    void fetch(`/api/signing/${taxpayerId}/${selectedMemoryId}`, {
-      credentials: "same-origin", cache: "no-store", signal: AbortSignal.timeout(15000)
-    }).then(async response => {
-      const data = await response.json();
-      if (!response.ok) throw new Error("دریافت وضعیت کلید امکان‌پذیر نیست.");
-      if (active) setStatus(data as KeyStatus);
-    }).catch(() => { if (active) setStatusError("وضعیت کلید دریافت نشد؛ بازخوانی کنید."); })
-      .finally(() => { if (active) setReading(false); });
-    return () => { active = false; };
-  }, [taxpayerId, selectedMemoryId, revision]);
+  useEffect(()=>{setManaging(false);setSource("");setTestedMemoryId("");setMethod("existing");},[taxpayerId,selectedMemoryId,environment]);
+  useEffect(()=>{
+    if(!managing)return;
+    entry.current?.scrollIntoView({block:"start",behavior:"smooth"});
+    entry.current?.querySelector<HTMLTextAreaElement>("textarea:not(:disabled)")?.focus({preventScroll:true});
+  },[managing,method]);
+  useEffect(()=>{
+    const controller=new AbortController();setLegacyReading(true);setLegacyError("");setLegacy(null);
+    void fetch(`/api/sandbox-memory/${taxpayerId}`,{credentials:"same-origin",cache:"no-store",signal:controller.signal})
+      .then(async r=>{if(!r.ok)throw Error();return r.json();})
+      .then(data=>{if(!controller.signal.aborted)setLegacy(data.data??null);})
+      .catch(()=>{if(!controller.signal.aborted)setLegacyError("وضعیت حافظهٔ آزمایشی دریافت نشد؛ بازخوانی کنید.");})
+      .finally(()=>{if(!controller.signal.aborted)setLegacyReading(false);});
+    return()=>controller.abort();
+  },[taxpayerId,revision]);
+  useEffect(()=>{
+    const controller=new AbortController();setStatus(null);setStatusError("");
+    if(!selectedMemoryId){setReading(false);return()=>controller.abort();}
+    setReading(true);
+    void fetch(`/api/signing/${taxpayerId}/${selectedMemoryId}`,{credentials:"same-origin",cache:"no-store",signal:controller.signal})
+      .then(async r=>{if(!r.ok)throw Error();return r.json();})
+      .then(data=>{if(!controller.signal.aborted)setStatus({...data,connectionHistory:projectConnectionHistory(data.connectionHistory)});})
+      .catch(()=>{if(!controller.signal.aborted)setStatusError("وضعیت کلید دریافت نشد؛ بازخوانی کنید.");})
+      .finally(()=>{if(!controller.signal.aborted)setReading(false);});
+    return()=>controller.abort();
+  },[taxpayerId,selectedMemoryId,revision]);
 
-  const statusLabel = !status ? "نامشخص" : status.recoveryAvailable ? "نیازمند بازیابی" :
-    !status.hasKey ? "ثبت نشده" : status.lifecycleState === 2 ? "آماده برای آزمون" : "در انتظار تکمیل";
+  const choice = sandboxSourceChoice(legacy,currentMemory?{memoryIdentifier:currentMemory.memoryIdentifier,hasKey:status?.hasKey}:null,environment==="sandbox"?2:1);
+  const useLegacy = environment==="sandbox" && (choice==="legacy" || (choice==="choice"||choice==="separate")&&source==="legacy" || !legacy && !currentMemory);
+  const summaryHistory=historyWithLegacyAttempt(status?.connectionHistory,
+    currentMemory?.lastConnectionTestSucceeded??null,currentMemory?.lastConnectionTestAtUtc??null);
+  const view = getConnectionPresentation(status?.hasKey===true,summaryHistory);
+  const setupOpen = managing || status!==null && !status.hasKey;
+  const openEntry = ()=>{setMethod("existing");setManaging(true);setTestedMemoryId("");};
 
   return <div className="taxpayer-connection-workspace" dir="rtl">
-    <div className="signing-panel-heading">
-      <div>
-        <h2>کلید و اتصال به سامانه مؤدیان</h2>
-        <p>روش تأمین کلید را انتخاب کنید. تست اتصال، مستقل از روش انتخاب‌شده و فقط‌خواندنی است.</p>
-      </div>
-      <button type="button" className="identity-secondary" disabled={reading || loadingMemories}
-        onClick={()=>{refresh();void onMemoriesChanged?.();}}>بازخوانی وضعیت</button>
+    <div className="signing-panel-heading"><div><h2>حافظه مالیاتی و اتصال</h2>
+      <p>هر محیط شناسه، کلید و آزمون مستقل دارد. محیط مورد نظر را انتخاب کنید.</p></div>
+      <button type="button" className="identity-secondary" disabled={reading||loadingMemories||legacyReading}
+        onClick={()=>{refresh();void onMemoriesChanged?.();}}>بازخوانی وضعیت</button></div>
+    <div className="signing-method-tabs" role="tablist" aria-label="محیط حافظه مالیاتی">
+      <button type="button" role="tab" id="taxpayer-production-tab" aria-controls="taxpayer-production-connection"
+        aria-selected={environment==="production"} onClick={()=>setEnvironment("production")}>واقعی (Production)</button>
+      <button type="button" role="tab" id="taxpayer-sandbox-tab" aria-controls="taxpayer-sandbox-connection"
+        aria-selected={environment==="sandbox"} onClick={()=>setEnvironment("sandbox")}>آزمایشی (Sandbox)</button>
     </div>
-
-    <div className="signing-method-tabs" role="tablist" aria-label="انتخاب محیط حافظه مالیاتی">
-      <button type="button" role="tab" aria-selected={environment === "production"}
-        aria-controls="taxpayer-production-connection" id="taxpayer-production-tab"
-        onClick={()=>setEnvironment("production")}>حافظه اصلی (Production)</button>
-      <button type="button" role="tab" aria-selected={environment === "sandbox"}
-        aria-controls="taxpayer-sandbox-connection" id="taxpayer-sandbox-tab"
-        onClick={()=>setEnvironment("sandbox")}>حافظه آزمایشی (Sandbox)</button>
-    </div>
-    {environment === "sandbox" && <SandboxFiscalMemoryPanel taxpayerId={taxpayerId}/>}
-    <div id={environment === "production"?"taxpayer-production-connection":"taxpayer-sandbox-connection"} role="tabpanel"
-      aria-labelledby={environment === "production"?"taxpayer-production-tab":"taxpayer-sandbox-tab"}>
-    <h3>{environment === "production"?"کلید حافظه اصلی (Production)":"کلید حافظه ثبت‌شده Sandbox"}</h3>
-    <FiscalMemoryAuthorityActions taxpayerId={taxpayerId} isLevel1={isLevel1} memories={memories}
-      selectedMemory={currentMemory??null} testedMemoryId={testedMemoryId} onChanged={memoriesChanged}/>
-    {unclassifiedCount > 0 && <OperationMessageBox kind="warning" title="حافظه با محیط نامشخص">
-      {unclassifiedCount} حافظه قدیمی را می‌توانید در تب Production انتخاب کنید تا کلید خصوصی همان حافظه را ثبت و آزمون فقط‌خواندنی Production انجام دهید. اگر پاسخ سازمان فعال‌بودن حافظه و تطابق هویت را تأیید کند، محیط ثبت می‌شود و مالک مؤدی می‌تواند بررسی و فعال‌سازی نهایی را از همین پنل انجام دهد.
-    </OperationMessageBox>}
-    <div className="signing-status-bar">
-      <label htmlFor="signing-memory-selector">حافظه مالیاتی
-        <select id="signing-memory-selector" dir="ltr" disabled={reading || loadingMemories}
-          value={selectedMemoryId} onChange={e => { if(environment === "production")setSelection(e.target.value);else setSandboxSelection(e.target.value);setMethod("existing");setTestedMemoryId(""); }}>
-          {environment === "production" ? <>
-            {productionSelectableMemories.length === 0 && <option value="">حافظه Production تأییدشده‌ای وجود ندارد</option>}
-            {productionSelectableMemories.map(m => <option key={m.id} value={m.id}>{m.memoryIdentifier}{m.authorityEnvironment == null ? " — محیط نامشخص (آزمون یک‌باره)" : ""}</option>)}
-          </> : <>
-            {classifiedSandboxMemories.length === 0 && <option value="">حافظه ثبت‌شده Sandbox وجود ندارد</option>}
-            {classifiedSandboxMemories.map(m => <option key={m.id} value={m.id}>{m.memoryIdentifier}</option>)}
-          </> }
-        </select>
-      </label>
-      <div><small>وضعیت کلید</small><strong>{reading ? "در حال بررسی…" : statusLabel}</strong></div>
-      <div><small>نگهداری امن</small><strong>{status ? status.configured && status.storageReady ? "آماده" : "غیرفعال" : "نامشخص"}</strong></div>
-    </div>
-    {statusError && <OperationMessageBox key={statusError + revision} kind="error"
-      title="وضعیت کلید دریافت نشد">{statusError}</OperationMessageBox>}
-    {status?.recoveryAvailable && <OperationMessageBox key={memoryId} kind="warning"
-      title="عملیات کلید نیمه‌تمام است">برای جلوگیری از ایجاد کلید تکراری، تب «کلید موجود» را باز و عملیات ذخیره‌شده را بازیابی کنید.</OperationMessageBox>}
-
-    <div className="signing-method-tabs" role="tablist" aria-label="انتخاب روش کلید">
-      <button type="button" id="signing-existing-tab" role="tab" aria-selected={method === "existing"}
-        aria-controls="signing-existing-panel"
-        onClick={() => setMethod("existing")}>کلید خصوصی موجود</button>
-      <button type="button" id="signing-generate-tab" role="tab" aria-selected={method === "generate"}
-        aria-controls="signing-generate-panel"
-        onClick={() => setMethod("generate")}>ساخت کلید جدید</button>
-    </div>
-    <div id="signing-existing-panel" role="tabpanel" aria-labelledby="signing-existing-tab"
-      hidden={method !== "existing"} className="signing-method-panel">
-      {method === "existing" && <>
-        <ExistingKeyImport key={taxpayerId + ":" + selectedMemoryId} taxpayerId={taxpayerId}
-          memories={chosen} loadingMemories={loadingMemories} onLoadingChange={onLoadingChange}
-          hideMemorySelector allowExistingKeyEntry={allowExistingKeyEntry}
-          onCompleted={() => { setAllowExistingKeyEntry(false); refresh(); }}/>
+    <div role="tabpanel" id={environment==="production"?"taxpayer-production-connection":"taxpayer-sandbox-connection"}
+      aria-labelledby={environment==="production"?"taxpayer-production-tab":"taxpayer-sandbox-tab"}>
+      {environment==="sandbox"&&legacyError&&<p role="alert">{legacyError}</p>}
+      {available.length>1&&<label>حافظه مالیاتی<select value={selectedMemoryId} disabled={reading||loadingMemories}
+        onChange={e=>{if(environment==="production")setSelection(e.target.value);else setSandboxSelection(e.target.value);}}>
+        {available.map(m=><option key={m.id} value={m.id}>{m.memoryIdentifier}{m.authorityEnvironment==null?" — محیط تأییدنشده":""}</option>)}
+      </select></label>}
+      {(choice==="choice"||choice==="separate")&&<div className="connection-source-choice">
+        {choice==="choice"&&<p role="status">برای این شناسه دو کلید ثبت شده است. پیکربندی مورد نظر را صریحاً انتخاب کنید؛ کلیدها خودکار جایگزین نمی‌شوند.</p>}
+        <label>پیکربندی حافظه<select value={source} onChange={e=>{setSource(e.target.value as ""|"legacy"|"registered");setManaging(false);}}>
+          <option value="">انتخاب پیکربندی برای بررسی</option>
+          <option value="legacy">Sandbox — {legacy?.memoryIdentifier} · {legacy?.publicFingerprintSha256?.slice(0,12)} (کلید آزمایشی موجود)</option>
+          <option value="registered">{currentMemory?.memoryIdentifier} · {status?.fingerprintSha256?.slice(0,12)} (کلید دیگر حافظه)</option>
+        </select></label></div>}
+      {environment==="sandbox"&&(legacyError||choice==="loading"&&statusError) ? <p role="alert">{legacyError||statusError}</p> : environment==="sandbox"&&(legacyReading||choice==="loading") ? <p role="status">در حال دریافت وضعیت حافظهٔ آزمایشی…</p> : (choice==="choice"||choice==="separate")&&!source ? <p role="status">پیکربندی مورد نظر را برای نمایش وضعیت و آزمون انتخاب کنید.</p> : useLegacy ?
+        <SandboxFiscalMemoryPanel key={taxpayerId} taxpayerId={taxpayerId}/> : <>
+        {!currentMemory ? <div className="connection-empty"><p>در این محیط حافظه‌ای برای تنظیم انتخاب نشده است.</p>
+          {environment==="production"&&memoryRegistration}</div> : <article className="connection-card" aria-label="وضعیت اتصال حافظه انتخاب‌شده">
+          {statusError&&<OperationMessageBox kind="error" title="دریافت وضعیت انجام نشد">{statusError}</OperationMessageBox>}
+          {reading&&<p role="status">در حال بررسی وضعیت کلید…</p>}
+          {status&&<ConnectionSummary identifier={currentMemory.memoryIdentifier} environment={environment==="production"?"Production":"Sandbox"}
+            hasKey={status.hasKey} history={summaryHistory} legacyFallbackAvailable={currentMemory.lastConnectionTestAtUtc!==null}
+            activationLabel={activationLabels[currentMemory.status]??"نامشخص"}/>}
+          {currentMemory.authorityEnvironment==null&&<p role="status" className="field-hint">محیط این حافظه هنوز تأیید نشده است؛ تعیین صریح محیط پیش از استفاده در صورتحساب لازم است.</p>}
+          {status?.hasKey&&!managing&&<div className="connection-actions">
+            <button type="button" className="identity-secondary" onClick={openEntry}>مدیریت تنظیمات</button>
+            {(view.needsKeyAction||status.recoveryAvailable)&&<button type="button" className="identity-primary" onClick={openEntry}>بررسی و بازیابی کلید</button>}
+          </div>}
+          {setupOpen&&<div className="connection-setup" ref={entry}>
+            <div className="signing-panel-heading"><h3>{status?.hasKey?"مدیریت کلید همین حافظه":"تنظیم کلید حافظه"}</h3>
+              {status?.hasKey&&<button type="button" className="identity-secondary" onClick={()=>setManaging(false)}>بستن تنظیمات</button>}</div>
+            <div className="signing-method-tabs" role="tablist" aria-label="روش تنظیم کلید">
+              <button type="button" role="tab" aria-selected={method === "existing"} onClick={()=>setMethod("existing")}>ورود کلید موجود</button>
+              <button type="button" role="tab" aria-selected={method === "generate"} onClick={()=>setMethod("generate")}>ساخت کلید جدید</button>
+            </div>
+            {method === "existing" && <ExistingKeyImport key={taxpayerId+":"+selectedMemoryId} taxpayerId={taxpayerId}
+              memories={chosen} loadingMemories={loadingMemories} onLoadingChange={onLoadingChange} hideMemorySelector
+              allowExistingKeyEntry={managing} onCompleted={()=>{setManaging(false);refresh();}}/>}
+            {method === "generate" && <SigningKeyGeneration key={taxpayerId+":"+selectedMemoryId} taxpayerId={taxpayerId}
+              memories={chosen} loadingMemories={loadingMemories} hideMemorySelector onCompleted={()=>{setManaging(false);refresh();}}/>}
+            <details><summary>درخواست بررسی یا تغییر کلید</summary><SigningChangeRequestPanel taxpayerId={taxpayerId} memoryId={selectedMemoryId}/></details>
+          </div>}
+          <SigningConnectionTest key={taxpayerId+":"+selectedMemoryId} taxpayerId={taxpayerId} memories={chosen}
+            loadingMemories={loadingMemories||reading} hideMemorySelector compact
+            oneTimeEnvironment={currentMemory.authorityEnvironment==null?"Production":undefined}
+            onReenterPrivateKey={openEntry} onTestCompleted={authenticated=>{if(authenticated)setManaging(false);void changed();}}
+            onAuthenticated={authenticated=>setTestedMemoryId(authenticated?selectedMemoryId:"")}/>
+          {environment==="production"&&status&&<FiscalMemoryChangeRequestPanel taxpayerId={taxpayerId}
+            memoryId={selectedMemoryId} memoryIdentifier={currentMemory.memoryIdentifier} history={summaryHistory}/>}
+          {(managing||currentMemory.status===1&&status?.connectionHistory.lastAttempt?.status==="Authenticated")&&
+            <FiscalMemoryAuthorityActions taxpayerId={taxpayerId} isLevel1={isLevel1} memories={chosen} selectedMemory={currentMemory}
+              testedMemoryId={status?.connectionHistory.lastAttempt?.status==="Authenticated"?selectedMemoryId:testedMemoryId} onChanged={changed}/>}
+        </article>}
       </>}
-    </div>
-    <div id="signing-generate-panel" role="tabpanel" aria-labelledby="signing-generate-tab"
-      hidden={method !== "generate"} className="signing-method-panel">
-      {method === "generate" && <>
-        <p className="signing-method-intro">اگر کلید ندارید، نرم‌افزار جفت‌کلید می‌سازد. فایل خصوصی فقط یک‌بار تحویل داده می‌شود؛ سپس کلید عمومی را در کارپوشه ثبت کنید.</p>
-        <SigningKeyGeneration key={taxpayerId + ":" + selectedMemoryId} taxpayerId={taxpayerId}
-          memories={chosen} loadingMemories={loadingMemories} hideMemorySelector onCompleted={refresh}/>
-        <p className="signing-method-next">مراحل: ساخت کلید ← نگهداری فایل دانلودشده ← ثبت کلید عمومی در کارپوشه ← تست اتصال</p>
-      </>}
-    </div>
-    <div className="signing-test-panel">
-      <SigningConnectionTest key={taxpayerId + ":" + selectedMemoryId} taxpayerId={taxpayerId}
-        memories={chosen} loadingMemories={loadingMemories} hideMemorySelector
-        oneTimeEnvironment={currentMemory?.authorityEnvironment == null ? "Production" : undefined}
-        onReenterPrivateKey={()=>{setMethod("existing");setAllowExistingKeyEntry(true);setTestedMemoryId("");}}
-        onTestCompleted={authenticated=>{
-          if (authenticated) setAllowExistingKeyEntry(false);
-          if(onMemoriesChanged)void onMemoriesChanged().catch(()=>undefined);
-        }}
-        onAuthenticated={authenticated=>{
-          setTestedMemoryId(authenticated?selectedMemoryId:"");
-          if (authenticated) setAllowExistingKeyEntry(false);
-        }}/>
-    </div>
-    {selectedMemoryId && <SigningChangeRequestPanel taxpayerId={taxpayerId} memoryId={selectedMemoryId}/>}
     </div>
   </div>;
 }

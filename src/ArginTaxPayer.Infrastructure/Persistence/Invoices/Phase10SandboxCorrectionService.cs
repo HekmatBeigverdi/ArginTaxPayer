@@ -1,3 +1,4 @@
+using ArginTaxPayer.Infrastructure.Configuration;
 using ArginTaxPayer.Infrastructure.Persistence.Subscriptions;
 using System.Security.Cryptography;
 using System.Text;
@@ -414,7 +415,7 @@ public sealed class Phase10SandboxCorrectionService(
         }
 
         var database = await db.Database.SqlQueryRaw<string>("SELECT current_database() AS \"Value\"").SingleAsync(ct);
-        if (database != "argintaxpayer_test")
+        if (!SandboxDatabasePolicy.IsAllowed(database, db.Database.GetDbConnection(), config))
         {
             return new(InvoiceApiDecision.Forbidden, "sandbox_database_required");
         }

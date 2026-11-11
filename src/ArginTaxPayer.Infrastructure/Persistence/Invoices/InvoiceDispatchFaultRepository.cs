@@ -1,3 +1,5 @@
+using ArginTaxPayer.Infrastructure.Configuration;
+using Microsoft.Extensions.Configuration;
 using System.Data;
 using System.Data.Common;
 using ArginTaxPayer.Application.Invoices;
@@ -22,7 +24,7 @@ public sealed record DispatchFaultPersistenceResult(
 /// scoped operation identity + state revision CAS. It never sends or retries.
 /// Attempts/receipts are append-only and cannot be changed by this repository.
 /// </summary>
-public sealed class InvoiceDispatchFaultRepository(ArginTaxPayerDbContext db)
+public sealed class InvoiceDispatchFaultRepository(ArginTaxPayerDbContext db, IConfiguration? configuration = null)
 {
     public async Task<DispatchFaultPersistenceResult> RecordAsync(
         Guid operationId, Guid customerUserId, Guid taxpayerId,
@@ -54,7 +56,7 @@ public sealed class InvoiceDispatchFaultRepository(ArginTaxPayerDbContext db)
                 identityCommand.Transaction = tx;
                 identityCommand.CommandText = "SELECT current_database()";
                 var dbName = (string?)await identityCommand.ExecuteScalarAsync(ct);
-                if (dbName != "argintaxpayer_test")
+                if (!SandboxDatabasePolicy.IsAllowed(dbName, connection, configuration))
                     throw new InvalidOperationException("Step12 writes require isolated test DB.");
 
                 const string sql = """

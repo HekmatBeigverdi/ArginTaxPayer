@@ -36,7 +36,10 @@ export default function ConsoleShell({ roles, userId, dashboardOnly = false, chi
   const about: Item = { title: "درباره ما", path: "/about", glyph: "ⓘ" };
   const navigation = dashboardOnly ? [base[0]] : admin ? [base[0],
     { title: "کاربران نرم‌افزار", path: "/users", glyph: "♟" },
-    ...(roles.includes("Level1") ? [{ title: "تأیید تغییر کلید", path: "/signing-approvals", glyph: "✓" }] : []),
+    ...(roles.includes("Level1") ? [
+      { title: "تأیید تغییر کلید", path: "/signing-approvals", glyph: "✓" },
+      { title: "تأیید تغییر حافظه", path: "/memory-change-approvals", glyph: "↻" }
+    ] : []),
     base[1], base[2], base[3],
     { title: "اشتراک‌ها و امور مالی", path: "/subscriptions", glyph: "▥" }, base[4], about] : [...base, about];
   const accountNavigation: Item[] = (dashboardOnly || admin) ? [] : [

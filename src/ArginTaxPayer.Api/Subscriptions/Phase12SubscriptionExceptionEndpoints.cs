@@ -7,12 +7,24 @@ namespace ArginTaxPayer.Api.Subscriptions;
 public static class Phase12SubscriptionExceptionEndpoints
 {
     public sealed record ExceptionRequest(Guid ProposedTaxpayerId, Guid ProposedMemoryId, string Reason);
-    public sealed record ReviewRequest(bool Approve);
+    public sealed record ReviewRequest(bool Approve, string DecisionReason);
 
     public static IEndpointRouteBuilder MapPhase12SubscriptionExceptionEndpoints(this IEndpointRouteBuilder routes)
     {
         var group = routes.MapGroup("/api/dev/subscriptions").ExcludeFromDescription()
             .RequireRateLimiting("signing-import");
+        group.MapGet("/binding-exceptions/mine", async (
+            Guid taxpayerId,HttpContext http,SubscriptionExceptionReviewService service,CancellationToken ct)=>{
+                if(!Local(http))return Results.NotFound();
+                var workspace=await service.ReadMineAsync(Bearer(http),taxpayerId,ct);
+                return workspace is null?Results.Json(new{error="forbidden"},statusCode:403):Results.Ok(workspace);
+            });
+        group.MapGet("/binding-exceptions/pending", async (
+            HttpContext http,SubscriptionExceptionReviewService service,CancellationToken ct)=>{
+                if(!Local(http))return Results.NotFound();
+                var requests=await service.ListPendingAsync(Bearer(http),ct);
+                return requests is null?Results.Json(new{error="forbidden"},statusCode:403):Results.Ok(new{requests});
+            });
         group.MapPost("/{subscriptionId:guid}/binding-exceptions", async (
             Guid subscriptionId, [FromBody] ExceptionRequest input, HttpContext http,
             SubscriptionExceptionReviewService service, CancellationToken ct) =>
@@ -36,12 +48,12 @@ public static class Phase12SubscriptionExceptionEndpoints
         {
             if (!Local(http)) return Results.NotFound();
             if (http.Request.Headers.ContainsKey("Origin")) return Results.StatusCode(403);
-            if (http.Request.ContentLength is > 256) return Results.StatusCode(413);
+            if (http.Request.ContentLength is > 2048) return Results.StatusCode(413);
             try
             {
-                await service.ReviewAsync(Bearer(http), requestId, input.Approve, ct);
-                return Results.Json(new { status = input.Approve ? "Approved" : "Rejected",
-                    bindingChanged = false });
+                await service.ReviewAsync(Bearer(http), requestId, input.Approve, input.DecisionReason, ct);
+                return Results.Json(new { status = input.Approve ? "Applied" : "Rejected",
+                    bindingChanged = input.Approve });
             }
             catch (UnauthorizedAccessException) { return Results.StatusCode(403); }
             catch (InvalidOperationException) { return Results.Conflict(); }

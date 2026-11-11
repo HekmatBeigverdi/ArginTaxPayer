@@ -8,8 +8,8 @@ const connection = readFileSync(new URL("../app/taxpayers/signing-connection-tes
 
 test("Step19 groups taxpayer details into responsive sections", () => {
   assert.match(source, /taxpayer-sections-grid/);
-  assert.match(source, /حافظه‌های مالیاتی/);
-  assert.match(source, /اتصال به سامانه مؤدیان/);
+  assert.match(source, /حافظه مالیاتی و اتصال/);
+
 });
 
 test("Steps20-21 wire import and generation while connection remains later", () => {
@@ -18,4 +18,9 @@ test("Steps20-21 wire import and generation while connection remains later", () 
   assert.match(panel, /<SigningKeyGeneration/);
   assert.match(panel, /<SigningConnectionTest/);
   assert.match(connection, /تست اتصال/);
+});
+
+test("a missing Production memory can be registered even when Sandbox metadata exists", () => {
+  assert.doesNotMatch(source, /memoryRegistration=\{memories\.length===0/);
+  assert.match(source, /authorityEnvironment: 1/);
 });

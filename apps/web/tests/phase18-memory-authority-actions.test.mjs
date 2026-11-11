@@ -47,7 +47,7 @@ test('administrative memory mutations are absent for customer-only views',()=>{
 test('unclassified memory uses the selected Production tab for its one-time test and never unlocks activation',async()=>{
  const states=[];let index=0;const calls=[];const auth=[];
  const component=loadTsx(new URL('../app/taxpayers/signing-connection-test.tsx',import.meta.url),{
-  modules:{react:{...React,useEffect:()=>{},useState(initial){const i=index++;if(!(i in states))states[i]=initial;return [states[i],value=>{states[i]=typeof value==='function'?value(states[i]):value;}];}}},
+  modules:{react:{...React,useEffect:()=>{},useRef:()=>({current:0}),useState(initial){const i=index++;if(!(i in states))states[i]=initial;return [states[i],value=>{states[i]=typeof value==='function'?value(states[i]):value;}];}}},
   globals:{AbortSignal,fetch:async(url,options)=>{calls.push({url,options});return {ok:true,json:async()=>({status:'Authenticated',testedAtUtc:'2026-11-05T00:00:00Z',fiscalInformation:{nameTrade:'x',fiscalStatus:'ACTIVE',economicCode:'x',nationalId:'x'},oneTimeTest:true,testEnvironment:'Production'})};}}
  });
  const props={taxpayerId:id,memories:[{id:mid,memoryIdentifier:'OLD001'}],loadingMemories:false,hideMemorySelector:true,
@@ -60,11 +60,11 @@ test('unclassified memory uses the selected Production tab for its one-time test
  assert.equal(calls[0].options.headers['Content-Type'],'application/json');
  assert.deepEqual(auth,[false]);
 });
-test('a failed connection test offers to reopen the same memory private-key entry',async()=>{
+test('a key-not-ready connection test offers to reopen the same memory private-key entry',async()=>{
  const states=[];let index=0;let reopened=0;
  const component=loadTsx(new URL('../app/taxpayers/signing-connection-test.tsx',import.meta.url),{
-  modules:{react:{...React,useEffect:()=>{},useState(initial){const i=index++;if(!(i in states))states[i]=initial;return [states[i],value=>{states[i]=typeof value==='function'?value(states[i]):value;}];}}},
-  globals:{AbortSignal,fetch:async()=>({ok:false,status:503,json:async()=>({})})}
+  modules:{react:{...React,useEffect:()=>{},useRef:()=>({current:0}),useState(initial){const i=index++;if(!(i in states))states[i]=initial;return [states[i],value=>{states[i]=typeof value==='function'?value(states[i]):value;}];}}},
+  globals:{AbortSignal,fetch:async()=>({ok:true,status:200,json:async()=>({status:'KeyNotReady',testedAtUtc:'2026-11-11T12:00:00Z'})})}
  });
  const props={taxpayerId:id,memories:[{id:mid,memoryIdentifier:'OLD001'}],loadingMemories:false,hideMemorySelector:true,
   onReenterPrivateKey:()=>{reopened++;}};
@@ -92,7 +92,7 @@ test('each environment presents only its persisted memories to import and read-o
  for(const environment of ['production','sandbox']){
   let state=0;
   const component=loadTsx(new URL('../app/taxpayers/taxpayer-connection-panel.tsx',import.meta.url),{
-   modules:{react:{...React,useEffect:()=>{},useCallback:fn=>fn,useState(initial){const i=state++;return [i===1?environment:i===2&&environment==='production'?'old':initial,()=>{}];}}}
+   modules:{react:{...React,useEffect:()=>{},useCallback:fn=>fn,useRef:()=>({current:null}),useState(initial){const i=state++;return [i===1?environment:i===2&&environment==='production'?'old':i===7?{hasKey:false,recoveryAvailable:false,connectionHistory:{available:true,lastAttempt:null,lastSuccess:null}}:i===12?false:initial,()=>{}];}}}
   });
   const tree=component.default({taxpayerId:id,loadingMemories:false,memories:[
    {id:'prod',taxpayerId:id,memoryIdentifier:'REAL01',status:1,revision:1,authorityEnvironment:1},
@@ -105,6 +105,6 @@ test('each environment presents only its persisted memories to import and read-o
    assert.deepEqual(Array.from(child.props.memories,memory=>memory.id),environment==='production'?['old']:['test']);
    if(environment==='production'&&name==='SigningConnectionTest')assert.equal(child.props.oneTimeEnvironment,'Production');
   }
-  assert.equal(elements.filter(element=>element.type?.name==='SandboxFiscalMemoryPanel').length,environment==='sandbox'?1:0);
+  assert.equal(elements.filter(element=>element.type?.name==='SandboxFiscalMemoryPanel').length,0,'a registered Sandbox memory must not also show a second setup flow');
  }
 });

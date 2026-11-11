@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
-# One-time, operator-run installation. No deployment, restart or DB operations.
+# One-time, operator-run installation. No deployment, restart or DB operations. Optional upgrade pins the installed helper hash.
 set -Eeuo pipefail
 umask 077
 refuse() { printf '[REFUSED] %s\n' "$*" >&2; exit 2; }
 [[ "$(id -u)" == 0 ]] || refuse 'Run with sudo as the VPS operator'
-[[ "$#" == 2 && "$1" == --install && "$2" =~ ^[a-f0-9]{40}$ ]] ||
-  refuse 'Usage: --install <reviewed-full-source-SHA>'
+[[ ( "$#" == 2 || "$#" == 4 ) && "$1" == --install && "$2" =~ ^[a-f0-9]{40}$ ]] ||
+  refuse 'Usage: --install <reviewed-full-source-SHA> [--replace-helper-sha256 <installed-hash>]'
+if [[ "$#" == 4 ]]; then
+  [[ "$3" == --replace-helper-sha256 && "$4" =~ ^[a-f0-9]{64}$ ]] || refuse 'Invalid installed helper hash'
+fi
 source_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 [[ "$(git -c safe.directory="$source_root" -C "$source_root" rev-parse HEAD)" == "$2" ]] ||
   refuse 'Checkout does not match reviewed source SHA'
@@ -37,7 +40,10 @@ for pair in "$helper:$helper_source" "$probe:$probe_source"; do
   original="${pair#*:}"
   [[ ! -L "$target" ]] || refuse "Refusing symlink: $target"
   if [[ -e "$target" ]] && ! cmp -s "$original" "$target"; then
-    refuse "Different installed helper exists: $target; review upgrade separately"
+    [[ "$target" == "$helper" && "$#" == 4 && "$(sha256sum "$target" | cut -d' ' -f1)" == "$4" ]] ||
+      refuse "Different installed helper exists: $target; supply its reviewed hash for upgrade"
+    install -d -o root -g root -m 0700 /var/backups/argintaxpayer-helper
+    cp -p "$target" "/var/backups/argintaxpayer-helper/$4.py"
   fi
 done
 
@@ -54,7 +60,7 @@ fi
 # Root-created destinations; a deployment SSH user cannot replace any ancestor.
 python3 -I <<'PY'
 from pathlib import Path
-for name in ('/usr/local/sbin', '/usr/local/libexec', '/usr/local/libexec/argintaxpayer', '/etc/sudoers.d'):
+for name in ('/usr/local/sbin', '/usr/local/libexec', '/usr/local/libexec/argintaxpayer', '/etc/sudoers.d', '/etc/argintaxpayer'):
     path = Path(name)
     for item in (path, *path.parents):
         if item.is_symlink():
@@ -69,5 +75,11 @@ install -o root -g root -m 0755 "$helper_source" "$helper"
 install -o root -g root -m 0755 "$probe_source" "$probe"
 install -o root -g root -m 0440 "$policy" /etc/sudoers.d/argin-deploy
 visudo -cf /etc/sudoers
+if [[ ! -e /etc/argintaxpayer/migration-backup.key ]]; then
+  (umask 077; openssl rand -hex 32 > /etc/argintaxpayer/migration-backup.key)
+fi
+[[ ! -L /etc/argintaxpayer/migration-backup.key ]] || refuse 'Backup key must not be a symlink'
+chown root:root /etc/argintaxpayer/migration-backup.key
+chmod 0600 /etc/argintaxpayer/migration-backup.key
 sha256sum "$helper" "$probe"
 echo '[PASS] Restricted deployment helper installed. No application or database was changed.'

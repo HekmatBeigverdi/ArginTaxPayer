@@ -2697,6 +2697,15 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("customer_user_id");
 
+                    b.Property<Guid?>("CurrentMemoryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("current_memory_id");
+
+                    b.Property<string>("DecisionReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("decision_reason");
+
                     b.Property<Guid>("ProposedMemoryId")
                         .HasColumnType("uuid")
                         .HasColumnName("proposed_memory_id");

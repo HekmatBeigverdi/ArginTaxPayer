@@ -1,6 +1,6 @@
 namespace ArginTaxPayer.Domain.Subscriptions;
 
-public enum BindingExceptionStatus { Pending = 1, Approved = 2, Rejected = 3 }
+public enum BindingExceptionStatus { Pending = 1, Approved = 2, Rejected = 3, Applied = 4 }
 
 public sealed record AnnualSubscriptionBinding(Guid SubscriptionId, Guid CustomerUserId, Guid TaxpayerId,
     Guid FiscalMemoryId, DateTime VerifiedConnectedAtUtc)
@@ -14,7 +14,7 @@ public sealed record AnnualSubscriptionBinding(Guid SubscriptionId, Guid Custome
     }
 
     public bool Matches(Guid customerId, Guid taxpayerId, Guid fiscalMemoryId) =>
-        CustomerUserId == customerId && TaxpayerId == taxpayerId;
+        CustomerUserId == customerId && TaxpayerId == taxpayerId && FiscalMemoryId == fiscalMemoryId;
 }
 
 public static class SubscriptionBindingPolicy
@@ -35,6 +35,6 @@ public static class SubscriptionBindingPolicy
         Guid customerId, Guid taxpayerId, Guid memoryId)
     {
         if (binding is null || !binding.Matches(customerId, taxpayerId, memoryId))
-            throw new InvalidOperationException("Single-taxpayer subscription is restricted to its selected taxpayer. Fiscal-memory changes follow the existing Level1 workflow.");
+            throw new InvalidOperationException("Single-taxpayer subscription is restricted to its selected taxpayer and Production fiscal memory until an approved binding change is applied.");
     }
 }

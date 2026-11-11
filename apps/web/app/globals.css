@@ -1481,3 +1481,27 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 @media(max-width:640px){.identity-layout{align-content:start;padding:18px 13px 22px;gap:14px}.identity-brand{gap:10px}.identity-brand .argin-login-logo{width:43px;height:43px}.identity-brand strong{font-size:19px}.identity-brand span:not(.brand-symbol){font-size:11px}.identity-screen{grid-template-columns:minmax(0,1fr);min-height:0;border-radius:20px}.identity-screen__form{grid-row:1;padding:25px 21px 21px}.identity-screen__form-intro{margin-bottom:22px}.identity-screen__visual{grid-row:2;min-height:0;padding:18px 20px 17px}.identity-screen__visual-brand{display:none}.identity-screen__art-wrap{min-height:0;height:174px;margin:0 auto -3px;width:min(100%,300px)}.identity-visual__art{width:100%;max-height:184px}.identity-screen__visual-copy{text-align:center;margin-inline:auto}.identity-screen__visual-copy>span{margin-bottom:3px;font-size:10px}.identity-screen__visual-copy h2{font-size:16px;margin-bottom:2px}.identity-screen__visual-copy p{font-size:11px;line-height:1.75}.identity-screen__visual-foot{justify-content:center;margin-top:12px;font-size:9px}.identity-screen__visual::before{width:320px;height:320px;top:-102px;left:calc(50% - 160px)}.identity-screen__visual::after{width:250px;height:250px;top:-67px;left:calc(50% - 125px)}.identity-note{max-width:420px;font-size:10px}}
 @media(max-width:380px){.identity-screen__form{padding:22px 17px 18px}.identity-screen__form-intro .identity-muted{font-size:12px}.identity-screen .identity-form input:not([type=checkbox]){min-height:44px}}
 @media(prefers-reduced-motion:reduce){.identity-visual__float,.identity-screen__visual-copy{animation:none!important}.identity-screen .identity-form :is(input,.identity-primary){transition:none!important}}
+
+/* Memory setup presents one selected environment and a compact configured state. */
+.connection-card{display:grid;gap:16px;border:1px solid #d8e5e3;border-radius:14px;padding:20px;background:#fff;margin-top:14px;min-width:0}
+.connection-summary{display:grid;gap:12px}
+.connection-summary header{display:flex;gap:16px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.connection-summary header>div{display:grid;gap:5px}
+.connection-summary header small{font-size:12px;color:#597371}
+.connection-summary header strong{font-size:23px;letter-spacing:1px;color:#223d50}
+.connection-summary__badge{background:#eef4f3;color:#426762;border:1px solid #cfdfdc;border-radius:30px;padding:6px 12px;font-size:12px;font-weight:700}
+.connection-summary[data-state=verified] .connection-summary__badge{background:#edf8f1;color:#176c45;border-color:#a9d6bb}
+.connection-summary[data-state=key-error] .connection-summary__badge,.connection-summary[data-state=authentication-error] .connection-summary__badge{background:#fff3ef;color:#983f2c;border-color:#eac3b7}
+.connection-summary[data-state=service-error] .connection-summary__badge{background:#fff9ea;color:#795c1a;border-color:#e8d9ad}
+.connection-summary dl{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin:0}
+.connection-summary dl>div{display:grid;gap:5px}.connection-summary dt{font-size:12px;color:#607976}.connection-summary dd{margin:0;font-size:13px;color:#24434c;line-height:1.8}
+.connection-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.connection-actions button{width:auto!important;min-width:140px;margin:0!important}
+.connection-setup{display:grid;gap:14px;padding:16px;border:1px solid #d9e8e4;border-radius:12px;background:#f8fcfa;scroll-margin-top:18px}
+.connection-card details,.connection-history-details{border-top:1px solid #e1ece9;padding-top:12px;margin-top:5px}
+.connection-card details>summary,.connection-history-details>summary{cursor:pointer;color:#386965;font-size:13px;font-weight:700}
+.connection-history-row{display:grid;gap:7px;padding:12px 0;border-bottom:1px solid #e4ecea}
+.connection-history-row>span{font-size:12px;color:#647b78}
+.connection-source-choice{padding:12px;background:#fff9ed;border:1px solid #ebdbb5;border-radius:10px;margin-top:12px}
+.connection-source-choice p{font-size:12px;line-height:1.9}
+@media(max-width:640px){.connection-card{padding:14px}.connection-actions{display:grid;grid-template-columns:1fr}.connection-actions button{width:100%!important}.connection-summary dl{grid-template-columns:1fr}.connection-setup{padding:12px}}

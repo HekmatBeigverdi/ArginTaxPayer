@@ -1,3 +1,4 @@
+import { projectConnectionHistory } from "../../../../lib/fiscal-connection-status";
 import {NextRequest,NextResponse} from "next/server";
 import {ACCESS_COOKIE,identityApiOrigin,identityUiEnabled} from "../../../../lib/identity";
 import {isSameLocalOrigin} from "../../../../lib/identity-origin.mjs";
@@ -38,8 +39,10 @@ async function handle(request:NextRequest,context:Context,method:"GET"|"POST"){
     }catch{return error(400,"invalid_payload");}
   }
   try {
+    const rawMemoryId=request.nextUrl.searchParams.get("memoryId");
+    if(rawMemoryId!==null&&!uuid.test(rawMemoryId))return error(400,"invalid_memory_id");
     const response=await fetch(identityApiOrigin()+"/api/dev/taxpayers/"+
-      taxpayerId+"/sandbox-memory",{
+      taxpayerId+"/sandbox-memory"+(rawMemoryId?"?memoryId="+encodeURIComponent(rawMemoryId):""),{
       method,cache:"no-store",redirect:"manual",signal:AbortSignal.timeout(15000),
       headers:{Authorization:"Bearer "+token,...(body?{"Content-Type":"application/json"}:{})},
       ...(body?{body}:{})
@@ -58,14 +61,25 @@ async function handle(request:NextRequest,context:Context,method:"GET"|"POST"){
       environment:"Sandbox",
       error:typeof source.error==="string" && /^[a-z_]{0,80}$/.test(source.error)
         ?source.error:"request_rejected",
-      data:detail&&typeof detail.memoryIdentifier==="string"&&
+      data:detail&&uuid.test(String(detail.id??""))&&typeof detail.memoryIdentifier==="string"&&
         /^[A-Z0-9]{6,32}$/.test(detail.memoryIdentifier)&&
         typeof detail.publicFingerprintSha256==="string"&&
         /^[0-9a-f]{64}$/.test(detail.publicFingerprintSha256)
-        ?{memoryIdentifier:detail.memoryIdentifier,
+        ?{id:detail.id,memoryIdentifier:detail.memoryIdentifier,
           publicFingerprintSha256:detail.publicFingerprintSha256,
+          connectionHistory:projectConnectionHistory(detail.connectionHistory),
+          canRestorePrivateKey:detail.canRestorePrivateKey===true,
           revision:detail.revision,keyCustodyReady:detail.keyCustodyReady===true,connectionTestReady:false}
         :null,
+      memories:Array.isArray(source.memories)?source.memories.slice(0,50).filter((item:unknown)=>{
+        if(!item||typeof item!=="object"||Array.isArray(item))return false;
+        const row=item as Record<string,unknown>;
+        return typeof row.id==="string"&&uuid.test(row.id)&&typeof row.memoryIdentifier==="string"&&
+          /^[A-Z0-9]{6,32}$/.test(row.memoryIdentifier)&&typeof row.publicFingerprintSha256==="string"&&
+          /^[0-9a-f]{64}$/.test(row.publicFingerprintSha256)&&Number.isSafeInteger(row.revision)&&
+          typeof row.keyCustodyReady==="boolean";
+      }).map((row:Record<string,unknown>)=>({id:row.id,memoryIdentifier:row.memoryIdentifier,
+        publicFingerprintSha256:row.publicFingerprintSha256,revision:row.revision,keyCustodyReady:row.keyCustodyReady})):[],
       connectionTestReady:false
     },{status:response.status,headers:{"Cache-Control":"no-store"}});
   }catch{return error(503,"api_unavailable");}

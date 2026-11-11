@@ -19,8 +19,10 @@ public sealed class StoredBindingException
     public Guid CustomerUserId { get; set; }
     public Guid RequesterUserId { get; set; }
     public Guid ProposedTaxpayerId { get; set; }
+    public Guid? CurrentMemoryId { get; set; }
     public Guid ProposedMemoryId { get; set; }
     public string Reason { get; set; } = "";
+    public string? DecisionReason { get; set; }
     public BindingExceptionStatus Status { get; set; } = BindingExceptionStatus.Pending;
     public Guid? ReviewerUserId { get; set; }
     public DateTime RequestedAtUtc { get; set; }
@@ -49,8 +51,10 @@ public static class SubscriptionBindingConfiguration
         e.Property(x => x.CustomerUserId).HasColumnName("customer_user_id");
         e.Property(x => x.RequesterUserId).HasColumnName("requester_user_id");
         e.Property(x => x.ProposedTaxpayerId).HasColumnName("proposed_taxpayer_id");
+        e.Property(x => x.CurrentMemoryId).HasColumnName("current_memory_id");
         e.Property(x => x.ProposedMemoryId).HasColumnName("proposed_memory_id");
         e.Property(x => x.Reason).HasColumnName("reason").HasMaxLength(1000).IsRequired();
+        e.Property(x => x.DecisionReason).HasColumnName("decision_reason").HasMaxLength(1000);
         e.Property(x => x.Status).HasColumnName("status").HasConversion<int>();
         e.Property(x => x.ReviewerUserId).HasColumnName("reviewer_user_id");
         e.Property(x => x.RequestedAtUtc).HasColumnName("requested_at_utc").HasColumnType("timestamp with time zone");

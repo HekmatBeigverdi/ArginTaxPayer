@@ -15,8 +15,8 @@ test("same selected fiscal memory drives change requests", () => {
   for (const environment of ["production", "sandbox"]) {
     let index=0;
     const panel=loadTsx(new URL("../app/taxpayers/taxpayer-connection-panel.tsx",import.meta.url),{
-      modules:{react:{...React,useEffect:()=>{},useCallback:fn=>fn,
-        useState:initial=>[index++===1?environment:initial,()=>{}]}}
+      modules:{react:{...React,useEffect:()=>{},useCallback:fn=>fn,useRef:()=>({current:null}),
+        useState:initial=>{const i=index++;return [i===1?environment:i===4?true:i===7?{hasKey:true,connectionHistory:{available:true,lastAttempt:null,lastSuccess:null}}:i===12?false:initial,()=>{}];}}}
     });
     const tree=panel.default({taxpayerId:"taxpayer",loadingMemories:false,memories:[
       {id:"real-memory",authorityEnvironment:1},{id:"test-memory",authorityEnvironment:2},

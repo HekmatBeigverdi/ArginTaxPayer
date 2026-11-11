@@ -13,7 +13,7 @@ const custody=readFileSync("app/api/sandbox-memory/[taxpayerId]/private-key/rout
 const identity=readFileSync("../../src/ArginTaxPayer.Infrastructure/Signing/Protection/KeyProtectionContracts.cs","utf8");
 const offline=readFileSync("app/api/sandbox-memory/[taxpayerId]/key-self-test/route.ts","utf8");
 
-test("sandbox metadata is additive test-only and never writes Production key tables",()=>{
+test("sandbox metadata preserves existing keys and stays in the isolated Sandbox namespace",()=>{
   assertIsolatedDatabaseAdmission(migration);
   assert.match(migration,/CREATE TABLE sandbox_fiscal_memories/);
   assert.doesNotMatch(migration,/ALTER TABLE fiscal_memories|DROP TABLE|DELETE FROM/);
@@ -21,7 +21,8 @@ test("sandbox metadata is additive test-only and never writes Production key tab
   assert.match(store,/argintaxpayer_test/);
   assert.match(store,/scope\.ScopedQuery\(/);
   assert.match(store,/customer_user_id=@owner/);
-  assert.match(store,/ON CONFLICT\(customer_user_id,taxpayer_id\) DO UPDATE SET/);
+  assert.match(store,/INSERT INTO sandbox_fiscal_memories/);
+  assert.doesNotMatch(store,/ON CONFLICT[\s\S]*DO UPDATE SET[\s\S]*public_spki_der/);
   assert.match(store,/private_envelope_json IS NULL/);
   assert.match(store,/createdReader\.DisposeAsync\(\)/);
   assert.doesNotMatch(store,/INSERT INTO fiscal_memories|UPDATE signing_key_versions/);
@@ -57,7 +58,7 @@ test("live sandbox token endpoint remains fail-closed",()=>{
   assert.match(api,/authenticationConfirmed=false/);
   assert.match(api,/StatusCodes|statusCode:503/);
   assert.doesNotMatch(api,/GET_TOKEN|tp\.tax\.gov\.ir|HttpClient/);
-  assert.match(ui,/تست اتصال واقعی Sandbox/);
+  assert.match(ui,/تست اتصال Sandbox/);
 });
 
 test("sandbox private key is encrypted with scoped independent AEAD identity",()=>{

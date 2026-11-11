@@ -32,7 +32,7 @@ jobs:
           persist-credentials: false
       - name: Verify restricted deployment boundary
         run: |
-          python3 -m unittest discover -s tests/ops -p 'test_phase18_deploy_helper.py' -v
+          python3 -m unittest discover -s tests/ops -p 'test_*deploy*.py' -v
           bash -n scripts/phase18-install-deploy-helper.sh
       - uses: actions/setup-dotnet@v4
         with:
@@ -61,6 +61,7 @@ jobs:
           set -Eeuo pipefail
           mkdir -p bundle/stage/api bundle/stage/web bundle/scripts
           cp -a "$RUNNER_TEMP/api/." bundle/stage/api/
+          dotnet run --project tools/ArginTaxPayer.Migrations -c Release -- --export bundle/stage/api/schema
           cp apps/web/package.json apps/web/package-lock.json bundle/stage/web/
           cp -a apps/web/.next bundle/stage/web/
           if [[ -d apps/web/public ]]; then cp -a apps/web/public bundle/stage/web/; fi
@@ -122,6 +123,11 @@ jobs:
             exit 1
           }
           target="$DEPLOY_USER@$DEPLOY_HOST"
+          capability="$(ssh -p 2222 -o BatchMode=yes -o StrictHostKeyChecking=yes "$target" \
+            /usr/local/sbin/argin-taxpayer-release --capabilities)"
+          [[ "$capability" == schema-before-promote-v1 ]] || {
+            echo 'Install the reviewed schema-aware deployment helper before deploying.' >&2; exit 1;
+          }
           ssh -p 2222 -o BatchMode=yes -o ConnectTimeout=15 -o StrictHostKeyChecking=yes \
             "$target" "umask 077; mkdir -p ~/argin-deploy-incoming/$SOURCE_SHA"
           scp -P 2222 -o BatchMode=yes -o ConnectTimeout=15 -o StrictHostKeyChecking=yes \

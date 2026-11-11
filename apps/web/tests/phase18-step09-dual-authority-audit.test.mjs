@@ -54,11 +54,16 @@ test('Sandbox inquiry is pinned to Sandbox operation and Sandbox memory', () => 
   }
 });
 
-test('known blocker: Sandbox onboarding and dispatch still require legacy test database', () => {
-  for (const name of ['sandbox','prepare','arm','cancellation','correction','returns']) {
-    assert.match(read(paths[name]), /argintaxpayer_test/,
-      name + ' must remain explicitly identified as legacy test-DB-only until safely refactored');
+test('legacy Sandbox workflows admit only isolated test or explicitly approved hosted production databases', () => {
+  assert.match(read(paths.sandbox), /HostedSandboxDeployment\.IsAllowed/);
+  for (const name of ['prepare','arm','cancellation','correction','returns']) {
+    assert.match(read(paths[name]), /SandboxDatabasePolicy\.IsAllowed/,
+      name + ' must use the shared deployment admission policy');
   }
+  const policy = read('src/ArginTaxPayer.Infrastructure/Configuration/SandboxDatabasePolicy.cs');
+  assert.match(policy, /databaseName == "argintaxpayer_test"/);
+  assert.match(policy, /databaseName == "argintaxpayer_prod"/);
+  assert.match(policy, /HostedSandboxDeployment\.IsAllowed/);
 });
 
 test('persisted fiscal memory has an explicit nullable authority environment, while dispatch binding remains blocked', () => {

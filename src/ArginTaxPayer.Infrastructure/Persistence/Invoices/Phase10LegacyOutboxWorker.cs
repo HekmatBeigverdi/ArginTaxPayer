@@ -1,3 +1,5 @@
+using ArginTaxPayer.Infrastructure.Configuration;
+using Microsoft.Extensions.Configuration;
 using System.Text.Json;
 using ArginTaxPayer.Application.Invoices;
 using ArginTaxPayer.Domain.Invoices;
@@ -19,7 +21,7 @@ internal sealed class Phase10LegacyOutboxWorker(
     Phase10DispatchAttemptRepository attempts,
     Phase10DispatchEvidenceRepository evidence,
     InvoiceDispatchFaultRepository faults,
-    ILogger<Phase10LegacyOutboxWorker> logger)
+    ILogger<Phase10LegacyOutboxWorker> logger, IConfiguration? configuration = null)
     : IPhase10LegacyOutboxWorker
 {
     public async Task<Phase10LegacyOutboxWorkResult> ProcessInvoiceAsync(
@@ -79,7 +81,7 @@ internal sealed class Phase10LegacyOutboxWorker(
             cmd.CommandText = """
 SELECT memory_identifier FROM sandbox_fiscal_memories
 WHERE id=@memory AND customer_user_id=@owner AND taxpayer_id=@taxpayer
-  AND current_database()='argintaxpayer_test'
+  AND (current_database()='argintaxpayer_test' OR (current_database()='argintaxpayer_prod' AND @hostedSandboxAllowed))
   AND EXISTS (
     SELECT 1 FROM invoice_dispatch_operations d
     WHERE d.id=@operation AND d.customer_user_id=@owner
@@ -89,7 +91,8 @@ WHERE id=@memory AND customer_user_id=@owner AND taxpayer_id=@taxpayer
 """;
             foreach(var (name,value) in new (string,object)[] {
                 ("memory",memory),("owner",customer),("taxpayer",taxpayer),
-                ("operation",operationId) })
+                ("operation",operationId),
+                ("hostedSandboxAllowed", configuration is not null && HostedSandboxDeployment.IsAllowed(connection.ConnectionString, configuration)) })
             {
                 var parameter=cmd.CreateParameter();
                 parameter.ParameterName=name;

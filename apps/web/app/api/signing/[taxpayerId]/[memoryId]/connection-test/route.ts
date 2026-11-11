@@ -103,6 +103,7 @@ export async function POST(req: NextRequest, ctx: Context) {
     return NextResponse.json({
       status: data.status, safeCode: data.safeCode, testedAtUtc: data.testedAtUtc,
       authenticationConfirmed: authenticated,
+      connectionRecorded: data.connectionRecorded === true,
       environmentPersisted: data.environmentPersisted,
       memoryActivated: data.memoryActivated,
       portalRegistrationConfirmed: false, fiscalMemoryActivationConfirmed: data.memoryActivated,

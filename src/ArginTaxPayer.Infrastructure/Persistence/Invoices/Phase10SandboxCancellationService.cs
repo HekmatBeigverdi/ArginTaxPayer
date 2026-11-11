@@ -1,3 +1,5 @@
+using ArginTaxPayer.Infrastructure.Configuration;
+using Microsoft.Extensions.Configuration;
 using ArginTaxPayer.Infrastructure.Persistence.Subscriptions;
 using System.Security.Cryptography;
 using System.Text;
@@ -15,7 +17,7 @@ public sealed record CancellationSendResult(InvoiceApiDecision Decision,string C
 public sealed class Phase10SandboxCancellationService(
  ArginTaxPayerDbContext db,TaxpayerScopeService scope,
  Phase10CancellationEligibilityService eligibility,Phase10OneClickSandboxSubmissionService submission,
- LegacyAuthorityReportRepository authorityReports,InvoiceSubscriptionGate subscriptions)
+ LegacyAuthorityReportRepository authorityReports,InvoiceSubscriptionGate subscriptions, IConfiguration? configuration = null)
 {
  public async Task<CancellationSendResult> SendAsync(string? bearer,Guid taxpayerId,Guid predecessorId,CancellationToken ct)
  {
@@ -40,7 +42,7 @@ public sealed class Phase10SandboxCancellationService(
    if(current is null)return new(InvoiceApiDecision.NotFound,"not_found");
    if(current.Subject!=InvoiceSubject.Original||current.State!=InvoiceLifecycleState.Finalized)
     return new(InvoiceApiDecision.Conflict,"invalid_predecessor");
-   if(await db.Database.SqlQueryRaw<string>("SELECT current_database() AS \"Value\"").SingleAsync(ct)!="argintaxpayer_test")
+   if(!SandboxDatabasePolicy.IsAllowed(await db.Database.SqlQueryRaw<string>("SELECT current_database() AS \"Value\"").SingleAsync(ct), db.Database.GetDbConnection(), configuration))
     return new(InvoiceApiDecision.Forbidden,"sandbox_database_required");
    // Release a stale active relation only when its latest authority report is
    // terminally FAILED. Pending or acknowledged attempts remain protected.

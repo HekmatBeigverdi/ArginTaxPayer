@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Switch to already staged immutable release. No migrations, provider calls or DNS changes.
+# Verify release schema, then switch to the staged immutable release. No provider calls.
 set -Eeuo pipefail
 umask 077
 fail(){ echo "[REFUSED] $*" >&2; exit 2; }
@@ -34,60 +34,9 @@ for path in api/ArginTaxPayer.Api.dll web/.next/BUILD_ID web/node_modules/next/d
   sudo -u argintaxsvc test -r "$release/$path" || fail "Runtime service cannot read $path"
 done
 sudo grep -Fxq "sha=$target" "$release/build-info.txt" || fail 'Release SHA mismatch'
-previous=''
-if sudo test -L "$root/current"; then
-  previous=$(sudo readlink -f "$root/current")
-  case "$previous" in "$root"/releases/*) ;; *) fail 'Unexpected active symlink target';; esac
-elif sudo test -e "$root/current"; then
-  fail 'Existing current path is not a symlink'
-fi
-tmp="$root/.current-next-$"
-cleanup(){ sudo rm -f -- "$tmp"; }
-trap cleanup EXIT
-sudo ln -s "$release" "$tmp"
-sudo mv -Tf "$tmp" "$root/current"
-startup_ok=0
-if sudo systemctl restart argintaxpayer-api.service &&
-   sudo systemctl restart argintaxpayer-web.service; then
-  for attempt in $(seq 1 20); do
-    if bash "$(dirname "$0")/phase18-step06-local-health.sh" "$health_mode" >/dev/null 2>&1; then
-      startup_ok=1
-      break
-    fi
-    sleep 2
-  done
+# Root helper holds one lock across schema migration, symlink activation, health and rollback.
+if [[ "$#" == 3 ]]; then
+  sudo /usr/local/sbin/argin-taxpayer-release --promote-staged "$target" --initial-disabled-ui
 else
-  echo '[DIAGNOSTIC] A systemd restart command failed.' >&2
+  sudo /usr/local/sbin/argin-taxpayer-release --promote-staged "$target"
 fi
-if [[ "$startup_ok" != 1 ]]; then
-  # Re-run the health probe with its safe, fixed failure labels visible.
-  # Do NOT print environment files, connection strings or full exception logs.
-  echo '[DIAGNOSTIC] Final localhost health checks:' >&2
-  bash "$(dirname "$0")/phase18-step06-local-health.sh" "$health_mode" >&2 || true
-  echo '[DIAGNOSTIC] systemd unit states before rollback:' >&2
-  for unit in argintaxpayer-api.service argintaxpayer-web.service; do
-    systemctl show "$unit" --no-pager \
-      --property=ActiveState,SubState,Result,ExecMainCode,ExecMainStatus,ConditionResult \
-      | sed "s/^/[$unit] /" >&2
-  done
-  echo '[DIAGNOSTIC] For exception details inspect journalctl on the VPS; never paste secrets.' >&2
-fi
-if [[ "$startup_ok" == 1 ]]; then
-  echo "[PASS] Release $target promoted and loopback health PASS."
-  [[ -z "$previous" ]] || echo '[INFO] Previous version retained for manual rollback.'
-  exit 0
-fi
-echo '[FAIL] New release health failed. Rolling back application only.' >&2
-if [[ -n "$previous" ]]; then
-  sudo ln -s "$previous" "$tmp"
-  sudo mv -Tf "$tmp" "$root/current"
-  sudo systemctl restart argintaxpayer-api.service || true
-  sudo systemctl restart argintaxpayer-web.service || true
-  bash "$(dirname "$0")/phase18-step06-local-health.sh" --probe-local ||
-    echo '[CRITICAL] Previous version also failed health; manual incident required.' >&2
-else
-  sudo systemctl stop argintaxpayer-web.service argintaxpayer-api.service || true
-  sudo rm -f "$root/current"
-  echo '[CRITICAL] Initial release failed; application services stopped.' >&2
-fi
-exit 1

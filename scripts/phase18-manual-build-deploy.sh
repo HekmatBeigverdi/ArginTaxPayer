@@ -34,6 +34,8 @@ remote_sha="$(git rev-parse refs/remotes/origin/main)"
 [[ "$sha" == "$remote_sha" ]] || die "Checkout is not exactly origin/main (HEAD=$sha origin/main=$remote_sha)"
 
 log START 'Checking VPS release prerequisites'
+[[ "$(/usr/local/sbin/argin-taxpayer-release --capabilities)" == schema-before-promote-v1 ]] ||
+  die 'Install the reviewed schema-aware deployment helper before deploying'
 sudo -v
 sudo test -d /opt/argintaxpayer/releases || die 'Phase 18 release root is absent'
 sudo test -f /etc/argintaxpayer/phase18-activation-approved || die 'Phase 18 activation marker is absent'
@@ -75,6 +77,7 @@ run web-typecheck npm --prefix apps/web run typecheck
 run web-production-build env NODE_ENV=production NEXT_PUBLIC_APP_VERSION="$release_version" npm --prefix apps/web run build
 
 cp -a "$release_dir/api-publish/." "$bundle/stage/api/"
+run export-schema dotnet run --project tools/ArginTaxPayer.Migrations -c Release -- --export "$bundle/stage/api/schema"
 cp apps/web/package.json apps/web/package-lock.json "$bundle/stage/web/"
 cp -a apps/web/.next "$bundle/stage/web/"
 if [[ -d apps/web/public ]]; then cp -a apps/web/public "$bundle/stage/web/"; fi
@@ -112,4 +115,4 @@ log START 'Promoting release; application services will restart and health check
 PHASE18_OWNER_APPROVED_RELEASE=YES \
   bash "$bundle/scripts/phase18-release-promote.sh" --promote "$sha"
 log PASS "Release $sha promoted"
-echo '[INFO] No database migrations, fiscal-authority calls, SMS settings, or payment settings were changed.'
+echo '[INFO] Release schema was verified before activation; provider calls are not part of deployment.'

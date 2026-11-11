@@ -1,3 +1,5 @@
+using ArginTaxPayer.Infrastructure.Configuration;
+using Microsoft.Extensions.Configuration;
 using System.Data;
 using System.Data.Common;
 using ArginTaxPayer.Domain.Invoices;
@@ -10,7 +12,7 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Invoices;
 /// A trusted application service must authenticate and authorize the customer,
 /// taxpayer, fiscal memory and finalized invoice before calling this method.
 /// </summary>
-public sealed class InvoiceDispatchAdmissionRepository(ArginTaxPayerDbContext db)
+public sealed class InvoiceDispatchAdmissionRepository(ArginTaxPayerDbContext db, IConfiguration? configuration = null)
 {
     public async Task<DispatchAdmissionResult> ReserveAsync(
         InvoiceDispatchAdmission request, string ruleSetEdition,
@@ -36,7 +38,7 @@ public sealed class InvoiceDispatchAdmissionRepository(ArginTaxPayerDbContext db
             {
                 var databaseName = await ScalarAsync<string>(connection, transaction,
                     "SELECT current_database()", Array.Empty<(string, object)>(), ct);
-                if (databaseName != "argintaxpayer_test")
+                if (!SandboxDatabasePolicy.IsAllowed(databaseName, connection, configuration))
                     throw new InvalidOperationException("Dispatch admission restricted to test database.");
 
                 var now = DateTime.UtcNow;

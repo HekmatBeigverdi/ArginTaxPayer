@@ -19,6 +19,8 @@ export async function POST(request:NextRequest,context:Context){
     return fail(415,"json_required");
   const bearer=request.cookies.get(ACCESS_COOKIE)?.value;
   if(!bearer)return fail(401,"unauthorized");
+  const memoryId=request.nextUrl.searchParams.get("memoryId");
+  if(memoryId!==null&&!uuid.test(memoryId))return fail(400,"invalid_memory_id");
   if(Number(request.headers.get("content-length")??"0")>16000)
     return fail(413,"payload_too_large");
   let body:string;
@@ -36,7 +38,7 @@ export async function POST(request:NextRequest,context:Context){
   }catch{return fail(400,"invalid_payload");}
   try {
     const response=await fetch(identityApiOrigin()+"/api/dev/taxpayers/"+taxpayerId+
-      "/sandbox-memory/private-key",{
+      "/sandbox-memory/private-key"+(memoryId?"?memoryId="+encodeURIComponent(memoryId):""),{
         method:"POST",cache:"no-store",redirect:"manual",
         signal:AbortSignal.timeout(20000),
         headers:{Authorization:"Bearer "+bearer,"Content-Type":"application/json"},

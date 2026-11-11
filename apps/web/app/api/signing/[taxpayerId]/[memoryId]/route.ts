@@ -1,3 +1,4 @@
+import { projectConnectionHistory } from "../../../../../lib/fiscal-connection-status";
 import { NextRequest, NextResponse } from 'next/server';
 import { ACCESS_COOKIE, identityApiOrigin, identityUiEnabled } from '../../../../../lib/identity';
 import { isSameLocalOrigin } from '../../../../../lib/identity-origin.mjs';
@@ -42,6 +43,7 @@ async function proxy(req: NextRequest, context: Context, method: 'GET' | 'POST')
     const data = await upstream.json();
     // Project an allowlist even if an upstream response later changes.
     if (method === 'GET') return response(200, {
+      connectionHistory: projectConnectionHistory(data.connectionHistory),
       storageReady: data.storageReady === true, configured: data.configured === true, generationConfigured: data.generationConfigured === true, freshLogin: data.freshLogin === true,
       operationId: typeof data.operationId === 'string' && uuid.test(data.operationId) ? data.operationId : null,
       generationOperationId: typeof data.generationOperationId === 'string' && uuid.test(data.generationOperationId) ? data.generationOperationId : null,
