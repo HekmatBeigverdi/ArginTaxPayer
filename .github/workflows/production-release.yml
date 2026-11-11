@@ -70,7 +70,7 @@ jobs:
           fi
           (cd bundle/stage && tar -czf ../api.tar.gz api && tar -czf ../web.tar.gz web)
           (cd bundle && sha256sum api.tar.gz web.tar.gz > SHA256SUMS)
-          printf 'version=%s\nsha=%s\n' "$ARGIN_RELEASE_VERSION" "$GITHUB_SHA" > bundle/build-info.txt
+          printf 'sha=%s\n' "$GITHUB_SHA" > bundle/build-info.txt
           cp scripts/phase18-release-stage.sh scripts/phase18-release-promote.sh scripts/phase18-step06-local-health.sh bundle/scripts/
           rm -rf bundle/stage
       - uses: actions/upload-artifact@v4

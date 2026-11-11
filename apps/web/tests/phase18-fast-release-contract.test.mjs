@@ -26,7 +26,7 @@ test("release promotion requires explicit approval and activation marker", () =>
   assert.ok(helper.indexOf('migrate_release(release)\n        promote(')>helper.indexOf('fcntl.flock(lock,'));
   assert.doesNotMatch(s,/dotnet ef database update/);
 });
-test("GitHub deploy requires main, the production environment and the schema-aware root helper", () => {
+test("GitHub workflow never deploys automatically on push", () => {
   const s=read(".github/workflows/production-release.yml");
   assert.match(s,/workflow_dispatch/);
   assert.match(s,/github\.ref == 'refs\/heads\/main'/);
