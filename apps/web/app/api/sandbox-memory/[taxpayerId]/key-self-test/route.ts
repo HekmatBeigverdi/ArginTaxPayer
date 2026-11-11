@@ -19,9 +19,11 @@ export async function POST(request:NextRequest,context:Context){
     return fail(400,"body_not_allowed");
   const token=request.cookies.get(ACCESS_COOKIE)?.value;
   if(!token)return fail(401,"unauthorized");
+  const memoryId=request.nextUrl.searchParams.get("memoryId");
+  if(memoryId!==null&&!uuid.test(memoryId))return fail(400,"invalid_memory_id");
   try{
     const response=await fetch(identityApiOrigin()+"/api/dev/taxpayers/"+
-      taxpayerId+"/sandbox-memory/key-self-test",{
+      taxpayerId+"/sandbox-memory/key-self-test"+(memoryId?"?memoryId="+encodeURIComponent(memoryId):""),{
       method:"POST",cache:"no-store",redirect:"manual",
       signal:AbortSignal.timeout(15000),
       headers:{Authorization:"Bearer "+token}

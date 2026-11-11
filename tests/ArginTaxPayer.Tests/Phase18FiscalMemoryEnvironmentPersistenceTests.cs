@@ -33,4 +33,17 @@ public sealed class Phase18FiscalMemoryEnvironmentPersistenceTests
         Assert.NotEqual((FiscalConnectionEnvironment?)FiscalConnectionEnvironment.Production,
             new RegisterFiscalMemoryRequest("ABC123").AuthorityEnvironment);
     }
+
+    [Fact]
+    public void Production_can_be_registered_alongside_sandbox_but_not_beside_another_production_or_unclassified_memory()
+    {
+        Assert.True(FiscalMemoryOnboardingPolicy.CanRegisterEnvironment(
+            [FiscalConnectionEnvironment.Sandbox], FiscalConnectionEnvironment.Production));
+        Assert.False(FiscalMemoryOnboardingPolicy.CanRegisterEnvironment(
+            [FiscalConnectionEnvironment.Production], FiscalConnectionEnvironment.Production));
+        Assert.False(FiscalMemoryOnboardingPolicy.CanRegisterEnvironment(
+            [null], FiscalConnectionEnvironment.Production));
+        Assert.False(FiscalMemoryOnboardingPolicy.CanRegisterEnvironment(
+            [FiscalConnectionEnvironment.Sandbox], FiscalConnectionEnvironment.Sandbox));
+    }
 }

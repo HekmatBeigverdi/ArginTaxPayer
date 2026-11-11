@@ -10,7 +10,7 @@ const scopes=readFileSync("../../src/ArginTaxPayer.Domain/Taxpayers/FiscalConnec
 test("sandbox is a distinct tab and production components remain intact",()=>{
   assert.match(connection,/setEnvironment\("sandbox"\)/);
   assert.match(connection,/setEnvironment\("production"\)/);
-  assert.match(connection,/SandboxFiscalMemoryPanel taxpayerId=\{taxpayerId\}/);
+  assert.match(connection,/SandboxFiscalMemoryPanel[^>]*taxpayerId=\{taxpayerId\}/);
   assert.match(connection,/ExistingKeyImport/);
   assert.match(connection,/SigningKeyGeneration/);
   assert.match(connection,/SigningConnectionTest/);
@@ -25,8 +25,8 @@ test("sandbox generates independent browser RSA keypair without loading producti
   assert.doesNotMatch(sandbox,/\/api\/signing\//);
 });
 test("sandbox cannot silently connect to actual production token endpoint",()=>{
-  assert.match(sandbox,/تست اتصال واقعی Sandbox/);
-  assert.match(sandbox,/disabled=\{!custodyReady\|\|connectionBusy\}/);
+  assert.match(sandbox,/تست اتصال Sandbox/);
+  assert.match(sandbox,/if\(!custodyReady\|\|connectionBusy\)return/);
   assert.match(sandbox,/registerMemory/);
   assert.match(sandbox,/\/api\/sandbox-memory\//);
   assert.doesNotMatch(sandbox,/\/api\/signing\//);

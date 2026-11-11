@@ -56,7 +56,6 @@ export default function TaxpayerWorkspace({ isLevel1, initialTaxpayerId, showCre
   const [editName, setEditName] = useState("");
   const [editIdentifier, setEditIdentifier] = useState("");
   const [newMemory, setNewMemory] = useState("");
-  const [newMemoryEnvironment, setNewMemoryEnvironment] = useState<"" | "1" | "2">("");
 
   const reload = useCallback(async () => {
     setLoading(true); setError("");
@@ -124,12 +123,12 @@ export default function TaxpayerWorkspace({ isLevel1, initialTaxpayerId, showCre
     finally { setBusy(false); }
   }
   async function addMemory(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); if (!details || busy || !newMemoryEnvironment) return;
+    event.preventDefault(); if (!details || busy) return;
     setBusy(true); setError(""); setNotice("");
     try {
-      await request("/" + details.id + "/memories", "POST", { memoryIdentifier: newMemory, authorityEnvironment: Number(newMemoryEnvironment) });
+      await request("/" + details.id + "/memories", "POST", { memoryIdentifier: newMemory, authorityEnvironment: 1 });
       setNotice("حافظه مالیاتی به‌عنوان اطلاعات تأییدنشده ثبت شد. این کار به معنی اتصال موفق نیست.");
-      setNewMemory(""); setNewMemoryEnvironment("");
+      setNewMemory("");
       setMemories(await request<Memory[]>("/" + details.id + "/memories"));
     } catch (ex) { setError((ex as Error).message); } finally { setBusy(false); }
   }
@@ -192,56 +191,31 @@ export default function TaxpayerWorkspace({ isLevel1, initialTaxpayerId, showCre
           </form>}
         </article>}
         <details name="fiscal-sections" className="fiscal-section">
-          <summary>حافظه‌های مالیاتی{detailsLoading && <SectionLoading />}</summary>
-          <div className="fiscal-section-content" aria-busy={detailsLoading}>
-          {detailsLoading ? <p className="field-hint">در حال دریافت حافظه‌های مالیاتی…</p> : detailsError ?
-            <div role="alert"><p>{detailsError}</p><button type="button" className="identity-secondary" onClick={() => void show(initialTaxpayerId || selectedId)}>تلاش مجدد</button></div> : <>
-          {memories.length === 0 ? <p className="identity-muted">هنوز حافظه‌ای ثبت نشده است.</p> :
-            <ul className="taxpayer-memory-list">{memories.map(m => <li key={m.id}>
-              <div><strong dir="ltr">{m.memoryIdentifier}</strong>
-                <span>{memoryLabels[m.status] ?? "نامشخص"} · {m.authorityEnvironment === null ? "محیط تأییدنشده" : memoryEnvironmentLabels[m.authorityEnvironment] ?? "محیط نامعتبر"} · نسخه {m.revision}</span>
-                {m.lastConnectionTestSucceeded !== null && <span className={`taxpayer-memory-connection taxpayer-memory-connection--${m.lastConnectionTestSucceeded ? "success" : "failed"}`}>
-                  {m.lastConnectionTestSucceeded ? "اتصال برقرار" : "آخرین آزمون اتصال ناموفق"}
-                  {m.lastConnectionTestAtUtc && <> · {new Date(m.lastConnectionTestAtUtc).toLocaleString("fa-IR")}</>}
-                </span>}
-              </div>
-              {isLevel1 && <button type="button" className="identity-secondary" disabled={busy}
-                onClick={() => void revealCertificates(m.id)}>مشاهده گواهی‌ها</button>}
-              {certificates[m.id] && <div className="taxpayer-certificates">
-                {certificates[m.id].length === 0 ? <p>گواهی ثبت نشده است.</p> :
-                  certificates[m.id].map(c => <dl key={c.id}>
-                    <dt>اثر انگشت SHA-256</dt><dd dir="ltr">{c.fingerprintSha256}</dd>
-                    <dt>صادرکننده</dt><dd>{c.issuer ?? "نامشخص"}</dd>
-                    <dt>وضعیت</dt><dd>{certificateLabels[c.status] ?? "نامشخص"}</dd>
-                    <dt>منشأ</dt><dd>{c.origin === 2 ? "کلید موجود" : "کلید تولیدشده"}</dd>
-                    <dt>پایان اعتبار</dt><dd>{c.notAfterUtc ? new Date(c.notAfterUtc).toLocaleDateString("fa-IR") : "ثبت نشده"}</dd>
-                  </dl>)}
-              </div>}
-            </li>)}</ul>}
-          {memories.length === 0 && <form className="identity-form" onSubmit={addMemory}>
-            <label htmlFor="new-memory">کد حافظه مالیاتی موجود</label>
-            <input id="new-memory" dir="ltr" required maxLength={64} pattern="[A-Za-z0-9]+"
-              value={newMemory} onChange={e => setNewMemory(e.target.value)}/>
-            <label htmlFor="new-memory-environment">محیط حافظه مالیاتی</label>
-            <select id="new-memory-environment" required value={newMemoryEnvironment}
-              onChange={e => setNewMemoryEnvironment(e.target.value as "" | "1" | "2")}>
-              <option value="">محیط را صریحاً انتخاب کنید</option>
-              <option value="1">Production — اصلی</option>
-              <option value="2">Sandbox — آزمایشی</option>
-            </select>
-            <button className="identity-primary" disabled={busy || !newMemoryEnvironment}>ثبت اولیه حافظه</button>
-            <p className="field-hint">ثبت حافظه به‌تنهایی اتصال را تأیید نمی‌کند؛ پس از ثبت، آزمون اتصال را در بخش کلید/توکن اجرا کنید.</p>
-          </form>}
-          </>}
-        </div></details>
-        <details name="fiscal-sections" className="fiscal-section">
-          <summary>اتصال به سامانه مؤدیان — کلید/توکن{importLoading && <SectionLoading />}</summary>
+          <summary>حافظه مالیاتی و اتصال{(importLoading||detailsLoading)&&<SectionLoading/>}</summary>
           <div className="fiscal-section-content taxpayer-token-panel">
-            <TaxpayerConnectionPanel key={initialTaxpayerId || selectedId}
+            {detailsError?<p role="alert">{detailsError}</p>:<TaxpayerConnectionPanel key={initialTaxpayerId || selectedId}
               taxpayerId={initialTaxpayerId || selectedId} memories={memories}
               loadingMemories={detailsLoading} onLoadingChange={setImportLoading} isLevel1={isLevel1}
-              onMemoriesChanged={async()=>setMemories(await request<Memory[]>("/"+(initialTaxpayerId || selectedId)+"/memories"))}/>
-        </div></details>
+              memoryRegistration={!memories.some(m=>m.authorityEnvironment===1||m.authorityEnvironment==null)?(<form className="identity-form" onSubmit={addMemory}>
+            <label htmlFor="new-memory">کد حافظه مالیاتی Production</label>
+            <input id="new-memory" dir="ltr" required maxLength={64} pattern="[A-Za-z0-9]+"
+              value={newMemory} onChange={e => setNewMemory(e.target.value)}/>
+            <button className="identity-primary" disabled={busy}>ثبت حافظهٔ Production</button>
+            <p className="field-hint">این ثبت فقط برای Production است. حافظه و کلید Sandbox در بخش مستقل خود تنظیم می‌شوند.</p>
+          </form>):null}
+              onMemoriesChanged={async()=>setMemories(await request<Memory[]>("/"+(initialTaxpayerId || selectedId)+"/memories"))}/>}
+            {memories.length>0&&<details className="connection-history-details"><summary>سوابق ثبت و جزئیات حافظه‌ها</summary>
+              <p className="field-hint">این سوابق مربوط به ثبت‌های مستقل حافظه‌اند؛ وضعیت اتصال جاری در کارت همان محیط نمایش داده می‌شود.</p>
+              {memories.map(m=><article key={m.id} className="connection-history-row"><strong dir="ltr">{m.memoryIdentifier}</strong>
+                <span>{m.authorityEnvironment===null?"محیط تأییدنشده":memoryEnvironmentLabels[m.authorityEnvironment]} · {memoryLabels[m.status]} · نسخه {m.revision}</span>
+                {m.lastConnectionTestSucceeded!==null&&<p className="field-hint">آزمون قبلی این ثبت: {m.lastConnectionTestSucceeded?"موفق":"ناموفق"}
+                  {m.lastConnectionTestAtUtc&&<> · {new Date(m.lastConnectionTestAtUtc).toLocaleString("fa-IR")}</>}</p>}
+                {isLevel1&&<button type="button" className="identity-secondary" onClick={()=>void revealCertificates(m.id)}>مشاهده گواهی‌ها</button>}
+                {certificates[m.id]?.map(c=><p key={c.id} className="field-hint">{certificateLabels[c.status]} · <bdi dir="ltr">{c.fingerprintSha256}</bdi></p>)}
+              </article>)}
+            </details>}
+          </div>
+        </details>
         </div>
       </>}
       {isLevel1 && showCreateForm && <article className="taxpayer-panel">

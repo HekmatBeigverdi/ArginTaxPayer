@@ -1,9 +1,9 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import OperationMessageBox from "./operation-message-box";
 
 type Memory = { id: string; memoryIdentifier: string };
-type Result = { status: string; testedAtUtc: string; oneTimeTest?: boolean; environmentPersisted?: boolean; memoryActivated?: boolean;
+type Result = { status: string; testedAtUtc: string; oneTimeTest?: boolean; environmentPersisted?: boolean; memoryActivated?: boolean; connectionRecorded?: boolean;
   testEnvironment?: "Production" | "Sandbox" | null; fiscalInformation?: {
   nameTrade: string; fiscalStatus: string; economicCode: string; nationalId: string
 } | null };
@@ -32,18 +32,23 @@ const httpErrors: Record<string, string> = {
   unavailable: "آزمون اتصال در این سرویس فعال نیست."
 };
 export default function SigningConnectionTest({ taxpayerId, memories, loadingMemories, hideMemorySelector = false,
-  oneTimeEnvironment, onAuthenticated, onReenterPrivateKey, onTestCompleted }:
+  oneTimeEnvironment, onAuthenticated, onReenterPrivateKey, onTestCompleted, compact = false }:
  { taxpayerId: string; memories: Memory[]; loadingMemories: boolean; hideMemorySelector?: boolean;
    oneTimeEnvironment?: "Production" | "Sandbox"; onAuthenticated?: (authenticated: boolean) => void;
-   onReenterPrivateKey?: () => void; onTestCompleted?: (authenticated: boolean) => void }) {
+   onReenterPrivateKey?: () => void; onTestCompleted?: (authenticated: boolean) => void; compact?: boolean }) {
   const [selected, setSelected] = useState("");
   const memoryId = memories.some(m => m.id === selected) ? selected : memories[0]?.id ?? "";
   const [result, setResult] = useState<Result | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  useEffect(() => { setResult(null); setError(""); }, [taxpayerId, memoryId]);
+  const requestGeneration=useRef(0);
+  useEffect(() => {
+    requestGeneration.current++;setResult(null);setError("");setBusy(false);
+    return()=>{requestGeneration.current++;};
+  }, [taxpayerId,memoryId]);
   async function testConnection() {
     if (!memoryId || busy) return;
+    const generation=++requestGeneration.current;
     setBusy(true); setResult(null); setError(""); onAuthenticated?.(false);
     try {
       const body = oneTimeEnvironment ? JSON.stringify({ testEnvironment: oneTimeEnvironment }) : undefined;
@@ -52,8 +57,10 @@ export default function SigningConnectionTest({ taxpayerId, memories, loadingMem
         ...(body ? { headers: { "Content-Type": "application/json" }, body } : {}),
         signal: AbortSignal.timeout(35000)
       });
+      if(generation!==requestGeneration.current)return;
       if (!res.ok) {
         const payload = await res.json().catch(() => null);
+        if(generation!==requestGeneration.current)return;
         const code = payload && typeof payload.error === "string" &&
           Object.prototype.hasOwnProperty.call(httpErrors, payload.error) ? payload.error : "";
         const message = code ? httpErrors[code] : res.status === 401 ? httpErrors.unauthorized :
@@ -62,6 +69,7 @@ export default function SigningConnectionTest({ taxpayerId, memories, loadingMem
         return;
       }
       const value = await res.json();
+      if(generation!==requestGeneration.current)return;
       if (typeof value.status !== "string" || !Object.prototype.hasOwnProperty.call(labels, value.status)) {
         setError("نتیجه آزمون نامعتبر است."); return;
       }
@@ -69,11 +77,11 @@ export default function SigningConnectionTest({ taxpayerId, memories, loadingMem
       onTestCompleted?.(value.status === "Authenticated" && !!value.fiscalInformation);
       onAuthenticated?.((!value.oneTimeTest || value.environmentPersisted === true) &&
         value.status === "Authenticated" && !!value.fiscalInformation);
-    } catch { setError("آزمون ارتباط در دسترس نیست."); }
-    finally { setBusy(false); }
+    } catch { if(generation===requestGeneration.current)setError("آزمون ارتباط در دسترس نیست."); }
+    finally { if(generation===requestGeneration.current)setBusy(false); }
   }
   return <section aria-busy={busy} className="taxpayer-connection-test">
-    <strong>آزمون ارتباط فقط‌خواندنی</strong>
+    {!compact && <strong>آزمون ارتباط فقط‌خواندنی</strong>}
     {loadingMemories ? <p className="field-hint">در حال دریافت حافظه‌ها…</p> :
       memories.length === 0 ? <p className="field-hint">ابتدا حافظه مالیاتی ثبت کنید.</p> :
       <>{!hideMemorySelector && <label>حافظه مالیاتی<select value={memoryId} disabled={busy}
@@ -97,11 +105,12 @@ export default function SigningConnectionTest({ taxpayerId, memories, loadingMem
           : "احراز هویت و دریافت اطلاعات حافظه انجام شد، اما سازمان فعال‌بودن حافظه و تطابق شناسه مؤدی را تأیید نکرد."
         : labels[result.status]}
     </OperationMessageBox>}
-    {(error || result && result.status !== "Authenticated") && onReenterPrivateKey && <button type="button"
+    {result && ["KeyNotReady","VaultUnavailable","AuthenticationRejected"].includes(result.status) && onReenterPrivateKey && <button type="button"
       className="identity-secondary" onClick={onReenterPrivateKey}>
       ورود دوبارهٔ کلید خصوصی همین حافظه
     </button>}
-    {result?.status === "Authenticated" && result.fiscalInformation && <dl className="signing-fiscal-info">
+    {result?.connectionRecorded === false && <p role="status" className="field-hint">نتیجهٔ آزمون ثبت نشد؛ ممکن است تنظیمات تغییر کرده یا ثبت سوابق آماده نباشد. وضعیت را بازخوانی کنید.</p>}
+    {!compact && result?.status === "Authenticated" && result.fiscalInformation && <dl className="signing-fiscal-info">
       <div><dt>نام تجاری</dt><dd>{result.fiscalInformation.nameTrade}</dd></div>
       <div><dt>وضعیت حافظه</dt><dd>{result.fiscalInformation.fiscalStatus}</dd></div>
       <div><dt>کد اقتصادی</dt><dd>{result.fiscalInformation.economicCode}</dd></div>

@@ -25,13 +25,13 @@ const record = { id: 'taxpayer-1', buyerId: 'customer-1', type: 'taxpayer',
   kind: 1, name: 'نمونه', identifier: '', status: 'فعال' };
 const summaries = html => [...html.matchAll(/<summary[^>]*>(.*?)<\/summary>/gs)].map(x => x[1]);
 
-test('existing dossier renders all four titles before any request resolves', () => {
+test('existing dossier renders three consolidated titles before any request resolves', () => {
   const html = renderToStaticMarkup(React.createElement(FiscalRecordModal, {
     record, isLevel1: false, onClose() {}, async onChanged() {}
   }));
-  assert.equal(summaries(html).length, 4);
+  assert.equal(summaries(html).length, 3);
   assert.equal((html.match(/class="fiscal-section-loading"/g) || []).length, 3);
-  assert.match(html, /اتصال به سامانه مؤدیان/);
+  assert.match(html, /حافظه مالیاتی و اتصال/);
   assert.doesNotMatch(html, /برای مشاهده اطلاعات، یک مؤدی را از فهرست انتخاب کنید/);
 });
 
@@ -40,8 +40,8 @@ test('new taxpayer shows dependent titles with prerequisites, not endless spinne
     mode: 'seller', buyers: [], level1: false, actorUserId: 'user-1',
     onClose() {}, async onCompleted() {}
   }));
-  assert.equal(summaries(html).length, 4);
-  assert.equal((html.match(/ابتدا هویت مؤدی را ثبت کنید/g) || []).length, 3);
+  assert.equal(summaries(html).length, 3);
+  assert.equal((html.match(/ابتدا هویت مؤدی را ثبت کنید/g) || []).length, 2);
   assert.doesNotMatch(html, /fiscal-section-loading/);
 });
 
@@ -61,7 +61,7 @@ test('continuing registration preserves identity heading and loads dependent sec
     initialCustomerId: 'customer-1', initialSubjectId: 'taxpayer-1',
     onClose() {}, async onCompleted() {}
   }));
-  assert.equal(summaries(html).length, 4);
+  assert.equal(summaries(html).length, 3);
   assert.equal((html.match(/class="fiscal-section-loading"/g) || []).length, 2);
   assert.doesNotMatch(html, /ابتدا هویت مؤدی را ثبت کنید/);
 });

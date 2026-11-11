@@ -18,14 +18,20 @@ test("release promotion requires explicit approval and activation marker", () =>
   const s=read("scripts/phase18-release-promote.sh");
   assert.match(s,/PHASE18_OWNER_APPROVED_RELEASE/);
   assert.match(s,/phase18-activation-approved/);
-  assert.match(s,/phase18-step06-local-health.sh/);
-  assert.match(s,/Rolling back application only/);
+  assert.match(s,/--promote-staged/);
+  const helper=read('ops/phase18-deploy/argin-taxpayer-release.py');
+  assert.match(helper,/Restoring previous application release/);
+  assert.match(helper,/local-health\.sh/);
+  assert.match(helper,/lambda: healthy\(probe_mode\)/);
+  assert.ok(helper.indexOf('migrate_release(release)\n        promote(')>helper.indexOf('fcntl.flock(lock,'));
   assert.doesNotMatch(s,/dotnet ef database update/);
 });
 test("GitHub workflow never deploys automatically on push", () => {
   const s=read(".github/workflows/production-release.yml");
   assert.match(s,/workflow_dispatch/);
-  assert.match(s,/github\.event_name == 'workflow_dispatch'/);
+  assert.match(s,/github\.ref == 'refs\/heads\/main'/);
+  assert.match(s,/schema-before-promote-v1/);
+  assert.match(s,/tools\/ArginTaxPayer\.Migrations/);
   assert.match(s,/environment: production/);
   assert.match(s,/StrictHostKeyChecking=yes/);
   assert.match(s,/SHA256SUMS/);

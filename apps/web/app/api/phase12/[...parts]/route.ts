@@ -57,6 +57,8 @@ const LEVEL1_ONLY_ACTIONS = new Set([
 const PLAN_RECORD_PATH = /^subscriptions\/plans\/[0-9a-fA-F-]{36}$/;
 const SMS_TOPUP_PATH = /^subscriptions\/sms-topups\/[0-9a-fA-F-]{36}$/;
 const SMS_TOPUP_RECONCILE_PATH = /^subscriptions\/sms-topups\/[0-9a-fA-F-]{36}\/reconcile$/;
+const BINDING_EXCEPTION_REQUEST_PATH = /^subscriptions\/[0-9a-fA-F-]{36}\/binding-exceptions$/;
+const BINDING_EXCEPTION_REVIEW_PATH = /^subscriptions\/binding-exceptions\/[0-9a-fA-F-]{36}\/review$/;
 
 async function proxy(request: NextRequest, context: RouteContext) {
   if (!identityUiEnabled()) {
@@ -72,8 +74,13 @@ async function proxy(request: NextRequest, context: RouteContext) {
   const path = parts.join("/");
   const isLevel1 = actor.roles.includes("Level1");
   const isLevel2 = actor.roles.includes("Level2");
+  const isCustomerBindingRead = path === "subscriptions/binding-exceptions/mine";
+  const isCustomerBindingRequest = BINDING_EXCEPTION_REQUEST_PATH.test(path);
+  const isAdminBindingQueue = path === "subscriptions/binding-exceptions/pending";
+  const isAdminBindingReview = BINDING_EXCEPTION_REVIEW_PATH.test(path);
   const isCustomerTopupRoute = path === "subscriptions/sms-topups/start" || SMS_TOPUP_PATH.test(path);
-  if (!isLevel1 && !isLevel2 && !(actor.roles.includes("Customer") && isCustomerTopupRoute)) {
+  if (!isLevel1 && !isLevel2 && !(actor.roles.includes("Customer") &&
+      (isCustomerTopupRoute || isCustomerBindingRead || isCustomerBindingRequest))) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
   let method: ProxyMethod | undefined;
@@ -88,6 +95,10 @@ async function proxy(request: NextRequest, context: RouteContext) {
     method = request.method as "GET" | "PUT";
   } else if (path === "subscriptions/sms-sep-settings" && ["GET", "PUT"].includes(request.method)) {
     method = request.method as "GET" | "PUT";
+  } else if ((isCustomerBindingRead||isAdminBindingQueue)&&request.method==="GET") {
+    method="GET";
+  } else if ((isCustomerBindingRequest||isAdminBindingReview)&&request.method==="POST") {
+    method="POST";
   } else if (PLAN_RECORD_PATH.test(path) && ["PUT", "DELETE"].includes(request.method)) {
     method = request.method as "PUT" | "DELETE";
   } else {
@@ -97,9 +108,12 @@ async function proxy(request: NextRequest, context: RouteContext) {
   if (!method || method !== request.method) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
-  if ((LEVEL1_ONLY_ACTIONS.has(path) || path === "subscriptions/settlements/batches" && method === "POST") && !isLevel1) {
+  if ((LEVEL1_ONLY_ACTIONS.has(path) || path === "subscriptions/settlements/batches" && method === "POST" ||
+      isAdminBindingQueue||isAdminBindingReview) && !isLevel1) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
+  if(isCustomerBindingRead&&request.method!=="GET"||isCustomerBindingRequest&&request.method!=="POST")
+    return NextResponse.json({error:"not_found"},{status:404});
 
   const token = (await cookies()).get(ACCESS_COOKIE)?.value;
   if (!token) {
@@ -121,9 +135,9 @@ async function proxy(request: NextRequest, context: RouteContext) {
 
   const query = new URLSearchParams();
   if (method === "GET") {
-    for (const key of ["page", "pageSize", "planId", "partnerUserId", "orderId", "batchId"]) {
+    for (const key of ["page", "pageSize", "planId", "partnerUserId", "orderId", "batchId", "taxpayerId"]) {
       const value = request.nextUrl.searchParams.get(key);
-      if (value !== null && (key === "planId" || key === "partnerUserId" || key === "orderId" || key === "batchId"
+      if (value !== null && (key === "planId" || key === "partnerUserId" || key === "orderId" || key === "batchId" || key === "taxpayerId"
         ? /^[0-9a-fA-F-]{36}$/.test(value)
         : /^\d{1,9}$/.test(value))) {
         query.set(key, value);

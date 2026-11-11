@@ -67,6 +67,7 @@ public static class PersistenceRegistration
             }));
 
         services.AddScoped<ISigningOperationRepository, EfSigningOperationRepository>();
+        services.AddScoped<FiscalMemoryConnectionHistory>();
         services.AddScoped<EfInvoiceAtomicWriter>();
         services.AddScoped<IUnitOfWork, EfUnitOfWork>();
         services.AddScoped<IOutboxWriter, EfOutboxWriter>();

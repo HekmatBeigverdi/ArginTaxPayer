@@ -1,3 +1,5 @@
+using ArginTaxPayer.Infrastructure.Configuration;
+using Microsoft.Extensions.Configuration;
 using System.Data;
 using System.Data.Common;
 using ArginTaxPayer.Domain.Invoices;
@@ -17,7 +19,7 @@ public sealed record SandboxSerialResult(SandboxSerialStatus Status,
 /// NO invoice submission authorization. A serial is reserved, never reused.
 /// </summary>
 public sealed class SandboxInvoiceFiscalSerialRepository(
-    ArginTaxPayerDbContext db,TaxpayerScopeService scope)
+    ArginTaxPayerDbContext db,TaxpayerScopeService scope, IConfiguration? configuration = null)
 {
     public async Task<SandboxSerialResult> ReserveAsync(string? bearer,
         Guid taxpayerId,Guid invoiceId,long expectedRevision,CancellationToken ct=default)
@@ -39,7 +41,7 @@ public sealed class SandboxInvoiceFiscalSerialRepository(
             await using var tx=await conn.BeginTransactionAsync(IsolationLevel.Serializable,ct);
             try{
                 var database=await Scalar(conn,tx,"SELECT current_database()",ct);
-                if(database is not string name||name!="argintaxpayer_test")
+                if(!SandboxDatabasePolicy.IsAllowed(database as string, conn, configuration))
                     return new(SandboxSerialStatus.Denied);
 
                 await using var invoiceCmd=Command(conn,tx,"""

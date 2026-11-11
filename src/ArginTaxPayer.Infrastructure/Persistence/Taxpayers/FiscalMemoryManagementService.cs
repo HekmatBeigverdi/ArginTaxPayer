@@ -22,9 +22,8 @@ public enum FiscalMemoryOperationStatus
 public sealed record FiscalMemoryOperationResult(FiscalMemoryOperationStatus Status, FiscalMemoryView? Memory = null);
 
 /// <summary>
-/// Phase 04 onboarding-only safe API. Annual binding is not yet persisted (Phase 12).
-/// Until binding and authoritative connection verification exist, no API can activate,
-/// reactivate, suspend or retire an active fiscal memory or add a second memory.
+/// Safe metadata onboarding. A taxpayer may keep one independently registered
+/// Production memory and one Sandbox memory; replacements use reviewed workflows.
 /// </summary>
 public sealed class FiscalMemoryManagementService(
     ArginTaxPayerDbContext db, IdentityAuthorizationService authorization,
@@ -83,8 +82,16 @@ public sealed class FiscalMemoryManagementService(
                     System.Data.IsolationLevel.Serializable, ct);
                 if (await AuthenticateParticipantAsync(bearer, taxpayerId, ct) is { } revoked)
                     return new FiscalMemoryOperationResult(revoked);
-                // Recheck authorization before initial metadata registration.
-                if (await db.FiscalMemories.AsNoTracking().AnyAsync(x => x.TaxpayerId == taxpayerId, ct))
+                // One identifier per environment. An unclassified legacy row occupies
+                // the Production slot until its authority is explicitly verified.
+                var environments = await db.FiscalMemories.AsNoTracking()
+                    .Where(x => x.TaxpayerId == taxpayerId)
+                    .Where(x => x.Status != FiscalMemoryStatus.Retired)
+                    .Select(x => x.AuthorityEnvironment).ToArrayAsync(ct);
+                var mayStageBoundProductionCandidate = requestedEnvironment == FiscalConnectionEnvironment.Production &&
+                    await MayStageBoundProductionCandidateAsync(taxpayerId,ct);
+                if (!FiscalMemoryOnboardingPolicy.CanRegisterEnvironment(environments, requestedEnvironment) &&
+                    !mayStageBoundProductionCandidate)
                     return new FiscalMemoryOperationResult(FiscalMemoryOperationStatus.RequiresApprovedBindingReview);
                 var now = DateTime.UtcNow;
                 var memory = new FiscalMemory
@@ -114,6 +121,28 @@ public sealed class FiscalMemoryManagementService(
             db.ChangeTracker.Clear();
             return new(FiscalMemoryOperationStatus.Conflict);
         }
+    }
+
+    private async Task<bool> MayStageBoundProductionCandidateAsync(Guid taxpayerId,CancellationToken ct)
+    {
+        var now=DateTime.UtcNow;
+        var owner=await db.TaxpayerProfiles.AsNoTracking().Where(t=>t.Id==taxpayerId)
+            .Select(t=>t.CustomerUserId).SingleOrDefaultAsync(ct);
+        var boundMemory=await (from binding in db.AnnualSubscriptionBindings.AsNoTracking()
+            join plan in db.CustomerSubscriptions.AsNoTracking() on binding.SubscriptionId equals plan.Id
+            where binding.CustomerUserId==owner&&binding.TaxpayerId==taxpayerId&&plan.CustomerUserId==owner&&
+                plan.State==ArginTaxPayer.Domain.Subscriptions.SubscriptionLifecycle.Active&&
+                plan.ActivatedAtUtc<=now&&plan.ExpiresAtUtc>now&&
+                (plan.Kind==ArginTaxPayer.Domain.Subscriptions.SubscriptionPlanKind.AnnualSingleTaxpayer||
+                 plan.Kind==ArginTaxPayer.Domain.Subscriptions.SubscriptionPlanKind.MonthlySingleTaxpayer||
+                 plan.Kind==ArginTaxPayer.Domain.Subscriptions.SubscriptionPlanKind.QuarterlySingleTaxpayer||
+                 plan.Kind==ArginTaxPayer.Domain.Subscriptions.SubscriptionPlanKind.SemiAnnualSingleTaxpayer)
+            select (Guid?)binding.FiscalMemoryId).FirstOrDefaultAsync(ct);
+        if(boundMemory is null)return false;
+        var pendingCandidateExists=await db.FiscalMemories.AsNoTracking().AnyAsync(m=>m.TaxpayerId==taxpayerId&&
+            m.Id!=boundMemory.Value&&m.AuthorityEnvironment==FiscalConnectionEnvironment.Production&&
+            m.Status!=FiscalMemoryStatus.Retired,ct);
+        return !pendingCandidateExists;
     }
 
     public async Task<(FiscalMemoryOperationStatus Status, FiscalMemoryView[]? Memories)> ListAsync(

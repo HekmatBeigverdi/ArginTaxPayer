@@ -180,7 +180,7 @@ export default function ParticipantRegistrationModal({ mode, buyers, level1, act
           }}>پایان و بازگشت به فهرست</button>
         </>}
         {!complete && (mode === "seller"
-          ? ["اطلاعات مالیاتی، تماس و نشانی", "حافظه‌های مالیاتی", "اتصال به سامانه مؤدیان — کلید/توکن"]
+          ? ["اطلاعات مالیاتی، تماس و نشانی", "حافظه مالیاتی و اتصال"]
           : ["اطلاعات مالیاتی، تماس و نشانی"]).map(section =>
           <details name="fiscal-sections" className="fiscal-section" key={section}>
             <summary>{section}</summary>

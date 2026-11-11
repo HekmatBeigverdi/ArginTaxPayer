@@ -22,9 +22,11 @@ export async function POST(request:NextRequest,context:Context){
     return fail(400,"request_body_not_allowed");
   const token=request.cookies.get(ACCESS_COOKIE)?.value;
   if(!token)return fail(401,"unauthorized");
+  const memoryId=request.nextUrl.searchParams.get("memoryId");
+  if(memoryId!==null&&!uuid.test(memoryId))return fail(400,"invalid_memory_id");
   try{
     const upstream=await fetch(identityApiOrigin()+"/api/dev/taxpayers/"+
-      taxpayerId+"/sandbox-memory/connection-test",{
+      taxpayerId+"/sandbox-memory/connection-test"+(memoryId?"?memoryId="+encodeURIComponent(memoryId):""),{
       method:"POST",cache:"no-store",redirect:"manual",
       signal:AbortSignal.timeout(30000),
       headers:{Authorization:"Bearer "+token}
@@ -48,6 +50,7 @@ export async function POST(request:NextRequest,context:Context){
     const bounded=(v:unknown)=>typeof v==="string"&&v.length<=256?v:null;
     return NextResponse.json({
       environment:"Sandbox",status,
+      connectionRecorded: row.connectionRecorded === true,
       authenticationConfirmed:upstream.ok&&status==="Authenticated"&&
         row.authenticationConfirmed===true,
       portalRegistrationConfirmed:false,fiscalMemoryActivationConfirmed:false,

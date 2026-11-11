@@ -1,4 +1,5 @@
 "use client";
+import {visibleInvoiceMemories} from "../../lib/fiscal-connection-status";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
@@ -1008,7 +1009,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
               <select id="invoice-memory" value={memoryId} disabled={headerLoading || !headerOptions}
                 onChange={e=>setMemoryId(e.target.value)}>
                 <option value="">بدون انتخاب حافظه مالیاتی</option>
-                {(headerOptions?.memories ?? []).map(m=>{
+                {visibleInvoiceMemories(headerOptions?.memories??[],headerOptions?.sandboxMemories??[],memoryId).map(m=>{
                   const environment=m.authorityEnvironment===1?"Production (اصلی)":m.authorityEnvironment===2?"Sandbox (آزمایشی)":"محیط هنوز تأیید نشده";
                   const memoryStatus=m.status===2?"فعال":m.status===3?"تعلیق‌شده":m.status===4?"بازنشسته":"در انتظار فعال‌سازی";
                   return <option key={m.id} value={m.id}

@@ -33,7 +33,7 @@ public static class SigningImportEndpoints
         var group = routes.MapGroup("/api/dev/signing/{taxpayerId:guid}/{memoryId:guid}")
             .ExcludeFromDescription().RequireRateLimiting("signing-import");
         group.MapGet("", async (Guid taxpayerId, Guid memoryId, HttpContext http,
-            EfSigningOperationRepository journal, IConfiguration config, ArginTaxPayerDbContext db, CancellationToken ct) =>
+            EfSigningOperationRepository journal, IConfiguration config, ArginTaxPayerDbContext db, FiscalMemoryConnectionHistory history, CancellationToken ct) =>
         {
             http.Response.Headers.CacheControl = "no-store";
             if (!IdentityDevelopmentEndpoints.IsLoopbackAddress(http.Connection.RemoteIpAddress))
@@ -42,6 +42,8 @@ public static class SigningImportEndpoints
             {
                 var state = await journal.ReadImportOnboardingAsync(Bearer(http), taxpayerId, memoryId, ct);
                 if (state.Status != SigningGenerationStatus.Replayed) return Failure(state.Status);
+                var binding = await history.CaptureRegisteredAsync(taxpayerId, memoryId, ct);
+                var connectionHistory = await history.ReadAsync(binding, ct);
                 var storageReady = false;
                 if (config["SigningKeyProtection:Provider"] == "Database")
                 {
@@ -50,7 +52,7 @@ public static class SigningImportEndpoints
                     catch (Exception) { storageReady = false; }
                 }
                 else storageReady = true;
-                return Results.Ok(new { storageReady, configured = Configured(config), generationConfigured = config["SigningKeyGeneration:Enabled"] == "true" && ProtectionReady(config), state.FreshLogin,
+                return Results.Ok(new { connectionHistory, storageReady, configured = Configured(config), generationConfigured = config["SigningKeyGeneration:Enabled"] == "true" && ProtectionReady(config), state.FreshLogin,
                     state.OperationId, state.GenerationOperationId, state.HasKey, state.FingerprintSha256, state.LifecycleState, state.RecoveryAvailable, state.ReplacementApproved,
                     portalVerified = false });
             }

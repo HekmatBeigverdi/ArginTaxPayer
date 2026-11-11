@@ -1,3 +1,4 @@
+using ArginTaxPayer.Infrastructure.Configuration;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -61,7 +62,7 @@ public sealed class Phase10LegacyReferenceInquiryService(
         // Never obtain a Sandbox credential or call an authority from Production DB.
         var databaseName = await db.Database.SqlQueryRaw<string>(
             "SELECT current_database() AS \"Value\"").SingleAsync(ct);
-        if (databaseName != "argintaxpayer_test")
+        if (!SandboxDatabasePolicy.IsAllowed(databaseName, db.Database.GetDbConnection(), config))
             return new(InvoiceApiDecision.Invalid, "sandbox_database_required");
         if(!LegacyInvoiceSubmissionHttpTransport.TryResolveSandboxBase(config,out var baseUrl)||
             baseUrl is null)

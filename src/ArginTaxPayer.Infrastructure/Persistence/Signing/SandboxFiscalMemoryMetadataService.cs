@@ -1,17 +1,26 @@
 using System.Data;
+using System.Text;
+using ArginTaxPayer.Domain.Signing;
+using Microsoft.Extensions.Configuration;
+using ArginTaxPayer.Infrastructure.Configuration;
 using System.Security.Cryptography;
 using ArginTaxPayer.Infrastructure.Persistence.Taxpayers;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using ArginTaxPayer.Infrastructure.Signing.Protection;
 using System.Text.Json;
+using Npgsql;
 
 namespace ArginTaxPayer.Infrastructure.Persistence.Signing;
 
 public sealed record SandboxMemoryRegistration(string MemoryIdentifier, string PublicKeyPem);
 public sealed record SandboxPrivateKeyImportRequest(string PrivateKeyPem);
-public sealed record SandboxMemorySafeView(string MemoryIdentifier, string PublicFingerprintSha256,
-    long Revision, bool KeyCustodyReady, bool ConnectionTestReady);
+public sealed record SandboxPrivateKeyRestoreRequest(Guid MemoryId, string PrivateKeyPem, long ExpectedRevision, bool AcceptServerCustody);
+public sealed record SandboxMemorySafeView(Guid Id, string MemoryIdentifier, string PublicFingerprintSha256,
+    long Revision, bool KeyCustodyReady, bool ConnectionTestReady,
+    ConnectionHistoryView? ConnectionHistory = null, bool CanRestorePrivateKey = false);
+public sealed record SandboxAuthorityTestOutcome(int StatusCode, string Error,
+    ArginTaxPayer.Application.Signing.SigningConnectionTestResult? Result = null, bool ConnectionRecorded = false);
 public sealed record SandboxMemoryResult(int StatusCode, string Error, SandboxMemorySafeView? Value=null);
 
 /// <summary>
@@ -24,7 +33,7 @@ public sealed class SandboxFiscalMemoryMetadataService(
     ArginTaxPayerDbContext db, TaxpayerScopeService scope, IServiceProvider services)
 {
     public async Task<SandboxMemoryResult> GetAsync(
-        string? bearer, Guid taxpayerId, CancellationToken ct=default)
+        string? bearer, Guid taxpayerId, CancellationToken ct=default, Guid? selectedMemoryId=null)
     {
         var authorized=await AuthorizeAsync(bearer,taxpayerId,ct);
         if(authorized.Code!=200) return new(authorized.Code,"sandbox_scope_denied");
@@ -34,14 +43,56 @@ public sealed class SandboxFiscalMemoryMetadataService(
         try {
             await using var cmd=conn.CreateCommand();
             cmd.CommandText="""
-SELECT memory_identifier, public_fingerprint_sha256, revision, private_envelope_json
+SELECT id,memory_identifier,public_fingerprint_sha256,revision,private_envelope_json
 FROM sandbox_fiscal_memories WHERE taxpayer_id=@taxpayer AND customer_user_id=@owner
+ AND (@memory::uuid IS NULL OR id=@memory::uuid) ORDER BY created_at_utc,id LIMIT 1
 """;
             Add(cmd,"taxpayer",taxpayerId);Add(cmd,"owner",authorized.Owner);
+            Add(cmd,"memory",selectedMemoryId is { } selected ? selected : DBNull.Value);
             await using var reader=await cmd.ExecuteReaderAsync(ct);
             if(!await reader.ReadAsync(ct)) return new(200,"not_registered");
-            return new(200,"",new(reader.GetString(0),reader.GetString(1),reader.GetInt64(2),!reader.IsDBNull(3),false));
+            var memoryId = reader.GetGuid(0);
+            var view = new SandboxMemorySafeView(memoryId,reader.GetString(1),reader.GetString(2),reader.GetInt64(3),!reader.IsDBNull(4),false);
+            await reader.DisposeAsync();
+            var history = new FiscalMemoryConnectionHistory(db);
+            ConnectionHistoryView connectionHistory;
+            try
+            {
+                var binding = await history.CaptureSandboxAsync(taxpayerId, memoryId, ct);
+                connectionHistory = await history.ReadAsync(binding, ct);
+            }
+            catch (PostgresException ex) when (ex.SqlState is PostgresErrorCodes.UndefinedTable or PostgresErrorCodes.UndefinedColumn)
+            {
+                // Connection history is optional during local rollout. A missing
+                // history/schema migration must not hide the Sandbox memory itself.
+                connectionHistory = new(false);
+            }
+            return new(200,"",view with { ConnectionHistory = connectionHistory,
+                CanRestorePrivateKey = await FreshOwnerLoginAsync(bearer,authorized.Owner,ct) });
         } finally { if(opened) await conn.CloseAsync(); }
+    }
+
+    public async Task<(int StatusCode, string Error, SandboxMemorySafeView[] Memories)> ListAsync(
+        string? bearer, Guid taxpayerId, CancellationToken ct=default)
+    {
+        var authorized=await AuthorizeAsync(bearer,taxpayerId,ct);
+        if(authorized.Code!=200)return (authorized.Code,"sandbox_scope_denied",[]);
+        var conn=db.Database.GetDbConnection();var opened=conn.State!=ConnectionState.Open;
+        if(opened)await conn.OpenAsync(ct);
+        try{
+            await using var cmd=conn.CreateCommand();
+            cmd.CommandText="""
+SELECT id,memory_identifier,public_fingerprint_sha256,revision,private_envelope_json
+FROM sandbox_fiscal_memories WHERE taxpayer_id=@taxpayer AND customer_user_id=@owner
+ORDER BY created_at_utc,id
+""";
+            Add(cmd,"taxpayer",taxpayerId);Add(cmd,"owner",authorized.Owner);
+            var rows=new List<SandboxMemorySafeView>();
+            await using var reader=await cmd.ExecuteReaderAsync(ct);
+            while(await reader.ReadAsync(ct))rows.Add(new(reader.GetGuid(0),reader.GetString(1),
+                reader.GetString(2),reader.GetInt64(3),!reader.IsDBNull(4),false));
+            return (200,"",rows.ToArray());
+        }finally{if(opened)await conn.CloseAsync();}
     }
 
     public async Task<SandboxMemoryResult> RegisterAsync(
@@ -78,11 +129,9 @@ FROM sandbox_fiscal_memories WHERE taxpayer_id=@taxpayer AND customer_user_id=@o
                 await using var guard=conn.CreateCommand();
                 guard.Transaction=tx;
                 guard.CommandText="SELECT current_database()";
-                if((string?)await guard.ExecuteScalarAsync(ct)!="argintaxpayer_test")
+                if(!SandboxDatabaseAllowed((string?)await guard.ExecuteScalarAsync(ct),conn.ConnectionString))
                     return new(503,"sandbox_test_database_required");
 
-                // A record without private custody is recoverable: replace only the
-                // untrusted public metadata. Once custody exists, replacement is blocked.
                 await using var cmd=conn.CreateCommand();
                 cmd.Transaction=tx;
                 cmd.CommandText="""
@@ -90,29 +139,20 @@ INSERT INTO sandbox_fiscal_memories
 (id,customer_user_id,taxpayer_id,memory_identifier,public_spki_der,
  public_fingerprint_sha256,signing_key_version_id,origin_operation_id,revision,created_at_utc,updated_at_utc)
 VALUES (@id,@owner,@taxpayer,@memory,@spki,@fingerprint,@keyid,@operationid,1,@now,@now)
-ON CONFLICT(customer_user_id,taxpayer_id) DO UPDATE SET
- memory_identifier=EXCLUDED.memory_identifier,
- public_spki_der=EXCLUDED.public_spki_der,
- public_fingerprint_sha256=EXCLUDED.public_fingerprint_sha256,
- signing_key_version_id=EXCLUDED.signing_key_version_id,
- origin_operation_id=EXCLUDED.origin_operation_id,
- revision=sandbox_fiscal_memories.revision+1,
- updated_at_utc=EXCLUDED.updated_at_utc
-WHERE sandbox_fiscal_memories.private_envelope_json IS NULL
 RETURNING id, revision
 """;
                 Add(cmd,"id",Guid.NewGuid());Add(cmd,"owner",authorized.Owner);
-                Add(cmd,"taxpayer",taxpayerId);Add(cmd,"memory",request.MemoryIdentifier);
+                Add(cmd,"taxpayer",taxpayerId);Add(cmd,"memory",request.MemoryIdentifier!);
                 Add(cmd,"spki",spki);Add(cmd,"fingerprint",fingerprint);
                 Add(cmd,"keyid",Guid.NewGuid());Add(cmd,"operationid",Guid.NewGuid());
                 Add(cmd,"now",DateTime.UtcNow);
                 await using var createdReader=await cmd.ExecuteReaderAsync(ct);
-                if(!await createdReader.ReadAsync(ct))
-                    return new(409,"sandbox_memory_already_registered");
+                if(!await createdReader.ReadAsync(ct)) return new(503,"sandbox_memory_registration_failed");
+                var memoryId=createdReader.GetGuid(0);
                 var revision=createdReader.GetInt64(1);
                 await createdReader.DisposeAsync();
                 await tx.CommitAsync(ct);
-                return new(200,"",new(request.MemoryIdentifier,fingerprint,revision,false,false));
+                return new(200,"",new(memoryId,request.MemoryIdentifier,fingerprint,revision,false,false));
             } catch {
                 await tx.RollbackAsync(CancellationToken.None);
                 throw;
@@ -127,9 +167,23 @@ RETURNING id, revision
     /// Requires the existing Phase09 key protector to be explicitly configured.
     /// No provider API requests are issued.
     /// </summary>
+    public async Task<SandboxMemoryResult> RestorePrivateAsync(string? bearer, Guid taxpayerId,
+        SandboxPrivateKeyRestoreRequest? request, CancellationToken ct = default)
+    {
+        var authorized = await AuthorizeAsync(bearer,taxpayerId,ct);
+        if(authorized.Code!=200)return new(authorized.Code,"sandbox_scope_denied");
+        if(!await FreshOwnerLoginAsync(bearer,authorized.Owner,ct))
+            return new(403,"sandbox_owner_reauthentication_required");
+        if(request is null || !request.AcceptServerCustody)return new(400,"sandbox_custody_consent_required");
+        if(request.ExpectedRevision<1)return new(400,"sandbox_memory_changed");
+        if(request.MemoryId==Guid.Empty)return new(400,"sandbox_memory_changed");
+        return await ImportPrivateAsync(bearer,taxpayerId,new(request.PrivateKeyPem),ct,request.ExpectedRevision,true,request.MemoryId);
+    }
+
     public async Task<SandboxMemoryResult> ImportPrivateAsync(
         string? bearer, Guid taxpayerId, SandboxPrivateKeyImportRequest? request,
-        CancellationToken ct = default)
+        CancellationToken ct = default, long? restoreRevision = null, bool acceptServerCustody = false,
+        Guid? selectedMemoryId = null)
     {
         var authorized=await AuthorizeAsync(bearer,taxpayerId,ct);
         if(authorized.Code!=200)return new(authorized.Code,"sandbox_scope_denied");
@@ -165,10 +219,12 @@ RETURNING id, revision
 SELECT id, public_spki_der, private_envelope_json, signing_key_version_id,
  origin_operation_id, memory_identifier, public_fingerprint_sha256, revision
 FROM sandbox_fiscal_memories
-WHERE customer_user_id=@owner AND taxpayer_id=@taxpayer FOR UPDATE
+WHERE customer_user_id=@owner AND taxpayer_id=@taxpayer
+ AND (@memory::uuid IS NULL OR id=@memory::uuid) FOR UPDATE
 """;
                     Add(read,"owner",authorized.Owner);Add(read,"taxpayer",taxpayerId);
-                    if((string?)await ScalarDatabaseAsync(conn,tx,ct)!="argintaxpayer_test")
+                    Add(read,"memory",selectedMemoryId is { } selected ? selected : DBNull.Value);
+                    if(!SandboxDatabaseAllowed((string?)await ScalarDatabaseAsync(conn,tx,ct),conn.ConnectionString))
                         return new(503,"sandbox_test_database_required");
                     Guid memoryId,keyId,operationId;
                     byte[] registeredSpki;
@@ -178,11 +234,14 @@ WHERE customer_user_id=@owner AND taxpayer_id=@taxpayer FOR UPDATE
                         if(!await reader.ReadAsync(ct))return new(404,"sandbox_memory_not_registered");
                         memoryId=reader.GetGuid(0);
                         registeredSpki=(byte[])reader.GetValue(1);
-                        if(!reader.IsDBNull(2))return new(409,"sandbox_private_key_already_stored");
+                        if(!reader.IsDBNull(2) && restoreRevision is null)return new(409,"sandbox_private_key_already_stored");
                         keyId=reader.GetGuid(3);operationId=reader.GetGuid(4);
                         memoryCode=reader.GetString(5);registeredHash=reader.GetString(6);
                         revision=reader.GetInt64(7);
                     }
+                    if(restoreRevision is { } expected && SandboxSameKeyRecoveryPolicy.Validate(true,true,
+                        acceptServerCustody,expected,revision,registeredSpki,spki) is { } restoreError)
+                        return new(409,restoreError);
                     if(!CryptographicOperations.FixedTimeEquals(spki,registeredSpki))
                         return new(409,"sandbox_key_pair_mismatch");
                     var identity=new KeyProtectionIdentity(authorized.Owner,taxpayerId,
@@ -195,16 +254,16 @@ WHERE customer_user_id=@owner AND taxpayer_id=@taxpayer FOR UPDATE
 UPDATE sandbox_fiscal_memories
 SET private_envelope_json=@envelope,revision=revision+1,updated_at_utc=@now
 WHERE customer_user_id=@owner AND taxpayer_id=@taxpayer AND id=@id
- AND revision=@revision AND private_envelope_json IS NULL
+ AND revision=@revision AND (private_envelope_json IS NULL OR @restore)
 RETURNING revision
 """;
                     Add(update,"envelope",json);Add(update,"now",DateTime.UtcNow);
                     Add(update,"owner",authorized.Owner);Add(update,"taxpayer",taxpayerId);
-                    Add(update,"id",memoryId);Add(update,"revision",revision);
+                    Add(update,"id",memoryId);Add(update,"revision",revision);Add(update,"restore",restoreRevision is not null);
                     var result=await update.ExecuteScalarAsync(ct);
                     if(result is not long newRevision)return new(409,"sandbox_key_registration_conflict");
                     await tx.CommitAsync(ct);
-                    return new(200,"",new(memoryCode,registeredHash,newRevision,true,false));
+                    return new(200,"",new(memoryId,memoryCode,registeredHash,newRevision,true,false));
                 } catch {
                     await tx.RollbackAsync(CancellationToken.None);
                     throw;
@@ -224,7 +283,7 @@ RETURNING revision
     /// Never contacts tax authority and never returns the private key.
     /// </summary>
     public async Task<SandboxMemoryResult> SelfTestAsync(
-        string? bearer, Guid taxpayerId, CancellationToken ct=default)
+        string? bearer, Guid taxpayerId, CancellationToken ct=default, Guid? selectedMemoryId=null)
     {
         var authorized=await AuthorizeAsync(bearer,taxpayerId,ct);
         if(authorized.Code!=200)return new(authorized.Code,"sandbox_scope_denied");
@@ -239,8 +298,10 @@ RETURNING revision
 SELECT id,public_spki_der,private_envelope_json,signing_key_version_id,origin_operation_id
 FROM sandbox_fiscal_memories
 WHERE customer_user_id=@owner AND taxpayer_id=@taxpayer
+ AND (@memory::uuid IS NULL OR id=@memory::uuid) ORDER BY created_at_utc,id LIMIT 1
 """;
             Add(cmd,"owner",authorized.Owner);Add(cmd,"taxpayer",taxpayerId);
+            Add(cmd,"memory",selectedMemoryId is { } selected ? selected : DBNull.Value);
             await using var reader=await cmd.ExecuteReaderAsync(ct);
             if(!await reader.ReadAsync(ct)||reader.IsDBNull(2))
                 return new(409,"sandbox_private_key_not_ready");
@@ -287,53 +348,89 @@ WHERE customer_user_id=@owner AND taxpayer_id=@taxpayer
     /// The selected Sandbox row owns the only fiscal code and key. Never
     /// accesses fiscal_memories or Production key envelopes.
     /// </summary>
-    public async Task<(int StatusCode, string Error,
-        ArginTaxPayer.Application.Signing.SigningConnectionTestResult? Result)>
-        TestAuthorityAsync(string? bearer, Guid taxpayerId, CancellationToken ct = default)
+    public async Task<SandboxAuthorityTestOutcome>
+        TestAuthorityAsync(string? bearer, Guid taxpayerId, CancellationToken ct = default, Guid? selectedMemoryId = null)
     {
         var authorized=await AuthorizeAsync(bearer,taxpayerId,ct);
         if(authorized.Code!=200)
-            return (authorized.Code,"sandbox_scope_denied",null);
+            return new(authorized.Code,"sandbox_scope_denied",null);
         var probe=services.GetService<ArginTaxPayer.Infrastructure.Signing.Connection.SandboxAuthorityTokenProbe>();
         if(probe is null || !ArginTaxPayer.Infrastructure.Signing.Connection.SigningConnectionRegistration
             .SandboxConnectionConfigured(services.GetRequiredService<Microsoft.Extensions.Configuration.IConfiguration>()))
-            return (503,"sandbox_authority_api_not_verified",null);
+            return new(503,"sandbox_authority_api_not_verified",null);
         var protector=services.GetService<KeyEnvelopeProtector>();
-        if(protector is null)return (503,"sandbox_key_protection_unavailable",null);
+        if(protector is null)return new(503,"sandbox_key_protection_unavailable",null);
         var conn=db.Database.GetDbConnection();
         var opened=conn.State!=ConnectionState.Open;
         if(opened)await conn.OpenAsync(ct);
+        ConnectionBinding? captured = null;
+        var startedAtUtc = DateTime.UtcNow;
+        var history = new FiscalMemoryConnectionHistory(db);
         try {
             await using var cmd=conn.CreateCommand();
             cmd.CommandText="""
 SELECT id,memory_identifier,public_spki_der,private_envelope_json,
- signing_key_version_id,origin_operation_id
+ signing_key_version_id,origin_operation_id,revision,public_fingerprint_sha256
 FROM sandbox_fiscal_memories
 WHERE customer_user_id=@owner AND taxpayer_id=@taxpayer
+ AND (@memory::uuid IS NULL OR id=@memory::uuid) ORDER BY created_at_utc,id LIMIT 1
 """;
             Add(cmd,"owner",authorized.Owner);Add(cmd,"taxpayer",taxpayerId);
+            Add(cmd,"memory",selectedMemoryId is { } selected ? selected : DBNull.Value);
             await using var reader=await cmd.ExecuteReaderAsync(ct);
             if(!await reader.ReadAsync(ct) || reader.IsDBNull(3))
-                return (409,"sandbox_private_key_not_ready",null);
+                return new(409,"sandbox_private_key_not_ready",null);
             var id=reader.GetGuid(0);
             var code=reader.GetString(1);
             var publicSpki=(byte[])reader.GetValue(2);
             var envelopeJson=reader.GetString(3);
             var keyId=reader.GetGuid(4);
             var operationId=reader.GetGuid(5);
+            var revision=reader.GetInt64(6);var fingerprint=reader.GetString(7);
+            captured=new(authorized.Owner,taxpayerId,id,"LegacySandbox",code,2,revision,keyId,revision,fingerprint);
+            await reader.DisposeAsync();
             var identity=new KeyProtectionIdentity(authorized.Owner,taxpayerId,
                 id,keyId,operationId,Sandbox:true);
             ProtectedKeyEnvelope? envelope;
             try { envelope=JsonSerializer.Deserialize<ProtectedKeyEnvelope>(envelopeJson); }
-            catch(JsonException) { return (503,"sandbox_key_integrity_failure",null); }
-            if(envelope is null)return (503,"sandbox_key_integrity_failure",null);
+            catch(JsonException) {
+                await history.RecordAsync(captured,"KeyNotReady",startedAtUtc,DateTime.UtcNow,ct);
+                return new(503,"sandbox_key_integrity_failure",null);
+            }
+            if(envelope is null){
+                await history.RecordAsync(captured,"KeyNotReady",startedAtUtc,DateTime.UtcNow,ct);
+                return new(503,"sandbox_key_integrity_failure",null);
+            }
             using var secret=await protector.UnprotectAsync(identity,envelope,ct);
             var result=await probe.TestAsync(code,secret,publicSpki,ct);
-            return (200,"",result);
+            var recorded = await history.RecordAsync(captured,result.Status.ToString(),startedAtUtc,result.TestedAtUtc,ct);
+            return new(200,"",result,recorded);
         } catch(KeyProtectionException) {
-            return (503,"sandbox_key_protection_unavailable",null);
+            await history.RecordAsync(captured,"VaultUnavailable",startedAtUtc,DateTime.UtcNow,ct);
+            return new(503,"sandbox_key_protection_unavailable",null);
+        } catch(CryptographicException) {
+            await history.RecordAsync(captured,"KeyNotReady",startedAtUtc,DateTime.UtcNow,ct);
+            return new(503,"sandbox_key_integrity_failure",null);
         } finally {if(opened)await conn.CloseAsync();}
     }
+
+    private async Task<bool> FreshOwnerLoginAsync(string? bearer, Guid owner, CancellationToken ct)
+    {
+        if(string.IsNullOrEmpty(bearer))return false;
+        var actor=await scope.ResolveAsync(bearer,ct);
+        if(actor.ActorId!=owner)return false;
+        var now=DateTime.UtcNow;
+        var hash=Convert.ToHexString(SHA256.HashData(Encoding.ASCII.GetBytes(bearer))).ToLowerInvariant();
+        var login=await db.IdentitySessions.AsNoTracking().Where(x=>x.UserId==owner && x.AccessTokenHash==hash &&
+            x.RevokedAtUtc==null && x.AccessExpiresAtUtc>now && x.RefreshExpiresAtUtc>now)
+            .Select(x=>(DateTime?)x.CreatedAtUtc).SingleOrDefaultAsync(ct);
+        return login is not null && SigningOperationPolicy.FreshAuthentication(login.Value,now);
+    }
+
+    private bool SandboxDatabaseAllowed(string? database, string connectionString) =>
+        database=="argintaxpayer_test" || database=="argintaxpayer_prod" &&
+        services.GetService<IConfiguration>() is { } configuration &&
+        HostedSandboxDeployment.IsAllowed(connectionString,configuration);
 
     private static async Task<object?> ScalarDatabaseAsync(
         System.Data.Common.DbConnection connection,

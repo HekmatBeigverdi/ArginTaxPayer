@@ -7,12 +7,9 @@ import { resolve } from 'node:path';
 const root = fileURLToPath(new URL('../../../', import.meta.url));
 const read = (path) => readFileSync(resolve(root, path), 'utf8');
 
-test('new fiscal memories require explicit sandbox or production selection', () => {
+test('production workspace registration explicitly creates production memories', () => {
   const ui = read('apps/web/app/taxpayers/taxpayer-workspace.tsx');
-  assert.match(ui, /newMemoryEnvironment/);
-  assert.match(ui, /authorityEnvironment: Number\(newMemoryEnvironment\)/);
-  assert.match(ui, /<option value="1">Production/);
-  assert.match(ui, /<option value="2">Sandbox/);
+  assert.match(ui, /authorityEnvironment: 1/);
   const service = read('src/ArginTaxPayer.Infrastructure/Persistence/Taxpayers/FiscalMemoryManagementService.cs');
   assert.match(service, /request\?\.AuthorityEnvironment is not/);
   assert.match(service, /AuthorityEnvironment = requestedEnvironment/);

@@ -1,3 +1,5 @@
+using ArginTaxPayer.Infrastructure.Configuration;
+using Microsoft.Extensions.Configuration;
 using System.Data;
 using ArginTaxPayer.Infrastructure.Persistence.Subscriptions;
 using System.Data.Common;
@@ -30,7 +32,7 @@ public sealed record Phase10DispatchOperationState(
 /// attempt append and attempt number allocation are one transaction. No HTTP
 /// call is made here.
 /// </summary>
-public sealed class Phase10DispatchAttemptRepository(ArginTaxPayerDbContext db)
+public sealed class Phase10DispatchAttemptRepository(ArginTaxPayerDbContext db, IConfiguration? configuration = null)
 {
     internal async Task<Phase10DispatchOperationState?> ReadStateAsync(
         Guid operationId, Guid customerUserId, Guid taxpayerId,
@@ -64,7 +66,7 @@ WHERE id={operationId} AND customer_user_id={customerUserId} AND taxpayer_id={ta
             {
                 await using var database = Command(connection, tx,
                     "SELECT current_database()");
-                if ((string?)await database.ExecuteScalarAsync(ct) != "argintaxpayer_test")
+                if (!SandboxDatabasePolicy.IsAllowed((string?)await database.ExecuteScalarAsync(ct), connection, configuration))
                     throw new InvalidOperationException("Phase10 dispatch requires isolated test DB.");
 
                 var now = DateTime.UtcNow;

@@ -1,9 +1,10 @@
 #!/usr/bin/python3 -I
-"""Root-owned, application-only deployment entry point. Never run bundle scripts."""
+"""Root-owned deployment entry point. Migrate with a restricted DB role; never run bundle scripts."""
 import fcntl
 from contextlib import contextmanager
 import gzip
 import hashlib
+import json
 import os
 from pathlib import Path, PurePosixPath
 import pwd
@@ -11,6 +12,7 @@ import grp
 import re
 import shutil
 import signal
+import secrets
 import stat
 import subprocess
 import sys
@@ -80,7 +82,10 @@ def verify_bundle(bundle, sha):
             actual = hashlib.file_digest(stream, 'sha256').hexdigest()
         if actual != digest:
             raise Refused('Archive checksum mismatch')
-    if (bundle / 'build-info.txt').read_text() != f'sha={sha}\n':
+    metadata = (bundle / 'build-info.txt').read_text().splitlines()
+    if (metadata.count(f'sha={sha}') != 1 or len(metadata) not in (1, 2)
+            or any(not line.startswith(('sha=', 'version=')) for line in metadata)
+            or sum(line.startswith('sha=') for line in metadata) != 1):
         raise Refused('Embedded source SHA does not match requested release')
 
 
@@ -276,11 +281,11 @@ def stop_services():
     run(['/usr/bin/systemctl', 'stop', *reversed(UNITS)], timeout=90)
 
 
-def healthy():
+def healthy(probe_mode="--probe-local"):
     deadline = time.monotonic() + 120
     while time.monotonic() < deadline:
         try:
-            result = subprocess.run(['/bin/bash', str(PROBE), '--probe-local'],
+            result = subprocess.run(['/bin/bash', str(PROBE), probe_mode],
                                     env=ENV, stdout=subprocess.DEVNULL,
                                     stderr=subprocess.DEVNULL,
                                     timeout=min(45, deadline-time.monotonic()))
@@ -390,8 +395,177 @@ def prepare_release(sha, deployment, service_gid):
     return release
 
 
+MIGRATION_CONFIG = Path('/etc/argintaxpayer/migrations.env')
+BACKUPS = Path('/var/backups/argintaxpayer')
+BACKUP_KEY = Path('/etc/argintaxpayer/migration-backup.key')
+
+
+def migration_manifest(path):
+    if path.stat().st_size > 256 * 1024:
+        raise Refused('Migration manifest exceeds limit')
+    values = json.loads(path.read_text())
+    if (not isinstance(values, list) or not values or len(values) > 10000
+            or any(not isinstance(value, str) or not re.fullmatch(r'[0-9]{14}_[A-Za-z0-9_]+', value) for value in values)
+            or values != sorted(set(values))):
+        raise Refused('Invalid ordered migration manifest')
+    return values
+
+
+def pending_migrations(expected, applied):
+    # A hole, unknown migration or newer DB is never silently downgraded/repaired.
+    if applied != expected[:len(applied)]:
+        raise Refused('Database migration history is not a prefix of this release')
+    return expected[len(applied):]
+
+
+def migration_config():
+    trusted(MIGRATION_CONFIG)
+    if MIGRATION_CONFIG.stat().st_mode & 0o077:
+        raise Refused('Migration credentials must be readable only by root')
+    values = {}
+    for line in MIGRATION_CONFIG.read_text().splitlines():
+        if not line or line.startswith('#'):
+            continue
+        key, separator, value = line.partition('=')
+        if not separator or key in values:
+            raise Refused('Invalid migration configuration')
+        values[key] = value
+    required = {'CONTAINER', 'PGHOST', 'PGPORT', 'PGDATABASE', 'PGUSER',
+                'PGPASSWORD', 'PGSSLMODE', 'PGSSLROOTCERT'}
+    if (set(values) != required or not re.fullmatch(r'[a-zA-Z0-9_.-]+', values['CONTAINER'])
+            or values['PGDATABASE'] != 'argintaxpayer_prod'
+            or values['PGUSER'] != 'argin_prod_migrator'
+            or values['PGHOST'] != '127.0.0.1' or values['PGPORT'] != '5432'
+            or values['PGSSLMODE'] != 'verify-full' or not values['PGPASSWORD']
+            or not values['PGSSLROOTCERT'].startswith('/') or '\x00' in ''.join(values.values())):
+        raise Refused('Migration target must be the dedicated TLS production database/migrator')
+    binding = subprocess.run(['/usr/bin/docker', 'port', values['CONTAINER'], '5432/tcp'],
+                             check=True, capture_output=True, text=True, timeout=15, env=ENV)
+    if binding.stdout.strip() != '127.0.0.1:15434':
+        raise Refused('Migration container is not the API dedicated database listener')
+    # Never let a migration configuration drift away from the API database.
+    trusted(Path('/etc/argintaxpayer/api.env'))
+    runtime = Path('/etc/argintaxpayer/api.env').read_text().splitlines()
+    connection = [line.partition('=')[2].strip('"').strip("'") for line in runtime
+                  if line.startswith('ConnectionStrings__ArginTaxPayerDb=')]
+    if len(connection) != 1:
+        raise Refused('Cannot establish runtime database identity')
+    fields = dict(part.split('=', 1) for part in connection[0].split(';') if '=' in part)
+    if any(fields.get(key) != value for key, value in
+           {'Host': '127.0.0.1', 'Port': '15434', 'Database': 'argintaxpayer_prod',
+            'Username': 'argin_prod_app', 'SSL Mode': 'VerifyFull'}.items()):
+        raise Refused('API is not using the dedicated production database')
+    return values
+
+
+class MigrationDatabase:
+    def __init__(self, configuration):
+        self.configuration = configuration
+
+    def command(self, executable, *arguments, **kwargs):
+        values = {key: value for key, value in self.configuration.items() if key.startswith('PG')}
+        values.update(PGCONNECT_TIMEOUT='10', PGOPTIONS='-c lock_timeout=5000 -c statement_timeout=120000')
+        command = ['/usr/bin/docker', 'exec', '-i', '--user', '65534:65534']
+        # Docker obtains credential values from the child environment, not argv.
+        for key in values:
+            command.extend(['--env', key])
+        command.extend([self.configuration['CONTAINER'], executable, *arguments])
+        return subprocess.run(command, env={**ENV, **values}, check=True, timeout=600, **kwargs)
+
+    def query(self, sql):
+        result = self.command('psql', '-X', '-Atq', '-v', 'ON_ERROR_STOP=1',
+                              input='BEGIN READ ONLY;\n'+sql+'\nCOMMIT;\n',
+                              capture_output=True, text=True)
+        return result.stdout.strip()
+
+    def identity(self):
+        return self.query("SELECT current_database()||'|'||CASE WHEN "
+                          "(SELECT rolsuper OR rolcreaterole FROM pg_roles WHERE rolname=current_user) OR "
+                          "pg_has_role(current_user,'pg_execute_server_program','MEMBER') OR "
+                          "pg_has_role(current_user,'pg_write_server_files','MEMBER') OR "
+                          "pg_has_role(current_user,'pg_read_server_files','MEMBER') "
+                          "THEN 'unsafe_role' ELSE current_user END||'|'||"
+                          "(SELECT ssl::text FROM pg_stat_ssl WHERE pid=pg_backend_pid());")
+
+    def applied(self):
+        exists = self.query("SELECT to_regclass('public.\"__EFMigrationsHistory\"') IS NOT NULL;")
+        if exists == 'f':
+            return []
+        return self.query('SELECT "MigrationId" FROM "__EFMigrationsHistory" ORDER BY "MigrationId";').splitlines()
+
+    def backup(self, destination):
+        trusted(BACKUP_KEY)
+        if BACKUP_KEY.stat().st_mode & 0o077 or BACKUP_KEY.stat().st_size < 32:
+            raise Refused('Backup encryption key must be private to root')
+        # Unnamed temporary file, verified before encryption; never a plaintext archive path.
+        with tempfile.TemporaryFile(dir=BACKUPS) as dump:
+            self.command('pg_dump', '--format=custom', '--no-owner', '--no-acl', '--schema=public',
+                         stdout=dump, stderr=subprocess.PIPE)
+            if dump.tell() < 16:
+                raise Refused('Database backup is empty')
+            dump.seek(0)
+            self.command('pg_restore', '--list', stdin=dump, stdout=subprocess.DEVNULL,
+                         stderr=subprocess.PIPE)
+            dump.seek(0)
+            with destination.open('xb') as encrypted:
+                subprocess.run(['/usr/bin/openssl', 'enc', '-aes-256-cbc', '-salt',
+                                '-pbkdf2', '-iter', '200000', '-pass', 'file:'+str(BACKUP_KEY)],
+                               stdin=dump, stdout=encrypted, stderr=subprocess.PIPE,
+                               check=True, env=ENV, timeout=600)
+                encrypted.flush()
+                os.fsync(encrypted.fileno())
+
+
+    def apply(self, sql):
+        # Random capability unavailable to uploaded SQL. Old clients fail at the first
+        # command under ON_ERROR_STOP; modern clients cannot run \!, \copy or \i.
+        restricted = ("\\restrict " + secrets.token_hex(32) + "\n").encode() + sql.read_bytes()
+        self.command('psql', '-X', '-v', 'ON_ERROR_STOP=1', input=restricted,
+                     stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+
+def migrate_release(release, database=None, stop=stop_services, restart=restart_services):
+    manifest = release / 'api/schema/migrations.json'
+    sql = release / 'api/schema/migrations.sql'
+    for path in (manifest, sql):
+        trusted(path)
+    expected = migration_manifest(manifest)
+    if sql.stat().st_size > 32 * 1024 * 1024 or sql.stat().st_size == 0:
+        raise Refused('Invalid migration SQL size')
+    database = database or MigrationDatabase(migration_config())
+    if database.identity() != 'argintaxpayer_prod|argin_prod_migrator|true':
+        raise Refused('Unexpected actual migration database, role or TLS state')
+    pending = pending_migrations(expected, database.applied())
+    if not pending:
+        print('[PASS] Database already matches release migration manifest', flush=True)
+        return False
+    print(f'[START] Applying {len(pending)} pending migrations before release activation', flush=True)
+    BACKUPS.mkdir(mode=0o700, parents=True, exist_ok=True)
+    trusted(BACKUPS, directory=True)
+    if BACKUPS.stat().st_mode & 0o077:
+        raise Refused('Backup directory must be private to root')
+    backup = BACKUPS / f'{release.name}-{time.time_ns()}.dump.enc'
+    try:
+        stop()
+        # Recheck after stopping writers; the release-wide flock serializes deploys.
+        pending_migrations(expected, database.applied())
+        database.backup(backup)
+        database.apply(sql)
+        if database.applied() != expected:
+            raise Refused('Post-migration history differs from release manifest')
+    except BaseException:
+        restart()  # current still points to the old release; never roll back the DB.
+        raise
+    print('[PASS] Backup verified and all release migrations applied', flush=True)
+    return True
+
+
 def main(arguments):
-    if len(arguments) != 2 or arguments[0] != '--deploy':
+    if arguments == ['--capabilities']:
+        print('schema-before-promote-v1')
+        return
+    if (len(arguments) not in (2, 3) or arguments[0] not in ('--deploy', '--promote-staged')
+            or len(arguments) == 3 and (arguments[0] != '--promote-staged' or arguments[2] != '--initial-disabled-ui')):
         raise Refused('Usage: argin-taxpayer-release --deploy <full-SHA>')
     sha = validate_sha(arguments[1])
     if os.geteuid() != 0:
@@ -430,13 +604,31 @@ def main(arguments):
             trusted(previous, directory=True)
         elif current.exists():
             raise Refused('Current path must be a release symlink')
-        release = prepare_release(sha, deployment, service_gid)
+        if arguments[0] == '--promote-staged':
+            release = RELEASES / sha
+            trusted(release, directory=True)
+        else:
+            release = prepare_release(sha, deployment, service_gid)
         for name in ('api/ArginTaxPayer.Api.dll', 'web/.next/BUILD_ID',
                      'web/node_modules/next/dist/bin/next'):
             trusted(release / name)
             run(['/usr/sbin/runuser', '-u', 'argintaxsvc', '--',
                  '/usr/bin/test', '-r', str(release / name)], timeout=10)
-        promote(release, current, restart_services, healthy, stop_services)
+        trusted(release / 'build-info.txt')
+        if (release / 'build-info.txt').read_text().splitlines().count(f'sha={sha}') != 1:
+            raise Refused('Staged release source SHA mismatch')
+        probe_mode = '--probe-local'
+        if len(arguments) == 3:
+            for filename, required in (
+                ('api.env', ('ArginTaxPayer__EnableOperationalEndpoints=false', 'Ghasedak__EnableLiveSending=false',
+                             'SandboxInvoiceLegacy__Enabled=false')),
+                ('web.env', ('ARGIN_PRODUCTION_UI_ENABLED=false',))):
+                lines = (Path('/etc/argintaxpayer') / filename).read_text().splitlines()
+                if not all(line in lines for line in required):
+                    raise Refused('Disabled startup requires provider and business gates false')
+            probe_mode = '--probe-local-disabled-ui'
+        migrate_release(release)
+        promote(release, current, restart_services, lambda: healthy(probe_mode), stop_services)
     print(f'[PASS] Release {sha} promoted and loopback health PASS.', flush=True)
 
 

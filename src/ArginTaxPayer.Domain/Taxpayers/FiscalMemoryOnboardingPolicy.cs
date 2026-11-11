@@ -6,6 +6,16 @@ namespace ArginTaxPayer.Domain.Taxpayers;
 /// </summary>
 public static class FiscalMemoryOnboardingPolicy
 {
+    public static bool CanRegisterEnvironment(
+        IReadOnlyCollection<FiscalConnectionEnvironment?> existing, FiscalConnectionEnvironment requested)
+    {
+        if (!Enum.IsDefined(requested)) return false;
+        // An old, unclassified memory may already be a Production binding, so it
+        // occupies that slot until explicitly classified. Sandbox is independent.
+        return !existing.Any(environment => environment == requested ||
+            requested == FiscalConnectionEnvironment.Production && environment is null);
+    }
+
     public static bool TryNormalizeIdentifier(string? input, out string normalized)
     {
         normalized = input?.Trim().ToUpperInvariant() ?? string.Empty;

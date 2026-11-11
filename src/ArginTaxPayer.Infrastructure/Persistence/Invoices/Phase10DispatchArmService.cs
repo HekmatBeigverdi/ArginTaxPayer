@@ -1,3 +1,5 @@
+using ArginTaxPayer.Infrastructure.Configuration;
+using Microsoft.Extensions.Configuration;
 using System.Data;
 using ArginTaxPayer.Application.Invoices;
 using Microsoft.EntityFrameworkCore;
@@ -7,7 +9,7 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Invoices;
 /// <summary>Claims an existing, signed legacy Outbox operation for explicit Sandbox dispatch.
 /// Never performs external I/O or modifies the signed payload.</summary>
 public sealed class Phase10DispatchArmService(ArginTaxPayerDbContext db,
-    Phase10InvoiceDispatchReadService reader)
+    Phase10InvoiceDispatchReadService reader, IConfiguration? configuration = null)
 {
     public async Task<(InvoiceApiDecision Decision, string Code)> ArmAsync(
         string? bearer, Guid taxpayerId, Guid invoiceId, CancellationToken ct)
@@ -36,7 +38,7 @@ public sealed class Phase10DispatchArmService(ArginTaxPayerDbContext db,
                 {
                     guard.Transaction=tx;
                     guard.CommandText="SELECT current_database()";
-                    if((string?)await guard.ExecuteScalarAsync(ct)!="argintaxpayer_test")
+                    if(!SandboxDatabasePolicy.IsAllowed((string?)await guard.ExecuteScalarAsync(ct), conn, configuration))
                         throw new InvalidOperationException("Sandbox arm requires isolated test DB.");
                 }
                 await using var cmd=conn.CreateCommand();

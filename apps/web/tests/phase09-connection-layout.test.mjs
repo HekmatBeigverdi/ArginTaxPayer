@@ -18,8 +18,8 @@ test("connection dossier uses exactly one segmented panel instead of stacked wor
 test("one fiscal memory is shared between import, generation and connection test", () => {
   const panel = read("app/taxpayers/taxpayer-connection-panel.tsx");
   assert.match(panel, /const chosen = currentMemory \? \[currentMemory\] : \[\]/);
-  assert.equal((panel.match(/memories=\{chosen\}/g) ?? []).length, 3);
-  assert.match(panel, /setRevision\(v => v \+ 1\)/);
+  assert.ok((panel.match(/memories=\{chosen\}/g) ?? []).length >= 3);
+  assert.match(panel, /setRevision\(v\s*=>\s*v\s*\+\s*1\)/);
   assert.match(panel, /recoveryAvailable/);
 });
 

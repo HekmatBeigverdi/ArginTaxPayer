@@ -19,8 +19,14 @@ public static class SandboxFiscalMemoryDevelopmentEndpoints
             SandboxFiscalMemoryMetadataService service,CancellationToken ct)=>
         {
             if(!Local(http))return Results.NotFound();
-            var result=await service.GetAsync(Bearer(http),taxpayerId,ct);
-            return Reply(result);
+            var selected=SelectedMemoryId(http);
+            if(http.Request.Query.ContainsKey("memoryId")&&selected is null)return Results.BadRequest(new{error="invalid_memory_id"});
+            var result=await service.GetAsync(Bearer(http),taxpayerId,ct,selected);
+            var memories=await service.ListAsync(Bearer(http),taxpayerId,ct);
+            return Results.Json(new{error=result.Error,environment="Sandbox",data=result.Value,
+                memories=memories.Memories.Select(x=>new{id=x.Id,memoryIdentifier=x.MemoryIdentifier,
+                    publicFingerprintSha256=x.PublicFingerprintSha256,revision=x.Revision,
+                    keyCustodyReady=x.KeyCustodyReady}),connectionTestReady=false},statusCode:result.StatusCode);
         });
         group.MapPost("",async(Guid taxpayerId,[FromBody] SandboxMemoryRegistration request,
             HttpContext http,SandboxFiscalMemoryMetadataService service,CancellationToken ct)=>
@@ -28,8 +34,12 @@ public static class SandboxFiscalMemoryDevelopmentEndpoints
             if(!Local(http))return Results.NotFound();
             if(http.Request.Headers.ContainsKey("Origin"))return Results.StatusCode(403);
             if(http.Request.ContentLength is > 12000)return Results.StatusCode(413);
-            var result=await service.RegisterAsync(Bearer(http),taxpayerId,request,ct);
-            return Reply(result);
+            try{
+                var result=await service.RegisterAsync(Bearer(http),taxpayerId,request,ct);
+                return Reply(result);
+            }catch(Npgsql.PostgresException ex)when(ex.SqlState==Npgsql.PostgresErrorCodes.UniqueViolation){
+                return Results.Json(new{error="sandbox_memory_already_registered",environment="Sandbox"},statusCode:409);
+            }
         });
         group.MapPost("/private-key",async(Guid taxpayerId,
             [FromBody] SandboxPrivateKeyImportRequest request,HttpContext http,
@@ -38,7 +48,20 @@ public static class SandboxFiscalMemoryDevelopmentEndpoints
             if(!Local(http))return Results.NotFound();
             if(http.Request.Headers.ContainsKey("Origin"))return Results.StatusCode(403);
             if(http.Request.ContentLength is > 16000)return Results.StatusCode(413);
-            var result=await service.ImportPrivateAsync(Bearer(http),taxpayerId,request,ct);
+            var selected=SelectedMemoryId(http);
+            if(http.Request.Query.ContainsKey("memoryId")&&selected is null)return Results.BadRequest(new{error="invalid_memory_id"});
+            var result=await service.ImportPrivateAsync(Bearer(http),taxpayerId,request,ct,selectedMemoryId:selected);
+            return Reply(result);
+        });
+        group.MapPost("/private-key/restore",async(Guid taxpayerId,
+            [FromBody] SandboxPrivateKeyRestoreRequest request,HttpContext http,
+            SandboxFiscalMemoryMetadataService service,CancellationToken ct)=>
+        {
+            http.Response.Headers.CacheControl="no-store";
+            if(!Local(http))return Results.NotFound();
+            if(http.Request.Headers.ContainsKey("Origin"))return Results.StatusCode(403);
+            if(http.Request.ContentLength is > 16000)return Results.StatusCode(413);
+            var result=await service.RestorePrivateAsync(Bearer(http),taxpayerId,request,ct);
             return Reply(result);
         });
         group.MapPost("/key-self-test",async(Guid taxpayerId,HttpContext http,
@@ -47,7 +70,9 @@ public static class SandboxFiscalMemoryDevelopmentEndpoints
             if(!Local(http))return Results.NotFound();
             if(http.Request.Headers.ContainsKey("Origin"))return Results.StatusCode(403);
             if(http.Request.ContentLength is > 0)return Results.StatusCode(413);
-            var result=await service.SelfTestAsync(Bearer(http),taxpayerId,ct);
+            var selected=SelectedMemoryId(http);
+            if(http.Request.Query.ContainsKey("memoryId")&&selected is null)return Results.BadRequest(new{error="invalid_memory_id"});
+            var result=await service.SelfTestAsync(Bearer(http),taxpayerId,ct,selected);
             return Results.Json(new {environment="Sandbox",
                 status=result.StatusCode==200?"OfflineKeyVerified":"Unavailable",
                 error=result.Error,authorityAuthenticated=false},statusCode:result.StatusCode);
@@ -62,7 +87,9 @@ public static class SandboxFiscalMemoryDevelopmentEndpoints
             if(http.Request.ContentType is not null)return Results.StatusCode(415);
             try
             {
-                var result=await service.TestAuthorityAsync(Bearer(http),taxpayerId,ct);
+                var selected=SelectedMemoryId(http);
+                if(http.Request.Query.ContainsKey("memoryId")&&selected is null)return Results.BadRequest(new{error="invalid_memory_id"});
+                var result=await service.TestAuthorityAsync(Bearer(http),taxpayerId,ct,selected);
                 if(result.Result is null)
                 {
                     var error=result.Error=="sandbox_authority_api_not_verified"
@@ -74,6 +101,7 @@ public static class SandboxFiscalMemoryDevelopmentEndpoints
                 return Results.Json(new{
                     environment="Sandbox",
                     status=result.Result.Status.ToString(),
+                    connectionRecorded=result.ConnectionRecorded,
                     safeCode=result.Result.SafeCode,
                     testedAtUtc=result.Result.TestedAtUtc,
                     authenticationConfirmed=result.Result.AuthenticationConfirmed,
@@ -115,4 +143,7 @@ public static class SandboxFiscalMemoryDevelopmentEndpoints
             authorization.StartsWith("Bearer ",StringComparison.OrdinalIgnoreCase)
             ? authorization[7..].Trim():null;
     }
+
+    private static Guid? SelectedMemoryId(HttpContext http) =>
+        Guid.TryParse(http.Request.Query["memoryId"],out var id)&&id!=Guid.Empty?id:null;
 }

@@ -24,7 +24,7 @@ public static class SigningConnectionEndpoints
     internal static async Task<IResult> TestAsync(Guid taxpayerId, Guid memoryId,
         HttpContext http, EfSigningOperationRepository journal,
         ISigningReadOnlyConnectionTest connection, FiscalMemoryManagementService memories,
-        FiscalMemoryAuthorityOnboardingService authorityOnboarding, CancellationToken ct)
+        FiscalMemoryAuthorityOnboardingService authorityOnboarding, FiscalMemoryConnectionHistory history, CancellationToken ct)
     {
         http.Response.Headers.CacheControl = "no-store";
         http.Response.Headers.Pragma = "no-cache";
@@ -46,6 +46,8 @@ public static class SigningConnectionEndpoints
                 return Results.Json(new { error = "unauthorized" }, statusCode: 401);
             if (state.Status != SigningGenerationStatus.Replayed)
                 return Results.Json(new { error = "forbidden" }, statusCode: 403);
+            var startedAtUtc = DateTime.UtcNow;
+            var binding = await history.CaptureRegisteredAsync(taxpayerId, memoryId, ct);
             SigningConnectionTestResult result;
             if (!state.HasKey || state.LifecycleState != 2)
                 result = SigningConnectionTestResult.Create(SigningConnectionTestStatus.KeyNotReady, DateTime.UtcNow);
@@ -53,12 +55,21 @@ public static class SigningConnectionEndpoints
                 result = await connection.TestAsync(bearer, taxpayerId, memoryId, ct, oneTimeEnvironment);
             var memoryActivated = result.Status == SigningConnectionTestStatus.Authenticated &&
                 await authorityOnboarding.ActivateAfterSuccessfulConnectionTestAsync(
-                    bearer, taxpayerId, memoryId, oneTimeEnvironment, result, ct);
+                    bearer, taxpayerId, memoryId, oneTimeEnvironment, result, ct, binding);
+            var after = await history.CaptureRegisteredAsync(taxpayerId, memoryId, ct);
+            if (binding is not null && after is not null && memoryActivated &&
+                ConnectionHistoryPolicy.CanFollowActivation(binding, after, (int?)oneTimeEnvironment))
+                binding = after;
+            var connectionRecorded = await history.RecordAsync(binding, result.Status.ToString(),
+                startedAtUtc, result.TestedAtUtc, ct);
+            // Keep the legacy scalar summary current even if the additive history
+            // table is not installed yet; the detailed attempt is recorded above.
             await memories.RecordConnectionTestAsync(bearer, taxpayerId, memoryId,
                 result.Status == SigningConnectionTestStatus.Authenticated, result.TestedAtUtc, ct);
             return Results.Json(new
             {
                 status = result.Status.ToString(),
+                connectionRecorded,
                 result.SafeCode,
                 result.TestedAtUtc,
                 result.AuthenticationConfirmed,

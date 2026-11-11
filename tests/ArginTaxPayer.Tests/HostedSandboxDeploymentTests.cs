@@ -47,4 +47,18 @@ public sealed class HostedSandboxDeploymentTests
     [Fact]
     public void Malformed_connection_is_rejected_without_exposing_its_contents()
         => Assert.False(HostedSandboxDeployment.IsAllowed("not a connection string", Config()));
+    [Fact]
+    public void Legacy_sandbox_database_admission_supports_both_approved_deployments()
+    {
+        using var connection = new Npgsql.NpgsqlConnection(Connection);
+        Assert.True(SandboxDatabasePolicy.IsAllowed("argintaxpayer_test", connection, null));
+        Assert.True(SandboxDatabasePolicy.IsAllowed("argintaxpayer_prod", connection, Config()));
+        Assert.False(SandboxDatabasePolicy.IsAllowed("argintaxpayer_prod", connection, null));
+        Assert.False(SandboxDatabasePolicy.IsAllowed("unknown", connection, Config()));
+        Assert.False(SandboxDatabasePolicy.IsAllowed(null, connection, Config()));
+        Assert.False(SandboxDatabasePolicy.IsAllowed("argintaxpayer_prod", connection,
+            Config(("SandboxInvoiceLegacy:ApiBaseUrl", "https://tp.tax.gov.ir/req/api/"))));
+        using var shared = new Npgsql.NpgsqlConnection(Connection.Replace("Port=15434", "Port=15432"));
+        Assert.False(SandboxDatabasePolicy.IsAllowed("argintaxpayer_prod", shared, Config()));
+    }
 }

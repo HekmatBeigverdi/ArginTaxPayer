@@ -14,8 +14,10 @@ test("initial fiscal memory list and register use the same live taxpayer authori
   assert.doesNotMatch(list,/AuthenticateLevel1Async/);
 });
 
-test("initial registration remains one memory per taxpayer until approved exception lifecycle",()=>{
-  assert.match(service,/AnyAsync\(x => x\.TaxpayerId == taxpayerId/);
+test("registration checks the persisted environment and approval policy before staging a candidate",()=>{
+  assert.match(service,/Where\(x => x\.TaxpayerId == taxpayerId/);
+  assert.match(service,/FiscalMemoryOnboardingPolicy\.CanRegisterEnvironment/);
+  assert.match(service,/MayStageBoundProductionCandidateAsync/);
   assert.match(service,/RequiresApprovedBindingReview/);
   assert.match(proxy,/parts\[1\] === "memories"/);
 });

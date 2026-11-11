@@ -1,4 +1,5 @@
 using ArginTaxPayer.Application.Signing;
+using ArginTaxPayer.Infrastructure.Persistence.Signing;
 using ArginTaxPayer.Domain.Taxpayers;
 using ArginTaxPayer.Infrastructure.Persistence.Subscriptions;
 using Microsoft.EntityFrameworkCore;
@@ -93,14 +94,17 @@ public sealed class FiscalMemoryAuthorityOnboardingService(
 
     public async Task<bool> ActivateAfterSuccessfulConnectionTestAsync(string? bearer,
         Guid taxpayerId, Guid memoryId, FiscalConnectionEnvironment? testedEnvironment,
-        SigningConnectionTestResult result, CancellationToken ct = default)
+        SigningConnectionTestResult result, CancellationToken ct = default, ConnectionBinding? expectedBinding = null)
     {
-        if (result.Status != SigningConnectionTestStatus.Authenticated) return false;
+        if (result.Status != SigningConnectionTestStatus.Authenticated || expectedBinding is null) return false;
         return await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
         {
             await using var tx = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, ct);
             var actor = await AuthorizeActivationAsync(bearer, taxpayerId, ct);
             if (actor.Code != 200) return false;
+            var currentBinding=await new FiscalMemoryConnectionHistory(db).CaptureRegisteredAsync(taxpayerId,memoryId,ct);
+            if(expectedBinding.Source!="RegisteredMemory" || expectedBinding.TaxpayerId!=taxpayerId || expectedBinding.MemoryId!=memoryId ||
+                expectedBinding.OwnerId!=actor.Owner || !ConnectionHistoryPolicy.CanRecord(expectedBinding,currentBinding))return false;
             var taxpayerIdentifier = await db.TaxpayerProfiles.AsNoTracking()
                 .Where(t => t.Id == taxpayerId && t.Status == TaxpayerStatus.Active)
                 .Select(t => t.NormalizedIdentifier).SingleOrDefaultAsync(ct);
