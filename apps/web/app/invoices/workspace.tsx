@@ -879,7 +879,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
             aria-label="بستن جزئیات">×</button>
         </div>
         {detail.authorityStatus==="FAILED"&&detail.subject==="Original"&&<section className="invoice-rejected-correction" aria-label="اصلاح صورتحساب ردشده">
-          <p className="field-hint">فاکتور اصلی به سازمان ارسال شده، اما با خطا رد شده است. با این گزینه یک پیش‌نویس جداگانه برای اصلاح باز می‌شود؛ پیش‌نویس جدید هنوز ارسال نشده است.</p>
+          <p className="field-hint">این صورتحساب توسط سازمان رد شده است. این گزینه پیش‌نویس اصلاحیِ متصل به همین صورتحساب را باز می‌کند؛ سند ردشده تغییر نمی‌کند و تا زمان ارسال، ردیف صورتحساب جداگانه‌ای در فهرست ساخته نمی‌شود.</p>
           <button type="button" className="invoice-rejected-correction__button" disabled={rejectedDraftBusy}
             onClick={async()=>{
               if(rejectedDraftBusy)return;

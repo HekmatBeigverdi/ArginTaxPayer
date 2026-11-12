@@ -207,6 +207,16 @@ WHERE NOT EXISTS(
  SELECT 1 FROM invoice_successful_rejection_replacements s
  WHERE s.successor_invoice_id=r.successor_invoice_id)
 """);
+        // A rejected original's editable correction workspace is a draft attached
+        // to that invoice, not another invoice row. It is opened through the
+        // predecessor's "return to draft" action and must not appear as a second
+        // invoice row with its workspace-only system code while the predecessor
+        // remains the root record.
+        var rejectedCorrectionDrafts=db.Database.SqlQueryRaw<Guid>("""
+SELECT workspace_id AS "Value" FROM sandbox_invoice_correction_drafts
+UNION
+SELECT successor_invoice_id AS "Value" FROM invoice_rejection_replacements
+""");
         // Legal successor documents remain immutable, but the workspace overview
         // displays exactly one row for the root chain, before pagination.
         var legalSuccessors=db.Database.SqlQueryRaw<Guid>("""
@@ -230,6 +240,7 @@ FROM authority_invoice_legal_relations
             });
         var working = db.InvoiceEntryWorkspaces.AsNoTracking()
             .Where(x => allowed.Contains(x.TaxpayerId) &&
+                !rejectedCorrectionDrafts.Contains(x.Id) &&
                 !db.InvoiceDocuments.Any(d => d.Id == x.Id &&
                     d.TaxpayerId == x.TaxpayerId && d.CustomerUserId == x.CustomerUserId))
             .Select(x => new {
