@@ -161,9 +161,18 @@ public sealed class InvoiceDraftApplicationService(
         if (access.Decision != InvoiceApiDecision.Success)
             return (access.Decision, Array.Empty<InvoiceDraftView>());
         var replaced=db.Database.SqlQueryRaw<Guid>("SELECT predecessor_invoice_id AS \"Value\" FROM invoice_successful_rejection_replacements");
+        var sandboxCorrectionDrafts=db.Database.SqlQueryRaw<Guid>("SELECT workspace_id AS \"Value\" FROM sandbox_invoice_correction_drafts");
+        var pendingRejectedSuccessors=db.Database.SqlQueryRaw<Guid>("""
+SELECT r.successor_invoice_id AS "Value"
+FROM invoice_rejection_replacements r
+WHERE NOT EXISTS(
+ SELECT 1 FROM invoice_successful_rejection_replacements s
+ WHERE s.successor_invoice_id=r.successor_invoice_id)
+""");
         var invoices = await db.InvoiceDocuments.AsNoTracking()
             .Where(x => x.CustomerUserId == access.CustomerId &&
-                x.TaxpayerId == taxpayerId && !replaced.Contains(x.Id))
+                x.TaxpayerId == taxpayerId && !replaced.Contains(x.Id) &&
+                !sandboxCorrectionDrafts.Contains(x.Id) && !pendingRejectedSuccessors.Contains(x.Id))
             .OrderByDescending(x => x.UpdatedAtUtc)
             .ThenBy(x => x.Id)
             .Take(100)
@@ -207,6 +216,10 @@ WHERE NOT EXISTS(
  SELECT 1 FROM invoice_successful_rejection_replacements s
  WHERE s.successor_invoice_id=r.successor_invoice_id)
 """);
+        // Sandbox correction drafts can be frozen into invoice_documents by the
+        // normal internal-snapshot flow. Keep those linked documents attached to
+        // their rejected predecessor in the register as well as while editable.
+        var sandboxCorrectionDrafts=db.Database.SqlQueryRaw<Guid>("SELECT workspace_id AS \"Value\" FROM sandbox_invoice_correction_drafts");
         // A rejected original's editable correction workspace is a draft attached
         // to that invoice, not another invoice row. It is opened through the
         // predecessor's "return to draft" action and must not appear as a second
@@ -228,7 +241,8 @@ FROM authority_invoice_legal_relations
 """);
         var documents = db.InvoiceDocuments.AsNoTracking()
             .Where(x => allowed.Contains(x.TaxpayerId) && !legalSuccessors.Contains(x.Id)
-                && !replaced.Contains(x.Id) && !pendingRejectedSuccessors.Contains(x.Id))
+                && !replaced.Contains(x.Id) && !pendingRejectedSuccessors.Contains(x.Id)
+                && !sandboxCorrectionDrafts.Contains(x.Id))
             .Select(x => new {
                 x.Id, x.CustomerUserId, x.TaxpayerId, x.Revision,
                 x.IssueDateUtc, x.UpdatedAtUtc,
