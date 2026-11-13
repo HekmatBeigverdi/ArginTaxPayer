@@ -186,6 +186,8 @@ public sealed class InvoiceEntryWorkspaceService(
             input.LastCompletedStep is < 0 or > 2 ||
             input.IssueDateUtc.Kind != DateTimeKind.Utc ||
             input.Type is < 1 or > 2 ||
+            input.Type == 2 && input.Pattern == 1 &&
+                (input.BuyerPartyId is not null || !string.IsNullOrWhiteSpace(input.BuyerDisplayName)) ||
             OfficialV79InvoicePatternMatrix.Create().Evaluate(
                 new InvoiceTypePattern((ElectronicInvoiceType)input.Type,input.Pattern),
                 input.IssueDateUtc) != InvoicePatternDecision.AllowedByReferencedEdition ||
