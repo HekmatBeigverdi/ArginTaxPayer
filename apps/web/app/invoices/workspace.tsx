@@ -358,6 +358,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   const [taxpayerOwners, setTaxpayerOwners] = useState<Record<string,string>>({});
   const visibleTaxpayers = isAdmin ? customerTaxpayers : taxpayers;
   const chosenBuyer = buyers.find(b => b.id === buyerId);
+  const buyerDetailsNotRequired = invoiceType === 2 && pattern === 1;
 
   async function scopedTaxpayersForCustomer(customer: string): Promise<Taxpayer[]> {
     const result: Taxpayer[] = [];
@@ -403,7 +404,9 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   }, [isAdmin,filterCustomer]);
 
   useEffect(() => {
-    if (!modal || !headerCustomer) { setBuyers([]); return; }
+    if (!modal || !headerCustomer || buyerDetailsNotRequired) {
+      setBuyers([]); setBuyerOpen(false); return;
+    }
     let active = true;
     setBuyerLoading(true);
     const params = new URLSearchParams({
@@ -415,7 +418,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
       .catch(() => {if(active)setBuyers([]);})
       .finally(()=>{if(active)setBuyerLoading(false);});
     return ()=>{active=false;};
-  }, [modal,headerCustomer,buyerQuery]);
+  }, [modal,headerCustomer,buyerQuery,buyerDetailsNotRequired]);
 
   useEffect(() => {
     if (!modal || step !== 1 || !headerCustomer) return;
@@ -515,8 +518,9 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
       if (saved.sandboxFiscalMemoryId) {
         setMemoryId("sandbox:"+saved.sandboxFiscalMemoryId);
       }
-      setBuyerId(saved.buyerPartyId ?? "");
-      setBuyerQuery(saved.buyerDisplayName ?? "");
+      const savedBuyerDetailsNotRequired = saved.type === 2 && saved.pattern === 1;
+      setBuyerId(savedBuyerDetailsNotRequired ? "" : saved.buyerPartyId ?? "");
+      setBuyerQuery(savedBuyerDetailsNotRequired ? "" : saved.buyerDisplayName ?? "");
       setBuyerOpen(false);
       setInvoiceType(saved.type); setPattern(saved.pattern);
       setConditionalFields(Object.fromEntries((["contractNumber","serviceBillId","flightType",
@@ -604,12 +608,12 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
       : headerOptions.memories.some(m=>m.id===memoryId))) {
       setError("حافظه مالیاتی انتخاب‌شده به مؤدی صادرکننده تعلق ندارد.");return false;
     }
-    if (buyerQuery.trim() && !buyerId) {setError("خریدار را از فهرست خریداران ثبت‌شده انتخاب کنید.");return false;}
+    if (!buyerDetailsNotRequired && buyerQuery.trim() && !buyerId) {setError("خریدار را از فهرست خریداران ثبت‌شده انتخاب کنید.");return false;}
     const payload = {
       id:editing?.id ?? null,
       taxpayerId, expectedRevision:editing?.revision ?? 0,
       lastCompletedStep:persistedStep, issueDateUtc:issued.toISOString(),
-      buyerPartyId:buyerId || null,
+      buyerPartyId:buyerDetailsNotRequired ? null : buyerId || null,
       // Production memories use the regular field (fiscalMemoryId:memoryId || null);
       // Sandbox memories must stay isolated from that foreign-key field.
       fiscalMemoryId:memoryId&&!memoryId.startsWith("sandbox:")?memoryId:null,
@@ -1043,14 +1047,15 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
                 شناسه ثبت‌شده مؤدی: <bdi dir="ltr">{headerOptions.taxpayer.normalizedIdentifier}</bdi>
                 {headerOptions.memories.length===0 && !headerOptions.sandboxMemories?.length ? " — حافظه مالیاتی ثبت نشده است." : ""}
               </small>}
-              <label htmlFor="invoice-buyer-search">خریدار ثبت‌شده</label>
+              <label htmlFor="invoice-buyer-search">{buyerDetailsNotRequired ? "خریدار (برای نوع دوم فروش لازم نیست)" : "خریدار ثبت‌شده"}</label>
               <div className="invoice-register__buyer">
-                <input id="invoice-buyer-search" type="search" value={buyerQuery}
+                <input id="invoice-buyer-search" type="search" value={buyerDetailsNotRequired ? "" : buyerQuery}
+                  disabled={buyerDetailsNotRequired}
                   role="combobox" aria-autocomplete="list" aria-controls="invoice-buyer-options"
                   aria-expanded={buyerOpen} aria-activedescendant={
                     buyerOpen && buyers[buyerActive] ? "invoice-buyer-option-"+buyers[buyerActive].id : undefined
                   }
-                  placeholder="جست‌وجوی نام یا شناسه خریدار" autoComplete="off"
+                  placeholder={buyerDetailsNotRequired ? "در نوع دوم فروش ثبت نمی‌شود" : "جست‌وجوی نام یا شناسه خریدار"} autoComplete="off"
                   onFocus={()=>{setBuyerOpen(true);setBuyerActive(0);}}
                   onChange={e=>{setBuyerQuery(e.target.value);setBuyerId("");
                     setBuyerOpen(true);setBuyerActive(0);}}
@@ -1065,7 +1070,8 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
                       setBuyerId(b.id);setBuyerQuery(b.displayName);setBuyerOpen(false);
                     }
                   }}/>
-                {buyerOpen && <div role="listbox" id="invoice-buyer-options"
+                {buyerDetailsNotRequired && <small className="invoice-register__hint">در صورتحساب نوع دومِ فروش، مشخصات خریدار دریافت نمی‌شود.</small>}
+                {!buyerDetailsNotRequired && buyerOpen && <div role="listbox" id="invoice-buyer-options"
                     className="invoice-register__buyer-options"
                     aria-label="نتایج جست‌وجوی خریداران">
                   {buyerLoading && <p role="status">در حال جست‌وجو…</p>}
@@ -1090,12 +1096,22 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
               <label htmlFor="invoice-type">نوع صورتحساب</label>
               <select id="invoice-type" disabled={!formMetadata || busy} value={invoiceType} onChange={e => {
                 const next = Number(e.target.value);
+                const nextPattern = formMetadata?.entries.find(p=>p.type===next)?.pattern ?? 1;
                 setInvoiceType(next);
-                setPattern(formMetadata?.entries.find(p=>p.type===next)?.pattern ?? 1);
+                setPattern(nextPattern);
+                if (next === 2 && nextPattern === 1) {
+                  setBuyerId(""); setBuyerQuery(""); setBuyerOpen(false);
+                }
               }}><option value={1}>نوع اول</option><option value={2}>نوع دوم</option></select>
               <label htmlFor="invoice-pattern">الگوی صورتحساب</label>
               <select id="invoice-pattern" disabled={!formMetadata || busy} value={pattern}
-                onChange={e => setPattern(Number(e.target.value))}>
+                onChange={e => {
+                  const nextPattern = Number(e.target.value);
+                  setPattern(nextPattern);
+                  if (invoiceType === 2 && nextPattern === 1) {
+                    setBuyerId(""); setBuyerQuery(""); setBuyerOpen(false);
+                  }
+                }}>
                 {(formMetadata?.entries.filter(p=>p.type===invoiceType && p.pattern!==null) ?? []).map(p =>
                   <option key={p.pattern} value={p.pattern!}>{PATTERN_LABELS[p.pattern!] ?? ("الگوی "+p.pattern)}</option>)}
               </select>
@@ -1116,7 +1132,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
               {formMetadata && <p className="invoice-register__hint">قواعد انتخاب الگو: {formMetadata.edition} — صرفاً اعتبارسنجی داخلی؛ مجوز ارسال به سامانه مودیان نیست.</p>}
               {(formMetadata?.entries.find(p=>p.type===invoiceType && p.pattern===pattern)?.requiredFields.length ?? 0)>0 &&
                 <p role="status" className="invoice-register__hint">این الگو به فیلدهای تکمیلی اختصاصی نیاز دارد؛ تکمیل و اعتبارسنجی آن‌ها در مراحل بعدی فرم انجام خواهد شد.</p>}
-              <p className="invoice-register__hint">اطلاعات مرحله‌ای در پیش‌نویس خصوصی ذخیره می‌شوند؛ ثبت خریدار را می‌توانید بعداً تکمیل کنید. این پیش‌نویس مجوز ارسال مالیاتی ندارد.</p>
+              <p className="invoice-register__hint">{buyerDetailsNotRequired ? "در نوع دوم فروش، اطلاعات خریدار ثبت نمی‌شود." : "اطلاعات مرحله‌ای در پیش‌نویس خصوصی ذخیره می‌شوند؛ ثبت خریدار را می‌توانید بعداً تکمیل کنید."} این پیش‌نویس مجوز ارسال مالیاتی ندارد.</p>
             </section>}
             {step === 1 && <section aria-label="اقلام صورتحساب">
               <div className="invoice-register__row-tools" style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:8}}>
@@ -1184,7 +1200,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
                   <dl className="invoice-register__summary-info">
                     <dt>مؤدی / فروشنده</dt>
                     <dd>{visibleTaxpayers.find(t=>t.id===taxpayerId)?.displayName || "مؤدی انتخاب‌شده"}</dd>
-                    <dt>خریدار</dt><dd>{buyerQuery || "هنوز انتخاب نشده"}</dd>
+                    <dt>خریدار</dt><dd>{buyerDetailsNotRequired ? "برای نوع دوم فروش ثبت نمی‌شود" : buyerQuery || "هنوز انتخاب نشده"}</dd>
                     <dt>تاریخ و زمان</dt><dd>{new Intl.DateTimeFormat("fa-IR-u-ca-persian",{timeZone:"Asia/Tehran",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).format(tehranLocalToUtc(date,hour))}</dd>
                     <dt>نوع و الگو</dt><dd>نوع {invoiceType} · الگوی {pattern}</dd>
                     <dt>تعداد ردیف‌ها</dt><dd>{rows.length}</dd>
@@ -1271,7 +1287,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
           <footer className="invoice-register__dialog-footer">
             <button type="button" className="identity-secondary" disabled={busy || !taxpayerId}
               onClick={() => void saveWorkspace(step===2 && settlement===0 ? 1 : step,true)}>ذخیره و ادامه بعداً</button>
-            {step===0 && !buyerId && <button type="button" className="identity-secondary"
+            {step===0 && !buyerDetailsNotRequired && !buyerId && <button type="button" className="identity-secondary"
               disabled={busy || !taxpayerId} onClick={() => void saveWorkspace(0,true,true)}>
                 ذخیره و ثبت خریدار</button>}
             <button type="button" className="identity-secondary" onClick={close}
