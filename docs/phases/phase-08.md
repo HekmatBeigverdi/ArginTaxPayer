@@ -695,3 +695,11 @@ Owner approved yearly reset and expanding serial length. Updated **pending/unapp
 - **Security/ops:** No production deployment, official tax issuance, production DB action, migration, or automatic server setting changes were performed as part of this closure.
 - **Publication gate remains open:** No GitHub merge to `main`, annotated Phase08 tag, or GitHub Release has been executed. The phase's own release policy requires a **separate, explicit owner approval** plus recorded same-SHA and script-diff reconciliation before publication. Final release SHA, tag and URL are unavailable until then.
 - **Phase09 handoff:** Phase08 invoice draft and UI workflow work is administratively complete; Phase09 signing/CSR/keys is planned, **not started**. Preserve deferrals and security boundaries in the Phase09 baseline.
+
+
+### Type 1 contracting and Type 2 general sale buyer handling (2026-11-13)
+- Added regression coverage for the requested invoice combinations: Type 1 + pattern 4 (contracting) and Type 2 + pattern 1 (general sale).
+- Type 1 contracting continues to use the official contract-number requirement from form metadata and server validation when the header is completed.
+- Type 2 general sale does not require buyer information. The buyer search is disabled and cleared in the UI, the draft payload stores no buyer ID, and the invoice summary explains that buyer data is not applicable.
+- Server-side workspace validation rejects a buyer ID or buyer display name for Type 2 + pattern 1, so the rule is not limited to the browser.
+- Added web source-regression and .NET validation tests. No database migration or deployment is part of this change. Operator macOS test/build results remain pending.
