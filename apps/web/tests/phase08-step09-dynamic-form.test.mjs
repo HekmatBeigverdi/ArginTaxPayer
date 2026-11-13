@@ -14,3 +14,10 @@ test("unavailable pattern metadata disables selectors, and official edition is v
   assert.match(web,/formMetadata\.edition/);
   assert.match(web,/verifiedForSubmission/);
 });
+
+test("type 2 general sale disables and omits buyer details",()=>{
+  assert.match(web,/const buyerDetailsNotRequired = invoiceType === 2 && pattern === 1/);
+  assert.match(web,/disabled=\{busy \|\| buyerDetailsNotRequired\}/);
+  assert.match(web,/buyerPartyId:buyerDetailsNotRequired \? null : buyerId \|\| null/);
+  assert.match(web,/if \(!buyerDetailsNotRequired && buyerQuery\.trim\(\) && !buyerId\)/);
+});
