@@ -363,6 +363,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   const [taxpayerOwners, setTaxpayerOwners] = useState<Record<string,string>>({});
   const visibleTaxpayers = isAdmin ? customerTaxpayers : taxpayers;
   const chosenBuyer = buyers.find(b => b.id === buyerId);
+  const buyerDetailsNotRequired = invoiceType === 2 && pattern === 1;
 
   async function scopedTaxpayersForCustomer(customer: string): Promise<Taxpayer[]> {
     const result: Taxpayer[] = [];
@@ -408,6 +409,14 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   }, [isAdmin,filterCustomer]);
 
   useEffect(() => {
+    if (buyerDetailsNotRequired) {
+      setBuyerId("");
+      setBuyerQuery("");
+      setBuyerOpen(false);
+      setBuyers([]);
+      setBuyerLoading(false);
+      return;
+    }
     if (!modal || !headerCustomer) { setBuyers([]); return; }
     let active = true;
     setBuyerLoading(true);
@@ -420,7 +429,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
       .catch(() => {if(active)setBuyers([]);})
       .finally(()=>{if(active)setBuyerLoading(false);});
     return ()=>{active=false;};
-  }, [modal,headerCustomer,buyerQuery]);
+  }, [modal,headerCustomer,buyerQuery,buyerDetailsNotRequired]);
 
   useEffect(() => {
     if (!modal || step !== 1 || !headerCustomer) return;
@@ -609,12 +618,12 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
       : headerOptions.memories.some(m=>m.id===memoryId))) {
       setError("حافظه مالیاتی انتخاب‌شده به مؤدی صادرکننده تعلق ندارد.");return false;
     }
-    if (buyerQuery.trim() && !buyerId) {setError("خریدار را از فهرست خریداران ثبت‌شده انتخاب کنید.");return false;}
+    if (!buyerDetailsNotRequired && buyerQuery.trim() && !buyerId) {setError("خریدار را از فهرست خریداران ثبت‌شده انتخاب کنید.");return false;}
     const payload = {
       id:editing?.id ?? null,
       taxpayerId, expectedRevision:editing?.revision ?? 0,
       lastCompletedStep:persistedStep, issueDateUtc:issued.toISOString(),
-      buyerPartyId:buyerId || null,
+      buyerPartyId:buyerDetailsNotRequired ? null : buyerId || null,
       // Production memories use the regular field (fiscalMemoryId:memoryId || null);
       // Sandbox memories must stay isolated from that foreign-key field.
       fiscalMemoryId:memoryId&&!memoryId.startsWith("sandbox:")?memoryId:null,
@@ -1082,14 +1091,15 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
                 شناسه ثبت‌شده مؤدی: <bdi dir="ltr">{headerOptions.taxpayer.normalizedIdentifier}</bdi>
                 {headerOptions.memories.length===0 && !headerOptions.sandboxMemories?.length ? " — حافظه مالیاتی ثبت نشده است." : ""}
               </small>}
-              <label htmlFor="invoice-buyer-search">خریدار ثبت‌شده</label>
+              <label htmlFor="invoice-buyer-search">{buyerDetailsNotRequired ? "اطلاعات خریدار (برای نوع دوم فروش لازم نیست)" : "خریدار ثبت‌شده"}</label>
               <div className="invoice-register__buyer">
-                <input id="invoice-buyer-search" type="search" value={buyerQuery}
+                <input id="invoice-buyer-search" type="search" value={buyerDetailsNotRequired ? "" : buyerQuery}
+                  disabled={busy || buyerDetailsNotRequired}
                   role="combobox" aria-autocomplete="list" aria-controls="invoice-buyer-options"
                   aria-expanded={buyerOpen} aria-activedescendant={
                     buyerOpen && buyers[buyerActive] ? "invoice-buyer-option-"+buyers[buyerActive].id : undefined
                   }
-                  placeholder="جست‌وجوی نام یا شناسه خریدار" autoComplete="off"
+                  placeholder={buyerDetailsNotRequired ? "برای این نوع صورتحساب نیازی به خریدار نیست" : "جست‌وجوی نام یا شناسه خریدار"} autoComplete="off"
                   onFocus={()=>{setBuyerOpen(true);setBuyerActive(0);}}
                   onChange={e=>{setBuyerQuery(e.target.value);setBuyerId("");
                     setBuyerOpen(true);setBuyerActive(0);}}
@@ -1104,7 +1114,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
                       setBuyerId(b.id);setBuyerQuery(b.displayName);setBuyerOpen(false);
                     }
                   }}/>
-                {buyerOpen && <div role="listbox" id="invoice-buyer-options"
+                {!buyerDetailsNotRequired && buyerOpen && <div role="listbox" id="invoice-buyer-options"
                     className="invoice-register__buyer-options"
                     aria-label="نتایج جست‌وجوی خریداران">
                   {buyerLoading && <p role="status">در حال جست‌وجو…</p>}
@@ -1118,7 +1128,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
                     <strong>{b.displayName}</strong><small>{b.kind===2?"شخص حقوقی":"شخص حقیقی"} · <span dir="ltr">{b.identifier}</span></small>
                   </button>)}
                 </div>}
-                {buyerId && <small className="invoice-register__selected-buyer">
+                {!buyerDetailsNotRequired && buyerId && <small className="invoice-register__selected-buyer">
                   خریدار انتخاب‌شده: {chosenBuyer?.displayName || buyerQuery}
                   {chosenBuyer ? ` — ${chosenBuyer.kind===2?"حقوقی":"حقیقی"}` : ""}</small>}
               </div>
@@ -1155,7 +1165,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
               {formMetadata && <p className="invoice-register__hint">قواعد انتخاب الگو: {formMetadata.edition} — صرفاً اعتبارسنجی داخلی؛ مجوز ارسال به سامانه مودیان نیست.</p>}
               {(formMetadata?.entries.find(p=>p.type===invoiceType && p.pattern===pattern)?.requiredFields.length ?? 0)>0 &&
                 <p role="status" className="invoice-register__hint">این الگو به فیلدهای تکمیلی اختصاصی نیاز دارد؛ تکمیل و اعتبارسنجی آن‌ها در مراحل بعدی فرم انجام خواهد شد.</p>}
-              <p className="invoice-register__hint">اطلاعات مرحله‌ای در پیش‌نویس خصوصی ذخیره می‌شوند؛ ثبت خریدار را می‌توانید بعداً تکمیل کنید. این پیش‌نویس مجوز ارسال مالیاتی ندارد.</p>
+              <p className="invoice-register__hint">{buyerDetailsNotRequired ? "اطلاعات خریدار برای صورتحساب نوع دوم با الگوی فروش لازم نیست." : "اطلاعات مرحله‌ای در پیش‌نویس خصوصی ذخیره می‌شوند؛ ثبت خریدار را می‌توانید بعداً تکمیل کنید."} این پیش‌نویس مجوز ارسال مالیاتی ندارد.</p>
             </section>}
             {step === 1 && <section aria-label="اقلام صورتحساب">
               <div className="invoice-register__row-tools" style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:8}}>
@@ -1223,7 +1233,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
                   <dl className="invoice-register__summary-info">
                     <dt>مؤدی / فروشنده</dt>
                     <dd>{visibleTaxpayers.find(t=>t.id===taxpayerId)?.displayName || "مؤدی انتخاب‌شده"}</dd>
-                    <dt>خریدار</dt><dd>{buyerQuery || "هنوز انتخاب نشده"}</dd>
+                    <dt>خریدار</dt><dd>{buyerDetailsNotRequired ? "برای نوع دوم فروش لازم نیست" : buyerQuery || "هنوز انتخاب نشده"}</dd>
                     <dt>تاریخ و زمان</dt><dd>{new Intl.DateTimeFormat("fa-IR-u-ca-persian",{timeZone:"Asia/Tehran",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).format(tehranLocalToUtc(date,hour))}</dd>
                     <dt>نوع و الگو</dt><dd>نوع {invoiceType} · الگوی {pattern}</dd>
                     <dt>تعداد ردیف‌ها</dt><dd>{rows.length}</dd>
@@ -1310,7 +1320,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
           <footer className="invoice-register__dialog-footer">
             <button type="button" className="identity-secondary" disabled={busy || !taxpayerId}
               onClick={() => void saveWorkspace(step===2 && settlement===0 ? 1 : step,true)}>ذخیره و ادامه بعداً</button>
-            {step===0 && !buyerId && <button type="button" className="identity-secondary"
+            {step===0 && !buyerId && !buyerDetailsNotRequired && <button type="button" className="identity-secondary"
               disabled={busy || !taxpayerId} onClick={() => void saveWorkspace(0,true,true)}>
                 ذخیره و ثبت خریدار</button>}
             <button type="button" className="identity-secondary" onClick={close}
