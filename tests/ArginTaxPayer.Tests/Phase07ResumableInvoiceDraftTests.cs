@@ -113,4 +113,35 @@ public sealed class Phase07ResumableInvoiceDraftTests
         Assert.Contains("FinancialSummary",names);
     }
 
+
+    private static bool IsValid(SaveInvoiceEntryRequest request)
+    {
+        var method = typeof(InvoiceEntryWorkspaceService).GetMethod(
+            "Valid", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
+        return (bool)method.Invoke(null, [request])!;
+    }
+
+    [Fact]
+    public void Type_two_general_sale_requires_no_buyer_and_rejects_buyer_details()
+    {
+        var taxpayerId = Guid.NewGuid();
+        var withoutBuyer = new SaveInvoiceEntryRequest(
+            null,taxpayerId,0,0,DateTime.UtcNow,null,2,1,[]);
+        var withBuyerId = withoutBuyer with { BuyerPartyId = Guid.NewGuid() };
+        var withBuyerName = withoutBuyer with { BuyerDisplayName = "خریدار نمونه" };
+
+        Assert.True(IsValid(withoutBuyer));
+        Assert.False(IsValid(withBuyerId));
+        Assert.False(IsValid(withBuyerName));
+    }
+
+    [Fact]
+    public void Type_one_contracting_requires_contract_number_when_header_is_completed()
+    {
+        var request = new SaveInvoiceEntryRequest(
+            null,Guid.NewGuid(),0,1,DateTime.UtcNow,null,1,4,[]);
+        Assert.False(IsValid(request));
+        Assert.True(IsValid(request with { ContractNumber = "123456" }));
+    }
+
 }
