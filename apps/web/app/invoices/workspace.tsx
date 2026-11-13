@@ -251,6 +251,11 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   const saveRequestInFlight = useRef(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  useEffect(() => {
+    if (!notice) return;
+    const timeout = window.setTimeout(() => setNotice(""), 10_000);
+    return () => window.clearTimeout(timeout);
+  }, [notice]);
   const dialog = useRef<HTMLDivElement>(null);
   const openButton = useRef<HTMLButtonElement>(null);
   const [importOpen,setImportOpen] = useState(false);
@@ -879,7 +884,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
             aria-label="بستن جزئیات">×</button>
         </div>
         {detail.authorityStatus==="FAILED"&&detail.subject==="Original"&&<section className="invoice-rejected-correction" aria-label="اصلاح صورتحساب ردشده">
-          <p className="field-hint">فاکتور اصلی به سازمان ارسال شده، اما با خطا رد شده است. با این گزینه یک پیش‌نویس جداگانه برای اصلاح باز می‌شود؛ پیش‌نویس جدید هنوز ارسال نشده است.</p>
+          <p className="field-hint">این صورتحساب توسط سازمان رد شده است. این گزینه پیش‌نویس اصلاحیِ متصل به همین صورتحساب را باز می‌کند؛ سند ردشده تغییر نمی‌کند و تا زمان ارسال، ردیف صورتحساب جداگانه‌ای در فهرست ساخته نمی‌شود.</p>
           <button type="button" className="invoice-rejected-correction__button" disabled={rejectedDraftBusy}
             onClick={async()=>{
               if(rejectedDraftBusy)return;
@@ -903,6 +908,40 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
             }}><svg className="invoice-rejected-correction__icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 14 5 10l4-4"/><path d="M5 10h8a6 6 0 0 1 0 12h-2"/><path d="M15 2h4a2 2 0 0 1 2 2v4"/></svg>{rejectedDraftBusy?"در حال آماده‌سازی پیش‌نویس…":"بازگشت به پیش‌نویس"}</button>
           {rejectedDraftError&&<p className="form-error invoice-rejected-correction__error" role="alert">{rejectedDraftError}</p>}
         </section>}
+        {["Draft","Validated","Finalized"].includes(detail.state)&&detail.subject==="Original"&&detail.kind==="internalSnapshot"&&
+          detail.authorityStatus==="NOT_SENT"&&!detail.correctionInProgress&&
+          (!detail.effectiveInvoiceId||detail.effectiveInvoiceId===detail.id)&&
+          <section className="invoice-rejected-correction" aria-label="بازگشت صورتحساب ارسال‌نشده به پیش‌نویس">
+            <p className="field-hint">این صورتحساب هنوز هیچ عملیات ارسالی ندارد. با بازگشت، یک پیش‌نویس جداگانه برای ویرایش ساخته می‌شود و نسخهٔ ثبت‌شده و سوابق آن حفظ می‌شوند.</p>
+            <button type="button" className="invoice-rejected-correction__button" disabled={rejectedDraftBusy}
+              onClick={async()=>{
+                if(rejectedDraftBusy)return;
+                setRejectedDraftBusy(true);setRejectedDraftError("");
+                try{
+                  const response=await fetch("/api/invoice-dispatch/"+
+                    encodeURIComponent(detail.taxpayerId)+"/"+encodeURIComponent(detail.id)+
+                    "/return-to-draft",{method:"POST",cache:"no-store",credentials:"same-origin"});
+                  const data=await response.json().catch(()=>({}));
+                  if(response.status===409){
+                    const messages:Record<string,string>={
+                      invoice_has_dispatch_operation:"برای این صورتحساب عملیات ارسال ثبت شده است؛ فهرست را تازه کنید و وضعیت ارسال را بررسی کنید.",
+                      invoice_not_eligible:"وضعیت این صورتحساب تغییر کرده است؛ فهرست را تازه کنید.",
+                      source_workspace_revision_mismatch:"نسخهٔ مبنای پیش‌نویس تغییر کرده است؛ فهرست را تازه کنید و دوباره تلاش کنید."
+                    };
+                    throw Error(typeof data.error==="string"&&messages[data.error]?messages[data.error]:
+                      "این صورتحساب دیگر واجد شرایط بازگشت به پیش‌نویس نیست؛ وضعیت ارسال را تازه کنید.");
+                  }
+                  if(!response.ok||data.authoritySubmitted!==false||typeof data.workspaceId!=="string")
+                    throw Error("ساخت پیش‌نویس انجام نشد؛ فهرست را تازه کنید و دوباره تلاش کنید.");
+                  await reload();
+                  setDetail(null);
+                  setAutoOpenDispatchFor("");
+                  setNotice("پیش‌نویس آماده شد؛ برای ویرایش، از ستون عملیات «ویرایش و ادامه» را انتخاب کنید.");
+                  setRejectedDraftBusy(false);
+                }catch(e){setRejectedDraftError((e as Error).message);setRejectedDraftBusy(false);}
+              }}><svg className="invoice-rejected-correction__icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 14 5 10l4-4"/><path d="M5 10h8a6 6 0 0 1 0 12h-2"/><path d="M15 2h4a2 2 0 0 1 2 2v4"/></svg>{rejectedDraftBusy?"در حال آماده‌سازی پیش‌نویس…":"بازگشت به پیش‌نویس"}</button>
+            {rejectedDraftError&&<p className="form-error invoice-rejected-correction__error" role="alert">{rejectedDraftError}</p>}
+          </section>}
         {detail.authorityStatus==="FAILED"&&["Correction","SalesReturn","Cancellation"].includes(detail.subject)&&<section className="invoice-rejected-correction" aria-label="انصراف از عملیات ناموفق">
           <p className="field-hint">این عملیات توسط سازمان رد شده است. با انصراف، سند ناموفق از زنجیرهٔ مؤثر کنار می‌رود و آخرین سند موفق دوباره فعال می‌شود.</p>
           <button type="button" className="invoice-rejected-correction__button" disabled={rejectedDraftBusy}

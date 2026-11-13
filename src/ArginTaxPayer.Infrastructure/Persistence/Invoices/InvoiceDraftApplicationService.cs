@@ -161,9 +161,26 @@ public sealed class InvoiceDraftApplicationService(
         if (access.Decision != InvoiceApiDecision.Success)
             return (access.Decision, Array.Empty<InvoiceDraftView>());
         var replaced=db.Database.SqlQueryRaw<Guid>("SELECT predecessor_invoice_id AS \"Value\" FROM invoice_successful_rejection_replacements");
+        var sandboxCorrectionDrafts=db.Database.SqlQueryRaw<Guid>("""
+SELECT workspace_id AS "Value" FROM sandbox_invoice_correction_drafts
+UNION
+SELECT id AS "Value" FROM invoice_entry_workspaces
+WHERE draft_json->>'BulkImportKey' LIKE 'sandbox-correction:%'
+UNION
+SELECT workspace_id AS "Value" FROM invoice_entry_workspace_revisions
+WHERE action='create' AND snapshot_json->>'BulkImportKey' LIKE 'sandbox-correction:%'
+""");
+        var pendingRejectedSuccessors=db.Database.SqlQueryRaw<Guid>("""
+SELECT r.successor_invoice_id AS "Value"
+FROM invoice_rejection_replacements r
+WHERE NOT EXISTS(
+ SELECT 1 FROM invoice_successful_rejection_replacements s
+ WHERE s.successor_invoice_id=r.successor_invoice_id)
+""");
         var invoices = await db.InvoiceDocuments.AsNoTracking()
             .Where(x => x.CustomerUserId == access.CustomerId &&
-                x.TaxpayerId == taxpayerId && !replaced.Contains(x.Id))
+                x.TaxpayerId == taxpayerId && !replaced.Contains(x.Id) &&
+                !sandboxCorrectionDrafts.Contains(x.Id) && !pendingRejectedSuccessors.Contains(x.Id))
             .OrderByDescending(x => x.UpdatedAtUtc)
             .ThenBy(x => x.Id)
             .Take(100)
@@ -207,6 +224,32 @@ WHERE NOT EXISTS(
  SELECT 1 FROM invoice_successful_rejection_replacements s
  WHERE s.successor_invoice_id=r.successor_invoice_id)
 """);
+        // A Sandbox correction workspace can become an internal invoice snapshot;
+        // it must remain grouped with the rejected predecessor after that conversion.
+        var sandboxCorrectionDrafts=db.Database.SqlQueryRaw<Guid>("""
+SELECT workspace_id AS "Value" FROM sandbox_invoice_correction_drafts
+UNION
+SELECT id AS "Value" FROM invoice_entry_workspaces
+WHERE draft_json->>'BulkImportKey' LIKE 'sandbox-correction:%'
+UNION
+SELECT workspace_id AS "Value" FROM invoice_entry_workspace_revisions
+WHERE action='create' AND snapshot_json->>'BulkImportKey' LIKE 'sandbox-correction:%'
+""");
+        // A rejected original's editable correction workspace is a draft attached
+        // to that invoice, not another invoice row. It is opened through the
+        // predecessor's "return to draft" action and must not consume a second
+        // visible system-code row while the predecessor remains the root record.
+        var rejectedCorrectionDrafts=db.Database.SqlQueryRaw<Guid>("""
+SELECT workspace_id AS "Value" FROM sandbox_invoice_correction_drafts
+UNION
+SELECT id AS "Value" FROM invoice_entry_workspaces
+WHERE draft_json->>'BulkImportKey' LIKE 'sandbox-correction:%'
+UNION
+SELECT workspace_id AS "Value" FROM invoice_entry_workspace_revisions
+WHERE action='create' AND snapshot_json->>'BulkImportKey' LIKE 'sandbox-correction:%'
+UNION
+SELECT successor_invoice_id AS "Value" FROM invoice_rejection_replacements
+""");
         // Legal successor documents remain immutable, but the workspace overview
         // displays exactly one row for the root chain, before pagination.
         var legalSuccessors=db.Database.SqlQueryRaw<Guid>("""
@@ -216,9 +259,25 @@ UNION
 SELECT successor_invoice_id AS "Value"
 FROM authority_invoice_legal_relations
 """);
+        // Returned originals keep their original invoice ID and human reference.
+        // Hide their document projection while editable and show the same-ID workspace.
+        var returnedUnsentDrafts = db.Database.SqlQueryRaw<Guid>("""
+SELECT w.id AS "Value"
+FROM invoice_entry_workspaces w
+JOIN invoice_documents d ON d.id=w.id AND d.customer_user_id=w.customer_user_id
+ AND d.taxpayer_id=w.taxpayer_id AND d.state=1
+WHERE w.draft_json->>'BulkImportKey'='unsent-return:' || replace(w.id::text,'-','')
+""");
+        // Hide old accidental copy workspaces created by the prior implementation.
+        var obsoleteUnsentCopies = db.Database.SqlQueryRaw<Guid>("""
+SELECT id AS "Value" FROM invoice_entry_workspaces
+WHERE draft_json->>'BulkImportKey' LIKE 'unsent-return:%'
+ AND draft_json->>'BulkImportKey' <> 'unsent-return:' || replace(id::text,'-','')
+""");
         var documents = db.InvoiceDocuments.AsNoTracking()
             .Where(x => allowed.Contains(x.TaxpayerId) && !legalSuccessors.Contains(x.Id)
-                && !replaced.Contains(x.Id) && !pendingRejectedSuccessors.Contains(x.Id))
+                && !replaced.Contains(x.Id) && !pendingRejectedSuccessors.Contains(x.Id)
+                && !sandboxCorrectionDrafts.Contains(x.Id) && !returnedUnsentDrafts.Contains(x.Id))
             .Select(x => new {
                 x.Id, x.CustomerUserId, x.TaxpayerId, x.Revision,
                 x.IssueDateUtc, x.UpdatedAtUtc,
@@ -230,8 +289,11 @@ FROM authority_invoice_legal_relations
             });
         var working = db.InvoiceEntryWorkspaces.AsNoTracking()
             .Where(x => allowed.Contains(x.TaxpayerId) &&
+                !rejectedCorrectionDrafts.Contains(x.Id) &&
+                !obsoleteUnsentCopies.Contains(x.Id) &&
                 !db.InvoiceDocuments.Any(d => d.Id == x.Id &&
-                    d.TaxpayerId == x.TaxpayerId && d.CustomerUserId == x.CustomerUserId))
+                    d.TaxpayerId == x.TaxpayerId && d.CustomerUserId == x.CustomerUserId) ||
+                allowed.Contains(x.TaxpayerId) && returnedUnsentDrafts.Contains(x.Id))
             .Select(x => new {
                 x.Id, x.CustomerUserId, x.TaxpayerId, x.Revision,
                 x.IssueDateUtc, x.UpdatedAtUtc,
@@ -469,7 +531,8 @@ WHERE predecessor_invoice_id=ANY(@ids)
                     ((InvoiceReviewState)(x.Review ?? 1)).ToString(),
                 x.Source==0?inheritedCodes.GetValueOrDefault(x.Id,
                     referenceCodes.GetValueOrDefault(("document",x.Id))):
-                    referenceCodes.GetValueOrDefault(("workspace",x.Id)),
+                    referenceCodes.GetValueOrDefault(("document",x.Id),
+                        referenceCodes.GetValueOrDefault(("workspace",x.Id))),
                 names.GetValueOrDefault(x.TaxpayerId),
                 buyers.GetValueOrDefault(x.Id),
                 effectiveByRoot.TryGetValue(x.Id,out var effectiveStatus)?effectiveStatus.Status:

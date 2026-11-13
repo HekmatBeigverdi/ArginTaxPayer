@@ -71,6 +71,7 @@ public sealed class InvoiceWorkspacePromotionService(
                     .FirstOrDefaultAsync(i=>i.Id==workspaceId &&
                         i.CustomerUserId==draft.CustomerUserId &&
                         i.TaxpayerId==draft.TaxpayerId,ct);
+                var isReturnedDraft = false;
                 if(existing is not null)
                 {
                     // A lost HTTP response may be retried. Return the same
@@ -85,8 +86,21 @@ public sealed class InvoiceWorkspacePromotionService(
                                 "internal_snapshot_already_created");
                     } catch(JsonException) { /* Unrecognized historical payload. */ }
                       catch(KeyNotFoundException) { /* Different existing document. */ }
-                    return new InvoiceWorkspacePromotionResult(InvoiceApiDecision.Conflict,
-                        Code:"workspace_already_bound_to_other_document");
+                    var draftIdentity = JsonSerializer.Deserialize<SaveInvoiceEntryRequest>(draft.DraftJson);
+                    isReturnedDraft = existing.State == InvoiceLifecycleState.Draft &&
+                        draftIdentity?.BulkImportKey == $"unsent-return:{workspaceId:N}";
+                    if (isReturnedDraft)
+                    {
+                        await using var dispatchCheck = db.Database.GetDbConnection().CreateCommand();
+                        dispatchCheck.Transaction = db.Database.CurrentTransaction!.GetDbTransaction();
+                        dispatchCheck.CommandText = "SELECT EXISTS(SELECT 1 FROM invoice_dispatch_operations WHERE customer_user_id=@owner AND taxpayer_id=@taxpayer AND invoice_id=@invoice)";
+                        foreach (var (name, value) in new[] { ("owner", draft.CustomerUserId), ("taxpayer", draft.TaxpayerId), ("invoice", workspaceId) })
+                        { var p = dispatchCheck.CreateParameter(); p.ParameterName = name; p.Value = value; dispatchCheck.Parameters.Add(p); }
+                        isReturnedDraft = (bool)(await dispatchCheck.ExecuteScalarAsync(ct) ?? false) == false;
+                    }
+                    if (!isReturnedDraft)
+                        return new InvoiceWorkspacePromotionResult(InvoiceApiDecision.Conflict,
+                            Code:"workspace_already_bound_to_other_document");
                 }
                 var input=JsonSerializer.Deserialize<SaveInvoiceEntryRequest>(
                     draft.DraftJson);
@@ -260,16 +274,30 @@ AND private_envelope_json IS NOT NULL)
                     SHA256.HashData(Encoding.UTF8.GetBytes(canonical)))
                     .ToLowerInvariant();
                 var now=DateTime.UtcNow;
-                db.InvoiceDocuments.Add(new StoredInvoice{
-                    Id=draft.Id,CustomerUserId=draft.CustomerUserId,
-                    TaxpayerId=draft.TaxpayerId,Revision=1,
-                    State=InvoiceLifecycleState.Draft,Subject=InvoiceSubject.Original,
-                    IssueDateUtc=draft.IssueDateUtc,SnapshotJson=canonical,
-                    SnapshotSha256=hash,UpdatedAtUtc=now
-                });
+                var nextDocumentRevision = isReturnedDraft ? existing!.Revision + 1 : 1;
+                if (isReturnedDraft)
+                {
+                    var changed = await db.InvoiceDocuments.Where(i => i.Id == draft.Id &&
+                        i.CustomerUserId == draft.CustomerUserId && i.TaxpayerId == draft.TaxpayerId &&
+                        i.Revision == existing!.Revision && i.State == InvoiceLifecycleState.Draft)
+                        .ExecuteUpdateAsync(set => set.SetProperty(i => i.Revision, nextDocumentRevision)
+                            .SetProperty(i => i.SnapshotJson, canonical).SetProperty(i => i.SnapshotSha256, hash)
+                            .SetProperty(i => i.IssueDateUtc, draft.IssueDateUtc).SetProperty(i => i.UpdatedAtUtc, now), ct);
+                    if (changed != 1)
+                        return new InvoiceWorkspacePromotionResult(InvoiceApiDecision.Conflict,
+                            Code:"concurrent_invoice_change");
+                }
+                else
+                    db.InvoiceDocuments.Add(new StoredInvoice{
+                        Id=draft.Id,CustomerUserId=draft.CustomerUserId,
+                        TaxpayerId=draft.TaxpayerId,Revision=nextDocumentRevision,
+                        State=InvoiceLifecycleState.Draft,Subject=InvoiceSubject.Original,
+                        IssueDateUtc=draft.IssueDateUtc,SnapshotJson=canonical,
+                        SnapshotSha256=hash,UpdatedAtUtc=now
+                    });
                 db.InvoiceDocumentRevisions.Add(new StoredInvoiceRevision{
                     InvoiceId=draft.Id,CustomerUserId=draft.CustomerUserId,
-                    TaxpayerId=draft.TaxpayerId,Revision=1,SnapshotJson=canonical,
+                    TaxpayerId=draft.TaxpayerId,Revision=nextDocumentRevision,SnapshotJson=canonical,
                     SnapshotSha256=hash,CapturedAtUtc=now
                 });
                 await db.SaveChangesAsync(ct);

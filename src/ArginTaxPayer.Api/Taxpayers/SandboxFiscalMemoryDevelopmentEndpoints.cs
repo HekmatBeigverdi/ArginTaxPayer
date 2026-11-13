@@ -38,7 +38,18 @@ public static class SandboxFiscalMemoryDevelopmentEndpoints
                 var result=await service.RegisterAsync(Bearer(http),taxpayerId,request,ct);
                 return Reply(result);
             }catch(Npgsql.PostgresException ex)when(ex.SqlState==Npgsql.PostgresErrorCodes.UniqueViolation){
-                return Results.Json(new{error="sandbox_memory_already_registered",environment="Sandbox"},statusCode:409);
+                var (error,statusCode)=ex.ConstraintName switch
+                {
+                    // This is the pre-multi-memory schema constraint. A current
+                    // application against that schema must not tell the operator
+                    // that a different Sandbox identifier already exists.
+                    "uq_sandbox_owner_taxpayer" => ("sandbox_memory_schema_upgrade_required",503),
+                    // The current schema intentionally allows multiple identifiers
+                    // but prevents registering the same one twice for this taxpayer.
+                    "ux_sandbox_owner_taxpayer_identifier" => ("sandbox_memory_identifier_already_registered",409),
+                    _ => ("sandbox_memory_registration_conflict",409)
+                };
+                return Results.Json(new{error,environment="Sandbox"},statusCode:statusCode);
             }
         });
         group.MapPost("/private-key",async(Guid taxpayerId,

@@ -21,6 +21,26 @@ public static class Phase10InvoiceDispatchDevelopmentEndpoints
         var group = routes.MapGroup("/api/dev/taxpayers/{taxpayerId:guid}/invoices/{invoiceId:guid}/dispatch")
             .WithTags("Invoice Dispatch (Development, Disabled)");
 
+        group.MapPost("/return-to-draft", async (Guid taxpayerId, Guid invoiceId,
+            HttpContext http, UnsentInvoiceDraftService service, CancellationToken ct) =>
+        {
+            if (!Local(http)) return Results.NotFound();
+            http.Response.Headers.CacheControl = "no-store";
+            var outcome = await service.CreateAsync(Token(http), taxpayerId, invoiceId, ct);
+            return outcome.Decision switch {
+                InvoiceApiDecision.Success => Results.Ok(new {
+                    workspaceId = outcome.WorkspaceId,
+                    authoritySubmitted = false,
+                    existingWorkspace = outcome.ExistingWorkspace
+                }),
+                InvoiceApiDecision.Unauthenticated => Results.Unauthorized(),
+                InvoiceApiDecision.Forbidden => Results.Json(new { error = outcome.Code }, statusCode: 403),
+                InvoiceApiDecision.NotFound => Results.NotFound(new { error = outcome.Code }),
+                InvoiceApiDecision.Conflict => Results.Conflict(new { error = outcome.Code }),
+                _ => Results.BadRequest(new { error = outcome.Code })
+            };
+        });
+
         static IResult CorrectionResult(CorrectionOperationResult result)=>
             result.Decision switch {
                 InvoiceApiDecision.Success=>Results.Ok(result),
