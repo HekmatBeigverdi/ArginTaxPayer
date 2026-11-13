@@ -52,6 +52,35 @@ public sealed class Phase07ResumableInvoiceDraftTests
         Assert.Equal(0,request.LastCompletedStep);
     }
     [Fact]
+    public void Type_two_general_sale_omits_buyer_details()
+    {
+        var request = new SaveInvoiceEntryRequest(null, Guid.NewGuid(), 0, 0,
+            DateTime.UtcNow, null, 2, 1, []);
+
+        Assert.True(IsValid(request));
+        Assert.False(IsValid(request with { BuyerPartyId = Guid.NewGuid() }));
+        Assert.False(IsValid(request with { BuyerDisplayName = "خریدار" }));
+    }
+
+    [Fact]
+    public void Type_one_contracting_requires_the_registered_contract_number()
+    {
+        var request = new SaveInvoiceEntryRequest(null, Guid.NewGuid(), 0, 1,
+            DateTime.UtcNow, null, 1, 4, []);
+
+        Assert.False(IsValid(request));
+        Assert.True(IsValid(request with { ContractNumber = "123456789012" }));
+    }
+
+    private static bool IsValid(SaveInvoiceEntryRequest request)
+    {
+        var validate = typeof(InvoiceEntryWorkspaceService).GetMethod(
+            "Valid", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+        Assert.NotNull(validate);
+        return Assert.IsType<bool>(validate.Invoke(null, new object?[] { request }));
+    }
+
+    [Fact]
     public void Description_and_settlement_contracts_are_optional_in_incomplete_drafts()
     {
         var request = new SaveInvoiceEntryRequest(null,Guid.NewGuid(),0,2,DateTime.UtcNow,
