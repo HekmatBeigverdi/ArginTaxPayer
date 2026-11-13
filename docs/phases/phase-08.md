@@ -695,3 +695,11 @@ Owner approved yearly reset and expanding serial length. Updated **pending/unapp
 - **Security/ops:** No production deployment, official tax issuance, production DB action, migration, or automatic server setting changes were performed as part of this closure.
 - **Publication gate remains open:** No GitHub merge to `main`, annotated Phase08 tag, or GitHub Release has been executed. The phase's own release policy requires a **separate, explicit owner approval** plus recorded same-SHA and script-diff reconciliation before publication. Final release SHA, tag and URL are unavailable until then.
 - **Phase09 handoff:** Phase08 invoice draft and UI workflow work is administratively complete; Phase09 signing/CSR/keys is planned, **not started**. Preserve deferrals and security boundaries in the Phase09 baseline.
+
+
+### Type2 general sale and Type1 contracting follow-up (2026-11-13)
+
+- The archived Phase07/Phase10 rule records identify Type1 + Pattern4 as contracting and Type2 + Pattern1 as general sale. The Type1 contracting draft continues to require its registered contract number before completing the header.
+- For Type2 + Pattern1, the buyer picker is disabled in the invoice UI, buyer state is cleared when switching into this combination, and the saved draft sends a null buyer ID. The backend rejects buyer identifiers or names for this combination so a direct API request cannot bypass the UI.
+- Added focused regression coverage for the buyer-free Type2 sale, rejection of supplied buyer data, and the required contract number for Type1 contracting.
+- This is invoice-draft workflow behavior based on the project’s archived V7.9 matrix. It does not itself certify current legal applicability or grant Tax Authority submission readiness; Phase10’s source/effective-date and sending gates remain in force.
