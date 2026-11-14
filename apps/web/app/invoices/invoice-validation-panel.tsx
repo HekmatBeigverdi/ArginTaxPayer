@@ -214,7 +214,7 @@ export default function InvoiceValidationPanel({
           invoice_buyer_required: "خریدار صورتحساب انتخاب نشده است.",
           invoice_lines_required: "حداقل یک ردیف کالا یا خدمت لازم است.",
           invoice_memory_selection_invalid: "یک حافظه مالیاتی معتبر برای همین محیط انتخاب کنید.",
-          invoice_pattern_not_supported_for_submission: "ارسال فعلی برای نوع ۱ و الگوی فروش (۱) یا پیمانکاری (۴) فعال است؛ الگوی صورتحساب را اصلاح کنید.",
+          invoice_pattern_not_supported_for_submission: "این ترکیب نوع و الگوی صورتحساب برای ارسال پشتیبانی نمی‌شود.",
           invoice_contract_number_required: "برای الگوی پیمانکاری، شماره قرارداد را تکمیل کنید.",
           invoice_line_snapshot_incomplete: "برای همه ردیف‌ها کالا، شناسه رسمی ۱۳ رقمی، واحد اندازه‌گیری، مقدار و نرخ مالیات را تکمیل و پیش‌نویس را ذخیره کنید.",
           invoice_settlement_required: "روش و مبلغ تسویه را تکمیل و پیش‌نویس را دوباره ذخیره کنید.",

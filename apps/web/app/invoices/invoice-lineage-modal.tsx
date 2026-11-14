@@ -208,7 +208,6 @@ export default function InvoiceLineageModal({taxpayerId,invoiceId,onClose,onChan
        </details>
       </article>
      </div>)}
-    {!graph.hasChanges&&<p className="field-hint">سند ارجاعی تأییدشده‌ای در زنجیره ثبت نشده است. ارتباط اصلاح، ابطال و برگشت از فروش در ادامه گام ۲۵ تکمیل می‌شود.</p>}
    </div>}
   </section>
  </div>;

@@ -39,6 +39,12 @@ function registrationError(status:number,value:unknown):string {
       return "قالب شناسه حافظه معتبر نیست؛ فقط حروف انگلیسی و عدد، بین ۶ تا ۳۲ کاراکتر وارد کنید.";
     case "sandbox_memory_already_registered":
       return "برای این مؤدی قبلاً حافظه Sandbox ثبت شده است؛ اطلاعات آن را بازخوانی کنید.";
+    case "sandbox_memory_schema_upgrade_required":
+      return "پایگاه‌دادهٔ سرویس هنوز برای ثبت چند حافظهٔ Sandbox به‌روزرسانی نشده است؛ پس از انتشار نسخهٔ جدید دوباره تلاش کنید.";
+    case "sandbox_memory_identifier_already_registered":
+      return "این شناسهٔ حافظهٔ Sandbox قبلاً برای همین مؤدی ثبت شده است؛ شناسهٔ دیگری وارد کنید یا حافظهٔ موجود را انتخاب کنید.";
+    case "sandbox_memory_registration_conflict":
+      return "ثبت حافظهٔ Sandbox با یک تعارض پایگاه‌داده روبه‌رو شد؛ وضعیت سرویس را بررسی کنید.";
     case "sandbox_test_database_required":
       return "اتصال آزمایشی به دیتابیس Sandbox برقرار نیست.";
     case "sandbox_scope_denied":

@@ -12,6 +12,32 @@ public sealed class Phase07ResumableInvoiceDraftTests
             .UseNpgsql("Host=127.0.0.1;Database=argintaxpayer_test;Username=unused;Password=unused")
             .Options);
 
+    [Theory]
+    [InlineData("۱۲۳۴")]
+    [InlineData("١٢٣٤")]
+    [InlineData("1234")]
+    public void Contract_draft_accepts_local_digit_input(string number)
+    {
+        var request=new SaveInvoiceEntryRequest(null,Guid.NewGuid(),0,1,DateTime.UtcNow,
+            Guid.NewGuid(),1,4,[],ContractNumber:number);
+        Assert.True(InvoiceEntryWorkspaceService.Valid(request));
+        Assert.Equal("1234",InvoiceEntryWorkspaceService.NormalizeForSave(request).ContractNumber);
+        Assert.Equal("0012",InvoiceEntryWorkspaceService.NormalizeForSave(request with { ContractNumber=" ۰۰۱۲ " }).ContractNumber);
+        Assert.False(InvoiceEntryWorkspaceService.Valid(request with { ContractNumber="12-34" }));
+    }
+
+    [Fact]
+    public void Completed_type2_sale_needs_neither_buyer_nor_settlement_but_type1_needs_terms()
+    {
+        var input=new SaveInvoiceEntryRequest(null,Guid.NewGuid(),0,2,DateTime.UtcNow,
+            null,2,1,[new InvoiceEntryLine(null,"service",1,100,0,10)]);
+        Assert.True(InvoiceEntryWorkspaceService.Valid(input));
+        Assert.False(InvoiceEntryWorkspaceService.Valid(input with { Type=1 }));
+        Assert.False(InvoiceEntryWorkspaceService.Valid(input with {
+            SettlementMethod=InvoiceDraftSettlementMethod.Credit,CashAmountRial=0,CreditAmountRial=110 }));
+        Assert.False(InvoiceEntryWorkspaceService.Valid(input with { BuyerPartyId=Guid.NewGuid() }));
+    }
+
     [Fact]
     public void Draft_migration_is_explicit_and_discoverable_without_live_database()
     {
@@ -111,6 +137,37 @@ public sealed class Phase07ResumableInvoiceDraftTests
         Assert.Contains("CashAmountRial",names);
         Assert.Contains("CreditAmountRial",names);
         Assert.Contains("FinancialSummary",names);
+    }
+
+
+    private static bool IsValid(SaveInvoiceEntryRequest request)
+    {
+        var method = typeof(InvoiceEntryWorkspaceService).GetMethod(
+            "Valid", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
+        return (bool)method.Invoke(null, [request])!;
+    }
+
+    [Fact]
+    public void Type_two_general_sale_requires_no_buyer_and_rejects_buyer_details()
+    {
+        var taxpayerId = Guid.NewGuid();
+        var withoutBuyer = new SaveInvoiceEntryRequest(
+            null,taxpayerId,0,0,DateTime.UtcNow,null,2,1,[]);
+        var withBuyerId = withoutBuyer with { BuyerPartyId = Guid.NewGuid() };
+        var withBuyerName = withoutBuyer with { BuyerDisplayName = "خریدار نمونه" };
+
+        Assert.True(IsValid(withoutBuyer));
+        Assert.False(IsValid(withBuyerId));
+        Assert.False(IsValid(withBuyerName));
+    }
+
+    [Fact]
+    public void Type_one_contracting_requires_contract_number_when_header_is_completed()
+    {
+        var request = new SaveInvoiceEntryRequest(
+            null,Guid.NewGuid(),0,1,DateTime.UtcNow,null,1,4,[]);
+        Assert.False(IsValid(request));
+        Assert.True(IsValid(request with { ContractNumber = "123456" }));
     }
 
 }

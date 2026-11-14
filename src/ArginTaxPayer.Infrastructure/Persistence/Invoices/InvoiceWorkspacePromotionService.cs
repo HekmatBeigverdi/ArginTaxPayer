@@ -71,6 +71,7 @@ public sealed class InvoiceWorkspacePromotionService(
                     .FirstOrDefaultAsync(i=>i.Id==workspaceId &&
                         i.CustomerUserId==draft.CustomerUserId &&
                         i.TaxpayerId==draft.TaxpayerId,ct);
+                var isReturnedDraft = false;
                 if(existing is not null)
                 {
                     // A lost HTTP response may be retried. Return the same
@@ -85,21 +86,38 @@ public sealed class InvoiceWorkspacePromotionService(
                                 "internal_snapshot_already_created");
                     } catch(JsonException) { /* Unrecognized historical payload. */ }
                       catch(KeyNotFoundException) { /* Different existing document. */ }
-                    return new InvoiceWorkspacePromotionResult(InvoiceApiDecision.Conflict,
-                        Code:"workspace_already_bound_to_other_document");
+                    var draftIdentity = JsonSerializer.Deserialize<SaveInvoiceEntryRequest>(draft.DraftJson);
+                    isReturnedDraft = existing.State == InvoiceLifecycleState.Draft &&
+                        draftIdentity?.BulkImportKey == $"unsent-return:{workspaceId:N}";
+                    if (isReturnedDraft)
+                    {
+                        await using var dispatchCheck = db.Database.GetDbConnection().CreateCommand();
+                        dispatchCheck.Transaction = db.Database.CurrentTransaction!.GetDbTransaction();
+                        dispatchCheck.CommandText = "SELECT EXISTS(SELECT 1 FROM invoice_dispatch_operations WHERE customer_user_id=@owner AND taxpayer_id=@taxpayer AND invoice_id=@invoice)";
+                        foreach (var (name, value) in new[] { ("owner", draft.CustomerUserId), ("taxpayer", draft.TaxpayerId), ("invoice", workspaceId) })
+                        { var p = dispatchCheck.CreateParameter(); p.ParameterName = name; p.Value = value; dispatchCheck.Parameters.Add(p); }
+                        isReturnedDraft = (bool)(await dispatchCheck.ExecuteScalarAsync(ct) ?? false) == false;
+                    }
+                    if (!isReturnedDraft)
+                        return new InvoiceWorkspacePromotionResult(InvoiceApiDecision.Conflict,
+                            Code:"workspace_already_bound_to_other_document");
                 }
                 var input=JsonSerializer.Deserialize<SaveInvoiceEntryRequest>(
                     draft.DraftJson);
                 if(input is null || input.TaxpayerId!=draft.TaxpayerId)
                     return new InvoiceWorkspacePromotionResult(InvoiceApiDecision.Invalid,
                         Code:"invoice_snapshot_draft_invalid");
-                if(input.BuyerPartyId is null)
+                var type2 = input.Type == 2 && input.Pattern == 1;
+                if(type2 && (input.BuyerPartyId is not null || input.SettlementMethod != InvoiceDraftSettlementMethod.Unknown ||
+                    input.CashAmountRial is not null || input.CreditAmountRial is not null))
+                    return new(InvoiceApiDecision.Invalid,Code:"invoice_type2_fields_outside_pattern");
+                if(!type2 && input.BuyerPartyId is null)
                     return new(InvoiceApiDecision.Invalid,Code:"invoice_buyer_required");
                 if(input.Lines is not {Length: > 0 and <= 150})
                     return new(InvoiceApiDecision.Invalid,Code:"invoice_lines_required");
                 if(input.FiscalMemoryId.HasValue == input.SandboxFiscalMemoryId.HasValue)
                     return new(InvoiceApiDecision.Invalid,Code:"invoice_memory_selection_invalid");
-                if(input.Type!=1 || input.Pattern is not (1 or 4))
+                if(!type2 && (input.Type!=1 || input.Pattern is not (1 or 4)))
                     return new(InvoiceApiDecision.Invalid,Code:"invoice_pattern_not_supported_for_submission");
                 if(input.Pattern==4 && string.IsNullOrWhiteSpace(input.ContractNumber))
                     return new(InvoiceApiDecision.Invalid,Code:"invoice_contract_number_required");
@@ -108,8 +126,8 @@ public sealed class InvoiceWorkspacePromotionService(
                         !x.OfficialIdentifierSnapshot.All(char.IsAsciiDigit) || x.UnitId is null || x.Quantity<=0 ||
                         x.UnitPriceRial<0 || x.VatRatePercent is null))
                     return new(InvoiceApiDecision.Invalid,Code:"invoice_line_snapshot_incomplete");
-                if(input.SettlementMethod==InvoiceDraftSettlementMethod.Unknown ||
-                    input.CashAmountRial is null || input.CreditAmountRial is null)
+                if(!type2 && (input.SettlementMethod==InvoiceDraftSettlementMethod.Unknown ||
+                    input.CashAmountRial is null || input.CreditAmountRial is null))
                     return new(InvoiceApiDecision.Invalid,Code:"invoice_settlement_required");
                 if(!InvoiceDraftSettlementPolicy.IsConsistent(input.SettlementMethod,
                         input.CashAmountRial,input.CreditAmountRial,input.Lines,
@@ -213,7 +231,7 @@ AND private_envelope_json IS NOT NULL)
                         link.PartyId==input.BuyerPartyId && link.UnlinkedAtUtc==null &&
                         party.Status==PartyStatus.Active
                     select (int?)party.Kind).SingleOrDefaultAsync(ct);
-                if(buyerPersonType is null)
+                if(!type2 && buyerPersonType is null)
                     return new(InvoiceApiDecision.Invalid,Code:"buyer_not_owned");
 
                 InvoiceFinancialPreview financialPreview;
@@ -241,9 +259,10 @@ AND private_envelope_json IS NOT NULL)
                     sandboxFiscalMemoryId=input.SandboxFiscalMemoryId,
                     fiscalMemoryId=input.FiscalMemoryId,
                     invoiceType=input.Type,pattern=input.Pattern,
+                    contractNumber=input.ContractNumber,
                     issueDateUtc=draft.IssueDateUtc,
                     buyerPartyId=input.BuyerPartyId,
-                    buyerPersonType=buyerPersonType.Value,
+                    buyerPersonType=buyerPersonType,
                     lines=input.Lines,
                     settlementMethod=input.SettlementMethod,
                     cashAmountRial=input.CashAmountRial,
@@ -260,16 +279,30 @@ AND private_envelope_json IS NOT NULL)
                     SHA256.HashData(Encoding.UTF8.GetBytes(canonical)))
                     .ToLowerInvariant();
                 var now=DateTime.UtcNow;
-                db.InvoiceDocuments.Add(new StoredInvoice{
-                    Id=draft.Id,CustomerUserId=draft.CustomerUserId,
-                    TaxpayerId=draft.TaxpayerId,Revision=1,
-                    State=InvoiceLifecycleState.Draft,Subject=InvoiceSubject.Original,
-                    IssueDateUtc=draft.IssueDateUtc,SnapshotJson=canonical,
-                    SnapshotSha256=hash,UpdatedAtUtc=now
-                });
+                var nextDocumentRevision = isReturnedDraft ? existing!.Revision + 1 : 1;
+                if (isReturnedDraft)
+                {
+                    var changed = await db.InvoiceDocuments.Where(i => i.Id == draft.Id &&
+                        i.CustomerUserId == draft.CustomerUserId && i.TaxpayerId == draft.TaxpayerId &&
+                        i.Revision == existing!.Revision && i.State == InvoiceLifecycleState.Draft)
+                        .ExecuteUpdateAsync(set => set.SetProperty(i => i.Revision, nextDocumentRevision)
+                            .SetProperty(i => i.SnapshotJson, canonical).SetProperty(i => i.SnapshotSha256, hash)
+                            .SetProperty(i => i.IssueDateUtc, draft.IssueDateUtc).SetProperty(i => i.UpdatedAtUtc, now), ct);
+                    if (changed != 1)
+                        return new InvoiceWorkspacePromotionResult(InvoiceApiDecision.Conflict,
+                            Code:"concurrent_invoice_change");
+                }
+                else
+                    db.InvoiceDocuments.Add(new StoredInvoice{
+                        Id=draft.Id,CustomerUserId=draft.CustomerUserId,
+                        TaxpayerId=draft.TaxpayerId,Revision=nextDocumentRevision,
+                        State=InvoiceLifecycleState.Draft,Subject=InvoiceSubject.Original,
+                        IssueDateUtc=draft.IssueDateUtc,SnapshotJson=canonical,
+                        SnapshotSha256=hash,UpdatedAtUtc=now
+                    });
                 db.InvoiceDocumentRevisions.Add(new StoredInvoiceRevision{
                     InvoiceId=draft.Id,CustomerUserId=draft.CustomerUserId,
-                    TaxpayerId=draft.TaxpayerId,Revision=1,SnapshotJson=canonical,
+                    TaxpayerId=draft.TaxpayerId,Revision=nextDocumentRevision,SnapshotJson=canonical,
                     SnapshotSha256=hash,CapturedAtUtc=now
                 });
                 await db.SaveChangesAsync(ct);

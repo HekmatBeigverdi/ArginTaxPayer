@@ -28,6 +28,49 @@ public sealed class Phase10LegacyFrozenInvoiceProjectorTests
     }
 
     [Fact]
+    public void Contracting_original_preserves_pattern_and_registered_contract_number()
+    {
+        var invoice=Make();
+        var node=System.Text.Json.Nodes.JsonNode.Parse(invoice.SnapshotJson)!.AsObject();
+        node["pattern"]=4; node["contractNumber"]="123456789012";
+        invoice.SnapshotJson=node.ToJsonString();
+        var taxId=Phase10FiscalInvoiceIdentifier.Generate("ABC123",26,invoice.IssueDateUtc);
+        var wire=Phase10LegacyFrozenInvoiceProjector.Project(invoice,taxId,"12345678901","98765432101",
+            new Dictionary<Guid,string>{{UnitId,"1"}});
+        using var doc=JsonDocument.Parse(wire.Json);
+        var header=doc.RootElement.GetProperty("header");
+        Assert.Equal(1,header.GetProperty("inty").GetInt32());
+        Assert.Equal(4,header.GetProperty("inp").GetInt32());
+        Assert.Equal("123456789012",header.GetProperty("crn").GetString());
+        node.Remove("contractNumber"); invoice.SnapshotJson=node.ToJsonString();
+        Assert.Throws<ArgumentException>(()=>Phase10LegacyFrozenInvoiceProjector.Project(invoice,taxId,
+            "12345678901","98765432101",new Dictionary<Guid,string>{{UnitId,"1"}}));
+    }
+
+    [Fact]
+    public void Type2_original_omits_buyer_and_settlement_fields()
+    {
+        var invoice=Make();
+        var node=System.Text.Json.Nodes.JsonNode.Parse(invoice.SnapshotJson)!.AsObject();
+        node["invoiceType"]=2;
+        node["buyerPersonType"]=null;
+        node["settlementMethod"]=0;
+        node["cashAmountRial"]=null;
+        node["creditAmountRial"]=null;
+        invoice.SnapshotJson=node.ToJsonString();
+        var taxId=Phase10FiscalInvoiceIdentifier.Generate("ABC123",26,invoice.IssueDateUtc);
+        var projected=Phase10LegacyFrozenInvoiceProjector.Project(invoice,taxId,
+            "12345678901",null,new Dictionary<Guid,string>{{UnitId,"1"}});
+        using var doc=JsonDocument.Parse(projected.Json);
+        var h=doc.RootElement.GetProperty("header");
+        Assert.Equal(2,h.GetProperty("inty").GetInt32());
+        Assert.Equal(1,h.GetProperty("inp").GetInt32());
+        Assert.Equal(198,h.GetProperty("tbill").GetInt64());
+        foreach(var key in new[]{"tinb","tob","bid","bpc","bbc","setm","cap","insp"})
+            Assert.False(h.TryGetProperty(key,out _),key);
+    }
+
+    [Fact]
     public void Finalized_snapshot_produces_legacy_cash_invoice()
     {
         var invoice=Make();

@@ -88,7 +88,7 @@ public sealed class Phase10InvoiceCalculationAuditService(
                 buyerType.ValueKind == JsonValueKind.Number &&
                 buyerType.TryGetInt32(out var buyerTypeValue))
                 buyerTypeValid = buyerTypeValue is >= 1 and <= 4;
-            if (!buyerTypeValid)
+            if (!InvoiceSnapshotClassification.IsType2GeneralSale(root) && !buyerTypeValid)
                 Add(findings, "00010", "header.tob", "نوع شخص خریدار الزامی است.");
 
             var w2Valid = otherTaxAndLegalFeesOverride is >= 0 &&

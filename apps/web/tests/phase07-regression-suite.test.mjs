@@ -90,7 +90,7 @@ test("invoice wizard preserves compact modal, catalog search, settlement and res
   assert.match(ui, /<SearchableCatalogPicker/);
   assert.match(ui, /expectedRevision:editing\?\.revision/);
   assert.match(ui, /invoiceDescription:invoiceDescription\.trim\(\) \|\| null/);
-  assert.match(ui, /settlementMethod:settlement/);
+  assert.match(ui, /settlementMethod:buyerDetailsNotRequired \? 0 : settlement/);
   assert.match(ui, /ذخیره و ادامه بعداً/);
   assert.match(ui, /ویرایش و ادامه/);
   assert.match(ui, /console-table-footer/);

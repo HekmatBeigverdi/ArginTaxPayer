@@ -52,7 +52,7 @@ test("wizard persists editable private drafts and supports later resumption", ()
   assert.match(workspace, /ذخیره و ادامه بعداً/);
   assert.match(workspace, /ذخیره و ثبت خریدار/);
   assert.match(workspace, /lastCompletedStep:persistedStep/);
-  assert.match(workspace, /buyerPartyId:buyerId \|\| null/);
+  assert.match(workspace, /buyerPartyId:buyerDetailsNotRequired \? null : buyerId \|\| null/);
   assert.match(workspace, /lines:rows\.map/);
   assert.match(workspace, /بدون ارسال مالیاتی/);
   assert.doesNotMatch(workspace, /localStorage|document\.cookie/);
@@ -178,10 +178,10 @@ test("final stage settlement permits unknown, cash, credit and mixed with constr
   assert.match(workspace, /<option value=\{1\}>نقدی<\/option>/);
   assert.match(workspace, /<option value=\{2\}>نسیه<\/option>/);
   assert.match(workspace, /<option value=\{3\}>نقدی و نسیه<\/option>/);
-  assert.match(workspace, /settlementMethod:settlement/);
-  assert.match(workspace, /cashAmountRial:cash/);
-  assert.match(workspace, /creditAmountRial:credit/);
-  assert.match(workspace, /setSettlement\(\(saved.settlementMethod \?\? 0\) as Settlement\)/);
+  assert.match(workspace, /settlementMethod:buyerDetailsNotRequired \? 0 : settlement/);
+  assert.match(workspace, /cashAmountRial:buyerDetailsNotRequired \? null : cash/);
+  assert.match(workspace, /creditAmountRial:buyerDetailsNotRequired \? null : credit/);
+  assert.match(workspace, /saved.type === 2 && saved.pattern === 1 \? 0 : saved.settlementMethod/);
   assert.match(workspace, /settlementError/);
   assert.match(css, /invoice-register__settlement/);
   assert.match(css, /invoice-register__final-grid/);

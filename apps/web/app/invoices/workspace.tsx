@@ -18,6 +18,7 @@ import InvoiceLineageModal from "./invoice-lineage-modal";
 import InvoicePrintAction from "./invoice-print-action";
 import InvoiceImportPanel, {type ImportValues} from "./invoice-import-panel";
 import BulkInvoiceImportPanel from "./bulk-invoice-import-panel";
+import {normalizeInvoiceIdentifier} from "./invoice-identifier-digits.mjs";
 import {invoicePreview} from "./invoice-financial-preview.mjs";
 
 type Taxpayer = {
@@ -251,6 +252,11 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   const saveRequestInFlight = useRef(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  useEffect(() => {
+    if (!notice) return;
+    const timeout = window.setTimeout(() => setNotice(""), 10_000);
+    return () => window.clearTimeout(timeout);
+  }, [notice]);
   const dialog = useRef<HTMLDivElement>(null);
   const openButton = useRef<HTMLButtonElement>(null);
   const [importOpen,setImportOpen] = useState(false);
@@ -358,6 +364,10 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   const [taxpayerOwners, setTaxpayerOwners] = useState<Record<string,string>>({});
   const visibleTaxpayers = isAdmin ? customerTaxpayers : taxpayers;
   const chosenBuyer = buyers.find(b => b.id === buyerId);
+  const buyerDetailsNotRequired = invoiceType === 2 && pattern === 1;
+  useEffect(() => {
+    if (buyerDetailsNotRequired) { setSettlement(0); setCashInput(""); }
+  }, [buyerDetailsNotRequired]);
 
   async function scopedTaxpayersForCustomer(customer: string): Promise<Taxpayer[]> {
     const result: Taxpayer[] = [];
@@ -403,6 +413,14 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   }, [isAdmin,filterCustomer]);
 
   useEffect(() => {
+    if (buyerDetailsNotRequired) {
+      setBuyerId("");
+      setBuyerQuery("");
+      setBuyerOpen(false);
+      setBuyers([]);
+      setBuyerLoading(false);
+      return;
+    }
     if (!modal || !headerCustomer) { setBuyers([]); return; }
     let active = true;
     setBuyerLoading(true);
@@ -415,7 +433,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
       .catch(() => {if(active)setBuyers([]);})
       .finally(()=>{if(active)setBuyerLoading(false);});
     return ()=>{active=false;};
-  }, [modal,headerCustomer,buyerQuery]);
+  }, [modal,headerCustomer,buyerQuery,buyerDetailsNotRequired]);
 
   useEffect(() => {
     if (!modal || step !== 1 || !headerCustomer) return;
@@ -523,7 +541,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
         "goldConstructionFeeRial","goldSellerProfitRial","goldCommissionRial","goldTotalFeeProfitRial"] as const)
         .map(key=>[key,saved[key] == null?"":String(saved[key])])));
       setInvoiceDescription(saved.invoiceDescription ?? "");
-      setSettlement((saved.settlementMethod ?? 0) as Settlement);
+      setSettlement((saved.type === 2 && saved.pattern === 1 ? 0 : saved.settlementMethod ?? 0) as Settlement);
       setCashInput(saved.settlementMethod === 3 ? String(saved.cashAmountRial ?? "") : "");
       setOtherTaxInput(String(saved.otherTaxAndLegalFeesRial ?? 0));
       setRows(saved.lines.map((line,index)=>({
@@ -568,7 +586,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
     }
     try { invoicePreview(rows); }
     catch { setError("مقادیر عددی ردیف‌ها یا دقت آن‌ها معتبر نیست."); return false; }
-    if (persistedStep===2 && settlement===0) {
+    if (persistedStep===2 && !buyerDetailsNotRequired && settlement===0) {
       setError("برای تکمیل مراحل، روش تسویه صورتحساب را انتخاب کنید.");return false;
     }
     const parsedOtherTax = Number(otherTaxInput);
@@ -578,7 +596,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
       settlement === 3 ? roundRial(Number(cashInput)) : null;
     const credit = settlement === 1 ? 0 : settlement === 2 ? invoiceTotal :
       settlement === 3 ? roundRial(invoiceTotal - Number(cashInput)) : null;
-    if (settlement === 3 && (cashInput.trim() === "" || !Number.isFinite(cash) ||
+    if (!buyerDetailsNotRequired && settlement === 3 && (cashInput.trim() === "" || !Number.isFinite(cash) ||
         Number(cash) <= 0 || Number(credit) <= 0 || Number(cash) >= invoiceTotal)) {
       setError("برای روش نقدی و نسیه، مبلغ نقدی باید بیشتر از صفر و کمتر از جمع صورتحساب باشد.");
       return false;
@@ -591,6 +609,13 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
     const required = formMetadata?.entries.find(p=>p.type===invoiceType && p.pattern===pattern)?.requiredFields;
     if (!formMetadata || !required) {setError("قواعد انتخاب الگو بارگذاری نشده‌اند.");return false;}
     const needed = required.includes("goldFields") ? ["goldConstructionFeeRial","goldSellerProfitRial","goldCommissionRial","goldTotalFeeProfitRial"] : required;
+    for (const key of ["contractNumber", "serviceBillId"]) {
+      const value = normalizeInvoiceIdentifier(conditionalFields[key] ?? "");
+      if (needed.includes(key) && value && !new RegExp("^[0-9]{1," + (key === "contractNumber" ? 12 : 19) + "}$").test(value)) {
+        setError(key === "contractNumber" ? "شماره قرارداد باید حداکثر ۱۲ رقم باشد؛ فقط عدد وارد کنید." : "شناسه قبض باید حداکثر ۱۹ رقم باشد؛ فقط عدد وارد کنید.");
+        return false;
+      }
+    }
     if (completeStep>=1 && needed.some(k=>!conditionalFields[k]?.trim() ||
       (k!=="contractNumber" && k!=="serviceBillId" &&
         (!Number.isFinite(Number(conditionalFields[k])) || Number(conditionalFields[k])<0)))) {
@@ -604,12 +629,12 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
       : headerOptions.memories.some(m=>m.id===memoryId))) {
       setError("حافظه مالیاتی انتخاب‌شده به مؤدی صادرکننده تعلق ندارد.");return false;
     }
-    if (buyerQuery.trim() && !buyerId) {setError("خریدار را از فهرست خریداران ثبت‌شده انتخاب کنید.");return false;}
+    if (!buyerDetailsNotRequired && buyerQuery.trim() && !buyerId) {setError("خریدار را از فهرست خریداران ثبت‌شده انتخاب کنید.");return false;}
     const payload = {
       id:editing?.id ?? null,
       taxpayerId, expectedRevision:editing?.revision ?? 0,
       lastCompletedStep:persistedStep, issueDateUtc:issued.toISOString(),
-      buyerPartyId:buyerId || null,
+      buyerPartyId:buyerDetailsNotRequired ? null : buyerId || null,
       // Production memories use the regular field (fiscalMemoryId:memoryId || null);
       // Sandbox memories must stay isolated from that foreign-key field.
       fiscalMemoryId:memoryId&&!memoryId.startsWith("sandbox:")?memoryId:null,
@@ -618,9 +643,9 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
       ...Object.fromEntries(["contractNumber","serviceBillId","flightType",
         "goldConstructionFeeRial","goldSellerProfitRial","goldCommissionRial","goldTotalFeeProfitRial"]
         .map(k=>[k, !needed.includes(k) || !conditionalFields[k]?.trim() ? null :
-          k==="contractNumber"||k==="serviceBillId" ? conditionalFields[k].trim() : Number(conditionalFields[k])])),
+          k==="contractNumber"||k==="serviceBillId" ? normalizeInvoiceIdentifier(conditionalFields[k]) : Number(conditionalFields[k])])),
       invoiceDescription:invoiceDescription.trim() || null,
-      settlementMethod:settlement, cashAmountRial:cash, creditAmountRial:credit,
+      settlementMethod:buyerDetailsNotRequired ? 0 : settlement, cashAmountRial:buyerDetailsNotRequired ? null : cash, creditAmountRial:buyerDetailsNotRequired ? null : credit,
       otherTaxAndLegalFeesRial:otherTax,
       lines:rows.map(r=>({
         catalogItemId:r.productId || null,unitId:r.unitId || null,
@@ -688,7 +713,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
     settlement === 3 ? roundRial(amount(cashInput)) : 0;
   const creditPreview = settlement === 2 ? invoiceTotal : settlement === 1 ? 0 :
     settlement === 3 ? roundRial(Math.max(0,invoiceTotal-cashPreview)) : 0;
-  const settlementError = settlement === 3 &&
+  const settlementError = !buyerDetailsNotRequired && settlement === 3 &&
     (cashInput.trim() === "" || !Number.isFinite(Number(cashInput)) ||
       cashPreview <= 0 || cashPreview >= invoiceTotal);
   const draftSnapshot = JSON.stringify({
@@ -903,6 +928,40 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
             }}><svg className="invoice-rejected-correction__icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 14 5 10l4-4"/><path d="M5 10h8a6 6 0 0 1 0 12h-2"/><path d="M15 2h4a2 2 0 0 1 2 2v4"/></svg>{rejectedDraftBusy?"در حال آماده‌سازی پیش‌نویس…":"بازگشت به پیش‌نویس"}</button>
           {rejectedDraftError&&<p className="form-error invoice-rejected-correction__error" role="alert">{rejectedDraftError}</p>}
         </section>}
+        {["Draft","Validated","Finalized"].includes(detail.state)&&detail.subject==="Original"&&detail.kind==="internalSnapshot"&&
+          detail.authorityStatus==="NOT_SENT"&&!detail.correctionInProgress&&
+          (!detail.effectiveInvoiceId||detail.effectiveInvoiceId===detail.id)&&
+          <section className="invoice-rejected-correction" aria-label="بازگشت صورتحساب ارسال‌نشده به پیش‌نویس">
+            <p className="field-hint">این صورتحساب هنوز هیچ عملیات ارسالی ندارد. با بازگشت، یک پیش‌نویس جداگانه برای ویرایش ساخته می‌شود و نسخهٔ ثبت‌شده و سوابق آن حفظ می‌شوند.</p>
+            <button type="button" className="invoice-rejected-correction__button" disabled={rejectedDraftBusy}
+              onClick={async()=>{
+                if(rejectedDraftBusy)return;
+                setRejectedDraftBusy(true);setRejectedDraftError("");
+                try{
+                  const response=await fetch("/api/invoice-dispatch/"+
+                    encodeURIComponent(detail.taxpayerId)+"/"+encodeURIComponent(detail.id)+
+                    "/return-to-draft",{method:"POST",cache:"no-store",credentials:"same-origin"});
+                  const data=await response.json().catch(()=>({}));
+                  if(response.status===409){
+                    const messages:Record<string,string>={
+                      invoice_has_dispatch_operation:"برای این صورتحساب عملیات ارسال ثبت شده است؛ فهرست را تازه کنید و وضعیت ارسال را بررسی کنید.",
+                      invoice_not_eligible:"وضعیت این صورتحساب تغییر کرده است؛ فهرست را تازه کنید.",
+                      source_workspace_revision_mismatch:"نسخهٔ مبنای پیش‌نویس تغییر کرده است؛ فهرست را تازه کنید و دوباره تلاش کنید."
+                    };
+                    throw Error(typeof data.error==="string"&&messages[data.error]?messages[data.error]:
+                      "این صورتحساب دیگر واجد شرایط بازگشت به پیش‌نویس نیست؛ وضعیت ارسال را تازه کنید.");
+                  }
+                  if(!response.ok||data.authoritySubmitted!==false||typeof data.workspaceId!=="string")
+                    throw Error("ساخت پیش‌نویس انجام نشد؛ فهرست را تازه کنید و دوباره تلاش کنید.");
+                  await reload();
+                  setDetail(null);
+                  setAutoOpenDispatchFor("");
+                  setNotice("پیش‌نویس آماده شد؛ برای ویرایش، از ستون عملیات «ویرایش و ادامه» را انتخاب کنید.");
+                  setRejectedDraftBusy(false);
+                }catch(e){setRejectedDraftError((e as Error).message);setRejectedDraftBusy(false);}
+              }}><svg className="invoice-rejected-correction__icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 14 5 10l4-4"/><path d="M5 10h8a6 6 0 0 1 0 12h-2"/><path d="M15 2h4a2 2 0 0 1 2 2v4"/></svg>{rejectedDraftBusy?"در حال آماده‌سازی پیش‌نویس…":"بازگشت به پیش‌نویس"}</button>
+            {rejectedDraftError&&<p className="form-error invoice-rejected-correction__error" role="alert">{rejectedDraftError}</p>}
+          </section>}
         {detail.authorityStatus==="FAILED"&&["Correction","SalesReturn","Cancellation"].includes(detail.subject)&&<section className="invoice-rejected-correction" aria-label="انصراف از عملیات ناموفق">
           <p className="field-hint">این عملیات توسط سازمان رد شده است. با انصراف، سند ناموفق از زنجیرهٔ مؤثر کنار می‌رود و آخرین سند موفق دوباره فعال می‌شود.</p>
           <button type="button" className="invoice-rejected-correction__button" disabled={rejectedDraftBusy}
@@ -1043,14 +1102,15 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
                 شناسه ثبت‌شده مؤدی: <bdi dir="ltr">{headerOptions.taxpayer.normalizedIdentifier}</bdi>
                 {headerOptions.memories.length===0 && !headerOptions.sandboxMemories?.length ? " — حافظه مالیاتی ثبت نشده است." : ""}
               </small>}
-              <label htmlFor="invoice-buyer-search">خریدار ثبت‌شده</label>
+              <label htmlFor="invoice-buyer-search">{buyerDetailsNotRequired ? "اطلاعات خریدار (برای نوع دوم فروش لازم نیست)" : "خریدار ثبت‌شده"}</label>
               <div className="invoice-register__buyer">
-                <input id="invoice-buyer-search" type="search" value={buyerQuery}
+                <input id="invoice-buyer-search" type="search" value={buyerDetailsNotRequired ? "" : buyerQuery}
+                  disabled={busy || buyerDetailsNotRequired}
                   role="combobox" aria-autocomplete="list" aria-controls="invoice-buyer-options"
                   aria-expanded={buyerOpen} aria-activedescendant={
                     buyerOpen && buyers[buyerActive] ? "invoice-buyer-option-"+buyers[buyerActive].id : undefined
                   }
-                  placeholder="جست‌وجوی نام یا شناسه خریدار" autoComplete="off"
+                  placeholder={buyerDetailsNotRequired ? "برای این نوع صورتحساب نیازی به خریدار نیست" : "جست‌وجوی نام یا شناسه خریدار"} autoComplete="off"
                   onFocus={()=>{setBuyerOpen(true);setBuyerActive(0);}}
                   onChange={e=>{setBuyerQuery(e.target.value);setBuyerId("");
                     setBuyerOpen(true);setBuyerActive(0);}}
@@ -1065,7 +1125,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
                       setBuyerId(b.id);setBuyerQuery(b.displayName);setBuyerOpen(false);
                     }
                   }}/>
-                {buyerOpen && <div role="listbox" id="invoice-buyer-options"
+                {!buyerDetailsNotRequired && buyerOpen && <div role="listbox" id="invoice-buyer-options"
                     className="invoice-register__buyer-options"
                     aria-label="نتایج جست‌وجوی خریداران">
                   {buyerLoading && <p role="status">در حال جست‌وجو…</p>}
@@ -1079,7 +1139,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
                     <strong>{b.displayName}</strong><small>{b.kind===2?"شخص حقوقی":"شخص حقیقی"} · <span dir="ltr">{b.identifier}</span></small>
                   </button>)}
                 </div>}
-                {buyerId && <small className="invoice-register__selected-buyer">
+                {!buyerDetailsNotRequired && buyerId && <small className="invoice-register__selected-buyer">
                   خریدار انتخاب‌شده: {chosenBuyer?.displayName || buyerQuery}
                   {chosenBuyer ? ` — ${chosenBuyer.kind===2?"حقوقی":"حقیقی"}` : ""}</small>}
               </div>
@@ -1116,7 +1176,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
               {formMetadata && <p className="invoice-register__hint">قواعد انتخاب الگو: {formMetadata.edition} — صرفاً اعتبارسنجی داخلی؛ مجوز ارسال به سامانه مودیان نیست.</p>}
               {(formMetadata?.entries.find(p=>p.type===invoiceType && p.pattern===pattern)?.requiredFields.length ?? 0)>0 &&
                 <p role="status" className="invoice-register__hint">این الگو به فیلدهای تکمیلی اختصاصی نیاز دارد؛ تکمیل و اعتبارسنجی آن‌ها در مراحل بعدی فرم انجام خواهد شد.</p>}
-              <p className="invoice-register__hint">اطلاعات مرحله‌ای در پیش‌نویس خصوصی ذخیره می‌شوند؛ ثبت خریدار را می‌توانید بعداً تکمیل کنید. این پیش‌نویس مجوز ارسال مالیاتی ندارد.</p>
+              <p className="invoice-register__hint">{buyerDetailsNotRequired ? "اطلاعات خریدار برای صورتحساب نوع دوم با الگوی فروش لازم نیست." : "اطلاعات مرحله‌ای در پیش‌نویس خصوصی ذخیره می‌شوند؛ ثبت خریدار را می‌توانید بعداً تکمیل کنید."} این پیش‌نویس مجوز ارسال مالیاتی ندارد.</p>
             </section>}
             {step === 1 && <section aria-label="اقلام صورتحساب">
               <div className="invoice-register__row-tools" style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:8}}>
@@ -1184,7 +1244,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
                   <dl className="invoice-register__summary-info">
                     <dt>مؤدی / فروشنده</dt>
                     <dd>{visibleTaxpayers.find(t=>t.id===taxpayerId)?.displayName || "مؤدی انتخاب‌شده"}</dd>
-                    <dt>خریدار</dt><dd>{buyerQuery || "هنوز انتخاب نشده"}</dd>
+                    <dt>خریدار</dt><dd>{buyerDetailsNotRequired ? "برای نوع دوم فروش لازم نیست" : buyerQuery || "هنوز انتخاب نشده"}</dd>
                     <dt>تاریخ و زمان</dt><dd>{new Intl.DateTimeFormat("fa-IR-u-ca-persian",{timeZone:"Asia/Tehran",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).format(tehranLocalToUtc(date,hour))}</dd>
                     <dt>نوع و الگو</dt><dd>نوع {invoiceType} · الگوی {pattern}</dd>
                     <dt>تعداد ردیف‌ها</dt><dd>{rows.length}</dd>
@@ -1205,7 +1265,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
                   </dl>
                 </section>
               </div>
-              <div className="invoice-register__settlement">
+              {!buyerDetailsNotRequired && <div className="invoice-register__settlement">
                 <div className="invoice-register__field">
                   <label htmlFor="invoice-settlement-method">روش تسویه</label>
                   <select id="invoice-settlement-method" value={settlement}
@@ -1228,8 +1288,9 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
                   <input id="invoice-credit-amount" type="text" dir="ltr"
                     value={fmt(creditPreview)} readOnly aria-readonly="true" />
                 </div>
-              </div>
-              {settlement===0 && <p role="status" className="field-hint">برای تکمیل مرحله نهایی، روش تسویه را مشخص کنید؛ ذخیره پیش‌نویس همچنان مجاز است.</p>}
+              </div>}
+              {buyerDetailsNotRequired && <p className="field-hint">کل مبلغ صورتحساب نوع دوم نقدی تلقی می‌شود.</p>}
+              {!buyerDetailsNotRequired && settlement===0 && <p role="status" className="field-hint">برای تکمیل مرحله نهایی، روش تسویه را مشخص کنید؛ ذخیره پیش‌نویس همچنان مجاز است.</p>}
               {settlementError && <p role="alert" className="form-error">
                 برای تسویه نقدی و نسیه، مبلغ نقدی باید مثبت و کمتر از مبلغ صورتحساب باشد.
               </p>}
@@ -1245,7 +1306,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
               {editing && <InvoiceValidationPanel
                 draftId={editing.id}
                 revision={editing.revision} dirty={validationDirty}
-                onSave={()=>saveWorkspace(step===2 && settlement===0 ? 1 : step,false,false,true)}
+                onSave={()=>saveWorkspace(step===2 && !buyerDetailsNotRequired && settlement===0 ? 1 : step,false,false,true)}
                 onDraftChanged={async()=>{
                   const refreshed=await getJson<SavedEntry>("/api/invoices/workspaces/"+editing.id);
                   const refreshedTehran=tehranDateTime(new Date(refreshed.issueDateUtc));
@@ -1270,8 +1331,8 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
           </div>
           <footer className="invoice-register__dialog-footer">
             <button type="button" className="identity-secondary" disabled={busy || !taxpayerId}
-              onClick={() => void saveWorkspace(step===2 && settlement===0 ? 1 : step,true)}>ذخیره و ادامه بعداً</button>
-            {step===0 && !buyerId && <button type="button" className="identity-secondary"
+              onClick={() => void saveWorkspace(step===2 && !buyerDetailsNotRequired && settlement===0 ? 1 : step,true)}>ذخیره و ادامه بعداً</button>
+            {step===0 && !buyerId && !buyerDetailsNotRequired && <button type="button" className="identity-secondary"
               disabled={busy || !taxpayerId} onClick={() => void saveWorkspace(0,true,true)}>
                 ذخیره و ثبت خریدار</button>}
             <button type="button" className="identity-secondary" onClick={close}
@@ -1282,7 +1343,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
               disabled={busy || step === 0 && (!taxpayerId || !headerCustomer || !date)}
               onClick={nextStep}>مرحله بعد</button> :
               <button type="button" className="identity-primary"
-                disabled={busy || !taxpayerId || settlementError || settlement===0}
+                disabled={busy || !taxpayerId || settlementError || (!buyerDetailsNotRequired && settlement===0)}
                 onClick={() => void saveWorkspace(2,true)}>
                 {busy ? "در حال ذخیره…" : "ذخیره مراحل و خروج"}</button>}
           </footer>

@@ -130,8 +130,8 @@ VALUES ({Guid.NewGuid()}, {owner.Value}, {taxpayerId}, {invoiceId}, {expectedRev
                 !root.TryGetProperty("sourceRevision", out var revision) ||
                 !revision.TryGetInt64(out var value) || value < 1 ||
                 !Phase18InvoiceMemoryBindingService.TryReadMemory(raw, out _, out _) ||
-                !root.TryGetProperty("buyerPartyId", out var buyer) ||
-                !buyer.TryGetGuid(out var buyerId) || buyerId == Guid.Empty ||
+                (!InvoiceSnapshotClassification.IsType2GeneralSale(root) && (!root.TryGetProperty("buyerPartyId", out var buyer) ||
+                !buyer.TryGetGuid(out var buyerId) || buyerId == Guid.Empty)) ||
                 !root.TryGetProperty("lines", out var lines) ||
                 lines.ValueKind != JsonValueKind.Array || lines.GetArrayLength() == 0 ||
                 !root.TryGetProperty("settlementMethod", out _) ||

@@ -205,10 +205,10 @@ SELECT predecessor_fiscal_tax_id FROM (
                 buyer=buyer??String(root,"buyer")??String(root,"BuyerDisplayName"),buyerDetails,
                 description=String(root,"invoiceDescription"),
                 contractNumber=String(root,"contractNumber"),
-                settlementMethod=String(root,"settlementMethod") switch { "1"=>"نقدی", "2"=>"نسیه", "3"=>"نقدی و نسیه", _=>"نامشخص" },
+                settlementMethod=InvoiceSnapshotClassification.IsType2GeneralSale(root) ? "نقدی" : String(root,"settlementMethod") switch { "1"=>"نقدی", "2"=>"نسیه", "3"=>"نقدی و نسیه", _=>"نامشخص" },
                 lines,grossRial=gross,discountRial=discountTotal,netRial=net,
                 vatRial=vatTotal,totalRial=total,otherTaxAndLegalFeesRial=fees,
-                cashAmountRial=cashAmount,creditAmountRial=creditAmount,
+                cashAmountRial=InvoiceSnapshotClassification.IsType2GeneralSale(root) ? total : cashAmount,creditAmountRial=InvoiceSnapshotClassification.IsType2GeneralSale(root) ? 0 : creditAmount,
                 paymentDateUtc=String(root,"paymentDateUtc")
             });
         }

@@ -164,7 +164,7 @@ export default function InvoiceSalesReturnModal({taxpayerId,invoiceId,onClose,on
        onClick={()=>setStage(t.id)} aria-pressed={stage===t.id}><InvoiceActionIcon name={t.id==="items"?"items":t.id==="settlement"?"settlement":"review"}/>{t.text}</button>)}
     </div>
     {stage==="items"&&<div className="table-scroll"><table className="console-table">
-     <thead><tr><th>شرح</th><th>شناسه رسمی</th><th>تعداد اولیه</th><th>تعداد برگشتی</th><th>قیمت ثابت (ریال)</th><th>تخفیف ثابت</th><th>نرخ مالیات</th></tr></thead>
+     <thead><tr><th>شرح</th><th>شناسه رسمی</th><th>تعداد قابل بازگشت</th><th>تعداد برگشتی</th><th>قیمت ثابت (ریال)</th><th>تخفیف ثابت</th><th>نرخ مالیات</th></tr></thead>
      <tbody>{draft.lines.map((line,i)=><tr key={i}>
       <td>{line.description}</td><td><bdi dir="ltr">{line.officialIdentifierSnapshot??"—"}</bdi></td>
       <td>{fa(draft.originalQuantities?.[i]??0)}</td>

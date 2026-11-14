@@ -44,9 +44,9 @@ public sealed class InvoiceValidationReferenceService(
             InvoicePatternDecision.AllowedByReferencedEdition)
             Add("invoice.pattern.unsupported","header.inp",
                 "ترکیب نوع و الگوی صورتحساب در نسخه مستند فعلی پشتیبانی نمی‌شود.");
-        if (draft.Type != 1 || draft.Pattern is not (1 or 4))
+        if (!(draft.Type == 2 && draft.Pattern == 1) && (draft.Type != 1 || draft.Pattern is not (1 or 4)))
             Add("invoice.snapshot.pattern.unsupported","header.inp",
-                "ارسال فعلی فقط از صورتحساب نوع ۱ با الگوی فروش (۱) یا پیمانکاری (۴) پشتیبانی می‌کند.");
+                "این ترکیب نوع و الگوی صورتحساب برای ارسال پشتیبانی نمی‌شود.");
         if (draft.BuyerPartyId is null && draft.Type == 1 &&
             draft.Pattern is not (7 or 11))
             Add("invoice.header.buyer.required","header.buyer",
@@ -73,10 +73,10 @@ public sealed class InvoiceValidationReferenceService(
                 Add("invoice.line.vat.unverified",$"body[{index}].vatRate",
                     $"نرخ مالیات ردیف {index + 1} هنوز مشخص و تأیید نشده است.",true);
         }
-        if (draft.SettlementMethod == InvoiceDraftSettlementMethod.Unknown ||
+        if (!(draft.Type == 2 && draft.Pattern == 1) && (draft.SettlementMethod == InvoiceDraftSettlementMethod.Unknown ||
             !InvoiceDraftSettlementPolicy.IsConsistent(draft.SettlementMethod,
                 draft.CashAmountRial,draft.CreditAmountRial,draft.Lines,
-                draft.OtherTaxAndLegalFeesRial))
+                draft.OtherTaxAndLegalFeesRial)))
             Add("invoice.settlement.snapshot_incomplete","footer.settlement",
                 "مبلغ نقدی و نسیه با جمع نهایی صورتحساب تطابق ندارد؛ روش و مبلغ تسویه را دوباره ذخیره کنید.");
         // The catalog's InternalCode is NOT the sstid/stid field on a
@@ -110,7 +110,7 @@ public sealed class InvoiceValidationReferenceService(
         if (draft.FinancialSummary.PreviewGrandTotalRial <= 0)
             Add("invoice.totals.positive","footer.total",
                 "جمع پیش‌نویس باید بزرگ‌تر از صفر باشد.");
-        if (draft.SettlementMethod == InvoiceDraftSettlementMethod.Unknown)
+        if (!(draft.Type == 2 && draft.Pattern == 1) && draft.SettlementMethod == InvoiceDraftSettlementMethod.Unknown)
             Add("invoice.settlement.unknown","footer.settlement",
                 "روش تسویه هنوز تعیین نشده است.");
 

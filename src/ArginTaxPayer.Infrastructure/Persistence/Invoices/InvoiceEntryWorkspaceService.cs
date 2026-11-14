@@ -180,12 +180,25 @@ public sealed class InvoiceEntryWorkspaceService(
             : (InvoiceApiDecision.Success, id);
     }
 
-    private static bool Valid(SaveInvoiceEntryRequest input)
+    internal static SaveInvoiceEntryRequest NormalizeForSave(SaveInvoiceEntryRequest input)
     {
+        static string? Digits(string? value) => value is null ? null : new string(value.Trim().Select(c =>
+            c is >= '۰' and <= '۹' ? (char)('0' + c - '۰') :
+            c is >= '٠' and <= '٩' ? (char)('0' + c - '٠') : c).ToArray());
+        return input with { ContractNumber = Digits(input.ContractNumber), ServiceBillId = Digits(input.ServiceBillId) };
+    }
+
+    internal static bool Valid(SaveInvoiceEntryRequest input)
+    {
+        input = NormalizeForSave(input);
         if (input.TaxpayerId == Guid.Empty || input.ExpectedRevision < 0 ||
             input.LastCompletedStep is < 0 or > 2 ||
             input.IssueDateUtc.Kind != DateTimeKind.Utc ||
             input.Type is < 1 or > 2 ||
+            input.Type == 2 && input.Pattern == 1 &&
+                (input.BuyerPartyId is not null || input.BuyerDisplayName is not null ||
+                 input.SettlementMethod != InvoiceDraftSettlementMethod.Unknown ||
+                 input.CashAmountRial is not null || input.CreditAmountRial is not null) ||
             OfficialV79InvoicePatternMatrix.Create().Evaluate(
                 new InvoiceTypePattern((ElectronicInvoiceType)input.Type,input.Pattern),
                 input.IssueDateUtc) != InvoicePatternDecision.AllowedByReferencedEdition ||
@@ -229,7 +242,7 @@ public sealed class InvoiceEntryWorkspaceService(
         {
             var summary = InvoiceDraftSettlementPolicy.Calculate(input.Lines,
                 input.OtherTaxAndLegalFeesRial ?? 0m);
-            if (input.LastCompletedStep == 2 &&
+            if (!(input.Type == 2 && input.Pattern == 1) && input.LastCompletedStep == 2 &&
                 (input.SettlementMethod == InvoiceDraftSettlementMethod.Unknown ||
                  input.CashAmountRial is null || input.CreditAmountRial is null))
                 return false;
@@ -261,8 +274,9 @@ public sealed class InvoiceEntryWorkspaceService(
     public async Task<InvoiceEntryResult> SaveAsync(string? token,
         SaveInvoiceEntryRequest input, CancellationToken ct = default)
     {
-        if (input is null || !Valid(input))
-            return new(InvoiceApiDecision.Invalid);
+        if (input is null) return new(InvoiceApiDecision.Invalid);
+        input = NormalizeForSave(input);
+        if (!Valid(input)) return new(InvoiceApiDecision.Invalid);
         var access = await Authorize(token,input.TaxpayerId,ct);
         if (access.Item1 != InvoiceApiDecision.Success) return new(access.Item1);
         // The Sandbox memory is a separate credential identity and cannot be
@@ -371,6 +385,14 @@ SELECT EXISTS(
             });
         }
 
+        if (input.Id is { } editedId)
+        {
+            var creation = await db.InvoiceEntryWorkspaceRevisions.AsNoTracking()
+                .Where(h => h.WorkspaceId == editedId && h.CustomerUserId == access.Item2 &&
+                    h.TaxpayerId == input.TaxpayerId && h.Action == "create")
+                .OrderBy(h => h.Revision).Select(h => h.SnapshotJson).FirstOrDefaultAsync(ct);
+            input = PreserveWorkspaceIdentity(input, original, creation);
+        }
         var now = DateTime.UtcNow;
         // A draft edit always invalidates a prior internal approval. Review
         // metadata is server-owned and may never be forged through the save API.
@@ -449,12 +471,25 @@ FOR UPDATE
                     if(await lockCommand.ExecuteScalarAsync(ct) is null)
                         return new InvoiceEntryResult(InvoiceApiDecision.NotFound);
                 }
-                // Immutable internal invoice snapshot wins over editing.
-                // This check runs INSIDE the workspace update transaction.
-                if(await db.InvoiceDocuments.AsNoTracking().AnyAsync(d=>
-                    d.Id==input.Id.Value && d.CustomerUserId==access.Item2 &&
-                    d.TaxpayerId==input.TaxpayerId,ct))
-                    return new InvoiceEntryResult(InvoiceApiDecision.Conflict);
+                // A returned unsent original reuses its original workspace ID.
+                // Allow edits only while that exact document remains a draft and
+                // has no dispatch operation; all other frozen snapshots stay immutable.
+                var linkedDocument = await db.InvoiceDocuments.AsNoTracking().Where(d =>
+                    d.Id == input.Id.Value && d.CustomerUserId == access.Item2 &&
+                    d.TaxpayerId == input.TaxpayerId).Select(d => (InvoiceLifecycleState?)d.State)
+                    .SingleOrDefaultAsync(ct);
+                if (linkedDocument is not null)
+                {
+                    var returned = input.BulkImportKey == $"unsent-return:{input.Id.Value:N}";
+                    await using var dispatchCheck = db.Database.GetDbConnection().CreateCommand();
+                    dispatchCheck.Transaction = transaction.GetDbTransaction();
+                    dispatchCheck.CommandText = "SELECT EXISTS(SELECT 1 FROM invoice_dispatch_operations WHERE customer_user_id=@owner AND taxpayer_id=@taxpayer AND invoice_id=@invoice)";
+                    foreach (var (name, value) in new[] { ("owner", access.Item2), ("taxpayer", input.TaxpayerId), ("invoice", input.Id.Value) })
+                    { var p = dispatchCheck.CreateParameter(); p.ParameterName = name; p.Value = value; dispatchCheck.Parameters.Add(p); }
+                    var hasDispatch = (bool)(await dispatchCheck.ExecuteScalarAsync(ct) ?? false);
+                    if (!returned || linkedDocument != InvoiceLifecycleState.Draft || hasDispatch)
+                        return new InvoiceEntryResult(InvoiceApiDecision.Conflict);
+                }
                 if (input.Id == Guid.Empty || input.ExpectedRevision < 1)
                     return new InvoiceEntryResult(InvoiceApiDecision.Invalid);
                 var updated = await db.InvoiceEntryWorkspaces.Where(x => x.Id == input.Id &&
@@ -495,6 +530,17 @@ FOR UPDATE
                 ? new(InvoiceApiDecision.Success,View(prior),true)
                 : new(InvoiceApiDecision.Conflict);
         }
+    }
+
+    internal static SaveInvoiceEntryRequest PreserveWorkspaceIdentity(
+        SaveInvoiceEntryRequest input, string? storedJson, string? creationJson)
+    {
+        var stored = storedJson is null ? null : JsonSerializer.Deserialize<SaveInvoiceEntryRequest>(storedJson);
+        var creation = creationJson is null ? null : JsonSerializer.Deserialize<SaveInvoiceEntryRequest>(creationJson);
+        return input with {
+            BulkImportKey = stored?.BulkImportKey ?? creation?.BulkImportKey,
+            BulkFingerprint = stored?.BulkFingerprint ?? creation?.BulkFingerprint
+        };
     }
 
     public async Task<InvoiceWorkspaceHistoryResult> HistoryAsync(

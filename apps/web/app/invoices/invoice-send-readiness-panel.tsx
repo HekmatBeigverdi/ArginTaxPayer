@@ -285,6 +285,10 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
     const result=await response.json();
     if(signal?.aborted)return;
     if(!response.ok&&redirectForInvoiceSubscription(result))return;
+    if(result.error==="invoice_contract_number_missing" || result.safeCode==="invoice_contract_number_missing"){
+     setError("صورتحساب ارسال نشد؛ شماره قرارداد در نسخه ثابت ثبت نشده است. برای اصلاح این فاکتور، بازیابی نسخه ثابت و بررسی رزرو شماره مالیاتی توسط پشتیبانی لازم است.");
+     await loadDispatch();return;
+    }
     if(!response.ok)throw Error("send_response_unavailable");
     sentEnvironment=result.environment;
     if(result.status==="Acknowledged"&&typeof result.referenceNumber==="string"&&result.referenceNumber)
@@ -574,6 +578,7 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
      invoice_calculation_audit_failed:"محاسبات یا فیلدهای اجباری صورتحساب معتبر نیست؛ خطاهای محاسباتی را اصلاح و دوباره بررسی کنید.",
      official_goods_mapping_invalid:"نگاشت رسمی کالا یا خدمت قابل تأیید نیست.",
      official_units_unverified:"کد رسمی واحد اندازه‌گیری کالا یا خدمت تأیید نشده است.",
+     invoice_contract_number_missing:"شماره قرارداد در نسخه ثابت ثبت نشده است؛ بازیابی نسخه ثابت و بررسی رزرو شماره مالیاتی توسط پشتیبانی لازم است.",
      legacy_wire_mapping_unverified:"اطلاعات این صورتحساب با الگوی فعلی ارسال Legacy سازگار نیست.",
      invoice_number_missing:"شماره داخلی صورتحساب از سوابق سرور پیدا نشد.",
      dispatch_operation_requires_reconciliation:"یک عملیات قبلی وجود دارد که به بررسی Outbox نیاز دارد؛ ارسال تکراری ایجاد نشد.",

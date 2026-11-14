@@ -239,6 +239,21 @@ UNION
 SELECT successor_invoice_id AS "Value"
 FROM authority_invoice_legal_relations
 """);
+        // Returned originals keep their original invoice ID and human reference.
+        // Hide their document projection while editable and show the same-ID workspace.
+        var returnedUnsentDrafts = db.Database.SqlQueryRaw<Guid>("""
+SELECT w.id AS "Value"
+FROM invoice_entry_workspaces w
+JOIN invoice_documents d ON d.id=w.id AND d.customer_user_id=w.customer_user_id
+ AND d.taxpayer_id=w.taxpayer_id AND d.state=1
+WHERE w.draft_json->>'BulkImportKey'='unsent-return:' || replace(w.id::text,'-','')
+""");
+        // Hide old accidental copy workspaces created by the prior implementation.
+        var obsoleteUnsentCopies = db.Database.SqlQueryRaw<Guid>("""
+SELECT id AS "Value" FROM invoice_entry_workspaces
+WHERE draft_json->>'BulkImportKey' LIKE 'unsent-return:%'
+ AND draft_json->>'BulkImportKey' <> 'unsent-return:' || replace(id::text,'-','')
+""");
         var documents = db.InvoiceDocuments.AsNoTracking()
             .Where(x => allowed.Contains(x.TaxpayerId) && !legalSuccessors.Contains(x.Id)
                 && !replaced.Contains(x.Id) && !pendingRejectedSuccessors.Contains(x.Id)
@@ -256,7 +271,8 @@ FROM authority_invoice_legal_relations
             .Where(x => allowed.Contains(x.TaxpayerId) &&
                 !rejectedCorrectionDrafts.Contains(x.Id) &&
                 !db.InvoiceDocuments.Any(d => d.Id == x.Id &&
-                    d.TaxpayerId == x.TaxpayerId && d.CustomerUserId == x.CustomerUserId))
+                    d.TaxpayerId == x.TaxpayerId && d.CustomerUserId == x.CustomerUserId) ||
+                allowed.Contains(x.TaxpayerId) && returnedUnsentDrafts.Contains(x.Id))
             .Select(x => new {
                 x.Id, x.CustomerUserId, x.TaxpayerId, x.Revision,
                 x.IssueDateUtc, x.UpdatedAtUtc,
@@ -494,7 +510,8 @@ WHERE predecessor_invoice_id=ANY(@ids)
                     ((InvoiceReviewState)(x.Review ?? 1)).ToString(),
                 x.Source==0?inheritedCodes.GetValueOrDefault(x.Id,
                     referenceCodes.GetValueOrDefault(("document",x.Id))):
-                    referenceCodes.GetValueOrDefault(("workspace",x.Id)),
+                    referenceCodes.GetValueOrDefault(("document",x.Id),
+                        referenceCodes.GetValueOrDefault(("workspace",x.Id))),
                 names.GetValueOrDefault(x.TaxpayerId),
                 buyers.GetValueOrDefault(x.Id),
                 effectiveByRoot.TryGetValue(x.Id,out var effectiveStatus)?effectiveStatus.Status:

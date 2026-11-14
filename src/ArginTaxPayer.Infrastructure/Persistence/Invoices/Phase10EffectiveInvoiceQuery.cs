@@ -18,8 +18,8 @@ internal static class Phase10EffectiveInvoiceQuery
         try
         {
             await using var command = connection.CreateCommand();
-            command.CommandText = """
-                WITH RECURSIVE chain AS (
+            command.CommandText = $"""
+                WITH RECURSIVE {SandboxRetryLineageQuery.Ctes}, chain AS (
                   SELECT r.predecessor_invoice_id AS root_id,r.successor_invoice_id AS invoice_id,
                     r.customer_user_id,r.taxpayer_id,r.created_at_utc,1 AS depth,
                     ARRAY[r.predecessor_invoice_id,r.successor_invoice_id] AS visited
@@ -33,6 +33,9 @@ internal static class Phase10EffectiveInvoiceQuery
                     SELECT predecessor_invoice_id,successor_invoice_id,customer_user_id,taxpayer_id,
                       created_at_utc,1 AS state
                     FROM invoice_rejection_replacements
+                    UNION ALL
+                    SELECT predecessor_invoice_id,successor_invoice_id,customer_user_id,taxpayer_id,created_at_utc,state
+                    FROM sandbox_retries
                   ) r
                   WHERE r.predecessor_invoice_id=ANY(@ids)
                     AND r.state IN (1,2,4)
@@ -50,6 +53,9 @@ internal static class Phase10EffectiveInvoiceQuery
                     SELECT predecessor_invoice_id,successor_invoice_id,customer_user_id,taxpayer_id,
                       created_at_utc,1 AS state
                     FROM invoice_rejection_replacements
+                    UNION ALL
+                    SELECT predecessor_invoice_id,successor_invoice_id,customer_user_id,taxpayer_id,created_at_utc,state
+                    FROM sandbox_retries
                   ) r
                     ON r.predecessor_invoice_id=c.invoice_id
                     AND r.customer_user_id=c.customer_user_id AND r.taxpayer_id=c.taxpayer_id
@@ -80,6 +86,9 @@ internal static class Phase10EffectiveInvoiceQuery
                 WHERE COALESCE(production_report.status,report.status)='SUCCESS'
                   OR (d.subject IN (2,3,4) AND
                     (op.state IN (4,5,6) OR COALESCE(production_report.status,report.status) IS NOT NULL))
+                  OR EXISTS(SELECT 1 FROM sandbox_invoice_correction_drafts retry
+                    WHERE retry.workspace_id=d.id AND retry.customer_user_id=d.customer_user_id
+                      AND retry.taxpayer_id=d.taxpayer_id)
                   OR EXISTS(SELECT 1 FROM invoice_rejection_replacements rejected
                     WHERE rejected.successor_invoice_id=d.id
                       AND rejected.customer_user_id=d.customer_user_id
