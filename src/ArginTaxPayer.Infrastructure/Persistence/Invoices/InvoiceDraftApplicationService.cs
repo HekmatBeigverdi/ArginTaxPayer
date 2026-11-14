@@ -161,15 +161,7 @@ public sealed class InvoiceDraftApplicationService(
         if (access.Decision != InvoiceApiDecision.Success)
             return (access.Decision, Array.Empty<InvoiceDraftView>());
         var replaced=db.Database.SqlQueryRaw<Guid>("SELECT predecessor_invoice_id AS \"Value\" FROM invoice_successful_rejection_replacements");
-        var sandboxCorrectionDrafts=db.Database.SqlQueryRaw<Guid>("""
-SELECT workspace_id AS "Value" FROM sandbox_invoice_correction_drafts
-UNION
-SELECT id AS "Value" FROM invoice_entry_workspaces
-WHERE draft_json->>'BulkImportKey' LIKE 'sandbox-correction:%'
-UNION
-SELECT workspace_id AS "Value" FROM invoice_entry_workspace_revisions
-WHERE action='create' AND snapshot_json->>'BulkImportKey' LIKE 'sandbox-correction:%'
-""");
+        var sandboxCorrectionDrafts=db.Database.SqlQueryRaw<Guid>("SELECT workspace_id AS \"Value\" FROM sandbox_invoice_correction_drafts");
         var pendingRejectedSuccessors=db.Database.SqlQueryRaw<Guid>("""
 SELECT r.successor_invoice_id AS "Value"
 FROM invoice_rejection_replacements r
@@ -224,29 +216,17 @@ WHERE NOT EXISTS(
  SELECT 1 FROM invoice_successful_rejection_replacements s
  WHERE s.successor_invoice_id=r.successor_invoice_id)
 """);
-        // A Sandbox correction workspace can become an internal invoice snapshot;
-        // it must remain grouped with the rejected predecessor after that conversion.
-        var sandboxCorrectionDrafts=db.Database.SqlQueryRaw<Guid>("""
-SELECT workspace_id AS "Value" FROM sandbox_invoice_correction_drafts
-UNION
-SELECT id AS "Value" FROM invoice_entry_workspaces
-WHERE draft_json->>'BulkImportKey' LIKE 'sandbox-correction:%'
-UNION
-SELECT workspace_id AS "Value" FROM invoice_entry_workspace_revisions
-WHERE action='create' AND snapshot_json->>'BulkImportKey' LIKE 'sandbox-correction:%'
-""");
+        // Sandbox correction drafts can be frozen into invoice_documents by the
+        // normal internal-snapshot flow. Keep those linked documents attached to
+        // their rejected predecessor in the register as well as while editable.
+        var sandboxCorrectionDrafts=db.Database.SqlQueryRaw<Guid>("SELECT workspace_id AS \"Value\" FROM sandbox_invoice_correction_drafts");
         // A rejected original's editable correction workspace is a draft attached
         // to that invoice, not another invoice row. It is opened through the
-        // predecessor's "return to draft" action and must not consume a second
-        // visible system-code row while the predecessor remains the root record.
+        // predecessor's "return to draft" action and must not appear as a second
+        // invoice row with its workspace-only system code while the predecessor
+        // remains the root record.
         var rejectedCorrectionDrafts=db.Database.SqlQueryRaw<Guid>("""
 SELECT workspace_id AS "Value" FROM sandbox_invoice_correction_drafts
-UNION
-SELECT id AS "Value" FROM invoice_entry_workspaces
-WHERE draft_json->>'BulkImportKey' LIKE 'sandbox-correction:%'
-UNION
-SELECT workspace_id AS "Value" FROM invoice_entry_workspace_revisions
-WHERE action='create' AND snapshot_json->>'BulkImportKey' LIKE 'sandbox-correction:%'
 UNION
 SELECT successor_invoice_id AS "Value" FROM invoice_rejection_replacements
 """);
@@ -277,7 +257,7 @@ WHERE draft_json->>'BulkImportKey' LIKE 'unsent-return:%'
         var documents = db.InvoiceDocuments.AsNoTracking()
             .Where(x => allowed.Contains(x.TaxpayerId) && !legalSuccessors.Contains(x.Id)
                 && !replaced.Contains(x.Id) && !pendingRejectedSuccessors.Contains(x.Id)
-                && !sandboxCorrectionDrafts.Contains(x.Id) && !returnedUnsentDrafts.Contains(x.Id))
+                && !sandboxCorrectionDrafts.Contains(x.Id))
             .Select(x => new {
                 x.Id, x.CustomerUserId, x.TaxpayerId, x.Revision,
                 x.IssueDateUtc, x.UpdatedAtUtc,
@@ -290,7 +270,6 @@ WHERE draft_json->>'BulkImportKey' LIKE 'unsent-return:%'
         var working = db.InvoiceEntryWorkspaces.AsNoTracking()
             .Where(x => allowed.Contains(x.TaxpayerId) &&
                 !rejectedCorrectionDrafts.Contains(x.Id) &&
-                !obsoleteUnsentCopies.Contains(x.Id) &&
                 !db.InvoiceDocuments.Any(d => d.Id == x.Id &&
                     d.TaxpayerId == x.TaxpayerId && d.CustomerUserId == x.CustomerUserId) ||
                 allowed.Contains(x.TaxpayerId) && returnedUnsentDrafts.Contains(x.Id))
