@@ -29,7 +29,7 @@ public sealed class Phase18ClassifiedProducerDatabaseTests
     [Theory]
     [InlineData(FiscalConnectionEnvironment.Production,"Production","tp.tax.gov.ir",1)]
     [InlineData(FiscalConnectionEnvironment.Sandbox,"Sandbox","sandboxrc.tax.gov.ir",2)]
-    public async Task Real_producer_uses_scoped_custody_and_atomic_classified_outbox_without_enqueue(
+    public async Task Producer_requires_shared_registry_for_Production_and_preserves_atomic_Sandbox_outbox(
         FiscalConnectionEnvironment environment,string name,string host,int persisted)
     {
         var raw=Environment.GetEnvironmentVariable("PHASE18_PRODUCER_TEST_CONNECTION");
@@ -140,6 +140,21 @@ CREATE TABLE invoice_dispatch_attempts(id uuid PRIMARY KEY,operation_id uuid NOT
                 Assert.Equal(0,requests.Calls);
                 await db.SigningKeyVersions.Where(k=>k.Id==keyId).ExecuteUpdateAsync(u=>u.SetProperty(k=>k.LifecycleState,(short)2));
                 Assert.Equal(0L,await Scalar(connection,"SELECT count(*) FROM authority_invoice_fiscal_reservations"));
+                if (environment == FiscalConnectionEnvironment.Production)
+                {
+                    // A TEST invoice DB is no longer an independent Production allocator.
+                    // Verify the new fail-closed boundary before any authority credentials
+                    // or outbox are created. Shared allocation itself is exercised by the
+                    // isolated SharedProductionFiscalSerialRegistry database tests.
+                    var unconfigured = await producer.PrepareAsync(accessToken,taxpayer,invoiceId);
+                    Assert.Equal(InvoiceApiDecision.Invalid,unconfigured.Decision);
+                    Assert.Equal("production_fiscal_reservation_conflict",unconfigured.SafeCode);
+                    Assert.Equal(0,requests.Calls);
+                    Assert.Equal(0L,await Scalar(connection,"SELECT count(*) FROM authority_invoice_fiscal_reservations"));
+                    Assert.Equal(0L,await Scalar(connection,"SELECT count(*) FROM invoice_dispatch_operations"));
+                    Assert.Equal(0L,await Scalar(connection,"SELECT count(*) FROM outbox_messages"));
+                    return;
+                }
                 requests.RejectToken=true;
                 var rejected=await producer.PrepareAsync(accessToken,taxpayer,invoiceId);
                 Assert.Equal(InvoiceApiDecision.Invalid,rejected.Decision);
