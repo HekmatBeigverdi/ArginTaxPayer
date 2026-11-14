@@ -242,7 +242,7 @@ export default function InvoiceValidationPanel({
       : "بررسی پیش‌نویس ذخیره‌شده";
 
   return (
-    <section className="invoice-validation" aria-labelledby="invoice-validation-title">
+    <section className="invoice-validation" aria-labelledby="invoice-validation-title" aria-busy={busy || preparing}>
       <div className="invoice-validation__heading">
         <div>
           <h3 id="invoice-validation-title">پیش‌بررسی و سوابق ارجاع</h3>
@@ -251,13 +251,17 @@ export default function InvoiceValidationPanel({
         <button
           type="button"
           className="identity-secondary"
-          disabled={busy}
+          disabled={busy || preparing}
           onClick={reviewDraft}
         >
           {buttonLabel}
         </button>
       </div>
 
+      {(busy || preparing) && <p className="invoice-entry-loading" role="status" aria-live="polite">
+        <span className="argin-loader-spinner" aria-hidden="true"/>
+        {preparing ? "در حال ثبت نسخه ثابت…" : checkingAfterSave ? "در حال ذخیره و بررسی پیش‌نویس…" : "در حال بررسی پیش‌نویس…"}
+      </p>}
       {dirty && (
         <p role="status" className="invoice-validation__warning">
           فرم از آخرین نسخه ذخیره‌شده تغییر کرده است؛ ابتدا ذخیره کنید.

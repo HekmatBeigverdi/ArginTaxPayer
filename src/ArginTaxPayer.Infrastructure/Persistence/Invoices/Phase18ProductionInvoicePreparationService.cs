@@ -252,10 +252,12 @@ SELECT EXISTS (
         try
         {
             reservation=await ProductionInvoiceFiscalSerialRepository.ReserveAsync(connection,transaction,
-                invoice,memoryId,memoryCode,environmentValue,configuration[$"{environmentName}InvoiceLegacy:LastUsedSerial:{memoryId:N}"],knownIds,ct);
+                invoice,memoryId,memoryCode,environmentValue,configuration[$"{environmentName}InvoiceLegacy:LastUsedSerial:{memoryId:N}"],knownIds,ct,
+                SharedRegistryConnection(configuration, connection, environmentValue));
         }
         catch(ArgumentException) { return Denied("production_fiscal_serial_invalid_or_exhausted"); }
         catch(InvalidOperationException) { return Denied("production_fiscal_reservation_conflict"); }
+        catch(NpgsqlException) { return Denied("production_shared_serial_registry_unavailable"); }
 
         InvoiceWireProjection wire;
         try
@@ -308,6 +310,26 @@ VALUES(@id,@taxpayer,@event,@payload,@dedup,@now,NULL,0)
 """,ct,("id",operationId),("taxpayer",taxpayerId),("payload",payload),("event",$"invoice.{environmentName.ToLowerInvariant()}.legacy.dispatch.requested"),
             ("dedup",$"phase18:{environmentName.ToLowerInvariant()}:legacy:{taxpayerId:N}:{invoiceId:N}:{invoice.Revision}"),("now",now));
         return new(InvoiceApiDecision.Success,"legacy_outbox_prepared",operationId,wire.Json);
+    }
+
+    private static string? SharedRegistryConnection(IConfiguration configuration,
+        System.Data.Common.DbConnection connection, int environment)
+    {
+        if (environment != 1) return null;
+        var configured = configuration.GetConnectionString("FiscalSerialRegistry");
+        if (!string.IsNullOrWhiteSpace(configured))
+        {
+            var registry = new NpgsqlConnectionStringBuilder(configured);
+            if (registry.Database != "argintaxpayer_prod")
+                throw new InvalidOperationException("Production serial registry must use the Production database.");
+            return configured;
+        }
+        // Production deployment uses its existing DB; development with a TEST DB
+        // must explicitly configure the central registry. No local fallback.
+        var current = new NpgsqlConnectionStringBuilder(connection.ConnectionString);
+        if (current.Database != "argintaxpayer_prod")
+            throw new InvalidOperationException("Production sends from TEST require FiscalSerialRegistry.");
+        return configuration.GetConnectionString("ArginTaxPayerDb");
     }
 
     private static Phase10LegacyPreparationResult Denied(string code)=>new(InvoiceApiDecision.Invalid,code);

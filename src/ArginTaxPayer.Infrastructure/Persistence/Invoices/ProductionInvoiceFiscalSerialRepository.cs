@@ -43,7 +43,7 @@ internal static class ProductionInvoiceFiscalSerialRepository
     internal static async Task<ProductionFiscalReservation> ReserveAsync(
         DbConnection connection, DbTransaction transaction, StoredInvoice invoice,
         Guid memoryId, string memoryCode, int environment, string? configuredLastUsed,
-        IEnumerable<string> knownTaxIds, CancellationToken ct)
+        IEnumerable<string> knownTaxIds, CancellationToken ct, string? sharedRegistryConnection = null)
     {
         await using var existing = Phase18ProductionInvoicePreparationService.Command(connection,transaction,"""
 SELECT id,fiscal_tax_id,serial,invoice_revision,approved_snapshot_sha256,fiscal_memory_id
@@ -64,6 +64,13 @@ WHERE customer_user_id=@owner AND taxpayer_id=@taxpayer AND invoice_id=@invoice
 SELECT COALESCE(MAX(serial),0) FROM authority_invoice_fiscal_reservations WHERE fiscal_memory_id=@memory
 """,ct,("memory",memoryId));
         var serialNumber=NextSerial(Convert.ToInt64(maximum),configuredLastUsed,knownTaxIds,memoryCode);
+        if (environment == 1)
+        {
+            if (string.IsNullOrWhiteSpace(sharedRegistryConnection))
+                throw new InvalidOperationException("Shared Production serial registry is required.");
+            serialNumber = await SharedProductionFiscalSerialRegistry.ReserveAsync(
+                sharedRegistryConnection, invoice, memoryCode, serialNumber - 1, ct);
+        }
         var fiscalTaxId=Phase10FiscalInvoiceIdentifier.Generate(memoryCode,serialNumber,invoice.IssueDateUtc);
         var id=Guid.NewGuid();
         await using var insert=Phase18ProductionInvoicePreparationService.Command(connection,transaction,"""

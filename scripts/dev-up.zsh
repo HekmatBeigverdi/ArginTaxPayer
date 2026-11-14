@@ -35,9 +35,27 @@ if [[ ! -s "$PEPPER" ]]; then
   chmod 600 "$PEPPER"
 fi
 export Identity__OtpPepper="$(< "$PEPPER")"
-if [[ -z "${ConnectionStrings__ArginTaxPayerDb:-}" ||
-      "${ConnectionStrings__ArginTaxPayerDb}" != *"Database=argintaxpayer_test;"* ]]; then
-  print -u2 'Refusing to run: only the dedicated argintaxpayer_test DB is allowed.'
+# Development remains the default. Production diagnostics uses its own private profile.
+DB_TARGET="${ARGIN_DB_TARGET:-test}"
+case "$DB_TARGET" in
+  test) expected_database=argintaxpayer_test; tunnel_port=15432 ;;
+  production)
+    [[ -f "$ROOT/.env.production.local" ]] || { print -u2 'Missing .env.production.local'; exit 1; }
+    chmod 600 "$ROOT/.env.production.local"
+    # Do not silently reuse test identity/custody material for Production.
+    unset Identity__OtpPepper Identity__MfaEncryptionKey SigningKeyProtection__DatabaseMasterKey
+    unset ConnectionStrings__FiscalSerialRegistry
+    set -a
+    source "$ROOT/.env.production.local"
+    set +a
+    expected_database=argintaxpayer_prod; tunnel_port=15434
+    export Identity__AllowDevelopmentRegistration=false
+    [[ -n "${Identity__OtpPepper:-}" && -n "${SigningKeyProtection__DatabaseMasterKey:-}" ]] || { print -u2 'Production profile needs its existing OTP pepper and signing custody key.'; exit 1; }
+    ;;
+  *) print -u2 'ARGIN_DB_TARGET must be test or production'; exit 1 ;;
+esac
+if [[ "${ConnectionStrings__ArginTaxPayerDb:-}" != *"Database=$expected_database;"* ]]; then
+  print -u2 "Connection must select $expected_database for profile $DB_TARGET."
   exit 1
 fi
 if [[ "${Identity__OtpDeliveryMode:-Ghasedak}" == "LocalFile" ]]; then
@@ -80,12 +98,13 @@ cleanup_on_failure() {
 trap cleanup_on_failure EXIT
 
 # Do not start duplicate processes or hijack an existing listener.
-if ! lsof -nP -iTCP:15432 -sTCP:LISTEN >/dev/null 2>&1; then
+if ! lsof -nP -iTCP:$tunnel_port -sTCP:LISTEN >/dev/null 2>&1; then
   print 'Starting AutoSSH PostgreSQL tunnel...'
   AUTOSSH_GATETIME=0 nohup autossh -M 0 -N \
     -o BatchMode=yes -o ServerAliveInterval=15 -o ServerAliveCountMax=3 \
     -o ConnectTimeout=10 -o ExitOnForwardFailure=yes \
-    -L 127.0.0.1:15432:127.0.0.1:15432 argindev@109.70.78.95 \
+    -p "${ARGIN_SSH_PORT:-2222}" \
+    -L "127.0.0.1:$tunnel_port:127.0.0.1:$tunnel_port" "${ARGIN_SSH_HOST:-argindev@109.70.78.95}" \
     > "$STATE/autossh.log" 2>&1 < /dev/null &
   echo $! > "$STATE/autossh.pid"
   started_pids+=("$!")
@@ -93,7 +112,7 @@ if ! lsof -nP -iTCP:15432 -sTCP:LISTEN >/dev/null 2>&1; then
 fi
 tunnel_ready=0
 for i in {1..30}; do
-  if lsof -nP -iTCP:15432 -sTCP:LISTEN >/dev/null 2>&1; then
+  if lsof -nP -iTCP:$tunnel_port -sTCP:LISTEN >/dev/null 2>&1; then
     tunnel_ready=1
     break
   fi
@@ -104,6 +123,18 @@ if (( ! tunnel_ready )); then
   exit 1
 fi
 
+# A TEST application can use the Production allocator over an independent tunnel.
+if [[ "$DB_TARGET" == test && -n "${ConnectionStrings__FiscalSerialRegistry:-}" ]] &&
+   ! lsof -nP -iTCP:15434 -sTCP:LISTEN >/dev/null 2>&1; then
+  AUTOSSH_GATETIME=0 nohup autossh -M 0 -N \
+    -p "${ARGIN_SSH_PORT:-2222}" -o BatchMode=yes -o ExitOnForwardFailure=yes \
+    -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -o ConnectTimeout=10 \
+    -L 127.0.0.1:15434:127.0.0.1:15434 "${ARGIN_SSH_HOST:-argindev@109.70.78.95}" \
+    > "$STATE/serial-registry.log" 2>&1 < /dev/null &
+  started_pids+=("$!")
+  echo $! > "$STATE/serial-registry.pid"
+fi
+
 # Optional Adminer forward. Adminer runs in Docker on the VPS and is published
 # only on VPS loopback port 18082. This avoids unrelated services on 8080/8081.
 if ! lsof -nP -iTCP:18081 -sTCP:LISTEN >/dev/null 2>&1; then
@@ -111,7 +142,8 @@ if ! lsof -nP -iTCP:18081 -sTCP:LISTEN >/dev/null 2>&1; then
   AUTOSSH_GATETIME=0 nohup autossh -M 0 -N \
     -o BatchMode=yes -o ServerAliveInterval=15 -o ServerAliveCountMax=3 \
     -o ConnectTimeout=10 -o ExitOnForwardFailure=yes \
-    -L 127.0.0.1:18081:127.0.0.1:18082 argindev@109.70.78.95 \
+    -p "${ARGIN_SSH_PORT:-2222}" \
+    -L 127.0.0.1:18081:127.0.0.1:18082 "${ARGIN_SSH_HOST:-argindev@109.70.78.95}" \
     > "$STATE/adminer.log" 2>&1 < /dev/null &
   adminer_pid="$!"
   started_pids+=("$adminer_pid")
@@ -141,17 +173,17 @@ db_port="$(sed -n 's/.*Port=\([^;]*\).*/\1/p' <<< "$ConnectionStrings__ArginTaxP
 db_name="$(sed -n 's/.*Database=\([^;]*\).*/\1/p' <<< "$ConnectionStrings__ArginTaxPayerDb")"
 db_user="$(sed -n 's/.*Username=\([^;]*\).*/\1/p' <<< "$ConnectionStrings__ArginTaxPayerDb")"
 db_password="$(sed -n 's/.*Password=\([^;]*\).*/\1/p' <<< "$ConnectionStrings__ArginTaxPayerDb")"
-if [[ "$db_name" != "argintaxpayer_test" || -z "$db_host" || -z "$db_port" ||
+if [[ "$db_name" != "$expected_database" || -z "$db_host" || -z "$db_port" ||
       -z "$db_user" || -z "$db_password" ]]; then
-  print -u2 'Invalid test PostgreSQL connection settings.'
+  print -u2 'Invalid PostgreSQL connection settings.'
   exit 1
 fi
 probe_database() {
-  PGPASSWORD="$db_password" psql -X -q -h "$db_host" -p "$db_port" \
+  PGSSLMODE="${PGSSLMODE:-prefer}" PGPASSWORD="$db_password" psql -X -q -h "$db_host" -p "$db_port" \
     -U "$db_user" -d "$db_name" -tAc 'SELECT current_database()'
 }
 if ! db_probe="$(probe_database 2>"$STATE/psql.log" | tr -d '[:space:]')"; then
-  if [[ ! -t 0 ]]; then
+  if [[ "$DB_TARGET" == production || ! -t 0 ]]; then
     print -u2 "PostgreSQL connection failed. Check $STATE/psql.log and .env.dev.local."
     exit 1
   fi
@@ -171,11 +203,11 @@ if ! db_probe="$(probe_database 2>"$STATE/psql.log" | tr -d '[:space:]')"; then
   ConnectionStrings__ArginTaxPayerDb="Host=$db_host;Port=$db_port;Database=$db_name;Username=$db_user;Password=$db_password;SSL Mode=Prefer"
   export ConnectionStrings__ArginTaxPayerDb
 fi
-if [[ "$db_probe" != "argintaxpayer_test" ]]; then
+if [[ "$db_probe" != "$expected_database" ]]; then
   print -u2 'PostgreSQL preflight returned an unexpected database.'
   exit 1
 fi
-print 'PostgreSQL preflight: argintaxpayer_test'
+print "PostgreSQL preflight: $expected_database (no migrations)"
 
 # Confirm DB name using the configured connection string through the .NET readiness
 # endpoint after API starts. No migrations are applied by the launcher.

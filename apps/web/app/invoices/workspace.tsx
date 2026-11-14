@@ -231,6 +231,7 @@ const fmt = (value: number) => value.toLocaleString("fa-IR", { maximumFractionDi
 export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: string; isAdmin: boolean}) {
   // List and filtering state.
   const [taxpayers, setTaxpayers] = useState<Taxpayer[]>([]);
+  const [taxpayersLoading, setTaxpayersLoading] = useState(!isAdmin);
   const [taxpayerId, setTaxpayerId] = useState("");
   const [filterCustomer, setFilterCustomer] = useState("");
   const [filterTaxpayer, setFilterTaxpayer] = useState("");
@@ -264,6 +265,8 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
 
   // Header, buyer, and invoice form state.
   const [headerCustomer, setHeaderCustomer] = useState(isAdmin ? "" : actorId);
+  const [accountsLoading, setAccountsLoading] = useState(isAdmin);
+  const [customerTaxpayersLoading, setCustomerTaxpayersLoading] = useState(false);
   const [memoryId,setMemoryId] = useState("");
   const [headerOptions,setHeaderOptions] = useState<HeaderOptions|null>(null);
   const [headerLoading,setHeaderLoading] = useState(false);
@@ -277,6 +280,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   const [date, setDate] = useState(() => tehranDateTime(new Date()).date);
   const [hour, setHour] = useState(() => tehranDateTime(new Date()).time);
   const [formMetadata, setFormMetadata] = useState<FormMetadata | null>(null);
+  const [formMetadataLoading, setFormMetadataLoading] = useState(true);
   const [formMetadataError, setFormMetadataError] = useState("");
   const [conditionalFields,setConditionalFields] = useState<Record<string,string>>({});
   const [invoiceType, setInvoiceType] = useState(1);
@@ -314,8 +318,12 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   useEffect(() => {
     let live = true;
     getJson<FormMetadata>("/api/invoices/form-metadata")
-      .then(data => { if (live && data.entries.length) setFormMetadata(data); })
-      .catch(() => { if (live) setFormMetadataError("دریافت قواعد رسمی فرم ناموفق بود؛ انتخاب الگو موقتاً غیرفعال است."); });
+      .then(data => { if (live) {
+        if (data.entries.length) setFormMetadata(data);
+        else setFormMetadataError("قواعد رسمی فرم در دسترس نیست؛ انتخاب الگو موقتاً غیرفعال است.");
+      } })
+      .catch(() => { if (live) setFormMetadataError("دریافت قواعد رسمی فرم ناموفق بود؛ انتخاب الگو موقتاً غیرفعال است."); })
+      .finally(() => { if (live) setFormMetadataLoading(false); });
     return () => { live = false; };
   }, []);
 
@@ -330,10 +338,12 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
           isAdmin ? "" : active[0]?.id ?? "");
       })
       .catch(e => { if (live) setError((e as Error).message); })
+      .finally(() => { if (live) setTaxpayersLoading(false); });
 
     getJson<Account[]>("/api/customer-owners/accounts")
       .then(list => { if (live && Array.isArray(list)) setAccounts(list); })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => { if (live) setAccountsLoading(false); });
     return () => { live = false; };
   }, []);
 
@@ -387,9 +397,11 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   useEffect(() => {
     if (!isAdmin || !headerCustomer) {
       setCustomerTaxpayers([]);
+      setCustomerTaxpayersLoading(false);
       return;
     }
     let active = true;
+    setCustomerTaxpayersLoading(true);
     scopedTaxpayersForCustomer(headerCustomer).then(list => {
       if (!active) return;
       const eligible = list.filter(t => t.status === 1);
@@ -397,7 +409,8 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
       setTaxpayerOwners(old => ({
         ...old, ...Object.fromEntries(eligible.map(t => [t.id,headerCustomer]))
       }));
-    }).catch(() => {if(active)setCustomerTaxpayers([]);});
+    }).catch(() => {if(active)setCustomerTaxpayers([]);})
+      .finally(() => {if(active)setCustomerTaxpayersLoading(false);});
     return () => {active=false;};
   }, [isAdmin,headerCustomer]);
 
@@ -1047,23 +1060,27 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
         <div className="invoice-register__form">
           <div className="invoice-register__dialog-body">
             {error && <p role="alert" className="form-error">{error}</p>}
-            {step === 0 && <section aria-label="سربرگ صورتحساب" className="invoice-register__fields">
+            {busy && <p className="invoice-entry-loading" role="status" aria-live="polite"><span className="argin-loader-spinner" aria-hidden="true"/>در حال ذخیره پیش‌نویس…</p>}
+            {step === 0 && <section aria-label="سربرگ صورتحساب" className="invoice-register__fields"
+              aria-busy={accountsLoading || taxpayersLoading || customerTaxpayersLoading || headerLoading || buyerLoading || formMetadataLoading}>
               {isAdmin && <>
                 <label htmlFor="invoice-header-customer">مشتری نرم‌افزار</label>
-                <select id="invoice-header-customer" value={headerCustomer} required
+                <select id="invoice-header-customer" value={headerCustomer} required disabled={accountsLoading}
                   onChange={e=>{setHeaderCustomer(e.target.value);setTaxpayerId("");setMemoryId("");setHeaderOptions(null);setBuyerId("");setBuyerQuery("");setBuyerOpen(false);}}>
                   <option value="">انتخاب مشتری</option>
                   {accounts.filter(a=>a.customerUserId!==actorId).map(a=><option key={a.customerUserId} value={a.customerUserId}>
                     {a.companyName || a.personName || "مشتری مجاز"}
                   </option>)}
                 </select>
+                {accountsLoading && <small className="invoice-entry-loading" role="status" aria-live="polite"><span className="argin-loader-spinner" aria-hidden="true"/>در حال دریافت فهرست مشتریان…</small>}
               </>}
               <label htmlFor="invoice-taxpayer">مؤدی صادرکننده / فروشنده</label>
-              <select id="invoice-taxpayer" value={taxpayerId} required
+              <select id="invoice-taxpayer" value={taxpayerId} required disabled={taxpayersLoading || customerTaxpayersLoading || isAdmin && !headerCustomer}
                 onChange={e=>{setTaxpayerId(e.target.value);setMemoryId("");setHeaderOptions(null);setBuyerId("");setBuyerQuery("");setBuyerOpen(false);}}>
                 <option value="">انتخاب مؤدی فروشنده</option>
                 {visibleTaxpayers.map(t => <option key={t.id} value={t.id}>{t.displayName}</option>)}
               </select>
+              {(taxpayersLoading || customerTaxpayersLoading) && <small className="invoice-entry-loading" role="status" aria-live="polite"><span className="argin-loader-spinner" aria-hidden="true"/>{customerTaxpayersLoading ? "در حال دریافت فهرست مؤدیان مشتری…" : "در حال دریافت فهرست مؤدیان…"}</small>}
               <label htmlFor="invoice-memory">حافظه مالیاتی فروشنده (در پیش‌نویس اختیاری)</label>
               <select id="invoice-memory" value={memoryId} disabled={headerLoading || !headerOptions}
                 onChange={e=>setMemoryId(e.target.value)}>
@@ -1096,7 +1113,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
               {memoryId&&!memoryId.startsWith("sandbox:")&&headerOptions?.memories.find(m=>m.id===memoryId)?.authorityEnvironment===1&&headerOptions?.memories.find(m=>m.id===memoryId)?.status===2&&<small className="invoice-register__hint">
                 حافظه اصلی فعال شده است؛ ارسال با اقدام شما به Production در tp.tax.gov.ir انجام می‌شود.
               </small>}
-              {headerLoading && <small role="status">در حال دریافت اطلاعات مؤدی و حافظه مالیاتی…</small>}
+              {headerLoading && <small className="invoice-entry-loading" role="status" aria-live="polite"><span className="argin-loader-spinner" aria-hidden="true"/>در حال دریافت اطلاعات مؤدی و حافظه مالیاتی…</small>}
               {headerError && <small role="alert" className="form-error">{headerError}</small>}
               {headerOptions && <small className="invoice-register__hint">
                 شناسه ثبت‌شده مؤدی: <bdi dir="ltr">{headerOptions.taxpayer.normalizedIdentifier}</bdi>
@@ -1128,7 +1145,6 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
                 {!buyerDetailsNotRequired && buyerOpen && <div role="listbox" id="invoice-buyer-options"
                     className="invoice-register__buyer-options"
                     aria-label="نتایج جست‌وجوی خریداران">
-                  {buyerLoading && <p role="status">در حال جست‌وجو…</p>}
                   {!buyerLoading && buyers.length===0 && <p>خریدار فعال یافت نشد.</p>}
                   {buyers.map((b,i)=><button type="button" role="option"
                       key={b.id} id={"invoice-buyer-option-"+b.id}
@@ -1143,6 +1159,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
                   خریدار انتخاب‌شده: {chosenBuyer?.displayName || buyerQuery}
                   {chosenBuyer ? ` — ${chosenBuyer.kind===2?"حقوقی":"حقیقی"}` : ""}</small>}
               </div>
+              {buyerLoading && !buyerDetailsNotRequired && <small className="invoice-entry-loading" role="status" aria-live="polite"><span className="argin-loader-spinner" aria-hidden="true"/>در حال دریافت فهرست خریداران…</small>}
               <label htmlFor="invoice-date">تاریخ صدور شمسی</label>
               <PersianDatePicker id="invoice-date" value={date} onChange={setDate} floating/>
               <label htmlFor="invoice-hour">ساعت صدور (تهران)</label>
@@ -1173,12 +1190,13 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
                     onChange={e=>setConditionalFields(old=>({...old,[field]:e.target.value}))} />}
               </div>)}
               {formMetadataError && <p role="alert" className="form-error">{formMetadataError}</p>}
+              {formMetadataLoading && <small className="invoice-entry-loading" role="status" aria-live="polite"><span className="argin-loader-spinner" aria-hidden="true"/>در حال دریافت قواعد و الگوهای صورتحساب…</small>}
               {formMetadata && <p className="invoice-register__hint">قواعد انتخاب الگو: {formMetadata.edition} — صرفاً اعتبارسنجی داخلی؛ مجوز ارسال به سامانه مودیان نیست.</p>}
               {(formMetadata?.entries.find(p=>p.type===invoiceType && p.pattern===pattern)?.requiredFields.length ?? 0)>0 &&
                 <p role="status" className="invoice-register__hint">این الگو به فیلدهای تکمیلی اختصاصی نیاز دارد؛ تکمیل و اعتبارسنجی آن‌ها در مراحل بعدی فرم انجام خواهد شد.</p>}
               <p className="invoice-register__hint">{buyerDetailsNotRequired ? "اطلاعات خریدار برای صورتحساب نوع دوم با الگوی فروش لازم نیست." : "اطلاعات مرحله‌ای در پیش‌نویس خصوصی ذخیره می‌شوند؛ ثبت خریدار را می‌توانید بعداً تکمیل کنید."} این پیش‌نویس مجوز ارسال مالیاتی ندارد.</p>
             </section>}
-            {step === 1 && <section aria-label="اقلام صورتحساب">
+            {step === 1 && <section aria-label="اقلام صورتحساب" aria-busy={catalogBusy}>
               <div className="invoice-register__row-tools" style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:8}}>
                 <label htmlFor="invoice-kind">نوع قلم</label>
                 <select id="invoice-kind" value={kind} onChange={e=>setKind(e.target.value as "products"|"services")} style={{maxWidth:125}}>

@@ -27,7 +27,7 @@ export default function SearchableCatalogPicker({
   },[]);
   const [active,setActive] = useState(0);
   const selected = items[active];
-  return <div className="invoice-register__catalog-combo" ref={root}
+  return <div className="invoice-register__catalog-combo" ref={root} aria-busy={loading}
     data-invoice-catalog-open={open ? "true" : "false"}
     onKeyDown={event=>{if(event.key==="Escape" && open){
       event.preventDefault();event.stopPropagation();setOpen(false);
@@ -53,19 +53,20 @@ export default function SearchableCatalogPicker({
         }
       }}
     />
+    {loading && <p className="invoice-entry-loading" role="status" aria-live="polite"><span className="argin-loader-spinner" aria-hidden="true"/>در حال دریافت کالاها و خدمات…</p>}
     {open && <button type="button" className="identity-secondary"
       aria-label="بستن فهرست کالا و خدمات" onClick={()=>setOpen(false)}>× بستن فهرست</button>}
-    {open && <div className="invoice-register__catalog-options" role="listbox"
-      id="invoice-catalog-options" aria-label="نتایج کالا و خدمات">
-      {loading && <p>در حال جست‌وجو…</p>}
+    {open && <div className="invoice-register__catalog-options" aria-busy={loading}>
       {!loading && items.length===0 && <p>موردی یافت نشد؛ عبارت جست‌وجو را تغییر دهید.</p>}
-      {items.slice(0,20).map((item,i)=><button type="button" role="option"
+      <div role="listbox" id="invoice-catalog-options" aria-label="نتایج کالا و خدمات">
+      {!loading && items.slice(0,20).map((item,i)=><button type="button" role="option"
         aria-selected={i===active} id={"catalog-choice-"+item.id}
         className={i===active?"active":""} key={item.id}
         onMouseDown={e=>e.preventDefault()}
         onClick={()=>{onChoose(item);onQueryChange("");setOpen(false);}}>
         <span>{item.title}</span><small dir="ltr">{item.internalCode || ""}</small>
       </button>)}
+      </div>
     </div>}
   </div>;
 }
