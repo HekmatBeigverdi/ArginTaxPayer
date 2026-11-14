@@ -70,12 +70,16 @@ public sealed class Phase10LegacyInvoicePreparationService(
         JsonElement root;
         using(var document=JsonDocument.Parse(invoice.SnapshotJson))
             root=document.RootElement.Clone();
+        if (InvoiceSnapshotClassification.MissingContractNumber(root))
+            return Denied("invoice_contract_number_missing");
+        var type2 = InvoiceSnapshotClassification.IsType2GeneralSale(root);
+        Guid buyerId = Guid.Empty;
         if(!root.TryGetProperty("environment",out var env)||
            env.GetString()!="Sandbox" ||
            !root.TryGetProperty("sandboxFiscalMemoryId",out var memoryField) ||
            !memoryField.TryGetGuid(out var memoryId) || memoryId==Guid.Empty ||
-           !root.TryGetProperty("buyerPartyId",out var buyerField) ||
-           !buyerField.TryGetGuid(out var buyerId) || buyerId==Guid.Empty ||
+           (!type2 && (!root.TryGetProperty("buyerPartyId",out var buyerField) || buyerField.ValueKind != JsonValueKind.String ||
+           !buyerField.TryGetGuid(out buyerId) || buyerId==Guid.Empty)) ||
            !root.TryGetProperty("lines",out var linesField))
             return Denied("sandbox_snapshot_incomplete");
 
@@ -102,7 +106,7 @@ public sealed class Phase10LegacyInvoicePreparationService(
             .SingleOrDefaultAsync(ct);
         var seller=sellerRow?.EconomicCode;
         var buyer=buyerDetails?.EconomicCode ?? buyerRow?.Identifier;
-        if(string.IsNullOrWhiteSpace(seller) || string.IsNullOrWhiteSpace(buyer))
+        if(string.IsNullOrWhiteSpace(seller) || (!type2 && string.IsNullOrWhiteSpace(buyer)))
             return Denied("seller_or_buyer_identity_missing");
         if(seller.Length is not (11 or 14) || !seller.All(char.IsAsciiDigit))
             return Denied("seller_economic_identifier_invalid");

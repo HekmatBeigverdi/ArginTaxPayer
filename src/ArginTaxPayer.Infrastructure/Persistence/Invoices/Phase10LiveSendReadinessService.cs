@@ -100,7 +100,7 @@ public sealed class Phase10LiveSendReadinessService(
         // These are server-owned evidence gates. Do not turn them off based on
         // fields supplied by a client. The selected wire profile controls only
         // which protocol-specific evidence is relevant.
-        // Legacy rules become evidenced only after the strict Type1/Pattern1
+        // Legacy rules become evidenced only after the strict supported type/pattern
         // server-side projection and durable signed Outbox preparation.
         // A fiscal ID must be grounded in the durable reservation row.
         // Never infer issuance from a user-supplied snapshot field.

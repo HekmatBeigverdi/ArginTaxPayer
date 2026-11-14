@@ -11,6 +11,35 @@ public sealed class Phase18ProductionInvoicePreparationTests
     private static readonly Guid Memory = Guid.NewGuid();
     private static readonly Guid Unit = Guid.NewGuid();
 
+    [Theory]
+    [InlineData("Production", TaxAuthorityEnvironment.Production)]
+    [InlineData("Sandbox", TaxAuthorityEnvironment.Sandbox)]
+    public void Type2_original_uses_the_exact_environment_binding(string environment, TaxAuthorityEnvironment authority)
+    {
+        var invoice=Invoice();
+        var node=JsonNode.Parse(invoice.SnapshotJson)!;
+        node["financialSummary"]=new JsonObject { ["GrossRial"]=100, ["DiscountRial"]=0, ["AfterDiscountRial"]=100, ["PreviewVatRial"]=10, ["PreviewGrandTotalRial"]=110 };
+        node["otherTaxAndLegalFeesRial"]=0;
+        node["issueDateUtc"]=invoice.IssueDateUtc;
+        node["environment"]=environment; node["invoiceType"]=2;
+        node["buyerPartyId"]=null; node["buyerPersonType"]=null;
+        node["settlementMethod"]=0; node["cashAmountRial"]=null; node["creditAmountRial"]=null;
+        invoice.SnapshotJson=node.ToJsonString();
+        var binding=Binding(invoice) with { Environment=authority };
+        var taxId=Phase10FiscalInvoiceIdentifier.Generate("ABC123",42,invoice.IssueDateUtc);
+        var wire=Phase10LegacyFrozenInvoiceProjector.Project(invoice,taxId,"12345678901",null,
+            new Dictionary<Guid,string>{{Unit,"1"}},validatedAuthorityBinding:binding);
+        using var doc=JsonDocument.Parse(wire.Json);
+        var h=doc.RootElement.GetProperty("header");
+        Assert.Equal(2,h.GetProperty("inty").GetInt32());
+        foreach(var key in new[]{"tinb","tob","setm","cap","insp"}) Assert.False(h.TryGetProperty(key,out _));
+        Assert.Throws<NotSupportedException>(()=>Phase10LegacyFrozenInvoiceProjector.Project(invoice,taxId,
+            "12345678901",null,new Dictionary<Guid,string>{{Unit,"1"}},
+            validatedAuthorityBinding:binding with { FiscalMemoryId=Guid.NewGuid() }));
+        Assert.True(Phase10InternalInvoiceValidationService.ValidSnapshot(invoice.SnapshotJson,new string('a',64),invoice.Id));
+        Assert.True(Phase10InvoiceCalculationAuditService.AuditSnapshot(invoice.SnapshotJson,invoice.IssueDateUtc).CanResend);
+    }
+
     [Fact]
     public void Explicit_owned_production_binding_projects_original_invoice()
     {

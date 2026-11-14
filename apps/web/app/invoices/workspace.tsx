@@ -18,6 +18,7 @@ import InvoiceLineageModal from "./invoice-lineage-modal";
 import InvoicePrintAction from "./invoice-print-action";
 import InvoiceImportPanel, {type ImportValues} from "./invoice-import-panel";
 import BulkInvoiceImportPanel from "./bulk-invoice-import-panel";
+import {normalizeInvoiceIdentifier} from "./invoice-identifier-digits.mjs";
 import {invoicePreview} from "./invoice-financial-preview.mjs";
 
 type Taxpayer = {
@@ -364,6 +365,9 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   const visibleTaxpayers = isAdmin ? customerTaxpayers : taxpayers;
   const chosenBuyer = buyers.find(b => b.id === buyerId);
   const buyerDetailsNotRequired = invoiceType === 2 && pattern === 1;
+  useEffect(() => {
+    if (buyerDetailsNotRequired) { setSettlement(0); setCashInput(""); }
+  }, [buyerDetailsNotRequired]);
 
   async function scopedTaxpayersForCustomer(customer: string): Promise<Taxpayer[]> {
     const result: Taxpayer[] = [];
@@ -537,7 +541,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
         "goldConstructionFeeRial","goldSellerProfitRial","goldCommissionRial","goldTotalFeeProfitRial"] as const)
         .map(key=>[key,saved[key] == null?"":String(saved[key])])));
       setInvoiceDescription(saved.invoiceDescription ?? "");
-      setSettlement((saved.settlementMethod ?? 0) as Settlement);
+      setSettlement((saved.type === 2 && saved.pattern === 1 ? 0 : saved.settlementMethod ?? 0) as Settlement);
       setCashInput(saved.settlementMethod === 3 ? String(saved.cashAmountRial ?? "") : "");
       setOtherTaxInput(String(saved.otherTaxAndLegalFeesRial ?? 0));
       setRows(saved.lines.map((line,index)=>({
@@ -582,7 +586,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
     }
     try { invoicePreview(rows); }
     catch { setError("مقادیر عددی ردیف‌ها یا دقت آن‌ها معتبر نیست."); return false; }
-    if (persistedStep===2 && settlement===0) {
+    if (persistedStep===2 && !buyerDetailsNotRequired && settlement===0) {
       setError("برای تکمیل مراحل، روش تسویه صورتحساب را انتخاب کنید.");return false;
     }
     const parsedOtherTax = Number(otherTaxInput);
@@ -592,7 +596,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
       settlement === 3 ? roundRial(Number(cashInput)) : null;
     const credit = settlement === 1 ? 0 : settlement === 2 ? invoiceTotal :
       settlement === 3 ? roundRial(invoiceTotal - Number(cashInput)) : null;
-    if (settlement === 3 && (cashInput.trim() === "" || !Number.isFinite(cash) ||
+    if (!buyerDetailsNotRequired && settlement === 3 && (cashInput.trim() === "" || !Number.isFinite(cash) ||
         Number(cash) <= 0 || Number(credit) <= 0 || Number(cash) >= invoiceTotal)) {
       setError("برای روش نقدی و نسیه، مبلغ نقدی باید بیشتر از صفر و کمتر از جمع صورتحساب باشد.");
       return false;
@@ -605,6 +609,13 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
     const required = formMetadata?.entries.find(p=>p.type===invoiceType && p.pattern===pattern)?.requiredFields;
     if (!formMetadata || !required) {setError("قواعد انتخاب الگو بارگذاری نشده‌اند.");return false;}
     const needed = required.includes("goldFields") ? ["goldConstructionFeeRial","goldSellerProfitRial","goldCommissionRial","goldTotalFeeProfitRial"] : required;
+    for (const key of ["contractNumber", "serviceBillId"]) {
+      const value = normalizeInvoiceIdentifier(conditionalFields[key] ?? "");
+      if (needed.includes(key) && value && !new RegExp("^[0-9]{1," + (key === "contractNumber" ? 12 : 19) + "}$").test(value)) {
+        setError(key === "contractNumber" ? "شماره قرارداد باید حداکثر ۱۲ رقم باشد؛ فقط عدد وارد کنید." : "شناسه قبض باید حداکثر ۱۹ رقم باشد؛ فقط عدد وارد کنید.");
+        return false;
+      }
+    }
     if (completeStep>=1 && needed.some(k=>!conditionalFields[k]?.trim() ||
       (k!=="contractNumber" && k!=="serviceBillId" &&
         (!Number.isFinite(Number(conditionalFields[k])) || Number(conditionalFields[k])<0)))) {
@@ -632,9 +643,9 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
       ...Object.fromEntries(["contractNumber","serviceBillId","flightType",
         "goldConstructionFeeRial","goldSellerProfitRial","goldCommissionRial","goldTotalFeeProfitRial"]
         .map(k=>[k, !needed.includes(k) || !conditionalFields[k]?.trim() ? null :
-          k==="contractNumber"||k==="serviceBillId" ? conditionalFields[k].trim() : Number(conditionalFields[k])])),
+          k==="contractNumber"||k==="serviceBillId" ? normalizeInvoiceIdentifier(conditionalFields[k]) : Number(conditionalFields[k])])),
       invoiceDescription:invoiceDescription.trim() || null,
-      settlementMethod:settlement, cashAmountRial:cash, creditAmountRial:credit,
+      settlementMethod:buyerDetailsNotRequired ? 0 : settlement, cashAmountRial:buyerDetailsNotRequired ? null : cash, creditAmountRial:buyerDetailsNotRequired ? null : credit,
       otherTaxAndLegalFeesRial:otherTax,
       lines:rows.map(r=>({
         catalogItemId:r.productId || null,unitId:r.unitId || null,
@@ -702,7 +713,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
     settlement === 3 ? roundRial(amount(cashInput)) : 0;
   const creditPreview = settlement === 2 ? invoiceTotal : settlement === 1 ? 0 :
     settlement === 3 ? roundRial(Math.max(0,invoiceTotal-cashPreview)) : 0;
-  const settlementError = settlement === 3 &&
+  const settlementError = !buyerDetailsNotRequired && settlement === 3 &&
     (cashInput.trim() === "" || !Number.isFinite(Number(cashInput)) ||
       cashPreview <= 0 || cashPreview >= invoiceTotal);
   const draftSnapshot = JSON.stringify({
@@ -1254,7 +1265,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
                   </dl>
                 </section>
               </div>
-              <div className="invoice-register__settlement">
+              {!buyerDetailsNotRequired && <div className="invoice-register__settlement">
                 <div className="invoice-register__field">
                   <label htmlFor="invoice-settlement-method">روش تسویه</label>
                   <select id="invoice-settlement-method" value={settlement}
@@ -1277,8 +1288,9 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
                   <input id="invoice-credit-amount" type="text" dir="ltr"
                     value={fmt(creditPreview)} readOnly aria-readonly="true" />
                 </div>
-              </div>
-              {settlement===0 && <p role="status" className="field-hint">برای تکمیل مرحله نهایی، روش تسویه را مشخص کنید؛ ذخیره پیش‌نویس همچنان مجاز است.</p>}
+              </div>}
+              {buyerDetailsNotRequired && <p className="field-hint">کل مبلغ صورتحساب نوع دوم نقدی تلقی می‌شود.</p>}
+              {!buyerDetailsNotRequired && settlement===0 && <p role="status" className="field-hint">برای تکمیل مرحله نهایی، روش تسویه را مشخص کنید؛ ذخیره پیش‌نویس همچنان مجاز است.</p>}
               {settlementError && <p role="alert" className="form-error">
                 برای تسویه نقدی و نسیه، مبلغ نقدی باید مثبت و کمتر از مبلغ صورتحساب باشد.
               </p>}
@@ -1294,7 +1306,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
               {editing && <InvoiceValidationPanel
                 draftId={editing.id}
                 revision={editing.revision} dirty={validationDirty}
-                onSave={()=>saveWorkspace(step===2 && settlement===0 ? 1 : step,false,false,true)}
+                onSave={()=>saveWorkspace(step===2 && !buyerDetailsNotRequired && settlement===0 ? 1 : step,false,false,true)}
                 onDraftChanged={async()=>{
                   const refreshed=await getJson<SavedEntry>("/api/invoices/workspaces/"+editing.id);
                   const refreshedTehran=tehranDateTime(new Date(refreshed.issueDateUtc));
@@ -1319,7 +1331,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
           </div>
           <footer className="invoice-register__dialog-footer">
             <button type="button" className="identity-secondary" disabled={busy || !taxpayerId}
-              onClick={() => void saveWorkspace(step===2 && settlement===0 ? 1 : step,true)}>ذخیره و ادامه بعداً</button>
+              onClick={() => void saveWorkspace(step===2 && !buyerDetailsNotRequired && settlement===0 ? 1 : step,true)}>ذخیره و ادامه بعداً</button>
             {step===0 && !buyerId && !buyerDetailsNotRequired && <button type="button" className="identity-secondary"
               disabled={busy || !taxpayerId} onClick={() => void saveWorkspace(0,true,true)}>
                 ذخیره و ثبت خریدار</button>}
@@ -1331,7 +1343,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
               disabled={busy || step === 0 && (!taxpayerId || !headerCustomer || !date)}
               onClick={nextStep}>مرحله بعد</button> :
               <button type="button" className="identity-primary"
-                disabled={busy || !taxpayerId || settlementError || settlement===0}
+                disabled={busy || !taxpayerId || settlementError || (!buyerDetailsNotRequired && settlement===0)}
                 onClick={() => void saveWorkspace(2,true)}>
                 {busy ? "در حال ذخیره…" : "ذخیره مراحل و خروج"}</button>}
           </footer>

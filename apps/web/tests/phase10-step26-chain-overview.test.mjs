@@ -25,11 +25,11 @@ test("lineage includes independently stored related invoices and same-taxpayer s
  assert.ok(s.includes("FROM authority_invoice_legal_relations"));
  assert.ok(s.includes("FROM invoice_rejection_replacements"));
  assert.ok(s.includes("ResolveLineageRootAsync"));
- assert.ok(s.includes("WITH RECURSIVE lineage AS ("));
+ assert.ok(s.includes("WITH RECURSIVE {SandboxRetryLineageQuery.Ctes}, lineage AS ("));
  assert.ok(s.includes("d.id=lineage.successor_invoice_id"));
  assert.ok(s.includes("lineage.customer_user_id=@owner AND lineage.taxpayer_id=@taxpayer"));
  assert.ok(s.includes("nodes.Add(new(next.GetGuid(0)"));
- assert.ok(s.includes("new(attempted,nodes.Count>1"));
+ assert.ok(s.includes("attempted||retryNodeIds.Count>0,nodes.Count>1||retryNodeIds.Count>0"));
 });
 test("latest correction return or cancellation becomes the effective chain node",()=>{
  const s=read("src/ArginTaxPayer.Infrastructure/Persistence/Invoices/Phase10EffectiveInvoiceQuery.cs");

@@ -71,3 +71,7 @@
 ## Binding product decision: maximal in-app enrollment (2026-10-17)
 
 Per owner instruction, certificate/fiscal-memory onboarding should happen inside ArginTaxPayer as far as legitimately possible. The architecture and boundaries are fixed in [ADR 0007](../adr/0007-certificate-enrollment-onboarding.md): key/CSR generation, importing and validating certificates, secure custody choice, guided handoff to authorized CA and taxpayer portal, and SDK-authenticated connection checking. **A certificate must be issued by an authorized CA; do not presume an official CA enrollment API exists.** Maintain both SDK generations and official-document citation obligations unchanged.
+
+## Type2 source reinspection (2026-11-13)
+
+The owner supplied `../Docs/RC_IITP_IS_V7_9_2.pdf`; its SHA-256 matches TAX-ISSUE-79 exactly. Reopened Table 1 p14 (Type2/1 buyer optional, `setm`/`cap`/`insp` ignore), Table 6 p28 (full Type2 total deemed cash), Table 9 p29–31 (Type2 pattern1), Table 24 p45 (cash treatment) and generic JSON schema p97. The existing pinned legacy wire profile is preserved for both authority environments; no SDK upgrade or live authority request was made. The new scope is original Type2/1 with omitted optional buyer fields.

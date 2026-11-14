@@ -103,6 +103,13 @@ public static class Phase10InvoiceWireMapper
             throw new ArgumentException("Cancellation line projection is not verified.");
         if (source.Payments is { Count: > 0 })
             throw new NotSupportedException("Payment transaction wire mapping awaits official Step07 rules.");
+        // V7.9 Table 1 p14: settlement fields are outside the Type2 pattern.
+        if (pair.Type == ElectronicInvoiceType.Second &&
+            (source.Subject != InvoiceSubject.Original || source.SettlementMethod is not null ||
+             source.CashAmountRial is not null || source.CreditAmountRial is not null ||
+             source.BuyerPersonType is not null || source.BuyerNationalOrForeignCode is not null ||
+             source.BuyerBranchCode is not null || source.BuyerPostalCode is not null))
+            throw new ArgumentException("Type2 original omits buyer and settlement fields.");
         if (source.SettlementMethod is { } settlement)
         {
             if (settlement is < 1 or > 3 ||

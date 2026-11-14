@@ -180,14 +180,25 @@ public sealed class InvoiceEntryWorkspaceService(
             : (InvoiceApiDecision.Success, id);
     }
 
-    private static bool Valid(SaveInvoiceEntryRequest input)
+    internal static SaveInvoiceEntryRequest NormalizeForSave(SaveInvoiceEntryRequest input)
     {
+        static string? Digits(string? value) => value is null ? null : new string(value.Trim().Select(c =>
+            c is >= '۰' and <= '۹' ? (char)('0' + c - '۰') :
+            c is >= '٠' and <= '٩' ? (char)('0' + c - '٠') : c).ToArray());
+        return input with { ContractNumber = Digits(input.ContractNumber), ServiceBillId = Digits(input.ServiceBillId) };
+    }
+
+    internal static bool Valid(SaveInvoiceEntryRequest input)
+    {
+        input = NormalizeForSave(input);
         if (input.TaxpayerId == Guid.Empty || input.ExpectedRevision < 0 ||
             input.LastCompletedStep is < 0 or > 2 ||
             input.IssueDateUtc.Kind != DateTimeKind.Utc ||
             input.Type is < 1 or > 2 ||
             input.Type == 2 && input.Pattern == 1 &&
-                (input.BuyerPartyId is not null || input.BuyerDisplayName is not null) ||
+                (input.BuyerPartyId is not null || input.BuyerDisplayName is not null ||
+                 input.SettlementMethod != InvoiceDraftSettlementMethod.Unknown ||
+                 input.CashAmountRial is not null || input.CreditAmountRial is not null) ||
             OfficialV79InvoicePatternMatrix.Create().Evaluate(
                 new InvoiceTypePattern((ElectronicInvoiceType)input.Type,input.Pattern),
                 input.IssueDateUtc) != InvoicePatternDecision.AllowedByReferencedEdition ||
@@ -231,7 +242,7 @@ public sealed class InvoiceEntryWorkspaceService(
         {
             var summary = InvoiceDraftSettlementPolicy.Calculate(input.Lines,
                 input.OtherTaxAndLegalFeesRial ?? 0m);
-            if (input.LastCompletedStep == 2 &&
+            if (!(input.Type == 2 && input.Pattern == 1) && input.LastCompletedStep == 2 &&
                 (input.SettlementMethod == InvoiceDraftSettlementMethod.Unknown ||
                  input.CashAmountRial is null || input.CreditAmountRial is null))
                 return false;
@@ -263,8 +274,9 @@ public sealed class InvoiceEntryWorkspaceService(
     public async Task<InvoiceEntryResult> SaveAsync(string? token,
         SaveInvoiceEntryRequest input, CancellationToken ct = default)
     {
-        if (input is null || !Valid(input))
-            return new(InvoiceApiDecision.Invalid);
+        if (input is null) return new(InvoiceApiDecision.Invalid);
+        input = NormalizeForSave(input);
+        if (!Valid(input)) return new(InvoiceApiDecision.Invalid);
         var access = await Authorize(token,input.TaxpayerId,ct);
         if (access.Item1 != InvoiceApiDecision.Success) return new(access.Item1);
         // The Sandbox memory is a separate credential identity and cannot be

@@ -5,7 +5,7 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Invoices;
 
 /// <summary>
 /// Maps a trusted finalized internal invoice revision to the supported
-/// Legacy Type 1 / Pattern 1 wire shape. Fiscal identities and official
+/// Legacy Type 1 or original Type 2 / Pattern 1 wire shape. Fiscal identities and official
 /// unit mappings MUST come from authorized current server-side records.
 /// No HTTP, signing or dispatch takes place here.
 /// </summary>
@@ -13,7 +13,7 @@ public static class Phase10LegacyFrozenInvoiceProjector
 {
     public static InvoiceWireProjection Project(
         StoredInvoice invoice, string fiscalTaxId,
-        string sellerTaxIdentifier, string buyerTaxIdentifier,
+        string sellerTaxIdentifier, string? buyerTaxIdentifier,
         IReadOnlyDictionary<Guid,string> verifiedUnitCodes, string? invoiceNumber = null,
         int? buyerPersonTypeOverride = null, long? totalOtherTaxAndLegalFeesOverride = null,
         string? buyerNationalOrForeignCode = null, string? buyerBranchCode = null,
@@ -34,13 +34,18 @@ public static class Phase10LegacyFrozenInvoiceProjector
             throw new ArgumentException("Invoice is not a finalized UTC revision.");
         using var source = JsonDocument.Parse(invoice.SnapshotJson);
         var root = source.RootElement;
+        var type2 = InvoiceSnapshotClassification.IsType2GeneralSale(root);
+        var contracting = root.TryGetProperty("invoiceType", out var invoiceType) && invoiceType.GetInt32() == 1 &&
+            root.TryGetProperty("pattern", out var patternField) && patternField.GetInt32() == 4;
         if (root.ValueKind != JsonValueKind.Object ||
             !HasSupportedEnvironment(invoice, root, validatedAuthorityBinding) ||
             root.GetProperty("sourceWorkspaceId").GetGuid() != invoice.Id ||
-            root.GetProperty("invoiceType").GetInt32() != 1 ||
-            root.GetProperty("pattern").GetInt32() != 1)
-            throw new NotSupportedException("Only an explicitly scoped finalized Type1/Pattern1 snapshot is supported.");
+            (!type2 && root.GetProperty("invoiceType").GetInt32() != 1) ||
+            (!contracting && root.GetProperty("pattern").GetInt32() != 1))
+            throw new NotSupportedException("Only an explicitly scoped finalized Type1 or original Type2/Pattern1 snapshot is supported.");
 
+        if ((type2 || contracting) && invoice.Subject != InvoiceSubject.Original)
+            throw new NotSupportedException("Only original Type2/Pattern1 invoices are supported.");
         var entries = JsonSerializer.Deserialize<InvoiceEntryLine[]>(
             root.GetProperty("lines").GetRawText()) ?? [];
         if (invoice.Subject == InvoiceSubject.SalesReturn)
@@ -48,10 +53,10 @@ public static class Phase10LegacyFrozenInvoiceProjector
         if (entries.Length == 0 || entries.Length > 150)
             throw new ArgumentException("Missing official invoice items.");
         var buyerPersonType = buyerPersonTypeOverride;
-        if (buyerPersonType is null && root.TryGetProperty("buyerPersonType", out var buyerTypeField) &&
+        if (!type2 && buyerPersonType is null && root.TryGetProperty("buyerPersonType", out var buyerTypeField) &&
             buyerTypeField.TryGetInt32(out var storedBuyerPersonType))
             buyerPersonType = storedBuyerPersonType;
-        if (buyerPersonType is < 1 or > 4 or null)
+        if (!type2 && (buyerPersonType is < 1 or > 4 or null))
             throw new ArgumentException("Buyer person type is required.");
 
         var otherTaxAndLegalFees = totalOtherTaxAndLegalFeesOverride;
@@ -130,11 +135,11 @@ public static class Phase10LegacyFrozenInvoiceProjector
                 item.Description,unitCode));
         }
 
-        var settlement = root.GetProperty("settlementMethod").GetInt32();
-        var cash = CheckedRial(root.GetProperty("cashAmountRial").GetDecimal());
-        var credit = CheckedRial(root.GetProperty("creditAmountRial").GetDecimal());
+        int? settlement = type2 ? null : root.GetProperty("settlementMethod").GetInt32();
+        long? cash = type2 ? null : CheckedRial(root.GetProperty("cashAmountRial").GetDecimal());
+        long? credit = type2 ? null : CheckedRial(root.GetProperty("creditAmountRial").GetDecimal());
         var wire = new InvoiceWireInput(
-            new InvoiceTypePattern(ElectronicInvoiceType.First,1),
+            new InvoiceTypePattern(type2 ? ElectronicInvoiceType.Second : ElectronicInvoiceType.First,contracting ? 4 : 1),
             invoice.Subject,fiscalTaxId,
             new DateTimeOffset(invoice.IssueDateUtc).ToUnixTimeMilliseconds(),
             sellerTaxIdentifier,lines,
@@ -142,16 +147,18 @@ public static class Phase10LegacyFrozenInvoiceProjector
             CheckedRial(financial.AfterDiscountRial),
             CheckedRial(financial.VatRial ?? 0),
             CheckedRial((financial.GrandTotalRial ?? 0) + otherTaxAndLegalFees.Value),
-            BuyerTaxId:buyerTaxIdentifier,
+            BuyerTaxId:type2 ? null : buyerTaxIdentifier,
+            ContractRegistrationNumber:contracting && root.TryGetProperty("contractNumber", out var contractField)
+                && contractField.ValueKind == JsonValueKind.String ? contractField.GetString() : null,
             ReferenceTaxId:invoice.Subject is InvoiceSubject.Correction or InvoiceSubject.SalesReturn
                 ?root.GetProperty("referenceTaxId").GetString():null,
             SettlementMethod:settlement,
             // The internal display number is not the authority's 10-hex-digit serial.
             CashAmountRial:cash,CreditAmountRial:credit,InvoiceNumber:fiscalTaxId.Substring(11,10),
-            BuyerPersonType:buyerPersonType,
+            BuyerPersonType:type2 ? null : buyerPersonType,
             TotalOtherTaxAndLegalFeesRial:otherTaxAndLegalFees,
-            BuyerNationalOrForeignCode:buyerNationalOrForeignCode,
-            BuyerBranchCode:buyerBranchCode,BuyerPostalCode:buyerPostalCode,
+            BuyerNationalOrForeignCode:type2 ? null : buyerNationalOrForeignCode,
+            BuyerBranchCode:type2 ? null : buyerBranchCode,BuyerPostalCode:type2 ? null : buyerPostalCode,
             SellerBranchCode:sellerBranchCode);
         return Phase10InvoiceWireMapper.Project(wire);
     }

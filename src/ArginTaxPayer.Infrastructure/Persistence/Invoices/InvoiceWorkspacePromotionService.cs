@@ -107,13 +107,17 @@ public sealed class InvoiceWorkspacePromotionService(
                 if(input is null || input.TaxpayerId!=draft.TaxpayerId)
                     return new InvoiceWorkspacePromotionResult(InvoiceApiDecision.Invalid,
                         Code:"invoice_snapshot_draft_invalid");
-                if(input.BuyerPartyId is null)
+                var type2 = input.Type == 2 && input.Pattern == 1;
+                if(type2 && (input.BuyerPartyId is not null || input.SettlementMethod != InvoiceDraftSettlementMethod.Unknown ||
+                    input.CashAmountRial is not null || input.CreditAmountRial is not null))
+                    return new(InvoiceApiDecision.Invalid,Code:"invoice_type2_fields_outside_pattern");
+                if(!type2 && input.BuyerPartyId is null)
                     return new(InvoiceApiDecision.Invalid,Code:"invoice_buyer_required");
                 if(input.Lines is not {Length: > 0 and <= 150})
                     return new(InvoiceApiDecision.Invalid,Code:"invoice_lines_required");
                 if(input.FiscalMemoryId.HasValue == input.SandboxFiscalMemoryId.HasValue)
                     return new(InvoiceApiDecision.Invalid,Code:"invoice_memory_selection_invalid");
-                if(input.Type!=1 || input.Pattern is not (1 or 4))
+                if(!type2 && (input.Type!=1 || input.Pattern is not (1 or 4)))
                     return new(InvoiceApiDecision.Invalid,Code:"invoice_pattern_not_supported_for_submission");
                 if(input.Pattern==4 && string.IsNullOrWhiteSpace(input.ContractNumber))
                     return new(InvoiceApiDecision.Invalid,Code:"invoice_contract_number_required");
@@ -122,8 +126,8 @@ public sealed class InvoiceWorkspacePromotionService(
                         !x.OfficialIdentifierSnapshot.All(char.IsAsciiDigit) || x.UnitId is null || x.Quantity<=0 ||
                         x.UnitPriceRial<0 || x.VatRatePercent is null))
                     return new(InvoiceApiDecision.Invalid,Code:"invoice_line_snapshot_incomplete");
-                if(input.SettlementMethod==InvoiceDraftSettlementMethod.Unknown ||
-                    input.CashAmountRial is null || input.CreditAmountRial is null)
+                if(!type2 && (input.SettlementMethod==InvoiceDraftSettlementMethod.Unknown ||
+                    input.CashAmountRial is null || input.CreditAmountRial is null))
                     return new(InvoiceApiDecision.Invalid,Code:"invoice_settlement_required");
                 if(!InvoiceDraftSettlementPolicy.IsConsistent(input.SettlementMethod,
                         input.CashAmountRial,input.CreditAmountRial,input.Lines,
@@ -227,7 +231,7 @@ AND private_envelope_json IS NOT NULL)
                         link.PartyId==input.BuyerPartyId && link.UnlinkedAtUtc==null &&
                         party.Status==PartyStatus.Active
                     select (int?)party.Kind).SingleOrDefaultAsync(ct);
-                if(buyerPersonType is null)
+                if(!type2 && buyerPersonType is null)
                     return new(InvoiceApiDecision.Invalid,Code:"buyer_not_owned");
 
                 InvoiceFinancialPreview financialPreview;
@@ -255,9 +259,10 @@ AND private_envelope_json IS NOT NULL)
                     sandboxFiscalMemoryId=input.SandboxFiscalMemoryId,
                     fiscalMemoryId=input.FiscalMemoryId,
                     invoiceType=input.Type,pattern=input.Pattern,
+                    contractNumber=input.ContractNumber,
                     issueDateUtc=draft.IssueDateUtc,
                     buyerPartyId=input.BuyerPartyId,
-                    buyerPersonType=buyerPersonType.Value,
+                    buyerPersonType=buyerPersonType,
                     lines=input.Lines,
                     settlementMethod=input.SettlementMethod,
                     cashAmountRial=input.CashAmountRial,

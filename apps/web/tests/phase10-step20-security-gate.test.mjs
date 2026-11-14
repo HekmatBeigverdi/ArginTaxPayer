@@ -36,7 +36,8 @@ test("Step20: stale-revision, duplicate, cross-tenant and concurrent promotion f
     /customer_user_id=@owner/
   ])assert.match(prepare,code);
   assert.match(save,/FOR UPDATE/);
-  assert.match(save,/InvoiceDocuments\.AsNoTracking\(\)\.AnyAsync/);
+  assert.ok(save.includes("db.InvoiceDocuments.AsNoTracking().Where(d =>"));
+  assert.ok(save.includes("d.Id == input.Id.Value && d.CustomerUserId == access.Item2"));
   assert.match(prepare,/internal_snapshot_already_created/);
   assert.match(bff,/Number\.isSafeInteger\(data\.expectedRevision\)/);
 });

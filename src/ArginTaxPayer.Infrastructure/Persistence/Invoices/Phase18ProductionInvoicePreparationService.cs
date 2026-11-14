@@ -14,7 +14,7 @@ using Npgsql;
 namespace ArginTaxPayer.Infrastructure.Persistence.Invoices;
 
 /// <summary>
-/// Prepares one owned finalized classified-memory Type1/Pattern1 invoice.
+/// Prepares one owned finalized classified-memory Type1 or original Type2/Pattern1 invoice.
 /// The frozen revision, exact active memory, serial, signed encrypted outbox and
 /// RESERVED operation are checked/committed atomically. Legal successors require
 /// a same-memory predecessor relation backed by a persisted authority SUCCESS report.
@@ -95,6 +95,10 @@ SELECT id FROM invoice_documents WHERE id=@invoice AND customer_user_id=@owner A
         try { using var document=JsonDocument.Parse(invoice.SnapshotJson);
             root=document.RootElement.Clone(); }
         catch(JsonException) { return Denied("production_snapshot_incomplete"); }
+        if (InvoiceSnapshotClassification.MissingContractNumber(root))
+            return Denied("invoice_contract_number_missing");
+        var type2 = InvoiceSnapshotClassification.IsType2GeneralSale(root);
+        Guid buyerId = Guid.Empty;
         var hasSandboxMemory = root.ValueKind == JsonValueKind.Object &&
             root.TryGetProperty("sandboxFiscalMemoryId", out var sandboxMemoryField) &&
             sandboxMemoryField.ValueKind != JsonValueKind.Null;
@@ -103,8 +107,8 @@ SELECT id FROM invoice_documents WHERE id=@invoice AND customer_user_id=@owner A
            hasSandboxMemory ||
            !root.TryGetProperty("fiscalMemoryId",out var memoryField) || memoryField.ValueKind!=JsonValueKind.String ||
            !memoryField.TryGetGuid(out var memoryId) || memoryId==Guid.Empty ||
-           !root.TryGetProperty("buyerPartyId",out var buyerField) || buyerField.ValueKind!=JsonValueKind.String ||
-           !buyerField.TryGetGuid(out var buyerId) || buyerId==Guid.Empty ||
+           (!type2 && (!root.TryGetProperty("buyerPartyId",out var buyerField) || buyerField.ValueKind != JsonValueKind.String ||
+           !buyerField.TryGetGuid(out buyerId) || buyerId==Guid.Empty)) ||
            !root.TryGetProperty("lines",out var linesField))
             return Denied("production_snapshot_incomplete");
 
@@ -186,7 +190,7 @@ SELECT EXISTS (
             .SingleOrDefaultAsync(ct);
         var seller=sellerRow?.EconomicCode;
         var buyer=buyerDetails?.EconomicCode ?? buyerRow?.Identifier;
-        if(string.IsNullOrWhiteSpace(seller) || string.IsNullOrWhiteSpace(buyer))
+        if(string.IsNullOrWhiteSpace(seller) || (!type2 && string.IsNullOrWhiteSpace(buyer)))
             return Denied("seller_or_buyer_identity_missing");
         if(seller.Length is not (11 or 14) || !seller.All(char.IsAsciiDigit))
             return Denied("seller_economic_identifier_invalid");
