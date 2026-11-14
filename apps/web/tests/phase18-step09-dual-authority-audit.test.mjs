@@ -41,8 +41,11 @@ test('Sandbox send and legal-child flows remain explicitly Sandbox-only', () => 
   assert.match(read(paths.prepare), /env.GetString\(\)!="Sandbox"/);
   for (const name of ['cancellation','correction','returns']) {
     const source = read(paths[name]);
-    assert.match(source, /"environment"\]\s*!=\s*"Sandbox"/);
+    if (name === 'cancellation') assert.match(source, /"environment"\]\s*!=\s*"Sandbox"/);
+    else assert.match(source, /InvoiceLegalDraftProfile\.Supports\(snapshot,"Sandbox"\)/);
   }
+  const profile=read('src/ArginTaxPayer.Infrastructure/Persistence/Invoices/InvoiceLegalDraftProfile.cs');
+  assert.match(profile, /root\["environment"\]==environment/);
 });
 
 test('Sandbox inquiry is pinned to Sandbox operation and Sandbox memory', () => {

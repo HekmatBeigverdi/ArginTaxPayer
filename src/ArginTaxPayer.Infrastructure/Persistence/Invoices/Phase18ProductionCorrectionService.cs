@@ -97,8 +97,7 @@ public sealed class Phase18ProductionCorrectionService(
         }
 
         var snapshot = JsonNode.Parse(original.SnapshotJson)?.AsObject();
-        if (snapshot is null || (string?)snapshot["environment"] != "Production" ||
-            (int?)snapshot["invoiceType"] != 1 || (int?)snapshot["pattern"] != 1)
+        if (!InvoiceLegalDraftProfile.Supports(snapshot,"Production"))
         {
             return new(InvoiceApiDecision.Invalid, "unsupported_pattern");
         }
@@ -243,34 +242,13 @@ public sealed class Phase18ProductionCorrectionService(
         // Preserve the original fees while recalculating the editable invoice lines.
         var otherTaxAndLegalFees = originalDoc.RootElement.GetProperty("otherTaxAndLegalFeesRial").GetDecimal();
         var total = (financial.GrandTotalRial ?? 0m) + otherTaxAndLegalFees;
-        var cashAmount = input.SettlementMethod switch
-        {
-            1 => total,
-            2 => 0m,
-            _ => input.CashAmountRial
-        };
-        var creditAmount = input.SettlementMethod switch
-        {
-            2 => total,
-            1 => 0m,
-            _ => input.CreditAmountRial
-        };
-        if (cashAmount < 0 || creditAmount < 0 ||
-            cashAmount + creditAmount != total ||
-            (input.SettlementMethod == 1 && creditAmount != 0) ||
-            (input.SettlementMethod == 2 && cashAmount != 0) ||
-            (input.SettlementMethod == 3 && (cashAmount <= 0 || creditAmount <= 0)) ||
-            input.SettlementMethod is < 1 or > 3)
-        {
-            return new(InvoiceApiDecision.Invalid, "settlement_invalid");
-        }
-
         var root = JsonNode.Parse(savedDraft.Json)!.AsObject();
+        if (!InvoiceLegalDraftProfile.TrySettlement(root,input.SettlementMethod,input.CashAmountRial,
+                input.CreditAmountRial,total,out var settlement))
+            return new(InvoiceApiDecision.Invalid, "settlement_invalid");
         root["lines"] = JsonSerializer.SerializeToNode(edited);
         root["correctionBaselineQuantities"] = JsonSerializer.SerializeToNode(baseline.Select(x => x.Quantity));
-        root["settlementMethod"] = input.SettlementMethod;
-        root["cashAmountRial"] = cashAmount;
-        root["creditAmountRial"] = creditAmount;
+        settlement.Apply(root);
         root["financialSummary"] = JsonSerializer.SerializeToNode(new InvoiceDraftFinancialSummary(
             financial.BeforeDiscountRial, financial.DiscountRial, financial.AfterDiscountRial,
             financial.VatRial ?? 0m, financial.GrandTotalRial ?? 0m));
@@ -378,10 +356,7 @@ public sealed class Phase18ProductionCorrectionService(
             pair.First.Quantity != pair.Second.Quantity ||
             pair.First.UnitPriceRial != pair.Second.UnitPriceRial ||
             pair.First.DiscountPerUnitRial != pair.Second.DiscountPerUnitRial);
-        if (!linesChanged &&
-            origDoc.RootElement.GetProperty("settlementMethod").GetInt32() == (int?)root["settlementMethod"] &&
-            origDoc.RootElement.GetProperty("cashAmountRial").GetDecimal() == (decimal?)root["cashAmountRial"] &&
-            origDoc.RootElement.GetProperty("creditAmountRial").GetDecimal() == (decimal?)root["creditAmountRial"])
+        if (!linesChanged && InvoiceLegalDraftProfile.SameSettlement(origDoc.RootElement,root))
         {
             return new(InvoiceApiDecision.Invalid, "no_changes_to_correct");
         }
@@ -667,16 +642,18 @@ public sealed class Phase18ProductionCorrectionService(
         using var document = JsonDocument.Parse(json);
         var root = document.RootElement;
         var lines = JsonSerializer.Deserialize<InvoiceEntryLine[]>(root.GetProperty("lines").GetRawText()) ?? [];
+        var settlement=InvoiceLegalDraftProfile.ReadSettlement(root);
         return new(
             workspaceId,
             predecessorInvoiceId,
             revision,
             lines,
-            root.GetProperty("settlementMethod").GetInt32(),
-            root.GetProperty("cashAmountRial").GetDecimal(),
-            root.GetProperty("creditAmountRial").GetDecimal(),
+            settlement.Method,
+            settlement.Cash,
+            settlement.Credit,
             root.TryGetProperty("correctionBaselineQuantities", out var baselineQuantities)
                 ? JsonSerializer.Deserialize<decimal[]>(baselineQuantities.GetRawText())
-                : lines.Select(x => x.Quantity).ToArray());
+                : lines.Select(x => x.Quantity).ToArray(),
+            InvoiceType: root.TryGetProperty("invoiceType",out var invoiceType) ? invoiceType.GetInt32() : 1);
     }
 }

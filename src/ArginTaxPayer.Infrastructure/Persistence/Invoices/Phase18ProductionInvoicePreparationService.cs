@@ -14,7 +14,7 @@ using Npgsql;
 namespace ArginTaxPayer.Infrastructure.Persistence.Invoices;
 
 /// <summary>
-/// Prepares one owned finalized classified-memory Type1 or original Type2/Pattern1 invoice.
+/// Prepares one owned finalized classified-memory Type1 or Type2/Pattern1 invoice.
 /// The frozen revision, exact active memory, serial, signed encrypted outbox and
 /// RESERVED operation are checked/committed atomically. Legal successors require
 /// a same-memory predecessor relation backed by a persisted authority SUCCESS report.

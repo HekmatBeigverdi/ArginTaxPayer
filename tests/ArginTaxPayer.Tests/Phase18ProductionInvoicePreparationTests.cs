@@ -40,6 +40,93 @@ public sealed class Phase18ProductionInvoicePreparationTests
         Assert.True(Phase10InvoiceCalculationAuditService.AuditSnapshot(invoice.SnapshotJson,invoice.IssueDateUtc).CanResend);
     }
 
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void Production_cancellation_preserves_reference_classification_and_omits_non_cancellation_fields(int type)
+    {
+        var invoice=Invoice();
+        var source=JsonNode.Parse(invoice.SnapshotJson)!.AsObject();
+        source["invoiceType"]=type;
+        source["buyerPartyId"]=type==2 ? null : Guid.NewGuid().ToString();
+        if(type==2) { source["buyerPersonType"]=null; source["settlementMethod"]=0; source["cashAmountRial"]=null; source["creditAmountRial"]=null; }
+        var original=source.ToJsonString();
+        var predecessor=invoice.Id;
+        var reference=Phase10FiscalInvoiceIdentifier.Generate("ABC123",41,invoice.IssueDateUtc);
+        invoice.Id=Guid.NewGuid();
+        invoice.Subject=InvoiceSubject.Cancellation;
+        var snapshot=Phase18ProductionCancellationService.CreateCancellationSnapshot(
+            original,invoice.Id,predecessor,reference,invoice.IssueDateUtc);
+        Assert.NotNull(snapshot);
+        Assert.Equal(type,(int?)snapshot!["invoiceType"]);
+        Assert.Equal(predecessor.ToString("D"),(string?)snapshot["predecessorInvoiceId"]);
+        Assert.Equal(reference,(string?)snapshot["referenceTaxId"]);
+        Assert.Equal(original,source.ToJsonString());
+        invoice.SnapshotJson=snapshot.ToJsonString();
+        var taxId=Phase10FiscalInvoiceIdentifier.Generate("ABC123",42,invoice.IssueDateUtc);
+        var wire=Phase10LegacyFrozenInvoiceProjector.Project(invoice,taxId,"12345678901",null,
+            new Dictionary<Guid,string>{{Unit,"1"}},validatedAuthorityBinding:Binding(invoice));
+        Assert.Equal((ElectronicInvoiceType)type,wire.Classification.Type);
+        using var doc=JsonDocument.Parse(wire.Json);
+        var header=doc.RootElement.GetProperty("header");
+        Assert.Equal(reference,header.GetProperty("irtaxid").GetString());
+        Assert.Equal(taxId,header.GetProperty("taxid").GetString());
+        Assert.Equal(3,header.GetProperty("ins").GetInt32());
+        Assert.Equal(100,header.GetProperty("tprdis").GetInt64());
+        Assert.Equal(110,header.GetProperty("tbill").GetInt64());
+        Assert.NotEqual(reference,taxId);
+        Assert.Equal(0,doc.RootElement.GetProperty("body").GetArrayLength());
+        foreach(var key in new[]{"inty","inp","tinb","tob","bid","bbc","bpc","setm","cap","insp"})
+            Assert.False(header.TryGetProperty(key,out _),key);
+    }
+
+    [Theory]
+    [InlineData(InvoiceSubject.Correction,"Production",TaxAuthorityEnvironment.Production)]
+    [InlineData(InvoiceSubject.SalesReturn,"Production",TaxAuthorityEnvironment.Production)]
+    [InlineData(InvoiceSubject.Correction,"Sandbox",TaxAuthorityEnvironment.Sandbox)]
+    [InlineData(InvoiceSubject.SalesReturn,"Sandbox",TaxAuthorityEnvironment.Sandbox)]
+    public void Type2_general_sale_legal_documents_keep_type_and_omit_buyer_and_settlement(
+        InvoiceSubject subject,string environment,TaxAuthorityEnvironment authority)
+    {
+        var invoice=Invoice();
+        var root=JsonNode.Parse(invoice.SnapshotJson)!;
+        root["environment"]=environment;
+        root["invoiceType"]=2;
+        root["buyerPartyId"]=null;root["buyerPersonType"]=null;
+        root["settlementMethod"]=0;root["cashAmountRial"]=null;root["creditAmountRial"]=null;
+        root["financialSummary"]=new JsonObject { ["GrossRial"]=100, ["DiscountRial"]=0, ["AfterDiscountRial"]=100, ["PreviewVatRial"]=10, ["PreviewGrandTotalRial"]=110 };
+        root["otherTaxAndLegalFeesRial"]=0;
+        root["issueDateUtc"]=invoice.IssueDateUtc;
+        var reference=Phase10FiscalInvoiceIdentifier.Generate("ABC123",41,invoice.IssueDateUtc);
+        root["referenceTaxId"]=reference;
+        invoice.SnapshotJson=root.ToJsonString();invoice.Subject=subject;
+        Assert.True(Phase10InternalInvoiceValidationService.ValidSnapshot(invoice.SnapshotJson,new string('a',64),invoice.Id));
+        Assert.True(Phase10InvoiceCalculationAuditService.AuditSnapshot(invoice.SnapshotJson,invoice.IssueDateUtc).CanResend);
+        var taxId=Phase10FiscalInvoiceIdentifier.Generate("ABC123",42,invoice.IssueDateUtc);
+        var wire=Phase10LegacyFrozenInvoiceProjector.Project(invoice,taxId,"12345678901",null,
+            new Dictionary<Guid,string>{{Unit,"1"}},validatedAuthorityBinding:Binding(invoice) with { Environment=authority });
+        using var doc=JsonDocument.Parse(wire.Json);
+        var h=doc.RootElement.GetProperty("header");
+        Assert.Equal(2,h.GetProperty("inty").GetInt32());
+        Assert.Equal(1,h.GetProperty("inp").GetInt32());
+        Assert.Equal((int)subject,h.GetProperty("ins").GetInt32());
+        Assert.Equal(reference,h.GetProperty("irtaxid").GetString());
+        Assert.Equal(taxId,h.GetProperty("taxid").GetString());
+        Assert.Equal(1,doc.RootElement.GetProperty("body").GetArrayLength());
+        foreach(var key in new[]{"tinb","tob","bid","bbc","bpc","setm","cap","insp"})Assert.False(h.TryGetProperty(key,out _),key);
+    }
+
+    [Theory]
+    [InlineData("Production",3,1)]
+    [InlineData("Production",2,4)]
+    [InlineData("Sandbox",2,1)]
+    public void Production_cancellation_rejects_unapproved_predecessor_profiles(string environment,int type,int pattern)
+    {
+        var json=JsonSerializer.Serialize(new {environment,invoiceType=type,pattern});
+        Assert.Null(Phase18ProductionCancellationService.CreateCancellationSnapshot(json,Guid.NewGuid(),Guid.NewGuid(),
+            "ABC1230500000000000635",DateTime.UtcNow));
+    }
+
     [Fact]
     public void Explicit_owned_production_binding_projects_original_invoice()
     {
