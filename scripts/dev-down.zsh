@@ -25,7 +25,7 @@ stop_service_listeners() {
   done
 }
 
-for service in web api adminer autossh; do
+for service in web api adminer autossh serial-registry; do
   pidfile="$STATE/$service.pid"
   if [[ -f "$pidfile" ]]; then
     pid="$(< "$pidfile")"
@@ -42,6 +42,7 @@ done
 stop_service_listeners 15089 'ArginTaxPayer.Api'
 stop_service_listeners 3000 'next-server'
 stop_service_listeners 15432 'autossh'
+stop_service_listeners 15434 'autossh'
 # Stops only the local Adminer SSH tunnel; the loopback-only VPS Docker container stays up.
 
 print 'All tracked ArginTaxPayer development launchers were signaled to stop.'

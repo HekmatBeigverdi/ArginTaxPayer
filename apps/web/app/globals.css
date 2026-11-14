@@ -614,6 +614,7 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 .invoice-register__dialog-body{overflow-y:auto;min-height:0;padding:18px 20px;overscroll-behavior:contain}
 .invoice-register__dialog-body .invoice-register__fields{display:grid;grid-template-columns:170px minmax(0,1fr);align-items:center;gap:10px 16px;max-width:780px}
 .invoice-register__fields>label{font-size:12px;font-weight:600}
+.invoice-register__fields>.invoice-entry-loading{grid-column:1/-1}
 .invoice-register__fields :is(input,select){width:100%;min-width:0;min-height:36px;border:1px solid #c5d4e0;border-radius:7px;padding:6px 9px;background:var(--surface,#fff);color:inherit}
 .invoice-register__hint{grid-column:1/-1;background:#edf4fa;color:#31516b;border-radius:8px;padding:10px 12px;font-size:12px;line-height:1.8}
 .invoice-register__row-tools{display:grid;grid-template-columns:120px minmax(0,1fr);gap:8px 12px;max-width:780px;align-items:center}
@@ -764,6 +765,7 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 .invoice-register__catalog-picker>.field-hint{grid-column:1/-1;display:block;box-sizing:border-box;width:100%;margin:0;padding:6px 9px;border:1px solid #dbe7ef;border-radius:7px;background:#f7fafc;color:#617489;font-size:11px;line-height:1.7;white-space:normal;overflow-wrap:anywhere}
 .invoice-register__catalog-picker>label{font-size:12px;font-weight:600}
 .invoice-register__catalog-combo{position:relative;min-width:0}
+.invoice-register__catalog-combo>.invoice-entry-loading{display:flex}
 .invoice-register__catalog-combo input{display:block;width:100%;height:32px;min-height:32px;padding:5px 9px;border:1px solid #c5d4e0;border-radius:6px;font:inherit;font-size:12px;background:var(--surface,#fff);color:inherit}
 .invoice-register__catalog-options{position:absolute;inset-inline:0;top:calc(100% + 3px);z-index:5100;max-height:215px;overflow:auto;padding:4px;border:1px solid #c9d8e2;border-radius:8px;background:var(--surface,#fff);box-shadow:0 9px 22px #18374b28}
 .invoice-register__catalog-options button{display:flex;justify-content:space-between;align-items:center;gap:8px;width:100%;min-height:29px;padding:5px 8px;border:none;border-radius:5px;background:transparent;color:inherit;cursor:pointer;font:inherit;font-size:12px;text-align:right}
@@ -976,6 +978,8 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 
 .fiscal-section-loading { display:inline-flex; align-items:center; gap:6px; margin-inline-start:12px; font-size:11px; font-weight:400; color:#526d70; vertical-align:middle; }
 .fiscal-section-loading .argin-loader-spinner { width:14px; height:14px; border-width:2px; flex:none; }
+.invoice-entry-loading { display:inline-flex; align-items:center; gap:7px; margin:5px 0; color:#526d70; font-size:12px; line-height:1.7; }
+.invoice-entry-loading .argin-loader-spinner { width:15px; height:15px; border-width:2px; flex:none; }
 .existing-key-import form { display:grid; gap:8px; }
 .existing-key-import label { display:grid; gap:4px; font-size:12px; }
 .existing-key-import textarea { width:100%; resize:vertical; font:12px monospace; padding:7px; border:1px solid var(--argin-line); border-radius:6px; }

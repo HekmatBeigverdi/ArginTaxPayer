@@ -16,9 +16,9 @@ export default function InvoiceHistoryPanel({workspaceId}:{workspaceId:string}){
    .finally(()=>{if(active)setLoading(false);});
   return ()=>{active=false;};
  },[workspaceId]);
- return <section aria-label="تاریخچه نسخه‌های پیش‌نویس">
+ return <section aria-label="تاریخچه نسخه‌های پیش‌نویس" aria-busy={loading}>
    <h3>تاریخچه تغییرات پیش‌نویس</h3>
-   {loading&&<p role="status">در حال دریافت تاریخچه…</p>}
+   {loading&&<p className="invoice-entry-loading" role="status" aria-live="polite"><span className="argin-loader-spinner" aria-hidden="true"/>در حال دریافت تاریخچه…</p>}
    {error&&<p role="alert" className="form-error">{error}</p>}
    {!loading&&!error&&rows.length===0&&<p className="field-hint">برای این پیش‌نویس هنوز سابقه‌ای در جدول تاریخچه موجود نیست.</p>}
    {rows.length>0&&<div className="console-table-scroll"><table className="console-table">

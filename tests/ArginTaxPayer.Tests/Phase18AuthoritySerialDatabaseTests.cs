@@ -27,6 +27,7 @@ public sealed class Phase18AuthoritySerialDatabaseTests
         if(settings.Host is not ("localhost" or "127.0.0.1") || settings.Database!="argintaxpayer_test")
             throw new InvalidOperationException("Only the loopback test database is permitted.");
         var schema="p18_serial_"+Guid.NewGuid().ToString("N");
+        var registryConnection=new NpgsqlConnectionStringBuilder(raw){SearchPath=schema}.ConnectionString;
         await using var connection=new NpgsqlConnection(raw);
         await connection.OpenAsync();
         await Exec(connection,$"CREATE SCHEMA {schema}");
@@ -55,6 +56,8 @@ CREATE TABLE invoice_dispatch_operations(id uuid PRIMARY KEY,customer_user_id uu
                 ("o",owner),("t",taxpayer),("m",legacy),("op",Guid.NewGuid()),("i",Guid.NewGuid()));
             foreach(var operation in new AddAuthorityInvoiceFiscalReservations().UpOperations.OfType<SqlOperation>())
                 await Exec(connection,operation.Sql);
+            foreach(var operation in new AddSharedProductionFiscalSerials().UpOperations.OfType<SqlOperation>())
+                await Exec(connection,operation.Sql);
             Assert.Equal(legacy,await Scalar(connection,"SELECT legacy_sandbox_memory_id FROM invoice_dispatch_memory_scopes"));
             await Assert.ThrowsAsync<PostgresException>(()=>Exec(connection,"DELETE FROM sandbox_fiscal_memories WHERE id=@id",("id",legacy)));
             await Assert.ThrowsAsync<PostgresException>(()=>Exec(connection,"INSERT INTO invoice_dispatch_memory_scopes(id) VALUES(@id)",("id",Guid.NewGuid())));
@@ -67,9 +70,9 @@ CREATE TABLE invoice_dispatch_operations(id uuid PRIMARY KEY,customer_user_id uu
             await using(var tx=await connection.BeginTransactionAsync(IsolationLevel.Serializable))
             {
                 await Exec(connection,"SELECT id FROM fiscal_memories WHERE id=@m FOR UPDATE",tx,("m",production));
-                reserved=await ProductionInvoiceFiscalSerialRepository.ReserveAsync(connection,tx,first,production,"ABC123",1,"9",[],default);
+                reserved=await ProductionInvoiceFiscalSerialRepository.ReserveAsync(connection,tx,first,production,"ABC123",1,"9",[],default,registryConnection);
                 Assert.Equal(10,reserved.Serial);
-                var replay=await ProductionInvoiceFiscalSerialRepository.ReserveAsync(connection,tx,first,production,"ABC123",1,"999",[],default);
+                var replay=await ProductionInvoiceFiscalSerialRepository.ReserveAsync(connection,tx,first,production,"ABC123",1,"999",[],default,registryConnection);
                 Assert.Equal(reserved,replay);
                 await tx.CommitAsync();
             }
@@ -82,21 +85,21 @@ CREATE TABLE invoice_dispatch_operations(id uuid PRIMARY KEY,customer_user_id uu
             var second=await SeedInvoice(connection,owner,taxpayer,production,"Production");
             await using(var tx=await connection.BeginTransactionAsync())
             {
-                var next=await ProductionInvoiceFiscalSerialRepository.ReserveAsync(connection,tx,second,production,"ABC123",1,null,[],default);
+                var next=await ProductionInvoiceFiscalSerialRepository.ReserveAsync(connection,tx,second,production,"ABC123",1,null,[],default,registryConnection);
                 Assert.Equal(11,next.Serial);
                 await tx.RollbackAsync();
             }
             Assert.Equal(1L,await Scalar(connection,"SELECT count(*) FROM authority_invoice_fiscal_reservations"));
             await using(var tx=await connection.BeginTransactionAsync())
             {
-                var next=await ProductionInvoiceFiscalSerialRepository.ReserveAsync(connection,tx,second,production,"ABC123",1,null,[],default);
+                var next=await ProductionInvoiceFiscalSerialRepository.ReserveAsync(connection,tx,second,production,"ABC123",1,null,[],default,registryConnection);
                 Assert.Equal(11,next.Serial);
                 await tx.CommitAsync();
             }
             var sandboxInvoice=await SeedInvoice(connection,owner,taxpayer,sandbox,"Sandbox");
             await using(var tx=await connection.BeginTransactionAsync())
             {
-                var own=await ProductionInvoiceFiscalSerialRepository.ReserveAsync(connection,tx,sandboxInvoice,sandbox,"XYZ999",2,null,[],default);
+                var own=await ProductionInvoiceFiscalSerialRepository.ReserveAsync(connection,tx,sandboxInvoice,sandbox,"XYZ999",2,null,[],default,registryConnection);
                 Assert.Equal(1,own.Serial);
                 await tx.CommitAsync();
             }
@@ -106,14 +109,14 @@ CREATE TABLE invoice_dispatch_operations(id uuid PRIMARY KEY,customer_user_id uu
             var mismatch=await SeedInvoice(connection,owner,taxpayer,sandbox,"Production");
             await using(var tx=await connection.BeginTransactionAsync())
             {
-                await Assert.ThrowsAsync<PostgresException>(()=>ProductionInvoiceFiscalSerialRepository.ReserveAsync(connection,tx,mismatch,sandbox,"XYZ999",1,null,[],default));
+                await Assert.ThrowsAsync<PostgresException>(()=>ProductionInvoiceFiscalSerialRepository.ReserveAsync(connection,tx,mismatch,sandbox,"XYZ999",1,null,[],default,registryConnection));
                 await tx.RollbackAsync();
             }
             var otherOwner=Guid.NewGuid();await Exec(connection,"INSERT INTO identity_users VALUES(@o)",("o",otherOwner));
             var wrongTenant=await SeedInvoice(connection,otherOwner,taxpayer,production,"Production");
             await using(var tx=await connection.BeginTransactionAsync())
             {
-                await Assert.ThrowsAsync<PostgresException>(()=>ProductionInvoiceFiscalSerialRepository.ReserveAsync(connection,tx,wrongTenant,production,"ABC123",1,null,[],default));
+                await Assert.ThrowsAsync<PostgresException>(()=>ProductionInvoiceFiscalSerialRepository.ReserveAsync(connection,tx,wrongTenant,production,"ABC123",1,null,[],default,registryConnection));
                 await tx.RollbackAsync();
             }
         }

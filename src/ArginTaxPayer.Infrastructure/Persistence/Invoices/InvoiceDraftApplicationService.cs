@@ -257,7 +257,8 @@ WHERE draft_json->>'BulkImportKey' LIKE 'unsent-return:%'
         var documents = db.InvoiceDocuments.AsNoTracking()
             .Where(x => allowed.Contains(x.TaxpayerId) && !legalSuccessors.Contains(x.Id)
                 && !replaced.Contains(x.Id) && !pendingRejectedSuccessors.Contains(x.Id)
-                && !sandboxCorrectionDrafts.Contains(x.Id))
+                && !sandboxCorrectionDrafts.Contains(x.Id)
+                && !returnedUnsentDrafts.Contains(x.Id))
             .Select(x => new {
                 x.Id, x.CustomerUserId, x.TaxpayerId, x.Revision,
                 x.IssueDateUtc, x.UpdatedAtUtc,

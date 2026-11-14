@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
+import {readFileSync} from 'node:fs';
 import {loadTsx} from './helpers/load-tsx.mjs';
 const require=createRequire(import.meta.url);
 const React=require('react');
@@ -71,13 +72,16 @@ test('Sandbox success retains its explicit test-environment explanation',()=>{
 });
 test('invoice memory options make Production selectable and unclassified metadata unavailable',()=>{
  let state=0;
+ const workspaceSource=readFileSync(new URL('../app/invoices/workspace.tsx',import.meta.url),'utf8');
+ const stateNames=[...workspaceSource.matchAll(/const\s+\[([A-Za-z]\w*),\s*\w+\]\s*=\s*useState/g)].map(match=>match[1]);
+ for(const name of ['taxpayers','taxpayerId','loading','modal','headerOptions'])assert.ok(stateNames.includes(name),name);
  const component=loadTsx(new URL('../app/invoices/workspace.tsx',import.meta.url),{
   modules:{react:{...React,useEffect:()=>{},useCallback:fn=>fn,useMemo:fn=>fn(),useRef:value=>({current:value}),
-   useState(initial){const i=state++;const values={0:[{id,displayName:'Seller',status:1}],1:id,5:false,10:true,
-    21:{taxpayer:{id,displayName:'Seller',normalizedIdentifier:'14012072010'},memories:[
+   useState(initial){const i=state++;const values={taxpayers:[{id,displayName:'Seller',status:1}],taxpayerId:id,loading:false,modal:true,
+    headerOptions:{taxpayer:{id,displayName:'Seller',normalizedIdentifier:'14012072010'},memories:[
      {id:'production-memory',memoryIdentifier:'REAL01',status:2,authorityEnvironment:1},
      {id:'old-memory',memoryIdentifier:'OLD001',status:2,authorityEnvironment:null}],sandboxMemories:[{id:'sandbox-memory',memoryIdentifier:'TEST01',environment:'Sandbox'}]}};
-    return [Object.hasOwn(values,i)?values[i]:typeof initial==='function'?initial():initial,()=>{}];}}}
+    return [Object.hasOwn(values,stateNames[i])?values[stateNames[i]]:typeof initial==='function'?initial():initial,()=>{}];}}}
  });
  const html=renderToStaticMarkup(React.createElement(component.default,{actorId:id,isAdmin:false}));
  assert.match(html,/<option value="production-memory">REAL01 — Production/);

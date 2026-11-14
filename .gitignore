@@ -80,3 +80,8 @@ artifacts/phase18-step06/
 
 # Phase18 Step07: sensitive Production DB CA, passwords, backups, SQL reviews and audit logs
 artifacts/phase18-step07/
+
+.env.production.local
+
+!.env.dev.local.example
+!.env.production.local.example
