@@ -5,7 +5,7 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Invoices;
 
 /// <summary>
 /// Maps a trusted finalized internal invoice revision to the supported
-/// Legacy Type 1 or original Type 2 / Pattern 1 wire shape. Fiscal identities and official
+/// Legacy Type 1 or Type 2 / Pattern 1 wire shape. Fiscal identities and official
 /// unit mappings MUST come from authorized current server-side records.
 /// No HTTP, signing or dispatch takes place here.
 /// </summary>
@@ -42,10 +42,10 @@ public static class Phase10LegacyFrozenInvoiceProjector
             root.GetProperty("sourceWorkspaceId").GetGuid() != invoice.Id ||
             (!type2 && root.GetProperty("invoiceType").GetInt32() != 1) ||
             (!contracting && root.GetProperty("pattern").GetInt32() != 1))
-            throw new NotSupportedException("Only an explicitly scoped finalized Type1 or original Type2/Pattern1 snapshot is supported.");
+            throw new NotSupportedException("Only an explicitly scoped finalized Type1 or Type2/Pattern1 snapshot is supported.");
 
-        if ((type2 || contracting) && invoice.Subject != InvoiceSubject.Original)
-            throw new NotSupportedException("Only original Type2/Pattern1 invoices are supported.");
+        if (contracting && invoice.Subject != InvoiceSubject.Original)
+            throw new NotSupportedException("Only original contracting invoices are supported.");
         var entries = JsonSerializer.Deserialize<InvoiceEntryLine[]>(
             root.GetProperty("lines").GetRawText()) ?? [];
         if (invoice.Subject == InvoiceSubject.SalesReturn)
@@ -105,7 +105,7 @@ public static class Phase10LegacyFrozenInvoiceProjector
             return Phase10CancellationWireFactory.Project(
                 fiscalTaxId, predecessor, sellerTaxIdentifier,
                 new DateTimeOffset(invoice.IssueDateUtc).ToUnixTimeMilliseconds(),
-                new InvoiceTypePattern(ElectronicInvoiceType.First, 1),
+                new InvoiceTypePattern(type2 ? ElectronicInvoiceType.Second : ElectronicInvoiceType.First, 1),
                 CheckedRial(financial.BeforeDiscountRial),
                 CheckedRial(financial.DiscountRial),
                 CheckedRial(financial.AfterDiscountRial),

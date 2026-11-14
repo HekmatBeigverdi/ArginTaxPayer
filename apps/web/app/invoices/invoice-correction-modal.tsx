@@ -5,7 +5,7 @@ import InvoiceCorrectionReceipt,{type CorrectionReceiptValue} from "./invoice-co
 import {redirectForInvoiceSubscription} from "../../lib/invoice-subscription";
 import {fetchWithSessionRefresh} from "../../lib/session-fetch";
 type Line={description:string;quantity:number;unitPriceRial:number;discountPerUnitRial:number;vatRatePercent:number|null;officialIdentifierSnapshot:string|null};
-type Draft={workspaceId:string;predecessorInvoiceId:string;revision:number;lines:Line[];settlementMethod:number;cashAmountRial:number;creditAmountRial:number;remainingQuantities?:number[]};
+type Draft={invoiceType?:1|2;workspaceId:string;predecessorInvoiceId:string;revision:number;lines:Line[];settlementMethod:number;cashAmountRial:number;creditAmountRial:number;remainingQuantities?:number[]};
 type Result={decision:number;code:string;draft?:Draft|null;invoiceId?:string|null;status?:string|null;referenceNumber?:string|null;inquiryCode?:string|null};
 type Entry={quantity:number;unitPriceRial:number;discountPerUnitRial:number};
 class CorrectionActionError extends Error{
@@ -58,8 +58,8 @@ export default function InvoiceCorrectionModal({taxpayerId,invoiceId,resumeDraft
  const persistDraft=async()=>{
   if(!draft)throw Error("پیش‌نویس اصلاحی در دسترس نیست.");
   const result=await action("PUT","correction-draft",{
-   expectedRevision:draft.revision,lines:entries,settlementMethod:settlement,
-   cashAmountRial:cash,creditAmountRial:credit,
+   expectedRevision:draft.revision,lines:entries,settlementMethod:draft.invoiceType===2?0:settlement,
+   cashAmountRial:draft.invoiceType===2?0:cash,creditAmountRial:draft.invoiceType===2?0:credit,
    reductionCorrectsOriginalMistake:false,reductionEvidenceReference:null
   });
   if(!result.draft)throw Error("پاسخ ذخیره پیش‌نویس معتبر نیست؛ وضعیت پیش‌نویس را بررسی کنید.");
@@ -158,9 +158,10 @@ export default function InvoiceCorrectionModal({taxpayerId,invoiceId,resumeDraft
    {draft&&!progress&&<div className="invoice-correction-editor">
     <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
      {([{id:"items",text:"اقلام و قیمت‌ها"},{id:"settlement",text:"تسویه"},{id:"review",text:"مرور تغییرات"}] as const)
-      .map(t=><button key={t.id} type="button" className="identity-secondary invoice-action-button"
+      .filter(t=>draft.invoiceType!==2 || t.id!=="settlement").map(t=><button key={t.id} type="button" className="identity-secondary invoice-action-button"
        onClick={()=>setStage(t.id)} aria-pressed={stage===t.id}><InvoiceActionIcon name={t.id==="items"?"items":t.id==="settlement"?"settlement":"review"}/>{t.text}</button>)}
     </div>
+    {draft.invoiceType===2&&<p className="field-hint">صورتحساب نوع دوم نقدی محسوب می‌شود؛ ثبت روش و مبلغ تسویه لازم نیست.</p>}
     {stage==="items"&&<div className="table-scroll"><table className="console-table">
      <thead><tr><th>شرح</th><th>شناسه رسمی</th><th>تعداد</th><th>قیمت واحد (ریال)</th><th>تخفیف واحد</th><th>نرخ مالیات</th></tr></thead>
      <tbody>{draft.lines.map((line,i)=><tr key={i}>
@@ -175,7 +176,7 @@ export default function InvoiceCorrectionModal({taxpayerId,invoiceId,resumeDraft
     </table>
     <p className="field-hint">تعداد مبنا، مقدار باقی‌مانده پس از برگشت‌های قبلی است. کاهش تعداد در این فرم به‌عنوان اصلاح مقدار ثبت‌شده ذخیره می‌شود.</p>
     </div>}
-    {stage==="settlement"&&<div style={{display:"grid",gap:10}}>
+    {stage==="settlement"&&draft.invoiceType!==2&&<div style={{display:"grid",gap:10}}>
      <label>روش تسویه
       <select value={settlement} onChange={e=>setSettlement(Number(e.target.value))} disabled={busy}>
        <option value={1}>نقدی</option><option value={2}>نسیه</option><option value={3}>نقدی و نسیه</option>

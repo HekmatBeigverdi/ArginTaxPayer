@@ -102,7 +102,7 @@ async function handle(request: NextRequest, context: Context, method: Method) {
 function readSaveInput(value: unknown): JsonObject | null {
   if (!isObject(value) || !Number.isSafeInteger(value.expectedRevision) || Number(value.expectedRevision) < 1
     || !Array.isArray(value.lines) || value.lines.length === 0 || value.lines.length > 1000
-    || ![1, 2, 3].includes(Number(value.settlementMethod)) || !Number.isInteger(value.settlementMethod)
+    || ![0, 1, 2, 3].includes(Number(value.settlementMethod)) || !Number.isInteger(value.settlementMethod)
     || !isNumber(value.cashAmountRial) || !isNumber(value.creditAmountRial)
     || (value.reductionCorrectsOriginalMistake !== undefined && typeof value.reductionCorrectsOriginalMistake !== "boolean")
     || (value.reductionEvidenceReference != null && (typeof value.reductionEvidenceReference !== "string"
@@ -129,6 +129,10 @@ function readDraft(value: unknown, predecessorId: string) {
     || !Number.isInteger(value.settlementMethod) || !isNumber(value.cashAmountRial)
     || !isNumber(value.creditAmountRial)) return null;
 
+  const invoiceType=value.invoiceType ?? 1;
+  if (![1,2].includes(Number(invoiceType)) || !Number.isInteger(invoiceType) ||
+      invoiceType===2 && (value.settlementMethod!==0 || value.cashAmountRial!==0 || value.creditAmountRial!==0)) return null;
+
   const lines = [];
   for (const line of value.lines) {
     if (!isObject(line) || typeof line.description !== "string" || !isNumber(line.quantity)
@@ -146,7 +150,7 @@ function readDraft(value: unknown, predecessorId: string) {
     || remainingQuantities.some(quantity => !isNumber(quantity) || quantity < 0)) return null;
   return {
     workspaceId: value.workspaceId, predecessorInvoiceId: value.predecessorInvoiceId,
-    revision: value.revision, lines, settlementMethod: value.settlementMethod,
+    revision: value.revision, invoiceType, lines, settlementMethod: value.settlementMethod,
     cashAmountRial: value.cashAmountRial, creditAmountRial: value.creditAmountRial,
     remainingQuantities,
   };

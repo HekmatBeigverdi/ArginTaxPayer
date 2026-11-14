@@ -83,11 +83,9 @@ LIMIT 1
         var source=await db.InvoiceDocuments.AsNoTracking().SingleOrDefaultAsync(i=>i.Id==predecessorId&&i.TaxpayerId==taxpayerId&&i.CustomerUserId==owner.Value,ct);
         if(source is null)return new(InvoiceApiDecision.NotFound,"not_found");
         var successorId=Guid.NewGuid();var now=DateTime.UtcNow;
-        var root=JsonNode.Parse(source.SnapshotJson)?.AsObject();
-        if(root is null||(string?)root["environment"]!="Production"||(int?)root["invoiceType"]!=1||(int?)root["pattern"]!=1)
+        var root=CreateCancellationSnapshot(source.SnapshotJson,successorId,predecessorId,predecessorTaxId,now);
+        if(root is null)
             return new(InvoiceApiDecision.Invalid,"unsupported_predecessor_profile");
-        root["sourceWorkspaceId"]=successorId.ToString("D");root["sourceRevision"]=1;root["issueDateUtc"]=now;
-        root["referenceTaxId"]=predecessorTaxId;root["predecessorInvoiceId"]=predecessorId.ToString("D");root["legalSubject"]=3;
         var json=root.ToJsonString();var hash=Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(json))).ToLowerInvariant();
         try
         {
@@ -117,4 +115,22 @@ VALUES({Guid.NewGuid()},{owner.Value},{taxpayerId},{predecessorId},{successorId}
         var sent=await submission.SendAsync(bearer,taxpayerId,successorId,ct);
         return new(sent.Decision,sent.Code,successorId,sent.Status,sent.ReferenceNumber,sent.InquiryCode);
     }
+    // V7.9 Table 10 p32: preserve the source classification internally;
+    // the cancellation wire omits inty/inp, buyer and settlement fields.
+    internal static JsonObject? CreateCancellationSnapshot(string sourceJson,Guid successorId,
+        Guid predecessorId,string predecessorTaxId,DateTime issueUtc)
+    {
+        var root=JsonNode.Parse(sourceJson)?.AsObject();
+        if(root is null || (string?)root["environment"]!="Production" ||
+            (int?)root["invoiceType"] is not (1 or 2) || (int?)root["pattern"]!=1)
+            return null;
+        root["sourceWorkspaceId"]=successorId.ToString("D");
+        root["sourceRevision"]=1;
+        root["issueDateUtc"]=issueUtc;
+        root["referenceTaxId"]=predecessorTaxId;
+        root["predecessorInvoiceId"]=predecessorId.ToString("D");
+        root["legalSubject"]=3;
+        return root;
+    }
+
 }
