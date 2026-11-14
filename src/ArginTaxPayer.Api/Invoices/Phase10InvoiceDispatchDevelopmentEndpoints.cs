@@ -121,6 +121,18 @@ public static class Phase10InvoiceDispatchDevelopmentEndpoints
             http.Response.Headers.CacheControl="no-store";
             return SalesReturnResult(await service.SubmitAsync(Token(http),taxpayerId,invoiceId,ct));
         });
+        group.MapPost("/resume-unprepared",async(Guid taxpayerId,Guid invoiceId,
+            HttpContext http,Phase18UnpreparedLegalSuccessorService service,CancellationToken ct)=>{
+            if(!Local(http))return Results.NotFound();
+            http.Response.Headers.CacheControl="no-store";
+            var result=await service.ResumeAsync(Token(http),taxpayerId,invoiceId,ct);
+            var status=result.Decision switch {
+                InvoiceApiDecision.Success=>200,InvoiceApiDecision.Unauthenticated=>401,
+                InvoiceApiDecision.Forbidden=>403,InvoiceApiDecision.NotFound=>404,
+                InvoiceApiDecision.Conflict=>409,_=>400};
+            return Results.Json(new {code=result.Code,invoiceId=result.InvoiceId,status=result.Status,
+                referenceNumber=result.ReferenceNumber,inquiryCode=result.InquiryCode},statusCode:status);
+        });
         group.MapPost("/cancel-and-inquire",async(Guid taxpayerId,Guid invoiceId,
             HttpContext http,Phase18CancellationServiceRouter service,CancellationToken ct)=>{
             if(!Local(http))return Results.NotFound();

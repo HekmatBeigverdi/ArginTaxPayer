@@ -70,7 +70,7 @@ WHERE customer_user_id='{owner.Value}' AND taxpayer_id='{taxpayerId}'
    if(snapshot is null||(string?)snapshot["environment"]!="Sandbox"||
       (int?)snapshot["invoiceType"]!=1||(int?)snapshot["pattern"]!=1)
     return new(InvoiceApiDecision.Invalid,"unsupported_predecessor_profile");
-   var now=DateTime.UtcNow;
+   var now=InvoiceTimestamp.TruncateToMicroseconds(DateTime.UtcNow);
    snapshot["sourceWorkspaceId"]=successor.ToString("D");
    snapshot["sourceRevision"]=1;
    snapshot["issueDateUtc"]=now;

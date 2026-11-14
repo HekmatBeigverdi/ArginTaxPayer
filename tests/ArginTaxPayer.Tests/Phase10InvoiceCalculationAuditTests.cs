@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Npgsql;
 using ArginTaxPayer.Infrastructure.Persistence.Invoices;
 using Xunit;
 
@@ -30,6 +31,48 @@ public sealed class Phase10InvoiceCalculationAuditTests
             },
             otherTaxAndLegalFeesRial = w2
         });
+    }
+
+    [Theory]
+    [InlineData(1)] [InlineData(2)] [InlineData(3)] [InlineData(9)]
+    public void Audit_accepts_only_sub_microsecond_timestamp_loss_from_PostgreSQL(int ticks)
+    {
+        var original=IssueDate.AddTicks(1234560+ticks);
+        var persisted=new DateTime(original.Ticks-original.Ticks%10,DateTimeKind.Utc);
+        var result=Phase10InvoiceCalculationAuditService.AuditSnapshot(
+            Snapshot(issueDate:original.ToString("O")),persisted);
+        Assert.True(result.CanResend,string.Join(",",result.Findings.Select(x=>x.Code+":"+x.Field)));
+        Assert.Empty(result.Findings);
+    }
+
+    [Theory]
+    [InlineData(10)] [InlineData(20)] [InlineData(10000)]
+    public void Audit_rejects_timestamp_differences_visible_at_database_precision(int ticks)
+    {
+        var result=Phase10InvoiceCalculationAuditService.AuditSnapshot(
+            Snapshot(issueDate:IssueDate.AddTicks(ticks).ToString("O")),IssueDate);
+        Assert.False(result.CanResend);
+        Assert.Contains(result.Findings,x=>x.Code=="0200201" && x.Field=="header.indatim");
+    }
+
+    [Fact]
+    public async Task Audit_accepts_an_actual_PostgreSQL_UTC_timestamp_roundtrip()
+    {
+        var raw=Environment.GetEnvironmentVariable("PHASE18_PRODUCER_TEST_CONNECTION");
+        if(string.IsNullOrEmpty(raw))return;
+        var settings=new NpgsqlConnectionStringBuilder(raw);
+        if(settings.Database!="argintaxpayer_test" || settings.Host is not ("localhost" or "127.0.0.1"))
+            throw new InvalidOperationException("Only loopback TEST DB permitted.");
+        var original=IssueDate.AddTicks(1234563);
+        await using var connection=new NpgsqlConnection(raw);
+        await connection.OpenAsync();
+        await using var command=new NpgsqlCommand("SELECT @issue::timestamptz",connection);
+        command.Parameters.AddWithValue("issue",original);
+        var persisted=(DateTime)(await command.ExecuteScalarAsync())!;
+        Assert.Equal(0,persisted.Ticks%10);
+        Assert.NotEqual(original,persisted);
+        var result=Phase10InvoiceCalculationAuditService.AuditSnapshot(Snapshot(issueDate:original.ToString("O")),persisted);
+        Assert.True(result.CanResend);
     }
 
     [Fact]

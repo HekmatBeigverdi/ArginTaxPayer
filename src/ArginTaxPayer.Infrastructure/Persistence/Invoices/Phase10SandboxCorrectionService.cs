@@ -131,7 +131,7 @@ public sealed class Phase10SandboxCorrectionService(
         }
 
         var id = Guid.NewGuid();
-        var now = DateTime.UtcNow;
+        var now = InvoiceTimestamp.TruncateToMicroseconds(DateTime.UtcNow);
         snapshot["referenceTaxId"] = referenceTaxId;
         snapshot["predecessorInvoiceId"] = predecessorId.ToString("D");
         snapshot["legalSubject"] = 2;
@@ -284,7 +284,7 @@ public sealed class Phase10SandboxCorrectionService(
                 ? "correction-workspace:" + savedDraft.Id.ToString("D") : input.ReductionEvidenceReference
             : null;
         var json = root.ToJsonString();
-        var now = DateTime.UtcNow;
+        var now = InvoiceTimestamp.TruncateToMicroseconds(DateTime.UtcNow);
         var rows = await db.Database.ExecuteSqlInterpolatedAsync($"""
             UPDATE sandbox_invoice_correction_workspaces
             SET draft_json=CAST({json} AS jsonb),revision=revision+1,updated_at_utc={now}
@@ -397,7 +397,7 @@ public sealed class Phase10SandboxCorrectionService(
         }
 
         // Create the successor without modifying the accepted predecessor.
-        var now = DateTime.UtcNow;
+        var now = InvoiceTimestamp.TruncateToMicroseconds(DateTime.UtcNow);
         var invoiceId = Guid.NewGuid();
         root["sourceWorkspaceId"] = invoiceId.ToString("D");
         root["sourceRevision"] = 1;

@@ -82,7 +82,7 @@ LIMIT 1
             return new(InvoiceApiDecision.Conflict,"accepted_predecessor_required");
         var source=await db.InvoiceDocuments.AsNoTracking().SingleOrDefaultAsync(i=>i.Id==predecessorId&&i.TaxpayerId==taxpayerId&&i.CustomerUserId==owner.Value,ct);
         if(source is null)return new(InvoiceApiDecision.NotFound,"not_found");
-        var successorId=Guid.NewGuid();var now=DateTime.UtcNow;
+        var successorId=Guid.NewGuid();var now=InvoiceTimestamp.TruncateToMicroseconds(DateTime.UtcNow);
         var root=CreateCancellationSnapshot(source.SnapshotJson,successorId,predecessorId,predecessorTaxId,now);
         if(root is null)
             return new(InvoiceApiDecision.Invalid,"unsupported_predecessor_profile");
@@ -126,7 +126,7 @@ VALUES({Guid.NewGuid()},{owner.Value},{taxpayerId},{predecessorId},{successorId}
             return null;
         root["sourceWorkspaceId"]=successorId.ToString("D");
         root["sourceRevision"]=1;
-        root["issueDateUtc"]=issueUtc;
+        root["issueDateUtc"]=InvoiceTimestamp.TruncateToMicroseconds(issueUtc);
         root["referenceTaxId"]=predecessorTaxId;
         root["predecessorInvoiceId"]=predecessorId.ToString("D");
         root["legalSubject"]=3;

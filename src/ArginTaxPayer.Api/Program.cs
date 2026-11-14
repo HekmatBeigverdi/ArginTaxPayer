@@ -196,6 +196,7 @@ if (operationalEndpointsEnabled)
     builder.Services.AddScoped<Phase18ProductionSalesReturnService>();
     builder.Services.AddScoped<Phase18SalesReturnServiceRouter>();
     builder.Services.AddScoped<Phase18InvoiceSubmissionService>();
+    builder.Services.AddScoped<Phase18UnpreparedLegalSuccessorService>();
     builder.Services.AddScoped<Phase18InvoiceInquiryService>();
     builder.Services.AddScoped<FailedLegalSuccessorAbandonService>();
     builder.Services.AddScoped<FiscalMemoryAuthorityOnboardingService>();
