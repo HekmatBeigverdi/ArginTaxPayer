@@ -33,7 +33,9 @@ export default function InvoiceLineageModal({taxpayerId,invoiceId,onClose,onChan
   setInquiryBusy(node.invoiceId);setInquiryMessage("");setInquiryReport(null);
   try{
    const response=await fetch("/api/invoice-dispatch/"+encodeURIComponent(taxpayerId)+"/"+
-    encodeURIComponent(invoiceId)+"/correction-send-and-inquire",{
+    (node.subject==="Correction"
+      ?encodeURIComponent(invoiceId)+"/correction-send-and-inquire"
+      :encodeURIComponent(node.invoiceId)+"/resume-unprepared"),{
     method:"POST",credentials:"same-origin",cache:"no-store",signal:AbortSignal.timeout(115000)});
    const result=await response.json() as {code?:string;status?:string;invoiceId?:string|null;
     referenceNumber?:string|null;error?:string};
@@ -188,7 +190,7 @@ export default function InvoiceLineageModal({taxpayerId,invoiceId,onClose,onChan
        {node.canResumeSubmission&&<button type="button" className="identity-secondary invoice-lineage-inquiry"
         disabled={inquiryBusy!==null} aria-busy={inquiryBusy===node.invoiceId}
         onClick={()=>void resumeCorrection(node)}>
-        {inquiryBusy===node.invoiceId?<><span className="argin-loader-spinner" aria-hidden="true"/>در حال ادامه ارسال همین اصلاحیه…</>:"ادامه ارسال همین اصلاحیه"}
+        {inquiryBusy===node.invoiceId?<><span className="argin-loader-spinner" aria-hidden="true"/>در حال ادامه ارسال همین سند…</>:(node.subject==="Correction"?"ادامه ارسال همین اصلاحیه":"ادامه ارسال همین سند")}
        </button>}
        <details className="fiscal-section" style={{marginTop:10}}
         ref={element=>{previewDetails.current[node.invoiceId]=element;}}>

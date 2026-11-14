@@ -169,7 +169,8 @@ public sealed class Phase10InvoiceCalculationAuditService(
             field.ValueKind != JsonValueKind.String ||
             !DateTimeOffset.TryParse(field.GetString(), CultureInfo.InvariantCulture,
                 DateTimeStyles.RoundtripKind, out var parsed) ||
-            parsed.UtcDateTime != issueDateUtc)
+            InvoiceTimestamp.TruncateToMicroseconds(parsed.UtcDateTime) !=
+                InvoiceTimestamp.TruncateToMicroseconds(issueDateUtc))
             Add(findings, "0200201", "header.indatim",
                 "تاریخ و زمان صدور صورتحساب میلادی معتبر نیست.");
     }

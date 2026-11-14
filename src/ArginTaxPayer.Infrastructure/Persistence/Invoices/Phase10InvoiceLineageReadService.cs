@@ -239,7 +239,9 @@ ORDER BY lineage.depth,lineage.created_at_utc,lineage.id
                 var subject=(ArginTaxPayer.Domain.Invoices.InvoiceSubject)next.GetInt32(1);
                 var canResume=next.GetBoolean(7) && next.GetInt32(8)==1 &&
                     dispatchState==0 && next.IsDBNull(3) &&
-                    subject==ArginTaxPayer.Domain.Invoices.InvoiceSubject.Correction;
+                    subject is ArginTaxPayer.Domain.Invoices.InvoiceSubject.Correction or
+                        ArginTaxPayer.Domain.Invoices.InvoiceSubject.Cancellation or
+                        ArginTaxPayer.Domain.Invoices.InvoiceSubject.SalesReturn;
                 nodes.Add(new(next.GetGuid(0),
                     subject.ToString(),
                     next.IsDBNull(3)?null:next.GetString(3),next.GetDateTime(2),status,

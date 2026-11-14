@@ -130,7 +130,7 @@ public sealed class Phase10SandboxSalesReturnService(
         }
 
         var id = Guid.NewGuid();
-        var now = DateTime.UtcNow;
+        var now = InvoiceTimestamp.TruncateToMicroseconds(DateTime.UtcNow);
         snapshot["referenceTaxId"] = referenceTaxId;
         snapshot["predecessorInvoiceId"] = predecessorId.ToString("D");
         snapshot["legalSubject"] = 4;
@@ -274,7 +274,7 @@ public sealed class Phase10SandboxSalesReturnService(
         root["reductionCorrectsOriginalMistake"] = input.ReductionCorrectsOriginalMistake;
         root["reductionEvidenceReference"] = input.ReductionCorrectsOriginalMistake ? input.ReductionEvidenceReference : null;
         var json = root.ToJsonString();
-        var now = DateTime.UtcNow;
+        var now = InvoiceTimestamp.TruncateToMicroseconds(DateTime.UtcNow);
         var rows = await db.Database.ExecuteSqlInterpolatedAsync($"""
             UPDATE sandbox_invoice_sales_return_workspaces
             SET draft_json=CAST({json} AS jsonb),revision=revision+1,updated_at_utc={now}
@@ -373,7 +373,7 @@ public sealed class Phase10SandboxSalesReturnService(
         }
 
         // Create the successor without modifying the accepted predecessor.
-        var now = DateTime.UtcNow;
+        var now = InvoiceTimestamp.TruncateToMicroseconds(DateTime.UtcNow);
         var invoiceId = Guid.NewGuid();
         root["sourceWorkspaceId"] = invoiceId.ToString("D");
         root["sourceRevision"] = 1;
