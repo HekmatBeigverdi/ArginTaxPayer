@@ -129,6 +129,18 @@ public sealed class PostgresBackupArtifactCreator(IConfiguration configuration) 
     {
         var connectionString = configuration.GetConnectionString("ArginTaxPayerDb")
             ?? throw new InvalidOperationException("PostgreSQL connection is not configured.");
+        var reader = configuration.GetConnectionString("DatabaseBackupRead");
+        if (!string.IsNullOrWhiteSpace(reader))
+        {
+            var application = new Npgsql.NpgsqlConnectionStringBuilder(connectionString);
+            var backup = new Npgsql.NpgsqlConnectionStringBuilder(reader);
+            if (!string.Equals(application.Host, backup.Host, StringComparison.OrdinalIgnoreCase) || application.Port != backup.Port)
+                throw new InvalidOperationException("Backup reader must use the application PostgreSQL host and port.");
+            // Preserve the selected active database after a restore, regardless of the
+            // original database recorded in the private credential file.
+            backup.Database = application.Database;
+            connectionString = backup.ConnectionString;
+        }
         var statePath = configuration["BackupController:StateDirectory"] ?? "/var/lib/argintaxpayer/backup-controller";
         var protectedTemp = Path.Combine(statePath, "tmp");
         return new PostgresBackupRunner(

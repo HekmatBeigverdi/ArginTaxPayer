@@ -19,6 +19,7 @@ Environment=BackupController__EncryptionKeyPath=/etc/argintaxpayer/database-back
 EnvironmentFile=-/etc/argintaxpayer/api.env
 EnvironmentFile=-/etc/argintaxpayer/backup-db.env
 EnvironmentFile=-/etc/argintaxpayer/backup-restore.env
+EnvironmentFile=-/etc/argintaxpayer/backup-read.env
 ExecStart=/usr/bin/env dotnet /opt/argintaxpayer/current/backup/ArginTaxPayer.Workers.dll
 Restart=on-failure
 RestartSec=10s

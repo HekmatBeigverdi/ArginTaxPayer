@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text;
 using Npgsql;
 
 namespace ArginTaxPayer.Workers.DatabaseBackup;
@@ -30,20 +31,30 @@ public sealed class PostgresBackupCommandRunner(
 
         using var process = Start(start, "pg_dump");
         process.StandardInput.Close();
-        var stderrDrain = process.StandardError.BaseStream.CopyToAsync(Stream.Null, cancellationToken);
+        var stderrDrain = ReadDiagnosticAsync(process.StandardError, connection.Password, cancellationToken);
         try
         {
             var encryptedBytes = await BackupEncryption.EncryptAsync(
                 process.StandardOutput.BaseStream, encryptedOutput, backupKey.Material, cancellationToken);
             await Task.WhenAll(process.WaitForExitAsync(cancellationToken), stderrDrain);
             if (process.ExitCode != 0)
-                throw new BackupCommandFailedException("PostgreSQL dump command failed.");
+                throw DumpFailure(process.ExitCode, await stderrDrain);
             return encryptedBytes;
         }
-        catch
+        catch (Exception ex)
         {
-            await KillAndWaitAsync(process);
-            throw;
+            try
+            {
+                // pg_dump may fail before emitting bytes. Preserve its error rather
+                // than masking it with the encryptor's empty-archive exception.
+                if (ex is InvalidDataException && !cancellationToken.IsCancellationRequested)
+                {
+                    await process.WaitForExitAsync(cancellationToken);
+                    if (process.ExitCode != 0) throw DumpFailure(process.ExitCode, await stderrDrain);
+                }
+                throw;
+            }
+            finally { await KillAndWaitAsync(process); }
         }
     }
 
@@ -75,6 +86,29 @@ public sealed class PostgresBackupCommandRunner(
             await KillAndWaitAsync(process);
             throw;
         }
+    }
+
+    private static BackupCommandFailedException DumpFailure(int exitCode, string diagnostic) =>
+        new($"PostgreSQL dump failed (exit {exitCode}): {diagnostic}");
+
+    private static async Task<string> ReadDiagnosticAsync(StreamReader reader, string? password, CancellationToken ct)
+    {
+        var text = new StringBuilder();
+        var buffer = new char[1024]; int count;
+        while ((count = await reader.ReadAsync(buffer.AsMemory(), ct)) != 0)
+        {
+            if (text.Length < 8192) text.Append(buffer, 0, Math.Min(count, 8192 - text.Length));
+        }
+        var result = text.ToString();
+        if (!string.IsNullOrEmpty(password))
+        {
+            result = result.Replace(password, "[REDACTED]", StringComparison.Ordinal);
+            // Do not expose a password prefix when diagnostics were truncated.
+            for (var length = Math.Min(password.Length - 1, result.Length); length > 0; length--)
+                if (result.EndsWith(password[..length], StringComparison.Ordinal))
+                { result = result[..^length] + "[REDACTED]"; break; }
+        }
+        return string.IsNullOrWhiteSpace(result) ? "No diagnostic output." : result.Trim();
     }
 
     private NpgsqlConnectionStringBuilder ParseConnectionString()

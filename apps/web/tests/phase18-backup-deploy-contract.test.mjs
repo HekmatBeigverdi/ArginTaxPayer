@@ -37,3 +37,11 @@ test('production workflow builds, checksums and uploads the backup worker and re
  assert.match(workflow,/schema-and-backup-before-promote-v2/);
  assert.doesNotMatch(workflow,/schema-before-promote-v1/);
 });
+
+test('production controller loads separate reader credentials and backup follows active application database',()=>{
+ assert.match(unit,/EnvironmentFile=-\/etc\/argintaxpayer\/backup-read.env/);
+ const creator=read('src/ArginTaxPayer.Workers/DatabaseBackup/BackupExecutionService.cs');
+ assert.match(creator,/GetConnectionString\("DatabaseBackupRead"\)/);
+ assert.match(creator,/backup.Database = application.Database/);
+ assert.match(read('scripts/phase18-provision-backup-reader.py'),/GRANT pg_read_all_data TO argin_backup_reader/);
+});

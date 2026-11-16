@@ -61,7 +61,7 @@ public sealed class BackupWorkService(
                 var failedOperation = await operations.GetStatusAsync(CancellationToken.None);
                 logger.LogError("Backup operation {OperationId} action {Action} failed at stage {Stage} ({ErrorType}, inner {InnerType}). Detail: {Detail}. Stack: {Stack}",
                     item.OperationId, item.Action, failedOperation?.CurrentStage, ex.GetType().Name, ex.InnerException?.GetType().Name,
-                    ex is BackupHostLifecycleException or BackupBundleException ? ex.Message : "Sensitive exception contents omitted.", ex.StackTrace);
+                    ex is BackupHostLifecycleException or BackupBundleException or BackupCommandFailedException ? ex.Message : "Sensitive exception contents omitted.", ex.StackTrace);
                 try { await operations.CompleteAsync(item.OperationId, false,
                     ex is BackupBundleException ? ex.Message : "Operation failed (" + ex.GetType().Name + ").", CancellationToken.None); }
                 catch (InvalidOperationException) { }
