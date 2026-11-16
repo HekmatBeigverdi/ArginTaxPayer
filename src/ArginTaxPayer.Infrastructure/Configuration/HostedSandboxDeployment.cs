@@ -22,7 +22,7 @@ public static class HostedSandboxDeployment
         {
             var database = new NpgsqlConnectionStringBuilder(connectionString);
             return database.Host == "127.0.0.1" && database.Port == 15434 &&
-                database.Database == "argintaxpayer_prod" &&
+                IsApprovedDatabase(database.Database, configuration) &&
                 database.Username == "argin_prod_app" &&
                 database.SslMode == SslMode.VerifyFull &&
                 database.RootCertificate == "/etc/argintaxpayer/prod-db-ca.pem";
@@ -32,4 +32,13 @@ public static class HostedSandboxDeployment
             return false;
         }
     }
+    public static bool IsApprovedDatabase(string? database, IConfiguration configuration)
+    {
+        if (database == "argintaxpayer_prod") return true;
+        var selected = configuration["Backup:ActiveDatabase"];
+        return !string.IsNullOrEmpty(selected) &&
+            System.Text.RegularExpressions.Regex.IsMatch(selected, @"\Arecovery_[a-f0-9]{12}\z") &&
+            string.Equals(database, selected, StringComparison.Ordinal);
+    }
+
 }

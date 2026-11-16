@@ -1,4 +1,5 @@
 using System.Data;
+using ArginTaxPayer.Infrastructure.Configuration;
 using System.Data.Common;
 using System.Text.Json;
 using ArginTaxPayer.Domain.Invoices;
@@ -327,9 +328,22 @@ VALUES(@id,@taxpayer,@event,@payload,@dedup,@now,NULL,0)
         // Production deployment uses its existing DB; development with a TEST DB
         // must explicitly configure the central registry. No local fallback.
         var current = new NpgsqlConnectionStringBuilder(connection.ConnectionString);
-        if (current.Database != "argintaxpayer_prod")
-            throw new InvalidOperationException("Production sends from TEST require FiscalSerialRegistry.");
-        return configuration.GetConnectionString("ArginTaxPayerDb");
+        if (current.Database == "argintaxpayer_prod")
+            return configuration.GetConnectionString("ArginTaxPayerDb");
+        if (HostedSandboxDeployment.IsAllowed(current.ConnectionString, configuration))
+        {
+            // Recovery must retain the original authoritative serial registry;
+            // never allocate production serials from a restored snapshot's copy.
+            // Open Npgsql connections redact Password by default. Retrieve the
+            // original credential from configuration, not the open connection.
+            var original = new NpgsqlConnectionStringBuilder(configuration.GetConnectionString("ArginTaxPayerDb")
+                ?? throw new InvalidOperationException("Application PostgreSQL configuration is unavailable."));
+            if (!HostedSandboxDeployment.IsAllowed(original.ConnectionString, configuration) || original.Database != current.Database)
+                throw new InvalidOperationException("Serial registry source does not match the selected application database.");
+            original.Database = "argintaxpayer_prod";
+            return original.ConnectionString;
+        }
+        throw new InvalidOperationException("Production sends from TEST require FiscalSerialRegistry.");
     }
 
     private static Phase10LegacyPreparationResult Denied(string code)=>new(InvoiceApiDecision.Invalid,code);

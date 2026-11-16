@@ -65,7 +65,8 @@ test('legacy Sandbox workflows admit only isolated test or explicitly approved h
   }
   const policy = read('src/ArginTaxPayer.Infrastructure/Configuration/SandboxDatabasePolicy.cs');
   assert.match(policy, /databaseName == "argintaxpayer_test"/);
-  assert.match(policy, /databaseName == "argintaxpayer_prod"/);
+  assert.match(policy, /string\.Equals\(databaseName, connection\.Database/);
+  assert.match(read('src/ArginTaxPayer.Infrastructure/Configuration/HostedSandboxDeployment.cs'), /Backup:ActiveDatabase/);
   assert.match(policy, /HostedSandboxDeployment\.IsAllowed/);
 });
 

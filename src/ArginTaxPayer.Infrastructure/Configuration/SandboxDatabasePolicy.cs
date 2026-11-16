@@ -8,6 +8,6 @@ public static class SandboxDatabasePolicy
 {
     public static bool IsAllowed(string? databaseName, DbConnection connection, IConfiguration? configuration) =>
         databaseName == "argintaxpayer_test" ||
-        databaseName == "argintaxpayer_prod" && configuration is not null &&
+        configuration is not null && string.Equals(databaseName, connection.Database, StringComparison.Ordinal) &&
         HostedSandboxDeployment.IsAllowed(connection.ConnectionString, configuration);
 }

@@ -428,9 +428,9 @@ WHERE customer_user_id=@owner AND taxpayer_id=@taxpayer
     }
 
     private bool SandboxDatabaseAllowed(string? database, string connectionString) =>
-        database=="argintaxpayer_test" || database=="argintaxpayer_prod" &&
-        services.GetService<IConfiguration>() is { } configuration &&
-        HostedSandboxDeployment.IsAllowed(connectionString,configuration);
+        database=="argintaxpayer_test" || services.GetService<IConfiguration>() is { } configuration &&
+        HostedSandboxDeployment.IsAllowed(connectionString,configuration) &&
+        string.Equals(database, new Npgsql.NpgsqlConnectionStringBuilder(connectionString).Database, StringComparison.Ordinal);
 
     private static async Task<object?> ScalarDatabaseAsync(
         System.Data.Common.DbConnection connection,
