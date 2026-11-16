@@ -19,9 +19,9 @@ while (( $# )); do
   shift 2
 done
 source_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
-[[ "$(git -c safe.directory="$source_root" -C "$source_root" rev-parse HEAD)" == "$reviewed_sha" ]] ||
+[[ "$(GIT_OPTIONAL_LOCKS=0 git -c safe.directory="$source_root" -C "$source_root" rev-parse HEAD)" == "$reviewed_sha" ]] ||
   refuse 'Checkout does not match reviewed source SHA'
-[[ -z "$(git -c safe.directory="$source_root" -C "$source_root" status --porcelain --untracked-files=no)" ]] ||
+[[ -z "$(GIT_OPTIONAL_LOCKS=0 git -c safe.directory="$source_root" -C "$source_root" status --porcelain --untracked-files=no)" ]] ||
   refuse 'Tracked source files are modified'
 getent passwd argin-deploy >/dev/null || refuse 'Create argin-deploy first'
 getent passwd argintaxsvc >/dev/null || refuse 'Application service account is absent'

@@ -24,7 +24,6 @@ def main():
     helper = Path('/usr/local/sbin/argin-taxpayer-release')
     if helper.is_symlink() or helper.stat().st_uid != 0 or helper.stat().st_mode & 0o022:
         fail('Reviewed root-owned deployment helper required.')
-    spec = importlib.util.spec_from_file_location('reviewed_release_helper', helper)
     # The installed helper has no .py suffix, so use an explicit source loader.
     from importlib.machinery import SourceFileLoader
     spec = importlib.util.spec_from_loader('reviewed_release_helper', SourceFileLoader('reviewed_release_helper', str(helper)))
@@ -61,7 +60,7 @@ def main():
 
     def sql(statement):
         result = subprocess.run(['/usr/bin/docker', 'exec', '-i', '-u', 'postgres', configuration['CONTAINER'],
-                                 'psql', '-X', '-qAt', '-v', 'ON_ERROR_STOP=1', '-d', 'postgres'],
+                                 'psql', '--username', 'argin_prod_bootstrap', '-X', '-qAt', '-v', 'ON_ERROR_STOP=1', '-d', 'postgres'],
                                 input=statement, text=True, capture_output=True, timeout=30)
         if result.returncode:
             fail('PostgreSQL role provisioning failed; diagnostic SQL/credentials withheld.')
@@ -80,6 +79,7 @@ def main():
     encoded = restore_connection.replace('\\', '\\\\').replace('"', '\\"')
     staging = destination.with_name('.backup-restore.' + secrets.token_hex(8) + '.tmp')
     fd = os.open(staging, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    role_created = False
     try:
         with os.fdopen(fd, 'w') as output:
             output.write('ConnectionStrings__DatabaseBackupRestore="' + encoded + '"\n')
@@ -88,12 +88,18 @@ def main():
         # Password is generated hexadecimal; SQL is sent on stdin and never logged here.
         sql("BEGIN; CREATE ROLE argin_backup_restore LOGIN CREATEDB NOSUPERUSER NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD '"
             + password + "'; GRANT argin_prod_app TO argin_backup_restore; COMMIT;")
+        role_created = True
         os.chown(staging, 0, gid)
         os.chmod(staging, 0o640)
         os.link(staging, destination)  # Never overwrite concurrently provisioned credentials.
         print('[PASS] Created separate non-superuser restore role and private connection file.')
     finally:
-        staging.unlink(missing_ok=True)
+        if role_created and not destination.exists():
+            os.chown(staging, 0, 0)
+            os.chmod(staging, 0o600)
+            print('[RECOVERY] Role created; private credentials retained at ' + str(staging))
+        else:
+            staging.unlink(missing_ok=True)
 
 
 if __name__ == '__main__':
