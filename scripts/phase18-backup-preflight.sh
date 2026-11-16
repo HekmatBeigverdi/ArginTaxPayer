@@ -24,14 +24,15 @@ if info.st_uid != pwd.getpwnam('argintaxsvc').pw_uid or stat.S_IMODE(info.st_mod
 lines=key.read_text().splitlines()
 if len(lines)!=2 or not re.fullmatch(r'[A-Za-z0-9_-]{1,32}',lines[0]) or not re.fullmatch(r'[A-Fa-f0-9]{64}',lines[1]):
     raise SystemExit('[FAIL] Invalid encryption key format.')
-restore=root/'backup-restore.env'
-if restore.is_symlink() or not restore.is_file(): raise SystemExit('[FAIL] Separate restore credential file missing.')
-info=restore.stat()
-if info.st_uid!=0 or info.st_gid!=pwd.getpwnam('argintaxsvc').pw_gid or stat.S_IMODE(info.st_mode)!=0o640:
-    raise SystemExit('[FAIL] Restore environment must be root:argintaxsvc 0640.')
-if not re.search(r'^ConnectionStrings__DatabaseBackupRestore=.+',restore.read_text(),re.M):
-    raise SystemExit('[FAIL] Separate restore connection is not configured.')
-print('[PASS] Key and restore configuration present (values withheld).')
+for filename,setting in [('backup-restore.env','ConnectionStrings__DatabaseBackupRestore'),('backup-read.env','ConnectionStrings__DatabaseBackupRead')]:
+    credential=root/filename
+    if credential.is_symlink() or not credential.is_file(): raise SystemExit('[FAIL] Missing separate database credential file: '+filename)
+    info=credential.stat()
+    if info.st_uid!=0 or info.st_gid!=pwd.getpwnam('argintaxsvc').pw_gid or stat.S_IMODE(info.st_mode)!=0o640:
+        raise SystemExit('[FAIL] Database credential must be root:argintaxsvc 0640: '+filename)
+    if not re.search(r'^'+setting+r'=.+',credential.read_text(),re.M):
+        raise SystemExit('[FAIL] Missing separate database credential setting: '+setting)
+print('[PASS] Key, backup reader and restore configuration present (values withheld).')
 PY
 [[ "$(systemctl show argintaxpayer-backup.service -p NoNewPrivileges --value)" == no ]] || fail 'Controller blocks the sudo lifecycle helper.'
 [[ "$(systemctl show argintaxpayer-backup.service -p ReadWritePaths --value)" == *'/etc/argintaxpayer'* ]] || fail 'Controller cannot publish database selection.'

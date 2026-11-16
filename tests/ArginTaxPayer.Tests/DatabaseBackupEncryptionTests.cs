@@ -335,6 +335,31 @@ public sealed class PostgresBackupCommandRunnerTests
         }
     }
 
+    [Fact]
+    public async Task Dump_failure_before_output_reports_bounded_redacted_process_error()
+    {
+        if (!OperatingSystem.IsLinux() && !OperatingSystem.IsMacOS()) return;
+        var root = Path.Combine(Path.GetTempPath(), "argin-pg-failed-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var dump = Path.Combine(root, "pg_dump");
+            await WriteExecutable(dump, "#!/bin/sh\nprintf '%s' 'permission denied for schema private; local-only-secret " + new string('x', 20000) + "' >&2\nexit 17\n");
+            var runner = new PostgresBackupCommandRunner(new BackupRunnerOptions(
+                "Host=localhost;Database=test;Username=test;Password=local-only-secret", "phase18"), dump, "/not-used", root);
+            var key = new BackupEncryptionKey("1", RandomNumberGenerator.GetBytes(32));
+            await using var output = new MemoryStream();
+            var error = await Assert.ThrowsAsync<BackupCommandFailedException>(() => runner.CreateEncryptedDumpAsync(output, key, CancellationToken.None));
+            Assert.Contains("exit 17", error.Message);
+            Assert.Contains("permission denied for schema private", error.Message);
+            Assert.DoesNotContain("local-only-secret", error.Message);
+            Assert.Contains("[REDACTED]", error.Message);
+            Assert.True(error.Message.Length < 8400);
+            Assert.Empty(Directory.EnumerateFiles(root, "pgpass-*"));
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
     private static async Task WriteExecutable(string path, string body)
     {
         await File.WriteAllTextAsync(path, body);
