@@ -12,7 +12,7 @@ for tool in sudo tar sha256sum mktemp node npm realpath; do command -v "$tool" >
 bundle=$(realpath -e -- "$4")
 sums=$(realpath -e -- "$6")
 [[ "$sums" == "$bundle/SHA256SUMS" ]] || die 'Checksum manifest must be in bundle directory'
-for name in api.tar.gz web.tar.gz; do
+for name in api.tar.gz web.tar.gz backup.tar.gz; do
   [[ -f "$bundle/$name" && ! -L "$bundle/$name" ]] || die "Missing or unsafe $name"
   count=$(grep -Ec "^[0-9a-f]{64}  $name$" "$sums" || true)
   [[ "$count" == 1 ]] || die "Incorrect checksum entry for $name"
@@ -26,7 +26,7 @@ if sudo test -e "/opt/argintaxpayer/releases/$sha"; then die 'Immutable release 
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 mkdir -p "$tmp/stage"
-for name in api web; do
+for name in api web backup; do
   tar -tzf "$bundle/$name.tar.gz" | grep "^$name/" >/dev/null || die "Missing $name archive root"
   if tar -tzf "$bundle/$name.tar.gz" | grep -Eq '(^/|(^|/)\.\.(/|$))'; then die 'Unsafe archive path'; fi
   tar -xzf "$bundle/$name.tar.gz" -C "$tmp/stage" --no-same-owner --no-same-permissions
@@ -34,13 +34,14 @@ done
 if find "$tmp/stage" -type l -print -quit | grep . >/dev/null; then die "Symlinks disallowed in release archive"; fi
 [[ -f "$tmp/stage/api/ArginTaxPayer.Api.dll" &&
    -f "$tmp/stage/web/.next/BUILD_ID" &&
-   -f "$tmp/stage/web/package-lock.json" ]] || die 'Incomplete release'
+   -f "$tmp/stage/web/package-lock.json" &&
+   -f "$tmp/stage/backup/ArginTaxPayer.Workers.dll" ]] || die 'Incomplete release'
 node_dir=/opt/argintaxpayer/runtime/node/bin
 [[ -x "$node_dir/node" ]] || die 'Dedicated Node missing'
 (cd "$tmp/stage/web" && PATH="$node_dir:$PATH" NODE_ENV=production npm ci --omit=dev --ignore-scripts --no-audit --no-fund) ||
   die 'Locked production dependency installation failed'
 sudo install -d -o root -g root -m 0755 "/opt/argintaxpayer/releases/$sha"
-sudo cp -a "$tmp/stage/api" "$tmp/stage/web" "/opt/argintaxpayer/releases/$sha/"
+sudo cp -a "$tmp/stage/api" "$tmp/stage/web" "$tmp/stage/backup" "/opt/argintaxpayer/releases/$sha/"
 sudo chown -R root:argintaxsvc "/opt/argintaxpayer/releases/$sha"
 # The service requires group read/traverse access, but never group write to deployed code.
 sudo chmod -R g+rX,g-w,o-rwx "/opt/argintaxpayer/releases/$sha"

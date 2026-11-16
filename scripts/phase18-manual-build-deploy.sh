@@ -43,6 +43,8 @@ sudo test -f /etc/argintaxpayer/api.env || die 'API private configuration is abs
 sudo test -f /etc/argintaxpayer/web.env || die 'Web private configuration is absent'
 systemctl cat argintaxpayer-api.service >/dev/null || die 'API systemd unit is absent'
 systemctl cat argintaxpayer-web.service >/dev/null || die 'Web systemd unit is absent'
+systemctl cat argintaxpayer-backup.service >/dev/null || die 'Backup controller systemd unit is absent'
+sudo bash scripts/phase18-backup-preflight.sh
 
 release_root="$HOME/.cache/argin-taxpayer/manual-releases"
 build_stamp="$(date -u +%Y%m%dT%H%M%SZ)"
@@ -51,7 +53,7 @@ release_version="${product_version} (Manual ${build_stamp})"
 release_dir="$release_root/${sha}-${build_stamp}"
 bundle="$release_dir/bundle"
 [[ ! -e "$release_dir" ]] || die "Build directory already exists: $release_dir"
-install -d -m 0700 "$bundle/stage/api" "$bundle/stage/web" "$bundle/scripts"
+install -d -m 0700 "$bundle/stage/api" "$bundle/stage/web" "$bundle/stage/backup" "$bundle/scripts"
 
 export DOTNET_CLI_TELEMETRY_OPTOUT=1
 export NEXT_TELEMETRY_DISABLED=1
@@ -70,6 +72,8 @@ run dotnet-restore dotnet restore ArginTaxPayer.sln
 run dotnet-release-tests dotnet test ArginTaxPayer.sln -c Release --no-restore
 run dotnet-api-publish dotnet publish src/ArginTaxPayer.Api/ArginTaxPayer.Api.csproj \
   -c Release --no-restore -o "$release_dir/api-publish"
+run dotnet-backup-publish dotnet publish src/ArginTaxPayer.Workers/ArginTaxPayer.Workers.csproj \
+  -c Release --no-restore -o "$release_dir/backup-publish"
 
 run web-dependencies npm --prefix apps/web ci --no-audit --no-fund
 run web-tests npm --prefix apps/web test
@@ -77,6 +81,7 @@ run web-typecheck npm --prefix apps/web run typecheck
 run web-production-build env NODE_ENV=production NEXT_PUBLIC_APP_VERSION="$release_version" npm --prefix apps/web run build
 
 cp -a "$release_dir/api-publish/." "$bundle/stage/api/"
+cp -a "$release_dir/backup-publish/." "$bundle/stage/backup/"
 run export-schema dotnet run --project tools/ArginTaxPayer.Migrations -c Release -- --export "$bundle/stage/api/schema"
 cp apps/web/package.json apps/web/package-lock.json "$bundle/stage/web/"
 cp -a apps/web/.next "$bundle/stage/web/"
@@ -90,16 +95,17 @@ if find "$bundle/stage" -type f \
 fi
 
 [[ -s "$bundle/stage/api/ArginTaxPayer.Api.dll" ]] || die 'Published API assembly is missing'
+[[ -s "$bundle/stage/backup/ArginTaxPayer.Workers.dll" ]] || die 'Published backup controller assembly is missing'
 [[ -s "$bundle/stage/web/.next/BUILD_ID" ]] || die 'Next.js BUILD_ID is missing'
 [[ -s "$bundle/stage/web/package-lock.json" ]] || die 'Web lockfile is missing'
 [[ -s "$bundle/stage/web/node_modules/next/dist/bin/next" ]] || die 'Next.js runtime dependencies are missing'
 
-(cd "$bundle/stage" && tar -czf "$bundle/api.tar.gz" api && tar -czf "$bundle/web.tar.gz" web)
+(cd "$bundle/stage" && tar -czf "$bundle/api.tar.gz" api && tar -czf "$bundle/web.tar.gz" web && tar -czf "$bundle/backup.tar.gz" backup)
 printf 'version=%s\nsha=%s\n' "$release_version" "$sha" > "$bundle/build-info.txt"
 cp scripts/phase18-release-stage.sh scripts/phase18-release-promote.sh \
   scripts/phase18-step06-local-health.sh "$bundle/scripts/"
-(cd "$bundle" && sha256sum api.tar.gz web.tar.gz > SHA256SUMS && sha256sum -c SHA256SUMS)
-rm -rf "$bundle/stage" "$release_dir/api-publish"
+(cd "$bundle" && sha256sum api.tar.gz web.tar.gz backup.tar.gz > SHA256SUMS && sha256sum -c SHA256SUMS)
+rm -rf "$bundle/stage" "$release_dir/api-publish" "$release_dir/backup-publish"
 
 log PASS "Built and checksummed release bundle for $sha"
 printf '\nRelease summary:\n  branch: main\n  SHA:    %s\n  bundle: %s\n  Node:   %s\n  .NET:   %s\n\n' \

@@ -25,7 +25,7 @@ RELEASES = BASE / 'releases'
 RUNTIME = BASE / 'runtime/node/bin'
 INCOMING = Path('/home/argin-deploy/argin-deploy-incoming')
 PROBE = Path('/usr/local/libexec/argintaxpayer/local-health.sh')
-UNITS = ('argintaxpayer-api.service', 'argintaxpayer-web.service')
+UNITS = ('argintaxpayer-api.service', 'argintaxpayer-web.service', 'argintaxpayer-backup.service')
 MAX_ARCHIVE_BYTES = 1024 ** 3
 MAX_EXPANDED_BYTES = 4 * 1024 ** 3
 MAX_ENTRIES = 200000
@@ -71,11 +71,11 @@ def snapshot_file(directory_fd, name, destination, expected_uid, limit):
 def verify_bundle(bundle, sha):
     expected = {}
     for line in (bundle / 'SHA256SUMS').read_text().splitlines():
-        match = re.fullmatch(r'([a-f0-9]{64})  (api\.tar\.gz|web\.tar\.gz)', line)
+        match = re.fullmatch(r'([a-f0-9]{64})  (api\.tar\.gz|web\.tar\.gz|backup\.tar\.gz)', line)
         if not match or match[2] in expected:
-            raise Refused('Manifest must contain exactly the two application archives')
+            raise Refused('Manifest must contain exactly the three application archives')
         expected[match[2]] = match[1]
-    if set(expected) != {'api.tar.gz', 'web.tar.gz'}:
+    if set(expected) != {'api.tar.gz', 'web.tar.gz', 'backup.tar.gz'}:
         raise Refused('Incomplete checksum manifest')
     for name, digest in expected.items():
         with (bundle / name).open('rb') as stream:
@@ -308,7 +308,7 @@ def snapshot_upload(sha, destination, deployment_uid):
             fd = child
             if os.fstat(fd).st_uid != deployment_uid:
                 raise Refused('Upload directories must belong to argin-deploy')
-        for name in ('SHA256SUMS', 'build-info.txt', 'api.tar.gz', 'web.tar.gz'):
+        for name in ('SHA256SUMS', 'build-info.txt', 'api.tar.gz', 'web.tar.gz', 'backup.tar.gz'):
             limit = MAX_ARCHIVE_BYTES if name.endswith('.tar.gz') else 4096
             snapshot_file(fd, name, destination / name, deployment_uid, limit)
     finally:
@@ -334,10 +334,10 @@ def prepare_release(sha, deployment, service_gid):
             return release
         stage = temporary / 'stage'
         stage.mkdir(mode=0o700)
-        for root in ('api', 'web'):
+        for root in ('api', 'web', 'backup'):
             extract_archive(bundle / f'{root}.tar.gz', stage, root)
         for name in ('api/ArginTaxPayer.Api.dll', 'web/.next/BUILD_ID',
-                     'web/package.json', 'web/package-lock.json'):
+                     'web/package.json', 'web/package-lock.json', 'backup/ArginTaxPayer.Workers.dll'):
             if not (stage / name).is_file() or not (stage / name).stat().st_size:
                 raise Refused('Incomplete application archive')
         # Give npm only this staging tree. The enclosing snapshot remains root-only.
@@ -397,6 +397,7 @@ def prepare_release(sha, deployment, service_gid):
 
 MIGRATION_CONFIG = Path('/etc/argintaxpayer/migrations.env')
 BACKUPS = Path('/var/backups/argintaxpayer')
+ACTIVE_BACKUP_DB = Path('/etc/argintaxpayer/backup-db.env')
 BACKUP_KEY = Path('/etc/argintaxpayer/migration-backup.key')
 
 
@@ -525,6 +526,8 @@ class MigrationDatabase:
 
 
 def migrate_release(release, database=None, stop=stop_services, restart=restart_services):
+    if ACTIVE_BACKUP_DB.exists() or ACTIVE_BACKUP_DB.is_symlink():
+        raise Refused('Active restored database selection exists; review migration target before deployment. Do not remove backup-db.env to bypass this guard.')
     manifest = release / 'api/schema/migrations.json'
     sql = release / 'api/schema/migrations.sql'
     for path in (manifest, sql):
@@ -610,7 +613,7 @@ def main(arguments):
         else:
             release = prepare_release(sha, deployment, service_gid)
         for name in ('api/ArginTaxPayer.Api.dll', 'web/.next/BUILD_ID',
-                     'web/node_modules/next/dist/bin/next'):
+                     'web/node_modules/next/dist/bin/next', 'backup/ArginTaxPayer.Workers.dll'):
             trusted(release / name)
             run(['/usr/sbin/runuser', '-u', 'argintaxsvc', '--',
                  '/usr/bin/test', '-r', str(release / name)], timeout=10)

@@ -69,6 +69,45 @@ command -v dotnet >/dev/null || { print -u2 'dotnet SDK missing'; exit 1; }
 command -v npm >/dev/null || { print -u2 'npm missing'; exit 1; }
 command -v psql >/dev/null || { print -u2 'PostgreSQL client missing: brew install libpq'; exit 1; }
 
+if [[ "$DB_TARGET" == test ]]; then
+  BACKUP_KEY="$STATE/database-backup.key"
+  if [[ -L "$BACKUP_KEY" || ( -e "$BACKUP_KEY" && ! -f "$BACKUP_KEY" ) ]]; then
+    print -u2 'Refusing a symlink or non-file local backup key.'
+    exit 1
+  fi
+  if [[ ! -e "$BACKUP_KEY" ]]; then
+    if ! (umask 077; setopt NO_CLOBBER; { printf '%s\n' 'dev-mac-1'; openssl rand -hex 32; } > "$BACKUP_KEY"); then
+      print -u2 'Could not create the local backup key without replacing an existing file.'
+      exit 1
+    fi
+  fi
+  if ! awk 'NR==1 { if (length($0)<1 || length($0)>32 || $0 !~ /^[A-Za-z0-9_-]+$/) exit 1 }
+    NR==2 { if (length($0)!=64 || $0 !~ /^[A-Fa-f0-9]+$/) exit 1 }
+    NR>2 { exit 1 } END { if (NR!=2) exit 1 }' "$BACKUP_KEY"; then
+    print -u2 'The existing local backup key is malformed; it was not replaced.'
+    exit 1
+  fi
+  chmod 600 "$BACKUP_KEY"
+  BACKUP_KEY_VERSION="$(sed -n '1p' "$BACKUP_KEY")"
+  LOCAL_PG_BIN="$(dirname "$(command -v psql)")"
+  [[ -x "$LOCAL_PG_BIN/pg_dump" && -x "$LOCAL_PG_BIN/pg_restore" ]] || {
+    print -u2 'pg_dump and pg_restore must be installed beside psql (brew install libpq).'
+    exit 1
+  }
+  mkdir -p "$STATE/database-backups"
+  chmod 700 "$STATE/database-backups"
+  export BackupController__LocalDevelopmentMode=true
+  export BackupController__UseSudo=false
+  export BackupController__HostHelperPath="$ROOT/scripts/phase18-dev-backup-host-helper.sh"
+  export BackupController__LocalPath="$STATE/database-backups"
+  export BackupController__EncryptionKeyPath="$BACKUP_KEY"
+  export BackupController__DevelopmentKeyVersion="$BACKUP_KEY_VERSION"
+  export BackupController__PgDumpPath="$LOCAL_PG_BIN/pg_dump"
+  export BackupController__PgRestorePath="$LOCAL_PG_BIN/pg_restore"
+else
+  export BackupController__LocalDevelopmentMode=false
+fi
+
 stop_pid_tree() {
   local pid="$1"
   local child
@@ -82,7 +121,9 @@ typeset -a started_pids=()
 started_autossh=0
 started_adminer=0
 started_api=0
+started_backup=0
 started_web=0
+created_api_launch_nonce=0
 launch_succeeded=0
 cleanup_on_failure() {
   (( launch_succeeded )) && return 0
@@ -91,9 +132,11 @@ cleanup_on_failure() {
     stop_pid_tree "$pid"
   done
   (( started_api )) && rm -f "$STATE/api.pid"
+  (( started_backup )) && rm -f "$STATE/backup.pid"
   (( started_web )) && rm -f "$STATE/web.pid"
   (( started_autossh )) && rm -f "$STATE/autossh.pid"
   (( started_adminer )) && rm -f "$STATE/adminer.pid"
+  (( created_api_launch_nonce )) && rm -f "$STATE/api.launch-nonce"
 }
 trap cleanup_on_failure EXIT
 
@@ -215,6 +258,17 @@ if lsof -nP -iTCP:15089 -sTCP:LISTEN >/dev/null 2>&1; then
   print -u2 'Port 15089 already in use. Stop old API before using dev-up.'
   exit 1
 fi
+if [[ -L "$STATE/api.launch-nonce" ]]; then
+  print -u2 'Refusing a symlink at the local API launch marker.'
+  exit 1
+fi
+DEV_LAUNCH_NONCE="$(openssl rand -hex 32)"
+nonce_tmp="$(mktemp "$STATE/api-launch-nonce.XXXXXX")"
+(umask 077; printf '%s\n' "$DEV_LAUNCH_NONCE" > "$nonce_tmp")
+mv -f "$nonce_tmp" "$STATE/api.launch-nonce"
+chmod 600 "$STATE/api.launch-nonce"
+export ARGINTAX_DEV_LAUNCH_NONCE="$DEV_LAUNCH_NONCE"
+created_api_launch_nonce=1
 print 'Starting .NET API with automatic rebuild/restart...'
 # Restart after backend edits and pulls so new dashboard routes are available.
 nohup dotnet watch --no-hot-reload --project src/ArginTaxPayer.Api run \
@@ -236,6 +290,37 @@ if (( ! api_ready )); then
   print -u2 "API not ready. Check $STATE/api.log"
   exit 1
 fi
+
+# The backup UI proxies to this dedicated loopback controller. Keep its mutable
+# state under the developer's private state directory instead of system paths.
+if lsof -nP -iTCP:15092 -sTCP:LISTEN >/dev/null 2>&1; then
+  print -u2 'Port 15092 already in use. Stop old backup controller before using dev-up.'
+  exit 1
+fi
+export BackupController__ListenUrl=http://127.0.0.1:15092
+export BackupController__StateDirectory="$STATE/backup-controller"
+export BackupController__RecoveryStatePath="$STATE/backup-controller/recovery-state.json"
+export BackupController__FtpsSecretPath="$STATE/backup-controller/ftps.json"
+print 'Starting database backup controller...'
+nohup dotnet watch --no-hot-reload --project src/ArginTaxPayer.Workers run \
+  --no-launch-profile > "$STATE/backup.log" 2>&1 < /dev/null &
+backup_pid="$!"
+started_pids+=("$backup_pid")
+started_backup=1
+echo "$backup_pid" > "$STATE/backup.pid"
+backup_ready=0
+for i in {1..50}; do
+  if curl --noproxy '*' -fsS --max-time 2 http://127.0.0.1:15092/health > /dev/null 2>&1; then
+    backup_ready=1
+    break
+  fi
+  sleep 1
+done
+if (( ! backup_ready )); then
+  print -u2 "Backup controller not ready. Check $STATE/backup.log"
+  exit 1
+fi
+
 # Fail closed unless the runtime has actually received its identity settings.
 diagnostics="$(curl --noproxy '*' -fsS http://127.0.0.1:15089/health/dev-identity)" || exit 1
 if ! echo "$diagnostics" | grep -q '"identityEndpointsRegistered":true'; then
@@ -301,6 +386,6 @@ print 'Services launched. Panel: http://127.0.0.1:3000/identity'
 print 'Status: zsh scripts/dev-status.zsh'
 print 'Stop: zsh scripts/dev-down.zsh'
 launch_succeeded=1
-print "Logs: $STATE/{api,web,autossh,adminer}.log"
+print "Logs: $STATE/{api,backup,web,autossh,adminer}.log"
 print 'SMS remains under your private Ghasedak__EnableLiveSending setting; no test sends are triggered here.'
 trap - EXIT

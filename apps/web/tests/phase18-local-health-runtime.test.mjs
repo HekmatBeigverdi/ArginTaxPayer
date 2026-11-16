@@ -12,11 +12,11 @@ function probe(overrides={}, mode='--probe-local') {
  try {
   const programs={
    uname:'#!/bin/sh\necho Linux\n',
-   ss:'#!/bin/sh\nprintf "LISTEN 0 128 127.0.0.1:15090 0.0.0.0:*\\nLISTEN 0 128 127.0.0.1:15091 0.0.0.0:*\\n"\n',
+   ss:'#!/bin/sh\nprintf "LISTEN 0 128 127.0.0.1:15090 0.0.0.0:*\\nLISTEN 0 128 127.0.0.1:15091 0.0.0.0:*\\nLISTEN 0 128 127.0.0.1:15092 0.0.0.0:*\\n"\n',
    curl:`#!/bin/sh
 for argument do url="$argument"; done
 case "$url" in
- */health/live|*/health/ready) printf 200;;
+ */health|*/health/live|*/health/ready) printf 200;;
  */health/dev-identity) printf 404;;
  */api/dev/identity/authorization/me) printf '%s' "$TEST_API_AUTH";;
  */api/identity/me) printf '%s' "$TEST_BFF_AUTH";;

@@ -22,6 +22,8 @@ getent passwd argintaxsvc >/dev/null || refuse 'Application service account is a
 
 helper_source="$source_root/ops/phase18-deploy/argin-taxpayer-release.py"
 probe_source="$source_root/scripts/phase18-step06-local-health.sh"
+backup_helper_source="$source_root/scripts/phase18-backup-host-helper.sh"
+backup_unit_source="$source_root/ops/phase18-systemd/argintaxpayer-backup.service"
 helper=/usr/local/sbin/argin-taxpayer-release
 probe=/usr/local/libexec/argintaxpayer/local-health.sh
 
@@ -34,6 +36,8 @@ if sys.version_info < (3, 11):
 ast.parse(Path(sys.argv[1]).read_text())
 PY
 bash -n "$probe_source"
+bash -n "$backup_helper_source"
+systemd-analyze verify "$backup_unit_source"
 
 for pair in "$helper:$helper_source" "$probe:$probe_source"; do
   target="${pair%%:*}"
@@ -60,7 +64,7 @@ fi
 # Root-created destinations; a deployment SSH user cannot replace any ancestor.
 python3 -I <<'PY'
 from pathlib import Path
-for name in ('/usr/local/sbin', '/usr/local/libexec', '/usr/local/libexec/argintaxpayer', '/etc/sudoers.d', '/etc/argintaxpayer'):
+for name in ('/usr/local/sbin', '/usr/local/libexec', '/usr/local/libexec/argintaxpayer', '/etc/sudoers.d', '/etc/argintaxpayer', '/etc/systemd/system', '/etc/systemd/system/argintaxpayer-api.service.d'):
     path = Path(name)
     for item in (path, *path.parents):
         if item.is_symlink():
@@ -70,11 +74,26 @@ for name in ('/usr/local/sbin', '/usr/local/libexec', '/usr/local/libexec/argint
             if st.st_uid != 0 or st.st_mode & 0o022:
                 raise SystemExit('Privileged path is writable by a non-root identity: '+str(item))
 PY
+for target in /usr/local/sbin/argin-taxpayer-backup-control /etc/systemd/system/argintaxpayer-backup.service /etc/sudoers.d/argintaxpayer-backup /etc/systemd/system/argintaxpayer-api.service.d/backup.conf; do
+  [[ ! -L "$target" ]] || refuse "Privileged destination is a symlink: $target"
+done
+install -d -o root -g root -m 0755 /etc/systemd/system/argintaxpayer-api.service.d
+install -o root -g root -m 0644 "$source_root/ops/phase18-systemd/argintaxpayer-api-backup.conf" /etc/systemd/system/argintaxpayer-api.service.d/backup.conf
 install -d -o root -g root -m 0755 /usr/local/sbin /usr/local/libexec/argintaxpayer
 install -o root -g root -m 0755 "$helper_source" "$helper"
 install -o root -g root -m 0755 "$probe_source" "$probe"
+install -o root -g root -m 0755 "$backup_helper_source" /usr/local/sbin/argin-taxpayer-backup-control
+install -o root -g root -m 0644 "$backup_unit_source" /etc/systemd/system/argintaxpayer-backup.service
+install -d -o argintaxsvc -g argintaxsvc -m 0700 /var/lib/argintaxpayer/database-backups
 install -o root -g root -m 0440 "$policy" /etc/sudoers.d/argin-deploy
+backup_policy="$(mktemp)"
+trap 'rm -f "$policy" "$backup_policy"' EXIT
+printf '%s\n' \
+  'argintaxsvc ALL=(root) NOPASSWD: /usr/local/sbin/argin-taxpayer-backup-control stop-business, /usr/local/sbin/argin-taxpayer-backup-control start-business, /usr/local/sbin/argin-taxpayer-backup-control status-business, /usr/local/sbin/argin-taxpayer-backup-control activate-db *' > "$backup_policy"
+visudo -cf "$backup_policy"
+install -o root -g root -m 0440 "$backup_policy" /etc/sudoers.d/argintaxpayer-backup
 visudo -cf /etc/sudoers
+systemctl daemon-reload
 if [[ ! -e /etc/argintaxpayer/migration-backup.key ]]; then
   (umask 077; openssl rand -hex 32 > /etc/argintaxpayer/migration-backup.key)
 fi
