@@ -565,7 +565,7 @@ def migrate_release(release, database=None, stop=stop_services, restart=restart_
 
 def main(arguments):
     if arguments == ['--capabilities']:
-        print('schema-before-promote-v1')
+        print('schema-and-backup-before-promote-v2')
         return
     if (len(arguments) not in (2, 3) or arguments[0] not in ('--deploy', '--promote-staged')
             or len(arguments) == 3 and (arguments[0] != '--promote-staged' or arguments[2] != '--initial-disabled-ui')):
@@ -588,6 +588,9 @@ def main(arguments):
                                 check=True, capture_output=True, text=True, env=ENV)
         if result.stdout.strip() != 'argintaxsvc':
             raise Refused('Application services must run as argintaxsvc')
+    preflight = Path('/usr/local/libexec/argintaxpayer/backup-preflight.sh')
+    trusted(preflight)
+    run(['/usr/bin/bash', str(preflight)], timeout=90)
     # One lock for all workflow events and manual invocations, including retries.
     lock_fd = os.open('/run/lock/argintaxpayer-release.lock',
                       os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)

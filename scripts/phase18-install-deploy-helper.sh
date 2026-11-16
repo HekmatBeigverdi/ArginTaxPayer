@@ -82,6 +82,7 @@ install -o root -g root -m 0644 "$source_root/ops/phase18-systemd/argintaxpayer-
 install -d -o root -g root -m 0755 /usr/local/sbin /usr/local/libexec/argintaxpayer
 install -o root -g root -m 0755 "$helper_source" "$helper"
 install -o root -g root -m 0755 "$probe_source" "$probe"
+install -o root -g root -m 0755 "$source_root/scripts/phase18-backup-preflight.sh" /usr/local/libexec/argintaxpayer/backup-preflight.sh
 install -o root -g root -m 0755 "$backup_helper_source" /usr/local/sbin/argin-taxpayer-backup-control
 install -o root -g root -m 0644 "$backup_unit_source" /etc/systemd/system/argintaxpayer-backup.service
 install -d -o argintaxsvc -g argintaxsvc -m 0700 /var/lib/argintaxpayer/database-backups

@@ -26,3 +26,14 @@ test('upgrade installs database-selection API drop-in and deployment invokes saf
  assert.match(read('scripts/phase18-manual-build-deploy.sh'),/sudo bash scripts\/phase18-backup-preflight\.sh/);
  assert.match(read('scripts/phase18-backup-preflight.sh'),/status-business/);
 });
+
+test('production workflow builds, checksums and uploads the backup worker and rejects legacy helper',()=>{
+ const workflow=read('.github/workflows/production-release.yml');
+ assert.match(workflow,/dotnet publish src\/ArginTaxPayer.Workers\/ArginTaxPayer.Workers.csproj/);
+ assert.match(workflow,/cp -a "\$RUNNER_TEMP\/backup\/." bundle\/stage\/backup\//);
+ assert.match(workflow,/tar -czf ..\/backup.tar.gz backup/);
+ assert.match(workflow,/sha256sum api.tar.gz web.tar.gz backup.tar.gz/);
+ assert.match(workflow,/bundle\/api.tar.gz bundle\/web.tar.gz bundle\/backup.tar.gz/);
+ assert.match(workflow,/schema-and-backup-before-promote-v2/);
+ assert.doesNotMatch(workflow,/schema-before-promote-v1/);
+});
