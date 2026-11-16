@@ -258,7 +258,8 @@ app.Use(async (context, next) =>
     catch { recovery = true; } // An unreadable recovery marker must keep business APIs disabled.
     var path = context.Request.Path.Value ?? "";
     var identityPath = context.Request.Method == "GET" &&
-        (path == "/api/dev/identity/authorization/me" || path == "/api/dev/identity/mfa/status") ||
+        (path == "/api/dev/identity/authorization/me" || path == "/api/dev/identity/mfa/status" ||
+         path == "/api/dev/software-profile/me") ||
         context.Request.Method == "POST" &&
         (path == "/api/dev/identity/login" || path == "/api/dev/identity/refresh" ||
          path == "/api/dev/identity/logout" || path == "/api/dev/identity/mfa/challenge" ||

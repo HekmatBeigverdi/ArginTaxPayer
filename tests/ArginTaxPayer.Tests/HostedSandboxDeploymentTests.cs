@@ -61,4 +61,49 @@ public sealed class HostedSandboxDeploymentTests
         using var shared = new Npgsql.NpgsqlConnection(Connection.Replace("Port=15434", "Port=15432"));
         Assert.False(SandboxDatabasePolicy.IsAllowed("argintaxpayer_prod", shared, Config()));
     }
+    [Fact]
+    public void Explicitly_selected_restored_database_keeps_dedicated_TLS_admission()
+    {
+        const string selected = "recovery_8c8c6ec6a9f4";
+        var connectionString = Connection.Replace("Database=argintaxpayer_prod", "Database=" + selected);
+        var configuration = Config(("Backup:ActiveDatabase", selected));
+        Assert.True(HostedSandboxDeployment.IsAllowed(connectionString, configuration));
+        using var connection = new Npgsql.NpgsqlConnection(connectionString);
+        Assert.True(SandboxDatabasePolicy.IsAllowed(selected, connection, configuration));
+        Assert.False(SandboxDatabasePolicy.IsAllowed("unknown", connection, configuration));
+        Assert.False(HostedSandboxDeployment.IsAllowed(connectionString, Config()));
+        Assert.False(HostedSandboxDeployment.IsAllowed(connectionString, Config(("Backup:ActiveDatabase", "recovery_aaaaaaaaaaaa"))));
+        Assert.False(HostedSandboxDeployment.IsAllowed(connectionString.Replace("SSL Mode=VerifyFull", "SSL Mode=Require"), configuration));
+    }
+
+    [Theory]
+    [InlineData("recovery_ABCDEF123456")]
+    [InlineData("recovery_123")]
+    [InlineData("recovery_8c8c6ec6a9f4\n")]
+    [InlineData("argintaxpayer_test")]
+    public void Invalid_restored_selection_cannot_expand_database_admission(string selected)
+    {
+        var connection = new Npgsql.NpgsqlConnectionStringBuilder(Connection) { Database = selected };
+        Assert.False(HostedSandboxDeployment.IsAllowed(connection.ConnectionString, Config(("Backup:ActiveDatabase", selected))));
+    }
+
+    [Fact]
+    public void Restored_application_keeps_original_production_serial_registry()
+    {
+        const string selected = "recovery_8c8c6ec6a9f4";
+        var source = Connection.Replace("Database=argintaxpayer_prod", "Database=" + selected);
+        var config = Config(("Backup:ActiveDatabase", selected), ("ConnectionStrings:ArginTaxPayerDb", source));
+        // Simulate the credential-redacted string exposed by an open Npgsql connection.
+        var redacted = new Npgsql.NpgsqlConnectionStringBuilder(source) { Password = "" };
+        using var connection = new Npgsql.NpgsqlConnection(redacted.ConnectionString);
+        var method = typeof(ArginTaxPayer.Infrastructure.Persistence.Invoices.Phase18ProductionInvoicePreparationService)
+            .GetMethod("SharedRegistryConnection", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)!;
+        var registry = (string)method.Invoke(null, new object[] { config, connection, 1 })!;
+        var parsed = new Npgsql.NpgsqlConnectionStringBuilder(registry);
+        Assert.Equal("argintaxpayer_prod", parsed.Database);
+        Assert.Equal(Npgsql.SslMode.VerifyFull, parsed.SslMode);
+        Assert.Equal(15434, parsed.Port);
+        Assert.Equal(new Npgsql.NpgsqlConnectionStringBuilder(source).Password, parsed.Password);
+    }
+
 }

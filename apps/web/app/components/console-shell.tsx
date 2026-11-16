@@ -48,7 +48,8 @@ export default function ConsoleShell({ roles, userId, dashboardOnly = false, chi
     { title: "پرداخت‌ها و اشتراک‌ها", path: "/financial-history", glyph: "▤" }
   ];
   useEffect(() => { setMenuOpen(false); setNavigatingTo(null); }, [pathname]);
-  const requiresProfile = !dashboardOnly && roles.includes("Customer");
+  const recoveryPanel = pathname === "/backup-control" && roles.includes("Level1");
+  const requiresProfile = !dashboardOnly && roles.includes("Customer") && !recoveryPanel;
   // Read the verified profile once per signed-in user (or explicit retry), NOT once
   // per navigation. Route changes must never reset a completed profile to checking.
   useEffect(() => {
@@ -100,8 +101,8 @@ export default function ConsoleShell({ roles, userId, dashboardOnly = false, chi
 
   useEffect(() => {
     if (dashboardOnly && pathname !== "/dashboard") router.replace("/dashboard");
-    if (!dashboardOnly && profileState === "incomplete" && pathname !== "/profile") router.replace("/profile");
-  }, [dashboardOnly, profileState, pathname, router]);
+    if (requiresProfile && profileState === "incomplete" && pathname !== "/profile") router.replace("/profile");
+  }, [dashboardOnly, requiresProfile, profileState, pathname, router]);
   useEffect(() => {
     function dismiss(e: MouseEvent) { if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false); }
     function escape(e: KeyboardEvent) { if (e.key === "Escape") setMenuOpen(false); }
@@ -182,7 +183,7 @@ export default function ConsoleShell({ roles, userId, dashboardOnly = false, chi
           <span>نسخه جدید نرم‌افزار آماده است ({newVersion}). برای دریافت به‌روزرسانی، صفحه را تازه کنید.</span>
           <button type="button" onClick={() => window.location.reload()}>به‌روزرسانی</button>
         </div>}
-        {(profileState === "complete" || pathname === "/profile") ? children :
+        {(!requiresProfile || profileState === "complete" || pathname === "/profile") ? children :
           profileState === "checking" ?
             <ConsoleLoader label="در حال بررسی وضعیت پروفایل…" /> :
           profileState === "error" ?
