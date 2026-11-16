@@ -46,12 +46,13 @@ jobs:
         run: |
           dotnet restore ArginTaxPayer.sln
           dotnet test ArginTaxPayer.sln -c Release --no-restore
-      - name: Build versioned API/Web
+      - name: Build versioned API/Web/Backup
         run: |
           product_version="$(node -p "require('./apps/web/package.json').version")"
           release_version="${product_version} (Build ${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT})"
           echo "ARGIN_RELEASE_VERSION=$release_version" >> "$GITHUB_ENV"
           dotnet publish src/ArginTaxPayer.Api/ArginTaxPayer.Api.csproj -c Release --no-restore -o "$RUNNER_TEMP/api"
+          dotnet publish src/ArginTaxPayer.Workers/ArginTaxPayer.Workers.csproj -c Release --no-restore -o "$RUNNER_TEMP/backup"
           npm --prefix apps/web ci --no-audit --no-fund
           npm --prefix apps/web test
           npm --prefix apps/web run typecheck
@@ -59,8 +60,9 @@ jobs:
       - name: Package immutable application, excluding secrets
         run: |
           set -Eeuo pipefail
-          mkdir -p bundle/stage/api bundle/stage/web bundle/scripts
+          mkdir -p bundle/stage/api bundle/stage/web bundle/stage/backup bundle/scripts
           cp -a "$RUNNER_TEMP/api/." bundle/stage/api/
+          cp -a "$RUNNER_TEMP/backup/." bundle/stage/backup/
           dotnet run --project tools/ArginTaxPayer.Migrations -c Release -- --export bundle/stage/api/schema
           cp apps/web/package.json apps/web/package-lock.json bundle/stage/web/
           cp -a apps/web/.next bundle/stage/web/
@@ -68,8 +70,8 @@ jobs:
           if find bundle/stage -type f \( -name '.env' -o -name '.env.*' -o -name '*.key' -o -name '*.pem' -o -name '*.pfx' \) | grep -q .; then
             echo 'Unexpected private configuration in build' >&2; exit 1
           fi
-          (cd bundle/stage && tar -czf ../api.tar.gz api && tar -czf ../web.tar.gz web)
-          (cd bundle && sha256sum api.tar.gz web.tar.gz > SHA256SUMS)
+          (cd bundle/stage && tar -czf ../api.tar.gz api && tar -czf ../web.tar.gz web && tar -czf ../backup.tar.gz backup)
+          (cd bundle && sha256sum api.tar.gz web.tar.gz backup.tar.gz > SHA256SUMS)
           printf 'sha=%s\n' "$GITHUB_SHA" > bundle/build-info.txt
           cp scripts/phase18-release-stage.sh scripts/phase18-release-promote.sh scripts/phase18-step06-local-health.sh bundle/scripts/
           rm -rf bundle/stage
@@ -125,13 +127,13 @@ jobs:
           target="$DEPLOY_USER@$DEPLOY_HOST"
           capability="$(ssh -p 2222 -o BatchMode=yes -o StrictHostKeyChecking=yes "$target" \
             /usr/local/sbin/argin-taxpayer-release --capabilities)"
-          [[ "$capability" == schema-before-promote-v1 ]] || {
-            echo 'Install the reviewed schema-aware deployment helper before deploying.' >&2; exit 1;
+          [[ "$capability" == schema-and-backup-before-promote-v2 ]] || {
+            echo 'Install the reviewed backup-aware deployment helper and provision the backup service before deploying.' >&2; exit 1;
           }
           ssh -p 2222 -o BatchMode=yes -o ConnectTimeout=15 -o StrictHostKeyChecking=yes \
             "$target" "umask 077; mkdir -p ~/argin-deploy-incoming/$SOURCE_SHA"
           scp -P 2222 -o BatchMode=yes -o ConnectTimeout=15 -o StrictHostKeyChecking=yes \
-            bundle/api.tar.gz bundle/web.tar.gz bundle/build-info.txt bundle/SHA256SUMS \
+            bundle/api.tar.gz bundle/web.tar.gz bundle/backup.tar.gz bundle/build-info.txt bundle/SHA256SUMS \
             "$target:argin-deploy-incoming/$SOURCE_SHA/"
           ssh -p 2222 -o BatchMode=yes -o ConnectTimeout=15 -o StrictHostKeyChecking=yes \
             "$target" "sudo -n /usr/local/sbin/argin-taxpayer-release --deploy '$SOURCE_SHA'"

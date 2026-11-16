@@ -43,7 +43,7 @@ public sealed class PostgresRestoreDatabaseCommands(
             };
             foreach (var argument in new[] { "--exit-on-error", "--no-owner", "--no-acl", "--host", target.Host,
                          "--port", target.Port.ToString(), "--username", target.Username, "--dbname", databaseName,
-                         "--role", applicationRole, "-" })
+                         "--role", applicationRole })
                 start.ArgumentList.Add(argument);
             start.Environment["PGPASSFILE"] = passwordFile.Path;
             start.Environment["PGSSLMODE"] = target.SslMode switch

@@ -30,7 +30,7 @@ test("GitHub workflow never deploys automatically on push", () => {
   const s=read(".github/workflows/production-release.yml");
   assert.match(s,/workflow_dispatch/);
   assert.match(s,/github\.ref == 'refs\/heads\/main'/);
-  assert.match(s,/schema-before-promote-v1/);
+  assert.match(s,/schema-and-backup-before-promote-v2/);
   assert.match(s,/tools\/ArginTaxPayer\.Migrations/);
   assert.match(s,/environment: production/);
   assert.match(s,/StrictHostKeyChecking=yes/);

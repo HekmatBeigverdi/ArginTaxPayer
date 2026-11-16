@@ -34,7 +34,7 @@ remote_sha="$(git rev-parse refs/remotes/origin/main)"
 [[ "$sha" == "$remote_sha" ]] || die "Checkout is not exactly origin/main (HEAD=$sha origin/main=$remote_sha)"
 
 log START 'Checking VPS release prerequisites'
-[[ "$(/usr/local/sbin/argin-taxpayer-release --capabilities)" == schema-before-promote-v1 ]] ||
+[[ "$(/usr/local/sbin/argin-taxpayer-release --capabilities)" == schema-and-backup-before-promote-v2 ]] ||
   die 'Install the reviewed schema-aware deployment helper before deploying'
 sudo -v
 sudo test -d /opt/argintaxpayer/releases || die 'Phase 18 release root is absent'
