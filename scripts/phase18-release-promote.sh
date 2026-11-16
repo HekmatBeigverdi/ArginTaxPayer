@@ -21,7 +21,7 @@ target="$2"
 [[ "${PHASE18_OWNER_APPROVED_RELEASE:-}" == YES ]] || fail 'Explicit release approval required'
 sudo test -f /etc/argintaxpayer/phase18-activation-approved ||
   fail 'Production activation marker absent; no release activation approved'
-for unit in argintaxpayer-api.service argintaxpayer-web.service; do
+for unit in argintaxpayer-api.service argintaxpayer-web.service argintaxpayer-backup.service; do
   systemctl cat "$unit" >/dev/null || fail "Missing unit: $unit"
 done
 sudo test -f /etc/argintaxpayer/api.env &&
@@ -29,7 +29,7 @@ sudo test -f /etc/argintaxpayer/api.env &&
 root=/opt/argintaxpayer
 release="$root/releases/$target"
 sudo test -d "$release" && sudo test ! -L "$release" || fail 'Release not staged'
-for path in api/ArginTaxPayer.Api.dll web/.next/BUILD_ID web/node_modules/next/dist/bin/next; do
+for path in api/ArginTaxPayer.Api.dll web/.next/BUILD_ID web/node_modules/next/dist/bin/next backup/ArginTaxPayer.Workers.dll; do
   sudo test -f "$release/$path" || fail "Incomplete staged release: missing $path"
   sudo -u argintaxsvc test -r "$release/$path" || fail "Runtime service cannot read $path"
 done

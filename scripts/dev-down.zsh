@@ -25,7 +25,7 @@ stop_service_listeners() {
   done
 }
 
-for service in web api adminer autossh serial-registry; do
+for service in web api backup adminer autossh serial-registry; do
   pidfile="$STATE/$service.pid"
   if [[ -f "$pidfile" ]]; then
     pid="$(< "$pidfile")"
@@ -40,9 +40,11 @@ done
 # dotnet run and npm may orphan their actual listener after the launcher exits.
 # Fall back to the exact project ports, but validate the process identity first.
 stop_service_listeners 15089 'ArginTaxPayer.Api'
+stop_service_listeners 15092 'ArginTaxPayer.Workers'
 stop_service_listeners 3000 'next-server'
 stop_service_listeners 15432 'autossh'
 stop_service_listeners 15434 'autossh'
 # Stops only the local Adminer SSH tunnel; the loopback-only VPS Docker container stays up.
+rm -f "$STATE/api.launch-nonce"
 
 print 'All tracked ArginTaxPayer development launchers were signaled to stop.'

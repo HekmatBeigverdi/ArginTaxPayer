@@ -32,6 +32,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using HostedSandboxDeployment = ArginTaxPayer.Infrastructure.Configuration.HostedSandboxDeployment;
 
 var builder = WebApplication.CreateBuilder(args);
+ApplyActiveBackupDatabase(builder.Configuration);
 var identityDevelopmentEnabled = builder.Environment.IsDevelopment() &&
     !string.IsNullOrWhiteSpace(builder.Configuration.GetConnectionString("ArginTaxPayerDb"));
 // Phase18: an explicit operational opt-in, never inferred from environment or a DB URL.
@@ -241,6 +242,36 @@ builder.Services.AddHealthChecks()
     .AddCheck<DatabaseReadinessHealthCheck>("postgresql", tags: ["ready"]);
 
 var app = builder.Build();
+app.Use(async (context, next) =>
+{
+    var statePath = builder.Configuration["BackupController:RecoveryStatePath"]
+        ?? "/var/lib/argintaxpayer/backup-controller/recovery-state.json";
+    var recovery = false;
+    try
+    {
+        if (File.Exists(statePath))
+        {
+            using var document = JsonDocument.Parse(await File.ReadAllTextAsync(statePath, context.RequestAborted));
+            recovery = document.RootElement.TryGetProperty("recoveryMode", out var value) && value.GetBoolean();
+        }
+    }
+    catch { recovery = true; } // An unreadable recovery marker must keep business APIs disabled.
+    var path = context.Request.Path.Value ?? "";
+    var identityPath = context.Request.Method == "GET" &&
+        (path == "/api/dev/identity/authorization/me" || path == "/api/dev/identity/mfa/status") ||
+        context.Request.Method == "POST" &&
+        (path == "/api/dev/identity/login" || path == "/api/dev/identity/refresh" ||
+         path == "/api/dev/identity/logout" || path == "/api/dev/identity/mfa/challenge" ||
+         path == "/api/dev/identity/mfa/complete");
+    var healthPath = path is "/health/live" or "/health/ready";
+    if (recovery && !identityPath && !healthPath)
+    {
+        context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+        await context.Response.WriteAsJsonAsync(new { error = "recovery_mode" }, context.RequestAborted);
+        return;
+    }
+    await next(context);
+});
 app.UseMiddleware<CorrelationIdMiddleware>();
 if (operationalEndpointsEnabled) app.UseRateLimiter();
 // The limited Production operator UI is NOT the global operational API.
@@ -413,5 +444,17 @@ app.MapGet("/health/ready", (HttpContext context, HealthCheckService healthCheck
     .WithName("GetReadiness");
 
 app.Run();
+static void ApplyActiveBackupDatabase(ConfigurationManager configuration)
+{
+    var database = configuration["Backup:ActiveDatabase"];
+    if (string.IsNullOrWhiteSpace(database)) return;
+    if (!System.Text.RegularExpressions.Regex.IsMatch(database, "^recovery_[a-f0-9]{12}$"))
+        throw new InvalidOperationException("Active backup database name is invalid.");
+    var configured = configuration.GetConnectionString("ArginTaxPayerDb")
+        ?? throw new InvalidOperationException("PostgreSQL connection is not configured.");
+    var builder = new Npgsql.NpgsqlConnectionStringBuilder(configured) { Database = database };
+    configuration.AddInMemoryCollection(new Dictionary<string, string?>
+    { ["ConnectionStrings:ArginTaxPayerDb"] = builder.ConnectionString });
+}
 
 public partial class Program { }

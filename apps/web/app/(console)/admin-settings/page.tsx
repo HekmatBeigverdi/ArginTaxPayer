@@ -3,6 +3,7 @@ import {currentIdentity,identityUiEnabled} from "../../../lib/identity";
 import CheckoutTaxSettings from "../../subscriptions/checkout-tax-settings";
 import SmsServiceSettings from "../../subscriptions/sms-service-settings";
 import SmsSepSettings from "../../subscriptions/sms-sep-settings";
+import Link from "next/link";
 
 export const dynamic="force-dynamic";
 export default async function AdminSettingsPage(){
@@ -16,6 +17,7 @@ export default async function AdminSettingsPage(){
    <h1>تنظیمات مدیریت</h1>
    <p>تنظیمات عمومی نرم‌افزار، مالی و سایر تنظیمات آینده</p>
   </div></div>
+  <section className="console-settings-card"><div className="console-settings-card-title"><h2>بکاپ و بازیابی دیتابیس</h2><p>زمان‌بندی و نگهداری نسخه‌های پشتیبان</p></div><Link href="/backup-control">مدیریت بکاپ و بازیابی</Link></section>
   <section className="console-settings-card">
    <div className="console-settings-card-title">
     <h2>تنظیمات مالی نرم‌افزار</h2>

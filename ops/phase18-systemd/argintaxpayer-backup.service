@@ -1,0 +1,47 @@
+[Unit]
+Description=ArginTaxPayer Database Backup Controller (Phase 18)
+After=network-online.target postgresql.service
+Wants=network-online.target
+ConditionPathExists=/etc/argintaxpayer/phase18-activation-approved
+
+[Service]
+Type=simple
+User=argintaxsvc
+Group=argintaxsvc
+WorkingDirectory=/opt/argintaxpayer/current/backup
+Environment=ASPNETCORE_ENVIRONMENT=Production
+Environment=DOTNET_ENVIRONMENT=Production
+Environment=BackupController__ListenUrl=http://127.0.0.1:15092
+Environment=BackupController__StateDirectory=/var/lib/argintaxpayer/backup-controller
+Environment=BackupController__RecoveryStatePath=/var/lib/argintaxpayer/backup-controller/recovery-state.json
+Environment=BackupController__FtpsSecretPath=/var/lib/argintaxpayer/backup-controller/ftps.json
+Environment=BackupController__EncryptionKeyPath=/etc/argintaxpayer/database-backup.key
+EnvironmentFile=-/etc/argintaxpayer/api.env
+EnvironmentFile=-/etc/argintaxpayer/backup-db.env
+EnvironmentFile=-/etc/argintaxpayer/backup-restore.env
+ExecStart=/usr/bin/env dotnet /opt/argintaxpayer/current/backup/ArginTaxPayer.Workers.dll
+Restart=on-failure
+RestartSec=10s
+TimeoutStartSec=60s
+TimeoutStopSec=30s
+KillSignal=SIGTERM
+UMask=0077
+# This host must execute the root-owned allowlisted helper through sudo.
+# Do not add seccomp options that implicitly enable NoNewPrivileges.
+NoNewPrivileges=false
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectControlGroups=true
+CapabilityBoundingSet=CAP_SETUID CAP_SETGID CAP_CHOWN CAP_DAC_OVERRIDE CAP_FOWNER CAP_AUDIT_WRITE
+AmbientCapabilities=
+StateDirectory=argintaxpayer/backup-controller
+# Root filesystem permissions still prevent the non-root worker writing /etc.
+# The privileged helper needs atomic rename of backup-db.env in this directory.
+ReadWritePaths=/var/lib/argintaxpayer/database-backups /etc/argintaxpayer
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=argintaxpayer-backup
+
+[Install]
+WantedBy=multi-user.target

@@ -130,10 +130,10 @@ class HelperTests(unittest.TestCase):
             self.h.extract_archive(archive, out, 'web')
 
     def bundle(self):
-        for name in ('api.tar.gz', 'web.tar.gz'):
+        for name in ('api.tar.gz', 'web.tar.gz', 'backup.tar.gz'):
             (self.root / name).write_bytes(name.encode())
         sums = ''.join(hashlib.sha256((self.root / n).read_bytes()).hexdigest()+'  '+n+'\n'
-                       for n in ('api.tar.gz', 'web.tar.gz'))
+                       for n in ('api.tar.gz', 'web.tar.gz', 'backup.tar.gz'))
         (self.root / 'SHA256SUMS').write_text(sums)
         (self.root / 'build-info.txt').write_text('sha='+'a'*40+'\n')
 

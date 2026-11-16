@@ -81,6 +81,14 @@ class SchemaDeploymentTests(unittest.TestCase):
                                   lambda: self.events.append('restart-current'))
         self.assertEqual(self.events, ['stop', 'restart-current'])
 
+    def test_active_restore_selection_blocks_deploy_before_database_access(self):
+        selection = self.root / 'backup-db.env'
+        selection.write_text('Backup__ActiveDatabase=recovery_abcdef123456\n')
+        with patch.object(h, 'ACTIVE_BACKUP_DB', selection):
+            with self.assertRaisesRegex(h.Refused, 'migration target'):
+                self.run_migration()
+        self.assertEqual(self.events, [])
+
     def test_wrong_database_identity_is_rejected_before_mutation(self):
         self.db.identity = lambda: 'argintaxpayer_test|postgres|false'
         with self.assertRaises(h.Refused): self.run_migration()
@@ -109,10 +117,10 @@ class SchemaDeploymentTests(unittest.TestCase):
 
     def test_versioned_build_info_is_accepted_but_wrong_sha_is_rejected(self):
         import hashlib
-        for name in ('api.tar.gz', 'web.tar.gz'):
+        for name in ('api.tar.gz', 'web.tar.gz', 'backup.tar.gz'):
             (self.root / name).write_bytes(b'archive')
         digest = hashlib.sha256(b'archive').hexdigest()
-        (self.root / 'SHA256SUMS').write_text(''.join(f'{digest}  {name}\n' for name in ('api.tar.gz', 'web.tar.gz')))
+        (self.root / 'SHA256SUMS').write_text(''.join(f'{digest}  {name}\n' for name in ('api.tar.gz', 'web.tar.gz', 'backup.tar.gz')))
         (self.root / 'build-info.txt').write_text('version=1.0 (Build 1)\nsha='+'a'*40+'\n')
         h.verify_bundle(self.root, 'a'*40)
         with self.assertRaises(h.Refused): h.verify_bundle(self.root, 'b'*40)
