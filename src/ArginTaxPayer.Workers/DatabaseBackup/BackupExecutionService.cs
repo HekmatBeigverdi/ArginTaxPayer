@@ -146,7 +146,8 @@ public sealed class PostgresBackupArtifactCreator(IConfiguration configuration) 
         var protectedTemp = Path.Combine(statePath, "tmp");
         return new PostgresBackupRunner(
             new LocalBackupStore(settings.LocalPath),
-            new BackupRunnerOptions(connectionString, configuration["BackupController:SchemaIdentity"] ?? "phase18"),
+            new BackupRunnerOptions(connectionString, configuration["BackupController:SchemaIdentity"] ?? "phase18",
+                configuration["BackupController:SourceDatabaseIdentity"]),
             new NpgsqlBackupDatabaseSizeReader(connectionString),
             new DriveBackupStorageCapacity(),
             new FileBackupKeyProvider(configuration["BackupController:EncryptionKeyPath"] ?? "/etc/argintaxpayer/database-backup.key"),

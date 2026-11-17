@@ -20,7 +20,7 @@ public static class BackupBundleEndpoints
                 var policy = await settings.ReadForRootAsync(actor, ct) ?? DatabaseBackupSettings.Default;
                 var stream = await bundles.DownloadAsync(policy, id, ct);
                 context.Response.Headers.CacheControl = "private, no-store";
-                return Results.File(stream, "application/zip", $"backup_{id:N}.zip");
+                return Results.File(stream, "application/zip", stream.FileName);
             }
             catch (UnauthorizedAccessException) { return Results.Unauthorized(); }
             catch (BackupBundleException ex) { return Results.BadRequest(new { error = ex.Message }); }

@@ -195,7 +195,8 @@ public static class BackupControllerEndpoints
             try
             {
                 var policy = await settings.GetAsync(Bearer(context), ct);
-                return Results.Ok(new { path = policy.LocalPath, files = await new LocalBackupStore(policy.LocalPath).ListAsync(ct),
+                return Results.Ok(new { path = policy.LocalPath, files = (await new LocalBackupStore(policy.LocalPath).ListAsync(ct))
+                    .Select(file => file with { DatabaseName = BackupDatabaseIdentity.DisplayName(file.DatabaseName, configuration) }),
                     canStageRestore = !string.IsNullOrWhiteSpace(configuration.GetConnectionString("DatabaseBackupRestore")),
                     canActivateRestore = !configuration.GetValue("BackupController:LocalDevelopmentMode", false) });
             }

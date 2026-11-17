@@ -65,7 +65,8 @@ public sealed class PostgresBackupRunner(
             }
 
             await ReportStageAsync("publish-local", cancellationToken);
-            var databaseName = new NpgsqlConnectionStringBuilder(options.ConnectionString).Database;
+            var databaseName = options.SourceDatabaseIdentity
+                ?? new NpgsqlConnectionStringBuilder(options.ConnectionString).Database;
             var manifest = new BackupManifest(id, DateTime.UtcNow, databaseName,
                 options.SchemaIdentity, key.Version, ArchiveValidated: true);
             var artifact = await store.PublishPartialAsync(partialPath, manifest, cancellationToken);
