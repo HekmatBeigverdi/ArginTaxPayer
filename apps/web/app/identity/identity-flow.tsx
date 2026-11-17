@@ -1,4 +1,5 @@
 "use client";
+import { otpUnavailableMessage } from "../../lib/otp-delivery-feedback";
 
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -360,7 +361,7 @@ export default function IdentityFlow({ restrictedLogin = false,onVisualStateChan
         if (response.status !== 202) {
           setError(
             response.status === 503
-              ? "ارسال کد تأیید انجام نشد. اتصال سرویس پیامک را بررسی کنید."
+              ? otpUnavailableMessage(result.error)
               : "درخواست تأیید معتبر نیست؛ شماره همراه را بررسی کنید.",
           );
           return;

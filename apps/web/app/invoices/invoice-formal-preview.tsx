@@ -224,8 +224,8 @@ function PaperParticipant({title,participant,fallbackName,fallbackIdentity}: {
  return <section className="invoice-paper__party" aria-label={title}>
   <h4 className="invoice-paper__section-title">{title}</h4>
   <div className="invoice-paper__party-grid">
-   <div className="invoice-paper__cell invoice-paper__cell--wide"><strong>نام شخص {p?.kind==="NaturalPerson"?"حقیقی":"حقیقی / حقوقی"}:</strong><span>{p?.name??fallbackName??"—"}</span></div>
-   {fields.map(([label,value])=><div className="invoice-paper__cell" key={label}><strong>{label}:</strong><span>{faDigits(value)}</span></div>)}
+   <div className="invoice-paper__cell invoice-paper__cell--wide invoice-paper__cell--emphasis"><strong>نام شخص {p?.kind==="NaturalPerson"?"حقیقی":"حقیقی / حقوقی"}:</strong><span>{p?.name??fallbackName??"—"}</span></div>
+   {fields.map(([label,value])=><div className={`invoice-paper__cell${label==="کد اقتصادی"||label==="شناسه ملی"?" invoice-paper__cell--emphasis":""}`} key={label}><strong>{label}:</strong><span>{faDigits(value)}</span></div>)}
    {fields.length%3!==0&&<div className="invoice-paper__cell invoice-paper__cell--spacer" aria-hidden="true"/>}
    <div className="invoice-paper__cell invoice-paper__cell--wide"><strong>نشانی:</strong><span>{p?.address??"—"}</span></div>
   </div>
@@ -242,9 +242,9 @@ function InvoicePaper({invoice,reference,referenceFiscalTaxId,invoiceSubject}: {
    <div className="invoice-paper__header-logo">
     {invoice.invoiceLogoDataUrl&&<img className="invoice-paper__company-logo" src={invoice.invoiceLogoDataUrl} alt="لوگوی شرکت"/>}
    </div>
-   <div className="invoice-paper__tax-number"><strong>شماره مالیاتی</strong>
-    <span>شماره منحصربه‌فرد مالیاتی: <bdi>{faDigits(invoice.uniqueInvoiceId)}</bdi></span>
-    <span>شماره مرجع: <bdi dir="ltr">{invoiceSubject==="Original"?"":faDigits(referenceFiscalTaxId??invoice.referenceFiscalTaxId)}</bdi></span>
+   <div className="invoice-paper__tax-number">
+    <span className="invoice-paper__tax-identifier">شماره منحصربه‌فرد مالیاتی: <bdi>{faDigits(invoice.uniqueInvoiceId)}</bdi></span>
+    <span className="invoice-paper__tax-identifier">شماره مرجع: <bdi dir="ltr">{invoiceSubject==="Original"?"":faDigits(referenceFiscalTaxId??invoice.referenceFiscalTaxId)}</bdi></span>
     <span>تاریخ ارسال: {paperDate(invoice.paymentDateUtc)}</span>
    </div>
    <h3>صورتحساب فروش کالا و خدمات</h3>
@@ -268,7 +268,7 @@ function InvoicePaper({invoice,reference,referenceFiscalTaxId,invoiceSubject}: {
       <td>{line?money(line.discountRial):""}</td><td>{line?money(line.netRial):""}</td>
       <td>{line?money(line.vatRial):""}</td><td>{line?money(line.totalRial):""}</td></tr>;
     })}</tbody>
-    <tfoot><tr><th colSpan={9}>مبلغ قابل پرداخت: {money(invoice.totalRial)} ریال
+    <tfoot><tr><th colSpan={9}><span className="invoice-paper__payable-label">مبلغ قابل پرداخت:</span> <strong className="invoice-paper__payable-amount">{money(invoice.totalRial)} ریال</strong>
      — به حروف: {rialInWords(invoice.totalRial)}</th></tr></tfoot>
    </table>
   </section>
@@ -280,8 +280,8 @@ function InvoicePaper({invoice,reference,referenceFiscalTaxId,invoiceSubject}: {
     {invoice.creditAmountRial!==null&&<span>مبلغ نسیه: {money(invoice.creditAmountRial)} ریال</span>}
    </div>
    <div className="invoice-paper__footer-subject">
-    نوع صورتحساب: {invoiceTypeLabel[invoice.invoiceType??""]??invoice.invoiceType??"نوع اول"}
-    <br/>موضوع صورتحساب: {paperSubject[invoiceSubject??""]??"اصلی"}
+    <strong>نوع صورتحساب: {invoiceTypeLabel[invoice.invoiceType??""]??invoice.invoiceType??"نوع اول"}</strong>
+    <br/><strong>موضوع صورتحساب: {paperSubject[invoiceSubject??""]??"اصلی"}</strong>
    </div>
    <div className="invoice-paper__footer-qr">
     <img src="/invoice-sample-qr.png" alt="نمونه کد QR؛ لینک صورتحساب در آینده اضافه می‌شود"/>

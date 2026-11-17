@@ -23,14 +23,14 @@ test("release promotion requires explicit approval and activation marker", () =>
   assert.match(helper,/Restoring previous application release/);
   assert.match(helper,/local-health\.sh/);
   assert.match(helper,/lambda: healthy\(probe_mode\)/);
-  assert.ok(helper.indexOf('migrate_release(release)\n        promote(')>helper.indexOf('fcntl.flock(lock,'));
+  assert.ok(helper.indexOf('migrate_release(release, current_release=previous)\n        promote(')>helper.indexOf('fcntl.flock(lock,'));
   assert.doesNotMatch(s,/dotnet ef database update/);
 });
 test("GitHub workflow never deploys automatically on push", () => {
   const s=read(".github/workflows/production-release.yml");
   assert.match(s,/workflow_dispatch/);
   assert.match(s,/github\.ref == 'refs\/heads\/main'/);
-  assert.match(s,/schema-before-promote-v1/);
+  assert.match(s,/schema-and-backup-before-promote-v2/);
   assert.match(s,/tools\/ArginTaxPayer\.Migrations/);
   assert.match(s,/environment: production/);
   assert.match(s,/StrictHostKeyChecking=yes/);

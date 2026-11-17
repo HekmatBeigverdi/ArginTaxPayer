@@ -8,7 +8,7 @@ umask 077
 [[ "$(uname -s)" == Linux ]] || { echo '[REFUSED] Ubuntu required' >&2; exit 2; }
 command -v curl >/dev/null || exit 2
 command -v ss >/dev/null || exit 2
-for port in 15090 15091; do
+for port in 15090 15091 15092; do
   # Every bound address for a reserved port must be the exact IPv4 loopback.
   # This rejects wildcard, public IPv4, and IPv6 wildcard exposure alike.
   listeners=$(ss -ltnH | awk '{print $4}' | grep -E ":${port}$" || true)
@@ -20,7 +20,9 @@ for port in 15090 15091; do
 done
 api="http://127.0.0.1:15090"
 web="http://127.0.0.1:15091"
+backup="http://127.0.0.1:15092"
 code() { curl --noproxy '*' -sS -o /dev/null -w '%{http_code}' --max-time 5 "$1"; }
+[[ "$(code "$backup/health")" == 200 ]] || { echo '[FAIL] Backup controller health' >&2; exit 1; }
 [[ "$(code "$api/health/live")" == 200 ]] || { echo '[FAIL] API liveness' >&2; exit 1; }
 [[ "$(code "$api/health/ready")" == 200 ]] || { echo '[FAIL] API PostgreSQL readiness' >&2; exit 1; }
 webcode=$(code "$web/identity")

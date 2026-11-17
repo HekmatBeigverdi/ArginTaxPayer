@@ -1,3 +1,4 @@
+import { otpUnavailableCode } from "../../../../lib/otp-delivery-feedback";
 import { NextRequest, NextResponse } from "next/server";
 import { isSameLocalOrigin } from "../../../../lib/identity-origin.mjs";
 import { ACCESS_COOKIE, REFRESH_COOKIE, identityBackend, identityUiEnabled } from "../../../../lib/identity";
@@ -102,8 +103,10 @@ async function callIdentity(operation: string, req: NextRequest, method: "GET" |
       return errorResult(404, "mobile_not_registered");
     if (operation === "phone/request" && response.status === 409)
       return errorResult(409, "mobile_already_registered");
-    if (operation === "phone/request" && response.status === 503)
-      return errorResult(503, "otp_unavailable");
+    if (operation === "phone/request" && response.status === 503) {
+      const body = await response.json().catch(() => ({}));
+      return errorResult(503, otpUnavailableCode(body));
+    }
     if (operation === "phone/request" && response.status === 402)
       return errorResult(402, "insufficient_sms_credit");
     if (operation === "login" && response.status === 404) {

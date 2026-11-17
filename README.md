@@ -23,3 +23,5 @@ See [18-phase roadmap](docs/roadmap/18-phases.md), [Phase 01](docs/phases/phase-
 
 ## Confidentiality
 Never commit actual production SQL dumps, phone numbers, certificates, private keys, secrets, payment credentials or customer data. Source documents must be sanitized before being added to a public repository.
+
+Production releases follow [the owner-approved feature preservation policy](docs/production-release-policy.md).

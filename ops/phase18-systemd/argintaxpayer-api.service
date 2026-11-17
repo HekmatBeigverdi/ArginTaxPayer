@@ -16,12 +16,10 @@ WorkingDirectory=/opt/argintaxpayer/current/api
 Environment=ASPNETCORE_ENVIRONMENT=Production
 Environment=DOTNET_ENVIRONMENT=Production
 Environment=ASPNETCORE_URLS=http://127.0.0.1:15090
-Environment=ArginTaxPayer__EnableOperationalEndpoints=false
-Environment=Ghasedak__EnableLiveSending=false
-Environment=SandboxInvoiceLegacy__Enabled=false
-Environment=SandboxInvoiceLegacy__OperatorApprovedEndpoint=false
+Environment=BackupController__RecoveryStatePath=/var/lib/argintaxpayer/backup-controller/recovery-state.json
 Environment=Phase11__EnableReadOnlyQueueObserver=false
 EnvironmentFile=-/etc/argintaxpayer/api.env
+EnvironmentFile=-/etc/argintaxpayer/backup-db.env
 ExecStart=/usr/bin/env dotnet /opt/argintaxpayer/current/api/ArginTaxPayer.Api.dll
 Restart=on-failure
 RestartSec=10s

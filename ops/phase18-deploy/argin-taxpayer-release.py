@@ -25,7 +25,7 @@ RELEASES = BASE / 'releases'
 RUNTIME = BASE / 'runtime/node/bin'
 INCOMING = Path('/home/argin-deploy/argin-deploy-incoming')
 PROBE = Path('/usr/local/libexec/argintaxpayer/local-health.sh')
-UNITS = ('argintaxpayer-api.service', 'argintaxpayer-web.service')
+UNITS = ('argintaxpayer-api.service', 'argintaxpayer-web.service', 'argintaxpayer-backup.service')
 MAX_ARCHIVE_BYTES = 1024 ** 3
 MAX_EXPANDED_BYTES = 4 * 1024 ** 3
 MAX_ENTRIES = 200000
@@ -71,11 +71,11 @@ def snapshot_file(directory_fd, name, destination, expected_uid, limit):
 def verify_bundle(bundle, sha):
     expected = {}
     for line in (bundle / 'SHA256SUMS').read_text().splitlines():
-        match = re.fullmatch(r'([a-f0-9]{64})  (api\.tar\.gz|web\.tar\.gz)', line)
+        match = re.fullmatch(r'([a-f0-9]{64})  (api\.tar\.gz|web\.tar\.gz|backup\.tar\.gz)', line)
         if not match or match[2] in expected:
-            raise Refused('Manifest must contain exactly the two application archives')
+            raise Refused('Manifest must contain exactly the three application archives')
         expected[match[2]] = match[1]
-    if set(expected) != {'api.tar.gz', 'web.tar.gz'}:
+    if set(expected) != {'api.tar.gz', 'web.tar.gz', 'backup.tar.gz'}:
         raise Refused('Incomplete checksum manifest')
     for name, digest in expected.items():
         with (bundle / name).open('rb') as stream:
@@ -308,7 +308,7 @@ def snapshot_upload(sha, destination, deployment_uid):
             fd = child
             if os.fstat(fd).st_uid != deployment_uid:
                 raise Refused('Upload directories must belong to argin-deploy')
-        for name in ('SHA256SUMS', 'build-info.txt', 'api.tar.gz', 'web.tar.gz'):
+        for name in ('SHA256SUMS', 'build-info.txt', 'api.tar.gz', 'web.tar.gz', 'backup.tar.gz'):
             limit = MAX_ARCHIVE_BYTES if name.endswith('.tar.gz') else 4096
             snapshot_file(fd, name, destination / name, deployment_uid, limit)
     finally:
@@ -334,10 +334,10 @@ def prepare_release(sha, deployment, service_gid):
             return release
         stage = temporary / 'stage'
         stage.mkdir(mode=0o700)
-        for root in ('api', 'web'):
+        for root in ('api', 'web', 'backup'):
             extract_archive(bundle / f'{root}.tar.gz', stage, root)
         for name in ('api/ArginTaxPayer.Api.dll', 'web/.next/BUILD_ID',
-                     'web/package.json', 'web/package-lock.json'):
+                     'web/package.json', 'web/package-lock.json', 'backup/ArginTaxPayer.Workers.dll'):
             if not (stage / name).is_file() or not (stage / name).stat().st_size:
                 raise Refused('Incomplete application archive')
         # Give npm only this staging tree. The enclosing snapshot remains root-only.
@@ -397,7 +397,84 @@ def prepare_release(sha, deployment, service_gid):
 
 MIGRATION_CONFIG = Path('/etc/argintaxpayer/migrations.env')
 BACKUPS = Path('/var/backups/argintaxpayer')
+ACTIVE_BACKUP_DB = Path('/etc/argintaxpayer/backup-db.env')
+RECOVERY_STATE_DIR = Path('/var/lib/argintaxpayer/backup-controller')
+ROOT_UID = 0
 BACKUP_KEY = Path('/etc/argintaxpayer/migration-backup.key')
+
+
+def read_regular_file(path, max_bytes, owner_uid, mode):
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    except OSError:
+        raise Refused('Recovery deployment state is missing or unsafe') from None
+    with os.fdopen(fd, 'rb') as stream:
+        info = os.fstat(stream.fileno())
+        if (not stat.S_ISREG(info.st_mode) or info.st_uid != owner_uid
+                or stat.S_IMODE(info.st_mode) != mode):
+            raise Refused('Recovery deployment state has unsafe ownership or permissions')
+        content = stream.read(max_bytes + 1)
+        if len(content) > max_bytes:
+            raise Refused('Recovery deployment state exceeds size limit')
+        try:
+            return content.decode('utf-8')
+        except UnicodeError:
+            raise Refused('Recovery deployment state is not valid UTF-8') from None
+
+
+def reviewed_recovery_selection():
+    try:
+        selection_info = ACTIVE_BACKUP_DB.lstat()
+    except FileNotFoundError:
+        return None
+    if not stat.S_ISREG(selection_info.st_mode) or stat.S_ISLNK(selection_info.st_mode):
+        raise Refused('Active restored database selection is not a regular file')
+    trusted(ACTIVE_BACKUP_DB)
+    selection_text = read_regular_file(ACTIVE_BACKUP_DB, 1024, ROOT_UID, 0o640)
+    selection_lines = selection_text.splitlines()
+    match = (re.fullmatch(r'Backup__ActiveDatabase=(recovery_[a-f0-9]{12})', selection_lines[0])
+             if len(selection_lines) == 1 else None)
+    if match is None:
+        raise Refused('Invalid restored database selection')
+    database = match.group(1)
+
+    try:
+        directory_info = RECOVERY_STATE_DIR.lstat()
+    except OSError:
+        raise Refused('Recovery state directory is missing or unsafe') from None
+    try:
+        backup_service_uid = pwd.getpwnam('argintaxsvc').pw_uid
+    except KeyError:
+        raise Refused('Backup service identity is missing') from None
+    if (not stat.S_ISDIR(directory_info.st_mode) or stat.S_ISLNK(directory_info.st_mode)
+            or directory_info.st_uid != backup_service_uid
+            or stat.S_IMODE(directory_info.st_mode) != 0o700):
+        raise Refused('Recovery state directory has unsafe ownership or permissions')
+    recovery_path = RECOVERY_STATE_DIR / 'recovery-state.json'
+    stage_path = RECOVERY_STATE_DIR / 'restore-stage.json'
+    try:
+        recovery = json.loads(read_regular_file(recovery_path, 64 * 1024,
+                                                backup_service_uid, 0o600))
+        stage = json.loads(read_regular_file(stage_path, 64 * 1024,
+                                             backup_service_uid, 0o600))
+    except (json.JSONDecodeError, UnicodeError):
+        raise Refused('Recovery deployment state is malformed') from None
+    if not isinstance(recovery, dict) or not isinstance(stage, dict):
+        raise Refused('Recovery deployment state is malformed')
+    state_stage_id = recovery.get('stageId')
+    restore_stage_id = stage.get('stageId')
+    valid_guid = r'[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}'
+    if (recovery.get('recoveryMode') is not False
+            or recovery.get('activeDatabase') != database
+            or not isinstance(state_stage_id, str)
+            or not re.fullmatch(valid_guid, state_stage_id)
+            or not isinstance(restore_stage_id, str)
+            or not re.fullmatch(valid_guid, restore_stage_id)
+            or state_stage_id.casefold() != restore_stage_id.casefold()
+            or stage.get('databaseName') != database
+            or stage.get('status') != 'staged'):
+        raise Refused('Restored database has not been explicitly reviewed or its stage does not match')
+    return database
 
 
 def migration_manifest(path):
@@ -524,7 +601,8 @@ class MigrationDatabase:
                      stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
 
-def migrate_release(release, database=None, stop=stop_services, restart=restart_services):
+def migrate_release(release, database=None, stop=stop_services, restart=restart_services,
+                    current_release=None):
     manifest = release / 'api/schema/migrations.json'
     sql = release / 'api/schema/migrations.sql'
     for path in (manifest, sql):
@@ -532,6 +610,24 @@ def migrate_release(release, database=None, stop=stop_services, restart=restart_
     expected = migration_manifest(manifest)
     if sql.stat().st_size > 32 * 1024 * 1024 or sql.stat().st_size == 0:
         raise Refused('Invalid migration SQL size')
+    selected_database = reviewed_recovery_selection()
+    if selected_database is not None:
+        if current_release is None:
+            raise Refused('A current release is required to review the restored database migration target')
+        trusted(current_release, directory=True)
+        current_manifest = current_release / 'api/schema/migrations.json'
+        current_sql = current_release / 'api/schema/migrations.sql'
+        for path in (current_manifest, current_sql):
+            trusted(path)
+        if (current_manifest.stat().st_size > 256 * 1024
+                or current_sql.stat().st_size > 32 * 1024 * 1024
+                or current_sql.stat().st_size == 0):
+            raise Refused('Current release migration artifacts exceed limits')
+        if (manifest.read_bytes() != current_manifest.read_bytes()
+                or sql.read_bytes() != current_sql.read_bytes()):
+            raise Refused('Reviewed restored database migration target differs from the current release')
+        print(f'[PASS] Restored database {selected_database} was reviewed; migration artifacts are unchanged.', flush=True)
+        return False
     database = database or MigrationDatabase(migration_config())
     if database.identity() != 'argintaxpayer_prod|argin_prod_migrator|true':
         raise Refused('Unexpected actual migration database, role or TLS state')
@@ -562,7 +658,16 @@ def migrate_release(release, database=None, stop=stop_services, restart=restart_
 
 def main(arguments):
     if arguments == ['--capabilities']:
-        print('schema-before-promote-v1')
+        print('schema-and-backup-before-promote-v2')
+        return
+    if arguments == ['--check-recovery-selection']:
+        if os.geteuid() != 0:
+            raise Refused('Use the root-owned deployment preflight')
+        selected = reviewed_recovery_selection()
+        if selected is None:
+            print('[PASS] No restored database selection is active.')
+        else:
+            print(f'[PASS] Restored database selection is reviewed: {selected}')
         return
     if (len(arguments) not in (2, 3) or arguments[0] not in ('--deploy', '--promote-staged')
             or len(arguments) == 3 and (arguments[0] != '--promote-staged' or arguments[2] != '--initial-disabled-ui')):
@@ -585,6 +690,9 @@ def main(arguments):
                                 check=True, capture_output=True, text=True, env=ENV)
         if result.stdout.strip() != 'argintaxsvc':
             raise Refused('Application services must run as argintaxsvc')
+    preflight = Path('/usr/local/libexec/argintaxpayer/backup-preflight.sh')
+    trusted(preflight)
+    run(['/usr/bin/bash', str(preflight)], timeout=90)
     # One lock for all workflow events and manual invocations, including retries.
     lock_fd = os.open('/run/lock/argintaxpayer-release.lock',
                       os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
@@ -597,6 +705,7 @@ def main(arguments):
         except BlockingIOError:
             raise Refused('Another deployment is in progress') from None
         current = BASE / 'current'
+        previous = None
         if current.is_symlink():
             previous = current.resolve(strict=True)
             if previous.parent != RELEASES or not re.fullmatch(r'[a-f0-9]{40}', previous.name):
@@ -610,7 +719,7 @@ def main(arguments):
         else:
             release = prepare_release(sha, deployment, service_gid)
         for name in ('api/ArginTaxPayer.Api.dll', 'web/.next/BUILD_ID',
-                     'web/node_modules/next/dist/bin/next'):
+                     'web/node_modules/next/dist/bin/next', 'backup/ArginTaxPayer.Workers.dll'):
             trusted(release / name)
             run(['/usr/sbin/runuser', '-u', 'argintaxsvc', '--',
                  '/usr/bin/test', '-r', str(release / name)], timeout=10)
@@ -627,7 +736,7 @@ def main(arguments):
                 if not all(line in lines for line in required):
                     raise Refused('Disabled startup requires provider and business gates false')
             probe_mode = '--probe-local-disabled-ui'
-        migrate_release(release)
+        migrate_release(release, current_release=previous)
         promote(release, current, restart_services, lambda: healthy(probe_mode), stop_services)
     print(f'[PASS] Release {sha} promoted and loopback health PASS.', flush=True)
 
