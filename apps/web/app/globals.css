@@ -34,6 +34,7 @@
 /* Phase 04 customer-first management — compact RTL data grid and native dialog */
 .users-panel{background:#fff;border:1px solid #dce5f0;border-radius:16px;padding:20px;max-width:100%;min-width:0;box-shadow:0 8px 30px rgba(18,45,78,.035)}
 .users-toolbar{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:18px}
+.users-toolbar-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.users-button--icon{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:8px 12px}.users-action-icon{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;flex:none}
 .users-toolbar h2{font-size:21px;margin:0 0 5px}.users-toolbar p{font-size:13px;color:#6b7d92;margin:0}
 .users-button,.users-action{font:inherit;font-size:13px;font-weight:700;border:1px solid #c4d5e7;background:#f2f8fd;color:#1f4f74;border-radius:9px;padding:10px 14px;cursor:pointer;white-space:nowrap}
 .users-button:disabled,.users-action:disabled,.users-pagination button:disabled{opacity:.45;cursor:default}
@@ -60,6 +61,7 @@
 .users-dialog-head p{color:#6a7e94;font-size:12px;margin:0 0 4px}.users-dialog-head h2{font-size:21px;margin:0;overflow-wrap:anywhere}
 .users-dialog-close{width:38px;height:38px;font:inherit;font-size:27px;line-height:1;border:1px solid #d9e3ed;border-radius:9px;background:#fff;cursor:pointer}
 .users-dialog-content{overflow:auto;min-height:0;padding:24px}.users-dialog-content h3{font-size:17px;margin:22px 0 12px}
+.users-dialog--compact{max-width:min(94vw,600px);max-height:80dvh}.users-dialog--compact .users-dialog-content{padding:12px 18px;gap:6px}.users-dialog--compact .users-dialog-head{padding:10px 18px}.users-dialog--compact .users-dialog-head h2{font-size:17px}.users-dialog--compact .identity-form input:not([type=checkbox]){padding:7px 10px;min-height:34px}.users-dialog-textarea{width:100%;min-width:0;resize:vertical;min-height:52px;max-height:110px;padding:7px 9px;border:1px solid #cbd7e4;border-radius:8px;background:#fff;color:#14283b;font:inherit;line-height:1.6}.users-dialog--compact .identity-form .identity-primary{margin-top:3px;padding:8px 12px}
 .users-details{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px;margin:0}
 .users-details>div{border:1px solid #e4eaf2;border-radius:9px;background:#fbfcfe;padding:11px;min-width:0}
 .users-details dt{font-size:12px;color:#6c7d93}.users-details dd{font-size:13px;font-weight:700;margin:7px 0 0;overflow-wrap:anywhere}

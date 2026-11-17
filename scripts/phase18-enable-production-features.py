@@ -9,10 +9,13 @@ API_FLAGS = {
     'ArginTaxPayer__EnableOperationalEndpoints': 'true',
     'ArginTaxPayer__HostedSandboxEnabled': 'true',
     'Ghasedak__EnableLiveSending': 'true',
+    'Ghasedak__RestrictToTestRecipient': 'false',
     'SandboxInvoiceLegacy__Enabled': 'true',
     'SandboxInvoiceLegacy__OperatorApprovedEndpoint': 'true',
     'ProductionInvoiceLegacy__Enabled': 'true',
     'ProductionInvoiceLegacy__OperatorApprovedEndpoint': 'true',
+    'Phase18Production__LegalSuccessorsEnabled': 'true',
+    'Phase18Production__LegalSuccessorsOperatorApproved': 'true',
 }
 WEB_FLAGS = {'ARGIN_IDENTITY_UI_ENABLED': 'true', 'ARGIN_PRODUCTION_UI_ENABLED': 'true'}
 
@@ -56,7 +59,7 @@ def main():
         finally:
             if os.path.exists(temporary):
                 os.unlink(temporary)
-    print('[PASS] Production API/UI, SMS and both invoice environments enabled; credentials and database selection preserved.')
+    print('[PASS] Production API/UI, SMS, both invoice environments, correction, cancellation and sales return enabled; credentials and database selection preserved.')
     print('[NEXT] Restart API/Web or approve the next production deployment to load these settings.')
 
 

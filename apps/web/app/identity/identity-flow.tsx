@@ -1,4 +1,5 @@
 "use client";
+import { otpUnavailableMessage } from "../../lib/otp-delivery-feedback";
 
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -235,7 +236,7 @@ export default function IdentityFlow({ restrictedLogin = false,onVisualStateChan
         return;
       }
 
-      const { response } = await api("login", {
+      const { response, result } = await api("login", {
         email: identifier,
         password,
       });
@@ -246,6 +247,16 @@ export default function IdentityFlow({ restrictedLogin = false,onVisualStateChan
         setNavigating(true);
         router.replace("/dashboard");
         router.refresh();
+        return;
+      }
+
+      if (response.status === 404 && result.error === "account_not_registered") {
+        setError("این حساب هنوز ثبت‌نام نشده است. ابتدا ثبت‌نام کنید.");
+        setTab("register");
+        setMode("otp");
+        setForgot(false);
+        setEmailRegistration(false);
+        setStep("details");
         return;
       }
 
@@ -326,7 +337,9 @@ export default function IdentityFlow({ restrictedLogin = false,onVisualStateChan
         }
 
         if (response.status === 404 && result.error === "mobile_not_registered") {
-          setError("این شماره هنوز ثبت‌نام نشده است. ابتدا ثبت‌نام کنید.");
+          setError(purpose === "reset"
+            ? "این شماره ثبت‌نام نشده است؛ ابتدا ثبت‌نام کنید."
+            : "این شماره هنوز ثبت‌نام نشده است. ابتدا ثبت‌نام کنید.");
           return;
         }
 
@@ -350,7 +363,7 @@ export default function IdentityFlow({ restrictedLogin = false,onVisualStateChan
         if (response.status !== 202) {
           setError(
             response.status === 503
-              ? "ارسال کد تأیید انجام نشد. اتصال سرویس پیامک را بررسی کنید."
+              ? otpUnavailableMessage(result.error)
               : "درخواست تأیید معتبر نیست؛ شماره همراه را بررسی کنید.",
           );
           return;

@@ -1,3 +1,4 @@
+import { otpUnavailableCode } from "../../../../lib/otp-delivery-feedback";
 import { NextRequest, NextResponse } from "next/server";
 import { isSameLocalOrigin } from "../../../../lib/identity-origin.mjs";
 import { ACCESS_COOKIE, REFRESH_COOKIE, identityBackend, identityUiEnabled } from "../../../../lib/identity";
@@ -102,10 +103,28 @@ async function callIdentity(operation: string, req: NextRequest, method: "GET" |
       return errorResult(404, "mobile_not_registered");
     if (operation === "phone/request" && response.status === 409)
       return errorResult(409, "mobile_already_registered");
-    if (operation === "phone/request" && response.status === 503)
-      return errorResult(503, "otp_unavailable");
+    if (operation === "phone/request" && response.status === 503) {
+      const body = await response.json().catch(() => ({}));
+      return errorResult(503, otpUnavailableCode(body));
+    }
     if (operation === "phone/request" && response.status === 402)
       return errorResult(402, "insufficient_sms_credit");
+    if (operation === "login" && response.status === 404) {
+      const body = await response.json().catch(() => ({})) as { error?: string };
+      return body.error === "account_not_registered"
+        ? errorResult(404, "account_not_registered")
+        : errorResult(404, "request_rejected");
+    }
+    if (operation === "admin/customers" && response.status === 400) {
+      const body = await response.json().catch(() => ({})) as { error?: string };
+      const allowed = new Set(["invalid_customer_profile", "invalid_customer_password", "invalid_customer_data"]);
+      return errorResult(400, body.error && allowed.has(body.error) ? body.error : "invalid_customer_data");
+    }
+    if (operation === "admin/customers" && response.status === 503) {
+      const body = await response.json().catch(() => ({})) as { error?: string };
+      return errorResult(503, body.error === "customer_provisioning_migration_required"
+        ? "customer_provisioning_migration_required" : "customer_provisioning_unavailable");
+    }
     if (operation === "phone/register/complete" && response.status === 503)
       return errorResult(503, "registration_unavailable");
     const result = await response.text();

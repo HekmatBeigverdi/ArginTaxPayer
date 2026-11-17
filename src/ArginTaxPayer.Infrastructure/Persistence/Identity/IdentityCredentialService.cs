@@ -83,6 +83,21 @@ public sealed class IdentityCredentialService(ArginTaxPayerDbContext db,
         return user is { IsActive: true } &&
             IdentityPasswordHasher.Verify(password, user.PasswordHash);
     }
+
+    public async Task<bool> AccountExistsAsync(string? identifier, CancellationToken cancellationToken = default)
+    {
+        string? normalizedEmail = null;
+        string? normalizedMobile = null;
+        if (IranianMobileNumber.TryNormalize(identifier, out var mobile)) normalizedMobile = mobile;
+        else
+        {
+            try { normalizedEmail = InitialAdministratorBootstrap.NormalizeEmail(identifier ?? ""); }
+            catch (ArgumentException) { return false; }
+        }
+        return await db.IdentityUsers.AsNoTracking().AnyAsync(u =>
+            normalizedEmail != null && u.NormalizedEmail == normalizedEmail ||
+            normalizedMobile != null && u.NormalizedMobile == normalizedMobile, cancellationToken);
+    }
 }
 
 public enum IdentityRegistrationResult

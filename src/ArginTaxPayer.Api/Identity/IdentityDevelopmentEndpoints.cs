@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Mvc;
 using System.Diagnostics;
 using System.Net;
+using Npgsql;
 
 namespace ArginTaxPayer.Api.Identity;
 
@@ -59,6 +60,7 @@ public static class IdentityDevelopmentEndpoints
             [FromBody] IdentityCredentials request,
             HttpContext http,
             IdentitySessionService sessions,
+            IdentityCredentialService identity,
             IdentityProtectionService protection,
             CancellationToken ct) =>
         {
@@ -68,6 +70,8 @@ public static class IdentityDevelopmentEndpoints
             var tokens = await sessions.LoginAsync(request.Email, request.Password, ct);
             if (tokens is not null) protection.RecordSuccess(request.Email, "login");
             else protection.RecordFailure(request.Email, DateTime.UtcNow, "login");
+            if (tokens is null && !await identity.AccountExistsAsync(request.Email, ct))
+                return Results.NotFound(new { error = "account_not_registered" });
             return tokens is null ? Results.Unauthorized() : Results.Ok(tokens);
         });
 
@@ -322,17 +326,34 @@ public static class IdentityDevelopmentEndpoints
 
         group.MapPost("/admin/customers", async (
             [FromBody] AdminCreateCustomerRequest request, HttpContext http,
-            IdentityAdministratorUserProvisioning provisioning, CancellationToken ct) =>
+            IdentityAdministratorUserProvisioning provisioning, ILoggerFactory loggerFactory, CancellationToken ct) =>
         {
             if (!IsLoopback(http)) return Results.NotFound();
-            var result = await provisioning.CreateCustomerAsync(
-                ReadBearer(http), request.Mobile, request.Email, request.Password, ct);
+            AdminUserCreationStatus result;
+            try
+            {
+                result = await provisioning.CreateCustomerAsync(
+                    ReadBearer(http), request.Mobile, request.Email, request.Password,
+                    request.FirstName, request.LastName, request.CompanyName, request.Address, ct);
+            }
+            catch (Exception exception) when (!ct.IsCancellationRequested)
+            {
+                loggerFactory.CreateLogger("ArginTaxPayer.Identity.AdminProvisioning")
+                    .LogError("ADMIN_CUSTOMER_PROVISIONING_FAILED exception_type={ExceptionType}",
+                        exception.GetType().FullName);
+                if (exception is PostgresException { SqlState: PostgresErrorCodes.UndefinedTable })
+                    return Results.Json(new { error = "customer_provisioning_migration_required" },
+                        statusCode: StatusCodes.Status503ServiceUnavailable);
+                return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+            }
             return result switch
             {
                 AdminUserCreationStatus.Created => Results.StatusCode(201),
                 AdminUserCreationStatus.Unauthenticated => Results.Unauthorized(),
                 AdminUserCreationStatus.Forbidden => Results.StatusCode(403),
                 AdminUserCreationStatus.Conflict => Results.Conflict(new { error = "account_unavailable" }),
+                AdminUserCreationStatus.InvalidProfile => Results.BadRequest(new { error = "invalid_customer_profile" }),
+                AdminUserCreationStatus.InvalidPassword => Results.BadRequest(new { error = "invalid_customer_password" }),
                 _ => Results.BadRequest(new { error = "invalid_customer_data" })
             };
         });
@@ -503,6 +524,7 @@ public sealed record PhoneComplete(string? Mobile, string? Code);
 public sealed record PhoneRegisterComplete(string? Mobile, string? Code, string? Password);
 public sealed record PhoneResetComplete(string? Mobile, string? Code, string? NewPassword);
 
-public sealed record AdminCreateCustomerRequest(string? Mobile, string? Email, string? Password);
+public sealed record AdminCreateCustomerRequest(string? Mobile, string? Email, string? Password,
+    string? FirstName = null, string? LastName = null, string? CompanyName = null, string? Address = null);
 
 public sealed record Level2MfaResetRequest(Guid TargetUserId);

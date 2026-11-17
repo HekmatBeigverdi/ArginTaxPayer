@@ -78,6 +78,21 @@ test("MFA service configuration failures are not shown as invalid passwords", ()
   assert.match(flow, /پیکربندی سرویس MFA کامل نیست/);
 });
 
+test("unknown password-login accounts are sent to phone registration", () => {
+  const flow = read("app/identity/identity-flow.tsx");
+  const proxy = read("app/api/identity/[...path]/route.ts");
+  assert.match(flow, /account_not_registered/);
+  assert.match(flow, /setTab\("register"\)/);
+  assert.match(flow, /setMode\("otp"\)/);
+  assert.match(proxy, /operation === "login" && response\.status === 404/);
+});
+
+test("password recovery keeps an unregistered mobile out of SMS dispatch", () => {
+  const flow = read("app/identity/identity-flow.tsx");
+  assert.match(flow, /purpose === "reset"/);
+  assert.match(flow, /mobile_not_registered/);
+});
+
 test("administrator customer form requires role-gated UI and authenticated BFF operation", () => {
   const directory = read("app/parties/buyer-taxpayer-directory.tsx");
   const form = read("app/account/admin-create-customer.tsx");

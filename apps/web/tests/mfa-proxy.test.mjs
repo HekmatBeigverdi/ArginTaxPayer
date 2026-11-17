@@ -13,6 +13,9 @@ const compiled = ts.transpileModule(source, {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText;
 
+const otpFeedback = {};
+runInNewContext(ts.transpileModule(readFileSync(new URL("../lib/otp-delivery-feedback.ts", import.meta.url), "utf8"), {compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText, {exports:otpFeedback});
+
 function proxy(backend) {
   const exports = {};
   runInNewContext(compiled, {
@@ -23,6 +26,7 @@ function proxy(backend) {
         ACCESS_COOKIE: "argin_identity_access", REFRESH_COOKIE: "argin_identity_refresh",
         identityUiEnabled: () => true, identityBackend: backend,
       };
+      if (name.endsWith("/lib/otp-delivery-feedback")) return otpFeedback;
       if (name.endsWith("/lib/identity-origin.mjs")) return { isSameLocalOrigin };
       return require(name);
     },
@@ -100,3 +104,12 @@ test("Level2 MFA reset forwards the target with server-held credentials and pres
   assert.equal(response.status, 409);
   assert.equal(response.headers.get("cache-control"), "no-store");
 });
+
+for (const reason of ["maintenance_mode", "recovery_mode", "private_provider_error"]) {
+ test(`OTP proxy preserves only public unavailability reason: ${reason}`, async () => {
+  const route = proxy(async () => new Response(JSON.stringify({error:reason}), {status:503}));
+  const response = await route.POST(request("phone/request", {token:false,body:{mobile:"",purpose:"login"}}),context("phone/request"));
+  assert.equal(response.status,503);
+  assert.equal((await response.json()).error,reason === "private_provider_error" ? "otp_unavailable" : reason);
+ });
+}
