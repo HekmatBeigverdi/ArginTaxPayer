@@ -9,6 +9,7 @@ API_FLAGS = {
     'ArginTaxPayer__EnableOperationalEndpoints': 'true',
     'ArginTaxPayer__HostedSandboxEnabled': 'true',
     'Ghasedak__EnableLiveSending': 'true',
+    'Ghasedak__RestrictToTestRecipient': 'false',
     'SandboxInvoiceLegacy__Enabled': 'true',
     'SandboxInvoiceLegacy__OperatorApprovedEndpoint': 'true',
     'ProductionInvoiceLegacy__Enabled': 'true',

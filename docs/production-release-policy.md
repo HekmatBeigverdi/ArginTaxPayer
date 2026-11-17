@@ -17,7 +17,7 @@ sudo python3 scripts/phase18-enable-production-features.py
 ```
 
 The command preserves provider credentials, records a private backup of existing
-configuration, and enables API/UI, SMS, hosted Sandbox, and both legacy invoice
+configuration, and enables API/UI, SMS for real users (disabling the test-recipient-only gate), hosted Sandbox, and both legacy invoice
 providers in the existing environment files. API/Web must then be restarted or
 loaded by the next approved deploy. Routine deploy does not rewrite these files.
 Historical `--initial-disabled-ui` provisioning is not part of routine release.

@@ -16,3 +16,9 @@ class ProductionFeatures(unittest.TestCase):
         self.assertIn('Ghasedak__ApiKey=private-value\n', result)
         self.assertIn('ConnectionStrings__ArginTaxPayerDb=database-value\n', result)
         self.assertEqual(activation.updated(result, activation.API_FLAGS), result)
+
+    def test_production_sms_activation_removes_test_recipient_restriction(self):
+        for original in ['', 'Ghasedak__RestrictToTestRecipient=true\n']:
+            result = activation.updated(original, activation.API_FLAGS)
+            self.assertIn('Ghasedak__RestrictToTestRecipient=false\n', result)
+            self.assertNotIn('Ghasedak__RestrictToTestRecipient=true', result)
