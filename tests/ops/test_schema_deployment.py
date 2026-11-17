@@ -1,8 +1,11 @@
 import importlib.util
+import io
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -24,20 +27,114 @@ class SchemaDeploymentTests(unittest.TestCase):
         (schema / 'migrations.json').write_text(json.dumps(self.expected))
         (schema / 'migrations.sql').write_text('SELECT 1;')
         self.events = []
+        self.database_calls = []
         self.applied = self.expected[:1]
         self.failure = None
         owner = self
         class Database:
-            def identity(self): return 'argintaxpayer_prod|argin_prod_migrator|true'
-            def applied(self): return owner.applied.copy()
+            def identity(self): owner.database_calls.append('identity'); return 'argintaxpayer_prod|argin_prod_migrator|true'
+            def applied(self): owner.database_calls.append('applied'); return owner.applied.copy()
             def backup(self, path):
+                owner.database_calls.append('backup')
                 owner.events.append('backup')
                 if owner.failure == 'backup': raise RuntimeError('backup failed')
             def apply(self, path):
+                owner.database_calls.append('apply')
                 owner.events.append('apply')
                 if owner.failure == 'apply': raise RuntimeError('migration failed')
                 if owner.failure != 'verification': owner.applied = owner.expected.copy()
         self.db = Database()
+
+    def reviewed_recovery_fixture(self):
+        state_dir = self.root / 'backup-controller'
+        state_dir.mkdir(mode=0o700, exist_ok=True)
+        state_dir.chmod(0o700)
+        stage_id = '3236fe03-f4b8-4f76-a12e-91b18b74a40d'
+        database = 'recovery_abcdef123456'
+        selection = self.root / 'backup-db.env'
+        selection.write_text(f'Backup__ActiveDatabase={database}\n')
+        selection.chmod(0o640)
+        (state_dir / 'recovery-state.json').write_text(json.dumps({
+            'recoveryMode': False, 'stageId': stage_id, 'activeDatabase': database,
+        }))
+        (state_dir / 'restore-stage.json').write_text(json.dumps({
+            'stageId': stage_id, 'databaseName': database, 'status': 'staged',
+        }))
+        for path in state_dir.iterdir():
+            path.chmod(0o600)
+        return selection, state_dir, database
+
+    def review_selection(self, selection, state_dir):
+        with patch.object(h, 'ACTIVE_BACKUP_DB', selection), \
+             patch.object(h, 'RECOVERY_STATE_DIR', state_dir), \
+             patch.object(h, 'ROOT_UID', os.getuid()), \
+             patch.object(h, 'trusted'):
+            return h.reviewed_recovery_selection()
+
+    def test_no_active_restore_selection_preserves_normal_deploy_path(self):
+        with patch.object(h, 'ACTIVE_BACKUP_DB', self.root / 'missing.env'):
+            self.assertIsNone(h.reviewed_recovery_selection())
+
+    def test_explicitly_reviewed_selection_requires_matching_recovery_and_stage(self):
+        selection, state_dir, database = self.reviewed_recovery_fixture()
+        self.assertEqual(self.review_selection(selection, state_dir), database)
+
+    def test_root_preflight_command_reports_the_reviewed_database(self):
+        selection, state_dir, database = self.reviewed_recovery_fixture()
+        output = io.StringIO()
+        with patch.object(h, 'ACTIVE_BACKUP_DB', selection), \
+             patch.object(h, 'RECOVERY_STATE_DIR', state_dir), \
+             patch.object(h, 'ROOT_UID', os.getuid()), \
+             patch.object(h, 'trusted'), patch.object(h.os, 'geteuid', return_value=0), \
+             redirect_stdout(output):
+            h.main(['--check-recovery-selection'])
+        self.assertEqual(output.getvalue(), f'[PASS] Restored database selection is reviewed: {database}\n')
+
+    def test_non_root_cannot_run_recovery_selection_preflight(self):
+        with patch.object(h.os, 'geteuid', return_value=501), \
+             self.assertRaisesRegex(h.Refused, 'root-owned deployment preflight'):
+            h.main(['--check-recovery-selection'])
+
+    def test_recovery_mode_still_blocks_deploy(self):
+        selection, state_dir, _ = self.reviewed_recovery_fixture()
+        state_path = state_dir / 'recovery-state.json'
+        state = json.loads(state_path.read_text())
+        state['recoveryMode'] = True
+        state_path.write_text(json.dumps(state))
+        with self.assertRaises(h.Refused):
+            self.review_selection(selection, state_dir)
+
+    def test_mismatched_recovery_database_or_stage_is_rejected(self):
+        selection, state_dir, _ = self.reviewed_recovery_fixture()
+        state_path = state_dir / 'recovery-state.json'
+        stage_path = state_dir / 'restore-stage.json'
+        for path, field, value in (
+            (state_path, 'activeDatabase', 'recovery_111111111111'),
+            (stage_path, 'stageId', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'),
+            (stage_path, 'databaseName', 'recovery_222222222222'),
+        ):
+            with self.subTest(field=field):
+                original_state = json.loads(state_path.read_text())
+                original_stage = json.loads(stage_path.read_text())
+                changed = json.loads(path.read_text())
+                changed[field] = value
+                path.write_text(json.dumps(changed))
+                with self.assertRaises(h.Refused): self.review_selection(selection, state_dir)
+                state_path.write_text(json.dumps(original_state)); state_path.chmod(0o600)
+                stage_path.write_text(json.dumps(original_stage)); stage_path.chmod(0o600)
+
+    def test_malformed_selection_and_symlinked_state_are_rejected(self):
+        selection, state_dir, _ = self.reviewed_recovery_fixture()
+        selection.write_text('Backup__ActiveDatabase=recovery_abcdef123456\nUnexpected=value\n')
+        with self.assertRaisesRegex(h.Refused, 'Invalid restored database selection'):
+            self.review_selection(selection, state_dir)
+        selection.write_text('Backup__ActiveDatabase=recovery_abcdef123456\n')
+        state_path = state_dir / 'recovery-state.json'
+        content = state_path.read_text()
+        state_path.unlink()
+        state_path.symlink_to(self.root / 'recovery-state-target.json')
+        (self.root / 'recovery-state-target.json').write_text(content)
+        with self.assertRaises(h.Refused): self.review_selection(selection, state_dir)
 
     def run_migration(self):
         with patch.object(h, 'trusted'), patch.object(h, 'BACKUPS', self.root / 'backups'):
@@ -85,9 +182,64 @@ class SchemaDeploymentTests(unittest.TestCase):
         selection = self.root / 'backup-db.env'
         selection.write_text('Backup__ActiveDatabase=recovery_abcdef123456\n')
         with patch.object(h, 'ACTIVE_BACKUP_DB', selection):
-            with self.assertRaisesRegex(h.Refused, 'migration target'):
+            with self.assertRaises(h.Refused):
                 self.run_migration()
         self.assertEqual(self.events, [])
+
+    def current_release_with_migrations(self):
+        current = self.root / 'current-release'
+        schema = current / 'api/schema'
+        schema.mkdir(parents=True)
+        (schema / 'migrations.json').write_bytes((self.release / 'api/schema/migrations.json').read_bytes())
+        (schema / 'migrations.sql').write_bytes((self.release / 'api/schema/migrations.sql').read_bytes())
+        return current
+
+    def run_reviewed_release(self, current_release):
+        selection, state_dir, _ = self.reviewed_recovery_fixture()
+        with patch.object(h, 'ACTIVE_BACKUP_DB', selection), \
+             patch.object(h, 'RECOVERY_STATE_DIR', state_dir), \
+             patch.object(h, 'ROOT_UID', os.getuid()), \
+             patch.object(h, 'trusted'):
+            return h.migrate_release(self.release, self.db,
+                                     lambda: self.events.append('stop'),
+                                     lambda: self.events.append('restart-current'),
+                                     current_release=current_release)
+
+    def test_reviewed_recovery_with_identical_migrations_skips_database(self):
+        current = self.current_release_with_migrations()
+        self.assertFalse(self.run_reviewed_release(current))
+        self.assertEqual(self.events, [])
+        self.assertEqual(self.database_calls, [])
+
+    def test_reviewed_recovery_refuses_changed_manifest_or_sql_before_stopping(self):
+        current = self.current_release_with_migrations()
+        candidate_manifest = self.release / 'api/schema/migrations.json'
+        candidate_sql = self.release / 'api/schema/migrations.sql'
+        for path, changed in (
+            (candidate_manifest, json.dumps(self.expected + ['20261113100000_New']).encode()),
+            (candidate_sql, b'SELECT 2;'),
+        ):
+            with self.subTest(path=path.name):
+                original = path.read_bytes()
+                path.write_bytes(changed)
+                with self.assertRaisesRegex(h.Refused, 'migration target'):
+                    self.run_reviewed_release(current)
+                self.assertEqual(self.events, [])
+                self.assertEqual(self.database_calls, [])
+                path.write_bytes(original)
+
+    def test_reviewed_recovery_requires_a_current_release_for_comparison(self):
+        selection, state_dir, _ = self.reviewed_recovery_fixture()
+        with patch.object(h, 'ACTIVE_BACKUP_DB', selection), \
+             patch.object(h, 'RECOVERY_STATE_DIR', state_dir), \
+             patch.object(h, 'ROOT_UID', os.getuid()), \
+             patch.object(h, 'trusted'):
+            with self.assertRaisesRegex(h.Refused, 'current release'):
+                h.migrate_release(self.release, self.db,
+                                  lambda: self.events.append('stop'),
+                                  lambda: self.events.append('restart-current'))
+        self.assertEqual(self.events, [])
+        self.assertEqual(self.database_calls, [])
 
     def test_wrong_database_identity_is_rejected_before_mutation(self):
         self.db.identity = lambda: 'argintaxpayer_test|postgres|false'
