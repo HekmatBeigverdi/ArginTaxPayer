@@ -24,7 +24,7 @@ A developer works on a feature branch, pushes it, and opens a Pull Request to `m
 - Transfer artifacts over SSH with host-key pinning, verify SHA-256 and embedded source SHA, stage an immutable release under `/opt/argintaxpayer/releases/<SHA>`, then atomically promote `/opt/argintaxpayer/current`.
 - Restart only the dedicated API and web services, perform loopback health checks and automatically restore the previous application release on failure.
 - Keep local Development/test configuration, production config files, cryptographic keys, provider credentials, database credentials, customer records and tax payloads out of GitHub artifacts and workflow logs.
-- Preserve Sandbox capability and the persisted per-fiscal-memory authority-environment contract. Deployment must not turn on live tax sending, SMS, identity registration, or other feature switches.
+- Deployment to the explicitly approved Production environment must preserve the approved production configuration and must not silently force feature switches off. For the final product release, operational API/UI, SMS delivery, Sandbox invoice submission, and Production invoice submission must remain enabled on `argintaxpayer_prod` when their provider credentials, fiscal-memory approvals, and production readiness checks are configured. Never overwrite operator-managed production feature flags during routine deploy; validate and report missing prerequisites instead. Keep Development and CI isolated from live provider calls.
 - Make a release SHA and deploy result easy to identify, and preserve a small number of prior releases for rollback.
 
 ## Database and migration boundaries
@@ -51,12 +51,12 @@ A developer works on a feature branch, pushes it, and opens a Pull Request to `m
 5. Deploy job waits at the protected `production` environment review gate.
 6. On approval, job verifies the artifact SHA/checksums, uploads it to a SHA-specific incoming directory, invokes the restricted server deployment wrapper, stages and promotes it, then reports health/rollback result and SHA.
 7. If deploy approval is rejected or times out, production remains unchanged. If health fails, only the application symlink is rolled back; database rollback is never implicit.
-8. Migrations, Production authority activation and any live invoice acceptance remain separate explicitly approved operations.
+8. Production provider configuration, tax-authority readiness, fiscal-memory approval, and any live invoice acceptance must be validated against `argintaxpayer_prod` before enabling dispatch. Once owner-approved for go-live, routine deploy must retain those production settings.
 
 ## Non-goals
 
-- Automatically migrate databases or modify server environment files.
-- Automatically enable real tax authority submission, live SMS, payment gateways or identity onboarding.
+- Automatically migrate databases or overwrite operator-managed server environment files.
+- Silently enable provider integrations without configured credentials and production readiness approval. Routine deploy preserves approved settings; go-live activation remains an explicit owner action.
 - Treat a green CI build or HTTP 200 as proof of tenant/security acceptance or tax-authority integration.
 - Expose API, database or development ports publicly.
 - Add a second long-lived `deploy` branch unless a later operational need justifies it.
