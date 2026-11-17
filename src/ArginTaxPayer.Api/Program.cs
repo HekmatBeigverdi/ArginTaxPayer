@@ -264,7 +264,8 @@ app.Use(async (context, next) =>
         (path == "/api/dev/identity/login" || path == "/api/dev/identity/refresh" ||
          path == "/api/dev/identity/logout" || path == "/api/dev/identity/mfa/challenge" ||
          path == "/api/dev/identity/mfa/complete");
-    var healthPath = path is "/health/live" or "/health/ready";
+    var healthPath = context.Request.Method == "GET" &&
+        (path is "/health/live" or "/health/ready" or "/health/dev-identity");
     if (recovery && !identityPath && !healthPath)
     {
         context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
