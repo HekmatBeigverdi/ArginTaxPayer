@@ -442,16 +442,21 @@ def reviewed_recovery_selection():
         directory_info = RECOVERY_STATE_DIR.lstat()
     except OSError:
         raise Refused('Recovery state directory is missing or unsafe') from None
+    try:
+        backup_service_uid = pwd.getpwnam('argintaxsvc').pw_uid
+    except KeyError:
+        raise Refused('Backup service identity is missing') from None
     if (not stat.S_ISDIR(directory_info.st_mode) or stat.S_ISLNK(directory_info.st_mode)
-            or directory_info.st_uid == 0 or stat.S_IMODE(directory_info.st_mode) != 0o700):
+            or directory_info.st_uid != backup_service_uid
+            or stat.S_IMODE(directory_info.st_mode) != 0o700):
         raise Refused('Recovery state directory has unsafe ownership or permissions')
     recovery_path = RECOVERY_STATE_DIR / 'recovery-state.json'
     stage_path = RECOVERY_STATE_DIR / 'restore-stage.json'
     try:
         recovery = json.loads(read_regular_file(recovery_path, 64 * 1024,
-                                                directory_info.st_uid, 0o600))
+                                                backup_service_uid, 0o600))
         stage = json.loads(read_regular_file(stage_path, 64 * 1024,
-                                             directory_info.st_uid, 0o600))
+                                             backup_service_uid, 0o600))
     except (json.JSONDecodeError, UnicodeError):
         raise Refused('Recovery deployment state is malformed') from None
     if not isinstance(recovery, dict) or not isinstance(stage, dict):

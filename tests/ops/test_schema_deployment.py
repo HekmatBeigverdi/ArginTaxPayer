@@ -6,6 +6,7 @@ from pathlib import Path
 import tempfile
 import unittest
 from contextlib import redirect_stdout
+from types import SimpleNamespace
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -68,7 +69,8 @@ class SchemaDeploymentTests(unittest.TestCase):
         with patch.object(h, 'ACTIVE_BACKUP_DB', selection), \
              patch.object(h, 'RECOVERY_STATE_DIR', state_dir), \
              patch.object(h, 'ROOT_UID', os.getuid()), \
-             patch.object(h, 'trusted'):
+             patch.object(h, 'trusted'), \
+             patch.object(h.pwd, 'getpwnam', return_value=SimpleNamespace(pw_uid=os.getuid())):
             return h.reviewed_recovery_selection()
 
     def test_no_active_restore_selection_preserves_normal_deploy_path(self):
@@ -86,6 +88,7 @@ class SchemaDeploymentTests(unittest.TestCase):
              patch.object(h, 'RECOVERY_STATE_DIR', state_dir), \
              patch.object(h, 'ROOT_UID', os.getuid()), \
              patch.object(h, 'trusted'), patch.object(h.os, 'geteuid', return_value=0), \
+             patch.object(h.pwd, 'getpwnam', return_value=SimpleNamespace(pw_uid=os.getuid())), \
              redirect_stdout(output):
             h.main(['--check-recovery-selection'])
         self.assertEqual(output.getvalue(), f'[PASS] Restored database selection is reviewed: {database}\n')
@@ -103,6 +106,15 @@ class SchemaDeploymentTests(unittest.TestCase):
         state_path.write_text(json.dumps(state))
         with self.assertRaises(h.Refused):
             self.review_selection(selection, state_dir)
+
+    def test_recovery_state_must_be_owned_by_backup_service(self):
+        selection, state_dir, _ = self.reviewed_recovery_fixture()
+        with patch.object(h, 'ACTIVE_BACKUP_DB', selection), \
+             patch.object(h, 'RECOVERY_STATE_DIR', state_dir), \
+             patch.object(h, 'ROOT_UID', os.getuid()), \
+             patch.object(h, 'trusted'), \
+             patch.object(h.pwd, 'getpwnam', return_value=SimpleNamespace(pw_uid=os.getuid() + 1)):
+            with self.assertRaises(h.Refused): h.reviewed_recovery_selection()
 
     def test_mismatched_recovery_database_or_stage_is_rejected(self):
         selection, state_dir, _ = self.reviewed_recovery_fixture()
@@ -199,7 +211,8 @@ class SchemaDeploymentTests(unittest.TestCase):
         with patch.object(h, 'ACTIVE_BACKUP_DB', selection), \
              patch.object(h, 'RECOVERY_STATE_DIR', state_dir), \
              patch.object(h, 'ROOT_UID', os.getuid()), \
-             patch.object(h, 'trusted'):
+             patch.object(h, 'trusted'), \
+             patch.object(h.pwd, 'getpwnam', return_value=SimpleNamespace(pw_uid=os.getuid())):
             return h.migrate_release(self.release, self.db,
                                      lambda: self.events.append('stop'),
                                      lambda: self.events.append('restart-current'),
@@ -233,7 +246,8 @@ class SchemaDeploymentTests(unittest.TestCase):
         with patch.object(h, 'ACTIVE_BACKUP_DB', selection), \
              patch.object(h, 'RECOVERY_STATE_DIR', state_dir), \
              patch.object(h, 'ROOT_UID', os.getuid()), \
-             patch.object(h, 'trusted'):
+             patch.object(h, 'trusted'), \
+             patch.object(h.pwd, 'getpwnam', return_value=SimpleNamespace(pw_uid=os.getuid())):
             with self.assertRaisesRegex(h.Refused, 'current release'):
                 h.migrate_release(self.release, self.db,
                                   lambda: self.events.append('stop'),
