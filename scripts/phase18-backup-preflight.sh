@@ -6,8 +6,11 @@ fail() { printf '[FAIL] %s\n' "$*" >&2; exit 1; }
 for tool in /usr/bin/pg_dump /usr/bin/pg_restore /usr/bin/systemctl /usr/bin/systemd-run /usr/bin/sudo; do
   [[ -x "$tool" ]] || fail "Missing executable: $tool"
 done
-[[ ! -e /etc/argintaxpayer/backup-db.env && ! -L /etc/argintaxpayer/backup-db.env ]] || fail 'Active restored database selection exists; migration target review required before deploy.'
 [[ "$(systemctl show argintaxpayer-api.service -p EnvironmentFiles --value)" == *'/etc/argintaxpayer/backup-db.env'* ]] || fail 'Install API backup database-selection drop-in first.'
+release_helper=/usr/local/sbin/argin-taxpayer-release
+[[ -x "$release_helper" && ! -L "$release_helper" ]] || fail 'Reviewed release helper is missing or unsafe.'
+[[ "$(stat -c '%U:%G:%a' "$release_helper")" == root:root:755 ]] || fail 'Release helper must be root:root 0755.'
+"$release_helper" --check-recovery-selection || fail 'Restored database selection is not reviewed for deployment.'
 helper=/usr/local/sbin/argin-taxpayer-backup-control
 [[ -x "$helper" && ! -L "$helper" ]] || fail 'Install the reviewed backup helper first.'
 [[ "$(stat -c '%U:%G:%a' "$helper")" == root:root:755 ]] || fail 'Backup helper must be root:root 0755.'

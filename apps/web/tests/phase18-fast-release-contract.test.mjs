@@ -23,7 +23,7 @@ test("release promotion requires explicit approval and activation marker", () =>
   assert.match(helper,/Restoring previous application release/);
   assert.match(helper,/local-health\.sh/);
   assert.match(helper,/lambda: healthy\(probe_mode\)/);
-  assert.ok(helper.indexOf('migrate_release(release)\n        promote(')>helper.indexOf('fcntl.flock(lock,'));
+  assert.ok(helper.indexOf('migrate_release(release, current_release=previous)\n        promote(')>helper.indexOf('fcntl.flock(lock,'));
   assert.doesNotMatch(s,/dotnet ef database update/);
 });
 test("GitHub workflow never deploys automatically on push", () => {
