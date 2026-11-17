@@ -87,6 +87,12 @@ test("unknown password-login accounts are sent to phone registration", () => {
   assert.match(proxy, /operation === "login" && response\.status === 404/);
 });
 
+test("password recovery keeps an unregistered mobile out of SMS dispatch", () => {
+  const flow = read("app/identity/identity-flow.tsx");
+  assert.match(flow, /purpose === "reset"/);
+  assert.match(flow, /mobile_not_registered/);
+});
+
 test("administrator customer form requires role-gated UI and authenticated BFF operation", () => {
   const directory = read("app/parties/buyer-taxpayer-directory.tsx");
   const form = read("app/account/admin-create-customer.tsx");

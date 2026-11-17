@@ -7,7 +7,7 @@ using System.Security.Cryptography;
 
 namespace ArginTaxPayer.Infrastructure.Persistence.Identity;
 
-public enum AdminUserCreationStatus { Created, Invalid, Unauthenticated, Forbidden, Conflict }
+public enum AdminUserCreationStatus { Created, Invalid, InvalidProfile, InvalidPassword, Unauthenticated, Forbidden, Conflict }
 
 /// <summary>
 /// Privileged customer provisioning for existing Level 1/2 operators.
@@ -45,11 +45,11 @@ public sealed class IdentityAdministratorUserProvisioning(
         {
             if (!ValidProfilePart(firstName, 100, true) || !ValidProfilePart(lastName, 100, true) ||
                 !ValidProfilePart(address, 500, true) || !ValidProfilePart(companyName, 256, false))
-                return AdminUserCreationStatus.Invalid;
+                return AdminUserCreationStatus.InvalidProfile;
             password ??= Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
         }
         try { IdentityPasswordHasher.Validate(password ?? ""); }
-        catch (ArgumentException) { return AdminUserCreationStatus.Invalid; }
+        catch (ArgumentException) { return AdminUserCreationStatus.InvalidPassword; }
 
         if (await db.IdentityUsers.AsNoTracking().AnyAsync(
             x => x.NormalizedMobile == mobile || email != null && x.NormalizedEmail == email, ct))
@@ -80,10 +80,15 @@ public sealed class IdentityAdministratorUserProvisioning(
         }
         try
         {
-            await using var transaction = await db.Database.BeginTransactionAsync(ct);
-            await db.SaveChangesAsync(ct);
-            if(smsCredit is not null) await smsCredit.GrantInitialCustomerCreditWithinTransactionAsync(userId, now, ct);
-            await transaction.CommitAsync(ct);
+            await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+            {
+                await using var transaction = await db.Database.BeginTransactionAsync(ct);
+                await db.SaveChangesAsync(acceptAllChangesOnSuccess: false, cancellationToken: ct);
+                if (smsCredit is not null)
+                    await smsCredit.GrantInitialCustomerCreditWithinTransactionAsync(userId, now, ct);
+                await transaction.CommitAsync(ct);
+            });
+            db.ChangeTracker.AcceptAllChanges();
             logger.LogInformation("IDENTITY_ADMIN_CUSTOMER_CREATED; trusted_manual_mobile_onboarding=true");
             return AdminUserCreationStatus.Created;
         }

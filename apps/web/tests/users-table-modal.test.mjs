@@ -36,6 +36,10 @@ test("native accessible dialog loads only one customer's taxpayers", () => {
 });
 test("administrators can open the modal to provision a customer profile", () => {
   assert.match(view, /ثبت کاربر جدید/);
+  assert.match(view, /users-toolbar-actions/);
+  assert.match(view, /users-action-icon/);
+  assert.match(view, /kind=\"refresh\"/);
+  assert.match(view, /kind=\"add\"/);
   assert.match(view, /\/api\/identity\/admin\/customers/);
   assert.match(view, /نام خانوادگی/);
   assert.match(view, /نام شرکت \/ مؤسسه/);

@@ -27,6 +27,14 @@ async function load<T>(url: string): Promise<T> {
   return await res.json() as T;
 }
 
+function ActionIcon({ kind }: { kind: "add" | "refresh" }) {
+  return kind === "add" ? <svg className="users-action-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+    <path d="M12 5v14M5 12h14" />
+  </svg> : <svg className="users-action-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+    <path d="M20 11a8 8 0 0 0-14.8-4L3 10M3 5v5h5M4 13a8 8 0 0 0 14.8 4L21 14m0 5v-5h-5" />
+  </svg>;
+}
+
 export default function UsersWorkspace({ level1 }: { level1: boolean }) {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [total, setTotal] = useState(0);
@@ -151,7 +159,15 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
       if (!response.ok) {
         setCreateError(response.status === 409 ? "این شماره همراه قبلاً ثبت شده است." :
           response.status === 403 ? "برای ثبت کاربر دسترسی مدیر سطح ۱ یا ۲ لازم است." :
-          response.status === 401 ? "نشست مدیر معتبر نیست؛ دوباره وارد شوید." : "اطلاعات کاربر را بررسی کنید.");
+          response.status === 401 ? "نشست مدیر معتبر نیست؛ دوباره وارد شوید." :
+          response.status === 400 && (await response.clone().json().catch(() => ({}))).error === "invalid_customer_password"
+            ? "کلمه عبور باید حداقل ۸ نویسه باشد." :
+          response.status === 400 && (await response.clone().json().catch(() => ({}))).error === "invalid_customer_profile"
+            ? "نام، نام خانوادگی و نشانی را بررسی کنید." :
+          response.status >= 500 && (await response.clone().json().catch(() => ({}))).error === "customer_provisioning_migration_required"
+            ? "ساختار پایگاه‌داده به‌روز نیست؛ migrationهای پایگاه‌داده را اجرا و API را restart کنید." :
+          response.status >= 500 ? "سرویس ثبت کاربر در دسترس نیست؛ لاگ API را بررسی کنید." :
+          "اطلاعات کاربر را بررسی کنید.");
         return;
       }
       createDialogRef.current?.close();
@@ -224,10 +240,14 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
     <div className="users-toolbar">
       <div><h2>{level1 ? "کاربران ثبت‌نام‌شده" : "مشتریان من"}</h2>
         <p>هر ردیف صرفاً یک حساب ورود نرم‌افزار است؛ خریداران و مؤدیان در فهرست مالیاتی مستقل مدیریت می‌شوند.</p></div>
-      <button type="button" className="users-button" disabled={loading} onClick={() => void refresh()}>
-        بازخوانی کاربران
-      </button>
-      <button type="button" className="identity-primary" onClick={openCreate}>ثبت کاربر جدید</button>
+      <div className="users-toolbar-actions">
+        <button type="button" className="users-button users-button--icon" disabled={loading} onClick={() => void refresh()}>
+          <ActionIcon kind="refresh" />بازخوانی کاربران
+        </button>
+        <button type="button" className="identity-primary users-button--icon" onClick={openCreate}>
+          <ActionIcon kind="add" />ثبت کاربر جدید
+        </button>
+      </div>
     </div>
 
     <div className="users-filters">

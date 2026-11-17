@@ -61,7 +61,7 @@ public sealed class IdentityPhoneService(ArginTaxPayerDbContext db, IIdentityOtp
             logger.LogInformation("OTP_REQUEST_SKIPPED reason=mobile_already_registered");
             return new(PhoneOtpRequestStatus.AlreadyRegistered);
         }
-        if (purpose == "login" && actor is null)
+        if (purpose is "login" or "reset" && actor is null)
         {
             logger.LogInformation("OTP_REQUEST_SKIPPED reason=account_not_registered");
             return new(PhoneOtpRequestStatus.NotRegistered);

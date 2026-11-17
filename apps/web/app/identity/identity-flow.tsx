@@ -337,7 +337,9 @@ export default function IdentityFlow({ restrictedLogin = false,onVisualStateChan
         }
 
         if (response.status === 404 && result.error === "mobile_not_registered") {
-          setError("این شماره هنوز ثبت‌نام نشده است. ابتدا ثبت‌نام کنید.");
+          setError(purpose === "reset"
+            ? "این شماره ثبت‌نام نشده است؛ ابتدا ثبت‌نام کنید."
+            : "این شماره هنوز ثبت‌نام نشده است. ابتدا ثبت‌نام کنید.");
           return;
         }
 

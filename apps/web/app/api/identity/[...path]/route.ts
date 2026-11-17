@@ -115,6 +115,16 @@ async function callIdentity(operation: string, req: NextRequest, method: "GET" |
         ? errorResult(404, "account_not_registered")
         : errorResult(404, "request_rejected");
     }
+    if (operation === "admin/customers" && response.status === 400) {
+      const body = await response.json().catch(() => ({})) as { error?: string };
+      const allowed = new Set(["invalid_customer_profile", "invalid_customer_password", "invalid_customer_data"]);
+      return errorResult(400, body.error && allowed.has(body.error) ? body.error : "invalid_customer_data");
+    }
+    if (operation === "admin/customers" && response.status === 503) {
+      const body = await response.json().catch(() => ({})) as { error?: string };
+      return errorResult(503, body.error === "customer_provisioning_migration_required"
+        ? "customer_provisioning_migration_required" : "customer_provisioning_unavailable");
+    }
     if (operation === "phone/register/complete" && response.status === 503)
       return errorResult(503, "registration_unavailable");
     const result = await response.text();
