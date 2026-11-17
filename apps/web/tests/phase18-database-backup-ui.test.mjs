@@ -4,8 +4,8 @@ import {readFile} from 'node:fs/promises';
 const panel=await readFile(new URL('../app/backup-control-panel.tsx',import.meta.url),'utf8');
 const proxy=await readFile(new URL('../app/api/backup-control/[...parts]/route.ts',import.meta.url),'utf8');
 const page=await readFile(new URL('../app/(console)/backup-control/page.tsx',import.meta.url),'utf8');
-test('backup panel displays retention, local paths and explicit stopped-service control',()=>{
- assert.match(panel,/نگهداری محلی: ۷ روز/);assert.match(panel,/localPath/);assert.match(panel,/گرفتن بکاپ دستی و توقف API/);assert.match(panel,/فعال‌کردن سرویس‌های برنامه/);assert.match(panel,/checksumMatches/);
+test('backup panel displays retention, local paths and manual maintenance control',()=>{
+ assert.match(panel,/نگهداری محلی: ۷ روز/);assert.match(panel,/localPath/);assert.match(panel,/گرفتن بکاپ دستی و ورود به حالت نگهداری/);assert.match(panel,/پایان نگهداری و فعال‌سازی برنامه/);assert.match(panel,/checksumMatches/);
 });
 test('backup controls require same-origin BFF and mask secrets',()=>{
  assert.match(proxy,/isSameLocalOrigin/);assert.match(proxy,/ACCESS_COOKIE/);assert.match(proxy,/allowed=new Set/);assert.match(panel,/type="password"/);assert.doesNotMatch(panel,/console\.log/);

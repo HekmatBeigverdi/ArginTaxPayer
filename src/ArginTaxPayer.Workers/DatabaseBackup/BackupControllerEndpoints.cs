@@ -81,7 +81,7 @@ public static class BackupControllerEndpoints
                 var policy = await settings.ReadForRootAsync(actor, ct)
                     ?? DatabaseBackupSettings.Default;
                 return await QueueOperationAsync(operations, queue,
-                    new BackupWorkItem("manual", Guid.Empty, actor, policy), "manual", "offline-required", ct);
+                    new BackupWorkItem("manual", Guid.Empty, actor, policy), "manual", "maintenance", ct);
             }
             catch (UnauthorizedAccessException) { return Results.Unauthorized(); }
             catch (InvalidOperationException ex) { return Results.Conflict(new { error = ex.Message }); }
@@ -96,7 +96,7 @@ public static class BackupControllerEndpoints
                 if ((await restore.GetRecoveryStateAsync(ct)).RecoveryMode) return Results.Conflict(new { error = "restore_review_required" });
                 var restart = await manualStop.GetAsync(ct);
                 var operation = await operations.GetStatusAsync(ct);
-                if (!restart.RestartRequired || operation?.Status == "running")
+                if (!restart.RestartRequired || operation?.Status is "running" or "queued")
                     return Results.Conflict(new { error = "no_completed_manual_backup" });
                 await execution.StartBusinessServicesAsync(ct);
                 return Results.Ok(new { status = "started" });

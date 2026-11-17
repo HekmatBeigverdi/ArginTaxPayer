@@ -26,21 +26,22 @@ public sealed class BackupExecutionService(
         DatabaseBackupSettings settings, bool stopBusinessServices, CancellationToken cancellationToken,
         Guid? operationId = null, bool completeOperation = true, bool reportProgress = true)
     {
-        var plan = reportProgress ? BackupProgressPlan.ForBackup(stopBusinessServices, settings.RemoteEnabled) : null;
+        // A manual backup enters durable maintenance but keeps the API alive so
+        // Level 1 can monitor the operation and explicitly reactivate business access.
+        var plan = reportProgress ? BackupProgressPlan.ForBackup(false, settings.RemoteEnabled) : null;
         var operation = operationId is Guid existingId
             ? await RequireExistingOperationAsync(existingId, cancellationToken)
             : await operations.StartAsync(kind, actorId,
-                stopBusinessServices ? "offline-required" : "online", cancellationToken,
+                stopBusinessServices ? "maintenance" : "online", cancellationToken,
                 plan?.FirstStage, plan?.TotalSteps ?? 0);
         try
         {
             if (stopBusinessServices)
             {
                 await manualStopState.MarkRestartRequiredAsync(operation.Id, cancellationToken);
-                await lifecycle.StopBusinessServicesAsync(cancellationToken);
-                if (plan is not null)
-                    await plan.ReportStageAsync(operations, operation.Id, "prepare-backup", cancellationToken);
             }
+            if (stopBusinessServices && plan is not null)
+                await plan.ReportStageAsync(operations, operation.Id, "prepare-backup", cancellationToken);
             var artifact = plan is not null && artifactCreator is IProgressBackupArtifactCreator progressCreator
                 ? await progressCreator.CreateWithProgressAsync(settings, plan, operations, operation.Id, cancellationToken)
                 : await artifactCreator.CreateAsync(settings, cancellationToken);
@@ -61,7 +62,7 @@ public sealed class BackupExecutionService(
             }
             if (completeOperation)
                 await operations.CompleteAsync(operation.Id, true,
-                    stopBusinessServices ? "Backup complete. Business API remains stopped until an administrator starts it." : null,
+                    stopBusinessServices ? "Backup complete. Maintenance remains active until a Level 1 administrator reactivates the application." : null,
                     CancellationToken.None);
             return artifact;
         }

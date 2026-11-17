@@ -25,7 +25,7 @@ public sealed class BackupExecutionLifecycleTests
     }
 
     [Fact]
-    public async Task Manual_backup_stops_api_and_persists_restart_requirement_without_auto_start()
+    public async Task Manual_backup_enters_maintenance_without_stopping_api_or_auto_reactivating()
     {
         var root = TemporaryRoot();
         try
@@ -38,7 +38,7 @@ public sealed class BackupExecutionLifecycleTests
             await service.CreateAsync(Guid.NewGuid(), "manual", DatabaseBackupSettings.Default,
                 stopBusinessServices: true, CancellationToken.None);
 
-            Assert.Equal(new[] { "stop-business" }, runner.Actions);
+            Assert.Empty(runner.Actions);
             Assert.True((await manualStop.GetAsync(CancellationToken.None)).RestartRequired);
             Assert.Equal("succeeded", (await operations.GetStatusAsync(CancellationToken.None))!.Status);
         }
@@ -46,7 +46,7 @@ public sealed class BackupExecutionLifecycleTests
     }
 
     [Fact]
-    public async Task Failed_manual_backup_keeps_the_API_restart_requirement()
+    public async Task Failed_manual_backup_keeps_maintenance_until_manual_reactivation()
     {
         var root = TemporaryRoot();
         try
@@ -59,7 +59,7 @@ public sealed class BackupExecutionLifecycleTests
             await Assert.ThrowsAsync<IOException>(() => service.CreateAsync(Guid.NewGuid(), "manual",
                 DatabaseBackupSettings.Default, stopBusinessServices: true, CancellationToken.None));
 
-            Assert.Equal(new[] { "stop-business" }, runner.Actions);
+            Assert.Empty(runner.Actions);
             Assert.True((await manualStop.GetAsync(CancellationToken.None)).RestartRequired);
             Assert.Equal("failed", (await operations.GetStatusAsync(CancellationToken.None))!.Status);
         }
