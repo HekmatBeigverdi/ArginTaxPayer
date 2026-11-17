@@ -39,6 +39,11 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
   const [resetError, setResetError] = useState("");
   const [resetNotice, setResetNotice] = useState("");
   const resetDialogRef = useRef<HTMLDialogElement>(null);
+  const createDialogRef = useRef<HTMLDialogElement>(null);
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState("");
+  const [createNotice, setCreateNotice] = useState("");
+  const [createForm, setCreateForm] = useState({ mobile: "", firstName: "", lastName: "", companyName: "", address: "", password: "", passwordConfirm: "" });
   const [pageSize, setPageSize] = useState(10);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -119,6 +124,43 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
     finally { setResetting(false); }
   }
 
+  function openCreate() {
+    setCreateForm({ mobile: "", firstName: "", lastName: "", companyName: "", address: "", password: "", passwordConfirm: "" });
+    setCreateError("");
+    createDialogRef.current?.showModal();
+  }
+
+  async function createCustomer(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (creating) return;
+    if (createForm.password !== createForm.passwordConfirm) {
+      setCreateError("کلمه عبور و تکرار آن یکسان نیستند.");
+      return;
+    }
+    if (createForm.password.length < 8) {
+      setCreateError("کلمه عبور باید حداقل ۸ نویسه باشد.");
+      return;
+    }
+    setCreating(true); setCreateError("");
+    try {
+      const { passwordConfirm: _passwordConfirm, ...payload } = createForm;
+      const response = await fetch("/api/identity/admin/customers", {
+        method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) {
+        setCreateError(response.status === 409 ? "این شماره همراه قبلاً ثبت شده است." :
+          response.status === 403 ? "برای ثبت کاربر دسترسی مدیر سطح ۱ یا ۲ لازم است." :
+          response.status === 401 ? "نشست مدیر معتبر نیست؛ دوباره وارد شوید." : "اطلاعات کاربر را بررسی کنید.");
+        return;
+      }
+      createDialogRef.current?.close();
+      setCreateNotice("کاربر با موفقیت ثبت شد و می‌تواند با کد پیامکی وارد شود.");
+      await refresh();
+    } catch { setCreateError("ارتباط با سرور برقرار نشد."); }
+    finally { setCreating(false); }
+  }
+
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const activePage = Math.min(page, totalPages);
   const pageRows = accounts;
@@ -185,6 +227,7 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
       <button type="button" className="users-button" disabled={loading} onClick={() => void refresh()}>
         بازخوانی کاربران
       </button>
+      <button type="button" className="identity-primary" onClick={openCreate}>ثبت کاربر جدید</button>
     </div>
 
     <div className="users-filters">
@@ -216,6 +259,7 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
 
     {error && <p role="alert" className="form-error">{error}</p>}
     {resetNotice && <p role="status">{resetNotice}</p>}
+    {createNotice && <p role="status">{createNotice}</p>}
     <div className="users-table-scroll">
       <table className="users-table">
         <thead><tr>
@@ -258,6 +302,24 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
         <button type="button" disabled={activePage >= totalPages || loading} onClick={() => setPage(p => p + 1)}>بعدی</button>
       </div>
     </div>
+
+    <dialog className="users-dialog users-dialog--compact" ref={createDialogRef} dir="rtl"
+      onCancel={event => { if (creating) event.preventDefault(); }} aria-labelledby="create-customer-heading">
+      <form className="identity-form users-dialog-content" onSubmit={createCustomer}>
+        <div className="users-dialog-head"><div><p>مدیریت کاربران</p><h2 id="create-customer-heading">ثبت کاربر جدید</h2></div>
+          <button type="button" className="users-dialog-close" disabled={creating} onClick={() => createDialogRef.current?.close()} aria-label="بستن">×</button></div>
+        <label>شماره همراه<input required dir="ltr" inputMode="tel" value={createForm.mobile} onChange={e => setCreateForm(f => ({ ...f, mobile: e.target.value }))} /></label>
+        <label>نام<input required value={createForm.firstName} onChange={e => setCreateForm(f => ({ ...f, firstName: e.target.value }))} /></label>
+        <label>نام خانوادگی<input required value={createForm.lastName} onChange={e => setCreateForm(f => ({ ...f, lastName: e.target.value }))} /></label>
+        <label>نام شرکت / مؤسسه<input value={createForm.companyName} onChange={e => setCreateForm(f => ({ ...f, companyName: e.target.value }))} /></label>
+        <label>کلمه عبور<input required type="password" minLength={8} value={createForm.password} onChange={e => setCreateForm(f => ({ ...f, password: e.target.value }))} /></label>
+        <label>تکرار کلمه عبور<input required type="password" minLength={8} value={createForm.passwordConfirm} onChange={e => setCreateForm(f => ({ ...f, passwordConfirm: e.target.value }))} /></label>
+        <label>نشانی<textarea className="users-dialog-textarea" required rows={2} value={createForm.address} onChange={e => setCreateForm(f => ({ ...f, address: e.target.value }))} /></label>
+        {createError && <p role="alert" className="form-error">{createError}</p>}
+        <button className="identity-primary" disabled={creating}>{creating ? "در حال ثبت…" : "ثبت کاربر"}</button>
+        <button type="button" className="users-button" disabled={creating} onClick={() => createDialogRef.current?.close()}>انصراف</button>
+      </form>
+    </dialog>
 
     {level1 && <dialog className="users-dialog" ref={resetDialogRef} dir="rtl"
       aria-labelledby="mfa-reset-heading" onCancel={event => { if (resetting) event.preventDefault(); }}

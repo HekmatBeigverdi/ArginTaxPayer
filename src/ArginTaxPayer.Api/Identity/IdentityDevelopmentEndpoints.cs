@@ -59,6 +59,7 @@ public static class IdentityDevelopmentEndpoints
             [FromBody] IdentityCredentials request,
             HttpContext http,
             IdentitySessionService sessions,
+            IdentityCredentialService identity,
             IdentityProtectionService protection,
             CancellationToken ct) =>
         {
@@ -68,6 +69,8 @@ public static class IdentityDevelopmentEndpoints
             var tokens = await sessions.LoginAsync(request.Email, request.Password, ct);
             if (tokens is not null) protection.RecordSuccess(request.Email, "login");
             else protection.RecordFailure(request.Email, DateTime.UtcNow, "login");
+            if (tokens is null && !await identity.AccountExistsAsync(request.Email, ct))
+                return Results.NotFound(new { error = "account_not_registered" });
             return tokens is null ? Results.Unauthorized() : Results.Ok(tokens);
         });
 
@@ -326,7 +329,8 @@ public static class IdentityDevelopmentEndpoints
         {
             if (!IsLoopback(http)) return Results.NotFound();
             var result = await provisioning.CreateCustomerAsync(
-                ReadBearer(http), request.Mobile, request.Email, request.Password, ct);
+                ReadBearer(http), request.Mobile, request.Email, request.Password,
+                request.FirstName, request.LastName, request.CompanyName, request.Address, ct);
             return result switch
             {
                 AdminUserCreationStatus.Created => Results.StatusCode(201),
@@ -503,6 +507,7 @@ public sealed record PhoneComplete(string? Mobile, string? Code);
 public sealed record PhoneRegisterComplete(string? Mobile, string? Code, string? Password);
 public sealed record PhoneResetComplete(string? Mobile, string? Code, string? NewPassword);
 
-public sealed record AdminCreateCustomerRequest(string? Mobile, string? Email, string? Password);
+public sealed record AdminCreateCustomerRequest(string? Mobile, string? Email, string? Password,
+    string? FirstName = null, string? LastName = null, string? CompanyName = null, string? Address = null);
 
 public sealed record Level2MfaResetRequest(Guid TargetUserId);

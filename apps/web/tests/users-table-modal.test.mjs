@@ -34,6 +34,18 @@ test("native accessible dialog loads only one customer's taxpayers", () => {
   assert.match(view, /onClose=\{close\}/);
   assert.match(css, /users-dialog::backdrop/);
 });
+test("administrators can open the modal to provision a customer profile", () => {
+  assert.match(view, /ثبت کاربر جدید/);
+  assert.match(view, /\/api\/identity\/admin\/customers/);
+  assert.match(view, /نام خانوادگی/);
+  assert.match(view, /نام شرکت \/ مؤسسه/);
+  assert.match(view, /نشانی/);
+  assert.match(view, /تکرار کلمه عبور/);
+  assert.match(view, /users-dialog-textarea/);
+  assert.match(css, /users-dialog--compact/);
+  assert.match(css, /users-dialog-textarea/);
+  assert.match(api, /identity/);
+});
 test("Level1 can review legacy owners and approve partner attribution with CAS and reason", () => {
   assert.match(view, /expectedRevision: selected\.revision/);
   assert.match(view, /partnerLevel2UserId: target \|\| null/);

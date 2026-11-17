@@ -106,6 +106,12 @@ async function callIdentity(operation: string, req: NextRequest, method: "GET" |
       return errorResult(503, "otp_unavailable");
     if (operation === "phone/request" && response.status === 402)
       return errorResult(402, "insufficient_sms_credit");
+    if (operation === "login" && response.status === 404) {
+      const body = await response.json().catch(() => ({})) as { error?: string };
+      return body.error === "account_not_registered"
+        ? errorResult(404, "account_not_registered")
+        : errorResult(404, "request_rejected");
+    }
     if (operation === "phone/register/complete" && response.status === 503)
       return errorResult(503, "registration_unavailable");
     const result = await response.text();

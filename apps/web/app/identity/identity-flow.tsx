@@ -235,7 +235,7 @@ export default function IdentityFlow({ restrictedLogin = false,onVisualStateChan
         return;
       }
 
-      const { response } = await api("login", {
+      const { response, result } = await api("login", {
         email: identifier,
         password,
       });
@@ -246,6 +246,16 @@ export default function IdentityFlow({ restrictedLogin = false,onVisualStateChan
         setNavigating(true);
         router.replace("/dashboard");
         router.refresh();
+        return;
+      }
+
+      if (response.status === 404 && result.error === "account_not_registered") {
+        setError("این حساب هنوز ثبت‌نام نشده است. ابتدا ثبت‌نام کنید.");
+        setTab("register");
+        setMode("otp");
+        setForgot(false);
+        setEmailRegistration(false);
+        setStep("details");
         return;
       }
 

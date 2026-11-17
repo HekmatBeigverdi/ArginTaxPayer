@@ -3,6 +3,7 @@ using ArginTaxPayer.Infrastructure.Persistence.Taxpayers;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 using ArginTaxPayer.Infrastructure.Persistence.Subscriptions;
+using System.Security.Cryptography;
 
 namespace ArginTaxPayer.Infrastructure.Persistence.Identity;
 
@@ -19,7 +20,8 @@ public sealed class IdentityAdministratorUserProvisioning(
 {
     public async Task<AdminUserCreationStatus> CreateCustomerAsync(
         string? bearer, string? mobileInput, string? emailInput,
-        string? password, CancellationToken ct = default)
+        string? password, string? firstName = null, string? lastName = null,
+        string? companyName = null, string? address = null, CancellationToken ct = default)
     {
         var operatorId = await sessions.AuthenticateAsync(bearer, ct);
         if (operatorId is null) return AdminUserCreationStatus.Unauthenticated;
@@ -37,6 +39,14 @@ public sealed class IdentityAdministratorUserProvisioning(
         {
             try { email = InitialAdministratorBootstrap.NormalizeEmail(emailInput); }
             catch (ArgumentException) { return AdminUserCreationStatus.Invalid; }
+        }
+        var hasProfile = firstName is not null || lastName is not null || companyName is not null || address is not null;
+        if (hasProfile)
+        {
+            if (!ValidProfilePart(firstName, 100, true) || !ValidProfilePart(lastName, 100, true) ||
+                !ValidProfilePart(address, 500, true) || !ValidProfilePart(companyName, 256, false))
+                return AdminUserCreationStatus.Invalid;
+            password ??= Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
         }
         try { IdentityPasswordHasher.Validate(password ?? ""); }
         catch (ArgumentException) { return AdminUserCreationStatus.Invalid; }
@@ -60,6 +70,14 @@ public sealed class IdentityAdministratorUserProvisioning(
                 new() { UserId = userId, Role = IdentityRoleNames.Customer, AssignedAtUtc = now }
             }
         });
+        if (hasProfile)
+        {
+            db.SoftwareUserProfiles.Add(new SoftwareUserProfile {
+                UserId = userId, FirstName = firstName!.Trim().Normalize(), LastName = lastName!.Trim().Normalize(),
+                CompanyName = string.IsNullOrWhiteSpace(companyName) ? null : companyName.Trim().Normalize(),
+                Address = address!.Trim().Normalize(), CompletedAtUtc = now, UpdatedAtUtc = now
+            });
+        }
         try
         {
             await using var transaction = await db.Database.BeginTransactionAsync(ct);
@@ -75,5 +93,13 @@ public sealed class IdentityAdministratorUserProvisioning(
             db.ChangeTracker.Clear();
             return AdminUserCreationStatus.Conflict;
         }
+    }
+
+    private static bool ValidProfilePart(string? value, int max, bool required)
+    {
+        if (value is null) return !required;
+        if (value.Length > max * 2 || value.Any(char.IsControl)) return false;
+        var trimmed = value.Trim();
+        return trimmed.Length <= max && (!required || trimmed.Length >= 2);
     }
 }

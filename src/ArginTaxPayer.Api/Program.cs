@@ -264,7 +264,8 @@ if (identityDashboardOnlyEnabled)
                  path == "/api/dev/identity/refresh" ||
                  path == "/api/dev/identity/logout" ||
                  path == "/api/dev/identity/mfa/challenge" ||
-                 path == "/api/dev/identity/mfa/complete");
+                 path == "/api/dev/identity/mfa/complete" ||
+                 path == "/api/dev/identity/admin/customers");
             if (!allowed)
             {
                 context.Response.StatusCode = StatusCodes.Status404NotFound;

@@ -121,14 +121,22 @@ public sealed class IdentityAdminProvisioningTests
             Assert.Equal(AdminUserCreationStatus.Invalid,
                 await provisioner.CreateCustomerAsync(operatorTokens!.AccessToken,
                     "not-a-phone", null, customerPassword));
+            Assert.Equal(AdminUserCreationStatus.Invalid,
+                await provisioner.CreateCustomerAsync(operatorTokens.AccessToken,
+                    mobile, null, null, "A", "Ahmadi", null, "Tehran"));
             Assert.Equal(AdminUserCreationStatus.Created,
                 await provisioner.CreateCustomerAsync(operatorTokens.AccessToken,
-                    mobile, null, customerPassword));
+                    mobile, null, customerPassword, "Ali", "Ahmadi", "Demo Co", "Tehran address"));
             var customer = await db.IdentityUsers.Include(u => u.Roles)
                 .SingleAsync(u => u.NormalizedMobile == mobile);
             created.Add(customer.Id);
             Assert.Null(customer.NormalizedEmail);
             Assert.NotNull(customer.MobileVerifiedAtUtc);
+            var profile = await db.SoftwareUserProfiles.SingleAsync(x => x.UserId == customer.Id);
+            Assert.Equal("Ali", profile.FirstName);
+            Assert.Equal("Ahmadi", profile.LastName);
+            Assert.Equal("Demo Co", profile.CompanyName);
+            Assert.Equal("Tehran address", profile.Address);
             Assert.Single(customer.Roles);
             Assert.Equal(IdentityRoleNames.Customer, customer.Roles.Single().Role);
             Assert.Equal(AdminUserCreationStatus.Conflict,
