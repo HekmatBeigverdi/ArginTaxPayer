@@ -18,8 +18,6 @@ public sealed class FtpsCredentialStore(string path)
         credentials.Validate();
         var directory = Path.GetDirectoryName(filePath)!;
         Directory.CreateDirectory(directory);
-        if (OperatingSystem.IsLinux() || OperatingSystem.IsMacOS())
-            File.SetUnixFileMode(directory, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
         var temporary = filePath + ".partial-" + Guid.NewGuid().ToString("N");
         try
         {

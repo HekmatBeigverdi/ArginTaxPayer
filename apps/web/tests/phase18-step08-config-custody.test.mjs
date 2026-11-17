@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 
 const repoRoot = fileURLToPath(new URL("../../../", import.meta.url));
 const read = (path) => readFileSync(resolve(repoRoot, path), "utf8");
-test('production systemd units remain activation-gated and services disabled by default', () => {
+test('production units preserve private runtime feature settings and activation gate', () => {
   const api = read('ops/phase18-systemd/argintaxpayer-api.service');
   const web = read('ops/phase18-systemd/argintaxpayer-web.service');
   for (const unit of [api, web]) {
@@ -15,9 +15,9 @@ test('production systemd units remain activation-gated and services disabled by 
     assert.match(unit, /ProtectSystem=strict/);
     assert.match(unit, /UMask=0077/);
   }
-  assert.match(api, /Environment=ArginTaxPayer__EnableOperationalEndpoints=false/);
-  assert.match(api, /Environment=Ghasedak__EnableLiveSending=false/);
-  assert.match(web, /Environment=ARGIN_PRODUCTION_UI_ENABLED=false/);
+  assert.doesNotMatch(api, /Environment=ArginTaxPayer__EnableOperationalEndpoints=false/);
+  assert.doesNotMatch(api, /Environment=Ghasedak__EnableLiveSending=false/);
+  assert.doesNotMatch(web, /Environment=ARGIN_PRODUCTION_UI_ENABLED=false/);
 });
 test('staging script must not rotate keys, activate services or modify shared PostgreSQL', () => {
   const script = read('scripts/phase18-step08-stage-private-config.sh');

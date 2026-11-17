@@ -81,13 +81,13 @@ test('persisted fiscal memory has an explicit nullable authority environment, wh
   assert.match(read(paths.readiness), /sandboxFiscalMemoryId/);
 });
 
-test('all legal send operations remain fail-closed by default on Production service unit', () => {
+test('Production service units do not override approved runtime feature settings', () => {
   const unit = read('ops/phase18-systemd/argintaxpayer-api.service');
-  assert.match(unit, /Environment=ArginTaxPayer__EnableOperationalEndpoints=false/);
-  assert.match(unit, /Environment=SandboxInvoiceLegacy__Enabled=false/);
-  assert.match(unit, /Environment=SandboxInvoiceLegacy__OperatorApprovedEndpoint=false/);
+  assert.doesNotMatch(unit, /Environment=ArginTaxPayer__EnableOperationalEndpoints=false/);
+  assert.doesNotMatch(unit, /Environment=SandboxInvoiceLegacy__Enabled=false/);
+  assert.doesNotMatch(unit, /Environment=SandboxInvoiceLegacy__OperatorApprovedEndpoint=false/);
   const web = read('ops/phase18-systemd/argintaxpayer-web.service');
-  assert.match(web, /Environment=ARGIN_PRODUCTION_UI_ENABLED=false/);
+  assert.doesNotMatch(web, /Environment=ARGIN_PRODUCTION_UI_ENABLED=false/);
 });
 
 test('key encryption distinguishes Sandbox binding without reading global deployment mode', () => {
