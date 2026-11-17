@@ -13,3 +13,8 @@ test('backup controls require same-origin BFF and mask secrets',()=>{
 test('backup page gates access to Level 1 and exposes restore review state',()=>{
  assert.match(page,/roles\.includes\("Level1"\)/);assert.match(panel,/restore\/stage-local/);assert.match(panel,/restore\/stage-remote/);assert.match(panel,/restore\/activate/);assert.match(panel,/recovery\/enable-business/);
 });
+test('completed operation progress is shown only after a live operation and expires after ten seconds',()=>{
+ assert.match(panel,/useRef/);
+ assert.match(panel,/setTimeout\([^,]+,\s*10_000\)/);
+ assert.match(panel,/operation\.status===\"succeeded\"&&!showSuccess/);
+});
