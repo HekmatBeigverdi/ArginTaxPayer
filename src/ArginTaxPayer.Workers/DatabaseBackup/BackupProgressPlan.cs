@@ -46,7 +46,7 @@ public sealed record BackupProgressPlan(IReadOnlyList<string> Stages)
     public static BackupProgressPlan ForQueued(BackupWorkItem item) => item.Action switch
     {
         "import-zip" => ForImport(),
-        "manual" => ForBackup(stopBusinessServices: true, item.Settings.RemoteEnabled),
+        "manual" => ForBackup(stopBusinessServices: false, item.Settings.RemoteEnabled),
         "restore-local" => ForLocalRestore(),
         "restore-remote" => ForRemoteRestore(),
         "restore-activate" => ForActivation(),

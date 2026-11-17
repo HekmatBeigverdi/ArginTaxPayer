@@ -74,6 +74,27 @@ public sealed class Phase18ProductionIsolationTests
         finally { File.Delete(marker); }
     }
 
+    [Fact]
+    public async Task Manual_backup_maintenance_keeps_health_and_login_available_but_blocks_business_requests()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "argin-maintenance-test-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var marker = Path.Combine(directory, "recovery-state.json");
+        var maintenance = Path.Combine(directory, "manual-service-stop.json");
+        await File.WriteAllTextAsync(maintenance, "{\"restartRequired\":true}");
+        try
+        {
+            using var factory = new ProductionFactory(true, recoveryMarker: marker);
+            using var client = factory.CreateClient();
+            Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/health/live")).StatusCode);
+            Assert.Equal(HttpStatusCode.Unauthorized,
+                (await client.GetAsync("/api/dev/identity/authorization/me")).StatusCode);
+            Assert.Equal(HttpStatusCode.ServiceUnavailable,
+                (await client.GetAsync("/api/dev/dashboard/summary")).StatusCode);
+        }
+        finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
+    }
+
     private sealed class ProductionFactory(bool loopback, bool restored = false, string? recoveryMarker = null) : WebApplicationFactory<Program>
     {
         protected override IHost CreateHost(IHostBuilder builder)

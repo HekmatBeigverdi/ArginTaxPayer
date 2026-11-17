@@ -247,6 +247,7 @@ app.Use(async (context, next) =>
     var statePath = builder.Configuration["BackupController:RecoveryStatePath"]
         ?? "/var/lib/argintaxpayer/backup-controller/recovery-state.json";
     var recovery = false;
+    var manualMaintenance = false;
     try
     {
         if (File.Exists(statePath))
@@ -256,6 +257,17 @@ app.Use(async (context, next) =>
         }
     }
     catch { recovery = true; } // An unreadable recovery marker must keep business APIs disabled.
+    try
+    {
+        var manualPath = Path.Combine(Path.GetDirectoryName(statePath)!, "manual-service-stop.json");
+        if (File.Exists(manualPath))
+        {
+            using var document = JsonDocument.Parse(await File.ReadAllTextAsync(manualPath, context.RequestAborted));
+            manualMaintenance = document.RootElement.TryGetProperty("restartRequired", out var value) && value.GetBoolean();
+        }
+    }
+    catch { manualMaintenance = true; } // An unreadable maintenance marker must fail closed.
+    manualMaintenance = manualMaintenance && !recovery;
     var path = context.Request.Path.Value ?? "";
     var identityPath = context.Request.Method == "GET" &&
         (path == "/api/dev/identity/authorization/me" || path == "/api/dev/identity/mfa/status" ||
@@ -266,7 +278,27 @@ app.Use(async (context, next) =>
          path == "/api/dev/identity/mfa/complete");
     var healthPath = context.Request.Method == "GET" &&
         (path is "/health/live" or "/health/ready" or "/health/dev-identity");
-    if (recovery && !identityPath && !healthPath)
+    var backupControlPath = path == "/api/backup" || path.StartsWith("/api/backup/", StringComparison.Ordinal);
+    var token = context.Request.Headers.Authorization.ToString();
+    var bearer = token.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) ? token[7..].Trim() : null;
+    var isLevel1 = false;
+    if ((manualMaintenance || recovery && backupControlPath) && !string.IsNullOrEmpty(bearer))
+    {
+        try
+        {
+            var authorization = context.RequestServices.GetRequiredService<IdentityAuthorizationService>();
+            var roles = await authorization.GetCurrentRolesAsync(bearer, context.RequestAborted);
+            isLevel1 = roles?.Contains(IdentityRoleNames.Level1, StringComparer.Ordinal) == true;
+        }
+        catch { isLevel1 = false; }
+    }
+    if (manualMaintenance && !identityPath && !healthPath && !isLevel1)
+    {
+        context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+        await context.Response.WriteAsJsonAsync(new { error = "maintenance_mode" }, context.RequestAborted);
+        return;
+    }
+    if (recovery && !identityPath && !healthPath && !(backupControlPath && isLevel1))
     {
         context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
         await context.Response.WriteAsJsonAsync(new { error = "recovery_mode" }, context.RequestAborted);
