@@ -1,6 +1,6 @@
 "use client";
 
-import {useCallback,useEffect,useState} from "react";
+import {useCallback,useEffect,useRef,useState} from "react";
 import ConsoleLoader from "./components/console-loader";
 
 type Settings={enabled:boolean;localScheduleKind:1|2;intervalHours:number;remoteEnabled:boolean;monthlyRetentionCount:number;localPath:string;remoteDirectory:string;ftpHost:string;ftpPort:number;ftpUsername:string;ftpPasswordConfigured:boolean};
@@ -10,7 +10,23 @@ type Operation={status:string;message?:string|null;currentStage?:string|null;com
 const stageLabels:Record<string,string>={"validate-bundle":"بررسی ساختار ZIP و checksum","verify-upload":"بررسی کلید رمزنگاری و محتوای آرشیو","publish-import":"ثبت نسخهٔ آپلودشده","stop-services":"توقف سرویس برنامه","prepare-backup":"آماده‌سازی بکاپ","dump-encrypt":"دریافت و رمزگذاری داده‌ها","verify-archive":"اعتبارسنجی فایل بکاپ","publish-local":"ذخیره نسخه محلی","publish-remote":"ارسال نسخه به فضای ریموت","validate-local":"بررسی فایل محلی","download-remote":"دریافت فایل ریموت","validate-remote":"اعتبارسنجی نسخه ریموت","restore-isolated":"بازیابی در دیتابیس جداگانه","stage-review":"آماده‌سازی برای بررسی","pre-restore-backup":"تهیه بکاپ پیش از بازیابی","switch-database":"انتخاب دیتابیس بازیابی","activate-recovery":"فعال‌سازی حالت بررسی بازیابی"};
 async function call(path:string,method="GET",body?:unknown){const res=await fetch("/api/backup-control/"+path,{method,cache:"no-store",headers:body?{"Content-Type":"application/json"}:{},body:body?JSON.stringify(body):undefined});const data=await res.json().catch(()=>({}));if(!res.ok)throw new Error(data.error||"درخواست ناموفق بود");return data;}
 function OperationProgress({operation}:{operation:Operation|null}){
- if(!operation?.status)return null;
+ const activeSeen=useRef(false);
+ const [showSuccess,setShowSuccess]=useState(false);
+ useEffect(()=>{
+  if(operation?.status==="running"||operation?.status==="queued"){
+   activeSeen.current=true;
+   setShowSuccess(false);
+   return;
+  }
+  if(operation?.status==="succeeded"&&activeSeen.current){
+   activeSeen.current=false;
+   setShowSuccess(true);
+   const timer=window.setTimeout(()=>setShowSuccess(false),10_000);
+   return()=>window.clearTimeout(timer);
+  }
+  if(operation?.status!=="succeeded")setShowSuccess(false);
+ },[operation?.status]);
+ if(!operation?.status||(operation.status==="succeeded"&&!showSuccess))return null;
  const running=operation.status==="running";
  const queued=operation.status==="queued";
  const percent=operation.status==="succeeded"?100:Math.max(0,Math.min(99,operation.progressPercent??0));
