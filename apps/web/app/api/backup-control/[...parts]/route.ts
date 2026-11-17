@@ -23,7 +23,7 @@ async function handle(req:NextRequest,ctx:Context,method:"GET"|"PUT"|"POST"){
  const origin=process.env.ARGIN_BACKUP_CONTROLLER_INTERNAL_URL||"http://127.0.0.1:15092";
  try{
   const longOperation=method==="POST"&&["operations/manual","restore/stage-local","restore/stage-remote","restore/activate","recovery/enable-business"].includes(path);
-  const upstream=await fetch(origin+"/api/backup/"+path,{method,cache:"no-store",redirect:"manual",signal:AbortSignal.timeout(upload||download?30*60*1000:longOperation?60000:15000),headers:{Authorization:"Bearer "+token,...(upload?{"Content-Type":"application/zip"}:body?{"Content-Type":"application/json"}:{})},body:upload?req.body:body,...(upload?{duplex:"half"}:{})} as RequestInit);
+  const upstream=await fetch(origin+"/api/backup/"+path,{method,cache:"no-store",redirect:"manual",signal:AbortSignal.timeout(upload||download?30*60*1000:path==="artifacts/remote"?120000:longOperation?60000:15000),headers:{Authorization:"Bearer "+token,...(upload?{"Content-Type":"application/zip"}:body?{"Content-Type":"application/json"}:{})},body:upload?req.body:body,...(upload?{duplex:"half"}:{})} as RequestInit);
   if(download&&upstream.ok)return new NextResponse(upstream.body,{status:upstream.status,headers:{"Content-Type":"application/zip","Content-Disposition":upstream.headers.get("content-disposition")||'attachment; filename="backup.zip"',"Cache-Control":"private, no-store","X-Content-Type-Options":"nosniff"}});
   const bytes=await upstream.arrayBuffer();if(bytes.byteLength>2_000_000)return NextResponse.json({error:"oversize_response"},{status:502});
   return new NextResponse(bytes,{status:upstream.status,headers:{"Content-Type":"application/json","Cache-Control":"private, no-store","X-Content-Type-Options":"nosniff"}});

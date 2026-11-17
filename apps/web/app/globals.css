@@ -1534,3 +1534,8 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 @media(max-width:640px){.backup-file-filters>label{width:100%}.backup-panel .users-pagination>div{flex-wrap:wrap}}
 :where(.backup-panel .backup-file-filters) .ui-persian-date button{width:auto;max-width:none;font-weight:400}
 .backup-panel .backup-file-filters .ui-persian-date__trigger{padding:0}
+
+.backup-panel{padding-bottom:100px}
+.backup-feedback{position:fixed;bottom:20px;inset-inline: max(20px,calc((100vw - 920px)/2));z-index:3000;display:flex;align-items:center;padding:14px 18px;border:1px solid #bddbcd;border-radius:12px;background:#f2faf5;color:#245b50;box-shadow:0 8px 30px #17374d30;font-size:13px;line-height:1.8;max-height:30vh;overflow:auto}
+.backup-feedback.is-error{border-color:#edc6bd;background:#fff7f4;color:#963b2b}
+@media(max-width:640px){.backup-feedback{bottom:12px;inset-inline:12px;font-size:12px}}
