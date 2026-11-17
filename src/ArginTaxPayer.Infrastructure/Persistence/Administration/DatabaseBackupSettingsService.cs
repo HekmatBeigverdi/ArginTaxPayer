@@ -62,7 +62,7 @@ public sealed class DatabaseBackupSettingsService(
         await db.Database.ExecuteSqlInterpolatedAsync($"""
             INSERT INTO application_settings(
               scope_user_id,setting_key,value_json,updated_by_user_id,updated_at_utc)
-            VALUES({actor},'{DatabaseBackupSettings.SettingKey}',jsonb_build_object(
+            VALUES({actor},{DatabaseBackupSettings.SettingKey},jsonb_build_object(
               'enabled',{candidate.Enabled},
               'local_schedule_kind',{candidate.LocalScheduleKind.ToString()},
               'interval_hours',{candidate.IntervalHours},

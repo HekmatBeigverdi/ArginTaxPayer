@@ -25,9 +25,9 @@ test('legacy fiscal memories remain explicitly unclassified after migration', ()
   assert.match(migration, /throw new NotSupportedException/);
 });
 
-test('legacy Sandbox dispatch blockers remain until full authority migration', () => {
+test('historical audit remains separate from approved runtime feature settings', () => {
   const script = read('scripts/phase18-step09-dual-authority-preflight.sh');
   assert.match(script, /Persisted authority environment and production dual-routing not established/);
   const apiUnit = read('ops/phase18-systemd/argintaxpayer-api.service');
-  assert.match(apiUnit, /Environment=ArginTaxPayer__EnableOperationalEndpoints=false/);
+  assert.doesNotMatch(apiUnit, /Environment=ArginTaxPayer__EnableOperationalEndpoints=false/);
 });

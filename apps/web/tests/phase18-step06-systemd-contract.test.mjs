@@ -53,10 +53,10 @@ test("Dedicated loopback process ports are distinct and Next never binds publicl
   assert.match(api, /^Environment=ASPNETCORE_URLS=http:\/\/127\.0\.0\.1:15090$/m);
   assert.match(web, /^ExecStart=\/opt\/argintaxpayer\/runtime\/node\/bin\/node .*next start --hostname 127\.0\.0\.1 --port 15091$/m);
   assert.match(web, /^Environment=ARGIN_IDENTITY_API_INTERNAL_BASE_URL=http:\/\/127\.0\.0\.1:15090$/m);
-  assert.match(web, /^Environment=ARGIN_PRODUCTION_UI_ENABLED=false$/m);
-  assert.match(api, /^Environment=ArginTaxPayer__EnableOperationalEndpoints=false$/m);
-  assert.match(api, /^Environment=Ghasedak__EnableLiveSending=false$/m);
-  assert.match(api, /^Environment=SandboxInvoiceLegacy__Enabled=false$/m);
+  assert.doesNotMatch(web, /^Environment=ARGIN_PRODUCTION_UI_ENABLED=false$/m);
+  assert.doesNotMatch(api, /^Environment=ArginTaxPayer__EnableOperationalEndpoints=false$/m);
+  assert.doesNotMatch(api, /^Environment=Ghasedak__EnableLiveSending=false$/m);
+  assert.doesNotMatch(api, /^Environment=SandboxInvoiceLegacy__Enabled=false$/m);
   assert.match(web, /^ReadWritePaths=\/opt\/argintaxpayer\/current\/web\/\.next\/cache$/m);
 });
 test("Step06 template never contains secrets, live fiscal endpoints or automatic migration", () => {

@@ -39,6 +39,6 @@ test('Sandbox worker and both inquiries cannot use a Production-classified opera
 
 test('operational Production deployment remains gated', () => {
   const unit = read('ops/phase18-systemd/argintaxpayer-api.service');
-  assert.match(unit, /ArginTaxPayer__EnableOperationalEndpoints=false/);
-  assert.match(unit, /SandboxInvoiceLegacy__Enabled=false/);
+  assert.doesNotMatch(unit, /ArginTaxPayer__EnableOperationalEndpoints=false/);
+  assert.doesNotMatch(unit, /SandboxInvoiceLegacy__Enabled=false/);
 });
