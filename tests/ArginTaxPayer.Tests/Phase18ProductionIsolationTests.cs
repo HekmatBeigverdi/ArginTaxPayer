@@ -64,6 +64,7 @@ public sealed class Phase18ProductionIsolationTests
             using var factory = new ProductionFactory(true, restored: true, recoveryMarker: marker);
             using var client = factory.CreateClient();
             Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/health/live")).StatusCode);
+            Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync("/health/dev-identity")).StatusCode);
             Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/dev/identity/authorization/me")).StatusCode);
             Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/dev/software-profile/me")).StatusCode);
             Assert.Equal(HttpStatusCode.ServiceUnavailable,
