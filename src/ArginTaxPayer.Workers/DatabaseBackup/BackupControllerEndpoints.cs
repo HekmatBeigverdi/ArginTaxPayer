@@ -114,7 +114,9 @@ public static class BackupControllerEndpoints
             }
             catch (UnauthorizedAccessException) { return Results.Unauthorized(); }
             catch (InvalidOperationException ex) { return Results.Conflict(new { error = ex.Message }); }
-            catch { return Results.StatusCode(StatusCodes.Status502BadGateway); }
+            catch (System.Security.Authentication.AuthenticationException)
+            { return Results.Json(new { error = "ftps_tls_authentication_failed" }, statusCode: StatusCodes.Status502BadGateway); }
+            catch { return Results.Json(new { error = "ftps_remote_connection_failed" }, statusCode: StatusCodes.Status502BadGateway); }
         });
         group.MapPost("/restore/stage-local", async (HttpContext context, RestoreStageRequest request,
             DatabaseBackupSettingsService settings, BackupOperationStore operations, BackupWorkQueue queue, CancellationToken ct) =>
