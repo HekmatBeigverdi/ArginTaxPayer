@@ -2,7 +2,7 @@ using Npgsql;
 
 namespace ArginTaxPayer.Workers.DatabaseBackup;
 
-public sealed record BackupRunnerOptions(string ConnectionString, string SchemaIdentity);
+public sealed record BackupRunnerOptions(string ConnectionString, string SchemaIdentity, string? SourceDatabaseIdentity = null);
 
 public sealed record BackupEncryptionKey(string Version, byte[] Material);
 

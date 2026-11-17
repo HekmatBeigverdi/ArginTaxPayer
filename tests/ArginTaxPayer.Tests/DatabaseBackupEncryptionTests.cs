@@ -159,8 +159,10 @@ public sealed class DatabaseBackupStoreTests
 
 public sealed class PostgresBackupRunnerTests
 {
-    [Fact]
-    public async Task Runner_publishes_only_encrypted_validated_database_archive()
+    [Theory]
+    [InlineData("argintaxpayer_test", null, "argintaxpayer_test")]
+    [InlineData("recovery_e5170d0dfa91", "argintaxpayer_prod", "argintaxpayer_prod")]
+    public async Task Runner_publishes_only_encrypted_validated_database_archive(string activeDatabase, string? sourceDatabase, string expectedDatabase)
     {
         var root = Path.Combine(Path.GetTempPath(), "argin-postgres-runner-" + Guid.NewGuid().ToString("N"));
         var key = RandomNumberGenerator.GetBytes(32);
@@ -170,13 +172,14 @@ public sealed class PostgresBackupRunnerTests
             var store = new LocalBackupStore(root);
             var commands = new FakeBackupCommandRunner(plaintext, key);
             var runner = new PostgresBackupRunner(store,
-                new BackupRunnerOptions("Host=localhost;Database=argintaxpayer_test;Username=test;Password=test", "m1"),
+                new BackupRunnerOptions($"Host=localhost;Database={activeDatabase};Username=test;Password=test", "m1", sourceDatabase),
                 new FixedDatabaseSizeReader(1024), new FixedStorageCapacity(1024L * 1024 * 1024),
                 new FixedBackupKeyProvider(key), commands);
 
             var artifact = await runner.CreateAsync(CancellationToken.None);
 
             Assert.True(artifact.ChecksumMatches);
+            Assert.Equal(expectedDatabase, artifact.DatabaseName);
             Assert.True(artifact.ArchiveValidated);
             Assert.Equal(1, commands.ValidationCount);
             var encrypted = await File.ReadAllBytesAsync(artifact.FilePath);

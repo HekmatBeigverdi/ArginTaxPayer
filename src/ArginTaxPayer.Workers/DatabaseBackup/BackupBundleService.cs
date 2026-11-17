@@ -32,9 +32,10 @@ public sealed class BackupBundleService(IConfiguration configuration)
             throw new BackupBundleException("backup_bundle_invalid_temp_directory");
         foreach (var file in Directory.EnumerateFiles(TempRoot, "*.tmp", SearchOption.TopDirectoryOnly)) File.Delete(file);
     }
-    private sealed class DownloadStream(string path, SemaphoreSlim gate)
+    public sealed class DownloadStream(string path, SemaphoreSlim gate, string fileName)
         : FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 128 * 1024, FileOptions.Asynchronous | FileOptions.DeleteOnClose)
     {
+        public string FileName { get; } = fileName;
         private int released;
         protected override void Dispose(bool disposing)
         {
@@ -80,7 +81,7 @@ public sealed class BackupBundleService(IConfiguration configuration)
         if (total == 0) throw new BackupBundleException("backup_bundle_empty");
         return total;
     }
-    public async Task<FileStream> DownloadAsync(DatabaseBackupSettings settings, Guid id, CancellationToken ct)
+    public async Task<DownloadStream> DownloadAsync(DatabaseBackupSettings settings, Guid id, CancellationToken ct)
     {
         var artifact = (await new LocalBackupStore(settings.LocalPath).ListAsync(ct)).SingleOrDefault(x => x.ArtifactId == id);
         if (artifact is null || !artifact.ArchiveValidated || !artifact.ChecksumMatches)
@@ -103,7 +104,7 @@ public sealed class BackupBundleService(IConfiguration configuration)
                     await source.CopyToAsync(target, ct);
                 }
             }
-            return new DownloadStream(path, storageGate);
+            return new DownloadStream(path, storageGate, BackupDatabaseIdentity.DownloadName(artifact.DatabaseName, id, configuration));
         }
         catch { if (path is not null) File.Delete(path); storageGate.Release(); throw; }
     }
