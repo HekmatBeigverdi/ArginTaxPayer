@@ -36,7 +36,7 @@ async function load<T>(url: string): Promise<T> {
   return (body.trim() ? JSON.parse(body) : null) as T;
 }
 
-function ActionIcon({ kind }: { kind: "add" | "refresh" }) {
+function UsersActionIcon({ kind }: { kind: "add" | "refresh" }) {
   return kind === "add" ? <svg className="users-action-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
     <path d="M12 5v14M5 12h14" />
   </svg> : <svg className="users-action-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -292,10 +292,10 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
         <p>هر ردیف صرفاً یک حساب ورود نرم‌افزار است؛ خریداران و مؤدیان در فهرست مالیاتی مستقل مدیریت می‌شوند.</p></div>
       <div className="users-toolbar-actions">
         <button type="button" className="users-button users-button--icon" disabled={loading} onClick={() => void refresh()}>
-          <ActionIcon kind="refresh" />بازخوانی کاربران
+          <UsersActionIcon kind="refresh" />بازخوانی کاربران
         </button>
         <button type="button" className="identity-primary users-button--icon" onClick={openCreate}>
-          <ActionIcon kind="add" />ثبت کاربر جدید
+          <UsersActionIcon kind="add" />ثبت کاربر جدید
         </button>
       </div>
     </div>
