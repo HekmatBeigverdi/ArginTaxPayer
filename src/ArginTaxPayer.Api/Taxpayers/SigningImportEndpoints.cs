@@ -40,7 +40,9 @@ public static class SigningImportEndpoints
                 return Results.NotFound();
             try
             {
-                var state = await journal.ReadImportOnboardingAsync(Bearer(http), taxpayerId, memoryId, ct);
+                // Status is a read-only view and must work for authorized admins
+                // inspecting a customer's taxpayer.
+                var state = await journal.ReadImportOnboardingForViewerAsync(Bearer(http), taxpayerId, memoryId, ct);
                 if (state.Status != SigningGenerationStatus.Replayed) return Failure(state.Status);
                 var binding = await history.CaptureRegisteredAsync(taxpayerId, memoryId, ct);
                 var connectionHistory = await history.ReadAsync(binding, ct);

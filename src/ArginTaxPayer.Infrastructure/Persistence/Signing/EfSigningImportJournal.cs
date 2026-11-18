@@ -13,7 +13,9 @@ public sealed partial class EfSigningOperationRepository : ISigningImportJournal
     {
         var actor = await identity.CurrentUserIdAsync(bearer, ct);
         if (actor is null) return new(SigningGenerationStatus.Unauthenticated, default, Guid.Empty, default);
-        var scope = new SigningScope(actor.Value, request.TaxpayerId, request.FiscalMemoryId);
+        var owner = await CustomerOwnerAsync(request.TaxpayerId, ct);
+        if (owner is null) return new(SigningGenerationStatus.NotFound, default, Guid.Empty, default);
+        var scope = new SigningScope(owner.Value, request.TaxpayerId, request.FiscalMemoryId);
         if (await AuthorizeAsync(bearer, scope, true, ct) is null ||
             await RecentLoginAsync(bearer, actor.Value, DateTime.UtcNow, ct) is null)
             return new(SigningGenerationStatus.Forbidden, default, Guid.Empty, default);
@@ -25,7 +27,9 @@ public sealed partial class EfSigningOperationRepository : ISigningImportJournal
     {
         var actor = await identity.CurrentUserIdAsync(bearer, ct);
         if (actor is null) return null;
-        var scope = new SigningScope(actor.Value, request.TaxpayerId, request.FiscalMemoryId);
+        var owner = await CustomerOwnerAsync(request.TaxpayerId, ct);
+        if (owner is null) return null;
+        var scope = new SigningScope(owner.Value, request.TaxpayerId, request.FiscalMemoryId);
         if (await AuthorizeAsync(bearer, scope, true, ct) is null ||
             await RecentLoginAsync(bearer, actor.Value, DateTime.UtcNow, ct) is null)
             return null;
@@ -47,7 +51,7 @@ public sealed partial class EfSigningOperationRepository : ISigningImportJournal
         var result = await ((ISigningGenerationJournal)this).ReadGeneratedAsync(bearer, scope,
             current.Id, current.OriginOperationRecordId, ct);
         if (result.Status != SigningGenerationStatus.Replayed || result.PublicKey is null) return null;
-        return new(new(actor.Value, request.TaxpayerId, request.FiscalMemoryId,
+        return new(new(scope.CustomerUserId, request.TaxpayerId, request.FiscalMemoryId,
             current.Id, current.OriginOperationRecordId), result);
     }
 

@@ -38,6 +38,12 @@ public sealed class PartnerSettlementReadService(ArginTaxPayerDbContext db,
             WHERE a.partner_user_id IS NOT NULL AND
                   (({0} AND a.root_user_id={1}) OR ({2} AND a.partner_user_id={1}))
             GROUP BY a.id,a.root_user_id,a.partner_user_id,a.partner_share_irr
+            UNION ALL
+            SELECT a.id AS "AllocationId",s.root_admin_user_id AS "RootUserId",s.partner_user_id AS "PartnerUserId",
+              -a.negative_partner_share_irr AS "EarnedIrr",0::bigint AS "SettledIrr"
+            FROM subscription_adjustments a JOIN customer_subscriptions s ON s.id=a.subscription_id
+            WHERE a.kind=2 AND s.partner_user_id IS NOT NULL AND
+                  (({0} AND s.root_admin_user_id={1}) OR ({2} AND s.partner_user_id={1}))
             ), totals AS (
               SELECT COUNT(*)::integer AS "TotalCount",
                 COALESCE(SUM("EarnedIrr"),0)::bigint AS "TotalEarnedIrr",
@@ -52,10 +58,9 @@ public sealed class PartnerSettlementReadService(ArginTaxPayerDbContext db,
             """,root,actor,!root && partner,SubscriptionPaging.PageSize,offset).ToListAsync(ct);
         var mapped=rows.Where(r=>r.AllocationId.HasValue).Select(r=>
         {
-            var position=new PartnerSettlementPosition(r.EarnedIrr!.Value,r.SettledIrr!.Value,0);
-            position.Validate();
+            var outstanding=checked(r.EarnedIrr!.Value-r.SettledIrr!.Value);
             return new PartnerSettlementBalanceRow(r.AllocationId!.Value,r.RootUserId!.Value,r.PartnerUserId!.Value,
-                r.EarnedIrr.Value,r.SettledIrr.Value,position.OutstandingIrr);
+                r.EarnedIrr.Value,r.SettledIrr.Value,outstanding);
         }).ToArray();
         var totals=rows[0];
         return new PartnerSettlementBalanceReport(mapped,totals.TotalEarnedIrr,

@@ -55,6 +55,13 @@ public sealed class PartnerRevenueLedgerReadService(ArginTaxPayerDbContext db,
               posted_at_utc AS "PostedAtUtc"
             FROM commercial_revenue_allocations
             WHERE ({0} AND root_user_id={1}) OR ({2} AND partner_user_id={1})
+            UNION ALL
+            SELECT a.id AS "AllocationId",a.id AS "CollectionId",s.root_admin_user_id AS "RootUserId",
+              s.partner_user_id AS "PartnerUserId",-a.negative_gross_irr AS "GrossCollectedIrr",
+              0::bigint AS "ApprovedCostIrr",-a.negative_partner_share_irr AS "PartnerShareIrr",
+              -a.negative_root_share_irr AS "RootShareIrr",a.created_at_utc AS "PostedAtUtc"
+            FROM subscription_adjustments a JOIN customer_subscriptions s ON s.id=a.subscription_id
+            WHERE a.kind=2 AND (({0} AND s.root_admin_user_id={1}) OR ({2} AND s.partner_user_id={1}))
             """,root,actor,!root && partner)
             .AsNoTracking().ToListAsync(ct);
         // Level2 sees only its own partner entitlement; root's share is not exposed.

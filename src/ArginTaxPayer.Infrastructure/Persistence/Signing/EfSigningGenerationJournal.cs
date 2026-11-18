@@ -27,7 +27,9 @@ public sealed partial class EfSigningOperationRepository : ISigningGenerationJou
     {
         var actor = await identity.CurrentUserIdAsync(bearer, ct);
         if (actor is null) return new(SigningGenerationStatus.Unauthenticated, default, Guid.Empty, default);
-        var scope = new SigningScope(actor.Value, request.TaxpayerId, request.FiscalMemoryId);
+        var owner = await CustomerOwnerAsync(request.TaxpayerId, ct);
+        if (owner is null) return new(SigningGenerationStatus.NotFound, default, Guid.Empty, default);
+        var scope = new SigningScope(owner.Value, request.TaxpayerId, request.FiscalMemoryId);
         if (await AuthorizeAsync(bearer, scope, true, ct) is null)
             return new(SigningGenerationStatus.Forbidden, default, Guid.Empty, default);
         var result = await ReserveAsync(bearer, new(scope, request.OperationId, SigningOperationKind.Generate,

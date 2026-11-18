@@ -12,6 +12,11 @@ type Account = {
   personName?: string | null; companyName?: string | null; profileComplete?: boolean;
 };
 type Partner = { userId: string; mobile: string | null; email: string | null };
+type SubscriptionStatus = { subscriptionId:string; kind:number; validityDays:number; invoiceUnitLimit:number|null;
+  availableUnits:number|null; consumedUnits:number|null; expiresAtUtc:string|null; state:number; revision:number; priceIrr:number; partnerUserId:string|null } | null;
+type SubscriptionHistory = { id:string; kind:number; previousValidityDays:number|null; newValidityDays:number|null;
+  previousInvoiceUnitLimit:number|null; newInvoiceUnitLimit:number|null; negativeGrossIrr:number; reason:string; actorUserId:string; createdAtUtc:string };
+type CancellationPreview = { originalPriceIrr:number; deductedIrr:number; refundedIrr:number; remainingDays:number|null; remainingUnits:number|null; fullRefund:boolean };
 type AccountPage = { items: Account[]; page: number; pageSize: number; total: number };
 const acquisition: Record<number,string> = {
   0: "نیازمند تعیین مالکیت", 1: "ثبت‌نام مستقیم", 2: "ثبت توسط سطح ۱",
@@ -24,7 +29,11 @@ const errorLabel = (status: number) => status === 401 ? "نشست ورود مع�
 async function load<T>(url: string): Promise<T> {
   const res = await fetch(url, { cache: "no-store", credentials: "same-origin" });
   if (!res.ok) throw new Error(errorLabel(res.status));
-  return await res.json() as T;
+  // A nullable endpoint (for example, a customer without an active plan) may
+  // legitimately return an empty body. Do not turn that state into a JSON
+  // parsing error in the users workspace.
+  const body = await res.text();
+  return (body.trim() ? JSON.parse(body) : null) as T;
 }
 
 function ActionIcon({ kind }: { kind: "add" | "refresh" }) {
@@ -65,6 +74,16 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
   const [savingOwner, setSavingOwner] = useState(false);
   const [transferNotice, setTransferNotice] = useState("");
   const [transferHistory, setTransferHistory] = useState<{ id: string; previousPartnerLevel2UserId: string | null; newPartnerLevel2UserId: string | null; explanation: string; changedAtUtc: string }[] | null>(null);
+  const [subscription,setSubscription]=useState<SubscriptionStatus>(null);
+  const [subscriptionLoading,setSubscriptionLoading]=useState(false);
+  const [subscriptionError,setSubscriptionError]=useState("");
+  const [subscriptionReason,setSubscriptionReason]=useState("");
+  const [subscriptionValue,setSubscriptionValue]=useState("");
+  const [subscriptionBusy,setSubscriptionBusy]=useState(false);
+  const [subscriptionHistory,setSubscriptionHistory]=useState<SubscriptionHistory[]>([]);
+  const [cancellationPreview,setCancellationPreview]=useState<CancellationPreview|null>(null);
+  const [cancelReason,setCancelReason]=useState("");
+  const cancelDialogRef = useRef<HTMLDialogElement>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const requestRef = useRef(0);
 
@@ -193,8 +212,39 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
     setSelected(account); setModalError("");
     setPartnerId(account.partnerLevel2UserId || "");
     setTransferReason(""); setTransferNotice(""); setTransferHistory(null);
+    setSubscription(null);setSubscriptionHistory([]);setCancellationPreview(null);setCancelReason("");setSubscriptionError("");setSubscriptionReason("");setSubscriptionValue("");setSubscriptionLoading(true);
     dialogRef.current?.showModal();
     requestRef.current++;
+    void load<SubscriptionStatus>("/api/customer-owners/"+account.customerUserId+"/subscription-adjustment")
+      .then(setSubscription).catch(e=>setSubscriptionError((e as Error).message)).finally(()=>setSubscriptionLoading(false));
+    void load<SubscriptionHistory[]>("/api/customer-owners/"+account.customerUserId+"/subscription-adjustment/history")
+      .then(setSubscriptionHistory).catch(() => setSubscriptionHistory([]));
+  }
+
+  async function adjustSubscription(event:FormEvent<HTMLFormElement>) {
+    event.preventDefault(); if(!selected||!subscription||subscriptionBusy||!subscriptionReason.trim())return;
+    const value=Number(subscriptionValue); if(!Number.isSafeInteger(value)||value<=0){setSubscriptionError("مقدار جدید معتبر نیست.");return;}
+    setSubscriptionBusy(true);setSubscriptionError("");
+    try {
+      const payload=subscription.kind===2?{invoiceUnitLimit:value}:{validityDays:value};
+      const response=await fetch("/api/customer-owners/"+selected.customerUserId+"/subscription-adjustment",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({...payload,subscriptionId:subscription.subscriptionId,expectedRevision:subscription.revision,operationKey:crypto.randomUUID(),reason:subscriptionReason.trim()})});
+      if(!response.ok)throw new Error(response.status===409?"وضعیت اشتراک تغییر کرده است؛ پرونده را بازخوانی کنید.":"اصلاح پلن انجام نشد.");
+      setSubscription(await response.json());setSubscriptionReason("");setSubscriptionValue("");
+    } catch(e){setSubscriptionError(e instanceof Error?e.message:"ارتباط با سرور برقرار نشد.");} finally{setSubscriptionBusy(false);}
+  }
+  function openCancellation(){
+    if(!subscription||subscriptionBusy)return;
+    setCancellationPreview(null);setCancelReason("");setSubscriptionError("");cancelDialogRef.current?.showModal();
+  }
+  async function previewCancellation(fullRefund:boolean){
+    if(!selected||!subscription||subscriptionBusy)return;
+    setSubscriptionBusy(true);setSubscriptionError("");
+    try {const response=await fetch("/api/customer-owners/"+selected.customerUserId+"/subscription-cancellation/preview",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({subscriptionId:subscription.subscriptionId,expectedRevision:subscription.revision,fullRefund})});if(!response.ok)throw new Error(response.status===409?"وضعیت اشتراک تغییر کرده است؛ پرونده را بازخوانی کنید.":"محاسبه برگشت انجام نشد.");setCancellationPreview(await response.json() as CancellationPreview);}catch(e){setSubscriptionError(e instanceof Error?e.message:"ارتباط با سرور برقرار نشد.");}finally{setSubscriptionBusy(false);}
+  }
+  async function cancelSubscription(){
+    if(!selected||!subscription||!cancellationPreview||subscriptionBusy||!cancelReason.trim()||!window.confirm("مبلغ برگشتی نمایش‌داده‌شده تأیید و اشتراک لغو شود؟"))return;
+    setSubscriptionBusy(true);setSubscriptionError("");
+    try {const response=await fetch("/api/customer-owners/"+selected.customerUserId+"/subscription-cancellation",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({subscriptionId:subscription.subscriptionId,expectedRevision:subscription.revision,operationKey:crypto.randomUUID(),reason:cancelReason.trim(),fullRefund:cancellationPreview.fullRefund})});if(!response.ok)throw new Error(response.status===409?"وضعیت اشتراک تغییر کرده است؛ پرونده را بازخوانی کنید.":"لغو پلن انجام نشد.");const result=await response.json().catch(()=>null) as {remainingDays?:number;remainingUnits?:number}|null;const history=await load<SubscriptionHistory[]>("/api/customer-owners/"+selected.customerUserId+"/subscription-adjustment/history");setSubscriptionHistory(history);setSubscription(null);setCancellationPreview(null);setCancelReason("");cancelDialogRef.current?.close();setSubscriptionError("");setTransferNotice(result?.remainingDays!==undefined?`پلن لغو شد؛ ${result.remainingDays} روز باقی‌مانده در سابقه مالی ثبت شد.`:result?.remainingUnits!==undefined?`پلن لغو شد؛ ${result.remainingUnits} سهمیه باقی‌مانده در سابقه مالی ثبت شد.`:"پلن لغو شد و اثر مالی آن ثبت گردید.");}catch(e){setSubscriptionError(e instanceof Error?e.message:"ارتباط با سرور برقرار نشد.");}finally{setSubscriptionBusy(false);}
   }
 
   async function assignOwner(event: FormEvent<HTMLFormElement>) {
@@ -420,10 +470,52 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
               {item.explanation}
             </li>)}</ul>}
         </section>}
+        {level1 && <section className="users-owner-edit" aria-label="مدیریت اشتراک کاربر">
+          <h3>اصلاح پلن کاربر</h3>
+          {subscriptionLoading?<p>در حال دریافت اشتراک…</p>:subscriptionError?<p role="alert" className="form-error">{subscriptionError}</p>:!subscription?<p>اشتراک فعال برای این کاربر وجود ندارد.</p>:<>
+            <p>پلن فعلی: {subscription.kind===2?`تعدادی — سهمیه باقی‌مانده ${subscription.availableUnits??0} از ${subscription.invoiceUnitLimit}`:`زمانی — ${subscription.validityDays} روز`}</p>
+            <form onSubmit={adjustSubscription}>
+              <label>{subscription.kind===2?"سهمیه کل جدید":"روز اعتبار جدید"}<input type="number" min={1} required value={subscriptionValue} onChange={e=>setSubscriptionValue(e.target.value)}/></label>
+              <label>علت اصلاح یا لغو<textarea rows={2} maxLength={1000} required value={subscriptionReason} onChange={e=>setSubscriptionReason(e.target.value)}/></label>
+              <button className="users-button" disabled={subscriptionBusy}>{subscriptionBusy?"در حال ثبت…":"اصلاح پلن"}</button>
+              <button type="button" className="users-button" disabled={subscriptionBusy} onClick={openCancellation}>لغو پلن</button>
+          </form>
+          {subscriptionHistory.length > 0 && <ul className="users-owner-history"><li>تاریخچه اصلاح و لغو اشتراک</li>{subscriptionHistory.map(item =>
+            <li key={item.id}>{new Date(item.createdAtUtc).toLocaleString("fa-IR")} — {item.kind===2?"لغو پلن":"اصلاح پلن"} — اثر مالی: {item.negativeGrossIrr.toLocaleString("fa-IR")} ریال — {item.reason}</li>)}</ul>}
+          </>}
+          {!subscriptionLoading && !subscriptionError && !subscription && subscriptionHistory.length > 0 && <ul className="users-owner-history"><li>تاریخچه اصلاح و لغو اشتراک</li>{subscriptionHistory.map(item =>
+            <li key={item.id}>{new Date(item.createdAtUtc).toLocaleString("fa-IR")} — {item.kind===2?"لغو پلن":"اصلاح پلن"} — اثر مالی: {item.negativeGrossIrr.toLocaleString("fa-IR")} ریال — {item.reason}</li>)}</ul>}
+        </section>}
         <p className="field-hint">این پنجره فقط اطلاعات حساب ورود و انتساب تجاری را مدیریت می‌کند؛ سوابق خریدار و مؤدی در بخش مالیاتی مستقل هستند.</p>
       </div>}
       <div className="users-dialog-footer"><button type="button" className="users-button"
         onClick={close}>بستن</button></div>
+    </dialog>
+    <dialog className="users-dialog" ref={cancelDialogRef} dir="rtl">
+      <div className="users-dialog-head"><div><p>لغو اشتراک</p><h2>محاسبه برگشت وجه</h2></div>
+        <button type="button" className="users-dialog-close" onClick={()=>cancelDialogRef.current?.close()} aria-label="بستن">×</button></div>
+      <div className="users-dialog-content">
+        {!cancellationPreview ? <>
+          <p>نوع برگشت را انتخاب کنید:</p>
+          <div className="users-dialog-footer">
+            <button type="button" className="users-button" disabled={subscriptionBusy} onClick={()=>void previewCancellation(false)}>برگشت بر اساس مانده سرویس</button>
+            <button type="button" className="users-button" disabled={subscriptionBusy} onClick={()=>void previewCancellation(true)}>برگشت کامل وجه</button>
+          </div>
+        </> : <>
+          <dl className="users-details">
+            <div><dt>قیمت پلن</dt><dd>{cancellationPreview.originalPriceIrr.toLocaleString("fa-IR")} ریال</dd></div>
+            <div><dt>مقدار کسرشده</dt><dd>{cancellationPreview.deductedIrr.toLocaleString("fa-IR")} ریال</dd></div>
+            <div><dt>مبلغ بازگشت</dt><dd><strong>{cancellationPreview.refundedIrr.toLocaleString("fa-IR")} ریال</strong></dd></div>
+            <div><dt>مانده سرویس</dt><dd>{cancellationPreview.remainingDays!==null?`${cancellationPreview.remainingDays} روز`: `${cancellationPreview.remainingUnits??0} سهمیه`}</dd></div>
+          </dl>
+          <p>{cancellationPreview.fullRefund?"برگشت کامل وجه انتخاب شده است.":"برگشت بر اساس مانده سرویس انتخاب شده است."}</p>
+          <button type="button" className="users-button" disabled={subscriptionBusy} onClick={()=>void previewCancellation(!cancellationPreview.fullRefund)}>تغییر نوع برگشت</button>
+          <label className="users-cancel-reason" htmlFor="cancel-reason">علت لغو<textarea className="users-dialog-textarea" id="cancel-reason" rows={4} maxLength={1000} required value={cancelReason} onChange={e=>setCancelReason(e.target.value)}/></label>
+          <button type="button" className="users-button" disabled={subscriptionBusy||!cancelReason.trim()} onClick={()=>void cancelSubscription()}>تأیید لغو پلن</button>
+          {subscriptionHistory.length > 0 && <ul className="users-owner-history"><li>آخرین سوابق اشتراک</li>{subscriptionHistory.slice(0,5).map(item =>
+            <li key={item.id}>{new Date(item.createdAtUtc).toLocaleString("fa-IR")} — {item.kind===2?"لغو":"اصلاح"} — {item.reason}</li>)}</ul>}
+        </>}
+      </div>
     </dialog>
   </section>;
 }

@@ -24,6 +24,7 @@ public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbConte
     public DbSet<StoredSubscriptionPlan> SubscriptionPlans => Set<StoredSubscriptionPlan>();
     public DbSet<StoredSubscriptionPrice> SubscriptionPrices => Set<StoredSubscriptionPrice>();
     public DbSet<StoredCustomerSubscription> CustomerSubscriptions => Set<StoredCustomerSubscription>();
+    public DbSet<StoredSubscriptionAdjustment> SubscriptionAdjustments => Set<StoredSubscriptionAdjustment>();
     public DbSet<DbSigningKeyEnvelope> DbSigningKeyEnvelopes => Set<DbSigningKeyEnvelope>();
     public DbSet<SigningOperation> SigningOperations => Set<SigningOperation>();
     public DbSet<SigningConsent> SigningConsents => Set<SigningConsent>();

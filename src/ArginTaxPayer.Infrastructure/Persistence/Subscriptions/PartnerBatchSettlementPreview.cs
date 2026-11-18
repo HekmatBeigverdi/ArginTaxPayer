@@ -68,11 +68,12 @@ public sealed partial class PartnerBatchSettlementService
   var totals=await Strings(CandidateSql+"""
  SELECT jsonb_build_object('items','[]'::jsonb,'totalCount',count(*),'page',@page,'pageSize',10,
  'previewFingerprint',md5(COALESCE(string_agg(line::text,'|' ORDER BY id),'')),
- 'totalCollectedIrr',COALESCE(sum(amount_irr-previous_gross),0),'cashIrr',COALESCE(sum(CASE WHEN channel=1 THEN amount_irr-previous_gross ELSE 0 END),0),
+ 'totalCollectedIrr',COALESCE(sum(amount_irr-previous_gross),0)+COALESCE((SELECT SUM(-a.negative_gross_irr) FROM subscription_adjustments a JOIN customer_subscriptions s ON s.id=a.subscription_id WHERE a.kind=2 AND s.root_admin_user_id=@root AND s.partner_user_id=@partner),0),'cashIrr',COALESCE(sum(CASE WHEN channel=1 THEN amount_irr-previous_gross ELSE 0 END),0),
  'bankIrr',COALESCE(sum(CASE WHEN channel=2 THEN amount_irr-previous_gross ELSE 0 END),0),
  'totalCostIrr',COALESCE(sum(cost-previous_cost),0),'rootPaidCostIrr',COALESCE(sum(root_cost-previous_root_cost),0),
- 'totalPartnerShareIrr',COALESCE(sum(partner_share-previous_partner),0),'totalRootShareIrr',COALESCE(sum(root_share-previous_root),0),
- 'netToRootIrr',COALESCE(sum(net-previous_net),0),'missingRateCount',count(*) FILTER(WHERE rate IS NULL),
+ 'totalPartnerShareIrr',COALESCE(sum(partner_share-previous_partner),0)+COALESCE((SELECT SUM(-a.negative_partner_share_irr) FROM subscription_adjustments a JOIN customer_subscriptions s ON s.id=a.subscription_id WHERE a.kind=2 AND s.root_admin_user_id=@root AND s.partner_user_id=@partner),0),
+ 'totalRootShareIrr',COALESCE(sum(root_share-previous_root),0)+COALESCE((SELECT SUM(-a.negative_root_share_irr) FROM subscription_adjustments a JOIN customer_subscriptions s ON s.id=a.subscription_id WHERE a.kind=2 AND s.root_admin_user_id=@root AND s.partner_user_id=@partner),0),
+ 'netToRootIrr',COALESCE(sum(net-previous_net),0)+COALESCE((SELECT SUM(-a.negative_root_share_irr) FROM subscription_adjustments a JOIN customer_subscriptions s ON s.id=a.subscription_id WHERE a.kind=2 AND s.root_admin_user_id=@root AND s.partner_user_id=@partner),0),'missingRateCount',count(*) FILTER(WHERE rate IS NULL),
  'pendingGatewayCount',(SELECT count(*) FROM scoped WHERE channel=3),
  'legacyConflictCount',(SELECT count(*) FROM scoped WHERE legacy_conflict),
  'canRegister',count(*)>0 AND count(*) FILTER(WHERE rate IS NULL OR rate<0 OR rate>10000 OR cost>amount_irr)=0)::text FROM lines

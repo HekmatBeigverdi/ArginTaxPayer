@@ -71,6 +71,20 @@ public sealed class CommercialPendingCashService(ArginTaxPayerDbContext db,
                      SELECT 1 FROM customer_commercial_owners co
                      WHERE co.customer_user_id=o.customer_user_id AND co.root_level1_user_id={2})))
                    OR ({1} AND o.partner_user_id={2}))
+            UNION ALL
+            SELECT a.id AS "OrderId",a.customer_user_id AS "CustomerUserId",s.plan_id AS "PlanId",
+                -a.negative_gross_irr AS "GrossIrr",-a.negative_gross_irr AS "CollectedIrr",
+                a.created_at_utc AS "IssuedAtUtc",'لغو اشتراک' AS "PlanCode",s.kind AS "PlanKind",
+                s.invoice_unit_limit AS "InvoiceUnitLimit",
+                COALESCE(NULLIF(trim(sp.company_name),''),NULLIF(trim(concat_ws(' ',NULLIF(sp.first_name,''),NULLIF(sp.last_name,''))),'')) AS "CustomerDisplayName",
+                COALESCE(u.normalized_email,u.normalized_mobile) AS "CustomerContact",false AS "IsActivated",
+                pu.id AS "PartnerUserId",COALESCE(pu.normalized_email,pu.normalized_mobile) AS "PartnerDisplayName"
+            FROM subscription_adjustments a JOIN customer_subscriptions s ON s.id=a.subscription_id
+            JOIN identity_users u ON u.id=a.customer_user_id
+            LEFT JOIN software_user_profiles sp ON sp.user_id=u.id
+            LEFT JOIN identity_users pu ON pu.id=s.partner_user_id
+            WHERE a.kind=2 AND (NOT {3} OR (a.created_at_utc>={4} AND a.created_at_utc<={5}))
+              AND (({0} AND s.root_admin_user_id={2}) OR ({1} AND s.partner_user_id={2}))
             """;
 
     private async Task<(Guid Actor,bool Level1,bool Level2)> RequireAdminAsync(string? bearer,CancellationToken ct)

@@ -17,47 +17,100 @@ public sealed partial class EfSigningOperationRepository
     {
         var actor = await identity.CurrentUserIdAsync(bearer, ct);
         if (actor is null) return null;
-        var scope = new SigningScope(actor.Value, taxpayerId, memoryId);
+        var owner = await CustomerOwnerAsync(taxpayerId, ct);
+        if (owner is null) return null;
+        var scope = new SigningScope(owner.Value, taxpayerId, memoryId);
         return await AuthorizeAsync(bearer, scope, true, ct) is not null ? actor : null;
     }
 
-    // Owner-only, including for administrators: commercial scope is not custody permission.
+    // Reads and mutations use the same customer scope; Level 1 and assigned
+    // Level 2 administrators are authorized through AuthorizeAsync.
     public async Task<SigningImportOnboardingState> ReadImportOnboardingAsync(string? bearer,
         Guid taxpayerId, Guid memoryId, CancellationToken ct = default)
     {
         var actor = await identity.CurrentUserIdAsync(bearer, ct);
         if (actor is null) return new(SigningGenerationStatus.Unauthenticated);
-        var scope = new SigningScope(actor.Value, taxpayerId, memoryId);
+        var owner = await CustomerOwnerAsync(taxpayerId, ct);
+        if (owner is null) return new(SigningGenerationStatus.NotFound);
+        var scope = new SigningScope(owner.Value, taxpayerId, memoryId);
         if (await AuthorizeAsync(bearer, scope, true, ct) is null)
             return new(SigningGenerationStatus.Forbidden);
         var fresh = await RecentLoginAsync(bearer, actor.Value, DateTime.UtcNow, ct) is not null;
         var key = await db.SigningKeyVersions.AsNoTracking()
-            .Where(k => k.CustomerUserId == actor.Value && k.TaxpayerId == taxpayerId && k.FiscalMemoryId == memoryId)
+            .Where(k => k.CustomerUserId == owner.Value && k.TaxpayerId == taxpayerId && k.FiscalMemoryId == memoryId)
             .Where(k => k.LifecycleState == 2 || k.LifecycleState == 4)
             .OrderByDescending(k => k.VersionNumber).FirstOrDefaultAsync(ct);
         // Recover a claimed operation after a refresh/timeout; never allocate a replacement.
         var pendingKey = await db.SigningKeyVersions.AsNoTracking()
-            .Where(k => k.CustomerUserId == actor.Value && k.TaxpayerId == taxpayerId &&
+            .Where(k => k.CustomerUserId == owner.Value && k.TaxpayerId == taxpayerId &&
                 k.FiscalMemoryId == memoryId && k.LifecycleState == 1)
             .OrderByDescending(k => k.VersionNumber).FirstOrDefaultAsync(ct);
         var originId = pendingKey?.OriginOperationRecordId;
         var operation = pendingKey is null ? null : await db.SigningOperations.AsNoTracking()
-            .Where(o => o.CustomerUserId == actor.Value && o.TaxpayerId == taxpayerId &&
+            .Where(o => o.CustomerUserId == owner.Value && o.TaxpayerId == taxpayerId &&
                 o.FiscalMemoryId == memoryId && o.Id == originId)
             .OrderByDescending(o => o.CreatedAtUtc).FirstOrDefaultAsync(ct);
         var recoveryAvailable = pendingKey is not null &&
             operation is { State: 5, OperationKind: 2, SafeErrorCode: "PROVIDER_OUTCOME_UNKNOWN" } &&
             await db.DbSigningKeyEnvelopes.AsNoTracking().AnyAsync(e =>
-                e.KeyVersionId == pendingKey.Id && e.CustomerUserId == actor.Value &&
+                e.KeyVersionId == pendingKey.Id && e.CustomerUserId == owner.Value &&
                 e.TaxpayerId == taxpayerId && e.FiscalMemoryId == memoryId &&
                 e.OriginOperationRecordId == operation.Id, ct);
         var replacementApproved = key is { LifecycleState: 2 or 4 } &&
             await db.SigningChangeRequests.AsNoTracking().AnyAsync(r =>
-                r.CustomerUserId == actor.Value && r.TaxpayerId == taxpayerId &&
+                r.CustomerUserId == owner.Value && r.TaxpayerId == taxpayerId &&
                 r.FiscalMemoryId == memoryId && (r.Kind == 2 || r.Kind == 3) && r.State == 2 &&
                 r.CurrentKeyVersionId == key.Id && r.ExpectedKeyRevision == key.Revision &&
                 r.ExpiresAtUtc > DateTime.UtcNow &&
                 r.ConsumedAtUtc == null && r.ConsumedByOperationRecordId == null, ct);
+        return new(SigningGenerationStatus.Replayed, fresh, operation?.OperationKind == 2 ? operation.OperationId : null,
+            key is not null, key?.PublicFingerprintSha256, key?.LifecycleState,
+            recoveryAvailable, replacementApproved,
+            operation is { OperationKind: 1, State: 5 } ? operation.OperationId : null);
+    }
+
+    // Read-only status is also shown while an administrator is inspecting a
+    // customer's taxpayer. Resolve the customer owner first, then authorize the
+    // current actor against that owner. Mutating/import flows keep using the
+    // owner-only method above.
+    public async Task<SigningImportOnboardingState> ReadImportOnboardingForViewerAsync(
+        string? bearer, Guid taxpayerId, Guid memoryId, CancellationToken ct = default)
+    {
+        var actor = await identity.CurrentUserIdAsync(bearer, ct);
+        if (actor is null) return new(SigningGenerationStatus.Unauthenticated);
+        var owner = await CustomerOwnerAsync(taxpayerId, ct);
+        if (owner is null) return new(SigningGenerationStatus.NotFound);
+        var scope = new SigningScope(owner.Value, taxpayerId, memoryId);
+        if (await AuthorizeAsync(bearer, scope, false, ct) is null)
+            return new(SigningGenerationStatus.Forbidden);
+
+        var fresh = await RecentLoginAsync(bearer, actor.Value, DateTime.UtcNow, ct) is not null;
+        var key = await db.SigningKeyVersions.AsNoTracking()
+            .Where(k => k.CustomerUserId == owner.Value && k.TaxpayerId == taxpayerId && k.FiscalMemoryId == memoryId)
+            .Where(k => k.LifecycleState == 2 || k.LifecycleState == 4)
+            .OrderByDescending(k => k.VersionNumber).FirstOrDefaultAsync(ct);
+        var pendingKey = await db.SigningKeyVersions.AsNoTracking()
+            .Where(k => k.CustomerUserId == owner.Value && k.TaxpayerId == taxpayerId &&
+                k.FiscalMemoryId == memoryId && k.LifecycleState == 1)
+            .OrderByDescending(k => k.VersionNumber).FirstOrDefaultAsync(ct);
+        var originId = pendingKey?.OriginOperationRecordId;
+        var operation = pendingKey is null ? null : await db.SigningOperations.AsNoTracking()
+            .Where(o => o.CustomerUserId == owner.Value && o.TaxpayerId == taxpayerId &&
+                o.FiscalMemoryId == memoryId && o.Id == originId)
+            .OrderByDescending(o => o.CreatedAtUtc).FirstOrDefaultAsync(ct);
+        var recoveryAvailable = pendingKey is not null &&
+            operation is { State: 5, OperationKind: 2, SafeErrorCode: "PROVIDER_OUTCOME_UNKNOWN" } &&
+            await db.DbSigningKeyEnvelopes.AsNoTracking().AnyAsync(e =>
+                e.KeyVersionId == pendingKey.Id && e.CustomerUserId == owner.Value &&
+                e.TaxpayerId == taxpayerId && e.FiscalMemoryId == memoryId &&
+                e.OriginOperationRecordId == operation.Id, ct);
+        var replacementApproved = key is { LifecycleState: 2 or 4 } &&
+            await db.SigningChangeRequests.AsNoTracking().AnyAsync(r =>
+                r.CustomerUserId == owner.Value && r.TaxpayerId == taxpayerId &&
+                r.FiscalMemoryId == memoryId && (r.Kind == 2 || r.Kind == 3) && r.State == 2 &&
+                r.CurrentKeyVersionId == key.Id && r.ExpectedKeyRevision == key.Revision &&
+                r.ExpiresAtUtc > DateTime.UtcNow && r.ConsumedAtUtc == null &&
+                r.ConsumedByOperationRecordId == null, ct);
         return new(SigningGenerationStatus.Replayed, fresh, operation?.OperationKind == 2 ? operation.OperationId : null,
             key is not null, key?.PublicFingerprintSha256, key?.LifecycleState,
             recoveryAvailable, replacementApproved,

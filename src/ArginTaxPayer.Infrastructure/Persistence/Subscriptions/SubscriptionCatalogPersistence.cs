@@ -46,6 +46,27 @@ public sealed class StoredCustomerSubscription
     public long Revision { get; set; } = 1;
 }
 
+public enum SubscriptionAdjustmentKind { Revision = 1, Cancellation = 2 }
+
+public sealed class StoredSubscriptionAdjustment
+{
+    public Guid Id { get; set; }
+    public Guid CustomerUserId { get; set; }
+    public Guid SubscriptionId { get; set; }
+    public Guid ActorUserId { get; set; }
+    public string OperationKey { get; set; } = "";
+    public SubscriptionAdjustmentKind Kind { get; set; }
+    public int? PreviousValidityDays { get; set; }
+    public int? NewValidityDays { get; set; }
+    public long? PreviousInvoiceUnitLimit { get; set; }
+    public long? NewInvoiceUnitLimit { get; set; }
+    public long NegativeGrossIrr { get; set; }
+    public long NegativePartnerShareIrr { get; set; }
+    public long NegativeRootShareIrr { get; set; }
+    public string Reason { get; set; } = "";
+    public DateTime CreatedAtUtc { get; set; }
+}
+
 public static class SubscriptionCatalogConfiguration
 {
     public static void Apply(ModelBuilder modelBuilder)
@@ -98,6 +119,28 @@ public static class SubscriptionCatalogConfiguration
         sub.HasOne<StoredSubscriptionPlan>().WithMany().HasForeignKey(x => x.PlanId).OnDelete(DeleteBehavior.Restrict);
         sub.HasOne<StoredSubscriptionPrice>().WithMany().HasForeignKey(x => x.PriceVersionId).OnDelete(DeleteBehavior.Restrict);
         sub.HasIndex(x => new { x.CustomerUserId, x.PurchasedAtUtc });
+
+        var adjustment = modelBuilder.Entity<StoredSubscriptionAdjustment>();
+        adjustment.ToTable("subscription_adjustments");
+        adjustment.HasKey(x => x.Id);
+        adjustment.Property(x => x.Id).HasColumnName("id");
+        adjustment.Property(x => x.CustomerUserId).HasColumnName("customer_user_id");
+        adjustment.Property(x => x.SubscriptionId).HasColumnName("subscription_id");
+        adjustment.Property(x => x.ActorUserId).HasColumnName("actor_user_id");
+        adjustment.Property(x => x.OperationKey).HasColumnName("operation_key").HasMaxLength(160).IsRequired();
+        adjustment.Property(x => x.Kind).HasColumnName("kind").HasConversion<int>();
+        adjustment.Property(x => x.PreviousValidityDays).HasColumnName("previous_validity_days");
+        adjustment.Property(x => x.NewValidityDays).HasColumnName("new_validity_days");
+        adjustment.Property(x => x.PreviousInvoiceUnitLimit).HasColumnName("previous_invoice_unit_limit");
+        adjustment.Property(x => x.NewInvoiceUnitLimit).HasColumnName("new_invoice_unit_limit");
+        adjustment.Property(x => x.NegativeGrossIrr).HasColumnName("negative_gross_irr");
+        adjustment.Property(x => x.NegativePartnerShareIrr).HasColumnName("negative_partner_share_irr");
+        adjustment.Property(x => x.NegativeRootShareIrr).HasColumnName("negative_root_share_irr");
+        adjustment.Property(x => x.Reason).HasColumnName("reason").HasMaxLength(1000).IsRequired();
+        adjustment.Property(x => x.CreatedAtUtc).HasColumnName("created_at_utc").HasColumnType("timestamp with time zone");
+        adjustment.HasIndex(x => x.OperationKey).IsUnique();
+        adjustment.HasIndex(x => new { x.CustomerUserId, x.CreatedAtUtc });
+        adjustment.HasOne<StoredCustomerSubscription>().WithMany().HasForeignKey(x => x.SubscriptionId).OnDelete(DeleteBehavior.Restrict);
     }
 }
 

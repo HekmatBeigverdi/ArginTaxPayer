@@ -2693,13 +2693,13 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
-                    b.Property<Guid>("CustomerUserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("customer_user_id");
-
                     b.Property<Guid?>("CurrentMemoryId")
                         .HasColumnType("uuid")
                         .HasColumnName("current_memory_id");
+
+                    b.Property<Guid>("CustomerUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("customer_user_id");
 
                     b.Property<string>("DecisionReason")
                         .HasMaxLength(1000)
@@ -2824,6 +2824,85 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
                     b.HasIndex("CustomerUserId", "PurchasedAtUtc");
 
                     b.ToTable("customer_subscriptions", (string)null);
+                });
+
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Subscriptions.StoredSubscriptionAdjustment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ActorUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_user_id");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<Guid>("CustomerUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("customer_user_id");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("integer")
+                        .HasColumnName("kind");
+
+                    b.Property<long>("NegativeGrossIrr")
+                        .HasColumnType("bigint")
+                        .HasColumnName("negative_gross_irr");
+
+                    b.Property<long>("NegativePartnerShareIrr")
+                        .HasColumnType("bigint")
+                        .HasColumnName("negative_partner_share_irr");
+
+                    b.Property<long>("NegativeRootShareIrr")
+                        .HasColumnType("bigint")
+                        .HasColumnName("negative_root_share_irr");
+
+                    b.Property<long?>("NewInvoiceUnitLimit")
+                        .HasColumnType("bigint")
+                        .HasColumnName("new_invoice_unit_limit");
+
+                    b.Property<int?>("NewValidityDays")
+                        .HasColumnType("integer")
+                        .HasColumnName("new_validity_days");
+
+                    b.Property<string>("OperationKey")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)")
+                        .HasColumnName("operation_key");
+
+                    b.Property<long?>("PreviousInvoiceUnitLimit")
+                        .HasColumnType("bigint")
+                        .HasColumnName("previous_invoice_unit_limit");
+
+                    b.Property<int?>("PreviousValidityDays")
+                        .HasColumnType("integer")
+                        .HasColumnName("previous_validity_days");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("reason");
+
+                    b.Property<Guid>("SubscriptionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("subscription_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OperationKey")
+                        .IsUnique();
+
+                    b.HasIndex("SubscriptionId");
+
+                    b.HasIndex("CustomerUserId", "CreatedAtUtc");
+
+                    b.ToTable("subscription_adjustments", (string)null);
                 });
 
             modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Subscriptions.StoredSubscriptionPlan", b =>
@@ -3119,25 +3198,17 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("authority_environment");
 
-                    b.Property<DateTime?>("LastConnectionTestAtUtc")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("last_connection_test_at_utc");
-
-                    b.Property<bool?>("LastConnectionTestSucceeded")
-                        .HasColumnType("boolean")
-                        .HasColumnName("last_connection_test_succeeded");
-
-                    b.Property<DateTime?>("LastConnectionTestAtUtc")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("last_connection_test_at_utc");
-
-                    b.Property<bool?>("LastConnectionTestSucceeded")
-                        .HasColumnType("boolean")
-                        .HasColumnName("last_connection_test_succeeded");
-
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at_utc");
+
+                    b.Property<DateTime?>("LastConnectionTestAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_connection_test_at_utc");
+
+                    b.Property<bool?>("LastConnectionTestSucceeded")
+                        .HasColumnType("boolean")
+                        .HasColumnName("last_connection_test_succeeded");
 
                     b.Property<string>("MemoryIdentifier")
                         .IsRequired()
@@ -3178,8 +3249,6 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
                     b.ToTable("fiscal_memories", null, t =>
                         {
                             t.HasCheckConstraint("ck_fiscal_memories_authority_environment", "authority_environment IS NULL OR authority_environment IN (1, 2)");
-
-                            t.HasCheckConstraint("ck_fiscal_memories_connection_test", "(last_connection_test_succeeded IS NULL AND last_connection_test_at_utc IS NULL) OR (last_connection_test_succeeded IS NOT NULL AND last_connection_test_at_utc IS NOT NULL)");
 
                             t.HasCheckConstraint("ck_fiscal_memories_connection_test", "(last_connection_test_succeeded IS NULL AND last_connection_test_at_utc IS NULL) OR (last_connection_test_succeeded IS NOT NULL AND last_connection_test_at_utc IS NOT NULL)");
 
@@ -3978,6 +4047,15 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
                     b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Subscriptions.StoredSubscriptionPrice", null)
                         .WithMany()
                         .HasForeignKey("PriceVersionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Subscriptions.StoredSubscriptionAdjustment", b =>
+                {
+                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Subscriptions.StoredCustomerSubscription", null)
+                        .WithMany()
+                        .HasForeignKey("SubscriptionId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

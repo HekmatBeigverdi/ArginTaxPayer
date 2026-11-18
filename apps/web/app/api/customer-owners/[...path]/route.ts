@@ -14,7 +14,10 @@ async function handle(req: NextRequest, ctx: Context, method: "GET" | "POST") {
     method === "GET" && path.length === 2 && uuid.test(path[0]) && path[1] === "taxpayers" ||
     method === "GET" && path.length === 1 && uuid.test(path[0]) ||
     method === "GET" && path.length === 2 && uuid.test(path[0]) && path[1] === "history" ||
-    method === "POST" && path.length === 2 && uuid.test(path[0]) && path[1] === "transfer";
+    method === "GET" && path.length === 2 && uuid.test(path[0]) && path[1] === "subscription-adjustment" ||
+    method === "GET" && path.length === 3 && uuid.test(path[0]) && path[1] === "subscription-adjustment" && path[2] === "history" ||
+    method === "POST" && path.length === 3 && uuid.test(path[0]) && path[1] === "subscription-cancellation" && path[2] === "preview" ||
+    method === "POST" && path.length === 2 && uuid.test(path[0]) && ["transfer", "subscription-adjustment", "subscription-cancellation"].includes(path[1]);
   if (!valid) return error(404);
   if (method === "POST" && !isSameLocalOrigin(req.headers.get("origin"),
       req.headers.get("host"), req.nextUrl.protocol)) return error(403);

@@ -76,9 +76,13 @@ function getOtpError(status: number, error?: string) {
     : "کد تأیید اشتباه یا منقضی شده است.";
 }
 
-function getPasswordError(status: number) {
+function getPasswordError(status: number, error?: string) {
   if (status === 429) {
     return "تعداد تلاش‌ها بیش از حد مجاز است؛ بعداً دوباره امتحان کنید.";
+  }
+
+  if (status >= 500 || error === "identity_service_unavailable") {
+    return "ارتباط با سرور برقرار نشد؛ وضعیت API یا اتصال شبکه را بررسی کنید.";
   }
 
   return "نام کاربری یا رمز عبور نادرست است.";
@@ -289,9 +293,15 @@ export default function IdentityFlow({ restrictedLogin = false,onVisualStateChan
           setError(MFA_NOT_CONFIGURED_MESSAGE);
           return;
         }
+
+        if (challengeResponse.response.status >= 500) {
+          setError(getPasswordError(challengeResponse.response.status,
+            challengeResponse.result.error));
+          return;
+        }
       }
 
-      setError(getPasswordError(response.status));
+      setError(getPasswordError(response.status, result.error));
     } catch {
       setError("ارتباط با سرور برقرار نشد؛ وضعیت API را بررسی کنید.");
     } finally {

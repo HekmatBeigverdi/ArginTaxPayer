@@ -25,7 +25,9 @@ public sealed partial class EfSigningOperationRepository : ISigningKeyMatchJourn
     {
         var actor = await identity.CurrentUserIdAsync(bearer, ct);
         if (actor is null) return SigningKeyMatchStatus.Unauthenticated;
-        var scope = new SigningScope(actor.Value, request.TaxpayerId, request.FiscalMemoryId);
+        var owner = await CustomerOwnerAsync(request.TaxpayerId, ct);
+        if (owner is null) return SigningKeyMatchStatus.NotFound;
+        var scope = new SigningScope(owner.Value, request.TaxpayerId, request.FiscalMemoryId);
         if (await AuthorizeAsync(bearer, scope, true, ct) is null ||
             await RecentLoginAsync(bearer, actor.Value, DateTime.UtcNow, ct) is null)
             return SigningKeyMatchStatus.Forbidden;
@@ -39,7 +41,9 @@ public sealed partial class EfSigningOperationRepository : ISigningKeyMatchJourn
         if (actorId is null) return new(SigningKeyMatchStatus.Unauthenticated);
         if (!SigningOperationPolicy.ValidFingerprint(providedFingerprint) || request.ExpectedRevision is < 1 or >= long.MaxValue - 1)
             return new(SigningKeyMatchStatus.Invalid);
-        var scope = new SigningScope(actorId.Value, request.TaxpayerId, request.FiscalMemoryId);
+        var owner = await CustomerOwnerAsync(request.TaxpayerId, ct);
+        if (owner is null) return new(SigningKeyMatchStatus.NotFound);
+        var scope = new SigningScope(owner.Value, request.TaxpayerId, request.FiscalMemoryId);
         KeyMatchTicket? ticket = null;
         var result = await WriteAsync(bearer, scope, request.KeyVersionId, async (actor, now) =>
         {

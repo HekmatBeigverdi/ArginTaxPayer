@@ -144,6 +144,7 @@ if (operationalEndpointsEnabled)
     builder.Services.AddScoped<ArginTaxPayer.Infrastructure.Persistence.Subscriptions.PartnerRevenueLedgerReadService>();
     builder.Services.AddScoped<ArginTaxPayer.Infrastructure.Persistence.Subscriptions.CommercialReceivableReadService>();
     builder.Services.AddScoped<ArginTaxPayer.Infrastructure.Persistence.Subscriptions.SubscriptionPlanAdministrationService>();
+    builder.Services.AddScoped<ArginTaxPayer.Infrastructure.Persistence.Subscriptions.SubscriptionAdjustmentService>();
     builder.Services.AddScoped<ArginTaxPayer.Infrastructure.Persistence.Subscriptions.SubscriptionPriceAdministrationService>();
     builder.Services.AddScoped<ArginTaxPayer.Infrastructure.Persistence.Subscriptions.SmsWalletService>();
     builder.Services.AddScoped<ArginTaxPayer.Infrastructure.Persistence.Subscriptions.SmsCreditService>();
@@ -416,6 +417,7 @@ if (operationalEndpointsEnabled)
         app.MapPhase12ActivationEndpoints();
         app.MapPhase12CustomerFinanceEndpoints();
         app.MapPhase12CustomerOverviewEndpoints();
+        app.MapPhase12SubscriptionAdjustmentEndpoints();
         app.MapPhase12CustomerCheckoutEndpoints();
         app.MapPhase12PendingCashEndpoints();
         app.MapPhase12CheckoutTaxEndpoints();
