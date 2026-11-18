@@ -44,6 +44,14 @@ function UsersActionIcon({ kind }: { kind: "add" | "refresh" }) {
   </svg>;
 }
 
+function ActionIcon({ kind }: { kind: "add" | "refresh" }) {
+  return kind === "add" ? <svg className="users-action-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+    <path d="M12 5v14M5 12h14" />
+  </svg> : <svg className="users-action-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+    <path d="M20 11a8 8 0 0 0-14.8-4L3 10M3 5v5h5M4 13a8 8 0 0 0 14.8 4L21 14m0 5v-5h-5" />
+  </svg>;
+}
+
 export default function UsersWorkspace({ level1 }: { level1: boolean }) {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [total, setTotal] = useState(0);
@@ -292,10 +300,10 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
         <p>هر ردیف صرفاً یک حساب ورود نرم‌افزار است؛ خریداران و مؤدیان در فهرست مالیاتی مستقل مدیریت می‌شوند.</p></div>
       <div className="users-toolbar-actions">
         <button type="button" className="users-button users-button--icon" disabled={loading} onClick={() => void refresh()}>
-          <UsersActionIcon kind="refresh" />بازخوانی کاربران
+          <ActionIcon kind="refresh" />بازخوانی کاربران
         </button>
         <button type="button" className="identity-primary users-button--icon" onClick={openCreate}>
-          <UsersActionIcon kind="add" />ثبت کاربر جدید
+          <ActionIcon kind="add" />ثبت کاربر جدید
         </button>
       </div>
     </div>
