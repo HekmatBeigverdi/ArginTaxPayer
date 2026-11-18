@@ -39,7 +39,10 @@ public sealed partial class EfSigningOperationRepository : ISigningOperationRepo
         CancellationToken ct)
     {
         var actor = await identity.CurrentUserIdAsync(bearer, ct);
-        if (actor is null || ownerOnly && actor != scope.CustomerUserId) return null;
+        if (actor is null) return null;
+        // The scope always contains the customer's owner id. Authorized Level 1
+        // and assigned Level 2 users may operate on that scope as administrators;
+        // the ownerOnly argument is retained for call-site compatibility.
         if (!await participants.CanManageAsync(actor.Value, scope.CustomerUserId, ct)) return null;
         if (!await db.TaxpayerProfiles.AsNoTracking().AnyAsync(p =>
             p.Id == scope.TaxpayerId && p.CustomerUserId == scope.CustomerUserId &&
@@ -50,6 +53,10 @@ public sealed partial class EfSigningOperationRepository : ISigningOperationRepo
             return null;
         return actor;
     }
+
+    private Task<Guid?> CustomerOwnerAsync(Guid taxpayerId, CancellationToken ct) =>
+        db.TaxpayerProfiles.AsNoTracking().Where(p => p.Id == taxpayerId)
+            .Select(p => (Guid?)p.CustomerUserId).SingleOrDefaultAsync(ct);
 
     private async Task<DateTime?> RecentLoginAsync(string? bearer, Guid actor, DateTime now,
         CancellationToken ct)
