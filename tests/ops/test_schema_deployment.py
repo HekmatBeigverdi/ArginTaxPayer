@@ -241,6 +241,29 @@ class SchemaDeploymentTests(unittest.TestCase):
                 self.assertEqual(self.database_calls, [])
                 path.write_bytes(original)
 
+    def test_reviewed_catalog_migration_requires_exact_approval_and_active_database(self):
+        current = self.current_release_with_migrations()
+        self.applied = self.expected.copy()
+        self.expected = self.expected + list(h.CATALOG_RECOVERY_MIGRATIONS)
+        (self.release / 'api/schema/migrations.json').write_text(json.dumps(self.expected))
+        approval = self.root / 'recovery-migration-approved'
+        self.db.identity = lambda: 'recovery_abcdef123456|argin_prod_app|true'
+        with patch.object(h, 'RECOVERY_MIGRATION_APPROVAL', approval), \
+             patch.object(h, 'BACKUPS', self.root / 'backups'):
+            for target, sha in [('recovery_000000000000', self.release.name),
+                                ('recovery_abcdef123456', 'b' * 40)]:
+                approval.write_text(f'{target}\n{sha}\n')
+                approval.chmod(0o600)
+                with self.assertRaisesRegex(h.Refused, 'approval does not match'):
+                    self.run_reviewed_release(current)
+                self.assertEqual(self.database_calls, [])
+            approval.write_text(f'recovery_abcdef123456\n{self.release.name}\n')
+            self.assertTrue(self.run_reviewed_release(current))
+            self.assertEqual(self.events, ['stop', 'backup', 'apply'])
+            self.events.clear()
+            self.assertFalse(self.run_reviewed_release(current))
+            self.assertEqual(self.events, [])
+
     def test_reviewed_recovery_requires_a_current_release_for_comparison(self):
         selection, state_dir, _ = self.reviewed_recovery_fixture()
         with patch.object(h, 'ACTIVE_BACKUP_DB', selection), \
