@@ -14,9 +14,9 @@ export function middleware(request: NextRequest) {
   if (publicPage && (method === "GET" || method === "HEAD"))
     return NextResponse.next();
 
-  const identityRead = new Set(["me", "mfa/status"]);
+  const identityRead = new Set(["me", "mfa/status", "activity"]);
   const identityWrite = new Set([
-    "login", "logout", "refresh", "mfa/challenge", "mfa/complete"
+    "login", "logout", "refresh", "activity", "mfa/challenge", "mfa/complete"
   ]);
   if (path.startsWith("/api/identity/")) {
     const operation = path.slice("/api/identity/".length);

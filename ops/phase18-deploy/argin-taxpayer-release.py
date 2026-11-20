@@ -401,6 +401,11 @@ ACTIVE_BACKUP_DB = Path('/etc/argintaxpayer/backup-db.env')
 RECOVERY_STATE_DIR = Path('/var/lib/argintaxpayer/backup-controller')
 ROOT_UID = 0
 BACKUP_KEY = Path('/etc/argintaxpayer/migration-backup.key')
+RECOVERY_MIGRATION_APPROVAL = Path('/etc/argintaxpayer/recovery-migration-approved')
+CATALOG_RECOVERY_MIGRATIONS = (
+    '20261120120000_AddCatalogOfficialCode',
+    '20261120195140_RemoveCatalogOfficialMappings',
+)
 
 
 def read_regular_file(path, max_bytes, owner_uid, mode):
@@ -495,7 +500,7 @@ def pending_migrations(expected, applied):
     return expected[len(applied):]
 
 
-def migration_config():
+def migration_config(recovery_database=None):
     trusted(MIGRATION_CONFIG)
     if MIGRATION_CONFIG.stat().st_mode & 0o077:
         raise Refused('Migration credentials must be readable only by root')
@@ -532,6 +537,15 @@ def migration_config():
            {'Host': '127.0.0.1', 'Port': '15434', 'Database': 'argintaxpayer_prod',
             'Username': 'argin_prod_app', 'SSL Mode': 'VerifyFull'}.items()):
         raise Refused('API is not using the dedicated production database')
+    if recovery_database is not None:
+        if (not re.fullmatch(r'recovery_[a-f0-9]{12}', recovery_database)
+                or not re.fullmatch(r"[A-Za-z0-9+/=_-]+", fields.get('Password', ''))
+                or connection[0].count('Password=') != 1):
+            raise Refused('Cannot safely read the restored database owner credentials')
+        # The restore worker loads the archive as argin_prod_app, making that
+        # role the owner of the restored objects. The original DB is never targeted here.
+        values.update(PGDATABASE=recovery_database, PGUSER='argin_prod_app',
+                      PGPASSWORD=fields['Password'])
     return values
 
 
@@ -576,7 +590,8 @@ class MigrationDatabase:
             raise Refused('Backup encryption key must be private to root')
         # Unnamed temporary file, verified before encryption; never a plaintext archive path.
         with tempfile.TemporaryFile(dir=BACKUPS) as dump:
-            self.command('pg_dump', '--format=custom', '--no-owner', '--no-acl', '--schema=public',
+            scope = () if self.configuration['PGDATABASE'].startswith('recovery_') else ('--schema=public',)
+            self.command('pg_dump', '--format=custom', '--no-owner', '--no-acl', *scope,
                          stdout=dump, stderr=subprocess.PIPE)
             if dump.tell() < 16:
                 raise Refused('Database backup is empty')
@@ -623,15 +638,31 @@ def migrate_release(release, database=None, stop=stop_services, restart=restart_
                 or current_sql.stat().st_size > 32 * 1024 * 1024
                 or current_sql.stat().st_size == 0):
             raise Refused('Current release migration artifacts exceed limits')
-        if (manifest.read_bytes() != current_manifest.read_bytes()
-                or sql.read_bytes() != current_sql.read_bytes()):
+        if (manifest.read_bytes() == current_manifest.read_bytes()
+                and sql.read_bytes() == current_sql.read_bytes()):
+            print(f'[PASS] Restored database {selected_database} was reviewed; migration artifacts are unchanged.', flush=True)
+            return False
+        baseline = migration_manifest(current_manifest)
+        if expected != baseline + list(CATALOG_RECOVERY_MIGRATIONS):
             raise Refused('Reviewed restored database migration target differs from the current release')
-        print(f'[PASS] Restored database {selected_database} was reviewed; migration artifacts are unchanged.', flush=True)
-        return False
-    database = database or MigrationDatabase(migration_config())
-    if database.identity() != 'argintaxpayer_prod|argin_prod_migrator|true':
+        trusted(RECOVERY_MIGRATION_APPROVAL.parent, directory=True)
+        approval = read_regular_file(RECOVERY_MIGRATION_APPROVAL, 256, ROOT_UID, 0o600)
+        if approval.splitlines() != [selected_database, validate_sha(release.name)]:
+            raise Refused('Restored database migration approval does not match the active database and release')
+    if database is None:
+        database = MigrationDatabase(migration_config(selected_database))
+    identity = (f'{selected_database}|argin_prod_app|true' if selected_database
+                else 'argintaxpayer_prod|argin_prod_migrator|true')
+    if database.identity() != identity:
         raise Refused('Unexpected actual migration database, role or TLS state')
-    pending = pending_migrations(expected, database.applied())
+    def check_pending():
+        applied = database.applied()
+        pending = pending_migrations(expected, applied)
+        if selected_database is not None and applied[:len(baseline)] != baseline:
+            raise Refused('Restored database is missing migrations from the active release')
+        return pending
+
+    pending = check_pending()
     if not pending:
         print('[PASS] Database already matches release migration manifest', flush=True)
         return False
@@ -644,7 +675,9 @@ def migrate_release(release, database=None, stop=stop_services, restart=restart_
     try:
         stop()
         # Recheck after stopping writers; the release-wide flock serializes deploys.
-        pending_migrations(expected, database.applied())
+        if selected_database is not None and reviewed_recovery_selection() != selected_database:
+            raise Refused('Active restored database changed before migration')
+        check_pending()
         database.backup(backup)
         database.apply(sql)
         if database.applied() != expected:

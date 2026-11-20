@@ -58,3 +58,11 @@ The policy is used through legacy Sandbox serial reservation, preparation, armin
 - Dual-authority tests cover hosted policy exclusions and persisted operation routing. Provider acceptance still requires an explicitly authorized invoice and actual official inquiry; offline checks do not prove authority acceptance.
 
 Final checks: 1,615 .NET tests passed (55 optional integration/service tests skipped), 746 web tests passed, and focused Python deployment tests passed. TypeScript typecheck passed. Independent read-only code review found two deployment boundary issues; both were corrected and re-reviewed.
+
+## Catalog release on an active restored database
+
+The recovery path accepts only the two catalog migrations following the exact migration history of the currently deployed release. It uses the owner of the restored objects (`argin_prod_app`) over the verified production TLS endpoint and checks the actual database name and role before applying SQL. It backs up all schemas in the selected database. The original production database and the restore selection stay in place.
+
+On the Ubuntu host, install the release helper from a clean checkout of the reviewed source using `scripts/phase18-install-deploy-helper.sh --install <reviewed-source-SHA> --replace-helper-sha256 <installed-helper-hash>`. Obtain the installed hash with `sha256sum /usr/local/sbin/argin-taxpayer-release`. After merging, place exactly two lines in root-owned, mode-0600 `/etc/argintaxpayer/recovery-migration-approved`: the active recovery database name and the full **merged release SHA**, in that order. Approve the GitHub deployment for that SHA. The approval is scoped to that database and SHA, including retries.
+
+Before approval, rehearse with a restored copy and confirm the old mappings, new identifiers and product totals. After promotion, verify that the new catalog and invoice lookup work, and that both migration history entries exist. Record the encrypted pre-migration backup location. Application rollback alone cannot restore the removed mapping table. If recovery is needed after SQL committed, stop writers and use the encrypted backup via the reviewed restore procedure. Once the deployment is verified, remove the scoped approval file.

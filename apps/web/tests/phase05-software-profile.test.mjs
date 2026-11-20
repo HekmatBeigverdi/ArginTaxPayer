@@ -1,7 +1,57 @@
 import {test} from "node:test";
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
+import {renderToStaticMarkup} from "react-dom/server";
+import {loadTsx} from "./helpers/load-tsx.mjs";
 const read=p=>readFileSync(new URL("../"+p,import.meta.url),"utf8");
+
+test("account menu shows the company in bold and reflects a saved personal name", async () => {
+ const state = [];
+ const effects = [];
+ const events = new EventTarget();
+ let index = 0;
+ const userId = "ebd197b6-1234-1234-1234-123456789abc";
+ const Shell = loadTsx(new URL("../app/components/console-shell.tsx", import.meta.url), {
+  globals: {
+   process, AbortController, window: events,
+   fetch: async () => Response.json({ complete: true, companyName: "شرکت نمونه", firstName: "علی", lastName: "رضایی" }),
+  },
+  modules: {
+   react: {
+    useState(initial) {
+     const slot = index++;
+     return [state[slot] ?? initial, value => {
+      state[slot] = typeof value === "function" ? value(state[slot]) : value;
+     }];
+    },
+    useEffect: callback => effects.push(callback),
+    useRef: current => ({ current }),
+   },
+   "next/navigation": { usePathname: () => "/dashboard", useRouter: () => ({}) },
+   "next/link": { default: () => null },
+   "next/image": { default: () => null },
+   "./subscription-status": { default: () => null },
+   "./console-loader": { default: () => null },
+  },
+ }).default;
+ const render = () => {
+  index = 0;
+  return Shell({ roles: ["Customer"], userId, children: null });
+ };
+ render();
+ const stop = effects[1]();
+ await new Promise(setImmediate);
+ state[0] = true;
+ const company = renderToStaticMarkup(render());
+ assert.match(company, /<strong><bdi>شرکت نمونه<\/bdi><\/strong>/);
+ assert.doesNotMatch(company, /شناسه حساب|ebd197b6/);
+
+ const saved = new Event("argin:software-profile-saved");
+ saved.detail = { complete: true, companyName: " ", firstName: "علی", lastName: "رضایی" };
+ events.dispatchEvent(saved);
+ assert.match(renderToStaticMarkup(render()), /<strong><bdi>علی رضایی<\/bdi><\/strong>/);
+ stop?.();
+});
 test("profile is independent from buyers and taxpayers and gate requires completed profile",()=>{
  const gate=read("app/components/console-shell.tsx");
  const profile=read("app/account/software-profile-form.tsx");
@@ -53,7 +103,7 @@ test("profile and security routes are isolated and have compact separate surface
 test("profile completion gate does not re-check or flash on every page navigation",()=>{
  const gate=read("app/components/console-shell.tsx");
  const form=read("app/account/software-profile-form.tsx");
- assert.match(gate,/\[userId, requiresProfile, profileRetry\]/);
+ assert.match(gate,/\[userId, requiresProfile, profileRetry, dashboardOnly\]/);
  assert.doesNotMatch(gate,/\[pathname, roles\.join/);
  assert.match(gate,/profileState === "checking"/);
  assert.match(gate,/profileState === "error"/);

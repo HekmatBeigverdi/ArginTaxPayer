@@ -11,53 +11,50 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropTable(
-                name: "catalog_official_mappings");
+            migrationBuilder.Sql("""
+                LOCK TABLE customer_catalog_items, catalog_official_mappings IN SHARE ROW EXCLUSIVE MODE;
+
+                WITH codes AS (
+                    SELECT m.item_id,
+                           count(DISTINCT e.code) FILTER (
+                               WHERE m.effective_from_utc <= now()
+                                 AND (m.effective_to_utc IS NULL OR m.effective_to_utc > now())
+                           ) AS active_count,
+                           min(e.code) FILTER (
+                               WHERE m.effective_from_utc <= now()
+                                 AND (m.effective_to_utc IS NULL OR m.effective_to_utc > now())
+                           ) AS active_code,
+                           count(DISTINCT e.code) AS historical_count,
+                           min(e.code) AS historical_code
+                    FROM catalog_official_mappings m
+                    JOIN official_goods_service_entries e ON e.id = m.official_entry_id
+                    WHERE e.code ~ '^[0-9]{13}$'
+                    GROUP BY m.item_id
+                )
+                UPDATE customer_catalog_items item
+                SET official_code = CASE WHEN codes.active_count = 1 THEN codes.active_code
+                                         ELSE codes.historical_code END
+                FROM codes
+                WHERE item.id = codes.item_id AND item.official_code IS NULL
+                  AND (codes.active_count = 1 OR
+                       (codes.active_count = 0 AND codes.historical_count = 1));
+
+                DO $catalog$
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM catalog_official_mappings m
+                        JOIN customer_catalog_items item ON item.id = m.item_id
+                        WHERE item.official_code IS NULL
+                    ) THEN
+                        RAISE EXCEPTION 'Catalog migration stopped: a mapped item has no unambiguous 13-digit identifier';
+                    END IF;
+                END $catalog$;
+                """);
+
+            migrationBuilder.DropTable(name: "catalog_official_mappings");
         }
 
-        /// <inheritdoc />
-        protected override void Down(MigrationBuilder migrationBuilder)
-        {
-            migrationBuilder.CreateTable(
-                name: "catalog_official_mappings",
-                columns: table => new
-                {
-                    id = table.Column<Guid>(type: "uuid", nullable: false),
-                    effective_from_utc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    effective_to_utc = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
-                    item_id = table.Column<Guid>(type: "uuid", nullable: false),
-                    official_entry_id = table.Column<Guid>(type: "uuid", nullable: false),
-                    revision = table.Column<long>(type: "bigint", nullable: false, defaultValue: 1L)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_catalog_official_mappings", x => x.id);
-                    table.CheckConstraint("ck_catalog_mapping_interval", "effective_to_utc IS NULL OR effective_to_utc > effective_from_utc");
-                    table.CheckConstraint("ck_catalog_mapping_revision", "revision > 0");
-                    table.ForeignKey(
-                        name: "FK_catalog_official_mappings_customer_catalog_items_item_id",
-                        column: x => x.item_id,
-                        principalTable: "customer_catalog_items",
-                        principalColumn: "id",
-                        onDelete: ReferentialAction.Restrict);
-                    table.ForeignKey(
-                        name: "FK_catalog_official_mappings_official_goods_service_entries_of~",
-                        column: x => x.official_entry_id,
-                        principalTable: "official_goods_service_entries",
-                        principalColumn: "id",
-                        onDelete: ReferentialAction.Restrict);
-                });
-
-            migrationBuilder.CreateIndex(
-                name: "IX_catalog_official_mappings_official_entry_id",
-                table: "catalog_official_mappings",
-                column: "official_entry_id");
-
-            migrationBuilder.CreateIndex(
-                name: "ux_catalog_mapping_item_from",
-                table: "catalog_official_mappings",
-                columns: new[] { "item_id", "effective_from_utc" },
-                unique: true);
-        }
+        protected override void Down(MigrationBuilder migrationBuilder) =>
+            throw new NotSupportedException("Restore mapping history from the pre-migration backup.");
     }
 }

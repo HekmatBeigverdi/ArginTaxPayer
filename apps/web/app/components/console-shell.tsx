@@ -7,8 +7,15 @@ import Image from "next/image";
 import ConsoleLoader from "./console-loader";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { trackSessionActivity } from "../../lib/session-activity";
 
 type Item = { title: string; path: string; glyph: string };
+type ProfileIdentity = {
+  complete: boolean;
+  firstName?: string;
+  lastName?: string;
+  companyName?: string | null;
+};
 const base: Item[] = [
   { title: "داشبورد", path: "/dashboard", glyph: "▦" },
   { title: "خریداران و مؤدیان", path: "/parties", glyph: "♧" },
@@ -27,6 +34,8 @@ export default function ConsoleShell({ roles, userId, dashboardOnly = false, chi
   const [exiting, setExiting] = useState(false);
   const [profileState, setProfileState] = useState<"checking" | "complete" | "incomplete" | "error">("checking");
   const [profileRetry, setProfileRetry] = useState(0);
+  const [accountName, setAccountName] = useState("");
+  const [sessionBlocked, setSessionBlocked] = useState(false);
   const [newVersion, setNewVersion] = useState("");
   const appVersion = process.env.NEXT_PUBLIC_APP_VERSION || "development";
   const menuRef = useRef<HTMLDivElement>(null);
@@ -53,34 +62,44 @@ export default function ConsoleShell({ roles, userId, dashboardOnly = false, chi
   // Read the verified profile once per signed-in user (or explicit retry), NOT once
   // per navigation. Route changes must never reset a completed profile to checking.
   useEffect(() => {
-    if (!requiresProfile) { setProfileState("complete"); return; }
+    setAccountName("");
+    if (!requiresProfile) setProfileState("complete");
+    if (dashboardOnly) return;
+
     const controller = new AbortController();
-    setProfileState("checking");
+    if (requiresProfile) setProfileState("checking");
+
+    function updateProfile(data: ProfileIdentity) {
+      const fullName = [data.firstName?.trim(), data.lastName?.trim()].filter(Boolean).join(" ");
+      setAccountName(data.companyName?.trim() || fullName);
+      if (requiresProfile) setProfileState(data.complete ? "complete" : "incomplete");
+    }
+
+    function onSaved(event: Event) {
+      const detail = (event as CustomEvent<ProfileIdentity>).detail;
+      if (typeof detail?.complete !== "boolean") return;
+      controller.abort();
+      updateProfile(detail);
+    }
+
+    window.addEventListener("argin:software-profile-saved", onSaved);
     fetch("/api/software-profile/me", { cache: "no-store", signal: controller.signal })
       .then(async response => {
         if (!response.ok) throw new Error("profile_unavailable");
-        const data = await response.json() as { complete?: boolean };
+        const data = await response.json() as ProfileIdentity;
         if (typeof data.complete !== "boolean") throw new Error("invalid_profile_response");
-        if (!controller.signal.aborted) setProfileState(data.complete ? "complete" : "incomplete");
+        if (!controller.signal.aborted) updateProfile(data);
       })
       .catch(() => {
-        if (!controller.signal.aborted) setProfileState("error");
+        if (requiresProfile && !controller.signal.aborted) setProfileState("error");
       });
-    return () => controller.abort();
-  }, [userId, requiresProfile, profileRetry]);
+    return () => {
+      controller.abort();
+      window.removeEventListener("argin:software-profile-saved", onSaved);
+    };
+  }, [userId, requiresProfile, profileRetry, dashboardOnly]);
 
-  // The profile form publishes this only after a successful authenticated PUT.
-  // No extra redirect or refetch is needed after saving a completed profile.
-  useEffect(() => {
-    function onSaved(event: Event) {
-      const detail = (event as CustomEvent<{ complete: boolean }>).detail;
-      if (typeof detail?.complete === "boolean") {
-        setProfileState(detail.complete ? "complete" : "incomplete");
-      }
-    }
-    window.addEventListener("argin:software-profile-saved", onSaved);
-    return () => window.removeEventListener("argin:software-profile-saved", onSaved);
-  }, [userId]);
+  useEffect(() => trackSessionActivity(() => router.replace("/identity"), setSessionBlocked), [router, userId]);
 
   useEffect(() => {
     let active = true;
@@ -127,7 +146,10 @@ export default function ConsoleShell({ roles, userId, dashboardOnly = false, chi
   }
   const activeName = [...navigation, ...accountNavigation]
     .find(n => pathname === n.path || pathname.startsWith(n.path + "/"))?.title ?? "پنل";
-  return <div className="app-shell argin-console" dir="rtl" lang="fa">
+  return <>
+    {sessionBlocked && <ConsoleLoader label="در حال بررسی نشست…" />}
+    <div className="app-shell argin-console" dir="rtl" lang="fa"
+      style={sessionBlocked ? { display: "none" } : undefined}>
     <aside className="app-sidebar">
       <Link href="/dashboard" onClick={() => { if (pathname !== "/dashboard") setNavigatingTo("/dashboard"); }} className="app-brand"><Image className="argin-brand-logo argin-sidebar-logo" src="/brand/argin-logo.png" width={46} height={46} alt="نشان آرگین" priority unoptimized />
         <span><strong>آرگین</strong><small>سامانه یکپارچه مؤدیان</small></span></Link>
@@ -160,7 +182,7 @@ export default function ConsoleShell({ roles, userId, dashboardOnly = false, chi
               <span aria-hidden="true">⌄</span>
             </button>
             {menuOpen && <div className="console-account-dropdown" role="menu" aria-label="حساب کاربری">
-              <p className="console-menu-identity">شناسه حساب <bdi dir="ltr">{userId.slice(0, 8)}…</bdi></p>
+              {accountName && <p className="console-menu-identity"><strong><bdi>{accountName}</bdi></strong></p>}
               {!dashboardOnly && <>
               <Link role="menuitem" href="/profile" onClick={() => setMenuOpen(false)}>پروفایل و حساب من</Link>
               <Link role="menuitem" href="/account" onClick={() => setMenuOpen(false)}>حساب و امنیت</Link></>}
@@ -201,5 +223,5 @@ export default function ConsoleShell({ roles, userId, dashboardOnly = false, chi
         {navigatingTo && <ConsoleLoader full label="در حال انتقال به بخش انتخاب‌شده…" />}
       </div>
     </div>
-  </div>;
+  </div></>;
 }

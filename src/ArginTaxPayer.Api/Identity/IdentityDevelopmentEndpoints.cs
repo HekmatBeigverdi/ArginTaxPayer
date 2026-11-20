@@ -86,6 +86,20 @@ public static class IdentityDevelopmentEndpoints
             return tokens is null ? Results.Unauthorized() : Results.Ok(tokens);
         });
 
+        group.MapMethods("/activity", ["GET", "POST"], async (
+            HttpContext http, IdentitySessionService sessions, CancellationToken ct) =>
+        {
+            if (!IsLoopback(http)) return Results.NotFound();
+            http.Response.Headers.CacheControl = "no-store";
+            var token = ReadBearer(http);
+            var expiry = HttpMethods.IsPost(http.Request.Method)
+                ? await sessions.ExtendSessionAsync(token, ct)
+                : await sessions.GetSessionExpiryAsync(token, ct);
+            return expiry is { } value
+                ? Results.Ok(new { expiresInMs = Math.Max(0, (value - DateTime.UtcNow).TotalMilliseconds) })
+                : Results.Unauthorized();
+        });
+
         group.MapPost("/logout", async (
             HttpContext http,
             IdentitySessionService sessions,

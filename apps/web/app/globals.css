@@ -151,7 +151,10 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 .console-account-dropdown{position:absolute;top:calc(100% + 12px);left:0;width:260px;max-width:85vw;padding:9px;background:white;border:1px solid var(--argin-line);box-shadow:0 18px 50px #15374f22;border-radius:14px;z-index:35}
 .console-account-dropdown>a,.console-account-dropdown>button{display:block;width:100%;border:0;border-radius:9px;padding:11px 12px;background:none;font:inherit;color:#24445b;text-align:right;text-decoration:none;font-size:13px;cursor:pointer}
 .console-account-dropdown>a:hover,.console-account-dropdown>button:hover{background:#eaf6f4}
-.console-account-dropdown>button{color:#b23838;font-weight:700}.console-menu-identity{padding:9px 12px;font-size:11px;color:var(--argin-muted);margin:0}.console-menu-divider{height:1px;background:var(--argin-line);margin:7px 0}
+.console-account-dropdown>button{color:#b23838;font-weight:700}
+.console-menu-identity{margin:0 0 6px;padding:10px 12px 12px;border-bottom:1px solid var(--argin-line);color:var(--argin-text);font-size:15px;line-height:1.5;text-align:center;overflow-wrap:anywhere}
+.console-menu-identity strong{font-weight:800}
+.console-menu-divider{height:1px;background:var(--argin-line);margin:7px 0}
 .console-page-heading{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:18px}.console-page-heading h1{font-size:24px;margin:0 0 6px;color:#20344b}.console-page-heading p:last-child{margin:0;color:var(--argin-muted);font-size:13px}
 .console-account-actions .console-account-dropdown{direction:rtl}
 .about-page{max-width:1180px;margin:0 auto;padding:8px 0 28px;color:var(--argin-text)}
@@ -549,7 +552,8 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 .console-catalog-page .catalog-split-layout .catalog-table{min-width:640px;width:100%;table-layout:auto}
 .console-catalog-page .catalog-split-layout .catalog-table th,
 .console-catalog-page .catalog-split-layout .catalog-table td{text-align:center;overflow-wrap:normal;word-break:normal;white-space:nowrap}
-.console-catalog-page .catalog-split-layout .catalog-table .catalog-title-cell{min-width:150px;white-space:nowrap;overflow-wrap:anywhere}
+.console-catalog-page .catalog-split-layout .catalog-table .catalog-title-cell{min-width:150px;white-space:normal;overflow-wrap:anywhere}
+.console-catalog-page .catalog-split-layout .catalog-table .catalog-title-cell{white-space:nowrap}
 .catalog-item-title{vertical-align:middle}
 .catalog-item-kind{display:inline-block;margin-inline-start:8px;padding:2px 7px;border-radius:999px;background:#eef5f8;color:#466276;font-size:10px;vertical-align:middle}
 .console-catalog-page .catalog-split-layout .catalog-table th:last-child{width:1%}
