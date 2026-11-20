@@ -9,14 +9,12 @@ const allowed = [
   /^units$/,
   /^customers\/[0-9a-f-]{36}\/(products|services)$/,
   /^customers\/[0-9a-f-]{36}\/(products|services)\/[0-9a-f-]{36}$/,
-  /^customers\/[0-9a-f-]{36}\/items\/[0-9a-f-]{36}\/tax-mappings$/,
-  /^customers\/[0-9a-f-]{36}\/tax-mappings\/[0-9a-f-]{36}\/close$/,
 ];
 function verifyRoute(path: string, method: string): boolean {
   if (!allowed.some(rule => rule.test(path))) return false;
-  if (method === "GET") return !path.endsWith("/close");
-  if (method === "POST") return path !== "official" && path !== "units" && !path.endsWith("/close");
-  if (method === "PUT") return /\/(products|services)\/[0-9a-f-]{36}$/.test(path) || path.endsWith("/close");
+  if (method === "GET") return true;
+  if (method === "POST") return path !== "official" && path !== "units";
+  if (method === "PUT") return /\/(products|services)\/[0-9a-f-]{36}$/.test(path);
   return false;
 }
 async function handle(request: NextRequest, segments: string[], method: string) {

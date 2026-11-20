@@ -13,11 +13,11 @@ const dispatch=readFileSync("../../src/ArginTaxPayer.Api/Invoices/Phase10Invoice
 
 test("internal product code and official 13-digit sstid remain distinct",()=>{
   assert.match(catalog,/کد داخلی \(صرفاً شناسه داخل نرم‌افزار/);
-  assert.match(catalog,/نگاشت شناسه رسمی/);
+  assert.match(catalog,/شناسه رسمی ۱۳ رقمی/);
+  assert.doesNotMatch(catalog,/tax-mappings|اعتبار نگاشت/);
   assert.match(entry,/OfficialIdentifierSnapshot/);
-  assert.match(entry,/line\.OfficialIdentifierSnapshot is \{ Length: 13 \} supplied/);
-  assert.match(entry,/supplied\.All\(char\.IsAsciiDigit\)/);
-  assert.match(entry,/previous\?\.OfficialIdentifierSnapshot/);
+  assert.match(entry,/previous\?\.OfficialIdentifierSnapshot \?\? item\.OfficialCode/);
+  assert.match(entry,/c\.OfficialCode/);
   assert.match(entry,/CatalogCodeSnapshot = code/);
   assert.match(entry,/OfficialIdentifierSnapshot = officialCode/);
   assert.match(ui,/officialIdentifierSnapshot:r\.officialIdentifierSnapshot\?\?null/);

@@ -9,11 +9,11 @@ namespace ArginTaxPayer.Api.Catalog;
 public static class CatalogDevelopmentEndpoints
 {
     public sealed record ProductWrite(string InternalCode, string Title,
-        CatalogItemKind Kind, Guid BaseUnitId, long ExpectedRevision = 0, bool Discontinue = false);
+        CatalogItemKind Kind, Guid BaseUnitId, long ExpectedRevision = 0, bool Discontinue = false,
+        string? OfficialCode = null);
     public sealed record ServiceWrite(string InternalCode, string Title,
-        Guid BaseUnitId, long ExpectedRevision = 0, bool Discontinue = false);
-    public sealed record MappingWrite(Guid? OfficialEntryId, string? OfficialCode, DateTime EffectiveFromUtc,
-        DateTime? EffectiveToUtc = null);
+        Guid BaseUnitId, long ExpectedRevision = 0, bool Discontinue = false,
+        string? OfficialCode = null);
 
     private static bool Local(HttpContext http) => http.Connection.RemoteIpAddress is { } ip &&
         (IPAddress.IsLoopback(ip) || ip.IsIPv4MappedToIPv6 && IPAddress.IsLoopback(ip.MapToIPv4()));
@@ -45,19 +45,6 @@ public static class CatalogDevelopmentEndpoints
             CustomerServiceDecision.Conflict => Results.Conflict(new { error = "service_conflict" }),
             _ when create => Results.Created($"/api/dev/catalog/customers/{result.Service!.CustomerUserId}/services/{result.Service.Id}", result.Service),
             _ => Results.Ok(result.Service)
-        };
-    private static IResult Status(TaxMappingResult result, bool create = false) =>
-        result.Decision switch
-        {
-            TaxMappingDecision.Unauthenticated => Results.Unauthorized(),
-            TaxMappingDecision.Forbidden => Results.StatusCode(403),
-            TaxMappingDecision.NotFound => Results.NotFound(),
-            TaxMappingDecision.Invalid or TaxMappingDecision.WrongKind or
-                TaxMappingDecision.UnverifiedOfficialCode => Results.BadRequest(new { error = result.Decision.ToString() }),
-            TaxMappingDecision.Conflict or TaxMappingDecision.Overlap =>
-                Results.Conflict(new { error = result.Decision.ToString() }),
-            _ when create => Results.Created($"/api/dev/catalog/mappings/{result.Mapping!.Id}", result.Mapping),
-            _ => Results.Ok(result.Mapping)
         };
     private static IResult Page<T>(CatalogPage<T> result) =>
         result.Decision switch
@@ -100,7 +87,7 @@ public static class CatalogDevelopmentEndpoints
             if (input is null || input.ExpectedRevision != 0 || input.Discontinue)
                 return Results.BadRequest(new { error = "invalid_create" });
             return Status(await svc.CreateAsync(Token(http), customerId,
-                new CatalogProductInput(input.InternalCode, input.Title, input.Kind, input.BaseUnitId), ct), true);
+                new CatalogProductInput(input.InternalCode, input.Title, input.Kind, input.BaseUnitId, input.OfficialCode), ct), true);
         });
         group.MapGet("/customers/{customerId:guid}/products/{id:guid}", async (
             Guid customerId, Guid id, HttpContext http, CustomerProductService svc, CancellationToken ct) =>
@@ -115,7 +102,7 @@ public static class CatalogDevelopmentEndpoints
             if (!Local(http)) return Results.NotFound();
             if (input is null) return Results.BadRequest(new { error = "invalid_update" });
             return Status(await svc.UpdateAsync(Token(http), customerId, id, input.ExpectedRevision,
-                new CatalogProductInput(input.InternalCode, input.Title, input.Kind, input.BaseUnitId),
+                new CatalogProductInput(input.InternalCode, input.Title, input.Kind, input.BaseUnitId, input.OfficialCode),
                 input.Discontinue, ct));
         });
 
@@ -134,7 +121,7 @@ public static class CatalogDevelopmentEndpoints
             if (input is null || input.ExpectedRevision != 0 || input.Discontinue)
                 return Results.BadRequest(new { error = "invalid_create" });
             return Status(await svc.CreateAsync(Token(http), customerId,
-                new CatalogServiceInput(input.InternalCode, input.Title, input.BaseUnitId), ct), true);
+                new CatalogServiceInput(input.InternalCode, input.Title, input.BaseUnitId, input.OfficialCode), ct), true);
         });
         group.MapGet("/customers/{customerId:guid}/services/{id:guid}", async (
             Guid customerId, Guid id, HttpContext http, CustomerServiceCatalogService svc, CancellationToken ct) =>
@@ -149,47 +136,10 @@ public static class CatalogDevelopmentEndpoints
             if (!Local(http)) return Results.NotFound();
             if (input is null) return Results.BadRequest(new { error = "invalid_update" });
             return Status(await svc.UpdateAsync(Token(http), customerId, id, input.ExpectedRevision,
-                new CatalogServiceInput(input.InternalCode, input.Title, input.BaseUnitId),
+                new CatalogServiceInput(input.InternalCode, input.Title, input.BaseUnitId, input.OfficialCode),
                 input.Discontinue, ct));
         });
 
-        group.MapGet("/customers/{customerId:guid}/items/{itemId:guid}/tax-mappings", async (
-            Guid customerId, Guid itemId, HttpContext http,
-            TaxIdentifierMappingService svc, CancellationToken ct) =>
-        {
-            if (!Local(http)) return Results.NotFound();
-            var (decision, history) = await svc.HistoryAsync(Token(http), customerId, itemId, ct);
-            return decision switch
-            {
-                TaxMappingDecision.Success => Results.Ok(history),
-                TaxMappingDecision.Unauthenticated => Results.Unauthorized(),
-                TaxMappingDecision.Forbidden => Results.StatusCode(403),
-                TaxMappingDecision.NotFound => Results.NotFound(),
-                _ => Results.BadRequest(new { error = decision.ToString() })
-            };
-        });
-        group.MapPost("/customers/{customerId:guid}/items/{itemId:guid}/tax-mappings", async (
-            Guid customerId, Guid itemId, [FromBody] MappingWrite input,
-            HttpContext http, TaxIdentifierMappingService svc, CancellationToken ct) =>
-        {
-            if (!Local(http)) return Results.NotFound();
-            if (input is null) return Results.BadRequest(new { error = "invalid_mapping" });
-            var result = input.OfficialEntryId is { } officialEntryId
-                ? await svc.AssignAsync(Token(http), customerId, itemId,
-                    officialEntryId, input.EffectiveFromUtc, input.EffectiveToUtc, ct)
-                : await svc.AssignManualCodeAsync(Token(http), customerId, itemId,
-                    input.OfficialCode, input.EffectiveFromUtc, input.EffectiveToUtc, ct);
-            return Status(result, true);
-        });
-        group.MapPut("/customers/{customerId:guid}/tax-mappings/{mappingId:guid}/close", async (
-            Guid customerId, Guid mappingId, [FromQuery] long expectedRevision,
-            [FromQuery] DateTime closedAtUtc, HttpContext http,
-            TaxIdentifierMappingService svc, CancellationToken ct) =>
-        {
-            if (!Local(http)) return Results.NotFound();
-            return Status(await svc.CloseAsync(Token(http), customerId, mappingId,
-                expectedRevision, closedAtUtc, ct));
-        });
         return routes;
     }
 }

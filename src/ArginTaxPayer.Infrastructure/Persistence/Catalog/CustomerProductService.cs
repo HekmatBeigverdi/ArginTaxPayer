@@ -17,7 +17,8 @@ public sealed class CustomerProductService(ArginTaxPayerDbContext db, IdentityAu
 {
     private static CustomerProductView Map(CustomerCatalogItem item) =>
         new(item.Id, item.CustomerUserId, item.InternalCode, item.Title,
-            (CatalogItemKind)item.Kind, item.BaseUnitId, (CatalogItemStatus)item.Status, item.Revision);
+            (CatalogItemKind)item.Kind, item.BaseUnitId, (CatalogItemStatus)item.Status, item.Revision,
+            item.OfficialCode);
 
     private Task<bool> HasScopeAsync(Guid actor, Guid customer, CancellationToken ct) =>
         db.IdentityUsers.AsNoTracking().AnyAsync(user => user.Id == actor && user.IsActive &&
@@ -63,6 +64,7 @@ public sealed class CustomerProductService(ArginTaxPayerDbContext db, IdentityAu
                 var item = new CustomerCatalogItem {
                     Id = Guid.NewGuid(), CustomerUserId = customerId,
                     InternalCode = clean.InternalCode, Title = clean.Title,
+                    OfficialCode = clean.OfficialCode,
                     Kind = (int)clean.Kind, BaseUnitId = clean.BaseUnitId,
                     Status = (int)CatalogItemStatus.Active, Revision = 1,
                     CreatedAtUtc = now, UpdatedAtUtc = now
@@ -152,6 +154,7 @@ public sealed class CustomerProductService(ArginTaxPayerDbContext db, IdentityAu
                 if (!discontinue)
                 {
                     item.InternalCode = clean.InternalCode;
+                    item.OfficialCode = clean.OfficialCode;
                     item.Title = clean.Title;
                     item.BaseUnitId = clean.BaseUnitId;
                 }

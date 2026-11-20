@@ -64,17 +64,18 @@ public sealed class Phase06CustomerServiceTests
     }
 
     [Fact]
-    public void Service_shares_customer_unique_code_namespace_and_restrictive_foreign_keys()
+    public void Service_shares_customer_code_namespace_without_requiring_unique_internal_codes()
     {
         using var db = new ArginTaxPayerDbContext(
             new DbContextOptionsBuilder<ArginTaxPayerDbContext>()
                 .UseNpgsql("Host=localhost;Database=never_used;Username=never_used;Password=never_used").Options);
         var model = db.Model.FindEntityType(typeof(CustomerCatalogItem))!;
         Assert.Equal("customer_catalog_items", model.GetTableName());
-        Assert.Contains(model.GetIndexes(), idx => idx.IsUnique &&
+        Assert.Contains(model.GetIndexes(), idx => !idx.IsUnique &&
             idx.Properties.Select(p => p.Name).SequenceEqual(
                 new[] { nameof(CustomerCatalogItem.CustomerUserId),
                         nameof(CustomerCatalogItem.InternalCode) }));
+        Assert.Equal(13, model.FindProperty(nameof(CustomerCatalogItem.OfficialCode))!.GetMaxLength());
         Assert.True(model.FindProperty(nameof(CustomerCatalogItem.Revision))!.IsConcurrencyToken);
         Assert.All(model.GetForeignKeys(), fk => Assert.Equal(DeleteBehavior.Restrict, fk.DeleteBehavior));
     }

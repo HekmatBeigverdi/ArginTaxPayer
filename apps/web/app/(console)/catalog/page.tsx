@@ -9,7 +9,7 @@ export default async function CatalogPage() {
     <div className="console-page-heading">
       <div><p className="app-kicker">اطلاعات پایه · کاتالوگ مشتری</p>
         <h1>کالاها و خدمات</h1>
-        <p>تعاریف اختصاصی مشتری، واحدها و نگاشت شناسه مالیاتی</p>
+        <p>تعاریف کالا و خدمات با شناسه رسمی ۱۳ رقمی و کد داخلی</p>
       </div>
     </div>
     <CatalogWorkspace actorId={actor.userId}

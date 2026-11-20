@@ -45,6 +45,17 @@ public sealed class Phase06CustomerProductTests
     }
 
     [Fact]
+    public void Stores_a_separate_thirteen_digit_official_code_and_allows_repeated_internal_codes()
+    {
+        var input = Input("REBAR") with { OfficialCode = "2710000113478" };
+        Assert.True(CustomerProductPolicy.TryValidate(input, out var normalized));
+        Assert.Equal("REBAR", normalized!.InternalCode);
+        Assert.Equal("2710000113478", normalized.OfficialCode);
+        Assert.False(CustomerProductPolicy.TryValidate(input with { OfficialCode = "123" }, out _));
+        Assert.False(CustomerProductPolicy.TryValidate(input with { OfficialCode = "۲۷۱۰۰۰۰۱۱۳۴۷۸" }, out _));
+    }
+
+    [Fact]
     public void Discontinued_item_is_historical_and_not_editable()
     {
         Assert.True(CustomerProductPolicy.CanEdit(CatalogItemStatus.Active));
@@ -54,17 +65,18 @@ public sealed class Phase06CustomerProductTests
     }
 
     [Fact]
-    public void Database_guards_customer_uniqueness_revision_and_foreign_keys()
+    public void Database_allows_repeated_customer_codes_and_guards_official_code_revision_and_foreign_keys()
     {
         using var db = new ArginTaxPayerDbContext(new DbContextOptionsBuilder<ArginTaxPayerDbContext>()
             .UseNpgsql("Host=localhost;Database=never_used;Username=never_used;Password=never_used").Options);
         var item = db.Model.FindEntityType(typeof(CustomerCatalogItem))!;
         Assert.Equal("customer_catalog_items", item.GetTableName());
         Assert.True(item.FindProperty(nameof(CustomerCatalogItem.Revision))!.IsConcurrencyToken);
-        Assert.Contains(item.GetIndexes(), x => x.IsUnique &&
+        Assert.Contains(item.GetIndexes(), x => !x.IsUnique &&
             x.Properties.Select(p => p.Name).SequenceEqual(
                 new[] { nameof(CustomerCatalogItem.CustomerUserId),
                         nameof(CustomerCatalogItem.InternalCode) }));
+        Assert.Equal(13, item.FindProperty(nameof(CustomerCatalogItem.OfficialCode))!.GetMaxLength());
         Assert.All(item.GetForeignKeys(), fk => Assert.Equal(DeleteBehavior.Restrict, fk.DeleteBehavior));
     }
 }
