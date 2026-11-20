@@ -42,6 +42,8 @@ async function catalogCall(path: string, method = "GET", body?: object) {
     title?: string; detail?: string; errors?: Record<string, string[]>;
   };
   if (response.status === 401) throw new Error("نشست منقضی شده است؛ دوباره وارد شوید.");
+  if (result.error === "origin_not_allowed")
+    throw new Error("آدرس مرورگر برای ثبت تغییرات معتبر نیست. پنل را از آدرس رسمی سامانه باز کنید.");
   if (response.status === 403) throw new Error("مجوز دسترسی به اطلاعات این مشتری را ندارید.");
   if (response.status === 404) throw new Error("مسیر یا رکورد پیدا نشد؛ محیط توسعه را بررسی کنید.");
   const validation = Object.values(result.errors ?? {}).flat().filter(Boolean).join(" ");

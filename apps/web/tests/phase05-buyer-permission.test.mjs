@@ -2,8 +2,67 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { canRegisterParticipant } from "../app/parties/participant-access.mjs";
+import { loadTsx } from "./helpers/load-tsx.mjs";
 
 const read = path => readFileSync(new URL("../" + path, import.meta.url), "utf8");
+
+test("customer buyer registration waits for the profile and uses the authenticated owner's ID", async () => {
+  const actorUserId = "12345678-1234-1234-1234-123456789abc";
+  const modal = () => null;
+  let resolveProfile;
+  const profile = new Promise(resolve => { resolveProfile = resolve; });
+  const state = [];
+  let index = 0;
+  const Directory = loadTsx(new URL("../app/parties/buyer-taxpayer-directory.tsx", import.meta.url), {
+    globals: {
+      fetch: async url => {
+        assert.equal(url, "/api/software-profile/me");
+        return profile;
+      },
+    },
+    modules: {
+      "./participant-registration-modal": { default: modal, __esModule: true },
+      "./fiscal-record-modal": { default: () => null, __esModule: true },
+      react: {
+        useState(initial) {
+          const slot = index++;
+          return [state[slot] ?? initial, value => { state[slot] = value; }];
+        },
+        useRef: value => ({ current: value }),
+        useEffect: () => {},
+        useCallback: callback => callback,
+      },
+    },
+  }).default;
+  function find(node, predicate) {
+    if (!node || typeof node !== "object") return undefined;
+    if (predicate(node)) return node;
+    for (const child of Array.isArray(node) ? node : [node.props?.children]) {
+      const found = find(child, predicate);
+      if (found) return found;
+    }
+  }
+  const props = { admin: false, level1: false, actorUserId };
+  function render() {
+    index = 0;
+    return Directory(props);
+  }
+  const buyerButton = node => node.type === "button" && node.props.children === "+ افزودن خریدار";
+  const button = find(render(), buyerButton);
+  assert.ok(button);
+  button.props.onClick();
+  assert.equal(find(render(), node => node.type === modal), undefined);
+  assert.equal(find(render(), buyerButton).props.disabled, true);
+
+  resolveProfile(Response.json({ firstName: "Test", lastName: "Customer", complete: true }));
+  await new Promise(setImmediate);
+  const registration = find(render(), node => node.type === modal);
+  assert.ok(registration);
+  assert.equal(registration.props.buyers.length, 1);
+  assert.equal(registration.props.buyers[0].customerUserId, actorUserId);
+  assert.equal(canRegisterParticipant(registration.props.buyers[0]), true);
+  assert.equal(registration.props.initialCustomerId, actorUserId);
+});
 
 test("actor identity reaches buyer registration modal from authenticated server page", () => {
   const page = read("app/(console)/parties/page.tsx");

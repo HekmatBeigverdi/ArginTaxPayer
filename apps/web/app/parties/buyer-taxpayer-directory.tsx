@@ -44,6 +44,7 @@ export default function BuyerTaxpayerDirectory({ admin, level1, actorUserId }: {
   const [customerFilter, setCustomerFilter] = useState("");
   const [selectedRecord, setSelectedRecord] = useState<Row | null>(null);
   const [registerMode, setRegisterMode] = useState<"buyer" | "seller" | null>(null);
+  const [registrationPending, setRegistrationPending] = useState(false);
   const [filter, setFilter] = useState<"all" | "buyer" | "taxpayer">("all");
   const [kind, setKind] = useState("all");
   const [query, setQuery] = useState("");
@@ -73,17 +74,6 @@ export default function BuyerTaxpayerDirectory({ admin, level1, actorUserId }: {
         ownerName: item.customerUserId
       })));
       setTotal(fiscal.total);
-      if (!admin) {
-        const mine = await get<{ customerUserId: string; displayName: string | null }>(
-          "/api/party-workspace/mine");
-        const ownProfile = await get<{ firstName: string; lastName: string; companyName: string | null; complete: boolean }>("/api/software-profile/me");
-        if (version !== requestVersion.current) return;
-        setBuyers([{ customerUserId: mine.customerUserId, mobile: null,
-          email: null, isActive: true, taxpayerCount: 0, profileComplete: ownProfile.complete,
-          personName: [ownProfile.firstName, ownProfile.lastName].filter(Boolean).join(" "),
-          companyName: ownProfile.companyName,
-          rootLevel1UserId: null, partnerLevel2UserId: null }]);
-      }
     } catch (e) {
       if (version === requestVersion.current) {
         setError((e as Error).message); setRows([]); setTotal(0);
@@ -94,7 +84,7 @@ export default function BuyerTaxpayerDirectory({ admin, level1, actorUserId }: {
         setRefreshedAt(new Date().toLocaleTimeString("fa-IR"));
       }
     }
-  }, [admin, page, pageSize, query, filter, kind, customerFilter]);
+  }, [page, pageSize, query, filter, kind, customerFilter]);
   useEffect(() => {
     void reload();
     return () => { requestVersion.current++; };
@@ -116,16 +106,29 @@ export default function BuyerTaxpayerDirectory({ admin, level1, actorUserId }: {
   const shown = rows;
 
   async function startRegistration(mode: "buyer" | "seller") {
-    if (!admin) { setRegisterMode(mode); return; }
+    setRegistrationPending(true);
+    setError("");
     try {
-      const all = await get<Buyer[]>("/api/customer-owners/accounts");
-      setBuyers(all);
-      setRegistrationBuyers(all.filter(x => x.customerUserId !== actorUserId)
-        .filter(x => canRegisterParticipant(x)));
+      if (admin) {
+        const all = await get<Buyer[]>("/api/customer-owners/accounts");
+        setBuyers(all);
+        setRegistrationBuyers(all.filter(x => x.customerUserId !== actorUserId)
+          .filter(x => canRegisterParticipant(x)));
+      } else {
+        const profile = await get<{
+          firstName: string; lastName: string; companyName: string | null; complete: boolean;
+        }>("/api/software-profile/me");
+        setRegistrationBuyers([{ customerUserId: actorUserId, mobile: null,
+          email: null, isActive: true, taxpayerCount: 0, profileComplete: profile.complete,
+          personName: [profile.firstName, profile.lastName].filter(Boolean).join(" "),
+          companyName: profile.companyName, rootLevel1UserId: null, partnerLevel2UserId: null }]);
+      }
       setRegisterMode(mode);
     } catch (e) {
       setError((e as Error).message);
       setRegisterMode(null);
+    } finally {
+      setRegistrationPending(false);
     }
   }
 
@@ -133,11 +136,14 @@ export default function BuyerTaxpayerDirectory({ admin, level1, actorUserId }: {
     {selectedRecord && <FiscalRecordModal key={selectedRecord.type + selectedRecord.id}
       record={selectedRecord} isLevel1={level1}
       onClose={() => setSelectedRecord(null)} onChanged={reload} />}
-    {registerMode && <ParticipantRegistrationModal mode={registerMode} buyers={admin ? registrationBuyers : buyers} actorUserId={actorUserId}
-      level1={level1} onClose={() => setRegisterMode(null)} onCompleted={reload}/> }
+    {registerMode && <ParticipantRegistrationModal mode={registerMode} buyers={registrationBuyers} actorUserId={actorUserId}
+      initialCustomerId={admin ? "" : actorUserId} level1={level1}
+      onClose={() => setRegisterMode(null)} onCompleted={reload}/> }
     {<div className="console-directory-actions">
-      <button className="identity-primary" type="button" onClick={() => void startRegistration("buyer")}>+ افزودن خریدار</button>
-      <button className="identity-secondary" type="button" onClick={() => void startRegistration("seller")}>+ افزودن مؤدی</button>
+      <button className="identity-primary" type="button" disabled={registrationPending}
+        onClick={() => void startRegistration("buyer")}>+ افزودن خریدار</button>
+      <button className="identity-secondary" type="button" disabled={registrationPending}
+        onClick={() => void startRegistration("seller")}>+ افزودن مؤدی</button>
       <button type="button" className="identity-secondary" onClick={() => { setError(""); void reload(); }} disabled={loading}>بازخوانی فهرست</button>
     </div>}
       <div className="console-directory-filters">

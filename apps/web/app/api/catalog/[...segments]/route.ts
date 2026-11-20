@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { ACCESS_COOKIE, identityApiOrigin, identityUiEnabled } from "../../../../lib/identity";
+import { isSameLocalOrigin } from "../../../../lib/identity-origin.mjs";
 
 export const dynamic = "force-dynamic";
 const allowed = [
@@ -22,7 +23,8 @@ async function handle(request: NextRequest, segments: string[], method: string) 
   if (!identityUiEnabled()) return NextResponse.json({ error: "not_found" }, { status: 404 });
   const path = segments.join("/");
   if (!verifyRoute(path, method)) return NextResponse.json({ error: "not_found" }, { status: 404 });
-  if (method !== "GET" && request.headers.get("origin") !== request.nextUrl.origin)
+  if (method !== "GET" && !isSameLocalOrigin(
+      request.headers.get("origin"), request.headers.get("host"), request.nextUrl.protocol))
     return NextResponse.json({ error: "origin_not_allowed" }, { status: 403 });
   const token = (await cookies()).get(ACCESS_COOKIE)?.value;
   if (!token) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
