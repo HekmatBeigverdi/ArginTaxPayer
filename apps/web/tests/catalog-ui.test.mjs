@@ -27,13 +27,12 @@ test("backend-for-frontend never puts session tokens into browser JS", () => {
   assert.doesNotMatch(client, /localStorage|sessionStorage|ACCESS_COOKIE|Authorization:|NEXT_PUBLIC_/);
 });
 
-test("catalog UI guards revision and exposes mapping-history operations", () => {
+test("catalog UI guards revisions and has no mapping or validity-date workflow", () => {
   const source = read("app/catalog/workspace.tsx");
   assert.match(source, /expectedRevision/);
-  assert.match(source, /tax-mappings/);
-  assert.match(source, /closedAtUtc/);
+  assert.doesNotMatch(source, /tax-mappings|closedAtUtc|اعتبار نگاشت/);
   assert.match(source, /aria-selected/);
-  assert.match(source, /PersianDatePicker/);
+  assert.doesNotMatch(source, /PersianDatePicker|fromUtc|closeDate/);
   assert.match(source, /catalog-split-layout/);
   assert.match(source, /ConsoleLoader/);
   assert.match(source, /customerLabel/);
@@ -48,16 +47,13 @@ test("catalog UI guards revision and exposes mapping-history operations", () => 
   assert.match(source, /CatalogUnitCombobox/);
 });
 
-test("official mapping is an explicit editor with a save action", () => {
+test("catalog item form saves an official identifier separately from a repeatable internal code", () => {
   const source = read("app/catalog/workspace.tsx");
-  assert.match(source, /selectedOfficialId/);
-  assert.match(source, /onSubmit=\{saveMapping\}/);
-  assert.match(source, /ذخیره نگاشت/);
-  assert.match(source, /catalog-mapping-editor/);
+  assert.match(source, /شناسه رسمی ۱۳ رقمی/);
+  assert.match(source, /کد داخلی/);
+  assert.match(source, /officialCode/);
   assert.match(source, /officialCode\.length === 13/);
-  assert.match(source, /catalog-mapping-search-modal/);
-  assert.match(source, /officialEntryId: official\.id/);
-  assert.match(source, /\{ officialCode, effectiveFromUtc: date\.toISOString\(\) \}/);
+  assert.doesNotMatch(source, /saveMapping|catalog-mapping-search-modal|effectiveFromUtc/);
   assert.match(source, /result\.detail/);
 });
 

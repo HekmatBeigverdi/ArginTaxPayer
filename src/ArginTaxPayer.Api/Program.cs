@@ -168,7 +168,6 @@ if (operationalEndpointsEnabled)
     builder.Services.AddScoped<ParticipantScopeService>();
     builder.Services.AddScoped<CustomerProductService>();
     builder.Services.AddScoped<CustomerServiceCatalogService>();
-    builder.Services.AddScoped<TaxIdentifierMappingService>();
     builder.Services.AddScoped<CatalogSearchService>();
     builder.Services.AddScoped<PartyIdentityEditService>();
     builder.Services.AddScoped<InvoiceParticipantDetailsService>();

@@ -75,52 +75,6 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Catalog.CatalogOfficialMapping", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<DateTime>("EffectiveFromUtc")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("effective_from_utc");
-
-                    b.Property<DateTime?>("EffectiveToUtc")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("effective_to_utc");
-
-                    b.Property<Guid>("ItemId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("item_id");
-
-                    b.Property<Guid>("OfficialEntryId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("official_entry_id");
-
-                    b.Property<long>("Revision")
-                        .IsConcurrencyToken()
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint")
-                        .HasDefaultValue(1L)
-                        .HasColumnName("revision");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("OfficialEntryId");
-
-                    b.HasIndex("ItemId", "EffectiveFromUtc")
-                        .IsUnique()
-                        .HasDatabaseName("ux_catalog_mapping_item_from");
-
-                    b.ToTable("catalog_official_mappings", null, t =>
-                        {
-                            t.HasCheckConstraint("ck_catalog_mapping_interval", "effective_to_utc IS NULL OR effective_to_utc > effective_from_utc");
-
-                            t.HasCheckConstraint("ck_catalog_mapping_revision", "revision > 0");
-                        });
-                });
-
             modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Catalog.CatalogReferenceRelease", b =>
                 {
                     b.Property<Guid>("Id")
@@ -207,6 +161,11 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("kind");
 
+                    b.Property<string>("OfficialCode")
+                        .HasMaxLength(13)
+                        .HasColumnType("character varying(13)")
+                        .HasColumnName("official_code");
+
                     b.Property<long>("Revision")
                         .IsConcurrencyToken()
                         .ValueGeneratedOnAdd()
@@ -233,12 +192,13 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
                     b.HasIndex("BaseUnitId");
 
                     b.HasIndex("CustomerUserId", "InternalCode")
-                        .IsUnique()
-                        .HasDatabaseName("ux_customer_catalog_internal_code");
+                        .HasDatabaseName("ix_customer_catalog_internal_code");
 
                     b.ToTable("customer_catalog_items", null, t =>
                         {
                             t.HasCheckConstraint("ck_catalog_item_kind", "kind IN (1,2,3)");
+
+                            t.HasCheckConstraint("ck_catalog_item_official_code", "official_code IS NULL OR official_code ~ '^[0-9]{13}$'");
 
                             t.HasCheckConstraint("ck_catalog_item_revision", "revision > 0");
 
@@ -3482,21 +3442,6 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
                     b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Catalog.CustomerCatalogItem", null)
                         .WithMany()
                         .HasForeignKey("ItemId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Catalog.CatalogOfficialMapping", b =>
-                {
-                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Catalog.CustomerCatalogItem", null)
-                        .WithMany()
-                        .HasForeignKey("ItemId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("ArginTaxPayer.Infrastructure.Persistence.Catalog.OfficialGoodsServiceEntry", null)
-                        .WithMany()
-                        .HasForeignKey("OfficialEntryId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
