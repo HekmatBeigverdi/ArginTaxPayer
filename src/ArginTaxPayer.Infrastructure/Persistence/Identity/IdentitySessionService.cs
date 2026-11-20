@@ -9,8 +9,7 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Identity;
 /// </summary>
 public sealed class IdentitySessionService(ArginTaxPayerDbContext db)
 {
-    private static readonly TimeSpan AccessLifetime = TimeSpan.FromMinutes(30);
-    private static readonly TimeSpan RefreshLifetime = TimeSpan.FromDays(7);
+    private static readonly TimeSpan IdleTimeout = TimeSpan.FromHours(1);
 
     public async Task<SessionTokens?> LoginAsync(string? email, string? password, CancellationToken ct = default)
     {
@@ -47,11 +46,11 @@ public sealed class IdentitySessionService(ArginTaxPayerDbContext db)
         {
             Id = Guid.NewGuid(), UserId = user.Id,
             AccessTokenHash = Digest(access), RefreshTokenHash = Digest(refresh),
-            CreatedAtUtc = now, AccessExpiresAtUtc = now.Add(AccessLifetime),
-            RefreshExpiresAtUtc = now.Add(RefreshLifetime)
+            CreatedAtUtc = now, AccessExpiresAtUtc = now.Add(IdleTimeout),
+            RefreshExpiresAtUtc = now.Add(IdleTimeout)
         });
         await db.SaveChangesAsync(ct);
-        return new SessionTokens(access, refresh, now.Add(AccessLifetime), now.Add(RefreshLifetime));
+        return new SessionTokens(access, refresh, now.Add(IdleTimeout), now.Add(IdleTimeout));
     }
 
     public async Task<SessionTokens?> CreatePhoneSessionAsync(Guid userId, CancellationToken ct = default)
@@ -71,11 +70,11 @@ public sealed class IdentitySessionService(ArginTaxPayerDbContext db)
         {
             Id = Guid.NewGuid(), UserId = userId, AccessTokenHash = Digest(access),
             RefreshTokenHash = Digest(refresh), CreatedAtUtc = now,
-            AccessExpiresAtUtc = now.Add(AccessLifetime),
-            RefreshExpiresAtUtc = now.Add(RefreshLifetime)
+            AccessExpiresAtUtc = now.Add(IdleTimeout),
+            RefreshExpiresAtUtc = now.Add(IdleTimeout)
         });
         await db.SaveChangesAsync(ct);
-        return new SessionTokens(access, refresh, now.Add(AccessLifetime), now.Add(RefreshLifetime));
+        return new SessionTokens(access, refresh, now.Add(IdleTimeout), now.Add(IdleTimeout));
     }
 
     internal async Task<SessionTokens?> CreateMfaSessionAsync(Guid userId, CancellationToken ct = default)
@@ -91,11 +90,11 @@ public sealed class IdentitySessionService(ArginTaxPayerDbContext db)
         {
             Id = Guid.NewGuid(), UserId = userId,
             AccessTokenHash = Digest(access), RefreshTokenHash = Digest(refresh),
-            CreatedAtUtc = now, AccessExpiresAtUtc = now.Add(AccessLifetime),
-            RefreshExpiresAtUtc = now.Add(RefreshLifetime)
+            CreatedAtUtc = now, AccessExpiresAtUtc = now.Add(IdleTimeout),
+            RefreshExpiresAtUtc = now.Add(IdleTimeout)
         });
         await db.SaveChangesAsync(ct);
-        return new SessionTokens(access, refresh, now.Add(AccessLifetime), now.Add(RefreshLifetime));
+        return new SessionTokens(access, refresh, now.Add(IdleTimeout), now.Add(IdleTimeout));
     }
 
     public async Task<SessionTokens?> RefreshAsync(string? presentedToken, CancellationToken ct = default)
@@ -119,39 +118,62 @@ public sealed class IdentitySessionService(ArginTaxPayerDbContext db)
 
         var access = NewToken();
         var refresh = NewToken();
+        var expiry = now.Add(IdleTimeout);
         var newAccessDigest = Digest(access);
         var newRefreshDigest = Digest(refresh);
         // Compare-and-swap: only one concurrent refresh can succeed.
-        var updated = await db.IdentitySessions
-            .Where(x => x.Id == session.Id && x.RefreshTokenHash == digest &&
-                x.RevokedAtUtc == null && x.RefreshExpiresAtUtc > now && x.User.IsActive &&
-                (!x.User.Roles.Any(r => r.Role != IdentityRoleNames.Customer &&
-                    r.Role != IdentityRoleNames.PendingLevel1 && r.Role != IdentityRoleNames.PendingLevel2) ||
-                    db.IdentityMfaStates.Any(m => m.UserId == x.UserId && m.EnabledAtUtc != null)))
+        var updated = await ActiveSessions(now)
+            .Where(x => x.Id == session.Id && x.RefreshTokenHash == digest)
             .ExecuteUpdateAsync(setters => setters
                 .SetProperty(x => x.AccessTokenHash, newAccessDigest)
                 .SetProperty(x => x.PreviousRefreshTokenHash, digest)
                 .SetProperty(x => x.RefreshTokenHash, newRefreshDigest)
-                .SetProperty(x => x.AccessExpiresAtUtc, now.Add(AccessLifetime))
-                .SetProperty(x => x.RefreshExpiresAtUtc, now.Add(RefreshLifetime))
+                .SetProperty(x => x.AccessExpiresAtUtc, x => x.AccessExpiresAtUtc > expiry ? x.AccessExpiresAtUtc : expiry)
+                .SetProperty(x => x.RefreshExpiresAtUtc, x => x.AccessExpiresAtUtc > expiry ? x.AccessExpiresAtUtc : expiry)
                 .SetProperty(x => x.RotationCount, x => x.RotationCount + 1), ct);
         if (updated != 1) return null;
-        return new SessionTokens(access, refresh, now.Add(AccessLifetime), now.Add(RefreshLifetime));
+        var expiresAt = await GetSessionExpiryAsync(access, ct);
+        return expiresAt is { } actualExpiry ? new SessionTokens(access, refresh, actualExpiry, actualExpiry) : null;
     }
 
     public async Task<Guid?> AuthenticateAsync(string? accessToken, CancellationToken ct = default)
     {
         if (!ValidToken(accessToken)) return null;
-        var digest = Digest(accessToken!);
-        var now = DateTime.UtcNow;
-        return await db.IdentitySessions.AsNoTracking()
-            .Where(x => x.AccessTokenHash == digest && x.AccessExpiresAtUtc > now &&
-                x.RefreshExpiresAtUtc > now && x.RevokedAtUtc == null && x.User.IsActive &&
-                (!x.User.Roles.Any(r => r.Role != IdentityRoleNames.Customer &&
-                    r.Role != IdentityRoleNames.PendingLevel1 && r.Role != IdentityRoleNames.PendingLevel2) ||
-                    db.IdentityMfaStates.Any(m => m.UserId == x.UserId && m.EnabledAtUtc != null)))
+        return await ActiveSessions(DateTime.UtcNow)
+            .Where(x => x.AccessTokenHash == Digest(accessToken!))
             .Select(x => (Guid?)x.UserId).SingleOrDefaultAsync(ct);
     }
+
+    public async Task<DateTime?> GetSessionExpiryAsync(string? accessToken, CancellationToken ct = default)
+    {
+        if (!ValidToken(accessToken)) return null;
+        return await ActiveSessions(DateTime.UtcNow)
+            .Where(x => x.AccessTokenHash == Digest(accessToken!))
+            .Select(x => (DateTime?)(x.AccessExpiresAtUtc < x.RefreshExpiresAtUtc
+                ? x.AccessExpiresAtUtc : x.RefreshExpiresAtUtc))
+            .SingleOrDefaultAsync(ct);
+    }
+
+    public async Task<DateTime?> ExtendSessionAsync(string? accessToken, CancellationToken ct = default)
+    {
+        if (!ValidToken(accessToken)) return null;
+        var now = DateTime.UtcNow;
+        var expiry = now.Add(IdleTimeout);
+        var updated = await ActiveSessions(now)
+            .Where(x => x.AccessTokenHash == Digest(accessToken!))
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(x => x.AccessExpiresAtUtc, x => x.AccessExpiresAtUtc > expiry ? x.AccessExpiresAtUtc : expiry)
+                .SetProperty(x => x.RefreshExpiresAtUtc, x => x.AccessExpiresAtUtc > expiry ? x.AccessExpiresAtUtc : expiry), ct);
+        return updated == 1 ? await GetSessionExpiryAsync(accessToken, ct) : null;
+    }
+
+    private IQueryable<IdentitySession> ActiveSessions(DateTime now) =>
+        db.IdentitySessions.AsNoTracking()
+            .Where(x => x.AccessExpiresAtUtc > now && x.RefreshExpiresAtUtc > now &&
+                x.RevokedAtUtc == null && x.User.IsActive &&
+                (!x.User.Roles.Any(r => r.Role != IdentityRoleNames.Customer &&
+                    r.Role != IdentityRoleNames.PendingLevel1 && r.Role != IdentityRoleNames.PendingLevel2) ||
+                    db.IdentityMfaStates.Any(m => m.UserId == x.UserId && m.EnabledAtUtc != null)));
 
     public async Task<bool> LogoutAsync(string? accessToken, CancellationToken ct = default)
     {

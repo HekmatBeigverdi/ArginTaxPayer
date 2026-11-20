@@ -271,9 +271,11 @@ app.Use(async (context, next) =>
     var path = context.Request.Path.Value ?? "";
     var identityPath = context.Request.Method == "GET" &&
         (path == "/api/dev/identity/authorization/me" || path == "/api/dev/identity/mfa/status" ||
+         path == "/api/dev/identity/activity" ||
          path == "/api/dev/software-profile/me") ||
         context.Request.Method == "POST" &&
         (path == "/api/dev/identity/login" || path == "/api/dev/identity/refresh" ||
+         path == "/api/dev/identity/activity" ||
          path == "/api/dev/identity/logout" || path == "/api/dev/identity/mfa/challenge" ||
          path == "/api/dev/identity/mfa/complete");
     var healthPath = context.Request.Method == "GET" &&
@@ -322,10 +324,12 @@ if (identityDashboardOnlyEnabled)
             var allowed =
                 method == "GET" &&
                 (path == "/api/dev/identity/authorization/me" ||
+                 path == "/api/dev/identity/activity" ||
                  path == "/api/dev/identity/mfa/status" ||
                  path.StartsWith("/api/dev/dashboard/", StringComparison.Ordinal)) ||
                 method == "POST" &&
                 (path == "/api/dev/identity/login" ||
+                 path == "/api/dev/identity/activity" ||
                  path == "/api/dev/identity/refresh" ||
                  path == "/api/dev/identity/logout" ||
                  path == "/api/dev/identity/mfa/challenge" ||

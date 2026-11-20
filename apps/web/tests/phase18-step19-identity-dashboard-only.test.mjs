@@ -21,7 +21,7 @@ test('Production login and dashboard are explicitly separate from full operation
 test('Public BFF blocks business and signing endpoints while keeping login and dashboard', () => {
   const middleware = read('apps/web/middleware.ts');
   assert.match(middleware, /ARGIN_IDENTITY_DASHBOARD_ONLY/);
-  assert.match(middleware, /"login", "logout", "refresh", "mfa\/challenge", "mfa\/complete"/);
+  assert.match(middleware, /"login", "logout", "refresh", "activity", "mfa\/challenge", "mfa\/complete"/);
   assert.match(middleware, /path.startsWith\("\/api\/dashboard\/"/);
   assert.match(middleware, /return new NextResponse\(null, \{ status: 404 \}\)/);
   assert.doesNotMatch(middleware, /normal-enqueue/);

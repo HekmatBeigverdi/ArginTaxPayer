@@ -116,7 +116,10 @@ export default function SoftwareProfileForm({ required = false }: { required?: b
       // Update the persistent console guard immediately after a confirmed save.
       // Avoid refreshing the layout, which would reset unrelated page state.
       window.dispatchEvent(new CustomEvent("argin:software-profile-saved", {
-        detail: { complete: saved.complete }
+        detail: {
+          complete: saved.complete, firstName: saved.firstName,
+          lastName: saved.lastName, companyName: saved.companyName
+        }
       }));
     } catch (e) { setError((e as Error).message); }
     finally { setSaving(false); }
