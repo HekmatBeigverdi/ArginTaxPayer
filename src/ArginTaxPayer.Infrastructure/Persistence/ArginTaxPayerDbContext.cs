@@ -48,7 +48,6 @@ public sealed class ArginTaxPayerDbContext(DbContextOptions<ArginTaxPayerDbConte
     public DbSet<VatClassificationEntry> VatClassificationEntries => Set<VatClassificationEntry>();
     public DbSet<CustomerCatalogItem> CustomerCatalogItems => Set<CustomerCatalogItem>();
     public DbSet<CatalogItemUnitConversion> CatalogItemUnitConversions => Set<CatalogItemUnitConversion>();
-    public DbSet<CatalogOfficialMapping> CatalogOfficialMappings => Set<CatalogOfficialMapping>();
     public DbSet<CustomerTaxpayerMembership> CustomerTaxpayerMemberships => Set<CustomerTaxpayerMembership>();
     public DbSet<CustomerAccountProfile> CustomerAccountProfiles => Set<CustomerAccountProfile>();
     public DbSet<InvoiceParticipantDetails> InvoiceParticipantDetails => Set<InvoiceParticipantDetails>();

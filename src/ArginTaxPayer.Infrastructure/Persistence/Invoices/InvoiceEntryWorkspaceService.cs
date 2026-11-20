@@ -340,7 +340,7 @@ SELECT EXISTS(
             .Select(l => l.CatalogItemId!.Value).Distinct().ToArray();
         var catalogItems = await db.CustomerCatalogItems.AsNoTracking()
             .Where(c => productIds.Contains(c.Id) && c.CustomerUserId == access.Item2)
-            .Select(c => new { c.Id, c.InternalCode, c.BaseUnitId, c.Status })
+            .Select(c => new { c.Id, c.InternalCode, c.OfficialCode, c.BaseUnitId, c.Status })
             .ToDictionaryAsync(c => c.Id, ct);
         if (productIds.Any(id => !catalogItems.ContainsKey(id)))
             return new(InvoiceApiDecision.Invalid);
@@ -373,11 +373,9 @@ SELECT EXISTS(
             var code = previous?.CatalogCodeSnapshot ?? item.InternalCode;
             if (line.UnitId is { } requestedUnit && requestedUnit != unit)
                 return new(InvoiceApiDecision.Invalid);
-            // The authority is the source of truth for Sstid validity. Preserve
-            // the user's 13-digit value; local catalog tables are not an
-            // authoritative code registry.
-            var officialCode = line.OfficialIdentifierSnapshot is { Length: 13 } supplied &&
-                supplied.All(char.IsAsciiDigit) ? supplied : previous?.OfficialIdentifierSnapshot;
+            // The official identifier is captured from the selected catalog
+            // item, alongside its local internal-code snapshot.
+            var officialCode = previous?.OfficialIdentifierSnapshot ?? item.OfficialCode;
             canonicalLines.Add(line with {
                 UnitId = unit,
                 CatalogCodeSnapshot = code,

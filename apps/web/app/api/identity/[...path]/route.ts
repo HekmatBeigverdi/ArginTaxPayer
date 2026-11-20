@@ -10,6 +10,7 @@ operations.add("mfa/status");
 operations.add("mfa/reveal");
 operations.add("roles/level2/nominate");
 operations.add("mfa/level2/reset");
+operations.add("activity");
 const errorResult = (code: number, message: string) =>
   NextResponse.json({ error: message }, { status: code, headers: { "Cache-Control": "no-store" } });
 
@@ -18,8 +19,8 @@ function sameOrigin(req: NextRequest): boolean {
 }
 
 function saveTokens(response: NextResponse, tokens: TokenResponse) {
-  response.cookies.set(ACCESS_COOKIE, tokens.accessToken, { ...cookieOptions, maxAge: 30 * 60 });
-  response.cookies.set(REFRESH_COOKIE, tokens.refreshToken, { ...cookieOptions, maxAge: 7 * 86400 });
+  response.cookies.set(ACCESS_COOKIE, tokens.accessToken, cookieOptions);
+  response.cookies.set(REFRESH_COOKIE, tokens.refreshToken, cookieOptions);
 }
 
 function clearTokens(response: NextResponse) {
@@ -33,6 +34,22 @@ async function callIdentity(operation: string, req: NextRequest, method: "GET" |
   if (method === "POST" && !sameOrigin(req)) return errorResult(403, "origin_not_allowed");
   const token = req.cookies.get(ACCESS_COOKIE)?.value;
   const refresh = req.cookies.get(REFRESH_COOKIE)?.value;
+  if (operation === "activity") {
+    if (!token) return errorResult(401, "unauthorized");
+    try {
+      const response = await identityBackend("activity", {
+        method, headers: { Authorization: "Bearer " + token }
+      });
+      if (!response.ok)
+        return response.status === 401 ? errorResult(401, "unauthorized") : errorResult(503, "identity_service_unavailable");
+      const { expiresInMs } = await response.json() as { expiresInMs?: number };
+      if (typeof expiresInMs !== "number" || !Number.isFinite(expiresInMs) || expiresInMs < 0)
+        return errorResult(502, "invalid_response");
+      return NextResponse.json({ expiresInMs }, { headers: { "Cache-Control": "no-store" } });
+    } catch {
+      return errorResult(503, "identity_service_unavailable");
+    }
+  }
   if (operation === "logout") {
     if (token) {
       try {
@@ -154,6 +171,6 @@ export async function POST(req: NextRequest, context: { params: Promise<{ path: 
 export async function GET(req: NextRequest, context: { params: Promise<{ path: string[] }> }) {
   const { path } = await context.params;
   const operation = path.join("/");
-  if (!["me", "sessions", "mfa/status"].includes(operation)) return errorResult(404, "unavailable");
+  if (!["me", "sessions", "mfa/status", "activity"].includes(operation)) return errorResult(404, "unavailable");
   return callIdentity(operation, req, "GET");
 }

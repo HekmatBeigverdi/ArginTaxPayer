@@ -50,6 +50,7 @@ public sealed class CustomerCatalogItem
     public Guid Id { get; set; }
     public Guid CustomerUserId { get; set; }
     public string InternalCode { get; set; } = "";
+    public string? OfficialCode { get; set; }
     public string Title { get; set; } = "";
     public int Kind { get; set; } // Stock=1, NonStock=2, Service=3
     public Guid BaseUnitId { get; set; }
@@ -68,13 +69,4 @@ public sealed class CatalogItemUnitConversion
     public int RoundingPolicy { get; set; } = 1; // Exact=1, HalfUp=2, RejectFraction=3
     public DateTime EffectiveFromUtc { get; set; }
     public DateTime? EffectiveToUtc { get; set; }
-}
-public sealed class CatalogOfficialMapping
-{
-    public Guid Id { get; set; }
-    public Guid ItemId { get; set; }
-    public Guid OfficialEntryId { get; set; }
-    public DateTime EffectiveFromUtc { get; set; }
-    public DateTime? EffectiveToUtc { get; set; }
-    public long Revision { get; set; } = 1;
 }

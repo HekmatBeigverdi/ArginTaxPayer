@@ -56,21 +56,20 @@ public sealed class Phase06SecurityRegressionTests
     }
 
     [Fact]
-    public void Tenant_model_uses_composite_code_uniqueness_and_restrictive_fks()
+    public void Tenant_model_allows_repeated_internal_codes_and_uses_restrictive_fks()
     {
         using var db = new ArginTaxPayerDbContext(
             new DbContextOptionsBuilder<ArginTaxPayerDbContext>()
                 .UseNpgsql("Host=localhost;Database=never_used;Username=never_used;Password=never_used").Options);
         var item = db.Model.FindEntityType(typeof(CustomerCatalogItem))!;
-        Assert.Contains(item.GetIndexes(), idx => idx.IsUnique &&
+        Assert.Contains(item.GetIndexes(), idx => !idx.IsUnique &&
             idx.Properties.Select(p => p.Name).SequenceEqual(
                 new[] { nameof(CustomerCatalogItem.CustomerUserId),
                         nameof(CustomerCatalogItem.InternalCode) }));
         Assert.All(item.GetForeignKeys(), fk => Assert.Equal(DeleteBehavior.Restrict, fk.DeleteBehavior));
 
-        var mapping = db.Model.FindEntityType(typeof(CatalogOfficialMapping))!;
-        Assert.True(mapping.FindProperty(nameof(CatalogOfficialMapping.Revision))!.IsConcurrencyToken);
-        Assert.All(mapping.GetForeignKeys(), fk => Assert.Equal(DeleteBehavior.Restrict, fk.DeleteBehavior));
+        Assert.DoesNotContain(db.Model.GetEntityTypes(), entity =>
+            entity.GetTableName() == "catalog_official_mappings");
     }
 
     [Fact]
