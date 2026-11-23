@@ -511,7 +511,8 @@ FOR UPDATE
                     .SingleOrDefaultAsync(ct);
                 if (linkedDocument is not null)
                 {
-                    var returned = input.BulkImportKey == $"unsent-return:{input.Id.Value:N}";
+                    var returned = await ReturnedUnsentInvoiceDraftQuery.Read(db)
+                        .ContainsAsync(input.Id.Value, ct);
                     await using var dispatchCheck = db.Database.GetDbConnection().CreateCommand();
                     dispatchCheck.Transaction = transaction.GetDbTransaction();
                     dispatchCheck.CommandText = "SELECT EXISTS(SELECT 1 FROM invoice_dispatch_operations WHERE customer_user_id=@owner AND taxpayer_id=@taxpayer AND invoice_id=@invoice)";
