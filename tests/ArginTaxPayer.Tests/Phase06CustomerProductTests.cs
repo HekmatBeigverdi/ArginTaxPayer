@@ -27,8 +27,10 @@ public sealed class Phase06CustomerProductTests
     {
         Assert.False(CustomerProductPolicy.TryValidate(Input("SVC", CatalogItemKind.Service), out _));
         Assert.True(CustomerProductPolicy.TryValidate(Input("A", CatalogItemKind.NonStockItem), out _));
-        Assert.False(CustomerProductPolicy.CanChangeKind(CatalogItemKind.StockItem, CatalogItemKind.NonStockItem));
+        Assert.True(CustomerProductPolicy.CanChangeKind(CatalogItemKind.StockItem, CatalogItemKind.NonStockItem));
         Assert.False(CustomerProductPolicy.CanChangeKind(CatalogItemKind.StockItem, CatalogItemKind.Service));
+        Assert.False(CustomerProductPolicy.CanChangeKind(CatalogItemKind.NonStockItem, CatalogItemKind.Service));
+        Assert.True(CustomerProductPolicy.CanChangeKind(CatalogItemKind.NonStockItem, CatalogItemKind.StockItem));
         Assert.True(CustomerProductPolicy.CanChangeKind(CatalogItemKind.NonStockItem, CatalogItemKind.NonStockItem));
     }
 

@@ -110,6 +110,17 @@ ORDER BY memory_identifier
                 ? Results.Ok(history.History) : Error(history.Decision);
         }).WithTags("Invoice Draft History (Development)");
 
+        app.MapGet("/api/dev/invoice-workspaces/next-business-serial", async (
+            Guid taxpayerId,DateTime issueDateUtc,HttpContext http,
+            InvoiceEntryWorkspaceService service,CancellationToken ct) =>
+        {
+            if (!Local(http)) return Results.NotFound();
+            http.Response.Headers.CacheControl="no-store";
+            var result=await service.NextBusinessSerialAsync(Token(http),taxpayerId,issueDateUtc,ct);
+            return result.Decision==InvoiceApiDecision.Success
+                ? Results.Ok(new {serial=result.Serial}) : Error(result.Decision);
+        }).WithTags("Invoice Business Serial (Development)");
+
         app.MapGet("/api/dev/invoice-workspaces/{id:guid}/validation", async (
             Guid id, HttpContext http, InvoiceValidationReferenceService service,
             CancellationToken ct) =>

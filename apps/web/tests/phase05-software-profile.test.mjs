@@ -75,7 +75,7 @@ test("administrator sees profile names and picker uses shared role eligibility",
  const directory=read("app/parties/buyer-taxpayer-directory.tsx");
  assert.match(users,/نام شخص \/ شرکت/);
  assert.match(users,/users-contact-truncated/);
- assert.match(picker,/b\.companyName \|\| b\.personName/);
+ assert.match(picker,/label:b\.companyName\|\|b\.personName/);
  assert.doesNotMatch(picker,/\{b\.mobile \|\| b\.email/);
  assert.match(directory,/\.filter\(x => canRegisterParticipant\(x\)\)/);
 });

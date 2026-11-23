@@ -10,10 +10,10 @@ public static class CatalogDevelopmentEndpoints
 {
     public sealed record ProductWrite(string InternalCode, string Title,
         CatalogItemKind Kind, Guid BaseUnitId, long ExpectedRevision = 0, bool Discontinue = false,
-        string? OfficialCode = null);
+        string? OfficialCode = null, decimal? VatRatePercent = null);
     public sealed record ServiceWrite(string InternalCode, string Title,
         Guid BaseUnitId, long ExpectedRevision = 0, bool Discontinue = false,
-        string? OfficialCode = null);
+        string? OfficialCode = null, decimal? VatRatePercent = null);
 
     private static bool Local(HttpContext http) => http.Connection.RemoteIpAddress is { } ip &&
         (IPAddress.IsLoopback(ip) || ip.IsIPv4MappedToIPv6 && IPAddress.IsLoopback(ip.MapToIPv4()));
@@ -87,7 +87,7 @@ public static class CatalogDevelopmentEndpoints
             if (input is null || input.ExpectedRevision != 0 || input.Discontinue)
                 return Results.BadRequest(new { error = "invalid_create" });
             return Status(await svc.CreateAsync(Token(http), customerId,
-                new CatalogProductInput(input.InternalCode, input.Title, input.Kind, input.BaseUnitId, input.OfficialCode), ct), true);
+                new CatalogProductInput(input.InternalCode, input.Title, input.Kind, input.BaseUnitId, input.OfficialCode,input.VatRatePercent), ct), true);
         });
         group.MapGet("/customers/{customerId:guid}/products/{id:guid}", async (
             Guid customerId, Guid id, HttpContext http, CustomerProductService svc, CancellationToken ct) =>
@@ -102,7 +102,7 @@ public static class CatalogDevelopmentEndpoints
             if (!Local(http)) return Results.NotFound();
             if (input is null) return Results.BadRequest(new { error = "invalid_update" });
             return Status(await svc.UpdateAsync(Token(http), customerId, id, input.ExpectedRevision,
-                new CatalogProductInput(input.InternalCode, input.Title, input.Kind, input.BaseUnitId, input.OfficialCode),
+                new CatalogProductInput(input.InternalCode, input.Title, input.Kind, input.BaseUnitId, input.OfficialCode,input.VatRatePercent),
                 input.Discontinue, ct));
         });
 
@@ -121,7 +121,7 @@ public static class CatalogDevelopmentEndpoints
             if (input is null || input.ExpectedRevision != 0 || input.Discontinue)
                 return Results.BadRequest(new { error = "invalid_create" });
             return Status(await svc.CreateAsync(Token(http), customerId,
-                new CatalogServiceInput(input.InternalCode, input.Title, input.BaseUnitId, input.OfficialCode), ct), true);
+                new CatalogServiceInput(input.InternalCode, input.Title, input.BaseUnitId, input.OfficialCode,input.VatRatePercent), ct), true);
         });
         group.MapGet("/customers/{customerId:guid}/services/{id:guid}", async (
             Guid customerId, Guid id, HttpContext http, CustomerServiceCatalogService svc, CancellationToken ct) =>
@@ -136,7 +136,7 @@ public static class CatalogDevelopmentEndpoints
             if (!Local(http)) return Results.NotFound();
             if (input is null) return Results.BadRequest(new { error = "invalid_update" });
             return Status(await svc.UpdateAsync(Token(http), customerId, id, input.ExpectedRevision,
-                new CatalogServiceInput(input.InternalCode, input.Title, input.BaseUnitId, input.OfficialCode),
+                new CatalogServiceInput(input.InternalCode, input.Title, input.BaseUnitId, input.OfficialCode,input.VatRatePercent),
                 input.Discontinue, ct));
         });
 

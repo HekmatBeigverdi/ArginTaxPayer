@@ -235,22 +235,20 @@ export default function InvoiceValidationPanel({
   }
 
   const busy = loading || checkingAfterSave;
-  const buttonLabel = busy
-    ? "در حال ذخیره/بررسی…"
-    : dirty
-      ? "ذخیره تغییرات و بررسی"
-      : "بررسی پیش‌نویس ذخیره‌شده";
+  const buttonLabel = busy ? "در حال بررسی نهایی…" : "بررسی نهایی";
 
   return (
     <section className="invoice-validation" aria-labelledby="invoice-validation-title" aria-busy={busy || preparing}>
       <div className="invoice-validation__heading">
         <div>
           <h3 id="invoice-validation-title">پیش‌بررسی و سوابق ارجاع</h3>
-          <p>این بررسی برای تکمیل فرم است؛ مجوز ارسال مالیاتی صادر نمی‌کند.</p>
+          <p>پس از تکمیل اطلاعات، این دکمه را بزنید تا تغییرات ذخیره و بررسی نهایی انجام شود.</p>
         </div>
+      </div>
+      <div className="invoice-validation__action" style={{display:"flex",justifyContent:"center",width:"100%"}}>
         <button
           type="button"
-          className="identity-secondary"
+          className="identity-primary"
           disabled={busy || preparing}
           onClick={reviewDraft}
         >

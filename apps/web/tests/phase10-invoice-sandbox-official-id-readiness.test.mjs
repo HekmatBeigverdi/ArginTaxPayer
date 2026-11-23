@@ -32,7 +32,7 @@ test("Sandbox selection is owner scoped and never passed as Production memory FK
   assert.match(entry,/input\.FiscalMemoryId\.HasValue && input\.SandboxFiscalMemoryId\.HasValue/);
   assert.match(entry,/WHERE id=@sandbox AND taxpayer_id=@taxpayer AND customer_user_id=@owner/);
   assert.match(entry,/SandboxFiscalMemoryId/);
-  assert.match(ui,/value=\{"sandbox:"\+m\.id\}/);
+  assert.match(ui,/value:`sandbox:\$\{m\.id\}`/);
   assert.match(ui,/sandboxFiscalMemoryId:memoryId\.startsWith\("sandbox:"\)/);
   assert.match(ui,/fiscalMemoryId:memoryId&&!memoryId\.startsWith\("sandbox:"\)/);
   assert.match(invoiceBff,/"sandboxFiscalMemoryId"/);

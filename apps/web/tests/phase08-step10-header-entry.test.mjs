@@ -11,6 +11,6 @@ test("seller scope determines fiscal memory choices",()=>{
 });
 test("buyer must be selected rather than free-typed, and memory resets on seller change",()=>{
   assert.match(ui,/buyerQuery\.trim\(\) && !buyerId/);
-  assert.match(ui,/setTaxpayerId\(e\.target\.value\);setMemoryId\(""/);
+  assert.match(ui,/onChange=\{value=>\{setTaxpayerId\(value\);setMemoryId\(""\)/);
   assert.match(ui,/setMemoryId\(saved\.fiscalMemoryId \?\? ""\)/);
 });

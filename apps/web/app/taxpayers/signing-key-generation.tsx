@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import OperationMessageBox from "./operation-message-box";
+import SearchableSelect from "../components/searchable-select";
 
 type Memory = { id: string; memoryIdentifier: string; status: number };
 type State = { storageReady: boolean; configured: boolean; generationConfigured: boolean; freshLogin: boolean; operationId: string | null; hasKey: boolean; replacementApproved: boolean; fingerprintSha256: string | null };
@@ -89,9 +90,9 @@ export default function SigningKeyGeneration({ taxpayerId, memories, loadingMemo
     <button type="button" className="identity-secondary" disabled={busy || loadingState}
       onClick={() => setRefreshVersion(value => value + 1)}>بازخوانی مجوز و وضعیت ساخت</button>
     {!hideMemorySelector && <label>حافظه مالیاتی
-      <select value={memoryId} disabled={busy} onChange={event => setSelected(event.target.value)}>
-        {memories.map(item => <option key={item.id} value={item.id}>{item.memoryIdentifier}</option>)}
-      </select>
+      <SearchableSelect id="signing-key-memory" value={memoryId} disabled={busy}
+        options={memories.map(item=>({value:item.id,label:item.memoryIdentifier}))}
+        placeholder="جست‌وجوی حافظه مالیاتی…" onChange={setSelected} />
     </label>}
     {error && <OperationMessageBox key={error} kind="error" title="عملیات ناموفق بود">{error}</OperationMessageBox>}
     {notice && <OperationMessageBox key={notice} kind="success" title="عملیات انجام شد">{notice}</OperationMessageBox>}

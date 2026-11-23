@@ -10,6 +10,7 @@ import SandboxFiscalMemoryPanel from "./sandbox-fiscal-memory-panel";
 import FiscalMemoryAuthorityActions from "./fiscal-memory-authority-actions";
 import ConnectionSummary from "./connection-summary";
 import FiscalMemoryChangeRequestPanel from "./fiscal-memory-change-request-panel";
+import SearchableSelect from "../components/searchable-select";
 import { getConnectionPresentation, historyWithLegacyAttempt, projectConnectionHistory, sandboxSourceChoice, type ConnectionHistory } from "../../lib/fiscal-connection-status";
 
 type Memory = { id: string; taxpayerId: string; memoryIdentifier: string; status: number; revision: number;
@@ -99,10 +100,9 @@ export default function TaxpayerConnectionPanel({ taxpayerId, memories, loadingM
     <div role="tabpanel" id={environment==="production"?"taxpayer-production-connection":"taxpayer-sandbox-connection"}
       aria-labelledby={environment==="production"?"taxpayer-production-tab":"taxpayer-sandbox-tab"}>
       {environment==="sandbox"&&legacyError&&<p role="alert">{legacyError}</p>}
-      {available.length>1&&<label>حافظه مالیاتی<select value={selectedMemoryId} disabled={reading||loadingMemories}
-        onChange={e=>{if(environment==="production")setSelection(e.target.value);else setSandboxSelection(e.target.value);}}>
-        {available.map(m=><option key={m.id} value={m.id}>{m.memoryIdentifier}{m.authorityEnvironment==null?" — محیط تأییدنشده":""}</option>)}
-      </select></label>}
+      {available.length>1&&<label>حافظه مالیاتی<SearchableSelect id="connection-memory-choice" value={selectedMemoryId} disabled={reading||loadingMemories}
+        options={available.map(m=>({value:m.id,label:m.memoryIdentifier,description:m.authorityEnvironment==null?"محیط تأییدنشده":undefined}))}
+        placeholder="جست‌وجوی حافظه مالیاتی…" onChange={value=>{if(environment==="production")setSelection(value);else setSandboxSelection(value);}} /></label>}
       {(choice==="choice"||choice==="separate")&&<div className="connection-source-choice">
         {choice==="choice"&&<p role="status">برای این شناسه دو کلید ثبت شده است. پیکربندی مورد نظر را صریحاً انتخاب کنید؛ کلیدها خودکار جایگزین نمی‌شوند.</p>}
         <label>پیکربندی حافظه<select value={source} onChange={e=>{setSource(e.target.value as ""|"legacy"|"registered");setManaging(false);}}>

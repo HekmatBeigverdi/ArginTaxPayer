@@ -9,7 +9,7 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Catalog;
 public enum CustomerProductDecision { Success, Unauthenticated, Forbidden, Invalid, NotFound, Conflict, UnitUnavailable }
 public sealed record CustomerProductView(Guid Id, Guid CustomerUserId, string InternalCode,
     string Title, CatalogItemKind Kind, Guid BaseUnitId, CatalogItemStatus Status, long Revision,
-    string? OfficialCode = null);
+    string? OfficialCode = null, decimal VatRatePercent = 0m);
 public sealed record CustomerProductResult(CustomerProductDecision Decision, CustomerProductView? Product = null);
 
 /// <summary>Customer-owned internal product aggregate; never maps codes to authority records implicitly.</summary>
@@ -18,7 +18,7 @@ public sealed class CustomerProductService(ArginTaxPayerDbContext db, IdentityAu
     private static CustomerProductView Map(CustomerCatalogItem item) =>
         new(item.Id, item.CustomerUserId, item.InternalCode, item.Title,
             (CatalogItemKind)item.Kind, item.BaseUnitId, (CatalogItemStatus)item.Status, item.Revision,
-            item.OfficialCode);
+            item.OfficialCode,item.VatRatePercent);
 
     private Task<bool> HasScopeAsync(Guid actor, Guid customer, CancellationToken ct) =>
         db.IdentityUsers.AsNoTracking().AnyAsync(user => user.Id == actor && user.IsActive &&
@@ -65,6 +65,7 @@ public sealed class CustomerProductService(ArginTaxPayerDbContext db, IdentityAu
                     Id = Guid.NewGuid(), CustomerUserId = customerId,
                     InternalCode = clean.InternalCode, Title = clean.Title,
                     OfficialCode = clean.OfficialCode,
+                    VatRatePercent = clean.VatRatePercent ?? 0m,
                     Kind = (int)clean.Kind, BaseUnitId = clean.BaseUnitId,
                     Status = (int)CatalogItemStatus.Active, Revision = 1,
                     CreatedAtUtc = now, UpdatedAtUtc = now
@@ -153,8 +154,10 @@ public sealed class CustomerProductService(ArginTaxPayerDbContext db, IdentityAu
                     return new CustomerProductResult(CustomerProductDecision.UnitUnavailable);
                 if (!discontinue)
                 {
+                    item.Kind = (int)clean!.Kind;
                     item.InternalCode = clean.InternalCode;
                     item.OfficialCode = clean.OfficialCode;
+                    if(clean.VatRatePercent is { } vatRate) item.VatRatePercent = vatRate;
                     item.Title = clean.Title;
                     item.BaseUnitId = clean.BaseUnitId;
                 }

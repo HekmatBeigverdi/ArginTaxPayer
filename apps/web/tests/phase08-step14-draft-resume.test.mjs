@@ -14,5 +14,5 @@ test("unsaved changes are confirmed before modal dismissal and navigation",()=>{
 });
 test("server keeps revision CAS and client explains concurrent modification",()=>{
  assert.match(service,/x\.Revision == input\.ExpectedRevision/);
- assert.match(ui,/نسخه این پیش‌نویس در محل دیگری تغییر کرده است/);
+ assert.match(ui,/نسخهٔ مبنای پیش‌نویس تغییر کرده است/);
 });

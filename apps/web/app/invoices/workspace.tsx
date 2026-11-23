@@ -6,6 +6,7 @@ import Link from "next/link";
 import { PersianDatePicker } from "../catalog/persian-date-picker";
 import { PersianTimePicker } from "../components/persian-time-picker";
 import SearchableCatalogPicker from "./searchable-catalog-picker";
+import SearchableSelect,{type SearchableSelectOption} from "../components/searchable-select";
 import InvoiceValidationPanel from "./invoice-validation-panel";
 import InvoiceHistoryPanel from "./invoice-history-panel";
 import InvoiceSendReadinessPanel from "./invoice-send-readiness-panel";
@@ -53,6 +54,7 @@ type CatalogItem = {
   internalCode?: string;
   officialCode?: string | null;
   baseUnitId?: string;
+  vatRatePercent?: number;
 };
 
 type HeaderOptions = {
@@ -147,9 +149,15 @@ type SavedEntry = {
   goldTotalFeeProfitRial?: number | null;
   fiscalMemoryId?: string | null;
   sandboxFiscalMemoryId?: string | null;
+  businessInvoiceSerial?: number | null;
 };
 
 const headings = ["سربرگ صورتحساب", "اقلام صورتحساب", "مرور نهایی و تسویه"] as const;
+const paddedBusinessSerial = (value: string | number | null | undefined) =>
+  value == null || value === "" ? "" : String(value).padStart(10,"0");
+const persianYear = (instant: Date) => new Intl.DateTimeFormat(
+  "en-US-u-ca-persian-nu-latn",{timeZone:"Asia/Tehran",year:"numeric"}
+).format(instant);
 type Settlement = 0 | 1 | 2 | 3;
 
 const PATTERN_LABELS: Record<number, string> = {
@@ -187,7 +195,7 @@ const GOLD_FIELDS = [
 const errorCodes: Record<number, string> = {
   400: "ورودی پیش‌نویس معتبر نیست.", 401: "نشست منقضی شده است؛ دوباره وارد شوید.",
   403: "برای این پرونده دسترسی ندارید.", 404: "مؤدی یا صورتحساب یافت نشد.",
-  409: "نسخه این پیش‌نویس در محل دیگری تغییر کرده است. برای جلوگیری از بازنویسی اطلاعات، ذخیره انجام نشد؛ پیش‌نویس را دوباره باز کنید.",
+  409: "شماره ترتیبی واردشده قبلاً استفاده شده یا نسخه پیش‌نویس در محل دیگری تغییر کرده است؛ شماره یا پیش‌نویس را بررسی کنید.",
   503: "سرویس فعلاً در دسترس نیست."
 };
 
@@ -247,6 +255,9 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   // Modal and draft lifecycle state.
   const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState<SavedEntry | null>(null);
+  const [businessInvoiceSerial,setBusinessInvoiceSerial]=useState("");
+  const [businessSerialFocused,setBusinessSerialFocused]=useState(false);
+  const businessSerialManuallyEdited=useRef(false);
   const [step, setStep] = useState<Step>(0);
   const [savedSnapshot,setSavedSnapshot] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -275,8 +286,6 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   const [buyerQuery, setBuyerQuery] = useState("");
   const [buyers, setBuyers] = useState<FiscalEntry[]>([]);
   const [buyerLoading, setBuyerLoading] = useState(false);
-  const [buyerOpen, setBuyerOpen] = useState(false);
-  const [buyerActive, setBuyerActive] = useState(0);
   const [date, setDate] = useState(() => tehranDateTime(new Date()).date);
   const [hour, setHour] = useState(() => tehranDateTime(new Date()).time);
   const [formMetadata, setFormMetadata] = useState<FormMetadata | null>(null);
@@ -313,6 +322,23 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
       .finally(()=>{if(current)setHeaderLoading(false);});
     return ()=>{current=false;};
   },[modal,taxpayerId]);
+
+  useEffect(()=>{
+    if(!modal||!taxpayerId||businessSerialManuallyEdited.current)return;
+    const issueDate=tehranLocalToUtc(date,hour);
+    if(Number.isNaN(issueDate.valueOf()))return;
+    if(editing&&persianYear(issueDate)===persianYear(new Date(editing.issueDateUtc))&&
+        editing.businessInvoiceSerial!=null){
+      setBusinessInvoiceSerial(String(editing.businessInvoiceSerial));
+      return;
+    }
+    let active=true;
+    const query=new URLSearchParams({taxpayerId,issueDateUtc:issueDate.toISOString()});
+    getJson<{serial:number}>("/api/invoices/workspaces/next-business-serial?"+query)
+      .then(result=>{if(active)setBusinessInvoiceSerial(String(result.serial));})
+      .catch(()=>{if(active)setBusinessInvoiceSerial("");});
+    return()=>{active=false;};
+  },[modal,taxpayerId,date,hour,editing?.id,editing?.issueDateUtc,editing?.businessInvoiceSerial]);
 
   useEffect(() => {
     let live = true;
@@ -373,6 +399,18 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   const [taxpayerOwners, setTaxpayerOwners] = useState<Record<string,string>>({});
   const visibleTaxpayers = isAdmin ? customerTaxpayers : taxpayers;
   const chosenBuyer = buyers.find(b => b.id === buyerId);
+  const buyerOptions:SearchableSelectOption[]=buyers.map(b=>({value:b.id,label:b.displayName,
+    description:`${b.kind===2?"شخص حقوقی":"شخص حقیقی"} · ${b.identifier}`,searchText:b.identifier}));
+  const invoiceCustomerOptions:SearchableSelectOption[]=accounts.filter(a=>a.customerUserId!==actorId).map(a=>({value:a.customerUserId,label:a.companyName||a.personName||"حساب مشتری"}));
+  const invoiceTaxpayerOptions:SearchableSelectOption[]=(isAdmin?customerTaxpayers:taxpayers).map(t=>({value:t.id,label:t.displayName}));
+  const invoiceMemoryOptions:SearchableSelectOption[]=[
+    ...visibleInvoiceMemories(headerOptions?.memories??[],headerOptions?.sandboxMemories??[],memoryId).map(m=>({
+      value:m.id,label:m.memoryIdentifier,
+      description:`${m.authorityEnvironment===1?"Production":m.authorityEnvironment===2?"Sandbox":"محیط نامشخص"} · ${m.status===2?"فعال":m.status===3?"تعلیق‌شده":m.status===4?"بازنشسته":"در انتظار فعال‌سازی"}`,
+      disabled:(m.authorityEnvironment!==1&&m.authorityEnvironment!==2)||m.status!==2
+    })),
+    ...(headerOptions?.sandboxMemories??[]).map(m=>({value:`sandbox:${m.id}`,label:m.memoryIdentifier,description:"Sandbox (آزمایشی)"}))
+  ];
   const buyerDetailsNotRequired = invoiceType === 2 && pattern === 1;
   useEffect(() => {
     if (buyerDetailsNotRequired) { setSettlement(0); setCashInput(""); }
@@ -428,7 +466,6 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
     if (buyerDetailsNotRequired) {
       setBuyerId("");
       setBuyerQuery("");
-      setBuyerOpen(false);
       setBuyers([]);
       setBuyerLoading(false);
       return;
@@ -527,12 +564,13 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
     setDetail(null);
     const currentTehran = tehranDateTime(new Date());
     setStep(0); setDate(currentTehran.date); setHour(currentTehran.time);
-    setBuyerId(""); setBuyerQuery(""); setBuyerOpen(false); setInvoiceType(1); setPattern(1);
+    setBuyerId(""); setBuyerQuery(""); setInvoiceType(1); setPattern(1);
     setMemoryId("");setHeaderOptions(null);
     setConditionalFields({});
     setHeaderCustomer(isAdmin ? (filterCustomer || "") : actorId);
     setTaxpayerId(isAdmin ? "" : taxpayerId);
     setRows([]); setInvoiceDescription(""); setSettlement(0); setCashInput("");
+    setBusinessInvoiceSerial("");businessSerialManuallyEdited.current=false;
     setOtherTaxInput("0");
     setSavedSnapshot(null); setError(""); setNotice(""); setModal(true);
   }
@@ -549,6 +587,8 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
     try {
       const saved = await getJson<SavedEntry>("/api/invoices/workspaces/"+draft.id);
       setEditing(saved);
+      setBusinessInvoiceSerial(saved.businessInvoiceSerial==null?"":String(saved.businessInvoiceSerial));
+      businessSerialManuallyEdited.current=false;
       setSavedSnapshot(null);
       setHeaderCustomer(saved.customerUserId);
       setTaxpayerId(saved.taxpayerId);
@@ -563,7 +603,6 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
       }
       setBuyerId(saved.buyerPartyId ?? "");
       setBuyerQuery(saved.buyerDisplayName ?? "");
-      setBuyerOpen(false);
       setInvoiceType(saved.type); setPattern(saved.pattern);
       setConditionalFields(Object.fromEntries((["contractNumber","serviceBillId","flightType",
         "goldConstructionFeeRial","goldSellerProfitRial","goldCommissionRial","goldTotalFeeProfitRial"] as const)
@@ -602,6 +641,11 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
     }
     if(issued.getTime()>Date.now()) {
       setError("تاریخ و زمان صدور صورتحساب نمی‌تواند در آینده باشد.");return false;
+    }
+    const businessSerial=Number(businessInvoiceSerial);
+    if(!/^\d{1,10}$/.test(businessInvoiceSerial)||!Number.isSafeInteger(businessSerial)||
+        businessSerial<1||businessSerial>9_999_999_999){
+      setError("شماره ترتیبی صورتحساب باید عددی بین ۱ و ۹۹۹۹۹۹۹۹۹۹ باشد.");return false;
     }
     if(rows.some(r=>!r.name.trim() || !Number.isFinite(Number(r.quantity)) ||
         Number(r.quantity)<0 || Number(r.unitPrice)<0 ||
@@ -662,6 +706,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
       id:editing?.id ?? null,
       taxpayerId, expectedRevision:editing?.revision ?? 0,
       lastCompletedStep:persistedStep, issueDateUtc:issued.toISOString(),
+      businessInvoiceSerial:businessSerial,
       buyerPartyId:buyerDetailsNotRequired ? null : buyerId || null,
       // Production memories use the regular field (fiscalMemoryId:memoryId || null);
       // Sandbox memories must stay isolated from that foreign-key field.
@@ -716,7 +761,8 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
       unitId:item?.baseUnitId,catalogCodeSnapshot:item?.internalCode,
       officialIdentifierSnapshot:item?.officialCode ?? undefined,
       name: item?.title ?? "",
-      quantity:"1", unitPrice:"0", discount:"0", vatRate:"0"
+      quantity:"1", unitPrice:"0", discount:"0",
+      vatRate:item?.vatRatePercent==null?"0":String(item.vatRatePercent)
     }));
   }
   function applyImportedRows(imported: ImportValues[]) {
@@ -747,7 +793,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
     (cashInput.trim() === "" || !Number.isFinite(Number(cashInput)) ||
       !Number.isInteger(Number(cashInput)) || cashPreview <= 0 || cashPreview >= invoiceTotal);
   const draftSnapshot = JSON.stringify({
-    headerCustomer,taxpayerId,memoryId,buyerId,date,hour,invoiceType,pattern,
+    headerCustomer,taxpayerId,memoryId,buyerId,date,hour,businessInvoiceSerial,invoiceType,pattern,
     conditionalFields,rows,
     invoiceDescription,settlement,cashInput,otherTaxInput
   });
@@ -759,6 +805,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   const validationDirty = editing !== null && (
     editing.taxpayerId!==taxpayerId || (()=>{const saved=tehranDateTime(new Date(editing.issueDateUtc));return saved.date!==date||saved.time!==hour;})() ||
     (editing.buyerPartyId??"")!==buyerId || (editing.sandboxFiscalMemoryId?"sandbox:"+editing.sandboxFiscalMemoryId:(editing.fiscalMemoryId??""))!==memoryId ||
+    editing.businessInvoiceSerial!==Number(businessInvoiceSerial) ||
     editing.type!==invoiceType || editing.pattern!==pattern ||
     (editing.invoiceDescription??"")!==invoiceDescription.trim() ||
     Number(editing.otherTaxAndLegalFeesRial??0)!==otherTax ||
@@ -792,21 +839,15 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
       <div className="invoice-register__filters">
         {isAdmin && <>
           <label htmlFor="invoice-list-customer">مشتری نرم‌افزار</label>
-          <select id="invoice-list-customer" value={filterCustomer}
-            onChange={e=>{setFilterCustomer(e.target.value);setFilterTaxpayer("");setListPage(1);}}>
-            <option value="">همه مشتریان زیرمجموعه</option>
-            {accounts.filter(a=>a.customerUserId!==actorId).map(a=><option key={a.customerUserId} value={a.customerUserId}>
-              {a.companyName || a.personName || "حساب مشتری"}
-            </option>)}
-          </select>
+          <SearchableSelect id="invoice-list-customer" value={filterCustomer} options={invoiceCustomerOptions}
+            selectedLabel={filterCustomer?undefined:"همه مشتریان زیرمجموعه"} placeholder="جست‌وجوی مشتری…"
+            onChange={value=>{setFilterCustomer(value);setFilterTaxpayer("");setListPage(1);}} />
         </>}
         <label htmlFor="invoice-list-taxpayer">مؤدی</label>
-        <select id="invoice-list-taxpayer" value={filterTaxpayer}
-          onChange={e=>{setFilterTaxpayer(e.target.value);setListPage(1);}}>
-          <option value="">همه مؤدیان مجاز</option>
-          {taxpayers.filter(t=>!filterCustomer || taxpayerOwners[t.id]===filterCustomer)
-            .map(t=><option key={t.id} value={t.id}>{t.displayName}</option>)}
-        </select>
+        <SearchableSelect id="invoice-list-taxpayer" value={filterTaxpayer}
+          options={invoiceTaxpayerOptions.filter(t=>!filterCustomer||taxpayerOwners[t.value]===filterCustomer)}
+          selectedLabel={filterTaxpayer?undefined:"همه مؤدیان مجاز"} placeholder="جست‌وجوی مؤدی…"
+          onChange={value=>{setFilterTaxpayer(value);setListPage(1);}} />
         <label htmlFor="invoice-list-review">وضعیت بازبینی</label>
         <select id="invoice-list-review" value={reviewFilter}
           onChange={e=>{setReviewFilter(e.target.value);setListPage(1);}}>
@@ -1082,38 +1123,21 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
               aria-busy={accountsLoading || taxpayersLoading || customerTaxpayersLoading || headerLoading || buyerLoading || formMetadataLoading}>
               {isAdmin && <>
                 <label htmlFor="invoice-header-customer">مشتری نرم‌افزار</label>
-                <select id="invoice-header-customer" value={headerCustomer} required disabled={accountsLoading}
-                  onChange={e=>{setHeaderCustomer(e.target.value);setTaxpayerId("");setMemoryId("");setHeaderOptions(null);setBuyerId("");setBuyerQuery("");setBuyerOpen(false);}}>
-                  <option value="">انتخاب مشتری</option>
-                  {accounts.filter(a=>a.customerUserId!==actorId).map(a=><option key={a.customerUserId} value={a.customerUserId}>
-                    {a.companyName || a.personName || "مشتری مجاز"}
-                  </option>)}
-                </select>
+                <SearchableSelect id="invoice-header-customer" value={headerCustomer} required disabled={accountsLoading}
+                  options={invoiceCustomerOptions} placeholder="جست‌وجوی مشتری…"
+                  onChange={value=>{setHeaderCustomer(value);setTaxpayerId("");setMemoryId("");setHeaderOptions(null);setBuyerId("");setBuyerQuery("");}} />
                 {accountsLoading && <small className="invoice-entry-loading" role="status" aria-live="polite"><span className="argin-loader-spinner" aria-hidden="true"/>در حال دریافت فهرست مشتریان…</small>}
               </>}
               <label htmlFor="invoice-taxpayer">مؤدی صادرکننده / فروشنده</label>
-              <select id="invoice-taxpayer" value={taxpayerId} required disabled={taxpayersLoading || customerTaxpayersLoading || isAdmin && !headerCustomer}
-                onChange={e=>{setTaxpayerId(e.target.value);setMemoryId("");setHeaderOptions(null);setBuyerId("");setBuyerQuery("");setBuyerOpen(false);}}>
-                <option value="">انتخاب مؤدی فروشنده</option>
-                {visibleTaxpayers.map(t => <option key={t.id} value={t.id}>{t.displayName}</option>)}
-              </select>
+              <SearchableSelect id="invoice-taxpayer" value={taxpayerId} required
+                disabled={taxpayersLoading || customerTaxpayersLoading || isAdmin && !headerCustomer}
+                options={invoiceTaxpayerOptions} placeholder="جست‌وجوی مؤدی فروشنده…"
+                onChange={value=>{setTaxpayerId(value);setMemoryId("");setHeaderOptions(null);setBuyerId("");setBuyerQuery("");}} />
               {(taxpayersLoading || customerTaxpayersLoading) && <small className="invoice-entry-loading" role="status" aria-live="polite"><span className="argin-loader-spinner" aria-hidden="true"/>{customerTaxpayersLoading ? "در حال دریافت فهرست مؤدیان مشتری…" : "در حال دریافت فهرست مؤدیان…"}</small>}
               <label htmlFor="invoice-memory">حافظه مالیاتی فروشنده (در پیش‌نویس اختیاری)</label>
-              <select id="invoice-memory" value={memoryId} disabled={headerLoading || !headerOptions}
-                onChange={e=>setMemoryId(e.target.value)}>
-                <option value="">بدون انتخاب حافظه مالیاتی</option>
-                {visibleInvoiceMemories(headerOptions?.memories??[],headerOptions?.sandboxMemories??[],memoryId).map(m=>{
-                  const environment=m.authorityEnvironment===1?"Production (اصلی)":m.authorityEnvironment===2?"Sandbox (آزمایشی)":"محیط هنوز تأیید نشده";
-                  const memoryStatus=m.status===2?"فعال":m.status===3?"تعلیق‌شده":m.status===4?"بازنشسته":"در انتظار فعال‌سازی";
-                  return <option key={m.id} value={m.id}
-                    disabled={(m.authorityEnvironment!==1&&m.authorityEnvironment!==2)||m.status!==2}>
-                    {m.memoryIdentifier} — {environment}{m.authorityEnvironment===1||m.authorityEnvironment===2?` · ${memoryStatus}`:""}
-                  </option>;
-                })}
-                {(headerOptions?.sandboxMemories??[]).map(m=><option key={"sandbox:"+m.id} value={"sandbox:"+m.id}>
-                  {m.memoryIdentifier} — Sandbox (آزمایشی)
-                </option>)}
-              </select>
+              <SearchableSelect id="invoice-memory" value={memoryId} disabled={headerLoading || !headerOptions}
+                options={invoiceMemoryOptions} selectedLabel={memoryId?undefined:"بدون انتخاب حافظه مالیاتی"}
+                placeholder="جست‌وجوی حافظه مالیاتی…" onChange={setMemoryId} />
               {memoryId.startsWith("sandbox:")&&<small className="invoice-register__hint">
                 حافظه مالیاتی آزمایشی انتخاب شده است؛ این پیش‌نویس فقط برای مسیر Sandbox در نظر گرفته می‌شود.
                 انتخاب Sandbox به معنای آماده‌بودن ارسال صورتحساب نیست.
@@ -1150,40 +1174,12 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
               </select>
               <label htmlFor="invoice-buyer-search">{buyerDetailsNotRequired ? "اطلاعات خریدار (برای نوع دوم فروش لازم نیست)" : "خریدار ثبت‌شده"}</label>
               <div className="invoice-register__buyer">
-                <input id="invoice-buyer-search" type="search" value={buyerDetailsNotRequired ? "" : buyerQuery}
-                  disabled={busy || buyerDetailsNotRequired}
-                  role="combobox" aria-autocomplete="list" aria-controls="invoice-buyer-options"
-                  aria-expanded={buyerOpen} aria-activedescendant={
-                    buyerOpen && buyers[buyerActive] ? "invoice-buyer-option-"+buyers[buyerActive].id : undefined
-                  }
-                  placeholder={buyerDetailsNotRequired ? "برای این نوع صورتحساب نیازی به خریدار نیست" : "جست‌وجوی نام یا شناسه خریدار"} autoComplete="off"
-                  onFocus={()=>{setBuyerOpen(true);setBuyerActive(0);}}
-                  onChange={e=>{setBuyerQuery(e.target.value);setBuyerId("");
-                    setBuyerOpen(true);setBuyerActive(0);}}
-                  onKeyDown={e=>{
-                    if(e.key==="Escape"){setBuyerOpen(false);return;}
-                    if(e.key==="ArrowDown"){e.preventDefault();setBuyerOpen(true);
-                      setBuyerActive(i=>Math.min(Math.max(0,buyers.length-1),i+1));}
-                    if(e.key==="ArrowUp"){e.preventDefault();
-                      setBuyerActive(i=>Math.max(0,i-1));}
-                    if(e.key==="Enter" && buyerOpen && buyers[buyerActive]){
-                      e.preventDefault();const b=buyers[buyerActive];
-                      setBuyerId(b.id);setBuyerQuery(b.displayName);setBuyerOpen(false);
-                    }
-                  }}/>
-                {!buyerDetailsNotRequired && buyerOpen && <div role="listbox" id="invoice-buyer-options"
-                    className="invoice-register__buyer-options"
-                    aria-label="نتایج جست‌وجوی خریداران">
-                  {!buyerLoading && buyers.length===0 && <p>خریدار فعال یافت نشد.</p>}
-                  {buyers.map((b,i)=><button type="button" role="option"
-                      key={b.id} id={"invoice-buyer-option-"+b.id}
-                      aria-selected={buyerId===b.id || buyerOpen && buyerActive===i}
-                      className={buyerActive===i?"active":""}
-                      onMouseDown={e=>e.preventDefault()}
-                      onClick={()=>{setBuyerId(b.id);setBuyerQuery(b.displayName);setBuyerOpen(false);}}>
-                    <strong>{b.displayName}</strong><small>{b.kind===2?"شخص حقوقی":"شخص حقیقی"} · <span dir="ltr">{b.identifier}</span></small>
-                  </button>)}
-                </div>}
+                <SearchableSelect id="invoice-buyer-search" value={buyerDetailsNotRequired?"":buyerId}
+                  options={buyerOptions} disabled={busy||buyerDetailsNotRequired}
+                  selectedLabel={chosenBuyer?.displayName||buyerQuery}
+                  placeholder={buyerDetailsNotRequired?"برای این نوع صورتحساب نیازی به خریدار نیست":"جست‌وجوی نام یا شناسه خریدار"}
+                  onChange={setBuyerId} onSearchChange={setBuyerQuery} loading={buyerLoading}
+                  emptyMessage="خریدار فعالی با این نام یا شناسه پیدا نشد." />
                 {!buyerDetailsNotRequired && buyerId && <small className="invoice-register__selected-buyer">
                   خریدار انتخاب‌شده: {chosenBuyer?.displayName || buyerQuery}
                   {chosenBuyer ? ` — ${chosenBuyer.kind===2?"حقوقی":"حقیقی"}` : ""}</small>}
@@ -1193,6 +1189,13 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
               <PersianDatePicker id="invoice-date" value={date} onChange={setDate} floating/>
               <label htmlFor="invoice-hour">ساعت صدور (تهران)</label>
               <PersianTimePicker id="invoice-hour" value={hour} onChange={setHour} timeZoneLabel="تهران" />
+              <label htmlFor="invoice-business-serial">شماره ترتیبی صورتحساب (۱۰ رقمی)</label>
+              <input id="invoice-business-serial" dir="ltr" inputMode="numeric" maxLength={10}
+                value={businessSerialFocused?businessInvoiceSerial:paddedBusinessSerial(businessInvoiceSerial)} disabled={busy}
+                onFocus={()=>setBusinessSerialFocused(true)} onBlur={()=>setBusinessSerialFocused(false)}
+                onChange={e=>{businessSerialManuallyEdited.current=true;
+                  setBusinessInvoiceSerial(normalizeInvoiceIdentifier(e.target.value).replace(/\D/g,"").slice(-10));}} />
+              <small className="invoice-register__hint">شمارهٔ ده‌دهی مستقل از شناسهٔ مالیاتی است؛ پس از ثبت، برای همین مؤدی و سال شمسی یکتا می‌ماند.</small>
               {(formMetadata?.entries.find(p => p.type === invoiceType && p.pattern === pattern)?.requiredFields ?? [])
                 .flatMap(field => field === "goldFields" ? GOLD_FIELDS : [field])
                 .map(field => <div key={field} className="invoice-register__conditional-field">
@@ -1223,7 +1226,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
               </div>
               <div className="invoice-register__catalog-picker" style={{marginBottom:8}}>
                 <label htmlFor="invoice-catalog-search">انتخاب کالا / خدمت</label>
-                <SearchableCatalogPicker items={catalog} value={catalogQuery}
+                <SearchableCatalogPicker items={catalog}
                   onQueryChange={setCatalogQuery} loading={catalogBusy} onChoose={addRow}/>
                 <small className="field-hint">شناسه ۱۳ رقمی (sstid) را از اطلاعات کالا وارد کنید. نرم‌افزار قالب ۱۳ رقمی را کنترل می‌کند؛ اعتبار شناسه و نرخ را سامانه مالیاتی بررسی می‌کند.</small>
               </div>
@@ -1277,6 +1280,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
                     <dd>{visibleTaxpayers.find(t=>t.id===taxpayerId)?.displayName || "مؤدی انتخاب‌شده"}</dd>
                     <dt>خریدار</dt><dd>{buyerDetailsNotRequired ? "برای نوع دوم فروش لازم نیست" : buyerQuery || "هنوز انتخاب نشده"}</dd>
                     <dt>تاریخ و زمان</dt><dd>{new Intl.DateTimeFormat("fa-IR-u-ca-persian",{timeZone:"Asia/Tehran",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).format(tehranLocalToUtc(date,hour))}</dd>
+                    <dt>شماره ترتیبی صورتحساب</dt><dd><bdi dir="ltr">{paddedBusinessSerial(businessInvoiceSerial)}</bdi></dd>
                     <dt>نوع و الگو</dt><dd>نوع {invoiceType} · الگوی {pattern}</dd>
                     <dt>تعداد ردیف‌ها</dt><dd>{rows.length}</dd>
                   </dl>

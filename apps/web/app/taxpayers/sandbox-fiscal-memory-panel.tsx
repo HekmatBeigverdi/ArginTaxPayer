@@ -4,6 +4,7 @@ import {getConnectionPresentation,projectConnectionHistory,type ConnectionHistor
 
 import {useEffect,useRef,useState} from "react";
 import OperationMessageBox from "./operation-message-box";
+import SearchableSelect from "../components/searchable-select";
 
 function toPem(bytes:ArrayBuffer,label:string):string {
   const chars=Array.from(new Uint8Array(bytes),v=>String.fromCharCode(v)).join("");
@@ -352,8 +353,8 @@ export default function SandboxFiscalMemoryPanel({taxpayerId}:{taxpayerId:string
   if(reading)return <p role="status">در حال دریافت وضعیت حافظهٔ Sandbox…</p>;
   if(custodyReady&&!managing)return <article className="connection-card" aria-label="اتصال حافظه آزمایشی">
     <ConnectionSummary identifier={registered?.memoryIdentifier??identifier} environment="Sandbox" hasKey={custodyReady} history={history}/>
-    {registeredMemories.length>1&&<label>حافظهٔ Sandbox<select value={selectedMemoryId} disabled={connectionBusy||reading}
-      onChange={e=>void selectMemory(e.target.value)}>{registeredMemories.map(memory=><option key={memory.id} value={memory.id}>{memory.memoryIdentifier}</option>)}</select></label>}
+    {registeredMemories.length>1&&<label>حافظهٔ Sandbox<SearchableSelect id="sandbox-memory-selected" value={selectedMemoryId} disabled={connectionBusy||reading}
+      options={registeredMemories.map(memory=>({value:memory.id,label:memory.memoryIdentifier}))} placeholder="جست‌وجوی حافظه…" onChange={value=>void selectMemory(value)} /></label>}
     <div className="connection-actions">
       <button type="button" className="identity-primary" disabled={connectionBusy} onClick={()=>void testSandboxConnection()}>
         {connectionBusy?"در حال آزمون…":"تست اتصال Sandbox"}</button>
@@ -370,8 +371,8 @@ export default function SandboxFiscalMemoryPanel({taxpayerId}:{taxpayerId:string
   </article>;
   if(custodyReady&&managing)return <article className="connection-card connection-setup" aria-label="مدیریت کلید Sandbox">
     <ConnectionSummary identifier={registered?.memoryIdentifier??identifier} environment="Sandbox" hasKey={true} history={history}/>
-    {registeredMemories.length>1&&<label>حافظهٔ Sandbox<select value={selectedMemoryId} disabled={restoring||reading}
-      onChange={e=>void selectMemory(e.target.value)}>{registeredMemories.map(memory=><option key={memory.id} value={memory.id}>{memory.memoryIdentifier}</option>)}</select></label>}
+    {registeredMemories.length>1&&<label>حافظهٔ Sandbox<SearchableSelect id="sandbox-memory-manage" value={selectedMemoryId} disabled={restoring||reading}
+      options={registeredMemories.map(memory=>({value:memory.id,label:memory.memoryIdentifier}))} placeholder="جست‌وجوی حافظه…" onChange={value=>void selectMemory(value)} /></label>}
     <button type="button" className="identity-secondary" onClick={beginNewMemory}>ثبت کد حافظهٔ Sandbox جدید</button>
     <div className="connection-actions"><button type="button" className="identity-secondary" disabled={restoring} onClick={()=>{
       setRestoreFile(null);setRestoreConsent(false);setError("");setManaging(false);
@@ -388,8 +389,8 @@ export default function SandboxFiscalMemoryPanel({taxpayerId}:{taxpayerId:string
     {error&&<OperationMessageBox kind="error" title="بازثبت کلید انجام نشد">{error}</OperationMessageBox>}
   </article>;
   return <section className="sandbox-memory-panel" dir="rtl" aria-label="حافظه مالیاتی Sandbox">
-    {registeredMemories.length>0&&<label>انتخاب حافظهٔ آزمایشی<select value={selectedMemoryId} disabled={saving||storing||restoring}
-      onChange={e=>void selectMemory(e.target.value)}>{registeredMemories.map(memory=><option key={memory.id} value={memory.id}>{memory.memoryIdentifier}</option>)}</select></label>}
+    {registeredMemories.length>0&&<label>انتخاب حافظهٔ آزمایشی<SearchableSelect id="sandbox-memory-choice" value={selectedMemoryId} disabled={saving||storing||restoring}
+      options={registeredMemories.map(memory=>({value:memory.id,label:memory.memoryIdentifier}))} placeholder="جست‌وجوی حافظه…" onChange={value=>void selectMemory(value)} /></label>}
     {custodyReady&&<button type="button" className="identity-secondary" onClick={()=>{
       setPrivateKey("");setPrivateFile(null);setShowPrivate(false);setManaging(false);
     }}>بستن تنظیمات Sandbox</button>}

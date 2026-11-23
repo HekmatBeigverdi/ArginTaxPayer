@@ -9,6 +9,7 @@ import PlanSalesReport from "./plan-sales-report";
 import { amount, planName } from "./finance-format";
 import InvoiceActionToast from "../invoices/invoice-action-toast";
 import SmsTopupAction from "./sms-topup-action";
+import SearchableSelect from "../components/searchable-select";
 
 import { Fragment, useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 
@@ -202,7 +203,10 @@ export default function SubscriptionWorkspace({level1}:{level1:boolean}) {
     </section>}
     {tab==="sms" && <section>
       <div className="phase12-collection-heading"><div><h3>گزارش مصرف و هزینه پیامک</h3><p>هزینه واقعی قاصدک و مبلغ کسرشده از اعتبار کاربران ثبت می‌شود.</p></div>
-        {level1?<label>ادمین سطح ۲<select value={smsPartner} onChange={e=>{setSmsPage(1);setSmsPartner(e.target.value);}}><option value="">همه ادمین‌ها</option>{smsPartners.map(p=><option key={p.userId} value={p.userId}>{p.email||p.mobile||p.userId}</option>)}</select></label>:<span>گزارش محدود به ادمین سطح ۲ شماست.</span>}
+        {level1?<label>ادمین سطح ۲<SearchableSelect id="sms-report-partner" value={smsPartner}
+          options={smsPartners.map(p=>({value:p.userId,label:p.email||p.mobile||p.userId,description:p.userId}))}
+          placeholder="جست‌وجوی ادمین…" selectedLabel={smsPartner?undefined:"همه ادمین‌ها"}
+          onChange={value=>{setSmsPage(1);setSmsPartner(value);}} /></label>:<span>گزارش محدود به ادمین سطح ۲ شماست.</span>}
       </div>
       <div className="phase12-finance-summary"><span>هزینه واقعی سرویس: {amount(smsReport?.providerCostTotalIrr??0)}</span><span>جمع کسر از اعتبار کاربران: {amount(smsReport?.customerChargeTotalIrr??0)}</span></div>
       <div className="console-table-scroll phase12-finance-report"><table className="console-table" aria-busy={smsLoading}>

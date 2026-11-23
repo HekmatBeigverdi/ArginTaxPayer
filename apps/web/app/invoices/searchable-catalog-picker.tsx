@@ -1,70 +1,20 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import SearchableSelect,{type SearchableSelectOption} from "../components/searchable-select";
 
-export type InvoiceCatalogChoice = { id: string; title: string; internalCode?: string };
+export type InvoiceCatalogChoice={id:string;title:string;internalCode?:string;vatRatePercent?:number};
 
-export default function SearchableCatalogPicker({
-  items, value, onQueryChange, onChoose, loading
-}: {
-  items: InvoiceCatalogChoice[]; value: string; onQueryChange(value: string): void;
-  onChoose(item: InvoiceCatalogChoice): void; loading: boolean;
-}) {
-  const [open,setOpen] = useState(false);
-  const root = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const onPointer = (event: PointerEvent) => {
-      if (event.target instanceof Node && !root.current?.contains(event.target)) setOpen(false);
-    };
-    document.addEventListener("pointerdown",onPointer);
-    return () => document.removeEventListener("pointerdown",onPointer);
-  },[open]);
-  useEffect(() => {
-    const dismiss = () => setOpen(false);
-    window.addEventListener("invoice-catalog-dismiss",dismiss);
-    return () => window.removeEventListener("invoice-catalog-dismiss",dismiss);
-  },[]);
-  const [active,setActive] = useState(0);
-  const selected = items[active];
-  return <div className="invoice-register__catalog-combo" ref={root} aria-busy={loading}
-    data-invoice-catalog-open={open ? "true" : "false"}
-    onKeyDown={event=>{if(event.key==="Escape" && open){
-      event.preventDefault();event.stopPropagation();event.nativeEvent.stopImmediatePropagation();setOpen(false);
-    }}}>
-    <input type="search" role="combobox" id="invoice-catalog-search"
-      autoComplete="off" aria-autocomplete="list"
-      aria-expanded={open} aria-controls="invoice-catalog-options"
-      aria-activedescendant={open && selected ? "catalog-choice-"+selected.id : undefined}
-      placeholder="جست‌وجوی کالا یا خدمت با نام یا کد…"
-      value={value}
-      onFocus={()=>setOpen(true)}
-      onChange={e=>{onQueryChange(e.target.value);setOpen(true);setActive(0);}}
-      onKeyDown={event=>{
-        if(event.key==="ArrowDown"){event.preventDefault();setOpen(true);
-          setActive(i=>Math.min(items.length-1,i+1));}
-        if(event.key==="ArrowUp"){event.preventDefault();
-          setActive(i=>Math.max(0,i-1));}
-        if(event.key==="Enter" && open && selected){
-          event.preventDefault();onChoose(selected);onQueryChange("");setOpen(false);
-        }
-      }}
-    />
-    {loading && <p className="invoice-entry-loading" role="status" aria-live="polite"><span className="argin-loader-spinner" aria-hidden="true"/>در حال دریافت کالاها و خدمات…</p>}
-    {open && <button type="button" className="identity-secondary"
-      aria-label="بستن فهرست کالا و خدمات" title="بستن فهرست کالا و خدمات"
-      onClick={()=>setOpen(false)}>× بستن فهرست</button>}
-    {open && <div className="invoice-register__catalog-options" aria-busy={loading}>
-      {!loading && items.length===0 && <p>موردی یافت نشد؛ عبارت جست‌وجو را تغییر دهید.</p>}
-      <div role="listbox" id="invoice-catalog-options" aria-label="نتایج کالا و خدمات">
-      {!loading && items.map((item,i)=><button type="button" role="option"
-        aria-selected={i===active} id={"catalog-choice-"+item.id}
-        className={i===active?"active":""} key={item.id}
-        onMouseDown={e=>e.preventDefault()}
-        onClick={()=>{onChoose(item);onQueryChange("");setOpen(false);}}>
-        <span>{item.title}</span><small dir="ltr">{item.internalCode || ""}</small>
-      </button>)}
-      </div>
-    </div>}
-  </div>;
+export default function SearchableCatalogPicker({items,onQueryChange,onChoose,loading}:{
+  items:InvoiceCatalogChoice[];onQueryChange(value:string):void;
+  onChoose(item:InvoiceCatalogChoice):void;loading:boolean;
+}){
+  const options:SearchableSelectOption[]=items.map(item=>({
+    value:item.id,label:item.title,
+    description:`${item.internalCode||"بدون کد داخلی"} · ارزش افزوده ${item.vatRatePercent??0}٪`,
+    searchText:item.internalCode
+  }));
+  return <SearchableSelect id="invoice-catalog-search" value="" options={options}
+    onChange={id=>{const chosen=items.find(item=>item.id===id);if(chosen){onChoose(chosen);onQueryChange("");}}}
+    onSearchChange={onQueryChange} placeholder="جست‌وجوی کالا یا خدمت با نام یا کد…"
+    loading={loading} emptyMessage="کالا یا خدمتی یافت نشد؛ عبارت جست‌وجو را تغییر دهید." />;
 }

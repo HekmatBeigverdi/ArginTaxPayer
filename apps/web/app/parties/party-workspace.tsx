@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import InvoiceParticipantForm from "./invoice-participant-form";
 import ConsoleLoader from "../components/console-loader";
+import SearchableSelect from "../components/searchable-select";
 
 const PAGE_SIZE = 20;
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
@@ -446,13 +447,11 @@ export default function PartyWorkspace({
           <Link href="/users" className="app-module-link">مدیریت حساب‌ها و مؤدیان ←</Link>
         </div>
         <label htmlFor="party-customer-choice">انتخاب مشتری از فهرست مجاز</label>
-        <select id="party-customer-choice" value={customers.some(c => c.customerUserId === customer) ? customer : ""}
-          onChange={event => { setCustomer(event.target.value); setPage(1); resetSelected(); }}>
-          <option value="">انتخاب مشتری…</option>
-          {customers.map(c => <option key={c.customerUserId} value={c.customerUserId}>
-            {c.mobile || c.email || c.customerUserId} — {c.taxpayerCount} مؤدی
-          </option>)}
-        </select>
+        <SearchableSelect id="party-customer-choice" value={customers.some(c=>c.customerUserId===customer)?customer:""}
+          options={customers.map(c=>({value:c.customerUserId,label:c.mobile||c.email||c.customerUserId,
+            description:`${c.taxpayerCount} مؤدی`,searchText:c.customerUserId}))}
+          placeholder="جست‌وجوی مشتری…" selectedLabel={customer?undefined:"انتخاب مشتری…"}
+          onChange={value=>{setCustomer(value);setPage(1);resetSelected();}} />
         {customerLoadError && <p role="alert" className="party-error">{customerLoadError}</p>}
         <label htmlFor="party-customer">شناسه حساب مشتری</label>
         <input

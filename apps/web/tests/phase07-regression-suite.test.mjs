@@ -94,8 +94,9 @@ test("invoice wizard preserves compact modal, catalog search, settlement and res
   assert.match(ui, /ذخیره و ادامه بعداً/);
   assert.match(ui, /ویرایش و ادامه/);
   assert.match(ui, /console-table-footer/);
-  assert.match(catalog, /role="combobox"/);
-  assert.match(catalog, /role="listbox"/);
+  assert.match(catalog, /<SearchableSelect/);
+  assert.match(read("apps/web/app/components/searchable-select.tsx"), /role="combobox"/);
+  assert.match(read("apps/web/app/components/searchable-select.tsx"), /role="listbox"/);
 });
 
 test("additive migrations keep prior tenant isolation and resumable drafts", () => {

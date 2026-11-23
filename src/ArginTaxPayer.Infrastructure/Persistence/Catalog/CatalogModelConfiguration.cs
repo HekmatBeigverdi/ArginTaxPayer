@@ -75,12 +75,14 @@ public static class CatalogModelConfiguration
             t.HasCheckConstraint("ck_catalog_item_status", "status BETWEEN 1 AND 4");
             t.HasCheckConstraint("ck_catalog_item_revision", "revision > 0");
             t.HasCheckConstraint("ck_catalog_item_official_code", "official_code IS NULL OR official_code ~ '^[0-9]{13}$'");
+            t.HasCheckConstraint("ck_catalog_item_vat_rate", "vat_rate_percent >= 0 AND vat_rate_percent <= 999.99");
         });
         items.HasKey(x => x.Id);
         items.Property(x => x.Id).HasColumnName("id");
         items.Property(x => x.CustomerUserId).HasColumnName("customer_user_id");
         items.Property(x => x.InternalCode).HasColumnName("internal_code").HasMaxLength(100).IsRequired();
         items.Property(x => x.OfficialCode).HasColumnName("official_code").HasMaxLength(13);
+        items.Property(x => x.VatRatePercent).HasColumnName("vat_rate_percent").HasPrecision(5,2).HasDefaultValue(0m);
         items.Property(x => x.Title).HasColumnName("title").HasMaxLength(256).IsRequired();
         items.Property(x => x.Kind).HasColumnName("kind");
         items.Property(x => x.BaseUnitId).HasColumnName("base_unit_id");

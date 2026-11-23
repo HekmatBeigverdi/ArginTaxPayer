@@ -7,7 +7,8 @@ namespace ArginTaxPayer.Domain.Catalog;
 /// InternalCode is a customer-scoped identifier, NOT an official fiscal sstid.
 /// </summary>
 public sealed record CatalogServiceInput(
-    string InternalCode, string Title, Guid BaseUnitId, string? OfficialCode = null);
+    string InternalCode, string Title, Guid BaseUnitId, string? OfficialCode = null,
+    decimal? VatRatePercent = null);
 
 public static class CustomerServicePolicy
 {
@@ -15,7 +16,9 @@ public static class CustomerServicePolicy
         out CatalogServiceInput? normalized)
     {
         normalized = null;
-        if (input is null || input.BaseUnitId == Guid.Empty) return false;
+        if (input is null || input.BaseUnitId == Guid.Empty ||
+            input.VatRatePercent is { } rate &&
+                (rate is < 0m or > 999.99m || rate != decimal.Round(rate, 2))) return false;
         var code = input.InternalCode?.Trim().Normalize(NormalizationForm.FormC);
         var title = input.Title?.Trim().Normalize(NormalizationForm.FormC);
         var officialCode = input.OfficialCode?.Trim();
@@ -28,7 +31,7 @@ public static class CustomerServicePolicy
             (officialCode.Length != 13 || !officialCode.All(char.IsAsciiDigit))) return false;
 
         normalized = new CatalogServiceInput(code.ToUpperInvariant(), title, input.BaseUnitId,
-            string.IsNullOrEmpty(officialCode) ? null : officialCode);
+            string.IsNullOrEmpty(officialCode) ? null : officialCode,input.VatRatePercent);
         return true;
     }
 

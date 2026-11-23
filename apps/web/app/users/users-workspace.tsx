@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import ConsoleLoader from "../components/console-loader";
+import SearchableSelect from "../components/searchable-select";
 
 
 type Account = {
@@ -440,14 +441,11 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
           <p>ثبت‌نام عمومی زیرمجموعه سطح ۱ است. واگذاری به شریک سطح ۲ فقط با تأیید شما انجام می‌شود.</p>
           <form onSubmit={assignOwner}>
             <label htmlFor="owner-partner-id">مالک تجاری مشتری
-              <select id="owner-partner-id" value={partnerId} onChange={e => setPartnerId(e.target.value)}>
-                <option value="">ادمین سطح ۱ — مشتری مستقیم</option>
-                {partnerId && !partners.some(p => p.userId === partnerId) &&
-                  <option value={partnerId}>شریک فعلی — {partnerId.slice(0, 8)}…</option>}
-                {partners.map(p => <option key={p.userId} value={p.userId}>
-                  {p.mobile || p.email || p.userId} — ادمین سطح ۲
-                </option>)}
-              </select>
+              <SearchableSelect id="owner-partner-id" value={partnerId}
+                options={[...(partnerId&&!partners.some(p=>p.userId===partnerId)?[{value:partnerId,label:`شریک فعلی — ${partnerId.slice(0,8)}…`,searchText:partnerId}]:[]),
+                  ...partners.map(p=>({value:p.userId,label:`${p.mobile||p.email||p.userId} — ادمین سطح ۲`,searchText:p.userId}))]}
+                selectedLabel={partnerId?undefined:"ادمین سطح ۱ — مشتری مستقیم"} placeholder="جست‌وجوی همکار…"
+                onChange={setPartnerId} />
             </label>
             {partnerLoadError && <p role="alert" className="form-error">{partnerLoadError}</p>}
             <label htmlFor="owner-transfer-kind">علت انتساب

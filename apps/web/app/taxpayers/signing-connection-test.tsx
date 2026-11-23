@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import OperationMessageBox from "./operation-message-box";
+import SearchableSelect from "../components/searchable-select";
 
 type Memory = { id: string; memoryIdentifier: string };
 type Result = { status: string; testedAtUtc: string; oneTimeTest?: boolean; environmentPersisted?: boolean; memoryActivated?: boolean; connectionRecorded?: boolean;
@@ -84,10 +85,8 @@ export default function SigningConnectionTest({ taxpayerId, memories, loadingMem
     {!compact && <strong>آزمون ارتباط فقط‌خواندنی</strong>}
     {loadingMemories ? <p className="field-hint">در حال دریافت حافظه‌ها…</p> :
       memories.length === 0 ? <p className="field-hint">ابتدا حافظه مالیاتی ثبت کنید.</p> :
-      <>{!hideMemorySelector && <label>حافظه مالیاتی<select value={memoryId} disabled={busy}
-        onChange={e => setSelected(e.target.value)}>
-        {memories.map(m => <option key={m.id} value={m.id}>{m.memoryIdentifier}</option>)}
-      </select></label>}
+      <>{!hideMemorySelector && <label>حافظه مالیاتی<SearchableSelect id="connection-test-memory" value={memoryId} disabled={busy}
+        options={memories.map(m=>({value:m.id,label:m.memoryIdentifier}))} placeholder="جست‌وجوی حافظه…" onChange={setSelected} /> </label>}
       <button type="button" className="identity-secondary" disabled={busy}
         onClick={() => void testConnection()}>{busy ? "در حال بررسی…" : "تست اتصال"}</button></>}
     {error && <OperationMessageBox key={error} kind="error" title="آزمون اتصال انجام نشد">{error}</OperationMessageBox>}

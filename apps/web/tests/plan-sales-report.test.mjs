@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import React from 'react';
 import {createRequire} from 'node:module';
+import {readFileSync} from 'node:fs';
 import {renderToStaticMarkup} from 'react-dom/server';
 import {loadTsx} from './helpers/load-tsx.mjs';
 
@@ -95,8 +96,8 @@ test('sales sends selected Level 2 filter to the server and renders its options'
    useEffect(effect){effects.push(effect);}}}
  }).default;
  const html=renderToStaticMarkup(React.createElement(Component,{request:async path=>{calls.push(path);return report;}}));
- assert.ok(html.includes('همه ادمین‌ها'));
  assert.ok(html.includes('ادمین نمونه'));
+ assert.match(readFileSync(new URL('../app/subscriptions/plan-sales-report.tsx',import.meta.url),'utf8'),/selectedLabel=\{partnerUserId\?undefined:"همه ادمین‌ها"\}/);
  effects[0]();
  await new Promise(resolve=>setImmediate(resolve));
  assert.equal(calls[0],`sales-report?period=month&page=1&pageSize=10&partnerUserId=${partner}`);

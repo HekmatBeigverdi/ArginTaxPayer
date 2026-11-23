@@ -9,6 +9,7 @@ test("Modal document Escape handler gives catalog priority",()=>{
   assert.ok(handler.indexOf("invoice-catalog-dismiss") < handler.indexOf("setModal(false)"));
 });
 test("Picker exposes open flag and handles document-triggered dismiss",()=>{
-  assert.match(picker,/data-invoice-catalog-open=\{open \? "true" : "false"\}/);
-  assert.match(picker,/window\.addEventListener\("invoice-catalog-dismiss",dismiss\)/);
+  const select=readFileSync(new URL("../app/components/searchable-select.tsx",import.meta.url),"utf8");
+  assert.match(modal,/data-invoice-catalog-open="true"/);
+  assert.match(select,/event\.stopImmediatePropagation\(\);closeMenu\(\)/);
 });

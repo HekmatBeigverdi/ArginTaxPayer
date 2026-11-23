@@ -105,12 +105,15 @@ test("shared Persian twenty-four-hour time control is available", () => {
 });
 
 test("accessible buyer combobox supports keyboard selection and resolves selected Party GUID", () => {
-  assert.match(workspace, /role="combobox"/);
-  assert.match(workspace, /role="listbox"/);
-  assert.match(workspace, /aria-activedescendant/);
-  assert.match(workspace, /ArrowDown/);
-  assert.match(workspace, /ArrowUp/);
-  assert.match(workspace, /setBuyerId\(b\.id\)/);
+  const select = read("../app/components/searchable-select.tsx");
+  assert.match(workspace, /<SearchableSelect id="invoice-buyer-search"/);
+  assert.match(select, /role="combobox"/);
+  assert.match(select, /role="listbox"/);
+  assert.match(select, /aria-activedescendant/);
+  assert.match(select, /ArrowDown/);
+  assert.match(select, /ArrowUp/);
+  assert.match(workspace, /onChange=\{setBuyerId\}/);
+  assert.match(workspace, /buyers\.map\(b=>\(\{value:b\.id,label:b\.displayName/);
   assert.doesNotMatch(workspace, /<input id="invoice-seller"/);
 });
 test("invoice paging forwards page size and authorized filters to the server", async () => {
@@ -145,12 +148,14 @@ test("invoice list reuses the shared dense console table and pagination layout",
 
 test("catalog uses searchable combobox, not a list of product cards", () => {
   const picker = read("../app/invoices/searchable-catalog-picker.tsx");
+  const select = read("../app/components/searchable-select.tsx");
   assert.match(workspace, /<SearchableCatalogPicker/);
-  assert.match(picker, /role="combobox"/);
-  assert.match(picker, /role="listbox"/);
+  assert.match(picker, /<SearchableSelect/);
+  assert.match(select, /role="combobox"/);
+  assert.match(select, /role="listbox"/);
   assert.match(picker, /onQueryChange/);
-  assert.match(picker, /ArrowDown/);
-  assert.match(picker, /ArrowUp/);
+  assert.match(select, /ArrowDown/);
+  assert.match(select, /ArrowUp/);
   assert.doesNotMatch(workspace, /invoice-register__catalog">/);
 });
 
@@ -201,7 +206,8 @@ test("Step21 scoped validation panel is explicitly not a fiscal approval", () =>
   assert.doesNotMatch(panel, /\/api\/invoices\/references\//);
   assert.doesNotMatch(panel, /invoice-reference-subject|ReferenceSection/);
   assert.match(panel, /isSubmissionAuthorized/);
-  assert.match(panel, /مجوز ارسال مالیاتی صادر نمی‌کند/);
+  assert.match(panel, /بررسی نهایی/);
+  assert.match(panel, /این پیش‌بررسی به‌تنهایی/);
   assert.match(panel, /disabled=\{dirty \|\| busy \|\| preparing/);
   assert.match(panel, /fieldPath/);
   assert.match(panel, /revision!==revision/);

@@ -49,6 +49,27 @@ public sealed class Phase10InvoicePrintPreviewService(
                     System.Globalization.CultureInfo.InvariantCulture,out var parsed))return parsed;
                 return fallback;
             }
+            var businessSerial=Number(root,"businessInvoiceSerial");
+            if(businessSerial<=0)
+            {
+                var serialConnection=db.Database.GetDbConnection();
+                var serialOpened=serialConnection.State!=System.Data.ConnectionState.Open;
+                if(serialOpened)await serialConnection.OpenAsync(ct);
+                try
+                {
+                    await using var serialQuery=serialConnection.CreateCommand();
+                    serialQuery.CommandText="""
+SELECT serial FROM invoice_business_serials
+WHERE taxpayer_id=@taxpayer AND workspace_id=@invoice
+""";
+                    foreach(var (key,value) in new (string,object)[]{("taxpayer",taxpayerId),("invoice",invoiceId)})
+                    {var parameter=serialQuery.CreateParameter();parameter.ParameterName=key;
+                        parameter.Value=value;serialQuery.Parameters.Add(parameter);}
+                    var assigned=await serialQuery.ExecuteScalarAsync(ct);
+                    if(assigned is not null and not DBNull)businessSerial=Convert.ToDecimal(assigned);
+                }
+                finally {if(serialOpened)await serialConnection.CloseAsync();}
+            }
             if(!root.TryGetProperty("lines",out var source)||source.ValueKind!=JsonValueKind.Array
                 ||source.GetArrayLength()>150)return (InvoiceApiDecision.Invalid,null);
             var lines=new List<object>();
@@ -197,6 +218,7 @@ SELECT predecessor_fiscal_tax_id FROM (
             finally {if(opened)await connection.CloseAsync();}
             return (InvoiceApiDecision.Success,new {
                 invoiceId,uniqueInvoiceId=fiscalTaxId,revision=invoice.Revision,issueDateUtc=invoice.IssueDateUtc,
+                businessInvoiceSerial=businessSerial,
                 referenceFiscalTaxId,
                 invoiceType=String(root,"invoiceType"),pattern=String(root,"pattern"),
                 invoiceLogoDataUrl=logo is {Length:>0}
