@@ -65,7 +65,7 @@ public sealed class UnsentInvoiceDraftService(ArginTaxPayerDbContext db,
                 SaveInvoiceEntryRequest input;
                 try { input = JsonSerializer.Deserialize<SaveInvoiceEntryRequest>(source.DraftJson) ?? throw new JsonException(); }
                 catch (JsonException) { return new(InvoiceApiDecision.Invalid, "source_workspace_invalid"); }
-                if (invoice.State == InvoiceLifecycleState.Draft && input.BulkImportKey == returnKey)
+                if (await ReturnedUnsentInvoiceDraftQuery.Read(db).ContainsAsync(invoiceId, ct))
                 {
                     await tx.CommitAsync(ct);
                     return new(InvoiceApiDecision.Success, "draft_ready", invoiceId, true);

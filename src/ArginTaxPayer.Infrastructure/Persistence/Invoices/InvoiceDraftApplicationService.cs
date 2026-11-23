@@ -311,15 +311,8 @@ UNION
 SELECT successor_invoice_id AS "Value"
 FROM authority_invoice_legal_relations
 """);
-        // Returned originals keep their original invoice ID and human reference.
-        // Hide their document projection while editable and show the same-ID workspace.
-        var returnedUnsentDrafts = db.Database.SqlQueryRaw<Guid>("""
-SELECT w.id AS "Value"
-FROM invoice_entry_workspaces w
-JOIN invoice_documents d ON d.id=w.id AND d.customer_user_id=w.customer_user_id
- AND d.taxpayer_id=w.taxpayer_id AND d.state=1
-WHERE w.draft_json->>'BulkImportKey'='unsent-return:' || replace(w.id::text,'-','')
-""");
+        // Show the same-ID workspace only until its current revision is frozen again.
+        var returnedUnsentDrafts = ReturnedUnsentInvoiceDraftQuery.Read(db);
         // Hide old accidental copy workspaces created by the prior implementation.
         var obsoleteUnsentCopies = db.Database.SqlQueryRaw<Guid>("""
 SELECT id AS "Value" FROM invoice_entry_workspaces
