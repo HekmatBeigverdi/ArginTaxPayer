@@ -103,7 +103,8 @@ WHERE id=@id AND customer_user_id=@owner AND taxpayer_id=@taxpayer FOR UPDATE
                 var workspaceRevision = await workspaces.Select(w => (long?)w.Revision).SingleOrDefaultAsync(ct);
                 if (documentRevision is null && workspaceRevision is null) return InvoiceApiDecision.NotFound;
                 var returnedDraft = workspaceRevision is not null &&
-                    await ReturnedUnsentInvoiceDraftQuery.Read(db).ContainsAsync(invoiceId, ct);
+                    await workspaces.AnyAsync(w => InvoiceJsonFields.Text(w.DraftJson, "BulkImportKey") ==
+                        "unsent-return:" + invoiceId.ToString("N"), ct);
                 var displayedRevision = returnedDraft ? workspaceRevision : documentRevision ?? workspaceRevision;
                 if (displayedRevision != expectedRevision ||
                     (await InvoiceDeletionEligibility.ReadAsync(db, [invoiceId], [owner], [taxpayerId], ct)).Length == 0)
