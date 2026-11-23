@@ -21,6 +21,8 @@ public static class InvoiceEntryWorkspaceConfiguration
         history.HasIndex(h=>new {h.CustomerUserId,h.TaxpayerId,h.WorkspaceId,h.Revision})
             .HasDatabaseName("ix_invoice_workspace_history_scope");
         var e = modelBuilder.Entity<InvoiceEntryWorkspace>();
+        e.HasQueryFilter(x => x.DeletedAtUtc == null);
+        e.Property(x => x.DeletedAtUtc).HasColumnName("deleted_at_utc");
         e.ToTable("invoice_entry_workspaces", table =>
         {
             table.HasCheckConstraint("ck_invoice_entry_workspace_revision","revision > 0");

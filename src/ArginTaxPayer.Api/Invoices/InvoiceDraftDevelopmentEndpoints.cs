@@ -272,6 +272,15 @@ ORDER BY memory_identifier
                 ? Results.Ok(result.Data) : Error(result.Decision);
         });
 
+        group.MapDelete("/{invoiceId:guid}", async (Guid taxpayerId, Guid invoiceId,
+            long expectedRevision, HttpContext http, InvoiceDraftApplicationService service,
+            CancellationToken ct) =>
+        {
+            if (!Local(http)) return Results.NotFound();
+            var result = await service.DeleteAsync(Token(http), taxpayerId, invoiceId, expectedRevision, ct);
+            return result == InvoiceApiDecision.Success ? Results.Ok(new { deleted = true }) : Error(result);
+        });
+
         group.MapGet("/{invoiceId:guid}", async (Guid taxpayerId, Guid invoiceId,
             HttpContext http, InvoiceDraftApplicationService service,
             CancellationToken ct) =>

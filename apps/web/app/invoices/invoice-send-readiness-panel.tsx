@@ -574,6 +574,8 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
      sandbox_dispatch_fk_migration_required:"Migration اتصال Outbox به حافظه Sandbox باید اعمال شود.",
      fiscal_serial_not_reserved:"رزرو سریال این صورتحساب شناسایی نشد.",
      seller_or_buyer_identity_missing:"شناسه قانونی فروشنده یا خریدار ناقص است.",
+     seller_economic_identifier_missing:"کد اقتصادی فروشنده در اطلاعات تکمیلی پرونده مؤدی ثبت نشده است؛ آن را تکمیل و دوباره ارسال کنید.",
+     buyer_identity_missing:"شناسه خریدار پیدا نشد؛ انتخاب خریدار و فعال و متصل بودن پرونده او را بررسی کنید.",
      seller_economic_identifier_invalid:"شماره اقتصادی فروشنده باید ۱۱ یا ۱۴ رقم باشد؛ شناسه فعلی برای ارسال معتبر نیست.",
      invoice_calculation_audit_failed:"محاسبات یا فیلدهای اجباری صورتحساب معتبر نیست؛ خطاهای محاسباتی را اصلاح و دوباره بررسی کنید.",
      official_goods_mapping_invalid:"نگاشت رسمی کالا یا خدمت قابل تأیید نیست.",

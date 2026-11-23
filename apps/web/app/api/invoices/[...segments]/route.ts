@@ -5,7 +5,7 @@ import { isSameLocalOrigin } from "../../../../lib/identity-origin.mjs";
 export const dynamic = "force-dynamic";
 type Context = { params: Promise<{ segments: string[] }> };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-function target(segments: string[], method: "GET" | "POST"): string | null {
+function target(segments: string[], method: "GET" | "POST" | "DELETE"): string | null {
   if (segments[0] === "workspaces") {
     if (segments.length===2 && segments[1]==="next-business-serial" && method==="GET")
       return "/api/dev/invoice-workspaces/next-business-serial";
@@ -35,7 +35,7 @@ function target(segments: string[], method: "GET" | "POST"): string | null {
   if (segments.length < 1 || !uuid.test(segments[0])) return null;
   if (segments.length === 1 && (method === "GET" || method === "POST"))
     return "/api/dev/taxpayers/" + segments[0] + "/invoices";
-  if (segments.length === 2 && uuid.test(segments[1]) && method === "GET")
+  if (segments.length === 2 && uuid.test(segments[1]) && (method === "GET" || method === "DELETE"))
     return "/api/dev/taxpayers/" + segments[0] + "/invoices/" + segments[1];
   return null;
 }
@@ -44,12 +44,12 @@ function error(status: number, code: string) {
     status, headers: { "Cache-Control": "no-store" }
   });
 }
-async function proxy(request: NextRequest, context: Context, method: "GET" | "POST") {
+async function proxy(request: NextRequest, context: Context, method: "GET" | "POST" | "DELETE") {
   if (!identityUiEnabled()) return error(404, "unavailable");
   const { segments } = await context.params;
   const url = target(segments, method);
   if (!url) return error(404, "unknown_operation");
-  if (method === "POST" && !isSameLocalOrigin(
+  if (method !== "GET" && !isSameLocalOrigin(
     request.headers.get("origin"), request.headers.get("host"), request.nextUrl.protocol))
     return error(403, "origin_not_allowed");
   const token = request.cookies.get(ACCESS_COOKIE)?.value;
@@ -123,6 +123,13 @@ async function proxy(request: NextRequest, context: Context, method: "GET" | "PO
   }
   try {
     const filtered = new URLSearchParams();
+    if (method === "DELETE") {
+      const revision = request.nextUrl.searchParams.get("expectedRevision");
+      if (!revision || !/^[1-9]\d{0,15}$/.test(revision) || !Number.isSafeInteger(Number(revision)))
+        return error(400, "invalid_snapshot_revision");
+      filtered.set("expectedRevision", revision);
+    }
+
     if (segments.length === 1 && ["overview","workspaces"].includes(segments[0])) {
       for (const key of ["customerId", "taxpayerId", "page", "pageSize"]) {
         const value = request.nextUrl.searchParams.get(key);
@@ -189,4 +196,8 @@ export async function GET(request: NextRequest, context: Context) {
 }
 export async function POST(request: NextRequest, context: Context) {
   return proxy(request, context, "POST");
+}
+
+export async function DELETE(request: NextRequest, context: Context) {
+  return proxy(request, context, "DELETE");
 }

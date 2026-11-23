@@ -5,6 +5,7 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Invoices;
 /// <summary>Stored canonical, revisioned invoice snapshot. No fiscal submission is performed.</summary>
 public sealed class StoredInvoice
 {
+    public DateTime? DeletedAtUtc { get; set; }
     public Guid Id { get; set; }
     public Guid CustomerUserId { get; set; }
     public Guid TaxpayerId { get; set; }

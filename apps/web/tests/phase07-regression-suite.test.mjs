@@ -37,7 +37,7 @@ test("invoice proxy is a narrow authenticated and origin checked allowlist", () 
   const proxy = read("apps/web/app/api/invoices/[...segments]/route.ts");
   assert.match(proxy, /identityUiEnabled\(\)/);
   assert.match(proxy, /ACCESS_COOKIE/);
-  assert.match(proxy, /isSameLocalOrigin/);
+  assert.match(proxy, /method !== "GET" && !isSameLocalOrigin/);
   assert.match(proxy, /const uuid =/);
   assert.match(proxy, /"workspaces"/);
   assert.match(proxy, /"references"/);
@@ -46,8 +46,23 @@ test("invoice proxy is a narrow authenticated and origin checked allowlist", () 
   assert.match(proxy, /"settlementMethod"/);
   assert.match(proxy, /"cashAmountRial"/);
   assert.match(proxy, /"creditAmountRial"/);
-  assert.doesNotMatch(proxy, /export async function (?:DELETE|PUT|PATCH)/);
+  assert.doesNotMatch(proxy, /export async function (?:PUT|PATCH)/);
   assert.doesNotMatch(proxy, /\/api\/.*(?:submit|issue|send|finalize)/i);
+});
+
+test("invoice deletion requires a scoped document path, confirmed selection, and current revision", () => {
+  const proxy = read("apps/web/app/api/invoices/[...segments]/route.ts");
+  const endpoints = read("src/ArginTaxPayer.Api/Invoices/InvoiceDraftDevelopmentEndpoints.cs");
+  const workspace = read("apps/web/app/invoices/workspace.tsx");
+  assert.match(proxy, /segments\.length === 2 && uuid\.test\(segments\[1\]\) && \(method === "GET" \|\| method === "DELETE"\)/);
+  assert.match(proxy, /const revision = request\.nextUrl\.searchParams\.get\("expectedRevision"\)/);
+  assert.match(proxy, /!Number\.isSafeInteger\(Number\(revision\)\)/);
+  assert.match(proxy, /export async function DELETE[\s\S]*return proxy\(request, context, "DELETE"\)/);
+  assert.match(endpoints, /group\.MapDelete\("\/\{invoiceId:guid\}"/);
+  assert.match(endpoints, /DeleteAsync\(Token\(http\), taxpayerId, invoiceId, expectedRevision, ct\)/);
+  assert.match(workspace, /item\.canDelete && <button/);
+  assert.match(workspace, /deleteDialog\.current\?\.showModal\(\)/);
+  assert.match(workspace, /onClick=\{\(\) => void deleteInvoice\(\)\}/);
 });
 
 test("development API does not register transmission or issuance", () => {
