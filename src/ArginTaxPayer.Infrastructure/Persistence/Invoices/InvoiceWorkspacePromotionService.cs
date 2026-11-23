@@ -134,13 +134,17 @@ public sealed class InvoiceWorkspacePromotionService(
                         input.OtherTaxAndLegalFeesRial ?? 0m))
                     return new(InvoiceApiDecision.Invalid,Code:"invoice_settlement_mismatch");
 
-                if(draft.IssueDateUtc > DateTime.UtcNow)
+                var nowUtc = DateTime.UtcNow;
+                if (InvoiceSubmissionDeadline.HasElapsed(draft.IssueDateUtc, nowUtc))
+                    return new(InvoiceApiDecision.Invalid, Code: "invoice_submission_window_elapsed");
+
+                if(draft.IssueDateUtc > nowUtc)
                 {
                     // RC_IITP.IS V7.9 Table 4 prohibits future issue instants.
                     // This preparation is the point where the draft becomes an
                     // immutable issue candidate. Persist current UTC, advance
                     // the revision, and require fresh review before freezing.
-                    var adjustedAt=DateTime.UtcNow;
+                    var adjustedAt=nowUtc;
                     var adjustedInput=input with {
                         Id=null,ExpectedRevision=0,IssueDateUtc=adjustedAt,
                         BulkFingerprint=input.BulkImportKey is null ? null :

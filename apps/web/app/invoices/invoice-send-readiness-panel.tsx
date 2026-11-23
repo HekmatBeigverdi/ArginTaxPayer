@@ -153,6 +153,7 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
     const messages:Record<string,string>={
      authority_rejection_required:"گزارش رد معتبر از استعلام سازمان در دسترس نیست؛ استعلام را تازه کنید و دوباره تلاش کنید.",
      correction_draft_creation_failed:"گزارش سازمان دریافت شد، اما ذخیرهٔ پیش‌نویس انجام نشد. دوباره تلاش کنید.",
+     correction_draft_conflict:"پیش‌نویس اصلاح به‌دلیل تداخل در ذخیره ایجاد نشد. صفحه را بازخوانی کنید و دوباره تلاش کنید.",
      correction_draft_invalid:"داده‌های پیش‌نویس اصلاح معتبر نیستند؛ شناسهٔ ۱۳ رقمی کالا و تاریخ واقعی صدور را بررسی کنید.",
      correction_draft_empty:"ذخیره انجام شد اما شناسهٔ پیش‌نویس از سرویس دریافت نشد؛ صفحه را تازه کنید.",
      correction_link_conflict:"پیش‌نویس اصلاح قبلاً ایجاد شده، اما پیوند آن کامل نشده است. صفحه را تازه‌سازی کنید.",
@@ -573,6 +574,7 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
      sandbox_legacy_key_unavailable:"کلید خصوصی معتبر حافظه Sandbox در دسترس نیست.",
      sandbox_dispatch_fk_migration_required:"Migration اتصال Outbox به حافظه Sandbox باید اعمال شود.",
      fiscal_serial_not_reserved:"رزرو سریال این صورتحساب شناسایی نشد.",
+     invoice_submission_window_elapsed:"مهلت ۱۲ روزهٔ ارسال گذشته است. تاریخ و ساعت واقعی صدور را بررسی کنید.",
      seller_or_buyer_identity_missing:"شناسه قانونی فروشنده یا خریدار ناقص است.",
      seller_economic_identifier_missing:"کد اقتصادی فروشنده در اطلاعات تکمیلی پرونده مؤدی ثبت نشده است؛ آن را تکمیل و دوباره ارسال کنید.",
      buyer_identity_missing:"شناسه خریدار پیدا نشد؛ انتخاب خریدار و فعال و متصل بودن پرونده او را بررسی کنید.",

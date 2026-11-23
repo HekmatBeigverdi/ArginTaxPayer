@@ -210,6 +210,7 @@ export default function InvoiceValidationPanel({
           return;
         }
         const messages: Record<string,string> = {
+          invoice_submission_window_elapsed: "مهلت ۱۲ روزهٔ ارسال گذشته است. تاریخ و ساعت واقعی صدور را بررسی کنید.",
           invoice_snapshot_draft_invalid: "اطلاعات پیش‌نویس با مؤدی انتخاب‌شده هم‌خوانی ندارد؛ فاکتور را دوباره باز و ذخیره کنید.",
           invoice_buyer_required: "خریدار صورتحساب انتخاب نشده است.",
           invoice_lines_required: "حداقل یک ردیف کالا یا خدمت لازم است.",
