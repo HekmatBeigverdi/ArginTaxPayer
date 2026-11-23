@@ -3,6 +3,7 @@
 import {useEffect,useState} from "react";
 import FinancePagination from "./finance-pagination";
 import {amount,planName} from "./finance-format";
+import SearchableSelect from "../components/searchable-select";
 
 type Sale = {
   orderId:string; customerDisplayName:string|null; customerContact:string|null;
@@ -53,12 +54,11 @@ export default function PlanSalesReport({request}:Props) {
       }}>
         <option value="month">ماه جاری</option><option value="year">سال جاری تا امروز</option>
       </select></label>
-      <label>ادمین سطح ۲<select value={partnerUserId} onChange={e=>{
-        setLoading(true);setReport(null);setPartnerUserId(e.target.value);setPage(1);
-      }}>
-        <option value="">همه ادمین‌ها</option>
-        {partners.map(partner=><option key={partner.partnerUserId} value={partner.partnerUserId}>{partner.displayName}</option>)}
-      </select></label>
+      <label>ادمین سطح ۲<SearchableSelect id="sales-report-partner" value={partnerUserId}
+        options={partners.map(partner=>({value:partner.partnerUserId,label:partner.displayName}))}
+        placeholder="جست‌وجوی ادمین…" selectedLabel={partnerUserId?undefined:"همه ادمین‌ها"} onChange={value=>{
+        setLoading(true);setReport(null);setPartnerUserId(value);setPage(1);
+      }}/></label>
       <button type="button" disabled={loading} onClick={()=>{setLoading(true);setRevision(v=>v+1);}}>بازخوانی فروش‌ها</button>
     </div>
     <p>مبنای دوره، تاریخ ثبت فروش در تقویم شمسی و ساعت تهران است. دریافتی، مجموع پرداخت‌های تأییدشدهٔ فروش‌های همین دوره تا امروز است.</p>

@@ -7,6 +7,8 @@ type Context = { params: Promise<{ segments: string[] }> };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function target(segments: string[], method: "GET" | "POST"): string | null {
   if (segments[0] === "workspaces") {
+    if (segments.length===2 && segments[1]==="next-business-serial" && method==="GET")
+      return "/api/dev/invoice-workspaces/next-business-serial";
     if (segments.length===2 && segments[1]==="bulk" && method==="POST")
       return "/api/dev/invoice-workspaces/bulk";
     if (segments.length === 1 && (method === "GET" || method === "POST"))
@@ -88,7 +90,7 @@ async function proxy(request: NextRequest, context: Context, method: "GET" | "PO
           return error(400,"invalid_snapshot_revision");
       } else if (segments[0] === "workspaces") {
         const permitted = ["id","taxpayerId","expectedRevision","lastCompletedStep",
-          "issueDateUtc","buyerPartyId","type","pattern","lines",
+          "issueDateUtc","buyerPartyId","type","pattern","lines","businessInvoiceSerial",
           "invoiceDescription","settlementMethod","cashAmountRial","creditAmountRial",
           "otherTaxAndLegalFeesRial",
           "contractNumber","serviceBillId","flightType","goldConstructionFeeRial",
@@ -104,6 +106,9 @@ async function proxy(request: NextRequest, context: Context, method: "GET" | "PO
               (typeof data.fiscalMemoryId !== "string" || !uuid.test(data.fiscalMemoryId))) ||
             (data.sandboxFiscalMemoryId != null &&
               (typeof data.sandboxFiscalMemoryId !== "string" || !uuid.test(data.sandboxFiscalMemoryId))) ||
+            (data.businessInvoiceSerial != null &&
+              (typeof data.businessInvoiceSerial !== "number" || !Number.isSafeInteger(data.businessInvoiceSerial) ||
+               data.businessInvoiceSerial < 1 || data.businessInvoiceSerial > 9999999999)) ||
             (data.fiscalMemoryId != null && data.sandboxFiscalMemoryId != null))
           return error(400,"unsupported_invoice_fields");
       } else if (Object.keys(data).some(k => !["issueDateUtc", "sellerDisplayName", "buyerDisplayName", "buyerPartyId"].includes(k)) ||
@@ -138,6 +143,14 @@ async function proxy(request: NextRequest, context: Context, method: "GET" | "PO
           if (search.trim()) filtered.set("search", search.trim());
         }
       }
+    }
+    if(segments[0]==="workspaces"&&segments[1]==="next-business-serial"){
+      const taxpayerId=request.nextUrl.searchParams.get("taxpayerId");
+      const issueDateUtc=request.nextUrl.searchParams.get("issueDateUtc");
+      if(!taxpayerId||!uuid.test(taxpayerId)||!issueDateUtc||
+          !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,7})?Z$/.test(issueDateUtc)||
+          Number.isNaN(Date.parse(issueDateUtc)))return error(400,"invalid_filter");
+      filtered.set("taxpayerId",taxpayerId);filtered.set("issueDateUtc",issueDateUtc);
     }
     const response = await fetch(identityApiOrigin() + url + (filtered.size ? "?" + filtered : ""), {
       method, cache: "no-store", redirect: "manual",

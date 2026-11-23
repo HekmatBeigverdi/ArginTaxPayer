@@ -43,7 +43,7 @@ test("catalog UI guards revisions and has no mapping or validity-date workflow",
   assert.match(source, /catalog-editor-panel/);
   assert.doesNotMatch(source, /argin-modal-backdrop/);
   assert.match(read("app/components/console-shell.tsx"), /path: "\/catalog"/);
-  assert.match(read("app/catalog/unit-combobox.tsx"), /جست‌وجوی واحد/);
+  assert.match(read("app/catalog/unit-combobox.tsx"), /placeholder="جست‌وجوی نام یا کد واحد…"/);
   assert.match(source, /CatalogUnitCombobox/);
 });
 

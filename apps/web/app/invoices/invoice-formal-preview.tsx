@@ -24,6 +24,7 @@ type Invoice = {
   issueDateUtc: string;
   revision: number;
   uniqueInvoiceId: string | null;
+  businessInvoiceSerial?: number | null;
   referenceFiscalTaxId?:string|null;
   invoiceLogoDataUrl:string|null;
   invoiceType:string|null;
@@ -248,7 +249,9 @@ function InvoicePaper({invoice,reference,referenceFiscalTaxId,invoiceSubject}: {
     <span>تاریخ ارسال: {paperDate(invoice.paymentDateUtc)}</span>
    </div>
    <h3>صورتحساب فروش کالا و خدمات</h3>
-   <div className="invoice-paper__number"><strong>شماره: <bdi>{faDigits(reference)}</bdi></strong>
+   <div className="invoice-paper__number">
+    <strong>شماره ترتیبی صورتحساب: <bdi dir="ltr">{invoice.businessInvoiceSerial==null?"":String(invoice.businessInvoiceSerial).padStart(10,"0")}</bdi></strong>
+    <strong>شماره مرجع سامانه: <bdi>{faDigits(reference)}</bdi></strong>
     <span>تاریخ: {paperDate(invoice.issueDateUtc)}</span>
    </div>
   </header>

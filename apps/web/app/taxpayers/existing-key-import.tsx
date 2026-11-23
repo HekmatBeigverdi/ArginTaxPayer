@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import OperationMessageBox from "./operation-message-box";
+import SearchableSelect from "../components/searchable-select";
 
 type Memory = { id: string; memoryIdentifier: string; status: number };
 type State = { storageReady: boolean; configured: boolean; freshLogin: boolean; operationId: string | null;
@@ -134,9 +135,9 @@ export default function ExistingKeyImport({ taxpayerId, memories, loadingMemorie
   return <div className="existing-key-import" aria-busy={loading || busy}>
     <div className="taxpayer-section-heading">
       {!hideMemorySelector && <label>حافظه مالیاتی
-        <select value={memoryId} disabled={busy || loading} onChange={e => setSelected(e.target.value)}>
-          {memories.map(m => <option key={m.id} value={m.id}>{m.memoryIdentifier}</option>)}
-        </select>
+        <SearchableSelect id="existing-key-memory" value={memoryId} disabled={busy||loading}
+          options={memories.map(m=>({value:m.id,label:m.memoryIdentifier}))}
+          placeholder="جست‌وجوی حافظه…" onChange={setSelected} />
       </label>}
       <button type="button" className="identity-secondary" disabled={loading || busy} onClick={() => void reload()}>بازخوانی وضعیت کلید</button>
     </div>

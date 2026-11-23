@@ -16,8 +16,9 @@ export default function InvoiceHistoryPanel({workspaceId}:{workspaceId:string}){
    .finally(()=>{if(active)setLoading(false);});
   return ()=>{active=false;};
  },[workspaceId]);
- return <section aria-label="تاریخچه نسخه‌های پیش‌نویس" aria-busy={loading}>
-   <h3>تاریخچه تغییرات پیش‌نویس</h3>
+ return <details className="invoice-history-panel" aria-busy={loading}>
+   <summary><span>تاریخچه تغییرات پیش‌نویس</span><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 7 5 5 5-5"/></svg></summary>
+   <div className="invoice-history-panel__content">
    {loading&&<p className="invoice-entry-loading" role="status" aria-live="polite"><span className="argin-loader-spinner" aria-hidden="true"/>در حال دریافت تاریخچه…</p>}
    {error&&<p role="alert" className="form-error">{error}</p>}
    {!loading&&!error&&rows.length===0&&<p className="field-hint">برای این پیش‌نویس هنوز سابقه‌ای در جدول تاریخچه موجود نیست.</p>}
@@ -30,5 +31,6 @@ export default function InvoiceHistoryPanel({workspaceId}:{workspaceId:string}){
     </tr>)}</tbody>
    </table></div>}
    <p className="field-hint">این تاریخچه صرفاً ثبت نسخه‌های پیش‌نویس است و به معنای تأیید یا ارسال مالیاتی نیست.</p>
-  </section>;
+   </div>
+  </details>;
 }

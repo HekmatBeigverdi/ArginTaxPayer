@@ -66,7 +66,7 @@ public sealed class CatalogSearchService(ArginTaxPayerDbContext db, IdentityAuth
             rows.Take(size).Select(x => new CustomerProductView(x.Id, x.CustomerUserId,
                 x.InternalCode, x.Title, (ArginTaxPayer.Domain.Catalog.CatalogItemKind)x.Kind,
                 x.BaseUnitId, (ArginTaxPayer.Domain.Catalog.CatalogItemStatus)x.Status, x.Revision,
-                x.OfficialCode)).ToArray(),
+                x.OfficialCode,x.VatRatePercent)).ToArray(),
             page, size, rows.Length > size);
     }
 
@@ -93,7 +93,7 @@ public sealed class CatalogSearchService(ArginTaxPayerDbContext db, IdentityAuth
             rows.Take(size).Select(x => new CustomerServiceView(x.Id, x.CustomerUserId,
                 x.InternalCode, x.Title, x.BaseUnitId,
                 (ArginTaxPayer.Domain.Catalog.CatalogItemStatus)x.Status, x.Revision,
-                x.OfficialCode)).ToArray(),
+                x.OfficialCode,x.VatRatePercent)).ToArray(),
             page, size, rows.Length > size);
     }
 

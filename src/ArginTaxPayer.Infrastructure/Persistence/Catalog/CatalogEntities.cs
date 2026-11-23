@@ -51,6 +51,7 @@ public sealed class CustomerCatalogItem
     public Guid CustomerUserId { get; set; }
     public string InternalCode { get; set; } = "";
     public string? OfficialCode { get; set; }
+    public decimal VatRatePercent { get; set; }
     public string Title { get; set; } = "";
     public int Kind { get; set; } // Stock=1, NonStock=2, Service=3
     public Guid BaseUnitId { get; set; }

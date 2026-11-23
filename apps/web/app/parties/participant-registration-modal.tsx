@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import SectionLoading from "../components/section-loading";
+import SearchableSelect from "../components/searchable-select";
 import InvoiceParticipantForm from "./invoice-participant-form";
 import TaxpayerWorkspace from "../taxpayers/taxpayer-workspace";
 import { canRegisterParticipant } from "./participant-access.mjs";
@@ -120,14 +121,11 @@ export default function ParticipantRegistrationModal({ mode, buyers, level1, act
           <summary>اطلاعات هویتی {mode === "buyer" ? "خریدار" : "مؤدی"}</summary>
           <div className="fiscal-section-content"><form className="invoice-fields" onSubmit={create}>
           <label>حساب مشتری / مالک پرونده
-            <select value={customerId} onChange={e => setCustomerId(e.target.value)} required>
-              <option value="">حساب مرتبط را انتخاب کنید</option>
-              {buyers.filter(b => canRegisterParticipant(b)).map(b => {
-                return <option value={b.customerUserId} key={b.customerUserId}>
-                  {b.companyName || b.personName}
-                </option>;
-              })}
-            </select>
+            <SearchableSelect id="participant-registration-customer" value={customerId} required
+              options={buyers.filter(b=>canRegisterParticipant(b)).map(b=>({value:b.customerUserId,
+                label:b.companyName||b.personName||b.email||b.mobile||b.customerUserId,
+                description:b.email||b.mobile||b.customerUserId}))}
+              placeholder="جست‌وجوی حساب مشتری…" onChange={setCustomerId} />
           </label>
           {customerId && !authorizedCustomer && <p role="alert" className="party-error">
             ابتدا پروفایل مشتری را تکمیل کنید تا نام شخص یا شرکت در فهرست نمایش داده شود.

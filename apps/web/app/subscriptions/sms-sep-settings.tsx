@@ -1,5 +1,6 @@
 "use client";
 import {useEffect,useState,type FormEvent} from "react";
+import SearchableSelect from "../components/searchable-select";
 type Admin={userId:string;display:string};
 export default function SmsSepSettings(){
  const [terminal,setTerminal]=useState(""),[admin,setAdmin]=useState(""),[options,setOptions]=useState<Admin[]>([]),[busy,setBusy]=useState(false),[message,setMessage]=useState("");
@@ -14,7 +15,9 @@ export default function SmsSepSettings(){
      <input required type="text" inputMode="numeric" pattern="[0-9]{1,10}" value={terminal} onChange={e=>setTerminal(e.target.value)}/>
     </label>
     <label>ادمین مسئول درگاه
-     <select required value={admin} onChange={e=>setAdmin(e.target.value)}><option value="">انتخاب ادمین</option>{options.map(x=><option key={x.userId} value={x.userId}>{x.display}</option>)}</select>
+     <SearchableSelect id="sms-sep-admin" required value={admin} onChange={setAdmin}
+       options={options.map(x=>({value:x.userId,label:x.display,searchText:x.userId}))}
+       placeholder="جست‌وجوی ادمین…" />
     </label>
     <button className="identity-primary" type="submit" disabled={busy||!options.length}>{busy?"در حال ذخیره…":"ذخیره تنظیمات SEP"}</button>
    </div>

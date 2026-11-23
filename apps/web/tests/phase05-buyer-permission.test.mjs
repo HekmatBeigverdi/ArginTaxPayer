@@ -88,8 +88,8 @@ test("only completed profiles appear, regardless of assignment or active status"
 
 test("modal hides incomplete profiles and uses names without email or mobile fallbacks", () => {
   const modal = read("app/parties/participant-registration-modal.tsx");
-  assert.match(modal, /buyers\.filter\(b => canRegisterParticipant\(b\)\)/);
-  assert.match(modal, /\{b\.companyName \|\| b\.personName\}/);
+  assert.match(modal, /buyers\.filter\(b=>canRegisterParticipant\(b\)\)/);
+  assert.match(modal, /label:b\.companyName\|\|b\.personName/);
   assert.doesNotMatch(modal, /\|\| b\.email|\|\| b\.mobile/);
   assert.match(modal, /disabled=\{busy \|\| !authorizedCustomer/);
 });

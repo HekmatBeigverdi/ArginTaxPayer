@@ -38,7 +38,9 @@ test("catalog backend is mapped in the operational console and requires loopback
 test("catalog customer selection cannot submit arbitrary client-specified ownership", () => {
   const workspace = load("app/catalog/workspace.tsx");
   assert.match(workspace, /accounts\.filter\(/);
-  assert.match(workspace, /setCustomer\(e\.target\.value\)/);
+  assert.match(workspace, /<SearchableSelect id="catalog-customer-choice"/);
+  assert.match(workspace, /accounts\.filter\(a=>a\.customerUserId!==actorId&&a\.isActive!==false/);
+  assert.match(workspace, /setCustomer\(value\)/);
   assert.doesNotMatch(workspace, /type="hidden" name="role"/);
   const search = load("../../src/ArginTaxPayer.Infrastructure/Persistence/Catalog/CatalogSearchService.cs");
   assert.match(search, /x\.CustomerUserId == customer/);

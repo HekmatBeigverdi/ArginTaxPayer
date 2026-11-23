@@ -260,6 +260,7 @@ AND private_envelope_json IS NOT NULL)
                     fiscalMemoryId=input.FiscalMemoryId,
                     invoiceType=input.Type,pattern=input.Pattern,
                     contractNumber=input.ContractNumber,
+                    businessInvoiceSerial=input.BusinessInvoiceSerial,
                     issueDateUtc=draft.IssueDateUtc,
                     buyerPartyId=input.BuyerPartyId,
                     buyerPersonType=buyerPersonType,

@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import SearchableSelect from "../components/searchable-select";
 type OwnerChange = { id: string; previousPartnerLevel2UserId: string | null;
   newPartnerLevel2UserId: string | null; explanation: string; changedAtUtc: string;
   approvedByLevel1UserId: string; fromRevision: number; toRevision: number };
@@ -90,17 +91,15 @@ export default function CustomerOwnershipConsole({ level1 }: { level1: boolean }
     {customers.length > 0 && <>
       <div className="taxpayer-panel">
         <label htmlFor="commercial-customer-select">حساب مشتری</label>
-        <select id="commercial-customer-select" value={selection}
-          onChange={e => {
-            const id = e.target.value; setSelection(id);
+        <SearchableSelect id="commercial-customer-select" value={selection}
+          options={customers.map(c=>({value:c.customerUserId,label:c.customerUserId,
+            description:c.partnerLevel2UserId?"شریک سطح ۲":"مستقیم سطح ۱"}))}
+          placeholder="جست‌وجوی مشتری با شناسه…" selectedLabel={selection?undefined:"انتخاب مشتری"}
+          onChange={id => {
+            setSelection(id);
             const selected = customers.find(item => item.customerUserId === id);
             setTargetPartner(selected?.partnerLevel2UserId || ""); setReason(""); setHistory(null);
-          }}>
-          <option value="">انتخاب مشتری</option>
-          {customers.map(c => <option key={c.customerUserId} value={c.customerUserId}>
-            {c.customerUserId} — {c.partnerLevel2UserId ? "شریک سطح ۲" : "مستقیم سطح ۱"}
-          </option>)}
-        </select>
+          }} />
         {current && <dl className="taxpayer-facts">
           <div><dt>شناسه مشتری</dt><dd dir="ltr">{current.customerUserId}</dd></div>
           <div><dt>مالک تجاری فعلی</dt><dd dir="ltr">{current.partnerLevel2UserId || "ادمین سطح ۱"}</dd></div>

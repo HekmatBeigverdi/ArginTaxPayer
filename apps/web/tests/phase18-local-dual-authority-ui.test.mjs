@@ -84,9 +84,10 @@ test('invoice memory options make Production selectable and unclassified metadat
     return [Object.hasOwn(values,stateNames[i])?values[stateNames[i]]:typeof initial==='function'?initial():initial,()=>{}];}}}
  });
  const html=renderToStaticMarkup(React.createElement(component.default,{actorId:id,isAdmin:false}));
- assert.match(html,/<option value="production-memory">REAL01 — Production/);
- assert.match(html,/<option value="old-memory" disabled="">OLD001/);
- assert.match(html,/<option value="sandbox:sandbox-memory">TEST01 — Sandbox/);
+ assert.match(workspaceSource,/value:m\.id,label:m\.memoryIdentifier/);
+ assert.match(workspaceSource,/authorityEnvironment===1\?"Production":m\.authorityEnvironment===2\?"Sandbox"/);
+ assert.match(workspaceSource,/disabled:\(m\.authorityEnvironment!==1&&m\.authorityEnvironment!==2\)\|\|m\.status!==2/);
+ assert.match(workspaceSource,/value:`sandbox:\$\{m\.id\}`,label:m\.memoryIdentifier,description:"Sandbox \(آزمایشی\)"/);
 });
 
 test('both environments retain signed-packet and blocker-free readiness gates',async()=>{

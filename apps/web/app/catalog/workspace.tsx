@@ -2,12 +2,14 @@
 
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import ConsoleLoader from "../components/console-loader";
+import SearchableSelect,{type SearchableSelectOption} from "../components/searchable-select";
 import CatalogUnitCombobox, { type CatalogUnitOption } from "./unit-combobox";
 
 type Kind = "products" | "services" | "official";
 type CatalogRow = {
   id: string; customerUserId?: string; internalCode?: string; code?: string; officialCode?: string | null;
   title: string; kind?: number; baseUnitId?: string;
+  vatRatePercent?: number;
   status?: number; revision?: number; releaseId?: string;
 };
 type PageResult = { items: CatalogRow[]; hasMore: boolean };
@@ -71,6 +73,7 @@ export default function CatalogWorkspace({ actorId, isAdmin }: { actorId: string
   const [productKind, setProductKind] = useState(1);
   const [pending, setPending] = useState(false);
   const [officialCode, setOfficialCode] = useState("");
+  const [vatRatePercent,setVatRatePercent]=useState("0");
 
   useEffect(() => {
     let live = true;
@@ -128,10 +131,12 @@ export default function CatalogWorkspace({ actorId, isAdmin }: { actorId: string
     setEdit(null);
     setCode(""); setTitle(""); setUnitId(""); setInfo("");
     setOfficialCode("");
+    setVatRatePercent("0");
   }, [customer]);
   function openForm(row?: CatalogRow) {
     setEdit(row ?? null); setCode(row?.internalCode ?? ""); setOfficialCode(row?.officialCode ?? "");
     setTitle(row?.title ?? ""); setUnitId(row?.baseUnitId ?? "");
+    setVatRatePercent(String(row?.vatRatePercent ?? 0));
     setProductKind(row?.kind === 2 ? 2 : 1); setError(""); setInfo("");
   }
   const searchUnits = useCallback(async (query: string): Promise<CatalogUnitOption[]> => {
@@ -143,20 +148,22 @@ export default function CatalogWorkspace({ actorId, isAdmin }: { actorId: string
     event.preventDefault(); if (kind === "official" || !guid(customer) || !guid(unitId)) {
       setError("شناسه مشتری و واحد پایه باید معتبر باشند."); return;
     }
-    if (code.trim().length < 1 || title.trim().length < 2) {
+    const vatRate=Number(vatRatePercent);
+    if (code.trim().length < 1 || title.trim().length < 2 || vatRatePercent.trim()==="" ||
+        !Number.isFinite(vatRate)||vatRate<0||vatRate>999.99||Math.round(vatRate*100)!==vatRate*100) {
       setError("کد داخلی و عنوان معتبر وارد کنید."); return;
     }
     setPending(true); setError("");
     try {
       const root = "customers/" + customer + "/" + kind;
       const payload = {
-        internalCode: code, title, baseUnitId: unitId, officialCode,
+        internalCode: code, title, baseUnitId: unitId, officialCode, vatRatePercent:vatRate,
         ...(kind === "products" ? { kind: productKind } : {}),
         expectedRevision: edit?.revision ?? 0, discontinue: false,
       };
       await catalogCall(root + (edit ? "/" + edit.id : ""), edit ? "PUT" : "POST", payload);
       setInfo("اطلاعات با موفقیت ثبت شد."); setEdit(null);
-      setCode(""); setOfficialCode(""); setTitle(""); setUnitId(""); await load();
+      setCode(""); setOfficialCode(""); setTitle(""); setUnitId("");setVatRatePercent("0"); await load();
     } catch (e) { setError(e instanceof Error ? e.message : "ثبت ناموفق بود"); }
     finally { setPending(false); }
   }
@@ -165,7 +172,8 @@ export default function CatalogWorkspace({ actorId, isAdmin }: { actorId: string
     setPending(true); setError("");
     try {
       await catalogCall("customers/" + customer + "/" + kind + "/" + row.id, "PUT", {
-        internalCode: row.internalCode, officialCode: row.officialCode, title: row.title,
+        internalCode: row.internalCode, officialCode: row.officialCode,
+        vatRatePercent:row.vatRatePercent??0,title: row.title,
         baseUnitId: row.baseUnitId, ...(kind === "products" ? { kind: row.kind } : {}),
         expectedRevision: row.revision, discontinue: true,
       });
@@ -175,6 +183,8 @@ export default function CatalogWorkspace({ actorId, isAdmin }: { actorId: string
   }
 
   const officialCodeIsValid = officialCode.length === 13;
+  const customerOptions:SearchableSelectOption[]=accounts.filter(a=>a.customerUserId!==actorId&&a.isActive!==false&&accountName(a).length>0)
+    .map(a=>({value:a.customerUserId,label:accountName(a)}));
   return <div className="catalog-workspace catalog-workspace-compact" dir="rtl">
     <section className="catalog-card" aria-label="فیلترهای کاتالوگ">
       <div className="catalog-tabs" role="tablist" aria-label="نوع اطلاعات">
@@ -184,14 +194,9 @@ export default function CatalogWorkspace({ actorId, isAdmin }: { actorId: string
       </div>
       <div className="catalog-filters">
         {kind !== "official" && isAdmin && <label>حساب / مشتری هدف
-          <select aria-label="انتخاب مشتری بر اساس نام" value={customer}
-            onChange={e=> {tableVersion.current++; setCustomer(e.target.value); setPage(1); setRows([]);}}>
-            <option value="">انتخاب مشتری زیرمجموعه</option>
-            {accounts.filter(a=>a.customerUserId!==actorId && a.isActive !== false && accountName(a).length>0).map(a=><option
-              key={a.customerUserId} value={a.customerUserId}>
-              {accountName(a)}
-            </option>)}
-          </select>
+          <SearchableSelect id="catalog-customer-choice" value={customer} options={customerOptions}
+            placeholder="جست‌وجوی مشتری…" selectedLabel={customer?undefined:"انتخاب مشتری زیرمجموعه"}
+            onChange={value=> {tableVersion.current++; setCustomer(value); setPage(1); setRows([]);}} />
         </label>}
         <label>جست‌وجو براساس عنوان یا کد
           <input value={query} onChange={e=> {setQuery(e.target.value);setPage(1);}}
@@ -223,8 +228,12 @@ export default function CatalogWorkspace({ actorId, isAdmin }: { actorId: string
               <input required maxLength={100} dir="ltr" value={code} onChange={e=>setCode(e.target.value)}/></label>
             <label>عنوان
               <input required minLength={2} maxLength={256} value={title} onChange={e=>setTitle(e.target.value)}/></label>
+            <label>درصد ارزش افزوده
+              <input type="number" min="0" max="999.99" step="0.01" dir="ltr" inputMode="decimal"
+                value={vatRatePercent} onChange={e=>setVatRatePercent(e.target.value)} />
+            </label>
             {kind==="products" && <label>نوع کالا
-              <select value={productKind} disabled={Boolean(edit)}
+              <select value={productKind} disabled={pending}
                 onChange={e=>setProductKind(Number(e.target.value))}>
                 <option value={1}>انبارپذیر</option><option value={2}>غیرانبارپذیر</option></select></label>}
             <label>واحد اندازه‌گیری پایه
@@ -248,12 +257,13 @@ export default function CatalogWorkspace({ actorId, isAdmin }: { actorId: string
       </div>
       <div className="catalog-scroll catalog-grid-loading-host">
         <table className="catalog-table">
-          <thead><tr><th scope="col">شناسه رسمی ۱۳ رقمی</th>{kind !== "official" && <th scope="col">کد داخلی</th>}<th scope="col">عنوان و نوع</th><th scope="col">{kind==="official"?"نوع":kind==="products"||kind==="services"?"وضعیت":"نوع / وضعیت"}</th><th scope="col">عملیات</th></tr></thead>
+          <thead><tr><th scope="col">شناسه رسمی ۱۳ رقمی</th>{kind !== "official" && <th scope="col">کد داخلی</th>}{kind !== "official"&&<th scope="col">ارزش افزوده</th>}<th scope="col">عنوان و نوع</th><th scope="col">{kind==="official"?"نوع":kind==="products"||kind==="services"?"وضعیت":"نوع / وضعیت"}</th><th scope="col">عملیات</th></tr></thead>
           <tbody>{rows.map(row=><tr key={row.id}>
             <td>{(kind === "official" ? row.code : row.officialCode)
               ? <bdi dir="ltr">{kind === "official" ? row.code : row.officialCode}</bdi>
               : <span className="catalog-help">ثبت نشده</span>}</td>
             {kind !== "official" && <td><bdi dir="ltr">{row.internalCode}</bdi></td>}
+            {kind !== "official"&&<td>{(row.vatRatePercent??0).toLocaleString("fa-IR",{maximumFractionDigits:2})}٪</td>}
             <td className="catalog-title-cell"><span className="catalog-item-title">{row.title}</span>
               {kind==="products" && <span className="catalog-item-kind">{row.kind===2?"غیرانبارپذیر":"انبارپذیر"}</span>}</td>
             <td>{kind==="official" ? row.kind===1?"کالا":"خدمت" :

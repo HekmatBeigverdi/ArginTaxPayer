@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import FinancePagination from "./finance-pagination";
+import SearchableSelect from "../components/searchable-select";
 
 type Plan = {
   id: string;
@@ -571,13 +572,12 @@ export default function PlanCatalog({ level1 }: PlanCatalogProps) {
             <p>پلن <strong>{financePlan.code}</strong></p>
             {financeAction === "history" ? <>
               <label>محدوده تعرفه
-                <select value={historyScope} onChange={event => { setHistoryScope(event.target.value); setHistoryPage(1); }}>
-                  <option value="base">تعرفه پایه مدیر سطح ۱</option>
-                  {!level1 && <option value="own">تعرفه اختصاصی من</option>}
-                  {level1 && financePlan.partnerPrices.map(partner => <option key={partner.partnerUserId} value={partner.partnerUserId}>
-                    {partner.mobile ?? partner.partnerUserId}
-                  </option>)}
-                </select>
+                <SearchableSelect id="plan-price-history-scope" value={historyScope}
+                  options={[{value:"base",label:"تعرفه پایه مدیر سطح ۱"},
+                    ...(!level1?[{value:"own",label:"تعرفه اختصاصی من"}]:[]),
+                    ...(level1?financePlan.partnerPrices.map(partner=>({value:partner.partnerUserId,
+                      label:partner.mobile??partner.partnerUserId,description:partner.partnerUserId})):[])]}
+                  placeholder="جست‌وجوی محدوده تعرفه…" onChange={value=>{setHistoryScope(value);setHistoryPage(1);}} />
               </label>
               <div className="console-table-stage phase12-price-history" aria-busy={historyLoading}>
                 {historyLoading && <div className="argin-loader argin-loader-overlay" role="status" aria-live="polite">

@@ -122,7 +122,8 @@ public sealed record SaveInvoiceEntryRequest(Guid? Id, Guid TaxpayerId, long Exp
     Guid? ReviewedByUserId = null, DateTime? ReviewedAtUtc = null,
     string? BulkImportKey = null, string? BulkFingerprint = null,
     Guid? SandboxFiscalMemoryId = null,
-    decimal? OtherTaxAndLegalFeesRial = 0m);
+    decimal? OtherTaxAndLegalFeesRial = 0m,
+    long? BusinessInvoiceSerial = null);
 public sealed record InvoiceEntryView(Guid Id, Guid CustomerUserId, Guid TaxpayerId, long Revision,
     int LastCompletedStep, DateTime IssueDateUtc, DateTime UpdatedAtUtc,
     Guid? BuyerPartyId, int Type, int Pattern, InvoiceEntryLine[] Lines,
@@ -136,9 +137,11 @@ public sealed record InvoiceEntryView(Guid Id, Guid CustomerUserId, Guid Taxpaye
     string? InternalReviewReason = null, Guid? SubmittedByUserId = null,
     Guid? ReviewedByUserId = null, DateTime? ReviewedAtUtc = null,
     Guid? SandboxFiscalMemoryId = null,
-    decimal OtherTaxAndLegalFeesRial = 0m);
+    decimal OtherTaxAndLegalFeesRial = 0m,
+    long? BusinessInvoiceSerial = null);
 public sealed record InvoiceEntryResult(InvoiceApiDecision Decision, InvoiceEntryView? Draft = null,
     bool Replayed = false);
+public sealed record InvoiceBusinessSerialResult(InvoiceApiDecision Decision,long? Serial=null);
 
 public static class InvoiceBulkIdentity
 {
@@ -194,6 +197,7 @@ public sealed class InvoiceEntryWorkspaceService(
     {
         input = NormalizeForSave(input);
         if (input.TaxpayerId == Guid.Empty || input.ExpectedRevision < 0 ||
+            input.BusinessInvoiceSerial is < 1 or > InvoiceBusinessSerialSequence.Maximum ||
             input.LastCompletedStep is < 0 or > 2 ||
             input.IssueDateUtc.Kind != DateTimeKind.Utc ||
             input.Type is < 1 or > 2 ||
@@ -270,7 +274,7 @@ public sealed class InvoiceEntryWorkspaceService(
             value.GoldCommissionRial,value.GoldTotalFeeProfitRial,value.FiscalMemoryId,
             value.InternalReviewState,value.InternalReviewReason,value.SubmittedByUserId,
             value.ReviewedByUserId,value.ReviewedAtUtc,value.SandboxFiscalMemoryId,
-            value.OtherTaxAndLegalFeesRial ?? 0m);
+            value.OtherTaxAndLegalFeesRial ?? 0m,value.BusinessInvoiceSerial);
     }
 
     public async Task<InvoiceEntryResult> SaveAsync(string? token,
@@ -419,13 +423,6 @@ SELECT EXISTS(
                     : new(InvoiceApiDecision.Conflict);
             }
         }
-        var json = JsonSerializer.Serialize(input with {
-            Id = null, ExpectedRevision = 0, BuyerDisplayName = selectedBuyerName,
-            Lines = canonicalLines.ToArray(), BulkFingerprint = fingerprint,
-            InternalReviewState = "Draft",
-            InternalReviewReason = null, SubmittedByUserId = null,
-            ReviewedByUserId = null, ReviewedAtUtc = null
-        });
         // History rows and the latest draft must commit atomically. A rejected
         // ExpectedRevision never writes an audit event or overwrites a draft.
         var principal = await scope.ResolveAsync(token,ct);
@@ -434,12 +431,26 @@ SELECT EXISTS(
         try { return await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
         {
             await using var transaction = await db.Database.BeginTransactionAsync(ct);
+            var workspaceId=input.Id ?? importId ?? Guid.NewGuid();
+            var businessSerial=await InvoiceBusinessSerialSequence.ReserveAsync(
+                db.Database.GetDbConnection(),transaction.GetDbTransaction(),input.TaxpayerId,
+                workspaceId,input.IssueDateUtc,input.BusinessInvoiceSerial,ct);
+            if(businessSerial is null)
+                return new InvoiceEntryResult(InvoiceApiDecision.Conflict);
+            input=input with { BusinessInvoiceSerial=businessSerial };
+            var json = JsonSerializer.Serialize(input with {
+                Id = null, ExpectedRevision = 0, BuyerDisplayName = selectedBuyerName,
+                Lines = canonicalLines.ToArray(), BulkFingerprint = fingerprint,
+                InternalReviewState = "Draft",
+                InternalReviewReason = null, SubmittedByUserId = null,
+                ReviewedByUserId = null, ReviewedAtUtc = null
+            });
             InvoiceEntryWorkspace saved;
             if (input.Id is null)
             {
                 if (input.ExpectedRevision != 0) return new InvoiceEntryResult(InvoiceApiDecision.Conflict);
                 saved = new InvoiceEntryWorkspace {
-                    Id = importId ?? Guid.NewGuid(),CustomerUserId = access.Item2,
+                    Id = workspaceId,CustomerUserId = access.Item2,
                     TaxpayerId = input.TaxpayerId,Revision = 1,
                     LastCompletedStep = input.LastCompletedStep,
                     IssueDateUtc = input.IssueDateUtc,DraftJson = json,UpdatedAtUtc = now
@@ -516,11 +527,11 @@ FOR UPDATE
             await transaction.CommitAsync(ct);
             return new InvoiceEntryResult(InvoiceApiDecision.Success,View(saved));
         }); }
-        catch (DbUpdateException ex) when (importId is not null &&
-            ex.InnerException is Npgsql.PostgresException pg &&
+        catch (DbUpdateException ex) when (ex.InnerException is Npgsql.PostgresException pg &&
             pg.SqlState == "23505")
         {
-            db.ChangeTracker.Clear(); // Remove failed INSERT before retrying other items.
+            db.ChangeTracker.Clear();
+            if(importId is null)return new(InvoiceApiDecision.Conflict);
             var prior = await db.InvoiceEntryWorkspaces.AsNoTracking()
                 .Where(w=>w.Id==importId && w.CustomerUserId==access.Item2 &&
                     w.TaxpayerId==input.TaxpayerId).SingleOrDefaultAsync(ct);
@@ -529,6 +540,11 @@ FOR UPDATE
             return old?.BulkFingerprint == fingerprint && prior is not null
                 ? new(InvoiceApiDecision.Success,View(prior),true)
                 : new(InvoiceApiDecision.Conflict);
+        }
+        catch (Npgsql.PostgresException ex) when (ex.SqlState == "23505")
+        {
+            db.ChangeTracker.Clear();
+            return new(InvoiceApiDecision.Conflict);
         }
     }
 
@@ -587,6 +603,19 @@ FOR UPDATE
             .SingleOrDefaultAsync(x => x.Id == id && allowed.Contains(x.TaxpayerId),ct);
         return row is null ? new(InvoiceApiDecision.NotFound)
             : new(InvoiceApiDecision.Success,View(row));
+    }
+
+    public async Task<InvoiceBusinessSerialResult> NextBusinessSerialAsync(string? token,
+        Guid taxpayerId,DateTime issueDateUtc,CancellationToken ct=default)
+    {
+        if(taxpayerId==Guid.Empty||issueDateUtc.Kind!=DateTimeKind.Utc)
+            return new(InvoiceApiDecision.Invalid);
+        var access=await Authorize(token,taxpayerId,ct);
+        if(access.Item1!=InvoiceApiDecision.Success)return new(access.Item1);
+        var serial=await InvoiceBusinessSerialSequence.NextAsync(
+            db.Database.GetDbConnection(),taxpayerId,issueDateUtc,ct);
+        return serial is null ? new(InvoiceApiDecision.Conflict) :
+            new(InvoiceApiDecision.Success,serial);
     }
 
     public async Task<(InvoiceApiDecision Decision, InvoiceEntryView[] Drafts)> ListAsync(

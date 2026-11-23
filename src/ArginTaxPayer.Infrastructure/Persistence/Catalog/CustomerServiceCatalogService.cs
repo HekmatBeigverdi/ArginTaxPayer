@@ -12,7 +12,8 @@ public enum CustomerServiceDecision
 }
 public sealed record CustomerServiceView(
     Guid Id, Guid CustomerUserId, string InternalCode, string Title,
-    Guid BaseUnitId, CatalogItemStatus Status, long Revision, string? OfficialCode = null);
+    Guid BaseUnitId, CatalogItemStatus Status, long Revision, string? OfficialCode = null,
+    decimal VatRatePercent = 0m);
 public sealed record CustomerServiceResult(
     CustomerServiceDecision Decision, CustomerServiceView? Service = null);
 
@@ -26,7 +27,8 @@ public sealed class CustomerServiceCatalogService(
 {
     private static CustomerServiceView Map(CustomerCatalogItem item) =>
         new(item.Id, item.CustomerUserId, item.InternalCode, item.Title,
-            item.BaseUnitId, (CatalogItemStatus)item.Status, item.Revision, item.OfficialCode);
+            item.BaseUnitId, (CatalogItemStatus)item.Status, item.Revision, item.OfficialCode,
+            item.VatRatePercent);
 
     private Task<bool> CanManageAsync(Guid actor, Guid customer, CancellationToken ct) =>
         db.IdentityUsers.AsNoTracking().AnyAsync(user =>
@@ -84,6 +86,7 @@ public sealed class CustomerServiceCatalogService(
                     Id = Guid.NewGuid(), CustomerUserId = customerId,
                     InternalCode = clean.InternalCode, Title = clean.Title,
                     OfficialCode = clean.OfficialCode,
+                    VatRatePercent = clean.VatRatePercent ?? 0m,
                     Kind = (int)CatalogItemKind.Service,
                     BaseUnitId = clean.BaseUnitId, Status = (int)CatalogItemStatus.Active,
                     Revision = 1, CreatedAtUtc = now, UpdatedAtUtc = now
@@ -176,6 +179,7 @@ public sealed class CustomerServiceCatalogService(
                 {
                     item.InternalCode = clean!.InternalCode;
                     item.OfficialCode = clean.OfficialCode;
+                    if(clean.VatRatePercent is { } vatRate) item.VatRatePercent = vatRate;
                     item.Title = clean.Title;
                     item.BaseUnitId = clean.BaseUnitId;
                 }

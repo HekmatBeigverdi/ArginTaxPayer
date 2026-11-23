@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import ParticipantRegistrationModal from "./participant-registration-modal";
 import FiscalRecordModal from "./fiscal-record-modal";
 import ConsoleLoader from "../components/console-loader";
+import SearchableSelect from "../components/searchable-select";
 import { canRegisterParticipant } from "./participant-access.mjs";
 
 type Buyer = { customerUserId: string; mobile: string | null; email: string | null;
@@ -148,12 +149,11 @@ export default function BuyerTaxpayerDirectory({ admin, level1, actorUserId }: {
     </div>}
       <div className="console-directory-filters">
         {admin && <label>حساب مشتری
-          <select value={customerFilter} onChange={e => { setCustomerFilter(e.target.value); setPage(1); }}>
-            <option value="">همه مشتریان زیرمجموعه مجاز</option>
-            {buyers.filter(account => account.customerUserId !== actorUserId).map(account => <option key={account.customerUserId} value={account.customerUserId}>
-              {customerOptionLabel(account)}
-            </option>)}
-          </select>
+          <SearchableSelect id="directory-customer-filter" value={customerFilter}
+            options={buyers.filter(account=>account.customerUserId!==actorUserId).map(account=>({
+              value:account.customerUserId,label:customerOptionLabel(account),description:account.customerUserId
+            }))} placeholder="جست‌وجوی مشتری…" selectedLabel={customerFilter?undefined:"همه مشتریان زیرمجموعه مجاز"}
+            onChange={value=>{setCustomerFilter(value);setPage(1);}} />
         </label>}
         <label>نوع رکورد<select value={filter} onChange={e => { setFilter(e.target.value as typeof filter); setPage(1); }}>
           <option value="all">همه</option><option value="buyer">خریداران</option><option value="taxpayer">مؤدیان</option>

@@ -187,6 +187,13 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("updated_at_utc");
 
+                    b.Property<decimal>("VatRatePercent")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)")
+                        .HasDefaultValue(0m)
+                        .HasColumnName("vat_rate_percent");
+
                     b.HasKey("Id");
 
                     b.HasIndex("BaseUnitId");
@@ -203,6 +210,8 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("ck_catalog_item_revision", "revision > 0");
 
                             t.HasCheckConstraint("ck_catalog_item_status", "status BETWEEN 1 AND 4");
+
+                            t.HasCheckConstraint("ck_catalog_item_vat_rate", "vat_rate_percent >= 0 AND vat_rate_percent <= 999.99");
                         });
                 });
 
