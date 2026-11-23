@@ -402,9 +402,9 @@ RECOVERY_STATE_DIR = Path('/var/lib/argintaxpayer/backup-controller')
 ROOT_UID = 0
 BACKUP_KEY = Path('/etc/argintaxpayer/migration-backup.key')
 RECOVERY_MIGRATION_APPROVAL = Path('/etc/argintaxpayer/recovery-migration-approved')
-CATALOG_RECOVERY_MIGRATIONS = (
-    '20261120120000_AddCatalogOfficialCode',
-    '20261120195140_RemoveCatalogOfficialMappings',
+RECOVERY_RELEASE_MIGRATIONS = (
+    '20261123100000_AddInvoiceBusinessSerials',
+    '20261123133602_AddCatalogVatRatePercent',
 )
 
 
@@ -643,7 +643,7 @@ def migrate_release(release, database=None, stop=stop_services, restart=restart_
             print(f'[PASS] Restored database {selected_database} was reviewed; migration artifacts are unchanged.', flush=True)
             return False
         baseline = migration_manifest(current_manifest)
-        if expected != baseline + list(CATALOG_RECOVERY_MIGRATIONS):
+        if expected != baseline + list(RECOVERY_RELEASE_MIGRATIONS):
             raise Refused('Reviewed restored database migration target differs from the current release')
         trusted(RECOVERY_MIGRATION_APPROVAL.parent, directory=True)
         approval = read_regular_file(RECOVERY_MIGRATION_APPROVAL, 256, ROOT_UID, 0o600)
