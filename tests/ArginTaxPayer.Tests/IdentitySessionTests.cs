@@ -50,14 +50,25 @@ public sealed class IdentitySessionPostgresTests
             new DbContextOptionsBuilder<ArginTaxPayerDbContext>().UseNpgsql(connection).Options);
         Assert.Contains("20261012030000_AddIdentitySessions", await db.Database.GetAppliedMigrationsAsync());
         await using var tx = await db.Database.BeginTransactionAsync();
-        var credentialService = new IdentityCredentialService(db, IdentityTestServices.CreateOwnership(db));
         var email = $"phase03session-{Guid.NewGuid():N}@example.invalid";
         const string password = "Session-Test-Only-2026-Secret!";
-        Assert.Equal(IdentityRegistrationResult.Created, await credentialService.RegisterCustomerAsync(email, password));
+        var userId = Guid.NewGuid();
+        var user = new IdentityUser
+        {
+            Id = userId, NormalizedEmail = email.ToUpperInvariant(),
+            PasswordHash = IdentityPasswordHasher.Hash(password), IsActive = true,
+            CreatedAtUtc = DateTime.UtcNow,
+            Roles = [new() { UserId = userId, Role = IdentityRoleNames.Customer, AssignedAtUtc = DateTime.UtcNow }]
+        };
+        db.IdentityUsers.Add(user);
+        await db.SaveChangesAsync();
         var service = new IdentitySessionService(db);
         Assert.Null(await service.LoginAsync(email, "wrong"));
+        var beforeLogin = DateTime.UtcNow;
         var first = await service.LoginAsync(email, password);
         Assert.NotNull(first);
+        Assert.InRange(first!.AccessExpiresAtUtc, beforeLogin.AddHours(1), DateTime.UtcNow.AddHours(1));
+        Assert.Equal(first.AccessExpiresAtUtc, first.RefreshExpiresAtUtc);
         Assert.NotNull(await service.AuthenticateAsync(first!.AccessToken));
         Assert.Null(await service.AuthenticateAsync(first.RefreshToken));
 
@@ -77,7 +88,6 @@ public sealed class IdentitySessionPostgresTests
         Assert.Null(await service.RefreshAsync(second.RefreshToken));
 
         var third = await service.LoginAsync(email, password);
-        var user = await db.IdentityUsers.SingleAsync(x => x.NormalizedEmail == email.ToUpperInvariant());
         user.IsActive = false;
         await db.SaveChangesAsync();
         Assert.Null(await service.AuthenticateAsync(third!.AccessToken));
@@ -89,17 +99,25 @@ public sealed class IdentitySessionPostgresTests
         Assert.NotNull(expiring);
         var accessHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
             System.Text.Encoding.ASCII.GetBytes(expiring!.AccessToken))).ToLowerInvariant();
-        await db.IdentitySessions.Where(x => x.AccessTokenHash == accessHash)
-            .ExecuteUpdateAsync(s => s.SetProperty(x => x.AccessExpiresAtUtc, DateTime.UtcNow.AddSeconds(-5)));
+        var session = db.IdentitySessions.Where(x => x.AccessTokenHash == accessHash);
+        var priorExpiry = DateTime.UtcNow.AddMinutes(5);
+        await session.ExecuteUpdateAsync(s => s.SetProperty(x => x.AccessExpiresAtUtc, priorExpiry));
+        var status = await service.GetSessionExpiryAsync(expiring.AccessToken);
+        Assert.InRange(status!.Value, priorExpiry.AddMilliseconds(-1), priorExpiry);
+        var beforeActivity = DateTime.UtcNow;
+        var extended = await service.ExtendSessionAsync(expiring.AccessToken);
+        Assert.InRange(extended!.Value, beforeActivity.AddHours(1), DateTime.UtcNow.AddHours(1));
+        var persisted = await session.AsNoTracking().SingleAsync();
+        Assert.Equal(persisted.AccessExpiresAtUtc, persisted.RefreshExpiresAtUtc);
+        Assert.NotNull(await service.AuthenticateAsync(expiring.AccessToken));
+
+        await session.ExecuteUpdateAsync(s => s
+            .SetProperty(x => x.AccessExpiresAtUtc, DateTime.UtcNow.AddSeconds(-5))
+            .SetProperty(x => x.RefreshExpiresAtUtc, DateTime.UtcNow.AddDays(7)));
         Assert.Null(await service.AuthenticateAsync(expiring.AccessToken));
-        var restored = await service.RefreshAsync(expiring.RefreshToken);
-        Assert.NotNull(restored);
-        var newAccessHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
-            System.Text.Encoding.ASCII.GetBytes(restored!.AccessToken))).ToLowerInvariant();
-        await db.IdentitySessions.Where(x => x.AccessTokenHash == newAccessHash)
-            .ExecuteUpdateAsync(s => s.SetProperty(x => x.RefreshExpiresAtUtc, DateTime.UtcNow.AddSeconds(-5)));
-        Assert.Null(await service.RefreshAsync(restored.RefreshToken));
-        Assert.Null(await service.AuthenticateAsync(restored.AccessToken));
+        Assert.Null(await service.ExtendSessionAsync(expiring.AccessToken));
+        Assert.Null(await service.GetSessionExpiryAsync(expiring.AccessToken));
+        Assert.Null(await service.RefreshAsync(expiring.RefreshToken));
         // Test transaction always rolls back.
     }
 }

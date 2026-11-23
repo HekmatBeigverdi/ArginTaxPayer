@@ -60,17 +60,20 @@ public sealed class InvoiceCatalogHandoffService(
                 if (item.Status != (int)CatalogItemStatus.Active)
                     return new InvoiceCatalogHandoffResult(InvoiceCatalogHandoffDecision.ItemInactive);
 
-                var mappings = await db.CatalogOfficialMappings.AsNoTracking()
-                    .Where(x => x.ItemId == itemId && x.EffectiveFromUtc <= effectiveAtUtc &&
-                        (x.EffectiveToUtc == null || x.EffectiveToUtc > effectiveAtUtc))
-                    .Take(2).ToArrayAsync(ct);
-                if (mappings.Length != 1)
+                if (!OfficialGoodsServiceIdentifierPolicy.TryNormalize(item.OfficialCode, out var officialCode))
                     return new InvoiceCatalogHandoffResult(
                         InvoiceCatalogHandoffDecision.MissingOrAmbiguousMapping);
-                var mapping = mappings[0];
 
+                var officialKind = item.Kind == (int)CatalogItemKind.Service ?
+                    (int)OfficialEntryKind.Service : (int)OfficialEntryKind.Goods;
                 var official = await db.OfficialGoodsServiceEntries.AsNoTracking()
-                    .SingleOrDefaultAsync(x => x.Id == mapping.OfficialEntryId, ct);
+                    .Where(x => x.Code == officialCode && x.Kind == officialKind &&
+                        x.VerificationStatus == 2 &&
+                        db.CatalogReferenceReleases.Any(r => r.Id == x.ReleaseId && r.State == 3))
+                    .OrderByDescending(x => db.CatalogReferenceReleases
+                        .Where(r => r.Id == x.ReleaseId)
+                        .Select(r => r.ActivatedAtUtc).FirstOrDefault())
+                    .ThenByDescending(x => x.ReleaseId).FirstOrDefaultAsync(ct);
                 if (official is null || official.VerificationStatus != 2)
                     return new InvoiceCatalogHandoffResult(
                         InvoiceCatalogHandoffDecision.UnverifiedIdentifier);
@@ -107,7 +110,7 @@ public sealed class InvoiceCatalogHandoffService(
                     item.Kind, item.Status, official.Kind, official.VerificationStatus,
                     officialRelease.State, unit.Status, unitRelease.State,
                     isOfficialReviewed, isUnitReviewed, effectiveAtUtc,
-                    mapping.EffectiveFromUtc, mapping.EffectiveToUtc))
+                    item.CreatedAtUtc, null))
                     return new InvoiceCatalogHandoffResult(
                         InvoiceCatalogHandoffDecision.UnverifiedIdentifier);
 
@@ -118,8 +121,8 @@ public sealed class InvoiceCatalogHandoffService(
                     unit.Id, unit.Code, unit.Title, unitRelease.Id,
                     unitRelease.SourceDocument, unitRelease.Edition,
                     unitRelease.SourceSha256,
-                    mapping.Id, mapping.Revision, mapping.EffectiveFromUtc,
-                    mapping.EffectiveToUtc, official.Id, official.Code,
+                    item.Id, item.Revision, item.CreatedAtUtc,
+                    null, official.Id, official.Code,
                     official.Title, officialRelease.Id,
                     officialRelease.SourceDocument, officialRelease.Edition,
                     officialRelease.SourceSha256, effectiveAtUtc,

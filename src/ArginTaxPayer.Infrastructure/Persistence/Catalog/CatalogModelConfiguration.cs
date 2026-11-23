@@ -74,11 +74,13 @@ public static class CatalogModelConfiguration
             t.HasCheckConstraint("ck_catalog_item_kind", "kind IN (1,2,3)");
             t.HasCheckConstraint("ck_catalog_item_status", "status BETWEEN 1 AND 4");
             t.HasCheckConstraint("ck_catalog_item_revision", "revision > 0");
+            t.HasCheckConstraint("ck_catalog_item_official_code", "official_code IS NULL OR official_code ~ '^[0-9]{13}$'");
         });
         items.HasKey(x => x.Id);
         items.Property(x => x.Id).HasColumnName("id");
         items.Property(x => x.CustomerUserId).HasColumnName("customer_user_id");
         items.Property(x => x.InternalCode).HasColumnName("internal_code").HasMaxLength(100).IsRequired();
+        items.Property(x => x.OfficialCode).HasColumnName("official_code").HasMaxLength(13);
         items.Property(x => x.Title).HasColumnName("title").HasMaxLength(256).IsRequired();
         items.Property(x => x.Kind).HasColumnName("kind");
         items.Property(x => x.BaseUnitId).HasColumnName("base_unit_id");
@@ -88,7 +90,7 @@ public static class CatalogModelConfiguration
         items.Property(x => x.UpdatedAtUtc).HasColumnName("updated_at_utc").HasColumnType("timestamp with time zone");
         items.HasOne<ArginTaxPayer.Infrastructure.Persistence.Identity.IdentityUser>().WithMany().HasForeignKey(x => x.CustomerUserId).OnDelete(DeleteBehavior.Restrict);
         items.HasOne<OfficialMeasurementUnit>().WithMany().HasForeignKey(x => x.BaseUnitId).OnDelete(DeleteBehavior.Restrict);
-        items.HasIndex(x => new { x.CustomerUserId, x.InternalCode }).IsUnique().HasDatabaseName("ux_customer_catalog_internal_code");
+        items.HasIndex(x => new { x.CustomerUserId, x.InternalCode }).HasDatabaseName("ix_customer_catalog_internal_code");
 
         var conv = b.Entity<CatalogItemUnitConversion>();
         conv.ToTable("catalog_item_unit_conversions", t => {
@@ -109,20 +111,5 @@ public static class CatalogModelConfiguration
         conv.HasOne<OfficialMeasurementUnit>().WithMany().HasForeignKey(x => x.FromUnitId).OnDelete(DeleteBehavior.Restrict);
         conv.HasIndex(x => new { x.ItemId, x.FromUnitId, x.EffectiveFromUtc }).IsUnique().HasDatabaseName("ux_catalog_conversion_item_unit_from");
 
-        var mapping = b.Entity<CatalogOfficialMapping>();
-        mapping.ToTable("catalog_official_mappings", t => {
-            t.HasCheckConstraint("ck_catalog_mapping_revision", "revision > 0");
-            t.HasCheckConstraint("ck_catalog_mapping_interval", "effective_to_utc IS NULL OR effective_to_utc > effective_from_utc");
-        });
-        mapping.HasKey(x => x.Id);
-        mapping.Property(x => x.Id).HasColumnName("id");
-        mapping.Property(x => x.ItemId).HasColumnName("item_id");
-        mapping.Property(x => x.OfficialEntryId).HasColumnName("official_entry_id");
-        mapping.Property(x => x.EffectiveFromUtc).HasColumnName("effective_from_utc").HasColumnType("timestamp with time zone");
-        mapping.Property(x => x.EffectiveToUtc).HasColumnName("effective_to_utc").HasColumnType("timestamp with time zone");
-        mapping.Property(x => x.Revision).HasColumnName("revision").IsConcurrencyToken().HasDefaultValue(1L);
-        mapping.HasOne<CustomerCatalogItem>().WithMany().HasForeignKey(x => x.ItemId).OnDelete(DeleteBehavior.Restrict);
-        mapping.HasOne<OfficialGoodsServiceEntry>().WithMany().HasForeignKey(x => x.OfficialEntryId).OnDelete(DeleteBehavior.Restrict);
-        mapping.HasIndex(x => new { x.ItemId, x.EffectiveFromUtc }).IsUnique().HasDatabaseName("ux_catalog_mapping_item_from");
     }
 }

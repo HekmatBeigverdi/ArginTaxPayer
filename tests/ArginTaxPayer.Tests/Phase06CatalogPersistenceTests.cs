@@ -13,15 +13,16 @@ public sealed class Phase06CatalogPersistenceTests
             .Options);
 
     [Fact]
-    public void Customer_catalog_codes_are_unique_inside_customer_scope()
+    public void Customer_catalog_codes_can_repeat_and_official_identifier_is_stored_on_item()
     {
         using var db = CreateContext();
         var item = db.Model.FindEntityType(typeof(CustomerCatalogItem))!;
         Assert.Equal("customer_catalog_items", item.GetTableName());
         Assert.True(item.FindProperty(nameof(CustomerCatalogItem.Revision))!.IsConcurrencyToken);
-        Assert.Contains(item.GetIndexes(), x => x.IsUnique &&
+        Assert.Contains(item.GetIndexes(), x => !x.IsUnique &&
             x.Properties.Select(p => p.Name).SequenceEqual(
                 new[] { nameof(CustomerCatalogItem.CustomerUserId), nameof(CustomerCatalogItem.InternalCode) }));
+        Assert.Equal(13, item.FindProperty(nameof(CustomerCatalogItem.OfficialCode))!.GetMaxLength());
         Assert.All(item.GetForeignKeys(), fk => Assert.Equal(DeleteBehavior.Restrict, fk.DeleteBehavior));
     }
 
@@ -62,11 +63,10 @@ public sealed class Phase06CatalogPersistenceTests
     }
 
     [Fact]
-    public void Mapping_does_not_own_or_overwrite_legacy_entities()
+    public void Catalog_mapping_history_is_absent_from_the_model()
     {
         using var db = CreateContext();
-        var entity = db.Model.FindEntityType(typeof(CatalogOfficialMapping))!;
-        Assert.All(entity.GetForeignKeys(), fk => Assert.Equal(DeleteBehavior.Restrict, fk.DeleteBehavior));
-        Assert.DoesNotContain(entity.GetForeignKeys(), fk => fk.PrincipalEntityType.ClrType.Name == "TaxpayerProfile");
+        Assert.DoesNotContain(db.Model.GetEntityTypes(), entity =>
+            entity.GetTableName() == "catalog_official_mappings");
     }
 }

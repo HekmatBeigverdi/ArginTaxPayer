@@ -79,9 +79,8 @@ public sealed class InvoiceValidationReferenceService(
                 draft.OtherTaxAndLegalFeesRial)))
             Add("invoice.settlement.snapshot_incomplete","footer.settlement",
                 "مبلغ نقدی و نسیه با جمع نهایی صورتحساب تطابق ندارد؛ روش و مبلغ تسویه را دوباره ذخیره کنید.");
-        // The catalog's InternalCode is NOT the sstid/stid field on a
-        // taxpayer-system invoice. A 13-digit official identifier must be
-        // mapped to each selected item for its effective issue date.
+        // InternalCode remains the local item key; OfficialCode is entered on
+        // the catalog item itself and is independent of that key.
         foreach(var (line,index) in draft.Lines.Select((value,index)=>(value,index)))
         {
             if(line.CatalogItemId is not { } itemId)
@@ -91,21 +90,13 @@ public sealed class InvoiceValidationReferenceService(
                     $"ردیف {index+1}: کالای ثبت‌شده در کاتالوگ انتخاب نشده و شناسه ۱۳ رقمی رسمی قابل تعیین نیست.",true);
                 continue;
             }
-            var official = await db.CatalogOfficialMappings.AsNoTracking()
-                .Where(m=>m.ItemId==itemId &&
-                    m.EffectiveFromUtc<=draft.IssueDateUtc &&
-                    (m.EffectiveToUtc==null||m.EffectiveToUtc>draft.IssueDateUtc))
-                .Join(db.OfficialGoodsServiceEntries.AsNoTracking(),
-                    m=>m.OfficialEntryId,e=>e.Id,(m,e)=>new{m,e})
-                .Where(x=>x.e.VerificationStatus==2 &&
-                    x.e.Code.Length==13 &&
-                    db.CatalogReferenceReleases.Any(r=>
-                        r.Id==x.e.ReleaseId&&r.State==3))
-                .Select(x=>x.e.Code).Take(2).ToArrayAsync(ct);
-            if(official.Length!=1)
+            var official = await db.CustomerCatalogItems.AsNoTracking()
+                .Where(item => item.Id == itemId)
+                .Select(item => item.OfficialCode).SingleOrDefaultAsync(ct);
+            if(official is not { Length: 13 } || !official.All(char.IsAsciiDigit))
                 Add("invoice.line.official_identifier_missing",
                     $"body[{index}].sstid",
-                    $"ردیف {index+1}: نگاشت یکتای شناسه رسمی ۱۳ رقمیِ فعال تأیید نشده است. در کالاها و خدمات، بخش «نگاشت» را تکمیل کنید.",true);
+                    $"ردیف {index+1}: شناسه رسمی ۱۳ رقمی در مشخصات کالا ثبت نشده است.",true);
         }
         if (draft.FinancialSummary.PreviewGrandTotalRial <= 0)
             Add("invoice.totals.positive","footer.total",
