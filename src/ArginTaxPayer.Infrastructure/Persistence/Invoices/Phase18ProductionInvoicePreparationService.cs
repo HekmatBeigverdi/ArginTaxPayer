@@ -168,6 +168,10 @@ SELECT EXISTS (
                 ?new(InvoiceApiDecision.Success,"already_prepared",previous.Id)
                 :Denied("dispatch_operation_requires_reconciliation");
 
+        if (invoice.Subject == InvoiceSubject.Original &&
+            InvoiceSubmissionDeadline.HasElapsed(invoice.IssueDateUtc, DateTime.UtcNow))
+            return Denied("invoice_submission_window_elapsed");
+
         InvoiceEntryLine[] lines;
         try { lines=JsonSerializer.Deserialize<InvoiceEntryLine[]>(linesField.GetRawText())??[]; }
         catch(JsonException){return Denied("invoice_lines_invalid");}

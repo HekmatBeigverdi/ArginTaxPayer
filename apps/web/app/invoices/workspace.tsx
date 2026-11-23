@@ -1060,8 +1060,18 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
                   await reload();setDetail(null);setRejectedDraftBusy(false);
                   setNotice("نسخهٔ اصلاح‌شدهٔ این صورتحساب قبلاً با موفقیت ارسال شده است.");return;
                 }
-                if(!response.ok||data.authoritySubmitted!==false||typeof data.workspaceId!=="string")
-                  throw Error("ساخت پیش‌نویس اصلاح انجام نشد؛ ابتدا گزارش رد سازمان را تازه کنید و دوباره تلاش کنید.");
+                if (!response.ok) {
+                  const messages: Record<string, string> = {
+                    authority_rejection_required: "گزارش رد معتبر در دسترس نیست. استعلام سازمان را تازه کنید و دوباره تلاش کنید.",
+                    correction_draft_conflict: "پیش‌نویس اصلاح به‌دلیل تداخل در ذخیره ایجاد نشد. صفحه را بازخوانی کنید و دوباره تلاش کنید.",
+                    source_workspace_revision_mismatch: "نسخهٔ پیش‌نویس اولیه با نسخهٔ ارسال‌شده مطابقت ندارد.",
+                    source_workspace_missing: "پیش‌نویس اولیهٔ این صورتحساب پیدا نشد."
+                  };
+                  const code = typeof data.error === "string" ? data.error : "";
+                  throw Error(messages[code] || `ساخت پیش‌نویس اصلاح انجام نشد (HTTP ${response.status}${code ? `، ${code}` : ""}).`);
+                }
+                if (data.authoritySubmitted !== false || typeof data.workspaceId !== "string")
+                  throw Error("پاسخ ساخت پیش‌نویس اصلاح نامعتبر است.");
                 window.location.assign("/invoices?workspaceId="+encodeURIComponent(data.workspaceId)+
                   (data.issueDateAdjusted===true?"&issueDateAdjusted=1":""));
               }catch(e){setRejectedDraftError((e as Error).message);setRejectedDraftBusy(false);}

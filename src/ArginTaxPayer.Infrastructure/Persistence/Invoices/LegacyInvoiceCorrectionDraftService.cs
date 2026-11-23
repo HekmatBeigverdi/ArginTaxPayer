@@ -144,6 +144,8 @@ public sealed class LegacyInvoiceCorrectionDraftService(ArginTaxPayerDbContext d
             saved=await workspaces.SaveAsync(bearer,input with {
                 Id=null,TaxpayerId=taxpayerId,ExpectedRevision=0,
                 BulkImportKey=key,BulkFingerprint=null,
+                // The rejected invoice retains its own reserved business serial.
+                BusinessInvoiceSerial=null,
                 InternalReviewState="Draft",InternalReviewReason=null,
                 SubmittedByUserId=null,ReviewedByUserId=null,ReviewedAtUtc=null
             },ct);

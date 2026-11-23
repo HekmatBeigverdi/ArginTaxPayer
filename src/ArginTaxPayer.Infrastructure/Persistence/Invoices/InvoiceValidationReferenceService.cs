@@ -38,6 +38,10 @@ public sealed class InvoiceValidationReferenceService(
         void Add(string key, string field, string message, bool warning = false) =>
             findings.Add(new(key,warning ? "warning" : "error",field,message));
 
+        if (InvoiceSubmissionDeadline.HasElapsed(draft.IssueDateUtc, DateTime.UtcNow))
+            Add("invoice.issue_date.submission_window_elapsed", "header.indatim",
+                "مهلت ۱۲ روزهٔ ارسال از تاریخ و ساعت صدور گذشته است. تاریخ و ساعت واقعی صدور را بررسی کنید.");
+
         var matrix = OfficialV79InvoicePatternMatrix.Create();
         var selection = new InvoiceTypePattern((ElectronicInvoiceType)draft.Type,draft.Pattern);
         if (matrix.Evaluate(selection,draft.IssueDateUtc) !=
