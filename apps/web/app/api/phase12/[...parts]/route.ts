@@ -6,6 +6,7 @@ import {
   identityApiOrigin,
   identityUiEnabled,
 } from "../../../../lib/identity";
+import { isSameLocalOrigin } from "../../../../lib/identity-origin.mjs";
 
 export const dynamic = "force-dynamic";
 
@@ -192,7 +193,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
 export async function PUT(request: NextRequest, context: RouteContext) {
   const origin = request.headers.get("origin");
-  if (origin && origin !== request.nextUrl.origin) {
+  if (origin && !isSameLocalOrigin(origin, request.headers.get("host"), request.nextUrl.protocol)) {
     return NextResponse.json({ error: "invalid_origin" }, { status: 403 });
   }
 
@@ -205,7 +206,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
 
 export async function POST(request: NextRequest, context: RouteContext) {
   const origin = request.headers.get("origin");
-  if (origin && origin !== request.nextUrl.origin) {
+  if (origin && !isSameLocalOrigin(origin, request.headers.get("host"), request.nextUrl.protocol)) {
     return NextResponse.json({ error: "invalid_origin" }, { status: 403 });
   }
 

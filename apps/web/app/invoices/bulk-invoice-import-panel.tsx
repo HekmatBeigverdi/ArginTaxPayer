@@ -22,7 +22,7 @@ export default function BulkInvoiceImportPanel({onClose,onChanged}:{
  const [outcomes,setOutcomes]=useState<Outcome[]|null>(null);
  const [error,setError]=useState("");
  const invalid=useMemo(()=>items.filter(i=>i.errors.length>0).length,[items]);
- const formatter=new Intl.NumberFormat("fa-IR",{maximumFractionDigits:2});
+ const formatter=new Intl.NumberFormat("fa-IR",{maximumFractionDigits:0});
  async function load(file:File|undefined){
   setItems([]);setOutcomes(null);setError("");setBatchKey("");setFilename("");
   if(!file)return;

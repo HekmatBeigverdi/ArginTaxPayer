@@ -30,7 +30,7 @@ export default function SearchableCatalogPicker({
   return <div className="invoice-register__catalog-combo" ref={root} aria-busy={loading}
     data-invoice-catalog-open={open ? "true" : "false"}
     onKeyDown={event=>{if(event.key==="Escape" && open){
-      event.preventDefault();event.stopPropagation();setOpen(false);
+      event.preventDefault();event.stopPropagation();event.nativeEvent.stopImmediatePropagation();setOpen(false);
     }}}>
     <input type="search" role="combobox" id="invoice-catalog-search"
       autoComplete="off" aria-autocomplete="list"
@@ -41,9 +41,6 @@ export default function SearchableCatalogPicker({
       onFocus={()=>setOpen(true)}
       onChange={e=>{onQueryChange(e.target.value);setOpen(true);setActive(0);}}
       onKeyDown={event=>{
-        if(event.key==="Escape" && open){
-          event.preventDefault();event.stopPropagation();setOpen(false);return;
-        }
         if(event.key==="ArrowDown"){event.preventDefault();setOpen(true);
           setActive(i=>Math.min(items.length-1,i+1));}
         if(event.key==="ArrowUp"){event.preventDefault();
@@ -55,11 +52,12 @@ export default function SearchableCatalogPicker({
     />
     {loading && <p className="invoice-entry-loading" role="status" aria-live="polite"><span className="argin-loader-spinner" aria-hidden="true"/>در حال دریافت کالاها و خدمات…</p>}
     {open && <button type="button" className="identity-secondary"
-      aria-label="بستن فهرست کالا و خدمات" onClick={()=>setOpen(false)}>× بستن فهرست</button>}
+      aria-label="بستن فهرست کالا و خدمات" title="بستن فهرست کالا و خدمات"
+      onClick={()=>setOpen(false)}>× بستن فهرست</button>}
     {open && <div className="invoice-register__catalog-options" aria-busy={loading}>
       {!loading && items.length===0 && <p>موردی یافت نشد؛ عبارت جست‌وجو را تغییر دهید.</p>}
       <div role="listbox" id="invoice-catalog-options" aria-label="نتایج کالا و خدمات">
-      {!loading && items.slice(0,20).map((item,i)=><button type="button" role="option"
+      {!loading && items.map((item,i)=><button type="button" role="option"
         aria-selected={i===active} id={"catalog-choice-"+item.id}
         className={i===active?"active":""} key={item.id}
         onMouseDown={e=>e.preventDefault()}

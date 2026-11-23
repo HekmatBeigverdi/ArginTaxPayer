@@ -4,6 +4,7 @@ import { createRequire } from "node:module";
 import { test } from "node:test";
 import { runInNewContext } from "node:vm";
 import ts from "typescript";
+import { isSameLocalOrigin } from "../lib/identity-origin.mjs";
 
 const require = createRequire(import.meta.url);
 const { NextRequest } = require("next/server");
@@ -23,6 +24,7 @@ test("plan proxy compiles and forwards record edits and archives to the authenti
     exports, URLSearchParams, AbortSignal,
     require(name) {
       if (name === "next/headers") return { cookies: async () => ({ get: () => ({ value: "test-session" }) }) };
+      if (name.endsWith("/lib/identity-origin.mjs")) return { isSameLocalOrigin };
       if (name.endsWith("/lib/identity")) return {
         ACCESS_COOKIE: "session", currentIdentity: async () => ({ roles: ["Level1"] }),
         identityApiOrigin: () => "http://127.0.0.1:15089", identityUiEnabled: () => true,
@@ -40,7 +42,8 @@ test("plan proxy compiles and forwards record edits and archives to the authenti
   for (const method of ["PUT", "DELETE"]) {
     const body = method === "PUT" ? JSON.stringify({ code: "updated" }) : undefined;
     const response = await exports[method](new NextRequest("http://localhost:3000/api/phase12/" + parts.join("/"), {
-      method, ...(body ? { body, headers: { "Content-Type": "application/json" } } : {}),
+      method, headers: { Host: "localhost:3000", Origin: "http://localhost:3000", ...(body ? { "Content-Type": "application/json" } : {}) },
+      ...(body ? { body } : {}),
     }), { params: Promise.resolve({ parts }) });
     assert.equal(response.status, 200);
     const forwarded = calls.at(-1);

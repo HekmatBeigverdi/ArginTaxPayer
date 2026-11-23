@@ -66,8 +66,8 @@ type InvoiceFormalPreviewProps = {
   onSalesReturn?:()=>void;
 };
 
-const money = (value: number) =>
-  value.toLocaleString("fa-IR", { maximumFractionDigits: 2 });
+const money = (value: number, maximumFractionDigits = 0) =>
+  value.toLocaleString("fa-IR", { maximumFractionDigits });
 
 const formatIssueDate = (value: string) =>
   new Date(value).toLocaleDateString("fa-IR-u-ca-persian");
@@ -197,7 +197,7 @@ const underThousandWords=(value:number):string=>{
 };
 const rialInWords=(value:number):string=>{
  if(!Number.isFinite(value))return "—";
- let amount=Math.round(Math.abs(value));
+ let amount=Math.trunc(Math.abs(value));
  if(amount===0)return "صفر ریال";
  const scales=["","هزار","میلیون","میلیارد","تریلیون","کوادریلیون"];
  const parts:string[]=[];let group=0;
@@ -263,7 +263,7 @@ function InvoicePaper({invoice,reference,referenceFiscalTaxId,invoiceSubject}: {
     <tbody>{Array.from({length:lineCount},(_,index)=>{
      const line=invoice.lines[index];
      return <tr key={index}><td>{faDigits(index+1)}</td><td>{line?.description??""}{line?.officialIdentifier&&<small>شناسه کالا/خدمت: <bdi>{faDigits(line.officialIdentifier)}</bdi></small>}</td>
-      <td>{line?money(line.quantity):""}</td><td>{line?money(line.unitPriceRial):""}</td>
+      <td>{line?money(line.quantity,8):""}</td><td>{line?money(line.unitPriceRial,8):""}</td>
       <td>{line?money(line.grossRial??line.quantity*line.unitPriceRial):""}</td>
       <td>{line?money(line.discountRial):""}</td><td>{line?money(line.netRial):""}</td>
       <td>{line?money(line.vatRial):""}</td><td>{line?money(line.totalRial):""}</td></tr>;
@@ -327,8 +327,8 @@ function InvoiceLines({ lines }: { lines: Line[] }) {
                 <td>
                   <bdi dir="ltr">{line.officialIdentifier ?? "—"}</bdi>
                 </td>
-                <td>{money(line.quantity)}</td>
-                <td>{money(line.unitPriceRial)}</td>
+                <td>{money(line.quantity,8)}</td>
+                <td>{money(line.unitPriceRial,8)}</td>
                 <td>{money(line.discountRial)}</td>
                 <td>{money(line.vatRial)}</td>
                 <td>{money(line.totalRial)}</td>

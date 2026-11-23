@@ -16,7 +16,7 @@ test("development-only BFF is restricted to catalog route allowlist", () => {
   assert.match(proxy, /verifyRoute\(path, method\)/);
   assert.match(proxy, /allowed\.some\(/);
   assert.match(proxy, /origin_not_allowed/);
-  assert.match(proxy, /request\.nextUrl\.origin/);
+  assert.match(proxy, /isSameLocalOrigin/);
   assert.match(proxy, /ACCESS_COOKIE/);
   assert.match(proxy, /redirect: "manual"/);
   assert.match(proxy, /cache: "no-store"/);
