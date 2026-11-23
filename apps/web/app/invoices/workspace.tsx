@@ -74,7 +74,7 @@ type FormMetadata = {
   verifiedForSubmission: boolean;
   entries: { type: number; pattern: number | null; requiredFields: string[] }[];
 };
-type CatalogPage = { items: CatalogItem[] };
+type CatalogPage = { items: CatalogItem[]; hasMore?: boolean };
 type Account = {
   customerUserId: string;
   companyName?: string | null;
@@ -226,7 +226,7 @@ const amount = (value: string) => {
   const n = Number(value);
   return Number.isFinite(n) && n >= 0 ? n : 0;
 };
-const fmt = (value: number) => value.toLocaleString("fa-IR", { maximumFractionDigits: 2 });
+const fmt = (value: number) => value.toLocaleString("fa-IR", { maximumFractionDigits: 0 });
 
 export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: string; isAdmin: boolean}) {
   // List and filtering state.
@@ -285,7 +285,6 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   const [conditionalFields,setConditionalFields] = useState<Record<string,string>>({});
   const [invoiceType, setInvoiceType] = useState(1);
   const [pattern, setPattern] = useState(1);
-  const [kind, setKind] = useState<"products" | "services">("products");
   const [catalogQuery, setCatalogQuery] = useState("");
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
@@ -452,10 +451,26 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
     if (!modal || step !== 1 || !headerCustomer) return;
     let live = true;
     setCatalogBusy(true);
-    const query = new URLSearchParams({page:"1",pageSize:"20",query:catalogQuery});
-    getJson<CatalogPage>("/api/catalog/customers/" + headerCustomer + "/" + kind + "?" + query)
-      .then(data => { if (live) {
-        const items = data.items ?? [];
+    const customerCatalog = "/api/catalog/customers/" + headerCustomer + "/";
+    const fetchAll = async (kind: "products" | "services") => {
+      const items: CatalogItem[] = [];
+      let page = 1;
+      let hasMore = true;
+      while (hasMore && live) {
+        const query = new URLSearchParams({page:String(page),pageSize:"100",query:catalogQuery});
+        const result = await getJson<CatalogPage>(customerCatalog + kind + "?" + query);
+        items.push(...(result.items ?? []));
+        hasMore = result.hasMore === true;
+        page++;
+      }
+      return items;
+    };
+    Promise.all([
+      fetchAll("products"),
+      fetchAll("services"),
+    ])
+      .then(([products,services]) => { if (live) {
+        const items = [...products,...services];
         setCatalog(items);
         const byId = new Map(items.map(item => [item.id, item]));
         setRows(current => current.map(row => {
@@ -466,7 +481,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
       .catch(() => { if (live) setCatalog([]); })
       .finally(() => { if (live) setCatalogBusy(false); });
     return () => { live = false; };
-  }, [modal, step, kind, headerCustomer, catalogQuery]);
+  }, [modal, step, headerCustomer, catalogQuery]);
 
   useEffect(() => {
     if (!modal) return;
@@ -606,12 +621,12 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
     const otherTax = parsedOtherTax;
     const invoiceTotal = calculated.total + otherTax;
     const cash = settlement === 1 ? invoiceTotal : settlement === 2 ? 0 :
-      settlement === 3 ? roundRial(Number(cashInput)) : null;
+      settlement === 3 ? truncateRial(Number(cashInput)) : null;
     const credit = settlement === 1 ? 0 : settlement === 2 ? invoiceTotal :
-      settlement === 3 ? roundRial(invoiceTotal - Number(cashInput)) : null;
+      settlement === 3 ? truncateRial(invoiceTotal - Number(cashInput)) : null;
     if (!buyerDetailsNotRequired && settlement === 3 && (cashInput.trim() === "" || !Number.isFinite(cash) ||
-        Number(cash) <= 0 || Number(credit) <= 0 || Number(cash) >= invoiceTotal)) {
-      setError("برای روش نقدی و نسیه، مبلغ نقدی باید بیشتر از صفر و کمتر از جمع صورتحساب باشد.");
+        !Number.isInteger(Number(cashInput)) || Number(cash) <= 0 || Number(credit) <= 0 || Number(cash) >= invoiceTotal)) {
+      setError("مبلغ نقدی باید عدد صحیح ریال، بیشتر از صفر و کمتر از جمع صورتحساب باشد.");
       return false;
     }
     if (otherTaxInput.trim() === "" || !Number.isFinite(parsedOtherTax) ||
@@ -715,20 +730,22 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   function updateRow(key: number, changes: Partial<Row>) {
     setRows(current => current.map(row => row.key === key ? {...row,...changes} : row));
   }
-  const roundRial = (value:number) => Math.round((value + Number.EPSILON) * 100) / 100;
+  const truncateRial = (value:number) => Math.trunc(value);
   const calculated = useMemo(() => {
     try { return invoicePreview(rows); }
     catch { return {base:0,discount:0,vat:0,total:0}; }
   }, [rows]);
-  const otherTax = amount(otherTaxInput);
+  const otherTax = truncateRial(amount(otherTaxInput));
+  const otherTaxInputInvalid = otherTaxInput.trim() === "" || !Number.isFinite(Number(otherTaxInput)) ||
+    Number(otherTaxInput) < 0 || !Number.isInteger(Number(otherTaxInput));
   const invoiceTotal = calculated.total + otherTax;
   const cashPreview = settlement === 1 ? invoiceTotal : settlement === 2 ? 0 :
-    settlement === 3 ? roundRial(amount(cashInput)) : 0;
+    settlement === 3 ? truncateRial(amount(cashInput)) : 0;
   const creditPreview = settlement === 2 ? invoiceTotal : settlement === 1 ? 0 :
-    settlement === 3 ? roundRial(Math.max(0,invoiceTotal-cashPreview)) : 0;
+    settlement === 3 ? truncateRial(Math.max(0,invoiceTotal-cashPreview)) : 0;
   const settlementError = !buyerDetailsNotRequired && settlement === 3 &&
     (cashInput.trim() === "" || !Number.isFinite(Number(cashInput)) ||
-      cashPreview <= 0 || cashPreview >= invoiceTotal);
+      !Number.isInteger(Number(cashInput)) || cashPreview <= 0 || cashPreview >= invoiceTotal);
   const draftSnapshot = JSON.stringify({
     headerCustomer,taxpayerId,memoryId,buyerId,date,hour,invoiceType,pattern,
     conditionalFields,rows,
@@ -1119,6 +1136,18 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
                 شناسه ثبت‌شده مؤدی: <bdi dir="ltr">{headerOptions.taxpayer.normalizedIdentifier}</bdi>
                 {headerOptions.memories.length===0 && !headerOptions.sandboxMemories?.length ? " — حافظه مالیاتی ثبت نشده است." : ""}
               </small>}
+              <label htmlFor="invoice-type">نوع صورتحساب</label>
+              <select id="invoice-type" disabled={!formMetadata || busy} value={invoiceType} onChange={e => {
+                const next = Number(e.target.value);
+                setInvoiceType(next);
+                setPattern(formMetadata?.entries.find(p=>p.type===next)?.pattern ?? 1);
+              }}><option value={1}>نوع اول</option><option value={2}>نوع دوم</option></select>
+              <label htmlFor="invoice-pattern">الگوی صورتحساب</label>
+              <select id="invoice-pattern" disabled={!formMetadata || busy} value={pattern}
+                onChange={e => setPattern(Number(e.target.value))}>
+                {(formMetadata?.entries.filter(p=>p.type===invoiceType && p.pattern!==null) ?? []).map(p =>
+                  <option key={p.pattern} value={p.pattern!}>{PATTERN_LABELS[p.pattern!] ?? ("الگوی "+p.pattern)}</option>)}
+              </select>
               <label htmlFor="invoice-buyer-search">{buyerDetailsNotRequired ? "اطلاعات خریدار (برای نوع دوم فروش لازم نیست)" : "خریدار ثبت‌شده"}</label>
               <div className="invoice-register__buyer">
                 <input id="invoice-buyer-search" type="search" value={buyerDetailsNotRequired ? "" : buyerQuery}
@@ -1164,18 +1193,6 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
               <PersianDatePicker id="invoice-date" value={date} onChange={setDate} floating/>
               <label htmlFor="invoice-hour">ساعت صدور (تهران)</label>
               <PersianTimePicker id="invoice-hour" value={hour} onChange={setHour} timeZoneLabel="تهران" />
-              <label htmlFor="invoice-type">نوع صورتحساب</label>
-              <select id="invoice-type" disabled={!formMetadata || busy} value={invoiceType} onChange={e => {
-                const next = Number(e.target.value);
-                setInvoiceType(next);
-                setPattern(formMetadata?.entries.find(p=>p.type===next)?.pattern ?? 1);
-              }}><option value={1}>نوع اول</option><option value={2}>نوع دوم</option></select>
-              <label htmlFor="invoice-pattern">الگوی صورتحساب</label>
-              <select id="invoice-pattern" disabled={!formMetadata || busy} value={pattern}
-                onChange={e => setPattern(Number(e.target.value))}>
-                {(formMetadata?.entries.filter(p=>p.type===invoiceType && p.pattern!==null) ?? []).map(p =>
-                  <option key={p.pattern} value={p.pattern!}>{PATTERN_LABELS[p.pattern!] ?? ("الگوی "+p.pattern)}</option>)}
-              </select>
               {(formMetadata?.entries.find(p => p.type === invoiceType && p.pattern === pattern)?.requiredFields ?? [])
                 .flatMap(field => field === "goldFields" ? GOLD_FIELDS : [field])
                 .map(field => <div key={field} className="invoice-register__conditional-field">
@@ -1198,10 +1215,6 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
             </section>}
             {step === 1 && <section aria-label="اقلام صورتحساب" aria-busy={catalogBusy}>
               <div className="invoice-register__row-tools" style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:8}}>
-                <label htmlFor="invoice-kind">نوع قلم</label>
-                <select id="invoice-kind" value={kind} onChange={e=>setKind(e.target.value as "products"|"services")} style={{maxWidth:125}}>
-                  <option value="products">کالا</option><option value="services">خدمت</option>
-                </select>
                 <button type="button" className="identity-secondary" onClick={()=>setImportOpen(true)} disabled={busy}>
                   <span aria-hidden="true">↥ </span>ورود از فایل
                 </button>
@@ -1277,7 +1290,10 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
                     <dt>مجموع مالیات بر ارزش افزوده (محاسبه موقت)</dt><dd>{fmt(calculated.vat)}</dd>
                     <dt>سایر مالیات و وجوه قانونی (ریال)</dt>
                     <dd><input id="invoice-other-tax" type="number" min="0" step="1" dir="ltr"
-                      value={otherTaxInput} onChange={e=>setOtherTaxInput(e.target.value)} /></dd>
+                      value={otherTaxInput} onChange={e=>setOtherTaxInput(e.target.value)} />
+                      {otherTaxInputInvalid && <small role="alert" className="field-hint">
+                        مبلغ باید عدد صحیح ریال باشد؛ بخش اعشاری در جمع نمایش‌داده‌شده لحاظ نمی‌شود.
+                      </small>}</dd>
                     <dt className="invoice-register__grand">جمع صورتحساب</dt>
                     <dd className="invoice-register__grand">{fmt(invoiceTotal)} ریال</dd>
                   </dl>
@@ -1296,7 +1312,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
                 </div>
                 <div className="invoice-register__field">
                   <label htmlFor="invoice-cash-amount">مبلغ نقدی (ریال)</label>
-                  <input id="invoice-cash-amount" type="number" min="0" step="any"
+                  <input id="invoice-cash-amount" type="number" min="0" step="1"
                     dir="ltr" value={settlement===3 ? cashInput : String(cashPreview)}
                     disabled={settlement!==3}
                     onChange={e=>setCashInput(e.target.value)} />
@@ -1310,7 +1326,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
               {buyerDetailsNotRequired && <p className="field-hint">کل مبلغ صورتحساب نوع دوم نقدی تلقی می‌شود.</p>}
               {!buyerDetailsNotRequired && settlement===0 && <p role="status" className="field-hint">برای تکمیل مرحله نهایی، روش تسویه را مشخص کنید؛ ذخیره پیش‌نویس همچنان مجاز است.</p>}
               {settlementError && <p role="alert" className="form-error">
-                برای تسویه نقدی و نسیه، مبلغ نقدی باید مثبت و کمتر از مبلغ صورتحساب باشد.
+                مبلغ نقدی باید عدد صحیح ریال، بیشتر از صفر و کمتر از جمع صورتحساب باشد.
               </p>}
               <div className="invoice-register__description">
                 <label htmlFor="invoice-description">توضیحات صورتحساب</label>

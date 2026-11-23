@@ -6,6 +6,7 @@ const read=p=>readFileSync(new URL("../"+p,import.meta.url),"utf8");
 import React from "react";
 import {createRequire} from "node:module";
 import {loadTsx} from "./helpers/load-tsx.mjs";
+import {isSameLocalOrigin} from "../lib/identity-origin.mjs";
 
 function find(node, predicate) {
  if (!node || typeof node !== "object") return null;
@@ -49,12 +50,13 @@ test("Customer checkout proxy forwards cash requests with authenticated identity
  const route=loadTsx(new URL("../app/api/customer-checkout/route.ts",import.meta.url),{
   globals:{AbortSignal,fetch:async(url,options)=>{calls.push({url,options});return Response.json({orderId:"order-1"});}},
   modules:{"next/headers":{cookies:async()=>({get:()=>({value:"session-token"})})},
+   "../../../lib/identity-origin.mjs":{isSameLocalOrigin},
    "../../../lib/identity":{ACCESS_COOKIE:"access",currentIdentity:async()=>({roles:["Customer"]}),
     identityApiOrigin:()=>"http://backend",identityUiEnabled:()=>true}}
  });
  const body=JSON.stringify({planId:"plan-1",wantsOfficialInvoice:true,operationKey:"operation-1"});
  const request=origin=>new NextRequest("http://localhost/api/customer-checkout",{
-  method:"POST",headers:{origin},body
+  method:"POST",headers:{host:"localhost",origin},body
  });
  assert.equal((await route.POST(request("https://foreign.test"))).status,403);
  assert.equal(calls.length,0);

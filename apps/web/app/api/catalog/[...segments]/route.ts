@@ -22,7 +22,7 @@ async function handle(request: NextRequest, segments: string[], method: string) 
   const path = segments.join("/");
   if (!verifyRoute(path, method)) return NextResponse.json({ error: "not_found" }, { status: 404 });
   if (method !== "GET" && !isSameLocalOrigin(
-      request.headers.get("origin"), request.headers.get("host"), request.nextUrl.protocol))
+    request.headers.get("origin"), request.headers.get("host"), request.nextUrl.protocol))
     return NextResponse.json({ error: "origin_not_allowed" }, { status: 403 });
   const token = (await cookies()).get(ACCESS_COOKIE)?.value;
   if (!token) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });

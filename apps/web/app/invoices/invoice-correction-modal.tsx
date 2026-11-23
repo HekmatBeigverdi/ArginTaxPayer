@@ -4,6 +4,7 @@ import InvoiceActionToast,{InvoiceActionIcon} from "./invoice-action-toast";
 import InvoiceCorrectionReceipt,{type CorrectionReceiptValue} from "./invoice-correction-receipt";
 import {redirectForInvoiceSubscription} from "../../lib/invoice-subscription";
 import {fetchWithSessionRefresh} from "../../lib/session-fetch";
+import {invoicePreview} from "./invoice-financial-preview.mjs";
 type Line={description:string;quantity:number;unitPriceRial:number;discountPerUnitRial:number;vatRatePercent:number|null;officialIdentifierSnapshot:string|null};
 type Draft={invoiceType?:1|2;workspaceId:string;predecessorInvoiceId:string;revision:number;lines:Line[];settlementMethod:number;cashAmountRial:number;creditAmountRial:number;remainingQuantities?:number[]};
 type Result={decision:number;code:string;draft?:Draft|null;invoiceId?:string|null;status?:string|null;referenceNumber?:string|null;inquiryCode?:string|null};
@@ -122,11 +123,10 @@ export default function InvoiceCorrectionModal({taxpayerId,invoiceId,resumeDraft
    }
   }finally{setProgress(null);setBusy(false);}
  };
- const roughTotal=entries.reduce((sum,x,i)=>{
-  const rate=draft?.lines[i]?.vatRatePercent??0;
-  const net=x.quantity*(x.unitPriceRial-x.discountPerUnitRial);
-  return sum+net+Math.round(net*rate/100);
- },0);
+ const roughTotal=invoicePreview(entries.map((x,i)=>({
+  quantity:String(x.quantity),unitPrice:String(x.unitPriceRial),
+  discount:String(x.discountPerUnitRial),vatRate:String(draft?.lines[i]?.vatRatePercent??0)
+ }))).total;
  return <div className="invoice-register__overlay" role="presentation">
   <div className="invoice-register__detail-modal invoice-correction-modal" role="dialog" aria-modal="true"
    aria-label="ویرایش صورتحساب اصلاحی" dir="rtl">
@@ -182,9 +182,9 @@ export default function InvoiceCorrectionModal({taxpayerId,invoiceId,resumeDraft
        <option value={1}>نقدی</option><option value={2}>نسیه</option><option value={3}>نقدی و نسیه</option>
       </select>
      </label>
-     <label>مبلغ نقدی (ریال)<input type="number" min="0" disabled={busy} value={cash}
+     <label>مبلغ نقدی (ریال)<input type="number" min="0" step="1" disabled={busy} value={cash}
       onChange={e=>setCash(Number(e.target.value))}/></label>
-     <label>مبلغ نسیه (ریال)<input type="number" min="0" disabled={busy} value={credit}
+     <label>مبلغ نسیه (ریال)<input type="number" min="0" step="1" disabled={busy} value={credit}
       onChange={e=>setCredit(Number(e.target.value))}/></label>
      <p>مجموع تقریبی اقلام با مالیات: {fa(roughTotal)} ریال؛ مقادیر نهایی در Backend با قواعد رسمی محاسبه می‌شوند.</p>
     </div>}

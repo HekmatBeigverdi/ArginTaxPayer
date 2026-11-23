@@ -81,7 +81,9 @@ public static class InvoiceDraftSettlementPolicy
         decimal? cashRial, decimal? creditRial, decimal grandTotalRial)
     {
         if (!Enum.IsDefined(method) || grandTotalRial < 0 ||
-            cashRial is < 0 || creditRial is < 0) return false;
+            cashRial is < 0 || creditRial is < 0 ||
+            cashRial is { } cash && cash != decimal.Truncate(cash) ||
+            creditRial is { } credit && credit != decimal.Truncate(credit)) return false;
         if (method == InvoiceDraftSettlementMethod.Unknown)
             return cashRial is null && creditRial is null;
         // Incomplete drafts may omit amounts; completed settlement is checked

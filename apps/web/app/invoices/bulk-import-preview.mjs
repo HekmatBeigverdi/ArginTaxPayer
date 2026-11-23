@@ -1,4 +1,5 @@
 // Phase08 Step18: pure, bounded, preview-only grouping. Does not perform any writes.
+import {invoicePreview} from "./invoice-financial-preview.mjs";
 const columns=["invoiceKey","taxpayerId","buyerPartyId","issueDateUtc","type","pattern","settlementMethod",
  "cashAmountRial","description","quantity","unitPriceRial","discountPerUnitRial","vatRatePercent"];
 const guid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -15,7 +16,7 @@ export function previewBulkInvoices(matrix){
  for(let i=1;i<matrix.length;i++){
   const row=Object.fromEntries(columns.map(c=>[c,String(matrix[i][indices[c]]??"").trim()]));
   const invoiceKey=row.invoiceKey;
-  if(!map.has(invoiceKey))map.set(invoiceKey,{invoiceKey,lines:[],errors:[],header:null,firstRow:i+1});
+  if(!map.has(invoiceKey))map.set(invoiceKey,{invoiceKey,lines:[],previewLines:[],errors:[],header:null,firstRow:i+1});
   const item=map.get(invoiceKey);
   const metadata=columns.slice(1,8).map(c=>row[c]);
   if(item.header===null)item.header=metadata;
@@ -27,7 +28,8 @@ export function previewBulkInvoices(matrix){
   if(row.type!=="1"&&row.type!=="2"||!/^[0-9]{1,2}$/.test(row.pattern))
    item.errors.push("نوع یا الگوی صورتحساب معتبر نیست.");
   if(!["1","2","3"].includes(row.settlementMethod))item.errors.push("روش تسویه باید ۱ نقدی، ۲ نسیه یا ۳ مختلط باشد.");
-  if(!numeric.test(row.cashAmountRial))item.errors.push("مبلغ نقدی نامعتبر است.");
+  if(!/^(?:0|[1-9][0-9]*)$/.test(row.cashAmountRial))
+   item.errors.push("مبلغ نقدی باید عدد صحیح ریال باشد.");
   if(!row.description||row.description.length>256)item.errors.push("شرح ردیف "+(i+1)+" الزامی و حداکثر ۲۵۶ نویسه است.");
   for(const c of ["quantity","unitPriceRial","discountPerUnitRial","vatRatePercent"]){
    if(!numeric.test(row[c]))item.errors.push("مقدار "+c+" در سطر "+(i+1)+" نامعتبر است.");
@@ -39,19 +41,18 @@ export function previewBulkInvoices(matrix){
   item.lines.push({catalogItemId:null,unitId:null,description:row.description,
     quantity:Number(row.quantity),unitPriceRial:Number(row.unitPriceRial),
     discountPerUnitRial:Number(row.discountPerUnitRial),vatRatePercent:Number(row.vatRatePercent)});
+  item.previewLines.push({quantity:row.quantity,unitPrice:row.unitPriceRial,
+    discount:row.discountPerUnitRial,vatRate:row.vatRatePercent});
  }
  if(map.size>50)throw Error("در هر Batch حداکثر ۵۰ صورتحساب قابل ثبت است.");
  return [...map.values()].map(item=>{
   if(item.lines.length>150)item.errors.push("هر صورتحساب حداکثر ۱۵۰ قلم دارد.");
   const [taxpayerId,buyerPartyId,issueDateUtc,type,pattern,settlementMethod,cashAmountRial]=item.header;
-  const money=v=>Math.round((v+Number.EPSILON)*100)/100;
-  const total=money(item.lines.reduce((sum,line)=>{
-   const base=money(line.quantity*line.unitPriceRial)-money(line.quantity*line.discountPerUnitRial);
-   return sum+base+money(base*line.vatRatePercent/100);
-  },0));
+  let total=0;
+  try{total=invoicePreview(item.previewLines).total;}catch{total=Number.NaN;}
   const method=Number(settlementMethod);
   const cash=method===1?total:method===2?0:Number(cashAmountRial);
-  const credit=money(total-cash);
+  const credit=total-cash;
   if(!Number.isFinite(total)||total<=0)item.errors.push("مبلغ نهایی صورتحساب باید مثبت باشد.");
   if(method===3&&(!Number.isFinite(cash)||cash<=0||credit<=0))
    item.errors.push("در تسویه مختلط، مبلغ نقدی باید بین صفر و جمع صورتحساب باشد.");

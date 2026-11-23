@@ -28,7 +28,8 @@ internal static class InvoiceLegalDraftProfile
         if ((int?)root["invoiceType"]!=1 || (int?)root["pattern"]!=1) return false;
         cash=method==1 ? total : method==2 ? 0 : cash;
         credit=method==2 ? total : method==1 ? 0 : credit;
-        if (method is <1 or >3 || cash<0 || credit<0 || cash+credit!=total ||
+        if (method is <1 or >3 || cash<0 || credit<0 ||
+            cash!=decimal.Truncate(cash) || credit!=decimal.Truncate(credit) || cash+credit!=total ||
             method==1 && credit!=0 || method==2 && cash!=0 || method==3 && (cash<=0 || credit<=0)) return false;
         settlement=new(method,cash,credit);
         return true;

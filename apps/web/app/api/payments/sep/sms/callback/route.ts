@@ -1,5 +1,6 @@
 import {NextRequest,NextResponse} from "next/server";
 import {identityApiOrigin} from "../../../../../../lib/identity";
+import {isSameLocalOrigin} from "../../../../../../lib/identity-origin.mjs";
 export const dynamic="force-dynamic";
 
 export async function POST(request:NextRequest){
@@ -13,7 +14,7 @@ export async function POST(request:NextRequest){
  try{
   const response=await fetch(identityApiOrigin()+"/api/payments/sep/sms/callback",{method:"POST",body:form,cache:"no-store",redirect:"manual",signal:AbortSignal.timeout(30000)});
   const location=response.headers.get("location");if(response.status>=300&&response.status<400&&location){
-   const target=new URL(location);if(target.origin!==request.nextUrl.origin)return NextResponse.json({error:"invalid_return_target"},{status:502});
+   const target=new URL(location);if(!isSameLocalOrigin(target.origin,request.headers.get("host"),request.nextUrl.protocol))return NextResponse.json({error:"invalid_return_target"},{status:502});
    return NextResponse.redirect(target,303);
   }
   return NextResponse.json({error:"callback_not_processed"},{status:response.status||502});

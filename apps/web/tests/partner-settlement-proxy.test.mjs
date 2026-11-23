@@ -30,7 +30,7 @@ test('only Level1 may record a batch, approve expense or configure rates',async(
   let calls=0;
   const fetch=async()=>{calls++;return Response.json({batchId:batch});};
   const make=()=>new NextRequest(`http://localhost/api/phase12/subscriptions/settlements/${action}`,{
-   method,headers:{origin:'http://localhost','Content-Type':'application/json'},body:JSON.stringify({partnerUserId:partner})
+   method,headers:{host:'localhost',origin:'http://localhost','Content-Type':'application/json'},body:JSON.stringify({partnerUserId:partner})
   });
   assert.equal((await load(['Level2'],fetch)[method](make(),context(action))).status,403);
   assert.equal(calls,0);

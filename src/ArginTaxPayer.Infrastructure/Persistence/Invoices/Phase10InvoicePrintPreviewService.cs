@@ -58,11 +58,11 @@ public sealed class Phase10InvoicePrintPreviewService(
                 if(row.ValueKind!=JsonValueKind.Object)return (InvoiceApiDecision.Invalid,null);
                 var quantity=Number(row,"quantity");
                 var unitPrice=Number(row,"unitPriceRial");
-                var discount=Number(row,"discountPerUnitRial")*quantity;
+                var discount=decimal.Truncate(Number(row,"discountPerUnitRial")*quantity);
                 var vatRate=Number(row,"vatRatePercent");
-                var before=quantity*unitPrice;
+                var before=decimal.Truncate(quantity*unitPrice);
                 var lineNet=before-discount;
-                var tax=decimal.Round(lineNet*vatRate/100,0,MidpointRounding.AwayFromZero);
+                var tax=decimal.Truncate(lineNet*vatRate/100);
                 gross+=before;discountTotal+=discount;vatTotal+=tax;
                 lines.Add(new {
                     description=String(row,"description")??"کالا/خدمت",

@@ -1,6 +1,7 @@
 import { NextRequest,NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { ACCESS_COOKIE,currentIdentity,identityApiOrigin,identityUiEnabled } from "../../../lib/identity";
+import { isSameLocalOrigin } from "../../../lib/identity-origin.mjs";
 export const dynamic="force-dynamic";
 async function relay(path:string,method:"GET"|"POST",body?:string){
  if(!identityUiEnabled())return NextResponse.json({error:"disabled"},{status:404});
@@ -18,7 +19,8 @@ async function relay(path:string,method:"GET"|"POST",body?:string){
 }
 export async function GET(){return relay("customer-offers/me","GET");}
 export async function POST(request:NextRequest){
- if(request.headers.get("origin") && request.headers.get("origin")!==request.nextUrl.origin)
+ const origin=request.headers.get("origin");
+ if(origin && !isSameLocalOrigin(origin,request.headers.get("host"),request.nextUrl.protocol))
   return NextResponse.json({error:"invalid_origin"},{status:403});
  const body=await request.text();
  if(body.length>1024)return NextResponse.json({error:"too_large"},{status:413});
