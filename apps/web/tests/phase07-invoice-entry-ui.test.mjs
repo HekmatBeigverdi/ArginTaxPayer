@@ -69,14 +69,14 @@ test("calendar has Persian conversion and modal-safe floating positioning", () =
   assert.match(css, /\.invoice-register \.ui-persian-date__popover/);
 });
 
-test("Next session proxy only supports scoped reads and development draft writes", () => {
+test("Next session proxy supports scoped reads, draft writes, and invoice deletion", () => {
   assert.match(proxy, /identityUiEnabled\(\)/);
   assert.match(proxy, /ACCESS_COOKIE/);
   assert.match(proxy, /isSameLocalOrigin/);
   assert.match(proxy, /unsupported_invoice_fields/);
   for (const field of ["invoiceDescription", "settlementMethod", "cashAmountRial", "creditAmountRial"])
     assert.match(proxy, new RegExp('"' + field + '"'));
-  assert.doesNotMatch(proxy, /export async function (PUT|PATCH|DELETE)/);
+  assert.doesNotMatch(proxy, /export async function (PUT|PATCH)/);
 });
 
 test("selected taxpayer is the seller and buyer is a scoped searchable directory record", () => {
@@ -217,5 +217,5 @@ test("Next proxy safely allowlists GET validation and scoped references", () => 
   assert.match(proxy, /segments\[2\] === "validation"/);
   assert.match(proxy, /segments\[0\] === "references"/);
   assert.match(proxy, /"invoiceDescription","settlementMethod","cashAmountRial","creditAmountRial"/);
-  assert.doesNotMatch(proxy, /export async function (PATCH|PUT|DELETE)/);
+  assert.doesNotMatch(proxy, /export async function (PATCH|PUT)/);
 });

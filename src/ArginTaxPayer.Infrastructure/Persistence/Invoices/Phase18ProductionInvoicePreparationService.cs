@@ -191,9 +191,10 @@ SELECT EXISTS (
             .SingleOrDefaultAsync(ct);
         var seller=sellerRow?.EconomicCode;
         var buyer=buyerDetails?.EconomicCode ?? buyerRow?.Identifier;
-        if(string.IsNullOrWhiteSpace(seller) || (!type2 && string.IsNullOrWhiteSpace(buyer)))
-            return Denied("seller_or_buyer_identity_missing");
-        if(seller.Length is not (11 or 14) || !seller.All(char.IsAsciiDigit))
+        if(InvoiceParticipantIdentityPolicy.MissingCode(seller,buyer,!type2) is { } missingIdentity)
+            return Denied(missingIdentity);
+        var sellerIdentifier=seller!;
+        if(sellerIdentifier.Length is not (11 or 14) || !sellerIdentifier.All(char.IsAsciiDigit))
             return Denied("seller_economic_identifier_invalid");
 
         int? buyerPersonTypeOverride = root.TryGetProperty("buyerPersonType", out _)
@@ -264,7 +265,7 @@ SELECT EXISTS (
         try
         {
             wire=Phase10LegacyFrozenInvoiceProjector.Project(invoice,reservation.FiscalTaxId,
-                seller,buyer,units,null,buyerPersonType,otherTaxAndLegalFees,
+                sellerIdentifier,buyer,units,null,buyerPersonType,otherTaxAndLegalFees,
                 buyerRow?.Identifier,buyerDetails?.BranchCode,buyerDetails?.PostalCode,
                 sellerRow?.BranchCode,validatedAuthorityBinding:binding);
         }

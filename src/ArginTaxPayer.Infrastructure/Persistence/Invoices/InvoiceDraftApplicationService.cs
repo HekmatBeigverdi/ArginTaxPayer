@@ -5,6 +5,9 @@ using ArginTaxPayer.Domain.Invoices;
 using ArginTaxPayer.Infrastructure.Persistence.Taxpayers;
 using ArginTaxPayer.Infrastructure.Persistence.Parties;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
+using Npgsql;
+using System.Data;
 
 namespace ArginTaxPayer.Infrastructure.Persistence.Invoices;
 
@@ -22,7 +25,7 @@ public sealed record InvoiceDraftView(
     DateTime UpdatedAtUtc, string? Kind = null, int? LastCompletedStep = null,
     string? ReviewState = null, string? SystemCode = null,
     string? SellerName = null, string? BuyerName = null, string? AuthorityStatus = null,
-    Guid? EffectiveInvoiceId = null, bool CorrectionInProgress = false);
+    Guid? EffectiveInvoiceId = null, bool CorrectionInProgress = false, bool CanDelete = false);
 
 public sealed record InvoiceDraftResult(InvoiceApiDecision Decision,
     InvoiceDraftView? Invoice = null);
@@ -54,6 +57,75 @@ public sealed class InvoiceDraftApplicationService(
         if (owner is null || owner == Guid.Empty)
             return (InvoiceApiDecision.NotFound, Guid.Empty);
         return (InvoiceApiDecision.Success, owner.Value);
+    }
+
+    public async Task<InvoiceApiDecision> DeleteAsync(string? token, Guid taxpayerId,
+        Guid invoiceId, long expectedRevision, CancellationToken ct)
+    {
+        if (invoiceId == Guid.Empty || expectedRevision < 1)
+            return InvoiceApiDecision.Invalid;
+
+        try
+        {
+            return await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+            {
+                await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, ct);
+                var access = await AuthorizeAsync(token, taxpayerId, ct);
+                if (access.Decision != InvoiceApiDecision.Success) return access.Decision;
+                var owner = access.CustomerId;
+
+                // Use the same rows as save, promotion, and dispatch preparation.
+                var args = new (string, object)[] { ("id", invoiceId), ("owner", owner), ("taxpayer", taxpayerId) };
+                var connection = db.Database.GetDbConnection();
+                var transaction = tx.GetDbTransaction();
+                await Phase18ProductionInvoicePreparationService.Scalar(connection, transaction, """
+SELECT id FROM invoice_entry_workspaces
+WHERE id=@id AND customer_user_id=@owner AND taxpayer_id=@taxpayer FOR UPDATE
+""", ct, args);
+                await Phase18ProductionInvoicePreparationService.Scalar(connection, transaction, """
+SELECT id FROM invoice_documents
+WHERE id=@id AND customer_user_id=@owner AND taxpayer_id=@taxpayer FOR UPDATE
+""", ct, args);
+                // Read eligibility after the locks, so a retry workspace or
+                // review that just committed is visible before marking deletion.
+                var currentAccess = await AuthorizeAsync(token, taxpayerId, ct);
+                if (currentAccess.Decision != InvoiceApiDecision.Success) return currentAccess.Decision;
+                if (currentAccess.CustomerId != owner) return InvoiceApiDecision.Conflict;
+                if (!await db.CustomerTaxpayerMemberships.AnyAsync(m => m.TaxpayerId == taxpayerId &&
+                    m.CustomerUserId == owner && m.UnlinkedAtUtc == null, ct))
+                    return InvoiceApiDecision.Forbidden;
+
+                var documents = db.InvoiceDocuments.Where(d => d.Id == invoiceId &&
+                    d.CustomerUserId == owner && d.TaxpayerId == taxpayerId);
+                var workspaces = db.InvoiceEntryWorkspaces.Where(w => w.Id == invoiceId &&
+                    w.CustomerUserId == owner && w.TaxpayerId == taxpayerId);
+                var documentRevision = await documents.Select(d => (long?)d.Revision).SingleOrDefaultAsync(ct);
+                var workspaceRevision = await workspaces.Select(w => (long?)w.Revision).SingleOrDefaultAsync(ct);
+                if (documentRevision is null && workspaceRevision is null) return InvoiceApiDecision.NotFound;
+                var returnedDraft = workspaceRevision is not null &&
+                    await workspaces.AnyAsync(w => InvoiceJsonFields.Text(w.DraftJson, "BulkImportKey") ==
+                        "unsent-return:" + invoiceId.ToString("N"), ct);
+                var displayedRevision = returnedDraft ? workspaceRevision : documentRevision ?? workspaceRevision;
+                if (displayedRevision != expectedRevision ||
+                    (await InvoiceDeletionEligibility.ReadAsync(db, [invoiceId], [owner], [taxpayerId], ct)).Length == 0)
+                    return InvoiceApiDecision.Conflict;
+
+                var deletedAt = DateTime.UtcNow;
+                await documents.ExecuteUpdateAsync(set => set
+                    .SetProperty(d => d.DeletedAtUtc, deletedAt)
+                    .SetProperty(d => d.Revision, d => d.Revision + 1), ct);
+                await workspaces.ExecuteUpdateAsync(set => set
+                    .SetProperty(w => w.DeletedAtUtc, deletedAt)
+                    .SetProperty(w => w.Revision, w => w.Revision + 1), ct);
+                await tx.CommitAsync(ct);
+                return InvoiceApiDecision.Success;
+            });
+        }
+        catch (PostgresException ex) when (ex.SqlState is PostgresErrorCodes.SerializationFailure
+            or PostgresErrorCodes.DeadlockDetected)
+        {
+            return InvoiceApiDecision.Conflict;
+        }
     }
 
     public async Task<InvoiceDraftResult> CreateAsync(
@@ -498,6 +570,8 @@ WHERE predecessor_invoice_id=ANY(@ids)
         // never appear as additional main-table rows.
         var effectiveByRoot = await Phase10EffectiveInvoiceQuery.ReadAsync(db, ids,
             rows.Select(x => x.CustomerUserId).Distinct().ToArray(), taxpayerIds, ct);
+        var deletableIds = (await InvoiceDeletionEligibility.ReadAsync(db, ids,
+            rows.Select(x => x.CustomerUserId).Distinct().ToArray(), taxpayerIds, ct)).ToHashSet();
         return (InvoiceApiDecision.Success, rows.Select(x =>
             new InvoiceDraftView(x.Id,x.CustomerUserId,x.TaxpayerId,x.Revision,
                 x.Source == 1 ? "WorkingDraft" :
@@ -518,7 +592,7 @@ WHERE predecessor_invoice_id=ANY(@ids)
                 effectiveByRoot.TryGetValue(x.Id,out var effectiveStatus)?effectiveStatus.Status:
                     authorityByInvoice.GetValueOrDefault(x.Id,"NOT_SENT"),
                 effectiveByRoot.TryGetValue(x.Id,out var effectiveInvoice)?effectiveInvoice.InvoiceId:null,
-                correctionInProgress.Contains(x.Id))).ToArray());
+                correctionInProgress.Contains(x.Id), deletableIds.Contains(x.Id))).ToArray());
     }
 
     private static InvoiceDraftView View(StoredInvoice invoice) =>

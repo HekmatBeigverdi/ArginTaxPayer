@@ -46,6 +46,7 @@ type Invoice = {
   authorityStatus?: string;
   effectiveInvoiceId?: string | null;
   correctionInProgress?: boolean;
+  canDelete?: boolean;
 };
 
 type CatalogItem = {
@@ -264,6 +265,12 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   const saveRequestInFlight = useRef(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const deleteDialog = useRef<HTMLDialogElement>(null);
+  const deleteInFlight = useRef(false);
+  const [deleteTarget, setDeleteTarget] = useState<Invoice | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+
   useEffect(() => {
     if (!notice) return;
     const timeout = window.setTimeout(() => setNotice(""), 10_000);
@@ -394,6 +401,44 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
     const timer = window.setTimeout(() => {void reload();}, search ? 280 : 0);
     return () => { window.clearTimeout(timer); requestSeq.current++; };
   }, [reload]);
+
+  function openDeleteDialog(item: Invoice) {
+    setDeleteTarget(item);
+    setDeleteError("");
+    deleteDialog.current?.showModal();
+  }
+
+  async function deleteInvoice() {
+    if (!deleteTarget || deleteInFlight.current) return;
+    deleteInFlight.current = true;
+    setDeleteBusy(true);
+    setDeleteError("");
+    try {
+      const { taxpayerId, id, revision } = deleteTarget;
+      const response = await fetch(
+        `/api/invoices/${taxpayerId}/${id}?expectedRevision=${revision}`,
+        { method: "DELETE" }
+      );
+      if (!response.ok) {
+        setDeleteError(response.status === 409 || response.status === 404
+          ? "وضعیت صورتحساب تغییر کرده یا دیگر قابل حذف نیست."
+          : "حذف صورتحساب انجام نشد. دوباره تلاش کنید.");
+        if (response.status === 409 || response.status === 404) await reload();
+        return;
+      }
+      deleteDialog.current?.close();
+      setInvoices(current => current.filter(item => item.id !== id));
+      setDetail(current => current?.id === id ? null : current);
+      setNotice("صورتحساب حذف شد.");
+      if (invoices.length === 1 && listPage > 1) setListPage(listPage - 1);
+      else await reload();
+    } catch {
+      setDeleteError("ارتباط با سرور برقرار نشد. دوباره تلاش کنید.");
+    } finally {
+      setDeleteBusy(false);
+      deleteInFlight.current = false;
+    }
+  }
 
   const [customerTaxpayers, setCustomerTaxpayers] = useState<Taxpayer[]>([]);
   const [taxpayerOwners, setTaxpayerOwners] = useState<Record<string,string>>({});
@@ -919,7 +964,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
                item.authorityStatus==="SENDING"?"در حال ارسال":"ارسال نشده"}
             </span></td>
             <td>{item.revision}</td>
-            <td>{item.kind === "workspace" ? <button type="button" className="console-row-action"
+            <td><span className="invoice-row-actions">{item.kind === "workspace" ? <button type="button" className="console-row-action"
               onClick={() => void editDraft(item)}>ویرایش و ادامه</button> :
               <span style={{display:"inline-flex",gap:5,alignItems:"center",flexWrap:"wrap"}}>
                <button type="button" className="identity-secondary invoice-lineage-print-button invoice-table-print-button"
@@ -944,7 +989,15 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
                 <button type="button" className="console-row-action" title="نمایش سوابق و شناسه‌های مالیاتی" onClick={()=>setLineage(item)}>
                  ⛓ زنجیره
                 </button>}
-              </span>}</td>
+              </span>}
+              {item.canDelete && <button type="button" className="invoice-lineage-print-button invoice-table-print-button invoice-row-delete"
+                aria-label={`حذف صورتحساب ${item.systemCode ?? ""}`.trim()} title="حذف صورتحساب"
+                onClick={() => openDeleteDialog(item)}>
+                <svg className="invoice-lineage-print-icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 10v7m4-7v7"/>
+                </svg>
+              </button>}
+            </span></td>
           </tr>)}</tbody>
       </table>
       </div>
@@ -962,6 +1015,22 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
     {bulkOpen && <BulkInvoiceImportPanel onClose={()=>setBulkOpen(false)} onChanged={()=>void reload()}/>}
     {correctionTarget&&<InvoiceCorrectionModal taxpayerId={correctionTarget.taxpayerId} resumeDraft
       invoiceId={correctionTarget.effectiveInvoiceId ?? correctionTarget.id} onClose={()=>setCorrectionTarget(null)} onChanged={()=>void reload()}/>}
+    <dialog className="invoice-delete-dialog" ref={deleteDialog} dir="rtl"
+      aria-labelledby="invoice-delete-title" aria-describedby="invoice-delete-description"
+      onCancel={event => { if (deleteInFlight.current) event.preventDefault(); }}
+      onClose={() => setDeleteTarget(null)}>
+      <h2 id="invoice-delete-title">حذف صورتحساب</h2>
+      <p id="invoice-delete-description">
+        صورتحساب {deleteTarget?.systemCode && <bdi dir="ltr">{deleteTarget.systemCode}</bdi>} از فهرست حذف شود؟
+      </p>
+      {deleteError && <p className="form-error" role="alert">{deleteError}</p>}
+      <div className="invoice-delete-dialog__actions">
+        <button type="button" autoFocus className="identity-secondary" disabled={deleteBusy}
+          onClick={() => deleteDialog.current?.close()}>انصراف</button>
+        <button type="button" className="invoice-delete-confirm" disabled={deleteBusy}
+          onClick={() => void deleteInvoice()}>{deleteBusy ? "در حال حذف…" : "حذف صورتحساب"}</button>
+      </div>
+    </dialog>
     {lineage&&<InvoiceLineageModal taxpayerId={lineage.taxpayerId} invoiceId={lineage.id}
       onChanged={()=>void reload()} onClose={()=>{setLineage(null);void reload();}}/>}
     {detail && <div className="invoice-register__overlay" onMouseDown={e => {

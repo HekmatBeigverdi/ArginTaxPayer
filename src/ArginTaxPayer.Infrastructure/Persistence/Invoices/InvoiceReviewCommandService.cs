@@ -5,6 +5,7 @@ using ArginTaxPayer.Domain.Invoices;
 using ArginTaxPayer.Infrastructure.Persistence.Identity;
 using ArginTaxPayer.Infrastructure.Persistence.Taxpayers;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Npgsql;
 
 namespace ArginTaxPayer.Infrastructure.Persistence.Invoices;
@@ -66,6 +67,16 @@ public sealed class InvoiceReviewCommandService(
                     .Select(i => new { i.Id, i.CustomerUserId, i.TaxpayerId, i.State })
                     .SingleOrDefaultAsync(ct);
                 if (invoice is null)
+                    return new InvoiceReviewCommandResult(InvoiceReviewCommandDecision.NotFound);
+
+                // Serialize review transitions with deletion of the same draft.
+                var locked = await Phase18ProductionInvoicePreparationService.Scalar(
+                    db.Database.GetDbConnection(), tx.GetDbTransaction(), """
+SELECT id FROM invoice_documents
+WHERE id=@id AND customer_user_id=@owner AND taxpayer_id=@taxpayer
+ AND deleted_at_utc IS NULL FOR UPDATE
+""", ct, ("id", invoice.Id), ("owner", invoice.CustomerUserId), ("taxpayer", invoice.TaxpayerId));
+                if (locked is null)
                     return new InvoiceReviewCommandResult(InvoiceReviewCommandDecision.NotFound);
 
                 // The active customer->taxpayer association is rechecked for each mutation.

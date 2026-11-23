@@ -9,6 +9,8 @@ public static class InvoicePersistenceModelConfiguration
     public static void Apply(ModelBuilder b)
     {
         var invoice = b.Entity<StoredInvoice>();
+        invoice.HasQueryFilter(x => x.DeletedAtUtc == null);
+        invoice.Property(x => x.DeletedAtUtc).HasColumnName("deleted_at_utc");
         invoice.ToTable("invoice_documents", t =>
         {
             t.HasCheckConstraint("ck_invoice_documents_revision", "revision > 0");

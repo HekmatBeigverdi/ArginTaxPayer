@@ -12,6 +12,7 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Invoices;
 /// <summary>Private, editable wizard data. NOT an issued or finalized tax invoice.</summary>
 public sealed class InvoiceEntryWorkspace
 {
+    public DateTime? DeletedAtUtc { get; set; }
     public Guid Id { get; set; }
     public Guid CustomerUserId { get; set; }
     public Guid TaxpayerId { get; set; }
@@ -431,6 +432,25 @@ SELECT EXISTS(
         try { return await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
         {
             await using var transaction = await db.Database.BeginTransactionAsync(ct);
+            // A retry draft cannot be created for an original removed while the
+            // inquiry was in flight. Lock the same document as the delete command.
+            if (input.Id is null && input.BulkImportKey?.Split(':') is
+                [("sandbox-correction" or "production-resubmission"), var operationKey, ..])
+            {
+                if (!Guid.TryParseExact(operationKey, "N", out var operationId))
+                    return new InvoiceEntryResult(InvoiceApiDecision.Invalid);
+                var source = await Phase18ProductionInvoicePreparationService.Scalar(
+                    db.Database.GetDbConnection(), transaction.GetDbTransaction(), """
+SELECT d.id FROM invoice_dispatch_operations op
+JOIN invoice_documents d ON d.id=op.invoice_id AND d.customer_user_id=op.customer_user_id
+ AND d.taxpayer_id=op.taxpayer_id
+WHERE op.id=@operation AND d.customer_user_id=@owner AND d.taxpayer_id=@taxpayer
+ AND d.deleted_at_utc IS NULL
+FOR UPDATE OF d
+""", ct, ("operation", operationId), ("owner", access.Item2), ("taxpayer", input.TaxpayerId));
+                if (source is null)
+                    return new InvoiceEntryResult(InvoiceApiDecision.Conflict);
+            }
             var workspaceId=input.Id ?? importId ?? Guid.NewGuid();
             var businessSerial=await InvoiceBusinessSerialSequence.ReserveAsync(
                 db.Database.GetDbConnection(),transaction.GetDbTransaction(),input.TaxpayerId,

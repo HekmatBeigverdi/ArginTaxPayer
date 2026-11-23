@@ -1417,6 +1417,17 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 .invoice-lineage-print-button:focus-visible{outline:3px solid #79bcc2;outline-offset:2px}
 .invoice-lineage-print-button:disabled{opacity:.76;cursor:wait}
 .invoice-table-print-button{width:32px;height:32px;margin:0;border-radius:8px}
+.invoice-row-actions{display:inline-flex;gap:5px;align-items:center;flex-wrap:wrap}
+.invoice-row-delete{color:#a72530}
+.invoice-row-delete:not(:disabled):hover{background:#fff0f1;border-color:#e8a8ad}
+.invoice-row-delete .invoice-lineage-print-icon{width:17px;height:17px}
+.invoice-delete-dialog{box-sizing:border-box;width:min(28rem,calc(100% - 2rem));padding:1.25rem;border:1px solid #d5e2ea;border-radius:14px;color:#203348;background:#fff}
+.invoice-delete-dialog::backdrop{background:#12283a80}
+.invoice-delete-dialog h2{font-size:1.15rem;margin:0}
+.invoice-delete-dialog__actions{display:flex;justify-content:flex-end;gap:.5rem;flex-wrap:wrap;margin-top:1rem}
+.invoice-delete-confirm{font:inherit;padding:.5rem .85rem;background:#a72530;color:#fff;border:1px solid #a72530;border-radius:8px;cursor:pointer}
+.invoice-delete-confirm:disabled{opacity:.65;cursor:wait}
+
 .invoice-table-print-source{position:fixed;inset-block-start:0;inset-inline-start:-200vw;width:1100px;visibility:hidden;pointer-events:none;z-index:-1}
 .invoice-lineage-print-icon{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .invoice-lineage-print-spinner{width:20px;height:20px;border:2px solid #c3dce1;border-top-color:#247b82;border-radius:50%;animation:invoice-print-spin .75s linear infinite}

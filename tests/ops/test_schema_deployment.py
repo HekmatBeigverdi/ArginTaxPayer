@@ -267,6 +267,30 @@ class SchemaDeploymentTests(unittest.TestCase):
             self.assertFalse(self.run_reviewed_release(current))
             self.assertEqual(self.events, [])
 
+    def test_invoice_deletion_migration_is_approved_only_after_prior_reviewed_delta(self):
+        self.expected = self.expected + [
+            '20261123100000_AddInvoiceBusinessSerials',
+            '20261123133602_AddCatalogVatRatePercent',
+        ]
+        (self.release / 'api/schema/migrations.json').write_text(json.dumps(self.expected))
+        current = self.current_release_with_migrations()
+        self.applied = self.expected.copy()
+        self.expected = self.expected + ['20261123140000_AddInvoiceDeletionMarkers']
+        (self.release / 'api/schema/migrations.json').write_text(json.dumps(self.expected))
+
+        approval = self.root / 'recovery-migration-approved'
+        self.db.identity = lambda: 'recovery_abcdef123456|argin_prod_app|true'
+        with patch.object(h, 'RECOVERY_MIGRATION_APPROVAL', approval), \
+             patch.object(h, 'BACKUPS', self.root / 'backups'):
+            approval.write_text(f'recovery_abcdef123456\n{"b" * 40}\n')
+            approval.chmod(0o600)
+            with self.assertRaisesRegex(h.Refused, 'approval does not match'):
+                self.run_reviewed_release(current)
+            self.assertEqual(self.events, [])
+            approval.write_text(f'recovery_abcdef123456\n{self.release.name}\n')
+            self.assertTrue(self.run_reviewed_release(current))
+            self.assertEqual(self.events, ['stop', 'backup', 'apply'])
+
     def test_reviewed_recovery_rejects_any_migration_outside_exact_release_delta(self):
         current = self.current_release_with_migrations()
         self.expected = self.expected + [

@@ -892,6 +892,10 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Invoices.InvoiceEntryWorkspace", b =>
                 {
+                    b.Property<DateTime?>("DeletedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at_utc");
+
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
@@ -1045,6 +1049,10 @@ namespace ArginTaxPayer.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("ArginTaxPayer.Infrastructure.Persistence.Invoices.StoredInvoice", b =>
                 {
+                    b.Property<DateTime?>("DeletedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at_utc");
+
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")

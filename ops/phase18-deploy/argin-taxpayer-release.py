@@ -406,6 +406,7 @@ RECOVERY_RELEASE_MIGRATIONS = (
     '20261123100000_AddInvoiceBusinessSerials',
     '20261123133602_AddCatalogVatRatePercent',
 )
+INVOICE_DELETION_MIGRATION = '20261123140000_AddInvoiceDeletionMarkers'
 
 
 def read_regular_file(path, max_bytes, owner_uid, mode):
@@ -643,7 +644,13 @@ def migrate_release(release, database=None, stop=stop_services, restart=restart_
             print(f'[PASS] Restored database {selected_database} was reviewed; migration artifacts are unchanged.', flush=True)
             return False
         baseline = migration_manifest(current_manifest)
-        if expected != baseline + list(RECOVERY_RELEASE_MIGRATIONS):
+        prior_approved_delta = list(RECOVERY_RELEASE_MIGRATIONS)
+        approved_delta = (
+            [INVOICE_DELETION_MIGRATION]
+            if baseline[-len(prior_approved_delta):] == prior_approved_delta
+            else prior_approved_delta
+        )
+        if expected != baseline + approved_delta:
             raise Refused('Reviewed restored database migration target differs from the current release')
         trusted(RECOVERY_MIGRATION_APPROVAL.parent, directory=True)
         approval = read_regular_file(RECOVERY_MIGRATION_APPROVAL, 256, ROOT_UID, 0o600)
