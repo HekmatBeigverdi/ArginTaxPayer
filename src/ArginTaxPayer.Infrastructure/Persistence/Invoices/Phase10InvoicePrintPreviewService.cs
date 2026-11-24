@@ -1,4 +1,5 @@
 using System.Text.Json;
+using ArginTaxPayer.Infrastructure.Persistence.Catalog;
 using ArginTaxPayer.Infrastructure.Persistence.Parties;
 using ArginTaxPayer.Infrastructure.Persistence.Taxpayers;
 using Microsoft.EntityFrameworkCore;
@@ -72,6 +73,13 @@ WHERE taxpayer_id=@taxpayer AND workspace_id=@invoice
             }
             if(!root.TryGetProperty("lines",out var source)||source.ValueKind!=JsonValueKind.Array
                 ||source.GetArrayLength()>150)return (InvoiceApiDecision.Invalid,null);
+            var unitIds=source.EnumerateArray()
+                .Select(row=>Guid.TryParse(String(row,"unitId"),out var unitId)?unitId:(Guid?)null)
+                .Where(unitId=>unitId.HasValue).Select(unitId=>unitId!.Value).Distinct().ToArray();
+            var units=unitIds.Length==0?new Dictionary<Guid,(string Title,string Code)>():
+                await db.OfficialMeasurementUnits.AsNoTracking().Where(unit=>unitIds.Contains(unit.Id))
+                    .Select(unit=>new{unit.Id,unit.Title,unit.Code})
+                    .ToDictionaryAsync(unit=>unit.Id,unit=>(unit.Title,unit.Code),ct);
             var lines=new List<object>();
             decimal gross=0,discountTotal=0,vatTotal=0;
             foreach(var row in source.EnumerateArray())
@@ -81,6 +89,8 @@ WHERE taxpayer_id=@taxpayer AND workspace_id=@invoice
                 var unitPrice=Number(row,"unitPriceRial");
                 var discount=decimal.Truncate(Number(row,"discountPerUnitRial")*quantity);
                 var vatRate=Number(row,"vatRatePercent");
+                var unitId=Guid.TryParse(String(row,"unitId"),out var parsedUnitId)?parsedUnitId:(Guid?)null;
+                var unit=unitId is { } id?units.GetValueOrDefault(id):default;
                 var before=decimal.Truncate(quantity*unitPrice);
                 var lineNet=before-discount;
                 var tax=decimal.Truncate(lineNet*vatRate/100);
@@ -88,6 +98,7 @@ WHERE taxpayer_id=@taxpayer AND workspace_id=@invoice
                 lines.Add(new {
                     description=String(row,"description")??"کالا/خدمت",
                     officialIdentifier=String(row,"officialIdentifierSnapshot"),
+                    unitTitle=unit.Title,unitCode=unit.Code,
                     quantity,unitPriceRial=unitPrice,grossRial=before,discountRial=discount,
                     netRial=lineNet,vatRatePercent=vatRate,vatRial=tax,totalRial=lineNet+tax
                 });
@@ -158,6 +169,7 @@ WHERE taxpayer_id=@taxpayer AND workspace_id=@invoice
                 ?Number(root,"creditAmountRial"):null;
             string? fiscalTaxId=null;
             string? referenceFiscalTaxId=null;
+            DateTime? sentAtUtc=null;
             var connection=db.Database.GetDbConnection();
             var opened=connection.State!=System.Data.ConnectionState.Open;
             if(opened)await connection.OpenAsync(ct);
@@ -214,12 +226,35 @@ SELECT predecessor_fiscal_tax_id FROM (
                     parameter.Value=value;referenceQuery.Parameters.Add(parameter);}
                 referenceFiscalTaxId=await referenceQuery.ExecuteScalarAsync(ct) as string;
             }
+            await using(var sentAtQuery=connection.CreateCommand())
+            {
+                sentAtQuery.CommandText="""
+SELECT a.started_at_utc
+FROM invoice_dispatch_attempts a
+JOIN invoice_dispatch_operations d ON d.id=a.operation_id
+WHERE d.invoice_id=@invoice AND d.taxpayer_id=@taxpayer AND d.customer_user_id=@owner
+ORDER BY a.started_at_utc DESC,a.attempt_number DESC
+LIMIT 1
+""";
+                foreach(var (key,value) in new (string,object)[]{("invoice",invoiceId),
+                    ("owner",owner.Value),("taxpayer",taxpayerId)})
+                {var parameter=sentAtQuery.CreateParameter();parameter.ParameterName=key;
+                    parameter.Value=value;sentAtQuery.Parameters.Add(parameter);}
+                var sentValue=await sentAtQuery.ExecuteScalarAsync(ct);
+                sentAtUtc=sentValue switch
+                {
+                    DateTime value=>value,
+                    DateTimeOffset value=>value.UtcDateTime,
+                    _=>null
+                };
+            }
             }
             finally {if(opened)await connection.CloseAsync();}
             return (InvoiceApiDecision.Success,new {
                 invoiceId,uniqueInvoiceId=fiscalTaxId,revision=invoice.Revision,issueDateUtc=invoice.IssueDateUtc,
                 businessInvoiceSerial=businessSerial,
                 referenceFiscalTaxId,
+                sentAtUtc,
                 invoiceType=String(root,"invoiceType"),pattern=String(root,"pattern"),
                 invoiceLogoDataUrl=logo is {Length:>0}
                     ?"data:image/png;base64,"+Convert.ToBase64String(logo):null,

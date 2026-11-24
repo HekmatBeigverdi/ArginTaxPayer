@@ -71,32 +71,36 @@ public sealed class SubscriptionAdjustmentService(ArginTaxPayerDbContext db,
         var quantity = sub.Kind == SubscriptionPlanKind.Quantity;
         var oldValidity = sub.ValidityDays;
         var oldUnits = sub.InvoiceUnitLimit;
-        if (quantity != (invoiceUnits is not null) || !quantity && validityDays is null)
+        if ((quantity && invoiceUnits is null && validityDays is null) ||
+            (!quantity && (invoiceUnits is not null || validityDays is null)))
             throw new ArgumentException("Adjustment value does not match plan kind.");
         if (quantity)
         {
-            var account = await db.Database.SqlQueryRaw<CreditRow>("""
+            if (invoiceUnits is not null)
+            {
+                var account = await db.Database.SqlQueryRaw<CreditRow>("""
                 SELECT granted_units AS "Granted",available_units AS "Available",reserved_units AS "Reserved",consumed_units AS "Consumed"
                 FROM subscription_credit_accounts WHERE subscription_id={0} AND customer_user_id={1}
                 """, subscriptionId, customerId).SingleOrDefaultAsync(ct)
-                ?? throw new InvalidOperationException("Credit account missing.");
-            if (invoiceUnits!.Value < account.Consumed + account.Reserved)
-                throw new InvalidOperationException("New quantity is below used or reserved invoices.");
-            var delta = invoiceUnits.Value - account.Granted;
-            if (delta != 0)
-            {
-                await db.Database.ExecuteSqlInterpolatedAsync($"""
+                    ?? throw new InvalidOperationException("Credit account missing.");
+                if (invoiceUnits.Value < account.Consumed + account.Reserved)
+                    throw new InvalidOperationException("New quantity is below used or reserved invoices.");
+                var delta = invoiceUnits.Value - account.Granted;
+                if (delta != 0)
+                {
+                    await db.Database.ExecuteSqlInterpolatedAsync($"""
                     UPDATE subscription_credit_accounts SET granted_units=granted_units+{delta}, available_units=available_units+{delta}, revision=revision+1
                     WHERE subscription_id={subscriptionId} AND customer_user_id={customerId}
                     """, ct);
-                await db.Database.ExecuteSqlInterpolatedAsync($"""
+                    await db.Database.ExecuteSqlInterpolatedAsync($"""
                     INSERT INTO subscription_credit_entries(id,subscription_id,customer_user_id,operation_key,operation_type,reservation_key,units,recorded_at_utc)
                     VALUES({Guid.NewGuid()},{subscriptionId},{customerId},{operationKey},'admin_adjustment',NULL,{Math.Abs(delta)},{DateTime.UtcNow})
                     """, ct);
+                }
+                sub.InvoiceUnitLimit = invoiceUnits;
             }
-            sub.InvoiceUnitLimit = invoiceUnits;
         }
-        else
+        if (validityDays is not null)
         {
             sub.ValidityDays = validityDays!.Value;
             sub.ExpiresAtUtc = DateTime.UtcNow.AddDays(validityDays.Value);
@@ -105,8 +109,8 @@ public sealed class SubscriptionAdjustmentService(ArginTaxPayerDbContext db,
         db.SubscriptionAdjustments.Add(new StoredSubscriptionAdjustment {
             Id=Guid.NewGuid(), CustomerUserId=customerId, SubscriptionId=subscriptionId, ActorUserId=actor,
             OperationKey=operationKey, Kind=SubscriptionAdjustmentKind.Revision,
-            PreviousValidityDays=quantity?null:oldValidity, NewValidityDays=validityDays,
-            PreviousInvoiceUnitLimit=quantity?oldUnits:null, NewInvoiceUnitLimit=invoiceUnits,
+            PreviousValidityDays=validityDays is null?null:oldValidity, NewValidityDays=validityDays,
+            PreviousInvoiceUnitLimit=invoiceUnits is null?null:oldUnits, NewInvoiceUnitLimit=invoiceUnits,
             Reason=reason.Trim(), CreatedAtUtc=DateTime.UtcNow
         });
         await db.SaveChangesAsync(ct); await tx.CommitAsync(ct);

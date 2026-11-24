@@ -88,6 +88,7 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
   const [subscriptionError,setSubscriptionError]=useState("");
   const [subscriptionReason,setSubscriptionReason]=useState("");
   const [subscriptionValue,setSubscriptionValue]=useState("");
+  const [subscriptionDaysValue,setSubscriptionDaysValue]=useState("");
   const [subscriptionBusy,setSubscriptionBusy]=useState(false);
   const [subscriptionHistory,setSubscriptionHistory]=useState<SubscriptionHistory[]>([]);
   const [cancellationPreview,setCancellationPreview]=useState<CancellationPreview|null>(null);
@@ -221,7 +222,7 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
     setSelected(account); setModalError("");
     setPartnerId(account.partnerLevel2UserId || "");
     setTransferReason(""); setTransferNotice(""); setTransferHistory(null);
-    setSubscription(null);setSubscriptionHistory([]);setCancellationPreview(null);setCancelReason("");setSubscriptionError("");setSubscriptionReason("");setSubscriptionValue("");setSubscriptionLoading(true);
+    setSubscription(null);setSubscriptionHistory([]);setCancellationPreview(null);setCancelReason("");setSubscriptionError("");setSubscriptionReason("");setSubscriptionValue("");setSubscriptionDaysValue("");setSubscriptionLoading(true);
     dialogRef.current?.showModal();
     requestRef.current++;
     void load<SubscriptionStatus>("/api/customer-owners/"+account.customerUserId+"/subscription-adjustment")
@@ -232,13 +233,20 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
 
   async function adjustSubscription(event:FormEvent<HTMLFormElement>) {
     event.preventDefault(); if(!selected||!subscription||subscriptionBusy||!subscriptionReason.trim())return;
-    const value=Number(subscriptionValue); if(!Number.isSafeInteger(value)||value<=0){setSubscriptionError("مقدار جدید معتبر نیست.");return;}
+    const quantityPlan=subscription.kind===2;
+    const unitValue=subscriptionValue.trim()?Number(subscriptionValue):null;
+    const daysValue=quantityPlan?(subscriptionDaysValue.trim()?Number(subscriptionDaysValue):null):Number(subscriptionValue);
+    if((unitValue!==null&&(!Number.isSafeInteger(unitValue)||unitValue<=0))||
+      (daysValue!==null&&(!Number.isSafeInteger(daysValue)||daysValue<=0||daysValue>366))||
+      (quantityPlan&&unitValue===null&&daysValue===null)){
+      setSubscriptionError(quantityPlan?"سهمیه جدید یا روزهای باقی‌مانده را وارد کنید.":"روز اعتبار جدید معتبر نیست.");return;
+    }
     setSubscriptionBusy(true);setSubscriptionError("");
     try {
-      const payload=subscription.kind===2?{invoiceUnitLimit:value}:{validityDays:value};
+      const payload=quantityPlan?{invoiceUnitLimit:unitValue,validityDays:daysValue}:{validityDays:daysValue};
       const response=await fetch("/api/customer-owners/"+selected.customerUserId+"/subscription-adjustment",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({...payload,subscriptionId:subscription.subscriptionId,expectedRevision:subscription.revision,operationKey:crypto.randomUUID(),reason:subscriptionReason.trim()})});
       if(!response.ok)throw new Error(response.status===409?"وضعیت اشتراک تغییر کرده است؛ پرونده را بازخوانی کنید.":"اصلاح پلن انجام نشد.");
-      setSubscription(await response.json());setSubscriptionReason("");setSubscriptionValue("");
+      setSubscription(await response.json());setSubscriptionReason("");setSubscriptionValue("");setSubscriptionDaysValue("");
     } catch(e){setSubscriptionError(e instanceof Error?e.message:"ارتباط با سرور برقرار نشد.");} finally{setSubscriptionBusy(false);}
   }
   function openCancellation(){
@@ -479,9 +487,10 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
         {level1 && <section className="users-owner-edit" aria-label="مدیریت اشتراک کاربر">
           <h3>اصلاح پلن کاربر</h3>
           {subscriptionLoading?<p>در حال دریافت اشتراک…</p>:subscriptionError?<p role="alert" className="form-error">{subscriptionError}</p>:!subscription?<p>اشتراک فعال برای این کاربر وجود ندارد.</p>:<>
-            <p>پلن فعلی: {subscription.kind===2?`تعدادی — سهمیه باقی‌مانده ${subscription.availableUnits??0} از ${subscription.invoiceUnitLimit}`:`زمانی — ${subscription.validityDays} روز`}</p>
+            <p>پلن فعلی: {subscription.kind===2?`تعدادی — سهمیه باقی‌مانده ${subscription.availableUnits??0} از ${subscription.invoiceUnitLimit}، روز باقی‌مانده ${subscription.expiresAtUtc?Math.max(0,Math.ceil((Date.parse(subscription.expiresAtUtc)-Date.now())/86400000)):subscription.validityDays}`:`زمانی — ${subscription.validityDays} روز`}</p>
             <form onSubmit={adjustSubscription}>
-              <label>{subscription.kind===2?"سهمیه کل جدید":"روز اعتبار جدید"}<input type="number" min={1} required value={subscriptionValue} onChange={e=>setSubscriptionValue(e.target.value)}/></label>
+              <label>{subscription.kind===2?"سهمیه کل جدید (اختیاری)":"روز اعتبار جدید"}<input type="number" min={1} required={subscription.kind!==2} value={subscriptionValue} onChange={e=>setSubscriptionValue(e.target.value)}/></label>
+              {subscription.kind===2&&<label>روزهای باقی‌مانده جدید (اختیاری)<input type="number" min={1} max={366} value={subscriptionDaysValue} onChange={e=>setSubscriptionDaysValue(e.target.value)}/></label>}
               <label>علت اصلاح یا لغو<textarea rows={2} maxLength={1000} required value={subscriptionReason} onChange={e=>setSubscriptionReason(e.target.value)}/></label>
               <button className="users-button" disabled={subscriptionBusy}>{subscriptionBusy?"در حال ثبت…":"اصلاح پلن"}</button>
               <button type="button" className="users-button" disabled={subscriptionBusy} onClick={openCancellation}>لغو پلن</button>
