@@ -244,8 +244,17 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
     setSubscriptionBusy(true);setSubscriptionError("");
     try {
       const payload=quantityPlan?{invoiceUnitLimit:unitValue,validityDays:daysValue}:{validityDays:daysValue};
-      const response=await fetch("/api/customer-owners/"+selected.customerUserId+"/subscription-adjustment",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({...payload,subscriptionId:subscription.subscriptionId,expectedRevision:subscription.revision,operationKey:crypto.randomUUID(),reason:subscriptionReason.trim()})});
-      if(!response.ok)throw new Error(response.status===409?"وضعیت اشتراک تغییر کرده است؛ پرونده را بازخوانی کنید.":"اصلاح پلن انجام نشد.");
+      const endpoint="/api/customer-owners/"+selected.customerUserId+"/subscription-adjustment";
+      let current=subscription;
+      let response=await fetch(endpoint,{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({...payload,subscriptionId:current.subscriptionId,expectedRevision:current.revision,operationKey:crypto.randomUUID(),reason:subscriptionReason.trim()})});
+      if(response.status===409){
+        const refreshed=await load<SubscriptionStatus>(endpoint);
+        setSubscription(refreshed);
+        if(!refreshed||refreshed.subscriptionId!==subscription.subscriptionId)throw new Error("اشتراک فعال تغییر کرده است؛ مقادیر را بررسی و دوباره ثبت کنید.");
+        current=refreshed;
+        response=await fetch(endpoint,{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({...payload,subscriptionId:current.subscriptionId,expectedRevision:current.revision,operationKey:crypto.randomUUID(),reason:subscriptionReason.trim()})});
+      }
+      if(!response.ok)throw new Error(response.status===409?"وضعیت اشتراک دوباره تغییر کرد؛ مقادیر تازه را بررسی و دوباره ثبت کنید.":"اصلاح پلن انجام نشد.");
       setSubscription(await response.json());setSubscriptionReason("");setSubscriptionValue("");setSubscriptionDaysValue("");
     } catch(e){setSubscriptionError(e instanceof Error?e.message:"ارتباط با سرور برقرار نشد.");} finally{setSubscriptionBusy(false);}
   }
