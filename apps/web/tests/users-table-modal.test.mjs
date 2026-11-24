@@ -62,3 +62,17 @@ test("Level1 can review legacy owners and approve partner attribution with CAS a
   assert.match(api, /isSameLocalOrigin/);
   assert.doesNotMatch(view, /document\.cookie|localStorage|Authorization: "Bearer"/);
 });
+
+test("subscription adjustment retries only a stale revision and reports other conflicts", () => {
+  assert.match(view, /conflict\.error\s*===\s*["']stale_subscription_revision["']/);
+  assert.match(view, /quantity_below_usage_or_reservations/);
+  assert.match(view, /subscription_credit_account_missing/);
+  assert.match(view, /actualRevision/);
+});
+
+test("customer owners BFF forwards only allowlisted subscription conflict details", () => {
+  assert.match(api, /stale_subscription_revision/);
+  assert.match(api, /quantity_below_usage_or_reservations/);
+  assert.match(api, /subscription_credit_account_missing/);
+  assert.match(api, /actualRevision/);
+});

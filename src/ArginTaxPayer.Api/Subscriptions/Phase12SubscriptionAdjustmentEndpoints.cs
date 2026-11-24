@@ -46,8 +46,10 @@ public static class Phase12SubscriptionAdjustmentEndpoints
         try { http.Response.Headers.CacheControl = "no-store"; return Results.Json(await action()); }
         catch (UnauthorizedAccessException) { return Results.StatusCode(403); }
         catch (KeyNotFoundException) { return Results.NotFound(new { error = "active_subscription_not_found" }); }
-        catch (InvalidOperationException ex) when (ex.Message.Contains("revision", StringComparison.OrdinalIgnoreCase)) { return Results.Conflict(new { error = "stale_subscription_revision" }); }
-        catch (InvalidOperationException ex) { return Results.Conflict(new { error = ex.Message }); }
+        catch (SubscriptionRevisionConflictException ex) { return Results.Conflict(new { error = "stale_subscription_revision", expectedRevision = ex.ExpectedRevision, actualRevision = ex.ActualRevision }); }
+        catch (InvalidOperationException ex) when (ex.Message == "Credit account missing.") { return Results.Conflict(new { error = "subscription_credit_account_missing" }); }
+        catch (InvalidOperationException ex) when (ex.Message == "New quantity is below used or reserved invoices.") { return Results.Conflict(new { error = "quantity_below_usage_or_reservations" }); }
+        catch (InvalidOperationException) { return Results.Conflict(new { error = "subscription_adjustment_conflict" }); }
         catch (ArgumentException) { return Results.BadRequest(new { error = "invalid_adjustment" }); }
     }
     private static bool Local(HttpContext h) => h.Connection.RemoteIpAddress is { } ip && (IPAddress.IsLoopback(ip) || ip.IsIPv4MappedToIPv6 && IPAddress.IsLoopback(ip.MapToIPv4()));

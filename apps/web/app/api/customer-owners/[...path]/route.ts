@@ -46,7 +46,24 @@ async function handle(req: NextRequest, ctx: Context, method: "GET" | "POST") {
       headers: { Authorization: "Bearer " + token, ...(payload ? { "Content-Type": "application/json" } : {}) },
       ...(payload ? { body: payload } : {})
     });
-    if (!response.ok) return error([400, 401, 403, 404, 409].includes(response.status) ? response.status : 502);
+    if (!response.ok) {
+      if (response.status === 409 && method === "POST" && path.length === 2 && path[1] === "subscription-adjustment") {
+        const body = await response.json().catch(() => null) as { error?: unknown; expectedRevision?: unknown; actualRevision?: unknown } | null;
+        const safeCodes = new Set([
+          "stale_subscription_revision", "subscription_credit_account_missing",
+          "quantity_below_usage_or_reservations", "subscription_adjustment_conflict"
+        ]);
+        if (typeof body?.error === "string" && safeCodes.has(body.error)) {
+          const details = body.error === "stale_subscription_revision" &&
+            Number.isSafeInteger(body.expectedRevision) && Number.isSafeInteger(body.actualRevision)
+            ? { expectedRevision: body.expectedRevision, actualRevision: body.actualRevision } : {};
+          return NextResponse.json({ error: body.error, ...details }, {
+            status: 409, headers: { "Cache-Control": "no-store" }
+          });
+        }
+      }
+      return error([400, 401, 403, 404, 409].includes(response.status) ? response.status : 502);
+    }
     const body = await response.text();
     if (body.length > 500000) return error(502);
     return new NextResponse(body, { status: response.status, headers: {
