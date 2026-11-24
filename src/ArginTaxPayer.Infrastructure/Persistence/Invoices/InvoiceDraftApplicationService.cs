@@ -25,7 +25,8 @@ public sealed record InvoiceDraftView(
     DateTime UpdatedAtUtc, string? Kind = null, int? LastCompletedStep = null,
     string? ReviewState = null, string? SystemCode = null,
     string? SellerName = null, string? BuyerName = null, string? AuthorityStatus = null,
-    Guid? EffectiveInvoiceId = null, bool CorrectionInProgress = false, bool CanDelete = false);
+    Guid? EffectiveInvoiceId = null, bool CorrectionInProgress = false, bool CanDelete = false,
+    long? BusinessInvoiceSerial = null, decimal? AmountRial = null);
 
 public sealed record InvoiceDraftResult(InvoiceApiDecision Decision,
     InvoiceDraftView? Invoice = null);
@@ -429,12 +430,25 @@ WHERE draft_json->>'BulkImportKey' LIKE 'unsent-return:%'
         var internalSnapshots = new HashSet<Guid>();
         var workspaceReviews = new Dictionary<Guid,string>();
         var buyers = new Dictionary<Guid, string?>();
+        var invoiceNumbers = new Dictionary<Guid, long?>();
+        var invoiceAmounts = new Dictionary<Guid, decimal?>();
         var buyerPartyIdsByInvoice = new Dictionary<Guid, Guid>();
         foreach (var row in rows)
         {
             var json = row.Source == 1
                 ? draftJson.GetValueOrDefault(row.Id) : documentJson.GetValueOrDefault(row.Id);
             if (string.IsNullOrEmpty(json)) continue;
+            try
+            {
+                var entry = JsonSerializer.Deserialize<SaveInvoiceEntryRequest>(json);
+                if (entry is not null)
+                {
+                    invoiceNumbers[row.Id] = entry.BusinessInvoiceSerial;
+                    invoiceAmounts[row.Id] = InvoiceDraftSettlementPolicy.Calculate(
+                        entry.Lines ?? [], entry.OtherTaxAndLegalFeesRial ?? 0m).PreviewGrandTotalRial;
+                }
+            }
+            catch (JsonException) { /* Historical malformed snapshot: omit financial details. */ }
             try
             {
                 using var parsed = JsonDocument.Parse(json);
@@ -585,7 +599,8 @@ WHERE predecessor_invoice_id=ANY(@ids)
                 effectiveByRoot.TryGetValue(x.Id,out var effectiveStatus)?effectiveStatus.Status:
                     authorityByInvoice.GetValueOrDefault(x.Id,"NOT_SENT"),
                 effectiveByRoot.TryGetValue(x.Id,out var effectiveInvoice)?effectiveInvoice.InvoiceId:null,
-                correctionInProgress.Contains(x.Id), deletableIds.Contains(x.Id))).ToArray());
+                correctionInProgress.Contains(x.Id), deletableIds.Contains(x.Id),
+                invoiceNumbers.GetValueOrDefault(x.Id), invoiceAmounts.GetValueOrDefault(x.Id))).ToArray());
     }
 
     private static InvoiceDraftView View(StoredInvoice invoice) =>

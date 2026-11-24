@@ -10,6 +10,15 @@ const capabilities = [
   { icon: "▣", title: "ثبت و پیگیری صورتحساب‌ها", text: "مدیریت صورتحساب‌ها و مشاهدهٔ سوابق و وضعیت‌های مرتبط با آن‌ها." },
   { icon: "♙", title: "مدیریت کاربران و دسترسی‌ها", text: "فضای کاری مبتنی بر نقش برای کاربران و مدیران، با کنترل دسترسی به اطلاعات." },
 ];
+const companyPeople = [
+  { company: "نگین حساب ویرا", people: [
+    { name: "رضا مقدم", image: "/about/people/reza-moghadam.jpg" },
+    { name: "داود امینی", image: "/about/people/davood-amini.jpg" },
+  ] },
+  { company: "داده پردازی همگام افزار", people: [
+    { name: "حکمت بیگ وردی", image: "/about/people/hekmat-beygverdi.jpg" },
+  ] },
+];
 
 export default async function AboutPage() {
   if (!identityUiEnabled()) redirect("/");
@@ -33,8 +42,8 @@ export default async function AboutPage() {
           <p>بخش صورتحساب‌ها برای ثبت و پیگیری صورتحساب‌ها در کنار اطلاعات طرف‌های تجاری و کالاها طراحی شده است. سوابق مرتبط نیز در پنل قابل مشاهده‌اند تا کاربر بتواند اطلاعات موردنیاز را در فضای کاری خودش پیدا و مدیریت کند.</p>
           <p>آرگین از نقش‌های کاربری و دسترسی‌های متناسب با آن‌ها پشتیبانی می‌کند. کاربران و مدیران، با توجه به سطح دسترسی خود، به بخش‌های مربوط دسترسی دارند و مدیریت اطلاعات در چارچوب حساب‌ها و کاربران تعریف‌شده انجام می‌شود. آرگین محصول مشترک شرکت‌های نگین حساب ویرا و داده پردازی همگام افزار است.</p>
           <div className="about-companies" aria-label="شرکت‌های آرگین">
-            <article className="about-company"><Image className="about-company__logo" src="/brand/companies/negin-hesab-vira.png" width={64} height={64} alt="لوگوی نگین حساب ویرا" /><div className="about-company__details"><h2>نگین حساب ویرا</h2><p>ارائه دهنده خدمات مالی و حسابداری</p></div></article>
-            <article className="about-company"><Image className="about-company__logo" src="/brand/companies/hamgam-afzar.png" width={64} height={64} alt="لوگوی داده پردازی همگام افزار" /><div className="about-company__details"><h2>داده پردازی همگام افزار</h2><p>ارائه دهنده خدمات برنامه نویسی اختصاصی</p></div></article>
+            <article className="about-company"><Image className="about-company__logo" src="/brand/companies/negin-hesab-vira.png" width={64} height={64} alt="لوگوی نگین حساب ویرا" /><div className="about-company__details"><h2>نگین حساب ویرا</h2><p>ارائه دهنده خدمات مالی و حسابداری</p></div><div className="about-company__people" aria-label="اعضای شرکت نگین حساب ویرا">{companyPeople[0].people.map(person=><span className="about-company__person" key={person.name} tabIndex={0} aria-label={person.name}><Image src={person.image} width={56} height={56} alt={person.name}/><span className="about-company__person-name" role="tooltip">{person.name}</span></span>)}</div></article>
+            <article className="about-company"><Image className="about-company__logo" src="/brand/companies/hamgam-afzar.png" width={64} height={64} alt="لوگوی داده پردازی همگام افزار" /><div className="about-company__details"><h2>داده پردازی همگام افزار</h2><p>ارائه دهنده خدمات برنامه نویسی اختصاصی</p></div><div className="about-company__people" aria-label="عضو شرکت داده پردازی همگام افزار">{companyPeople[1].people.map(person=><span className="about-company__person" key={person.name} tabIndex={0} aria-label={person.name}><Image src={person.image} width={56} height={56} alt={person.name}/><span className="about-company__person-name" role="tooltip">{person.name}</span></span>)}</div></article>
           </div>
         </div>
         <figure className="about-visual">

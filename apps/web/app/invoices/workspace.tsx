@@ -41,6 +41,8 @@ type Invoice = {
   updatedAtUtc: string;
   reviewState?: "WorkingDraft" | "Draft" | "InReview" | "ChangesRequested" | "Approved";
   systemCode?: string;
+  businessInvoiceSerial?: number | null;
+  amountRial?: number | null;
   sellerName?: string | null;
   buyerName?: string | null;
   authorityStatus?: string;
@@ -48,6 +50,15 @@ type Invoice = {
   correctionInProgress?: boolean;
   canDelete?: boolean;
 };
+
+function hasInvoiceMenuActions(item: Invoice): boolean {
+  return item.kind === "workspace" || item.correctionInProgress === true ||
+    (!!item.effectiveInvoiceId && item.effectiveInvoiceId !== item.id) ||
+    ["ACKNOWLEDGED", "SUCCESS", "FAILED", "PENDING", "IN_PROGRESS", "INDETERMINATE", "SENDING"]
+      .includes(item.authorityStatus ?? "") ||
+    (item.authorityStatus === "SUCCESS" && item.subject !== "Cancellation") ||
+    (item.authorityStatus === "FAILED" && item.subject === "SalesReturn");
+}
 
 type CatalogItem = {
   id: string;
@@ -249,6 +260,9 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   const requestSeq = useRef(0);
   const [search, setSearch] = useState("");
   const [searchHelpOpen, setSearchHelpOpen] = useState(false);
+  const [openActionsFor, setOpenActionsFor] = useState<string | null>(null);
+  const [openActionsUp, setOpenActionsUp] = useState(false);
+  const actionsMenuRef=useRef<HTMLDivElement>(null);
   const [reviewFilter, setReviewFilter] = useState("");
   const [listPage, setListPage] = useState(1);
   const listPageSize = 15;
@@ -276,6 +290,18 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
     const timeout = window.setTimeout(() => setNotice(""), 10_000);
     return () => window.clearTimeout(timeout);
   }, [notice]);
+  useEffect(()=>{
+    if(!openActionsFor||!actionsMenuRef.current)return;
+    const menu=actionsMenuRef.current;
+    const trigger=menu.parentElement?.querySelector<HTMLElement>(".invoice-actions-trigger");
+    const container=menu.closest(".invoice-register__table-wrap");
+    if(!trigger||!container)return;
+    const triggerRect=trigger.getBoundingClientRect();
+    const containerRect=container.getBoundingClientRect();
+    const availableBelow=Math.min(window.innerHeight,containerRect.bottom)-triggerRect.bottom;
+    const availableAbove=triggerRect.top-Math.max(0,containerRect.top);
+    setOpenActionsUp(menu.offsetHeight>availableBelow&&availableAbove>availableBelow);
+  },[openActionsFor]);
   const dialog = useRef<HTMLDivElement>(null);
   const openButton = useRef<HTMLButtonElement>(null);
   const [importOpen,setImportOpen] = useState(false);
@@ -312,10 +338,12 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   const [otherTaxInput,setOtherTaxInput] = useState("0");
   const nextKey = useRef(0);
   const [detail, setDetail] = useState<Invoice | null>(null);
+  const [detailInitialAction, setDetailInitialAction] = useState<"cancel" | null>(null);
   const [autoOpenDispatchFor, setAutoOpenDispatchFor] = useState("");
   const [rejectedDraftBusy,setRejectedDraftBusy]=useState(false);
   const [rejectedDraftError,setRejectedDraftError]=useState("");
   const [correctionTarget,setCorrectionTarget]=useState<Invoice|null>(null);
+  const [newCorrectionTarget,setNewCorrectionTarget]=useState<Invoice|null>(null);
   const [returnTarget,setReturnTarget]=useState<Invoice|null>(null);
   const [lineage, setLineage] = useState<Invoice | null>(null);
 
@@ -690,7 +718,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
     const businessSerial=Number(businessInvoiceSerial);
     if(!/^\d{1,10}$/.test(businessInvoiceSerial)||!Number.isSafeInteger(businessSerial)||
         businessSerial<1||businessSerial>9_999_999_999){
-      setError("شماره ترتیبی صورتحساب باید عددی بین ۱ و ۹۹۹۹۹۹۹۹۹۹ باشد.");return false;
+      setError("سریال صورتحساب باید عددی بین ۱ و ۹۹۹۹۹۹۹۹۹۹ باشد.");return false;
     }
     if(rows.some(r=>!r.name.trim() || !Number.isFinite(Number(r.quantity)) ||
         Number(r.quantity)<0 || Number(r.unitPrice)<0 ||
@@ -936,15 +964,17 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
       </div>}
       <div className="console-table-scroll invoice-register__table-wrap">
       <table className="console-table">
-        <thead><tr><th>شناسه سیستمی</th>{isAdmin && <th>مشتری</th>}<th>مؤدی فروشنده</th><th>خریدار</th><th>تاریخ صدور</th><th>موضوع</th>
-          <th>وضعیت داخلی</th><th>وضعیت سازمان</th><th>نسخه</th><th>عملیات</th></tr></thead>
-        <tbody>{filtered.length === 0 ? <tr><td colSpan={isAdmin ? 10 : 9}>صورتحسابی برای نمایش وجود ندارد.</td></tr> :
+        <thead><tr><th>شناسه سیستمی</th>{isAdmin && <th>مشتری</th>}<th>مؤدی فروشنده</th><th>خریدار</th><th>سریال فاکتور</th><th>مبلغ صورتحساب (ریال)</th><th>تاریخ صدور</th><th>موضوع</th>
+          <th>وضعیت داخلی</th><th>وضعیت سازمان</th><th>عملیات</th></tr></thead>
+        <tbody>{filtered.length === 0 ? <tr><td colSpan={isAdmin ? 11 : 10}>صورتحسابی برای نمایش وجود ندارد.</td></tr> :
           filtered.map(item => <tr key={item.id} style={{backgroundColor:item.subject === "Cancellation" ? "rgba(220,38,38,.10)" : ["Correction","Corrective"].includes(item.subject)?"rgba(59,130,246,.09)": item.authorityStatus==="SUCCESS"?"rgba(22,163,74,.10)":undefined}}>
             <td><button type="button" className="console-row-action" title="کپی شناسه برای پشتیبانی" disabled={!item.systemCode} onClick={() => {void navigator.clipboard.writeText(item.systemCode || "").then(()=>setNotice("شناسه سیستمی کپی شد."));}}><bdi dir="ltr">{item.systemCode || "در انتظار تخصیص"}</bdi> ⧉</button></td>
             {isAdmin && <td>{accounts.find(a=>a.customerUserId===item.customerUserId)?.companyName ||
               accounts.find(a=>a.customerUserId===item.customerUserId)?.personName || "حساب مشتری"}</td>}
             <td>{item.sellerName || taxpayers.find(t=>t.id===item.taxpayerId)?.displayName || "مؤدی ثبت‌شده"}</td>
             <td>{item.buyerName || "ثبت نشده"}</td>
+            <td><bdi dir="ltr">{item.businessInvoiceSerial == null ? "—" : String(item.businessInvoiceSerial).padStart(10, "0")}</bdi></td>
+            <td>{item.amountRial == null ? "—" : `${fmt(item.amountRial)} ریال`}</td>
             <td>{toFaDate(item.issueDateUtc)}</td><td><InvoiceSubjectBadge subject={item.subject}/></td>
             <td>{item.correctionInProgress ? "در حال ویرایش اصلاحی" :
               item.reviewState === "WorkingDraft" ? "در حال تکمیل" :
@@ -963,33 +993,60 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
                item.authorityStatus==="PREPARED"?"آماده‌سازی شده":
                item.authorityStatus==="SENDING"?"در حال ارسال":"ارسال نشده"}
             </span></td>
-            <td>{item.revision}</td>
-            <td><span className="invoice-row-actions">{item.kind === "workspace" ? <button type="button" className="console-row-action"
-              onClick={() => void editDraft(item)}>ویرایش و ادامه</button> :
+            <td><div className="invoice-row-actions">
+              {item.kind !== "workspace" && <>
+                <button type="button" className="identity-secondary invoice-lineage-print-button invoice-table-print-button"
+                  aria-label="مشاهده صورتحساب" title="مشاهده صورتحساب"
+                  onClick={()=>{setDetailInitialAction(null);setAutoOpenDispatchFor("");setDetail(item);}}>
+                  <svg className="invoice-lineage-print-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>
+                  </svg>
+                </button>
+                <InvoicePrintAction taxpayerId={item.taxpayerId}
+                  invoiceId={item.effectiveInvoiceId??item.id} reference={item.systemCode??""} subject={item.subject}/>
+              </>}
+              {hasInvoiceMenuActions(item) && <>
+              <button type="button" className="invoice-actions-trigger" aria-label={openActionsFor===item.id?"بستن عملیات":"نمایش عملیات صورتحساب"}
+                aria-haspopup="menu" aria-expanded={openActionsFor===item.id}
+                onClick={()=>{setOpenActionsUp(false);setOpenActionsFor(current=>current===item.id?null:item.id);}}>
+                {openActionsFor===item.id?<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>:
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>}
+              </button>
+              {openActionsFor===item.id && <div ref={actionsMenuRef} className={`invoice-actions-menu${openActionsUp?" invoice-actions-menu--up":""}`} role="menu" aria-label="عملیات صورتحساب"
+                onClick={()=>setOpenActionsFor(null)}>
+              {item.kind === "workspace" ? <button type="button" role="menuitem" className="console-row-action"
+              onClick={() => void editDraft(item)}><svg className="invoice-action-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m4 16-.8 4.8L8 20l11.5-11.5a2.1 2.1 0 0 0-3-3L5 17.1M14.5 6.5l3 3"/></svg><span>ویرایش و ادامه</span></button> :
               <span style={{display:"inline-flex",gap:5,alignItems:"center",flexWrap:"wrap"}}>
-               <button type="button" className="identity-secondary invoice-lineage-print-button invoice-table-print-button"
-                aria-label="مشاهده صورتحساب" title="مشاهده صورتحساب"
-                onClick={()=>{setAutoOpenDispatchFor("");setDetail(item);}}>
-                <svg className="invoice-lineage-print-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                 <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z"/>
-                 <circle cx="12" cy="12" r="3"/>
-                </svg>
-               </button>
-               <InvoicePrintAction taxpayerId={item.taxpayerId}
-                invoiceId={item.effectiveInvoiceId??item.id} reference={item.systemCode??""} subject={item.subject}/>
-               {((item.authorityStatus==="SUCCESS"&&["Original","Correction","SalesReturn"].includes(item.subject))||
-                 (item.authorityStatus==="FAILED"&&item.subject==="SalesReturn"))&&
-                <button type="button" className="console-row-action" onClick={()=>setReturnTarget(item)}>
-                 {item.authorityStatus==="FAILED"?"ویرایش و تلاش مجدد برگشت":"برگشت از فروش"}
-                </button>}
-               {item.correctionInProgress&&<button type="button" className="console-row-action"
-                onClick={()=>setCorrectionTarget(item)}>ادامه ویرایش</button>}
+               {item.correctionInProgress&&<button type="button" role="menuitem" className="console-row-action"
+                onClick={()=>setCorrectionTarget(item)}><svg className="invoice-action-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8v5l3 2M21 12a9 9 0 1 1-2.6-6.4M21 4v5h-5"/></svg><span>ادامه ویرایش</span></button>}
                {(!!item.effectiveInvoiceId && item.effectiveInvoiceId !== item.id ||
                  ["ACKNOWLEDGED","SUCCESS","FAILED","PENDING","IN_PROGRESS","INDETERMINATE","SENDING"].includes(item.authorityStatus??""))&&
-                <button type="button" className="console-row-action" title="نمایش سوابق و شناسه‌های مالیاتی" onClick={()=>setLineage(item)}>
-                 ⛓ زنجیره
+                <button type="button" role="menuitem" className="console-row-action" title="نمایش سوابق و شناسه‌های مالیاتی" onClick={()=>setLineage(item)}>
+                 <svg className="invoice-action-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m10 13 4-4M8 16l-2 2a3 3 0 0 1-4-4l4-4a3 3 0 0 1 4 0M16 8l2-2a3 3 0 0 1 4 4l-4 4a3 3 0 0 1-4 0"/></svg><span>مشاهده زنجیره</span>
+                </button>}
+               {((item.authorityStatus==="SUCCESS"&&item.subject!=="Cancellation")||
+                 (item.authorityStatus==="FAILED"&&item.subject==="SalesReturn")||
+                 (item.authorityStatus==="SUCCESS"&&["Original","Correction","SalesReturn"].includes(item.subject)))&&
+                 <div className="invoice-actions-separator" role="separator" aria-label="عملیات مالیاتی"/>}
+               {item.authorityStatus==="SUCCESS"&&item.subject!=="Cancellation"&&
+                <button type="button" role="menuitem" className="console-row-action invoice-action-cancel"
+                 onClick={()=>{setDetailInitialAction("cancel");setAutoOpenDispatchFor("");setDetail(item);}}>
+                 <svg className="invoice-action-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg><span>ابطال</span>
+                </button>}
+               {((item.authorityStatus==="SUCCESS"&&["Original","Correction","SalesReturn"].includes(item.subject))||
+                 (item.authorityStatus==="FAILED"&&item.subject==="SalesReturn"))&&
+                <button type="button" role="menuitem" className="console-row-action" onClick={()=>setReturnTarget(item)}>
+                 <svg className="invoice-action-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7v5h5M5 12a8 8 0 1 1 2 5"/></svg>
+                 <span>{item.authorityStatus==="FAILED"?"ویرایش و تلاش مجدد برگشت":"برگشت از فروش"}</span>
+                </button>}
+               {item.authorityStatus==="SUCCESS"&&item.subject!=="Cancellation"&&
+                <button type="button" role="menuitem" className="console-row-action invoice-action-correct"
+                 onClick={()=>setNewCorrectionTarget(item)}>
+                 <svg className="invoice-action-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m4 16-.8 4.8L8 20l11.5-11.5a2.1 2.1 0 0 0-3-3L5 17.1M14.5 6.5l3 3"/></svg><span>اصلاح</span>
                 </button>}
               </span>}
+              </div>}
+              </>}
               {item.canDelete && <button type="button" className="invoice-lineage-print-button invoice-table-print-button invoice-row-delete"
                 aria-label={`حذف صورتحساب ${item.systemCode ?? ""}`.trim()} title="حذف صورتحساب"
                 onClick={() => openDeleteDialog(item)}>
@@ -997,7 +1054,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
                   <path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 10v7m4-7v7"/>
                 </svg>
               </button>}
-            </span></td>
+            </div></td>
           </tr>)}</tbody>
       </table>
       </div>
@@ -1015,6 +1072,9 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
     {bulkOpen && <BulkInvoiceImportPanel onClose={()=>setBulkOpen(false)} onChanged={()=>void reload()}/>}
     {correctionTarget&&<InvoiceCorrectionModal taxpayerId={correctionTarget.taxpayerId} resumeDraft
       invoiceId={correctionTarget.effectiveInvoiceId ?? correctionTarget.id} onClose={()=>setCorrectionTarget(null)} onChanged={()=>void reload()}/>}
+    {newCorrectionTarget&&<InvoiceCorrectionModal taxpayerId={newCorrectionTarget.taxpayerId}
+      invoiceId={newCorrectionTarget.effectiveInvoiceId ?? newCorrectionTarget.id}
+      onClose={()=>setNewCorrectionTarget(null)} onChanged={()=>void reload()}/>}
     <dialog className="invoice-delete-dialog" ref={deleteDialog} dir="rtl"
       aria-labelledby="invoice-delete-title" aria-describedby="invoice-delete-description"
       onCancel={event => { if (deleteInFlight.current) event.preventDefault(); }}
@@ -1034,13 +1094,13 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
     {lineage&&<InvoiceLineageModal taxpayerId={lineage.taxpayerId} invoiceId={lineage.id}
       onChanged={()=>void reload()} onClose={()=>{setLineage(null);void reload();}}/>}
     {detail && <div className="invoice-register__overlay" onMouseDown={e => {
-      if (e.currentTarget === e.target) {setDetail(null);setAutoOpenDispatchFor("");void reload();}
+      if (e.currentTarget === e.target) {setDetail(null);setAutoOpenDispatchFor("");void reload();setDetailInitialAction(null);}
     }}>
       <div className="invoice-register__detail-modal" role="dialog" aria-modal="true"
         aria-label="جزئیات صورتحساب">
         <div className="invoice-register__dialog-header">
           <h2>جزئیات صورتحساب</h2>
-          <button type="button" className="identity-secondary" onClick={() => {setDetail(null);setAutoOpenDispatchFor("");void reload();}}
+          <button type="button" className="identity-secondary" onClick={() => {setDetail(null);setAutoOpenDispatchFor("");void reload();setDetailInitialAction(null);}}
             aria-label="بستن جزئیات">×</button>
         </div>
         {detail.authorityStatus==="FAILED"&&detail.subject==="Original"&&<section className="invoice-rejected-correction" aria-label="اصلاح صورتحساب ردشده">
@@ -1138,7 +1198,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
         </section>}
         <details name="invoice-detail-sections" className="fiscal-section invoice-detail-section" open key={"invoice-section:"+detail.id}><summary><span>صورتحساب فروش</span><span className="invoice-detail-section__summary-action">مشاهده جزئیات</span></summary>
         <div className="fiscal-section-content invoice-detail-section__content">
-        <InvoiceFormalPreview key={"formal:"+detail.id} taxpayerId={detail.taxpayerId} invoiceId={detail.effectiveInvoiceId ?? detail.id} correctionInvoiceId={detail.effectiveInvoiceId ?? detail.id} reference={detail.systemCode??""} authorityStatus={detail.authorityStatus} subject={detail.subject} onCancellationCompleted={()=>void reload()} onCorrectionCompleted={()=>void reload()} onSalesReturn={()=>setReturnTarget(detail)}/>
+        <InvoiceFormalPreview key={"formal:"+detail.id} taxpayerId={detail.taxpayerId} invoiceId={detail.effectiveInvoiceId ?? detail.id} correctionInvoiceId={detail.effectiveInvoiceId ?? detail.id} reference={detail.systemCode??""} authorityStatus={detail.authorityStatus} subject={detail.subject} initialAction={detailInitialAction} onCancellationCompleted={()=>void reload()} onCorrectionCompleted={()=>void reload()} onSalesReturn={()=>setReturnTarget(detail)}/>
         </div>
         </details>
         <details name="invoice-detail-sections" className="fiscal-section invoice-detail-section"><summary><span>مشخصات داخلی و فنی صورتحساب</span><span className="invoice-detail-section__summary-action">مشاهده جزئیات</span></summary>
@@ -1268,7 +1328,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
               <PersianDatePicker id="invoice-date" value={date} onChange={setDate} floating/>
               <label htmlFor="invoice-hour">ساعت صدور (تهران)</label>
               <PersianTimePicker id="invoice-hour" value={hour} onChange={setHour} timeZoneLabel="تهران" />
-              <label htmlFor="invoice-business-serial">شماره ترتیبی صورتحساب (۱۰ رقمی)</label>
+              <label htmlFor="invoice-business-serial">سریال صورتحساب (۱۰ رقمی)</label>
               <input id="invoice-business-serial" dir="ltr" inputMode="numeric" maxLength={10}
                 value={businessSerialFocused?businessInvoiceSerial:paddedBusinessSerial(businessInvoiceSerial)} disabled={busy}
                 onFocus={()=>setBusinessSerialFocused(true)} onBlur={()=>setBusinessSerialFocused(false)}
@@ -1359,7 +1419,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
                     <dd>{visibleTaxpayers.find(t=>t.id===taxpayerId)?.displayName || "مؤدی انتخاب‌شده"}</dd>
                     <dt>خریدار</dt><dd>{buyerDetailsNotRequired ? "برای نوع دوم فروش لازم نیست" : buyerQuery || "هنوز انتخاب نشده"}</dd>
                     <dt>تاریخ و زمان</dt><dd>{new Intl.DateTimeFormat("fa-IR-u-ca-persian",{timeZone:"Asia/Tehran",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).format(tehranLocalToUtc(date,hour))}</dd>
-                    <dt>شماره ترتیبی صورتحساب</dt><dd><bdi dir="ltr">{paddedBusinessSerial(businessInvoiceSerial)}</bdi></dd>
+                    <dt>سریال صورتحساب</dt><dd><bdi dir="ltr">{paddedBusinessSerial(businessInvoiceSerial)}</bdi></dd>
                     <dt>نوع و الگو</dt><dd>نوع {invoiceType} · الگوی {pattern}</dd>
                     <dt>تعداد ردیف‌ها</dt><dd>{rows.length}</dd>
                   </dl>

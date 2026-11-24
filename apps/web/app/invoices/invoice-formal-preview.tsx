@@ -7,6 +7,8 @@ import InvoiceCorrectionModal from "./invoice-correction-modal";
 type Line = {
   description: string;
   officialIdentifier: string | null;
+  unitTitle?:string|null;
+  unitCode?:string|null;
   quantity: number;
   unitPriceRial: number;
   discountRial: number;
@@ -22,6 +24,7 @@ type Participant={name:string|null;identity:string|null;economicCode:string|null
 
 type Invoice = {
   issueDateUtc: string;
+  sentAtUtc?:string|null;
   revision: number;
   uniqueInvoiceId: string | null;
   businessInvoiceSerial?: number | null;
@@ -65,6 +68,7 @@ type InvoiceFormalPreviewProps = {
   onCancellationCompleted?:()=>void;
   onCorrectionCompleted?:()=>void;
   onSalesReturn?:()=>void;
+  initialAction?:"cancel"|null;
 };
 
 const money = (value: number, maximumFractionDigits = 0) =>
@@ -246,11 +250,11 @@ function InvoicePaper({invoice,reference,referenceFiscalTaxId,invoiceSubject}: {
    <div className="invoice-paper__tax-number">
     <span className="invoice-paper__tax-identifier">شماره منحصربه‌فرد مالیاتی: <bdi>{faDigits(invoice.uniqueInvoiceId)}</bdi></span>
     <span className="invoice-paper__tax-identifier">شماره مرجع: <bdi dir="ltr">{invoiceSubject==="Original"?"":faDigits(referenceFiscalTaxId??invoice.referenceFiscalTaxId)}</bdi></span>
-    <span>تاریخ ارسال: {paperDate(invoice.paymentDateUtc)}</span>
+    <span>تاریخ ارسال: {paperDate(invoice.sentAtUtc)}</span>
    </div>
    <h3>صورتحساب فروش کالا و خدمات</h3>
    <div className="invoice-paper__number">
-    <strong>شماره ترتیبی صورتحساب: <bdi dir="ltr">{invoice.businessInvoiceSerial==null?"":String(invoice.businessInvoiceSerial).padStart(10,"0")}</bdi></strong>
+    <strong>سریال صورتحساب: <bdi dir="ltr">{invoice.businessInvoiceSerial==null?"":String(invoice.businessInvoiceSerial).padStart(10,"0")}</bdi></strong>
     <strong>شماره مرجع سامانه: <bdi>{faDigits(reference)}</bdi></strong>
     <span>تاریخ: {paperDate(invoice.issueDateUtc)}</span>
    </div>
@@ -259,19 +263,19 @@ function InvoicePaper({invoice,reference,referenceFiscalTaxId,invoiceSubject}: {
   <PaperParticipant title="مشخصات خریدار" participant={invoice.buyerDetails} fallbackName={invoice.buyer} fallbackIdentity={null}/>
   <section className="invoice-paper__items">
    <h4 className="invoice-paper__section-title">مشخصات کالا / خدمات</h4>
-   <table><thead><tr><th>ردیف</th><th>شرح کالا یا خدمات</th><th>تعداد</th>
+   <table><thead><tr><th>ردیف</th><th>شرح کالا یا خدمات</th><th>تعداد</th><th>واحد کالا (کد)</th>
     <th>مبلغ واحد (ریال)</th><th>مبلغ کل (ریال)</th><th>مبلغ تخفیف (ریال)</th>
     <th>مبلغ کل پس از تخفیف (ریال)</th><th>جمع مالیات و عوارض (ریال)</th>
     <th>جمع مبلغ کل با مالیات و عوارض (ریال)</th></tr></thead>
     <tbody>{Array.from({length:lineCount},(_,index)=>{
      const line=invoice.lines[index];
      return <tr key={index}><td>{faDigits(index+1)}</td><td>{line?.description??""}{line?.officialIdentifier&&<small>شناسه کالا/خدمت: <bdi>{faDigits(line.officialIdentifier)}</bdi></small>}</td>
-      <td>{line?money(line.quantity,8):""}</td><td>{line?money(line.unitPriceRial,8):""}</td>
+      <td>{line?money(line.quantity,8):""}</td><td>{line?.unitTitle?<>{line.unitTitle}{line.unitCode&&<> (<bdi dir="ltr">{line.unitCode}</bdi>)</>}</>:line?.unitCode?<bdi dir="ltr">{line.unitCode}</bdi>:"—"}</td><td>{line?money(line.unitPriceRial,8):""}</td>
       <td>{line?money(line.grossRial??line.quantity*line.unitPriceRial):""}</td>
       <td>{line?money(line.discountRial):""}</td><td>{line?money(line.netRial):""}</td>
       <td>{line?money(line.vatRial):""}</td><td>{line?money(line.totalRial):""}</td></tr>;
     })}</tbody>
-    <tfoot><tr><th colSpan={9}><span className="invoice-paper__payable-label">مبلغ قابل پرداخت:</span> <strong className="invoice-paper__payable-amount">{money(invoice.totalRial)} ریال</strong>
+    <tfoot><tr><th colSpan={10}><span className="invoice-paper__payable-label">مبلغ قابل پرداخت:</span> <strong className="invoice-paper__payable-amount">{money(invoice.totalRial)} ریال</strong>
      — به حروف: {rialInWords(invoice.totalRial)}</th></tr></tfoot>
    </table>
   </section>
@@ -316,6 +320,7 @@ function InvoiceLines({ lines }: { lines: Line[] }) {
               <th>شرح کالا/خدمت</th>
               <th>شناسه رسمی</th>
               <th>تعداد</th>
+              <th>واحد (کد)</th>
               <th>فی (ریال)</th>
               <th>تخفیف</th>
               <th>مالیات</th>
@@ -331,6 +336,7 @@ function InvoiceLines({ lines }: { lines: Line[] }) {
                   <bdi dir="ltr">{line.officialIdentifier ?? "—"}</bdi>
                 </td>
                 <td>{money(line.quantity,8)}</td>
+                <td>{line.unitTitle??"—"}{line.unitCode&&<> (<bdi dir="ltr">{line.unitCode}</bdi>)</>}</td>
                 <td>{money(line.unitPriceRial,8)}</td>
                 <td>{money(line.discountRial)}</td>
                 <td>{money(line.vatRial)}</td>
@@ -411,6 +417,7 @@ export default function InvoiceFormalPreview({
   onCancellationCompleted,
   onCorrectionCompleted,
   onSalesReturn,
+  initialAction,
 }: InvoiceFormalPreviewProps) {
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [error, setError] = useState("");
@@ -427,6 +434,15 @@ export default function InvoiceFormalPreview({
   onPreviewReadyRef.current=onPreviewReady;
   const onPreviewErrorRef=useRef(onPreviewError);
   onPreviewErrorRef.current=onPreviewError;
+  const initialActionHandled=useRef(false);
+
+  const beginCancellation=()=>{
+    setCancelOpen(true);setCancelChecking(true);setCancelEligibility("");setCancelEligible(false);setCancelOutcome("");setCancelSucceeded(false);setCancelInquiry({status:"",reference:"",code:""});
+    void fetch("/api/invoice-dispatch/"+encodeURIComponent(taxpayerId)+"/"+encodeURIComponent(invoiceId)+"/cancellation-eligibility",{cache:"no-store",credentials:"same-origin"})
+      .then(async response=>{const value=await response.json();setCancelEligible(response.ok&&value.eligible===true);setCancelEligibility(response.ok&&value.eligible===true?"سند مرجع برای درخواست ابطال معتبر است.":"امکان ابطال تأیید نشد: "+String(value.code??value.error??response.status));})
+      .catch(()=>setCancelEligibility("بررسی امکان ابطال در دسترس نیست."))
+      .finally(()=>setCancelChecking(false));
+  };
 
   useEffect(() => {
     const controller = new AbortController();
@@ -456,6 +472,13 @@ export default function InvoiceFormalPreview({
 
     return () => controller.abort();
   }, [taxpayerId, invoiceId]);
+
+  useEffect(()=>{
+    if(initialAction==="cancel"&&invoice&&!initialActionHandled.current){
+      initialActionHandled.current=true;
+      beginCancellation();
+    }
+  },[initialAction,invoice]);
 
   return (
     <section
@@ -516,13 +539,7 @@ export default function InvoiceFormalPreview({
            <InvoiceTotals invoice={invoice} />
           </>}
           {!readOnly && <AuthorityActions authorityStatus={authorityStatus} subject={subject} onSalesReturn={onSalesReturn}
-           onCorrect={()=>setCorrectionOpen(correctionInvoiceId??invoiceId)} onCancel={()=>{
-            setCancelOpen(true);setCancelChecking(true);setCancelEligibility("");setCancelEligible(false);setCancelOutcome("");setCancelSucceeded(false);setCancelInquiry({status:"",reference:"",code:""});
-            void fetch("/api/invoice-dispatch/"+encodeURIComponent(taxpayerId)+"/"+encodeURIComponent(invoiceId)+"/cancellation-eligibility",{cache:"no-store",credentials:"same-origin"})
-              .then(async response=>{const value=await response.json();setCancelEligible(response.ok&&value.eligible===true);setCancelEligibility(response.ok&&value.eligible===true?"سند مرجع برای درخواست ابطال معتبر است.":"امکان ابطال تأیید نشد: "+String(value.code??value.error??response.status));})
-              .catch(()=>setCancelEligibility("بررسی امکان ابطال در دسترس نیست."))
-              .finally(()=>setCancelChecking(false));
-           }} />}
+           onCorrect={()=>setCorrectionOpen(correctionInvoiceId??invoiceId)} onCancel={beginCancellation} />}
         </>
       )}
     </section>

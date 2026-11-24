@@ -3,8 +3,8 @@
 import {useCallback,useEffect,useState} from "react";
 import InvoiceFormalPreview from "./invoice-formal-preview";
 
-export default function InvoicePrintAction({taxpayerId,invoiceId,reference,subject}: {
- taxpayerId:string;invoiceId:string;reference:string;subject:string
+export default function InvoicePrintAction({taxpayerId,invoiceId,reference,subject,showLabel=false}: {
+ taxpayerId:string;invoiceId:string;reference:string;subject:string;showLabel?:boolean
 }){
  const [requested,setRequested]=useState(false);
  const [ready,setReady]=useState(false);
@@ -39,6 +39,7 @@ export default function InvoicePrintAction({taxpayerId,invoiceId,reference,subje
  const busy=requested&&!ready;
  return <>
   <button type="button" className="identity-secondary invoice-lineage-print-button invoice-table-print-button"
+   role={showLabel?"menuitem":undefined}
    aria-label={busy?"در حال آماده‌سازی چاپ":error?"تلاش دوباره برای چاپ صورتحساب":"چاپ صورتحساب"}
    title={busy?"در حال آماده‌سازی چاپ":error?"چاپ انجام نشد؛ برای تلاش دوباره کلیک کنید":"چاپ صورتحساب"}
    aria-busy={busy} disabled={busy}
@@ -47,7 +48,8 @@ export default function InvoicePrintAction({taxpayerId,invoiceId,reference,subje
     <svg className="invoice-lineage-print-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
      <path d="M7 8V3h10v5M7 17H5a2 2 0 0 1-2-2v-4a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v4a2 2 0 0 1-2 2h-2M7 14h10v7H7z"/>
      <path d="M18 11h.01"/>
-    </svg>}
+   </svg>}
+   {showLabel&&<span>{busy?"آماده‌سازی چاپ":error?"تلاش دوباره برای چاپ":"چاپ صورتحساب"}</span>}
   </button>
   {requested&&<div className="invoice-table-print-source" aria-hidden="true">
    <InvoiceFormalPreview taxpayerId={taxpayerId} invoiceId={invoiceId} reference={reference}
