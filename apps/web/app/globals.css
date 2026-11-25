@@ -774,6 +774,7 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 .console-page .invoice-register__table-wrap{max-height:60vh;border:1px solid #e1e9ef;border-radius:9px;overflow:auto}
 .console-page .invoice-register .console-table{font-size:12px;line-height:1.45;border-collapse:collapse;width:100%;white-space:nowrap}
 .console-page .invoice-register .console-table :is(th,td){padding:7px 10px;border-bottom:1px solid #e8edf1}
+.invoice-register__table-wrap > .console-table > :is(thead,tbody) > tr > :is(th,td){text-align:center}
 .console-page .invoice-register .console-table th{background:#eef4f6;color:#476176;font-size:12px;font-weight:750}
 .console-page .invoice-register .console-table td.invoice-register__description-cell{white-space:normal;vertical-align:top;min-width:0}
 .console-page .invoice-register__sstid-status{display:flex;align-items:center;justify-content:flex-start;gap:5px;max-width:100%;margin-top:4px;padding:3px 6px;border-radius:5px;font-size:10px;line-height:1.4;white-space:normal;overflow-wrap:anywhere}
@@ -1071,7 +1072,7 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 .signing-status-bar select{min-width:0;width:100%;max-width:260px}
 .signing-method-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;background:#e9f3f0;padding:5px;border-radius:10px}
 .signing-method-tabs button{border:1px solid transparent;border-radius:8px;background:transparent;color:#446b6a;padding:10px 12px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700;transition:background .15s,border-color .15s}
-.signing-method-tabs button[aria-selected="true"]{background:#fff;border-color:#b4d2ca;color:#146b52;box-shadow:0 2px 5px #264f4312}
+.signing-method-tabs button[aria-selected="true"],.signing-method-tabs button[aria-pressed="true"]{background:#fff;border-color:#b4d2ca;color:#146b52;box-shadow:0 2px 5px #264f4312}
 .signing-method-tabs button:focus-visible{outline:2px solid #167c65;outline-offset:2px}
 .signing-method-panel{border:1px solid #dce9e7;border-radius:10px;padding:12px;background:var(--surface,#fff);min-width:0}
 .signing-method-panel[hidden]{display:none}
