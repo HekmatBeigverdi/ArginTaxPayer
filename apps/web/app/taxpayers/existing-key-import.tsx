@@ -18,14 +18,15 @@ function message(code: string, status: number) {
   return 'سرویس نگهداری امن کلید در دسترس نیست یا نتیجه درخواست مشخص نشد. بازخوانی کنید؛ برای پیگیری، همان کلید را دوباره وارد کنید.';
 }
 
-export default function ExistingKeyImport({ taxpayerId, memories, loadingMemories, onLoadingChange, hideMemorySelector = false, allowExistingKeyEntry = false, onCompleted }:
-  { taxpayerId: string; memories: Memory[]; loadingMemories: boolean; onLoadingChange?: (value: boolean) => void; hideMemorySelector?: boolean; allowExistingKeyEntry?: boolean; onCompleted?: () => void }) {
+export default function ExistingKeyImport({ taxpayerId, memories, loadingMemories, onLoadingChange, hideMemorySelector = false, allowExistingKeyEntry = false, initialPublicKey, onCompleted }:
+  { taxpayerId: string; memories: Memory[]; loadingMemories: boolean; onLoadingChange?: (value: boolean) => void; hideMemorySelector?: boolean; allowExistingKeyEntry?: boolean; initialPublicKey?: string; onCompleted?: () => void }) {
   const [selected, setSelected] = useState('');
   const memoryId = memories.some(m => m.id === selected) ? selected : memories[0]?.id ?? '';
   const endpoint = `/api/signing/${taxpayerId}/${memoryId}`;
   const [state, setState] = useState<State | null>(null);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [readingFile, setReadingFile] = useState(false);
   const [consent, setConsent] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -103,7 +104,7 @@ export default function ExistingKeyImport({ taxpayerId, memories, loadingMemorie
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (busy || loading || !state?.configured || !state.freshLogin || !consent) return;
+    if (busy || loading || readingFile || !state?.configured || !state.freshLogin || !consent) return;
     setBusy(true); setError(''); setNotice('');
     let payload = JSON.stringify({ operationId: operation.current,
       privateKey: privateKey.current?.value ?? '', password: password.current?.value ?? '',
@@ -164,16 +165,37 @@ export default function ExistingKeyImport({ taxpayerId, memories, loadingMemorie
       {!state.configured && <p role="status" className="field-hint">API در حال اجرا قابلیت ورود کلید را غیرفعال گزارش می‌کند. تنظیمات Provider=Database و MasterKey را در API بررسی و سرویس را مجدداً راه‌اندازی کنید. سلامت دیتابیس به معنی فعال‌بودن Vault نیست.</p>}
       {!state.freshLogin && <p className="field-hint">برای ورود کلید دوباره وارد حساب شوید و ظرف پنج دقیقه اقدام کنید.</p>}
       <form onSubmit={submit} autoComplete="off">
-        <p className="field-hint">متن فایل TXT کلید خصوصی قبلی را وارد کنید. قالب قابل قبول RSA 2048 و PKCS#8 با عنوان PRIVATE KEY یا ENCRYPTED PRIVATE KEY است. RSA PRIVATE KEY پشتیبانی نمی‌شود. برای حافظه‌ای که کلید عمومی دارد، فقط کلید خصوصی متناظر با همان کلید عمومی بدون فرایند جایگزینی پذیرفته می‌شود.</p>
+        {initialPublicKey && <p className="field-hint">فایل کلید خصوصی دانلودشده را انتخاب کنید. کلید عمومی ساخته‌شده برای تطبیق در فرم قرار دارد.</p>}
+        <p className="field-hint">فایل کلید خصوصی را انتخاب کنید یا متن آن را وارد کنید. قالب قابل قبول RSA 2048 و PKCS#8 با عنوان PRIVATE KEY یا ENCRYPTED PRIVATE KEY است. برای حافظه‌ای که کلید عمومی دارد، فقط کلید خصوصی متناظر با همان کلید عمومی بدون فرایند جایگزینی پذیرفته می‌شود.</p>
+        <label>فایل کلید خصوصی<input type="file" accept=".pem,.txt" disabled={!canImport || readingFile} onChange={async event => {
+          const input = event.currentTarget;
+          const file = input.files?.[0];
+          const target = privateKey.current;
+          if (!file || !target) return;
+          target.value = "";
+          setReadingFile(true);
+          setError("");
+          try {
+            if (file.size > 65536) throw new Error("حجم فایل کلید بیش از حد مجاز است.");
+            const pem = await file.text();
+            if (privateKey.current === target && input.files?.[0] === file) target.value = pem;
+          } catch (ex) {
+            if (privateKey.current === target && input.files?.[0] === file)
+              setError(ex instanceof Error ? ex.message : "خواندن فایل کلید انجام نشد.");
+          } finally {
+            if (input.files?.[0] === file) input.value = "";
+            setReadingFile(false);
+          }
+        }}/></label>
         <label>متن کلید خصوصی<textarea ref={privateKey} required maxLength={65536} rows={5} dir="ltr"
-          autoComplete="off" spellCheck={false} disabled={!canImport} /></label>
+          autoComplete="off" spellCheck={false} disabled={!canImport || readingFile} /></label>
         <label>رمز فایل کلید (فقط برای کلید رمزدار)<input ref={password} type="password" maxLength={1024}
           autoComplete="new-password" disabled={!canImport} /></label>
-        <label>کلید عمومی قبلی برای تطبیق (اختیاری)<textarea ref={publicKey} maxLength={16384} rows={3}
+        <label>کلید عمومی برای تطبیق (اختیاری)<textarea ref={publicKey} defaultValue={initialPublicKey} maxLength={16384} rows={3}
           dir="ltr" spellCheck={false} disabled={!canImport} /></label>
         <label className="signing-custody-consent"><input type="checkbox" checked={consent} disabled={!canImport}
           onChange={e => setConsent(e.target.checked)} />اجازه می‌دهم کلید خصوصی به‌صورت رمزگذاری‌شده در سامانه نگهداری شود.</label>
-        <button type="submit" className="identity-primary" disabled={!canImport || !consent}>
+        <button type="submit" className="identity-primary" disabled={!canImport || !consent || readingFile}>
           {busy ? 'در حال ثبت کلید…' : 'ورود کلید موجود'}</button>
       </form>
     </>}

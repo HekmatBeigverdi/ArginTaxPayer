@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import ExistingKeyImport from "./existing-key-import";
 import SigningKeyGeneration from "./signing-key-generation";
+import ProductionKeyPreparation from "./production-key-preparation";
 import SigningConnectionTest from "./signing-connection-test";
 import OperationMessageBox from "./operation-message-box";
 import SigningChangeRequestPanel from "./signing-change-request-panel";
@@ -21,9 +22,11 @@ type KeyStatus = { hasKey: boolean; lifecycleState: number | null; recoveryAvail
 type Legacy = { memoryIdentifier: string; keyCustodyReady: boolean; publicFingerprintSha256?: string };
 const activationLabels: Record<number,string> = {1:"در انتظار بررسی و فعال‌سازی",2:"فعال",3:"تعلیق",4:"بازنشسته"};
 
-export default function TaxpayerConnectionPanel({ taxpayerId, memories, loadingMemories, onLoadingChange, isLevel1 = false, onMemoriesChanged, memoryRegistration }: {
+export default function TaxpayerConnectionPanel({ taxpayerId, memories, loadingMemories, onLoadingChange, isLevel1 = false, onMemoriesChanged, memoryRegistration, preparedKey }: {
   taxpayerId: string; memories: Memory[]; loadingMemories: boolean; onLoadingChange?: (value: boolean) => void;
-  isLevel1?: boolean; onMemoriesChanged?: () => Promise<void>; memoryRegistration?: ReactNode;
+  isLevel1?: boolean; onMemoriesChanged?: () => Promise<void>;
+  memoryRegistration?: (publicKey?: string) => ReactNode;
+  preparedKey?: { memoryId: string; publicKey: string } | null;
 }) {
   const [method,setMethod] = useState<"existing"|"generate">("existing");
   // A UI tab is a display filter only; persisted bindings select every authority operation.
@@ -47,6 +50,7 @@ export default function TaxpayerConnectionPanel({ taxpayerId, memories, loadingM
   const [legacy,setLegacy] = useState<Legacy|null>(null);
   const [legacyReading,setLegacyReading] = useState(true);
   const [legacyError,setLegacyError] = useState("");
+  const [onboardingMethod, setOnboardingMethod] = useState<"existing" | "generate" | null>(null);
   const entry = useRef<HTMLDivElement>(null);
   const refresh = useCallback(()=>{setRevision(v=>v+1);setTestedMemoryId("");},[]);
   const changed = async()=>{await onMemoriesChanged?.();refresh();};
@@ -112,8 +116,23 @@ export default function TaxpayerConnectionPanel({ taxpayerId, memories, loadingM
         </select></label></div>}
       {environment==="sandbox"&&(legacyError||choice==="loading"&&statusError) ? <p role="alert">{legacyError||statusError}</p> : environment==="sandbox"&&(legacyReading||choice==="loading") ? <p role="status">در حال دریافت وضعیت حافظهٔ آزمایشی…</p> : (choice==="choice"||choice==="separate")&&!source ? <p role="status">پیکربندی مورد نظر را برای نمایش وضعیت و آزمون انتخاب کنید.</p> : useLegacy ?
         <SandboxFiscalMemoryPanel key={taxpayerId} taxpayerId={taxpayerId}/> : <>
-        {!currentMemory ? <div className="connection-empty"><p>در این محیط حافظه‌ای برای تنظیم انتخاب نشده است.</p>
-          {environment==="production"&&memoryRegistration}</div> : <article className="connection-card" aria-label="وضعیت اتصال حافظه انتخاب‌شده">
+        {!currentMemory ? <div className="connection-empty">
+          {loadingMemories ? <p role="status">در حال دریافت وضعیت حافظه…</p> :
+            environment === "production" && memoryRegistration ? <>
+              <h3>چطور می‌خواهید حافظهٔ مالیاتی را وصل کنید؟</h3>
+              <div className="signing-method-tabs" role="group" aria-label="روش راه‌اندازی حافظه مالیاتی">
+                <button type="button" aria-pressed={onboardingMethod === "existing"}
+                  onClick={() => setOnboardingMethod("existing")}>کد حافظه و کلید خصوصی دارم</button>
+                <button type="button" aria-pressed={onboardingMethod === "generate"}
+                  onClick={() => setOnboardingMethod("generate")}>می‌خواهم حافظهٔ جدید راه‌اندازی کنم</button>
+              </div>
+              {onboardingMethod === "existing" && <>
+                <p>کد حافظه را ثبت کنید. سپس کلید خصوصی همان حافظه را وارد کنید و اتصال را آزمایش کنید.</p>
+                {memoryRegistration()}
+              </>}
+              {onboardingMethod === "generate" && <ProductionKeyPreparation registration={memoryRegistration}/>}
+            </> : <p>در این محیط حافظه‌ای برای تنظیم انتخاب نشده است.</p>}
+        </div> : <article className="connection-card" aria-label="وضعیت اتصال حافظه انتخاب‌شده">
           {statusError&&<OperationMessageBox kind="error" title="دریافت وضعیت انجام نشد">{statusError}</OperationMessageBox>}
           {reading&&<p role="status">در حال بررسی وضعیت کلید…</p>}
           {status&&<ConnectionSummary identifier={currentMemory.memoryIdentifier} environment={environment==="production"?"Production":"Sandbox"}
@@ -133,6 +152,7 @@ export default function TaxpayerConnectionPanel({ taxpayerId, memories, loadingM
             </div>
             {method === "existing" && <ExistingKeyImport key={taxpayerId+":"+selectedMemoryId} taxpayerId={taxpayerId}
               memories={chosen} loadingMemories={loadingMemories} onLoadingChange={onLoadingChange} hideMemorySelector
+              initialPublicKey={preparedKey?.memoryId === selectedMemoryId ? preparedKey.publicKey : undefined}
               allowExistingKeyEntry={managing} onCompleted={()=>{setManaging(false);refresh();}}/>}
             {method === "generate" && <SigningKeyGeneration key={taxpayerId+":"+selectedMemoryId} taxpayerId={taxpayerId}
               memories={chosen} loadingMemories={loadingMemories} hideMemorySelector onCompleted={()=>{setManaging(false);refresh();}}/>}

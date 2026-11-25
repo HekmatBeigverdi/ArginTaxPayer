@@ -30,7 +30,16 @@ async function request<T>(path: string, method: "GET" | "POST" | "PATCH" = "GET"
     headers: body ? { "Content-Type": "application/json" } : undefined,
     body: body ? JSON.stringify(body) : undefined
   });
-  if (!response.ok) throw new Error(errorText(response.status));
+  if (!response.ok) {
+    if (method === "POST" && path.endsWith("/memories")) {
+      const data = await response.json().catch(() => null);
+      if (data?.error === "binding_review_required")
+        throw new Error("برای این مؤدی حافظه‌ای ثبت شده است. وضعیت را بازخوانی کنید و برای تغییر حافظه از مسیر بررسی درخواست اقدام کنید.");
+      if (data?.error === "memory_identifier_conflict")
+        throw new Error("ثبت این کد با یک رکورد دیگر تداخل دارد. وضعیت را بازخوانی کنید و بررسی کنید که کد قبلاً ثبت نشده باشد.");
+    }
+    throw new Error(errorText(response.status));
+  }
   return response.json() as Promise<T>;
 }
 
@@ -55,7 +64,7 @@ export default function TaxpayerWorkspace({ isLevel1, initialTaxpayerId, showCre
   const [newCustomerId, setNewCustomerId] = useState("");
   const [editName, setEditName] = useState("");
   const [editIdentifier, setEditIdentifier] = useState("");
-  const [newMemory, setNewMemory] = useState("");
+  const [preparedKey, setPreparedKey] = useState<{ memoryId: string; publicKey: string } | null>(null);
 
   const reload = useCallback(async () => {
     setLoading(true); setError("");
@@ -122,14 +131,17 @@ export default function TaxpayerWorkspace({ isLevel1, initialTaxpayerId, showCre
     } catch (ex) { setError((ex as Error).message); }
     finally { setBusy(false); }
   }
-  async function addMemory(event: FormEvent<HTMLFormElement>) {
+  async function addMemory(event: FormEvent<HTMLFormElement>, publicKey?: string) {
     event.preventDefault(); if (!details || busy) return;
+    const memoryIdentifier = String(new FormData(event.currentTarget).get("memoryIdentifier") ?? "").trim();
     setBusy(true); setError(""); setNotice("");
     try {
-      await request("/" + details.id + "/memories", "POST", { memoryIdentifier: newMemory, authorityEnvironment: 1 });
-      setNotice("حافظه مالیاتی به‌عنوان اطلاعات تأییدنشده ثبت شد. این کار به معنی اتصال موفق نیست.");
-      setNewMemory("");
-      setMemories(await request<Memory[]>("/" + details.id + "/memories"));
+      const memory = await request<Memory>("/" + details.id + "/memories", "POST",
+        { memoryIdentifier, authorityEnvironment: 1 });
+      setPreparedKey(publicKey ? { memoryId: memory.id, publicKey } : null);
+      setNotice("کد حافظه ثبت شد. کلید خصوصی همین حافظه را وارد کنید و سپس اتصال را آزمایش کنید.");
+      setMemories(current => current.some(item => item.id === memory.id) ?
+        current.map(item => item.id === memory.id ? memory : item) : [...current, memory]);
     } catch (ex) { setError((ex as Error).message); } finally { setBusy(false); }
   }
   async function revealCertificates(memoryId: string) {
@@ -196,13 +208,14 @@ export default function TaxpayerWorkspace({ isLevel1, initialTaxpayerId, showCre
             {detailsError?<p role="alert">{detailsError}</p>:<TaxpayerConnectionPanel key={initialTaxpayerId || selectedId}
               taxpayerId={initialTaxpayerId || selectedId} memories={memories}
               loadingMemories={detailsLoading} onLoadingChange={setImportLoading} isLevel1={isLevel1}
-              memoryRegistration={!memories.some(m=>m.authorityEnvironment===1||m.authorityEnvironment==null)?(<form className="identity-form" onSubmit={addMemory}>
-            <label htmlFor="new-memory">کد حافظه مالیاتی Production</label>
-            <input id="new-memory" dir="ltr" required maxLength={64} pattern="[A-Za-z0-9]+"
-              value={newMemory} onChange={e => setNewMemory(e.target.value)}/>
-            <button className="identity-primary" disabled={busy}>ثبت حافظهٔ Production</button>
-            <p className="field-hint">این ثبت فقط برای Production است. حافظه و کلید Sandbox در بخش مستقل خود تنظیم می‌شوند.</p>
-          </form>):null}
+              preparedKey={preparedKey}
+              memoryRegistration={!memories.some(m=>m.authorityEnvironment===1||m.authorityEnvironment==null) ?
+                publicKey => <form className="identity-form" onSubmit={event => void addMemory(event, publicKey)}>
+                  <label htmlFor="new-memory">کد حافظه مالیاتی Production</label>
+                  <input id="new-memory" name="memoryIdentifier" dir="ltr" required maxLength={64}
+                    pattern="[A-Za-z0-9]+" disabled={busy}/>
+                  <button className="identity-primary" disabled={busy}>ثبت حافظهٔ Production</button>
+                </form> : undefined}
               onMemoriesChanged={async()=>setMemories(await request<Memory[]>("/"+(initialTaxpayerId || selectedId)+"/memories"))}/>}
             {memories.length>0&&<details className="connection-history-details"><summary>سوابق ثبت و جزئیات حافظه‌ها</summary>
               <p className="field-hint">این سوابق مربوط به ثبت‌های مستقل حافظه‌اند؛ وضعیت اتصال جاری در کارت همان محیط نمایش داده می‌شود.</p>
