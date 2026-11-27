@@ -46,7 +46,7 @@ public sealed class LegacyInvoiceCorrectionDraftService(ArginTaxPayerDbContext d
                 d.Id==previous.Value&&d.CustomerUserId==owner.Value&&d.TaxpayerId==taxpayerId,ct);
             if(!isFrozen)
             {
-                var repaired=await SetCurrentDateIfFutureAsync(bearer,owner.Value,taxpayerId,previous.Value,ct);
+                var repaired=await NormalizeEditableRetryAsync(bearer,owner.Value,taxpayerId,previous.Value,ct);
                 return repaired.Decision==InvoiceApiDecision.Success
                     ? new(InvoiceApiDecision.Success,"correction_draft_exists",previous,repaired.Adjusted)
                     : new(repaired.Decision,repaired.Code);
@@ -141,10 +141,10 @@ public sealed class LegacyInvoiceCorrectionDraftService(ArginTaxPayerDbContext d
         // including user edits. Frozen workspaces are skipped by the generation scan above.
         var saved=await workspaces.GetAsync(bearer,stableId,ct);
         if(saved.Decision!=InvoiceApiDecision.Success)
-            saved=await workspaces.SaveAsync(bearer,input with {
+            saved=await workspaces.CreateRejectedRetryAsync(bearer,input with {
                 Id=null,TaxpayerId=taxpayerId,ExpectedRevision=0,
                 BulkImportKey=key,BulkFingerprint=null,
-                // The rejected invoice retains its own reserved business serial.
+                // The server links this retry to the predecessor's reservation.
                 BusinessInvoiceSerial=null,
                 InternalReviewState="Draft",InternalReviewReason=null,
                 SubmittedByUserId=null,ReviewedByUserId=null,ReviewedAtUtc=null
@@ -153,7 +153,7 @@ public sealed class LegacyInvoiceCorrectionDraftService(ArginTaxPayerDbContext d
             return new(saved.Decision,$"correction_draft_{saved.Decision.ToString().ToLowerInvariant()}");
         if(saved.Draft is null)
             return new(InvoiceApiDecision.Invalid,"correction_draft_empty");
-        var normalized=await SetCurrentDateIfFutureAsync(bearer,owner.Value,taxpayerId,
+        var normalized=await NormalizeEditableRetryAsync(bearer,owner.Value,taxpayerId,
             saved.Draft.Id,ct);
         if(normalized.Decision!=InvoiceApiDecision.Success)
             return new(normalized.Decision,normalized.Code);
@@ -198,23 +198,28 @@ ON CONFLICT(operation_id) DO NOTHING
     }
 
     private async Task<(InvoiceApiDecision Decision,string Code,bool Adjusted)>
-        SetCurrentDateIfFutureAsync(string? bearer,Guid owner,Guid taxpayer,Guid workspaceId,
+        NormalizeEditableRetryAsync(string? bearer,Guid owner,Guid taxpayer,Guid workspaceId,
             CancellationToken ct)
     {
         var row=await db.InvoiceEntryWorkspaces.AsNoTracking().SingleOrDefaultAsync(w=>
             w.Id==workspaceId&&w.CustomerUserId==owner&&w.TaxpayerId==taxpayer,ct);
         if(row is null)return (InvoiceApiDecision.NotFound,"correction_workspace_missing",false);
-        if(row.IssueDateUtc<=DateTime.UtcNow)
+        var now = DateTime.UtcNow;
+        var adjustDate = row.IssueDateUtc > now;
+        if (!adjustDate && await db.Database.SqlQuery<int>($"""
+            SELECT 1 AS "Value" FROM invoice_business_serial_retries
+            WHERE workspace_id={workspaceId} AND taxpayer_id={taxpayer}
+            """).AnyAsync(ct))
             return (InvoiceApiDecision.Success,"correction_draft_exists",false);
         SaveInvoiceEntryRequest? input;
         try {input=JsonSerializer.Deserialize<SaveInvoiceEntryRequest>(row.DraftJson);}
         catch(JsonException) {return (InvoiceApiDecision.Invalid,"correction_workspace_invalid",false);}
         if(input is null)return (InvoiceApiDecision.Invalid,"correction_workspace_invalid",false);
         var saved=await workspaces.SaveAsync(bearer,input with {
-            Id=row.Id,ExpectedRevision=row.Revision,IssueDateUtc=DateTime.UtcNow
+            Id=row.Id,ExpectedRevision=row.Revision,IssueDateUtc=adjustDate ? now : row.IssueDateUtc
         },ct);
         return saved.Decision==InvoiceApiDecision.Success&&saved.Draft is not null
-            ? (InvoiceApiDecision.Success,"correction_date_reset",true)
+            ? (InvoiceApiDecision.Success,"correction_draft_normalized",adjustDate)
             : (saved.Decision,$"correction_draft_{saved.Decision.ToString().ToLowerInvariant()}",false);
     }
 

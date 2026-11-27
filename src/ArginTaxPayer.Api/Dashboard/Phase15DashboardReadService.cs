@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 namespace ArginTaxPayer.Api.Dashboard;
 
 /// <summary>Phase15 authenticated read model. All query scopes are server-resolved; no authority calls or writes.</summary>
-public sealed class Phase15DashboardReadService(
+public sealed partial class Phase15DashboardReadService(
     ArginTaxPayerDbContext db, TaxpayerScopeService scope,
     IdentityAuthorizationService identity, CustomerSubscriptionOverviewService subscriptions)
 {
