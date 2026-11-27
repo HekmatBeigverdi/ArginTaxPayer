@@ -1112,12 +1112,20 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
       if (e.currentTarget === e.target) {setDetail(null);setAutoOpenDispatchFor("");void reload();setDetailInitialAction(null);}
     }}>
       <div className="invoice-register__detail-modal" role="dialog" aria-modal="true"
-        aria-label="جزئیات صورتحساب">
+        aria-label="جزئیات صورتحساب" tabIndex={0}>
         <div className="invoice-register__dialog-header">
           <h2>جزئیات صورتحساب</h2>
           <button type="button" className="identity-secondary" onClick={() => {setDetail(null);setAutoOpenDispatchFor("");void reload();setDetailInitialAction(null);}}
             aria-label="بستن جزئیات">×</button>
         </div>
+        <details name="invoice-detail-sections" className="fiscal-section invoice-detail-section"
+          open={autoOpenDispatchFor===detail.id}><summary><span>{detail.authorityStatus==="SUCCESS"||detail.authorityStatus==="FAILED"||detail.authorityStatus==="PENDING"||detail.authorityStatus==="IN_PROGRESS"||detail.authorityStatus==="ACKNOWLEDGED"?"استعلام و نتیجه سازمان":"ارسال به سامانه مؤدیان"}</span><span className="invoice-detail-section__summary-action">مشاهده جزئیات</span></summary>
+        <div className="fiscal-section-content invoice-detail-section__content">
+        <InvoiceSendReadinessPanel key={"readiness:"+(detail.effectiveInvoiceId ?? detail.id)}
+          invoiceId={detail.effectiveInvoiceId ?? detail.id} taxpayerId={detail.taxpayerId}
+          isWorkspace={detail.kind === "workspace"} hideHistory={true} allowRejectedDraft={detail.subject==="Original"} onCompleted={()=>void reload()}/>
+        </div>
+        </details>
         {detail.authorityStatus==="FAILED"&&detail.subject==="Original"&&<section className="invoice-rejected-correction" aria-label="اصلاح صورتحساب ردشده">
           <p className="field-hint">این صورتحساب توسط سازمان رد شده است. این گزینه پیش‌نویس اصلاحیِ متصل به همین صورتحساب را باز می‌کند؛ سند ردشده تغییر نمی‌کند و تا زمان ارسال، ردیف صورتحساب جداگانه‌ای در فهرست ساخته نمی‌شود.</p>
           <button type="button" className="invoice-rejected-correction__button" disabled={rejectedDraftBusy}
@@ -1211,7 +1219,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
             }}>{rejectedDraftBusy?"در حال انصراف…":"انصراف از عملیات ناموفق"}</button>
           {rejectedDraftError&&<p className="form-error invoice-rejected-correction__error" role="alert">{rejectedDraftError}</p>}
         </section>}
-        <details name="invoice-detail-sections" className="fiscal-section invoice-detail-section" open key={"invoice-section:"+detail.id}><summary><span>صورتحساب فروش</span><span className="invoice-detail-section__summary-action">مشاهده جزئیات</span></summary>
+        <details name="invoice-detail-sections" className="fiscal-section invoice-detail-section" open={autoOpenDispatchFor!==detail.id} key={"invoice-section:"+detail.id}><summary><span>صورتحساب فروش</span><span className="invoice-detail-section__summary-action">مشاهده جزئیات</span></summary>
         <div className="fiscal-section-content invoice-detail-section__content">
         <InvoiceFormalPreview key={"formal:"+detail.id} taxpayerId={detail.taxpayerId} invoiceId={detail.effectiveInvoiceId ?? detail.id} correctionInvoiceId={detail.effectiveInvoiceId ?? detail.id} reference={detail.systemCode??""} authorityStatus={detail.authorityStatus} subject={detail.subject} initialAction={detailInitialAction} onCancellationCompleted={()=>void reload()} onCorrectionCompleted={()=>void reload()} onSalesReturn={()=>setReturnTarget(detail)}/>
         </div>
@@ -1230,14 +1238,6 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
           <dt>نسخه</dt><dd>{detail.revision}</dd>
         </dl>
         <p className="field-hint">این وضعیت به معنی تأیید سازمان امور مالیاتی نیست.</p>
-        </div>
-        </details>
-        <details name="invoice-detail-sections" className="fiscal-section invoice-detail-section"
-          open={autoOpenDispatchFor===detail.id}><summary><span>{detail.authorityStatus==="SUCCESS"||detail.authorityStatus==="FAILED"||detail.authorityStatus==="PENDING"||detail.authorityStatus==="IN_PROGRESS"||detail.authorityStatus==="ACKNOWLEDGED"?"استعلام و نتیجه سازمان":"ارسال به سامانه مؤدیان"}</span><span className="invoice-detail-section__summary-action">مشاهده جزئیات</span></summary>
-        <div className="fiscal-section-content invoice-detail-section__content">
-        <InvoiceSendReadinessPanel key={"readiness:"+(detail.effectiveInvoiceId ?? detail.id)}
-          invoiceId={detail.effectiveInvoiceId ?? detail.id} taxpayerId={detail.taxpayerId}
-          isWorkspace={detail.kind === "workspace"} hideHistory={true} allowRejectedDraft={detail.subject==="Original"} onCompleted={()=>void reload()}/>
         </div>
         </details>
         <details name="invoice-detail-sections" className="fiscal-section invoice-detail-section"><summary><span>تاریخچه ارسال و استعلام</span><span className="invoice-detail-section__summary-action">مشاهده جزئیات</span></summary>

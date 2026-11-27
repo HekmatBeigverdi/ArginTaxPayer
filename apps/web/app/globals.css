@@ -694,7 +694,21 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 .invoice-register__table td button{font-size:12px;padding:4px 9px}
 .invoice-register__overlay{position:fixed;inset:0;z-index:2100;display:flex;align-items:center;justify-content:center;background:rgba(14,27,42,.56);padding:14px}
 .invoice-register__dialog,.invoice-register__detail-modal{direction:rtl;width:min(1020px,100%);max-width:100%;max-height:calc(100dvh - 28px);min-width:0;background:var(--surface,#fff);color:inherit;border-radius:13px;box-shadow:0 18px 48px #11263a55;display:flex;flex-direction:column}
-.invoice-register__detail-modal{width:min(960px,100%);padding:16px;overflow:auto;box-sizing:border-box}
+.invoice-register__detail-modal{
+  display:block;
+  width:min(960px,100%);
+  padding:0 16px 16px;
+  overflow:auto;
+  overscroll-behavior:contain;
+  scrollbar-gutter:stable;
+}
+.invoice-register__detail-modal > .invoice-register__dialog-header {
+  position:sticky;
+  top:0;
+  z-index:2;
+  background:var(--surface,#fff);
+  margin-bottom:8px;
+}
 .invoice-register__dialog-header{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:13px 19px;border-bottom:1px solid #e2e8ee}
 .invoice-register__dialog-header :is(h2,p){margin:0}
 .invoice-register__dialog-header h2{font-size:17px}
@@ -926,6 +940,16 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 .invoice-validation__heading p{font-size:11px;color:#637a8c;margin:0}
 .invoice-validation__heading button{font-size:12px;min-height:30px;padding:4px 9px}
 .invoice-validation__heading p{line-height:1.8}
+.invoice-detail-section__content > .invoice-send-readiness {
+  margin-top:0;
+  padding-top:0;
+  border-top:0;
+}
+.invoice-send-readiness__action button {
+  min-height:42px;
+  max-width:100%;
+  padding:8px 16px;
+}
 .invoice-validation__action{display:flex;justify-content:center;width:100%}
 .invoice-validation__action button.identity-primary{display:block;width:min(320px,100%);min-height:48px;margin-inline:auto;padding:10px 26px;border-radius:11px;font-size:15px;font-weight:800;box-shadow:0 4px 12px #164b7226}
 .invoice-validation__action button.identity-primary:disabled{cursor:wait}
@@ -1316,11 +1340,10 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 }
 .invoice-register__detail-modal .invoice-detail-section__content {
   padding:10px 12px;
-  max-height:58dvh;
-  overflow:auto;
+  max-height:none;
+  overflow:visible;
   min-width:0;
   max-width:100%;
-  overscroll-behavior:contain;
 }
 .invoice-register__detail-modal .invoice-detail-section > summary > span:first-child{flex:1 1 180px;min-width:0;overflow-wrap:anywhere}
 .invoice-register__detail-modal .invoice-detail-section__content>*{min-width:0;max-width:100%}
@@ -1332,11 +1355,11 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 }
 @media(max-width:650px){
   .invoice-register__overlay{padding:8px}
-  .invoice-register__detail-modal{width:100%;max-height:calc(100dvh - 16px);padding:10px;border-radius:10px}
+  .invoice-register__detail-modal{width:100%;max-height:calc(100dvh - 16px);padding:0 10px 10px;border-radius:10px}
   .invoice-register__detail-modal .invoice-detail-section>summary{gap:7px;padding:8px}
   .invoice-register__detail-modal .invoice-detail-section>summary::after{width:20px;height:20px;flex:0 0 20px}
   .invoice-register__detail-modal .invoice-detail-section__summary-action{padding:2px 7px;font-size:10px}
-  .invoice-register__detail-modal .invoice-detail-section__content{padding:8px;max-height:62dvh}
+  .invoice-register__detail-modal .invoice-detail-section__content{padding:8px}
 }
 
 /* Center the recovery action as a deliberate callout above invoice details. */
