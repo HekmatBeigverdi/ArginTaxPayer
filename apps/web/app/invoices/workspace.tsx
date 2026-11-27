@@ -1538,10 +1538,10 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
                 </div>
               )}
               <label htmlFor="invoice-date">تاریخ صدور شمسی</label>
-              <PersianDatePicker id="invoice-date" value={date} onChange={value => {
+              <PersianDatePicker id="invoice-date" value={date} floating onChange={value => {
                 setDate(value);
                 setError(current => current === invoiceDeadlineError ? "" : current);
-              }} ariaDescribedBy={error === invoiceDeadlineError ? invoiceDeadlineAlertId : undefined} floating/>
+              }} ariaDescribedBy={error === invoiceDeadlineError ? invoiceDeadlineAlertId : undefined}/>
               <label htmlFor="invoice-hour">ساعت صدور (تهران)</label>
               <PersianTimePicker id="invoice-hour" value={hour} onChange={value => {
                 setHour(value);
