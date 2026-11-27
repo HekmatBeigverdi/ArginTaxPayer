@@ -89,7 +89,6 @@ interface PersianDatePickerProps {
   disabled?: boolean;
   id?: string;
   ariaLabel?: string;
-  ariaDescribedBy?: string;
   placeholder?: string;
   floating?: boolean;
 }
@@ -100,7 +99,6 @@ export function PersianDatePicker({
   disabled = false,
   id,
   ariaLabel,
-  ariaDescribedBy,
   placeholder = "مثال: ۱۴۰۵/۰۱/۰۱",
   floating = false
 }: PersianDatePickerProps) {
@@ -205,7 +203,6 @@ export function PersianDatePicker({
           value={text}
           disabled={disabled}
           aria-label={ariaLabel}
-          aria-describedby={ariaDescribedBy}
           aria-invalid={invalid || undefined}
           placeholder={placeholder}
           inputMode="numeric"

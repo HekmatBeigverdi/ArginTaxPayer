@@ -9,7 +9,7 @@ type Finding = {
   message: string;
 };
 
-export type InvoiceDraftEvaluation = {
+type Evaluation = {
   draftId: string;
   revision: number;
   edition: string;
@@ -28,11 +28,10 @@ type PanelProps = {
   onDraftChanged?: () => Promise<void>;
 };
 
-export async function readInvoiceDraftValidation(draftId: string): Promise<InvoiceDraftEvaluation> {
-  const response = await fetch("/api/invoices/workspaces/" + encodeURIComponent(draftId) + "/validation", {
+async function readJson<T>(url: string): Promise<T> {
+  const response = await fetch(url, {
     cache: "no-store",
     credentials: "same-origin",
-    signal: AbortSignal.timeout(20000),
   });
 
   if (!response.ok) {
@@ -44,65 +43,16 @@ export async function readInvoiceDraftValidation(draftId: string): Promise<Invoi
     throw new Error(message);
   }
 
-  return response.json() as Promise<InvoiceDraftEvaluation>;
+  return response.json() as Promise<T>;
 }
 
-export function blockingInvoiceDraftFindings(report: InvoiceDraftEvaluation) {
-  return report.findings.filter(finding => finding.severity === "error" ||
-    (finding.severity === "warning" && finding.key !== "invoice.rules.not_approved"));
-}
-
-export class InvoiceDraftPreparationError extends Error {
-  constructor(readonly code: string, message: string) { super(message); }
-}
-
-export async function prepareInvoiceDraft(draftId: string, revision: number): Promise<string> {
-  const response = await fetch("/api/invoices/workspaces/"+encodeURIComponent(draftId)+"/prepare",{
-    method:"POST",credentials:"same-origin",cache:"no-store",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({expectedRevision:revision}),signal:AbortSignal.timeout(20000)
-  });
-  if (!response.ok) {
-    const failure = await response.json().catch(() => null) as {error?: unknown} | null;
-    const errorCode = typeof failure?.error === "string" ? failure.error : "";
-    const messages: Record<string,string> = {
-      issue_date_adjusted: "زمان صدور در پیش‌نویس به‌روز شد. تاریخ و ساعت را دوباره بررسی کنید.",
-      official_item_identifier_invalid: "کالا، شناسه رسمی یا واحد اندازه‌گیری یکی از ردیف‌ها معتبر نیست.",
-      fiscal_memory_not_owned_active_or_classified: "حافظهٔ مالیاتی انتخاب‌شده برای این مؤدی فعال یا معتبر نیست.",
-      sandbox_memory_not_ready: "حافظهٔ آزمایشی انتخاب‌شده آمادهٔ ارسال نیست.",
-      buyer_not_owned: "خریدار صورتحساب را دوباره از فهرست خریداران این مشتری انتخاب کنید.",
-      invoice_type2_fields_outside_pattern: "برای صورتحساب نوع دوم با الگوی فروش، اطلاعات خریدار و تسویه را دوباره بررسی کنید.",
-      invoice_financial_calculation_invalid: "مقادیر اقلام و جمع نهایی صورتحساب را بررسی کنید.",
-      invoice_submission_window_elapsed: "مهلت ۱۲ روزهٔ ارسال گذشته است. تاریخ و ساعت واقعی صدور را بررسی کنید.",
-      invoice_snapshot_draft_invalid: "اطلاعات پیش‌نویس با مؤدی انتخاب‌شده هم‌خوانی ندارد؛ فاکتور را دوباره باز و ذخیره کنید.",
-      invoice_buyer_required: "خریدار صورتحساب انتخاب نشده است.",
-      invoice_lines_required: "حداقل یک ردیف کالا یا خدمت لازم است.",
-      invoice_memory_selection_invalid: "یک حافظه مالیاتی معتبر برای همین محیط انتخاب کنید.",
-      invoice_pattern_not_supported_for_submission: "این ترکیب نوع و الگوی صورتحساب برای ارسال پشتیبانی نمی‌شود.",
-      invoice_contract_number_required: "برای الگوی پیمانکاری، شماره قرارداد را تکمیل کنید.",
-      invoice_line_snapshot_incomplete: "برای همه ردیف‌ها کالا، شناسه رسمی ۱۳ رقمی، واحد اندازه‌گیری، مقدار و نرخ مالیات را تکمیل و پیش‌نویس را ذخیره کنید.",
-      invoice_settlement_required: "روش و مبلغ تسویه را تکمیل و پیش‌نویس را دوباره ذخیره کنید.",
-      invoice_settlement_mismatch: "مبالغ نقدی و نسیه با جمع صورتحساب تطابق ندارند؛ روش تسویه را دوباره انتخاب و ذخیره کنید."
-    };
-    if (messages[errorCode]) throw new InvoiceDraftPreparationError(errorCode, messages[errorCode]);
-    throw new InvoiceDraftPreparationError(errorCode, response.status===409 ?
-      "این نسخه قبلاً ثابت شده یا تغییر کرده است." + (errorCode ? ` (${errorCode})` : "") :
-      "ثبت نسخه ثابت داخلی رد شد." + (errorCode ? `؛ علت: ${errorCode}` : ""));
-  }
-  const result = await response.json();
-  if(result.invoiceId!==draftId || result.internalSnapshotCreated!==true || result.fiscalSubmissionAuthorized!==false ||
-    result.signedPacketAvailable!==false || result.environmentSubmissionEnabled!==false)
-    throw new Error("پاسخ آماده‌سازی از نظر ایمنی معتبر نیست.");
-  return result.invoiceId;
-}
-
-function environmentLabel(environment: InvoiceDraftEvaluation["selectedEnvironment"]): string {
+function environmentLabel(environment: Evaluation["selectedEnvironment"]): string {
   if (environment === "Sandbox") return "Sandbox (آزمایشی)";
   if (environment === "Production") return "Production (واقعی)";
   return "انتخاب نشده";
 }
 
-function FindingSummary({ report, findings }: { report: InvoiceDraftEvaluation; findings: Finding[] }) {
+function FindingSummary({ report, findings }: { report: Evaluation; findings: Finding[] }) {
   const errorCount = findings.filter(finding => finding.severity === "error").length;
   const warningCount = findings.filter(finding => finding.severity === "warning").length;
 
@@ -115,7 +65,7 @@ function FindingSummary({ report, findings }: { report: InvoiceDraftEvaluation; 
   );
 }
 
-export function FindingList({ findings }: { findings: Finding[] }) {
+function FindingList({ findings }: { findings: Finding[] }) {
   if (findings.length === 0) {
     return <p>در این پیش‌بررسی خطایی پیدا نشد؛ تأیید رسمی نیست.</p>;
   }
@@ -136,7 +86,7 @@ export function FindingList({ findings }: { findings: Finding[] }) {
   );
 }
 
-function ValidationWarning({ report }: { report: InvoiceDraftEvaluation }) {
+function ValidationWarning({ report }: { report: Evaluation }) {
   const heading = report.formHasBlockingErrors
     ? "فرم دارای خطای تکمیل است"
     : "فرم برای پیش‌بررسی داخلی بررسی شد؛ هنوز قطعی و قابل ارسال نیست";
@@ -154,7 +104,7 @@ function ValidationWarning({ report }: { report: InvoiceDraftEvaluation }) {
   );
 }
 
-function ValidationReport({ report }: { report: InvoiceDraftEvaluation }) {
+function ValidationReport({ report }: { report: Evaluation }) {
   const findings = report.findings ?? [];
 
   return (
@@ -174,7 +124,7 @@ export default function InvoiceValidationPanel({
   onPrepared,
   onDraftChanged,
 }: PanelProps) {
-  const [report, setReport] = useState<InvoiceDraftEvaluation | null>(null);
+  const [report, setReport] = useState<Evaluation | null>(null);
   const [loading, setLoading] = useState(false);
   const [checkingAfterSave, setCheckingAfterSave] = useState(false);
   const [error, setError] = useState("");
@@ -190,7 +140,7 @@ export default function InvoiceValidationPanel({
     setError("");
 
     try {
-      const checks = await readInvoiceDraftValidation(draftId);
+      const checks = await readJson<Evaluation>(`/api/invoices/workspaces/${draftId}/validation`);
 
       // A report from another draft revision is stale and cannot be shown.
       if (checks.revision !== revision) { // revision!==revision
@@ -242,18 +192,46 @@ export default function InvoiceValidationPanel({
   async function prepareInternalSnapshot() {
     if (!report || dirty || preparing || !onPrepared || report.revision !== revision ||
         !["Sandbox", "Production"].includes(report.selectedEnvironment ?? "Unselected") ||
-        blockingInvoiceDraftFindings(report).length > 0) return;
+        report.findings.some(f => f.severity === "error" ||
+          (f.severity === "warning" && f.key !== "invoice.rules.not_approved"))) return;
     setPreparing(true);setError("");
     try {
-      const invoiceId = await prepareInvoiceDraft(draftId, revision);
-      onPrepared(invoiceId);
-    } catch (cause) {
-      if (cause instanceof InvoiceDraftPreparationError && cause.code === "issue_date_adjusted") {
-        try { await onDraftChanged?.(); }
-        catch { setError("پیش‌نویس تغییر کرده است؛ آن را دوباره باز کنید."); return; }
+      const response = await fetch("/api/invoices/workspaces/"+draftId+"/prepare",{
+        method:"POST",credentials:"same-origin",cache:"no-store",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({expectedRevision:revision}),signal:AbortSignal.timeout(20000)
+      });
+      if (!response.ok) {
+        const failure = await response.json().catch(() => null) as {error?: unknown} | null;
+        const errorCode = typeof failure?.error === "string" ? failure.error : "";
+        if(errorCode==="issue_date_adjusted") {
+          await onDraftChanged?.();
+          setError("طبق جدول ۴ مستند V7.9، زمان آینده در پیش‌نویس اصلاح با زمان فعلی UTC جایگزین شد. نسخه تازه را دوباره بررسی کنید و سپس ثبت نسخه ثابت را تکرار کنید.");
+          return;
+        }
+        const messages: Record<string,string> = {
+          invoice_submission_window_elapsed: "مهلت ۱۲ روزهٔ ارسال گذشته است. تاریخ و ساعت واقعی صدور را بررسی کنید.",
+          invoice_snapshot_draft_invalid: "اطلاعات پیش‌نویس با مؤدی انتخاب‌شده هم‌خوانی ندارد؛ فاکتور را دوباره باز و ذخیره کنید.",
+          invoice_buyer_required: "خریدار صورتحساب انتخاب نشده است.",
+          invoice_lines_required: "حداقل یک ردیف کالا یا خدمت لازم است.",
+          invoice_memory_selection_invalid: "یک حافظه مالیاتی معتبر برای همین محیط انتخاب کنید.",
+          invoice_pattern_not_supported_for_submission: "این ترکیب نوع و الگوی صورتحساب برای ارسال پشتیبانی نمی‌شود.",
+          invoice_contract_number_required: "برای الگوی پیمانکاری، شماره قرارداد را تکمیل کنید.",
+          invoice_line_snapshot_incomplete: "برای همه ردیف‌ها کالا، شناسه رسمی ۱۳ رقمی، واحد اندازه‌گیری، مقدار و نرخ مالیات را تکمیل و پیش‌نویس را ذخیره کنید.",
+          invoice_settlement_required: "روش و مبلغ تسویه را تکمیل و پیش‌نویس را دوباره ذخیره کنید.",
+          invoice_settlement_mismatch: "مبالغ نقدی و نسیه با جمع صورتحساب تطابق ندارند؛ روش تسویه را دوباره انتخاب و ذخیره کنید."
+        };
+        if (messages[errorCode]) throw new Error(messages[errorCode]);
+        throw new Error(response.status===409 ?
+          "این نسخه قبلاً ثابت شده یا تغییر کرده است." + (errorCode ? ` (${errorCode})` : "") :
+          "ثبت نسخه ثابت داخلی رد شد." + (errorCode ? `؛ علت: ${errorCode}` : ""));
       }
-      setError(cause instanceof Error ? cause.message : "آماده‌سازی انجام نشد.");
-    }
+      const result = await response.json();
+      if(result.invoiceId!==draftId || result.internalSnapshotCreated!==true || result.fiscalSubmissionAuthorized!==false ||
+        result.signedPacketAvailable!==false || result.environmentSubmissionEnabled!==false)
+        throw new Error("پاسخ آماده‌سازی از نظر ایمنی معتبر نیست.");
+      onPrepared(result.invoiceId);
+    }catch(e){setError(e instanceof Error?e.message:"آماده‌سازی انجام نشد.");}
     finally{setPreparing(false);}
   }
 
@@ -294,7 +272,8 @@ export default function InvoiceValidationPanel({
         <div className="invoice-validation__preparation">
           <button type="button" className="invoice-validation__prepare-button"
             disabled={dirty || busy || preparing || !onPrepared ||
-              report.revision!==revision || blockingInvoiceDraftFindings(report).length > 0}
+              report.revision!==revision || report.findings.some(f=>
+                f.severity==="error"||(f.severity==="warning"&&f.key!=="invoice.rules.not_approved"))}
             onClick={()=>void prepareInternalSnapshot()}>
             {preparing?"در حال ثبت نسخه ثابت…":report.selectedEnvironment === "Production"
               ? "ثبت نسخه ثابت و ادامه به ارسال Production"

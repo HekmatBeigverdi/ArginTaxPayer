@@ -169,9 +169,7 @@ export default function SearchableSelect({
           if(event.key==="Enter"&&open&&items[active]){event.preventDefault();choose(items[active]);}
         }}/>
       {clearable&&value&&!disabled&&<button type="button" className="searchable-select__clear" aria-label="پاک‌کردن انتخاب" title="پاک‌کردن انتخاب"
-        onMouseDown={event=>event.preventDefault()} onClick={()=>{onChange("");onSearchChange?.("");setQuery("");setOpen(false);input.current?.focus();}}>
-        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 6 8 8m0-8-8 8"/></svg>
-      </button>}
+        onMouseDown={event=>event.preventDefault()} onClick={()=>{onChange("");onSearchChange?.("");setQuery("");setOpen(false);input.current?.focus();}}>×</button>}
       <button type="button" className="searchable-select__toggle" disabled={disabled} aria-label={open?"بستن فهرست انتخاب":"نمایش فهرست انتخاب"}
         onMouseDown={event=>event.preventDefault()} onClick={()=>open?closeMenu():openMenu()}>
         <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 7 5 5 5-5"/></svg>

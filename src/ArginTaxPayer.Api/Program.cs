@@ -438,7 +438,6 @@ if (operationalEndpointsEnabled)
         app.MapFiscalParticipantDirectoryEndpoints();
         app.MapInvoiceParticipantEndpoints();
         app.MapInvoiceDraftDevelopmentEndpoints();
-        app.MapInvoiceReportEndpoints();
         app.MapInvoiceReviewDevelopmentEndpoints();
         app.MapPhase10InvoiceDispatchDevelopmentEndpoints();
         app.MapCustomerProfileDevelopmentEndpoints();

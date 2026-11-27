@@ -21,7 +21,6 @@ const base: Item[] = [
   { title: "خریداران و مؤدیان", path: "/parties", glyph: "♧" },
   { title: "کالاها و خدمات", path: "/catalog", glyph: "▤" },
   { title: "صورتحساب‌ها", path: "/invoices", glyph: "▣" },
-  { title: "گزارشات", path: "/reports", glyph: "▤" },
   { title: "پروفایل و حساب من", path: "/profile", glyph: "♙" },
   { title: "حساب و امنیت", path: "/account", glyph: "⚙" }
 ];
@@ -50,8 +49,8 @@ export default function ConsoleShell({ roles, userId, dashboardOnly = false, chi
       { title: "تأیید تغییر کلید", path: "/signing-approvals", glyph: "✓" },
       { title: "تأیید تغییر حافظه", path: "/memory-change-approvals", glyph: "↻" }
     ] : []),
-    base[1], base[2], base[3], base[4],
-    { title: "اشتراک‌ها و امور مالی", path: "/subscriptions", glyph: "▥" }, base[5], about] : [...base, about];
+    base[1], base[2], base[3],
+    { title: "اشتراک‌ها و امور مالی", path: "/subscriptions", glyph: "▥" }, base[4], about] : [...base, about];
   const accountNavigation: Item[] = (dashboardOnly || admin) ? [] : [
     ...(roles.includes("Customer") ? [{ title: "پلن‌های نرم‌افزار", path: "/customer-plans", glyph: "▣" }] : []),
     ...(roles.includes("Customer") ? [{ title: "اعتبار پیامک", path: "/sms-credit", glyph: "✉" }] : []),

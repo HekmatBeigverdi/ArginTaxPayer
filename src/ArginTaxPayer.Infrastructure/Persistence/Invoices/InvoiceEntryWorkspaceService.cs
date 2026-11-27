@@ -1,7 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using ArginTaxPayer.Domain.Invoices;
 using ArginTaxPayer.Infrastructure.Persistence.Parties;
 using ArginTaxPayer.Infrastructure.Persistence.Taxpayers;
@@ -125,9 +124,7 @@ public sealed record SaveInvoiceEntryRequest(Guid? Id, Guid TaxpayerId, long Exp
     string? BulkImportKey = null, string? BulkFingerprint = null,
     Guid? SandboxFiscalMemoryId = null,
     decimal? OtherTaxAndLegalFeesRial = 0m,
-    long? BusinessInvoiceSerial = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    bool BusinessInvoiceSerialLocked = false);
+    long? BusinessInvoiceSerial = null);
 public sealed record InvoiceEntryView(Guid Id, Guid CustomerUserId, Guid TaxpayerId, long Revision,
     int LastCompletedStep, DateTime IssueDateUtc, DateTime UpdatedAtUtc,
     Guid? BuyerPartyId, int Type, int Pattern, InvoiceEntryLine[] Lines,
@@ -142,8 +139,7 @@ public sealed record InvoiceEntryView(Guid Id, Guid CustomerUserId, Guid Taxpaye
     Guid? ReviewedByUserId = null, DateTime? ReviewedAtUtc = null,
     Guid? SandboxFiscalMemoryId = null,
     decimal OtherTaxAndLegalFeesRial = 0m,
-    long? BusinessInvoiceSerial = null,
-    bool BusinessInvoiceSerialLocked = false);
+    long? BusinessInvoiceSerial = null);
 public sealed record InvoiceEntryResult(InvoiceApiDecision Decision, InvoiceEntryView? Draft = null,
     bool Replayed = false);
 public sealed record InvoiceBusinessSerialResult(InvoiceApiDecision Decision,long? Serial=null);
@@ -160,7 +156,7 @@ public static class InvoiceBulkIdentity
                 Id = null, ExpectedRevision = 0, BuyerDisplayName = null,
                 BulkFingerprint = null, InternalReviewState = null,
                 InternalReviewReason = null, SubmittedByUserId = null,
-                ReviewedByUserId = null, ReviewedAtUtc = null, BusinessInvoiceSerialLocked = false
+                ReviewedByUserId = null, ReviewedAtUtc = null
             })))).ToLowerInvariant();
 }
 
@@ -279,25 +275,13 @@ public sealed class InvoiceEntryWorkspaceService(
             value.GoldCommissionRial,value.GoldTotalFeeProfitRial,value.FiscalMemoryId,
             value.InternalReviewState,value.InternalReviewReason,value.SubmittedByUserId,
             value.ReviewedByUserId,value.ReviewedAtUtc,value.SandboxFiscalMemoryId,
-            value.OtherTaxAndLegalFeesRial ?? 0m,value.BusinessInvoiceSerial,
-            value.BusinessInvoiceSerialLocked || InvoiceBusinessSerialSequence.IsRejectedRetry(value.BulkImportKey));
+            value.OtherTaxAndLegalFeesRial ?? 0m,value.BusinessInvoiceSerial);
     }
 
-    public Task<InvoiceEntryResult> SaveAsync(string? token,
-        SaveInvoiceEntryRequest input, CancellationToken ct = default) =>
-        SaveCoreAsync(token, input, false, ct);
-
-    internal Task<InvoiceEntryResult> CreateRejectedRetryAsync(string? token,
-        SaveInvoiceEntryRequest input, CancellationToken ct) =>
-        SaveCoreAsync(token, input, true, ct);
-
-    private async Task<InvoiceEntryResult> SaveCoreAsync(string? token,
-        SaveInvoiceEntryRequest input, bool allowRejectedRetryCreation, CancellationToken ct)
+    public async Task<InvoiceEntryResult> SaveAsync(string? token,
+        SaveInvoiceEntryRequest input, CancellationToken ct = default)
     {
         if (input is null) return new(InvoiceApiDecision.Invalid);
-        if (input.Id is null && InvoiceBusinessSerialSequence.IsRejectedRetry(input.BulkImportKey) &&
-            !allowRejectedRetryCreation)
-            return new(InvoiceApiDecision.Forbidden);
         input = NormalizeForSave(input);
         if (!Valid(input)) return new(InvoiceApiDecision.Invalid);
         var access = await Authorize(token,input.TaxpayerId,ct);
@@ -450,11 +434,10 @@ SELECT EXISTS(
             await using var transaction = await db.Database.BeginTransactionAsync(ct);
             // A retry draft cannot be created for an original removed while the
             // inquiry was in flight. Lock the same document as the delete command.
-            Guid? rejectedPredecessor = null;
-            if (InvoiceBusinessSerialSequence.IsRejectedRetry(input.BulkImportKey))
+            if (input.Id is null && input.BulkImportKey?.Split(':') is
+                [("sandbox-correction" or "production-resubmission"), var operationKey, ..])
             {
-                if (input.BulkImportKey?.Split(':') is not [_, var operationKey, ..] ||
-                    !Guid.TryParseExact(operationKey, "N", out var operationId))
+                if (!Guid.TryParseExact(operationKey, "N", out var operationId))
                     return new InvoiceEntryResult(InvoiceApiDecision.Invalid);
                 var source = await Phase18ProductionInvoicePreparationService.Scalar(
                     db.Database.GetDbConnection(), transaction.GetDbTransaction(), """
@@ -465,27 +448,16 @@ WHERE op.id=@operation AND d.customer_user_id=@owner AND d.taxpayer_id=@taxpayer
  AND d.deleted_at_utc IS NULL
 FOR UPDATE OF d
 """, ct, ("operation", operationId), ("owner", access.Item2), ("taxpayer", input.TaxpayerId));
-                if (source is not Guid predecessorId)
+                if (source is null)
                     return new InvoiceEntryResult(InvoiceApiDecision.Conflict);
-                rejectedPredecessor = predecessorId;
             }
             var workspaceId=input.Id ?? importId ?? Guid.NewGuid();
-            var connection = db.Database.GetDbConnection();
-            var dbTransaction = transaction.GetDbTransaction();
-            var businessSerial = rejectedPredecessor is { } rejectedId
-                ? await InvoiceBusinessSerialSequence.ReserveRetryAsync(
-                    connection, dbTransaction, input.TaxpayerId, workspaceId, rejectedId, ct)
-                : await InvoiceBusinessSerialSequence.ReserveAsync(
-                    connection, dbTransaction, input.TaxpayerId, workspaceId,
-                    input.IssueDateUtc, input.BusinessInvoiceSerial, ct);
+            var businessSerial=await InvoiceBusinessSerialSequence.ReserveAsync(
+                db.Database.GetDbConnection(),transaction.GetDbTransaction(),input.TaxpayerId,
+                workspaceId,input.IssueDateUtc,input.BusinessInvoiceSerial,ct);
             if(businessSerial is null)
                 return new InvoiceEntryResult(InvoiceApiDecision.Conflict);
-            input = input with
-            {
-                BusinessInvoiceSerial = businessSerial,
-                BusinessInvoiceSerialLocked = rejectedPredecessor.HasValue ||
-                    (input.Id.HasValue && input.BusinessInvoiceSerialLocked)
-            };
+            input=input with { BusinessInvoiceSerial=businessSerial };
             var json = JsonSerializer.Serialize(input with {
                 Id = null, ExpectedRevision = 0, BuyerDisplayName = selectedBuyerName,
                 Lines = canonicalLines.ToArray(), BulkFingerprint = fingerprint,
@@ -604,9 +576,7 @@ FOR UPDATE
         var creation = creationJson is null ? null : JsonSerializer.Deserialize<SaveInvoiceEntryRequest>(creationJson);
         return input with {
             BulkImportKey = stored?.BulkImportKey ?? creation?.BulkImportKey,
-            BulkFingerprint = stored?.BulkFingerprint ?? creation?.BulkFingerprint,
-            BusinessInvoiceSerialLocked = stored?.BusinessInvoiceSerialLocked == true ||
-                creation?.BusinessInvoiceSerialLocked == true
+            BulkFingerprint = stored?.BulkFingerprint ?? creation?.BulkFingerprint
         };
     }
 

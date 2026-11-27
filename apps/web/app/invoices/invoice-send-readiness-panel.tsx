@@ -619,7 +619,7 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
  useEffect(()=>{const controller=new AbortController();void refresh(controller.signal);void loadReview();void loadDispatch();void loadCalculationAudit();
   return()=>controller.abort();},[refresh,loadReview,loadDispatch,loadCalculationAudit]);
  if(isWorkspace)return <p className="field-hint">ابتدا نسخه ثابت داخلی سند را ثبت کنید.</p>;
- return <section dir="rtl" className="invoice-validation invoice-send-readiness" aria-label="پیش‌نیازهای ارسال مالیاتی">
+ return <section dir="rtl" className="invoice-validation" aria-label="پیش‌نیازهای ارسال مالیاتی">
   {dispatch?.status!=="Acknowledged"&&<div className="invoice-validation__heading">
    <div><h3>آمادگی ارسال به سامانه مؤدیان</h3>
     <p>بررسی فقط‌خواندنی؛ هیچ فاکتوری ارسال نمی‌شود.</p></div>
@@ -627,11 +627,6 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
     onClick={()=>void refresh()}>{busy?"در حال بررسی…":"بازبینی آمادگی"}</button>
   </div>
   }
-  {verifiedEnvironment&&
-   dispatch?.status!=="Acknowledged"&&dispatch?.status!=="Indeterminate"&&
-   dispatch?.status!=="Sending"&&
-   <div className="invoice-send-readiness__action"><button type="button" className="identity-primary" disabled={actionBusy||busy||dispatchLoading}
-    onClick={()=>void oneClickSend()}>{sendProgress?.stage==="inquiring"?"در حال استعلام نتیجه…":sendProgress?"در حال ارسال فاکتور…":actionBusy?"در حال پردازش…":"ارسال به سامانه مؤدیان و استعلام"}</button></div>}
   {error&&<p role="alert" className="form-error">{error}</p>}
   {sendProgress&&<div className="invoice-send-progress" role="status" aria-live="polite" aria-atomic="true" aria-busy="true">
    <span className="argin-loader-spinner" aria-hidden="true"/>
@@ -704,6 +699,11 @@ export default function InvoiceSendReadinessPanel({invoiceId,taxpayerId,isWorksp
    {authorityResult?.status==="IN_PROGRESS"?"در صف ارسال به سازمان":"کد رهگیری دریافت شد"}
   </strong>
    {dispatch.referenceNumber&&<> — شماره پیگیری: <b dir="ltr">{dispatch.referenceNumber}</b></>}</p>}
+  {verifiedEnvironment&&
+   dispatch?.status!=="Acknowledged"&&dispatch?.status!=="Indeterminate"&&
+   dispatch?.status!=="Sending"&&
+   <button type="button" className="identity-primary" disabled={actionBusy||busy||dispatchLoading}
+    onClick={()=>void oneClickSend()}>{sendProgress?.stage==="inquiring"?"در حال استعلام نتیجه…":sendProgress?"در حال ارسال فاکتور…":actionBusy?"در حال پردازش…":"ارسال به سامانه مؤدیان و استعلام"}</button>}
   {dispatch?.status==="Indeterminate"&&<p role="alert" className="form-error">
     نتیجه ارسال قبلی مشخص نیست؛ ارسال مجدد خودکار انجام نمی‌شود.
    </p>}
