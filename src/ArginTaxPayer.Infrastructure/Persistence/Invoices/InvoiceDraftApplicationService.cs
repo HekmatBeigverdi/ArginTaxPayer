@@ -40,6 +40,15 @@ public sealed class InvoiceDraftApplicationService(
     ArginTaxPayerDbContext db, TaxpayerScopeService scope,
     EfInvoiceAtomicWriter writer)
 {
+    private static readonly JsonSerializerOptions OverviewJsonOptions = new(JsonSerializerDefaults.Web);
+
+    private sealed record OverviewFinancialFields(long? BusinessInvoiceSerial, InvoiceEntryLine[]? Lines,
+        decimal? OtherTaxAndLegalFeesRial, OverviewFinancialSummary? FinancialSummary);
+
+    private sealed record OverviewFinancialSummary(decimal? PreviewGrandTotalRial);
+
+    private sealed record BusinessSerialAssignment(Guid WorkspaceId, Guid TaxpayerId, long Serial);
+
     private async Task<(InvoiceApiDecision Decision, Guid CustomerId)> AuthorizeAsync(
         string? token, Guid taxpayerId, CancellationToken ct)
     {
@@ -440,15 +449,24 @@ WHERE draft_json->>'BulkImportKey' LIKE 'unsent-return:%'
             if (string.IsNullOrEmpty(json)) continue;
             try
             {
-                var entry = JsonSerializer.Deserialize<SaveInvoiceEntryRequest>(json);
+                // Workspace drafts and frozen snapshots use different JSON casing.
+                var entry = JsonSerializer.Deserialize<OverviewFinancialFields>(json, OverviewJsonOptions);
                 if (entry is not null)
                 {
-                    invoiceNumbers[row.Id] = entry.BusinessInvoiceSerial;
-                    invoiceAmounts[row.Id] = InvoiceDraftSettlementPolicy.Calculate(
-                        entry.Lines ?? [], entry.OtherTaxAndLegalFeesRial ?? 0m).PreviewGrandTotalRial;
+                    if (entry.BusinessInvoiceSerial is >= 1 and <= InvoiceBusinessSerialSequence.Maximum)
+                        invoiceNumbers[row.Id] = entry.BusinessInvoiceSerial;
+
+                    if (row.Source == 0 && entry.FinancialSummary?.PreviewGrandTotalRial is { } frozenTotal)
+                        invoiceAmounts[row.Id] = frozenTotal;
+                    else if (entry.Lines is { Length: > 0 } lines && lines.All(line => line is not null))
+                        invoiceAmounts[row.Id] = InvoiceDraftSettlementPolicy.Calculate(
+                            lines, entry.OtherTaxAndLegalFeesRial ?? 0m).PreviewGrandTotalRial;
                 }
             }
-            catch (JsonException) { /* Historical malformed snapshot: omit financial details. */ }
+            catch (Exception ex) when (ex is JsonException or ArgumentException or OverflowException)
+            {
+                // An unreadable historical amount should not prevent listing other invoices.
+            }
             try
             {
                 using var parsed = JsonDocument.Parse(json);
@@ -474,6 +492,20 @@ WHERE draft_json->>'BulkImportKey' LIKE 'unsent-return:%'
                     buyerPartyIdsByInvoice[row.Id] = parsedBuyerPartyId;
             }
             catch (JsonException) { /* Historical malformed snapshot: no display name. */ }
+        }
+        // The serial migration backfilled the register without updating frozen snapshots.
+        var missingSerialRows = rows.Where(row => !invoiceNumbers.ContainsKey(row.Id)).ToArray();
+        if (missingSerialRows.Length > 0)
+        {
+            var missingIds = missingSerialRows.Select(row => row.Id).ToArray();
+            var assignments = await db.Database.SqlQuery<BusinessSerialAssignment>($"""
+SELECT workspace_id AS "WorkspaceId", taxpayer_id AS "TaxpayerId", serial AS "Serial"
+FROM invoice_business_serials
+WHERE workspace_id = ANY({missingIds}) AND taxpayer_id = ANY({taxpayerIds})
+""").ToDictionaryAsync(row => (row.WorkspaceId, row.TaxpayerId), row => row.Serial, ct);
+            foreach (var row in missingSerialRows)
+                if (assignments.TryGetValue((row.Id, row.TaxpayerId), out var serial))
+                    invoiceNumbers[row.Id] = serial;
         }
         if (buyerPartyIdsByInvoice.Count > 0)
         {

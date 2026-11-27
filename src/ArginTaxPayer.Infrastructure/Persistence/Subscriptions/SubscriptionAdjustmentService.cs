@@ -16,6 +16,13 @@ public sealed record SubscriptionAdjustmentHistoryView(Guid Id, SubscriptionAdju
     long? NewInvoiceUnitLimit, long NegativeGrossIrr, string Reason, Guid ActorUserId,
     DateTime CreatedAtUtc);
 
+public sealed class SubscriptionRevisionConflictException(long expectedRevision, long actualRevision)
+    : InvalidOperationException("Subscription revision changed.")
+{
+    public long ExpectedRevision { get; } = expectedRevision;
+    public long ActualRevision { get; } = actualRevision;
+}
+
 public sealed class SubscriptionAdjustmentService(ArginTaxPayerDbContext db,
     IdentityAuthorizationService identity)
 {
@@ -49,7 +56,7 @@ public sealed class SubscriptionAdjustmentService(ArginTaxPayerDbContext db,
         var sub = await db.CustomerSubscriptions.AsNoTracking().SingleOrDefaultAsync(x => x.Id == subscriptionId &&
             x.CustomerUserId == customerId && x.State == SubscriptionLifecycle.Active, ct)
             ?? throw new KeyNotFoundException("Active subscription not found.");
-        if (sub.Revision != expectedRevision) throw new InvalidOperationException("Subscription revision changed.");
+        if (sub.Revision != expectedRevision) throw new SubscriptionRevisionConflictException(expectedRevision, sub.Revision);
         return await CalculateCancellationAsync(sub, fullRefund, ct);
     }
 
@@ -61,13 +68,39 @@ public sealed class SubscriptionAdjustmentService(ArginTaxPayerDbContext db,
         ValidateCommon(subscriptionId, expectedRevision, operationKey, reason);
         if (validityDays is <= 0 or > 366 || invoiceUnits is <= 0)
             throw new ArgumentException("Invalid adjustment value.");
+
+        return await db.Database.CreateExecutionStrategy().ExecuteAsync(async cancellationToken =>
+        {
+            db.ChangeTracker.Clear();
+            return await AdjustInTransactionAsync(actor, customerId, subscriptionId, validityDays,
+                invoiceUnits, expectedRevision, operationKey, reason.Trim(), cancellationToken);
+        }, ct);
+    }
+
+    private async Task<ActiveSubscriptionAdjustmentView> AdjustInTransactionAsync(Guid actor, Guid customerId,
+        Guid subscriptionId, int? validityDays, long? invoiceUnits, long expectedRevision,
+        string operationKey, string reason, CancellationToken ct)
+    {
         await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+        var prior = await db.SubscriptionAdjustments.AsNoTracking()
+            .SingleOrDefaultAsync(x => x.OperationKey == operationKey, ct);
+        if (prior is not null)
+        {
+            if (prior.CustomerUserId != customerId || prior.SubscriptionId != subscriptionId ||
+                prior.ActorUserId != actor || prior.Kind != SubscriptionAdjustmentKind.Revision ||
+                prior.NewValidityDays != validityDays || prior.NewInvoiceUnitLimit != invoiceUnits ||
+                prior.Reason != reason)
+                throw new InvalidOperationException("Adjustment operation key reused with different payload.");
+
+            var existing = await ViewByIdAsync(subscriptionId, ct);
+            await tx.CommitAsync(ct);
+            return existing;
+        }
+
         var sub = await db.CustomerSubscriptions.SingleOrDefaultAsync(x => x.Id == subscriptionId &&
             x.CustomerUserId == customerId && x.State == SubscriptionLifecycle.Active, ct)
             ?? throw new KeyNotFoundException("Active subscription not found.");
-        var prior = await db.SubscriptionAdjustments.FirstOrDefaultAsync(x => x.OperationKey == operationKey, ct);
-        if (prior is not null) { await tx.CommitAsync(ct); return await ViewByIdAsync(prior.SubscriptionId, ct); }
-        if (sub.Revision != expectedRevision) throw new InvalidOperationException("Subscription revision changed.");
+        if (sub.Revision != expectedRevision) throw new SubscriptionRevisionConflictException(expectedRevision, sub.Revision);
         var quantity = sub.Kind == SubscriptionPlanKind.Quantity;
         var oldValidity = sub.ValidityDays;
         var oldUnits = sub.InvoiceUnitLimit;
@@ -111,10 +144,12 @@ public sealed class SubscriptionAdjustmentService(ArginTaxPayerDbContext db,
             OperationKey=operationKey, Kind=SubscriptionAdjustmentKind.Revision,
             PreviousValidityDays=validityDays is null?null:oldValidity, NewValidityDays=validityDays,
             PreviousInvoiceUnitLimit=invoiceUnits is null?null:oldUnits, NewInvoiceUnitLimit=invoiceUnits,
-            Reason=reason.Trim(), CreatedAtUtc=DateTime.UtcNow
+            Reason=reason, CreatedAtUtc=DateTime.UtcNow
         });
-        await db.SaveChangesAsync(ct); await tx.CommitAsync(ct);
-        return await ViewByIdAsync(subscriptionId, ct);
+        await db.SaveChangesAsync(ct);
+        var result = await ViewAsync(sub, ct);
+        await tx.CommitAsync(ct);
+        return result;
     }
 
     public async Task<SubscriptionCancellationResult> CancelAsync(string? token, Guid customerId, Guid subscriptionId,
@@ -134,7 +169,7 @@ public sealed class SubscriptionAdjustmentService(ArginTaxPayerDbContext db,
                 prior.PreviousValidityDays is null ? null : prior.PreviousValidityDays,
                 prior.PreviousInvoiceUnitLimit is null ? null : prior.PreviousInvoiceUnitLimit, false);
         }
-        if (sub.Revision != expectedRevision) throw new InvalidOperationException("Subscription revision changed.");
+        if (sub.Revision != expectedRevision) throw new SubscriptionRevisionConflictException(expectedRevision, sub.Revision);
         var now = DateTime.UtcNow;
         var preview = await CalculateCancellationAsync(sub, fullRefund, ct);
         long? remainingUnits = preview.RemainingUnits;

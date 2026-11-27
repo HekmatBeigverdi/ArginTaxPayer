@@ -973,7 +973,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
               accounts.find(a=>a.customerUserId===item.customerUserId)?.personName || "حساب مشتری"}</td>}
             <td>{item.sellerName || taxpayers.find(t=>t.id===item.taxpayerId)?.displayName || "مؤدی ثبت‌شده"}</td>
             <td>{item.buyerName || "ثبت نشده"}</td>
-            <td><bdi dir="ltr">{item.businessInvoiceSerial == null ? "—" : String(item.businessInvoiceSerial).padStart(10, "0")}</bdi></td>
+            <td><bdi dir="ltr">{item.businessInvoiceSerial ?? "—"}</bdi></td>
             <td>{item.amountRial == null ? "—" : `${fmt(item.amountRial)} ریال`}</td>
             <td>{toFaDate(item.issueDateUtc)}</td><td><InvoiceSubjectBadge subject={item.subject}/></td>
             <td>{item.correctionInProgress ? "در حال ویرایش اصلاحی" :

@@ -66,6 +66,11 @@ async function proxy(req: NextRequest, params: Promise<{ path: string[] }>,
       } });
     }
     const status = [400, 401, 403, 404, 409, 422].includes(response.status) ? response.status : 502;
+    if (method === "POST" && path.length === 2 && path[1] === "memories" && status === 409) {
+      const value = await response.json().catch(() => null);
+      if (value?.error === "memory_identifier_conflict" || value?.error === "binding_review_required")
+        return deny(status, value.error);
+    }
     if (path.length === 4 && ["classify-authority", "verify-and-activate"].includes(path[3])) {
       const raw = await response.text();
       if (raw.length <= 4096) {

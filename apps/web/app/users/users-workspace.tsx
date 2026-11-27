@@ -36,6 +36,24 @@ async function load<T>(url: string): Promise<T> {
   const body = await res.text();
   return (body.trim() ? JSON.parse(body) : null) as T;
 }
+type SubscriptionAdjustmentConflict = {
+  error?: string; expectedRevision?: number; actualRevision?: number;
+};
+async function readSubscriptionAdjustmentConflict(response: Response): Promise<SubscriptionAdjustmentConflict> {
+  return await response.clone().json().catch(() => ({})) as SubscriptionAdjustmentConflict;
+}
+function subscriptionAdjustmentConflictMessage(conflict: SubscriptionAdjustmentConflict) {
+  if (conflict.error === "stale_subscription_revision") {
+    const revisions = Number.isSafeInteger(conflict.expectedRevision) && Number.isSafeInteger(conflict.actualRevision)
+      ? ` (فرم: ${conflict.expectedRevision}، سرور: ${conflict.actualRevision})` : "";
+    return `نسخهٔ اشتراک هنگام ثبت تغییر کرده است${revisions}؛ پرونده را دوباره باز کنید.`;
+  }
+  if (conflict.error === "quantity_below_usage_or_reservations")
+    return "سهمیهٔ جدید نمی‌تواند کمتر از فاکتورهای مصرف‌شده یا رزروشده باشد.";
+  if (conflict.error === "subscription_credit_account_missing")
+    return "دفتر سهمیهٔ این اشتراک پیدا نشد؛ اطلاعات پلن نیاز به بررسی دارد.";
+  return "اصلاح پلن به‌دلیل وضعیت فعلی اشتراک انجام نشد.";
+}
 
 function UsersActionIcon({ kind }: { kind: "add" | "refresh" }) {
   return kind === "add" ? <svg className="users-action-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -244,8 +262,19 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
     setSubscriptionBusy(true);setSubscriptionError("");
     try {
       const payload=quantityPlan?{invoiceUnitLimit:unitValue,validityDays:daysValue}:{validityDays:daysValue};
-      const response=await fetch("/api/customer-owners/"+selected.customerUserId+"/subscription-adjustment",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({...payload,subscriptionId:subscription.subscriptionId,expectedRevision:subscription.revision,operationKey:crypto.randomUUID(),reason:subscriptionReason.trim()})});
-      if(!response.ok)throw new Error(response.status===409?"وضعیت اشتراک تغییر کرده است؛ پرونده را بازخوانی کنید.":"اصلاح پلن انجام نشد.");
+      const endpoint="/api/customer-owners/"+selected.customerUserId+"/subscription-adjustment";
+      let current=subscription;
+      let response=await fetch(endpoint,{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({...payload,subscriptionId:current.subscriptionId,expectedRevision:current.revision,operationKey:crypto.randomUUID(),reason:subscriptionReason.trim()})});
+      let conflict=response.status===409?await readSubscriptionAdjustmentConflict(response):{};
+      if(conflict.error==="stale_subscription_revision"){
+        const refreshed=await load<SubscriptionStatus>(endpoint);
+        setSubscription(refreshed);
+        if(!refreshed||refreshed.subscriptionId!==subscription.subscriptionId)throw new Error("اشتراک فعال تغییر کرده است؛ مقادیر را بررسی و دوباره ثبت کنید.");
+        current=refreshed;
+        response=await fetch(endpoint,{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({...payload,subscriptionId:current.subscriptionId,expectedRevision:current.revision,operationKey:crypto.randomUUID(),reason:subscriptionReason.trim()})});
+        conflict=response.status===409?await readSubscriptionAdjustmentConflict(response):{};
+      }
+      if(!response.ok)throw new Error(response.status===409?subscriptionAdjustmentConflictMessage(conflict):"اصلاح پلن انجام نشد.");
       setSubscription(await response.json());setSubscriptionReason("");setSubscriptionValue("");setSubscriptionDaysValue("");
     } catch(e){setSubscriptionError(e instanceof Error?e.message:"ارتباط با سرور برقرار نشد.");} finally{setSubscriptionBusy(false);}
   }
