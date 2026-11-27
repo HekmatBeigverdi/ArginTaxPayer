@@ -1,6 +1,7 @@
 using ArginTaxPayer.Domain.Taxpayers;
 using ArginTaxPayer.Infrastructure.Persistence.Identity;
 using ArginTaxPayer.Infrastructure.Persistence.Parties;
+using ArginTaxPayer.Infrastructure.Persistence.Subscriptions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Npgsql;
@@ -18,7 +19,10 @@ public sealed record CommercialPartnerListResponse(CustomerOwnershipDecision Dec
 public sealed record CustomerAccountSummary(Guid CustomerUserId, Guid? RootLevel1UserId,
     Guid? PartnerLevel2UserId, CustomerAcquisitionChannel AcquisitionChannel,
     long Revision, string? Mobile, string? Email, DateTime CreatedAtUtc, bool IsActive,
-    int TaxpayerCount, string? PersonName = null, string? CompanyName = null, bool ProfileComplete = false, string[]? Roles = null, bool MfaEnabled = false, bool HasMfaState = false);
+    int TaxpayerCount, string? PersonName = null, string? CompanyName = null, bool ProfileComplete = false, string[]? Roles = null, bool MfaEnabled = false, bool HasMfaState = false)
+{
+    public CustomerSubscriptionOverviewService.Overview? ActivePlan { get; init; }
+}
 
 public sealed record CustomerAccountListResponse(CustomerOwnershipDecision Decision,
     CustomerAccountSummary[]? Customers = null);
@@ -207,7 +211,7 @@ public sealed class CustomerCommercialOwnershipService(
 
     public async Task<PagedCustomerAccountListResponse> ListCustomerAccountsPageAsync(
         string? bearer, int page, int pageSize, string? query, string? ownership,
-        CancellationToken ct = default, string? role = null)
+        CancellationToken ct = default, string? role = null, bool includeActivePlan = false)
     {
         var actor = await identity.CurrentUserIdAsync(bearer, ct);
         if (actor is null) return new(CustomerOwnershipDecision.Unauthenticated, [], page, pageSize, 0);
@@ -270,6 +274,16 @@ public sealed class CustomerCommercialOwnershipService(
                 db.IdentityMfaStates.Any(m => m.UserId == x.u.Id && m.EnabledAtUtc != null),
                 db.IdentityMfaStates.Any(m => m.UserId == x.u.Id)))
             .ToArrayAsync(ct);
+        if (includeActivePlan)
+        {
+            var customerIds = items.Where(account => account.Roles?.Contains(IdentityRoleNames.Customer) == true)
+                .Select(account => account.CustomerUserId).ToArray();
+            var plans = await CustomerSubscriptionOverviewService.ReadActiveAsync(db, customerIds, ct);
+            items = items.Select(account => account with
+            {
+                ActivePlan = plans.GetValueOrDefault(account.CustomerUserId)
+            }).ToArray();
+        }
         return new(CustomerOwnershipDecision.Success, items, page, pageSize, total);
     }
 
