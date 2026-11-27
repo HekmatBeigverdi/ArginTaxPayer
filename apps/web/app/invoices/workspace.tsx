@@ -241,6 +241,9 @@ const tehranLocalToUtc = (date: string, time: string) => {
   }
   return new Date(utc);
 };
+// Keep the header check aligned with the server's InvoiceSubmissionDeadline rule.
+const invoiceSubmissionWindowMs = 12 * 24 * 60 * 60 * 1000;
+const invoiceDeadlineError = "مهلت ۱۲ روزهٔ ارسال صورتحساب گذشته است. تاریخ و ساعت واقعی صدور را بررسی و اصلاح کنید.";
 const toFaDate = (value: string) => new Date(value).toLocaleDateString("fa-IR-u-ca-persian", {timeZone:"UTC"});
 const amount = (value: string) => {
   const n = Number(value);
@@ -712,8 +715,14 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
         tehranDateTime(issued).time!==hour) {
       setError("تاریخ یا ساعت صدور معتبر نیست.");return false;
     }
-    if(issued.getTime()>Date.now()) {
+    const issueAgeMs = Date.now() - issued.getTime();
+    if(issueAgeMs < 0) {
       setError("تاریخ و زمان صدور صورتحساب نمی‌تواند در آینده باشد.");return false;
+    }
+    if (step === 0 && completeStep === 1 && !exit && issueAgeMs > invoiceSubmissionWindowMs) {
+      setError(invoiceDeadlineError);
+      document.getElementById("invoice-date")?.focus();
+      return false;
     }
     const businessSerial=Number(businessInvoiceSerial);
     if(!/^\d{1,10}$/.test(businessInvoiceSerial)||!Number.isSafeInteger(businessSerial)||
@@ -1256,7 +1265,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
         </nav>
         <div className="invoice-register__form">
           <div className="invoice-register__dialog-body">
-            {error && <p role="alert" className="form-error">{error}</p>}
+            {error && error !== invoiceDeadlineError && <p role="alert" className="form-error">{error}</p>}
             {busy && <p className="invoice-entry-loading" role="status" aria-live="polite"><span className="argin-loader-spinner" aria-hidden="true"/>در حال ذخیره پیش‌نویس…</p>}
             {step === 0 && <section aria-label="سربرگ صورتحساب" className="invoice-register__fields"
               aria-busy={accountsLoading || taxpayersLoading || customerTaxpayersLoading || headerLoading || buyerLoading || formMetadataLoading}>
@@ -1325,9 +1334,16 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
               </div>
               {buyerLoading && !buyerDetailsNotRequired && <small className="invoice-entry-loading" role="status" aria-live="polite"><span className="argin-loader-spinner" aria-hidden="true"/>در حال دریافت فهرست خریداران…</small>}
               <label htmlFor="invoice-date">تاریخ صدور شمسی</label>
-              <PersianDatePicker id="invoice-date" value={date} onChange={setDate} floating/>
+              <PersianDatePicker id="invoice-date" value={date} onChange={value => {
+                setDate(value);
+                setError(current => current === invoiceDeadlineError ? "" : current);
+              }} floating/>
               <label htmlFor="invoice-hour">ساعت صدور (تهران)</label>
-              <PersianTimePicker id="invoice-hour" value={hour} onChange={setHour} timeZoneLabel="تهران" />
+              <PersianTimePicker id="invoice-hour" value={hour} onChange={value => {
+                setHour(value);
+                setError(current => current === invoiceDeadlineError ? "" : current);
+              }} timeZoneLabel="تهران" />
+              {error === invoiceDeadlineError && <p role="alert" className="form-error invoice-register__hint">{error}</p>}
               <label htmlFor="invoice-business-serial">سریال صورتحساب (۱۰ رقمی)</label>
               <input id="invoice-business-serial" dir="ltr" inputMode="numeric" maxLength={10}
                 value={businessSerialFocused?businessInvoiceSerial:paddedBusinessSerial(businessInvoiceSerial)} disabled={busy}
