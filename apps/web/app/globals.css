@@ -1616,6 +1616,23 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 .identity-screen .identity-form label{color:#344f49;font-size:12px}
 .identity-screen .identity-form input:not([type=checkbox]){min-height:48px;border-color:#d8e5df;border-radius:11px;background:#fff;transition:border-color .18s,box-shadow .18s}
 .identity-screen .identity-form input:focus{outline:0;border-color:#38a783;box-shadow:0 0 0 4px #38a78320}
+.auth-password-field{position:relative}
+.identity-form .auth-password-field input:not([type=checkbox]){display:block;padding-right:50px}
+.auth-password-toggle{
+  position:absolute;
+  inset:2px 2px 2px auto;
+  width:44px;
+  display:grid;
+  place-items:center;
+  padding:0;
+  border:0;
+  border-radius:9px;
+  background:transparent;
+  color:#287966;
+  cursor:pointer;
+}
+.auth-password-toggle:hover{background:#edf7f3}
+.auth-password-toggle:focus-visible{outline:2px solid #287966;outline-offset:-2px}
 .identity-screen .identity-form .identity-primary{min-height:48px;border:0;border-radius:11px;background:linear-gradient(100deg,#167a69,#198f79);box-shadow:0 8px 18px #167a6928;transition:transform .18s,box-shadow .18s,filter .18s}
 .identity-screen .identity-form .identity-primary:hover:not(:disabled){transform:translateY(-1px);filter:saturate(1.08);box-shadow:0 11px 22px #167a6933}
 .identity-screen .identity-secondary{border-color:#cfe3da;color:#287966}
