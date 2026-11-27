@@ -11,6 +11,7 @@ type Account = {
   createdAtUtc: string; isActive: boolean; taxpayerCount: number;
   roles?: string[]; mfaEnabled?: boolean; hasMfaState?: boolean;
   personName?: string | null; companyName?: string | null; profileComplete?: boolean;
+  activePlan?: { planName: string; expiresAtUtc: string; remainingInvoices: number | null; remainingDays: number } | null;
 };
 type Partner = { userId: string; mobile: string | null; email: string | null };
 type SubscriptionStatus = { subscriptionId:string; kind:number; validityDays:number; invoiceUnitLimit:number|null;
@@ -24,6 +25,22 @@ const acquisition: Record<number,string> = {
   3: "ثبت توسط سطح ۲", 4: "معرفی تأییدشده", 5: "بازیابی مالکیت کاربر قدیمی"
 };
 const PAGE_SIZES = [10, 20, 50];
+const planExpiryDate = new Intl.DateTimeFormat("fa-IR-u-ca-persian", {
+  dateStyle: "short", timeZone: "Asia/Tehran"
+});
+
+function ActivePlanCell({ account }: { account: Account }) {
+  const plan = account.activePlan;
+  if (!plan) return <td>{account.roles?.includes("Customer") ? "بدون پلن فعال" : "—"}</td>;
+  const remaining = plan.remainingInvoices === null
+    ? `${plan.remainingDays.toLocaleString("fa-IR")} روز`
+    : `${plan.remainingInvoices.toLocaleString("fa-IR")} صورتحساب`;
+  return <td>
+    <strong>{plan.planName.replace(/[0-9]+/g, digits => Number(digits).toLocaleString("fa-IR"))}</strong>
+    <small>مانده: {remaining}</small>
+    <small>انقضا: <time dateTime={plan.expiresAtUtc}>{planExpiryDate.format(new Date(plan.expiresAtUtc))}</time></small>
+  </td>;
+}
 const errorLabel = (status: number) => status === 401 ? "نشست ورود معتبر نیست." :
   status === 403 ? "دسترسی به این اطلاعات مجاز نیست." :
   status === 404 ? "کاربر یا دسترسی به او یافت نشد." : "دریافت اطلاعات ناموفق بود.";
@@ -276,6 +293,7 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
       }
       if(!response.ok)throw new Error(response.status===409?subscriptionAdjustmentConflictMessage(conflict):"اصلاح پلن انجام نشد.");
       setSubscription(await response.json());setSubscriptionReason("");setSubscriptionValue("");setSubscriptionDaysValue("");
+      void refresh();
     } catch(e){setSubscriptionError(e instanceof Error?e.message:"ارتباط با سرور برقرار نشد.");} finally{setSubscriptionBusy(false);}
   }
   function openCancellation(){
@@ -290,7 +308,7 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
   async function cancelSubscription(){
     if(!selected||!subscription||!cancellationPreview||subscriptionBusy||!cancelReason.trim()||!window.confirm("مبلغ برگشتی نمایش‌داده‌شده تأیید و اشتراک لغو شود؟"))return;
     setSubscriptionBusy(true);setSubscriptionError("");
-    try {const response=await fetch("/api/customer-owners/"+selected.customerUserId+"/subscription-cancellation",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({subscriptionId:subscription.subscriptionId,expectedRevision:subscription.revision,operationKey:crypto.randomUUID(),reason:cancelReason.trim(),fullRefund:cancellationPreview.fullRefund})});if(!response.ok)throw new Error(response.status===409?"وضعیت اشتراک تغییر کرده است؛ پرونده را بازخوانی کنید.":"لغو پلن انجام نشد.");const result=await response.json().catch(()=>null) as {remainingDays?:number;remainingUnits?:number}|null;const history=await load<SubscriptionHistory[]>("/api/customer-owners/"+selected.customerUserId+"/subscription-adjustment/history");setSubscriptionHistory(history);setSubscription(null);setCancellationPreview(null);setCancelReason("");cancelDialogRef.current?.close();setSubscriptionError("");setTransferNotice(result?.remainingDays!==undefined?`پلن لغو شد؛ ${result.remainingDays} روز باقی‌مانده در سابقه مالی ثبت شد.`:result?.remainingUnits!==undefined?`پلن لغو شد؛ ${result.remainingUnits} سهمیه باقی‌مانده در سابقه مالی ثبت شد.`:"پلن لغو شد و اثر مالی آن ثبت گردید.");}catch(e){setSubscriptionError(e instanceof Error?e.message:"ارتباط با سرور برقرار نشد.");}finally{setSubscriptionBusy(false);}
+    try {const response=await fetch("/api/customer-owners/"+selected.customerUserId+"/subscription-cancellation",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({subscriptionId:subscription.subscriptionId,expectedRevision:subscription.revision,operationKey:crypto.randomUUID(),reason:cancelReason.trim(),fullRefund:cancellationPreview.fullRefund})});if(!response.ok)throw new Error(response.status===409?"وضعیت اشتراک تغییر کرده است؛ پرونده را بازخوانی کنید.":"لغو پلن انجام نشد.");const result=await response.json().catch(()=>null) as {remainingDays?:number;remainingUnits?:number}|null;void refresh();const history=await load<SubscriptionHistory[]>("/api/customer-owners/"+selected.customerUserId+"/subscription-adjustment/history");setSubscriptionHistory(history);setSubscription(null);setCancellationPreview(null);setCancelReason("");cancelDialogRef.current?.close();setSubscriptionError("");setTransferNotice(result?.remainingDays!==undefined?`پلن لغو شد؛ ${result.remainingDays} روز باقی‌مانده در سابقه مالی ثبت شد.`:result?.remainingUnits!==undefined?`پلن لغو شد؛ ${result.remainingUnits} سهمیه باقی‌مانده در سابقه مالی ثبت شد.`:"پلن لغو شد و اثر مالی آن ثبت گردید.");}catch(e){setSubscriptionError(e instanceof Error?e.message:"ارتباط با سرور برقرار نشد.");}finally{setSubscriptionBusy(false);}
   }
 
   async function assignOwner(event: FormEvent<HTMLFormElement>) {
@@ -381,12 +399,13 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
         <thead><tr>
           <th scope="col">نام شخص / شرکت</th><th scope="col">ایمیل / موبایل</th><th scope="col">وضعیت</th>
           <th scope="col">مالکیت تجاری</th>
+          <th scope="col">پلن فعال</th>
           <th scope="col">ثبت‌نام</th><th scope="col">عملیات</th>
           {level1 && <th scope="col">ریست MFA</th>}
         </tr></thead>
         <tbody>
-          {loading ? <tr><td colSpan={level1 ? 7 : 6}><ConsoleLoader label="در حال دریافت کاربران…" /></td></tr> :
-            pageRows.length === 0 ? <tr><td colSpan={level1 ? 7 : 6}>کاربری با این معیارها پیدا نشد.</td></tr> :
+          {loading ? <tr><td colSpan={level1 ? 8 : 7}><ConsoleLoader label="در حال دریافت کاربران…" /></td></tr> :
+            pageRows.length === 0 ? <tr><td colSpan={level1 ? 8 : 7}>کاربری با این معیارها پیدا نشد.</td></tr> :
             pageRows.map((a, i) => <tr key={a.customerUserId}>
               <td><strong>{a.companyName || a.personName || "پروفایل تکمیل‌نشده"}</strong>
                 {!a.profileComplete && <small>هنوز وارد نشده / تکمیل‌نشده</small>}</td>
@@ -397,6 +416,7 @@ export default function UsersWorkspace({ level1 }: { level1: boolean }) {
                   : a.roles?.includes("Level2") ? <small>ادمین سطح ۲</small> : null}</td>
               <td><span className={!a.rootLevel1UserId ? "users-state users-state-warning" : ""}>
                 {ownerLabel(a)}</span></td>
+              <ActivePlanCell account={a} />
               <td>{new Date(a.createdAtUtc).toLocaleDateString("fa-IR")}</td>
               <td><button className="users-action" type="button" onClick={() => void open(a)}>
                 مشاهده پرونده
