@@ -146,12 +146,14 @@ public sealed class CustomerServiceCatalogService(
 
     public async Task<CustomerServiceResult> UpdateAsync(
         string? token, Guid customerId, Guid serviceId, long expectedRevision,
-        CatalogServiceInput input, bool discontinue, CancellationToken ct = default)
+        CatalogServiceInput? input, bool discontinue,
+        CancellationToken ct = default, bool restore = false)
     {
         var actor = await identity.CurrentUserIdAsync(token, ct);
         if (actor is null) return new(CustomerServiceDecision.Unauthenticated);
+        CatalogServiceInput? clean = null;
         if (customerId == Guid.Empty || serviceId == Guid.Empty || expectedRevision < 1 ||
-            !CustomerServicePolicy.TryValidate(input, out var clean))
+            (restore ? discontinue : !CustomerServicePolicy.TryValidate(input, out clean)))
             return new(CustomerServiceDecision.Invalid);
         if (!await CanManageAsync(actor.Value, customerId, ct))
             return new(CustomerServiceDecision.Forbidden);
@@ -169,13 +171,15 @@ public sealed class CustomerServiceCatalogService(
                     x.Id == serviceId && x.CustomerUserId == customerId &&
                     x.Kind == (int)CatalogItemKind.Service, ct);
                 if (item is null) return new CustomerServiceResult(CustomerServiceDecision.NotFound);
-                if (item.Revision != expectedRevision ||
-                    !CustomerServicePolicy.CanEdit((CatalogItemStatus)item.Status))
+                var status = (CatalogItemStatus)item.Status;
+                if (item.Revision != expectedRevision || (restore
+                    ? !CustomerProductPolicy.IsArchived(status)
+                    : !CustomerServicePolicy.CanEdit(status)))
                     return new CustomerServiceResult(CustomerServiceDecision.Conflict);
-                if (!discontinue && !await UnitExistsAsync(clean!.BaseUnitId, ct))
+                if (!discontinue && !restore && !await UnitExistsAsync(clean!.BaseUnitId, ct))
                     return new CustomerServiceResult(CustomerServiceDecision.UnitUnavailable);
 
-                if (!discontinue)
+                if (!discontinue && !restore)
                 {
                     item.InternalCode = clean!.InternalCode;
                     item.OfficialCode = clean.OfficialCode;
@@ -183,7 +187,8 @@ public sealed class CustomerServiceCatalogService(
                     item.Title = clean.Title;
                     item.BaseUnitId = clean.BaseUnitId;
                 }
-                item.Status = discontinue ? (int)CatalogItemStatus.Discontinued : item.Status;
+                if (restore) item.Status = (int)CatalogItemStatus.Active;
+                if (discontinue) item.Status = (int)CatalogItemStatus.Discontinued;
                 item.Revision++;
                 item.UpdatedAtUtc = DateTime.UtcNow;
                 await db.SaveChangesAsync(ct);

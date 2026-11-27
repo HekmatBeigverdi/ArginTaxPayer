@@ -461,10 +461,12 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 .console-catalog-page .catalog-tabs button{font-size:11px;padding:6px 11px;border-radius:7px}
 .console-catalog-page .catalog-filters{gap:8px}
 .console-catalog-page .catalog-filters label{min-width:180px;font-size:11px;gap:4px}
+.console-catalog-page .catalog-filters .catalog-status-filter{flex:0 0 auto;min-width:0;width:124px}
 .console-catalog-page .catalog-filters input{font-size:12px;min-height:34px;padding:6px 9px;border-radius:7px}
 .console-catalog-page .catalog-filters button,.console-catalog-page .catalog-bar button,
 .console-catalog-page .catalog-actions button,.console-catalog-page .catalog-pages button,
 .console-catalog-page .catalog-result button{font-size:11px;padding:6px 10px;border-radius:7px}
+.console-catalog-page .catalog-filters .catalog-refresh{display:grid;place-items:center;width:36px;height:36px;flex:none;padding:0;font-size:20px;line-height:1}
 .console-catalog-page .catalog-help{font-size:10px;margin-top:6px}
 .console-catalog-page .catalog-table{min-width:620px}
 .console-catalog-page .catalog-table th,.console-catalog-page .catalog-table td{padding:8px 10px;font-size:11px}
@@ -499,7 +501,7 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 .searchable-select__toggle:hover,.searchable-select__clear:hover{background:#eaf2f8;color:#164c72}
 .searchable-select__toggle svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;transition:transform .15s}
 .searchable-select__control.is-open .searchable-select__toggle svg{transform:rotate(180deg)}
-.searchable-select__clear{font-size:21px;line-height:1}
+.searchable-select__clear svg{display:block;width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
 .searchable-select__toggle:disabled{opacity:.45;cursor:not-allowed}
 .searchable-select__popup{position:fixed;z-index:20000;display:flex;flex-direction:column;overflow:hidden;border:1px solid #c8d7e4;border-radius:14px;background:#fff;color:#20394e;box-shadow:0 18px 55px #142d4540;direction:rtl;text-align:right;animation:searchable-select-appear .12s ease-out}
 @keyframes searchable-select-appear{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:translateY(0)}}
@@ -522,6 +524,10 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 .invoice-register__catalog-picker>.searchable-select{width:100%;max-width:360px}
 @media(max-width:650px){.searchable-select__popup-head{padding:8px 10px}.searchable-select__options button{min-height:40px;padding:7px 9px}}
 @media(max-width:740px){.searchable-select{max-width:100%}.invoice-register__filters>.searchable-select{flex:1 1 190px;max-width:none}}
+.catalog-customer-filter .searchable-select{max-width:none}
+.console-catalog-page .catalog-customer-filter :is(.searchable-select__clear,.searchable-select__toggle){
+  flex:0 0 28px;width:28px;height:28px;padding:0;place-items:center;
+}
 /* The invoice filter's generic input rule sets a 145px minimum; the inner
    combobox input must be allowed to shrink so its toggle stays in the frame. */
 .console-page .invoice-register__filters>.searchable-select .searchable-select__control{min-height:36px;padding-block:2px}
@@ -529,13 +535,46 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 @media(max-width:650px){.console-catalog-page .catalog-card{padding:10px}.catalog-form-dialog .catalog-form{grid-template-columns:1fr}.catalog-form-dialog .catalog-form label:has(.catalog-unit-combo){grid-column:1}.catalog-modal-footer,.catalog-form-dialog .catalog-help{grid-column:1}}
 
 
-/* Phase 06 Step 13 owner refinements: two-column ERP layout and ArginAccounting date picker */
-.console-catalog-page .catalog-split-layout{display:grid;grid-template-columns:minmax(290px,0.95fr) minmax(0,1.55fr);gap:12px;align-items:start;min-width:0}
-.console-catalog-page .catalog-split-layout >.catalog-card{min-width:0;height:100%}
-.console-catalog-page .catalog-editor-panel{background:#fbfdff}
-.console-catalog-page .catalog-editor-header{display:flex;align-items:center;justify-content:space-between;gap:10px;border-bottom:1px solid #e0e8ef;padding-bottom:10px;margin-bottom:12px}
-.console-catalog-page .catalog-editor-header h2{margin:0}
-.console-catalog-page .catalog-editor-header p{font-size:10px;color:#6e8394;margin:5px 0 0}
+/* Catalog editor and list */
+.console-catalog-page .catalog-split-layout{--catalog-handle-width:42px;--catalog-panel-gap:8px;--catalog-editor-width:560px;--catalog-transition-duration:360ms;--catalog-transition-ease:cubic-bezier(.4,0,.2,1);display:grid;grid-template-columns:minmax(0,1fr);gap:var(--catalog-panel-gap);min-width:0;isolation:isolate}
+.console-catalog-page .catalog-split-layout[data-has-editor=true]{grid-template-columns:var(--catalog-handle-width) minmax(0,1fr)}
+.console-catalog-page .catalog-split-layout >.catalog-card{min-width:0}
+.console-catalog-page .catalog-editor-heading{position:absolute;inset-block:0;inset-inline-start:0;width:var(--catalog-handle-width);margin:0;font-size:14px;z-index:1}
+.catalog-editor-handle{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;width:100%;height:100%;padding:16px 4px;border:1px solid #c3d5e7;border-radius:9px;background:#edf5fb;color:#174a70;font:inherit;cursor:pointer;scroll-margin-block-start:80px;pointer-events:auto}
+.catalog-editor-label{writing-mode:vertical-rl;text-orientation:sideways;white-space:nowrap}
+.catalog-editor-handle:disabled,.catalog-editor-handle[aria-disabled=true]{opacity:.6;cursor:default}
+.catalog-editor-handle:focus-visible{outline:2px solid #4a8abc;outline-offset:2px}
+.catalog-editor-chevron{flex:none;width:8px;height:8px;border:solid currentColor;border-width:0 2px 2px 0;transform:rotate(135deg);transition:transform var(--catalog-transition-duration) var(--catalog-transition-ease)}
+.catalog-editor-handle[aria-expanded=true] .catalog-editor-chevron{transform:rotate(-45deg)}
+.catalog-list-panel{filter:blur(0);transition:opacity var(--catalog-transition-duration) var(--catalog-transition-ease),filter var(--catalog-transition-duration) var(--catalog-transition-ease)}
+.catalog-list-panel[data-form-open=true]{opacity:.55;filter:blur(1px)}
+.catalog-split-layout[data-has-editor=true] > .catalog-list-panel{
+  grid-column:2;grid-row:1;min-width:min(var(--catalog-editor-width),100%);
+}
+.console-catalog-page .catalog-split-layout > .catalog-editor-panel{
+  grid-column:1/-1;grid-row:1;
+  z-index:4;pointer-events:none;
+}
+.catalog-editor-panel > .catalog-form-dialog{
+  display:grid;grid-template-columns:var(--catalog-handle-width) minmax(0,1fr);
+  height:100%;align-items:center;
+}
+.catalog-editor-collapse{
+  --catalog-slide-distance:16px;
+  grid-column:2;justify-self:start;width:min(var(--catalog-editor-width),calc(100% - var(--catalog-panel-gap)));
+  display:grid;grid-template-rows:0fr;opacity:0;transform:translateX(var(--catalog-slide-distance));
+  transition:opacity var(--catalog-transition-duration) var(--catalog-transition-ease),
+    transform var(--catalog-transition-duration) var(--catalog-transition-ease),
+    grid-template-rows 0s var(--catalog-transition-duration);
+}
+.catalog-editor-collapse[data-open=true]{
+  grid-template-rows:1fr;opacity:1;transform:none;transition-delay:0s;pointer-events:auto;
+}
+.console-catalog-page .catalog-editor-collapse > .catalog-editor-body{
+  min-height:0;overflow:hidden;padding:0;border:0;background:#fbfdff;box-shadow:inset 0 0 0 1px #c3d5e7;
+}
+.catalog-editor-collapse .catalog-form{padding:14px}
+@media(prefers-reduced-motion:reduce){.catalog-editor-collapse,.catalog-editor-chevron,.catalog-list-panel{transition:none}}
 .console-catalog-page .catalog-editor-panel .catalog-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}
 .console-catalog-page .catalog-editor-panel .catalog-form label{min-width:0;font-size:11px;gap:5px}
 .console-catalog-page .catalog-editor-panel .catalog-form label:has(.catalog-unit-combo){grid-column:1/-1}
@@ -545,7 +584,7 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 .console-catalog-page .catalog-grid-loading-host{min-height:190px;position:relative}
 .console-catalog-page .catalog-grid-loading-host .argin-loader-overlay{position:absolute;inset:0;z-index:3;border-radius:8px;background:#ffffffdd}
 .console-catalog-page .catalog-filters select{width:100%;min-height:35px;border-radius:7px;border:1px solid #b9ccdd;background:#fff;color:#19324a;padding:6px 9px;font:inherit;font-size:12px}
-.console-catalog-page .catalog-editor-panel .catalog-modal-footer{justify-content:flex-start}
+.console-catalog-page .catalog-editor-panel .catalog-modal-footer{justify-content:flex-start;flex-wrap:wrap}
 .console-catalog-page .catalog-mapping-editor{background:#f8fcff}
 .console-catalog-page .catalog-mapping-form{grid-template-columns:1fr!important;gap:12px!important}
 .console-catalog-page .catalog-mapping-help{margin:0;line-height:1.8}
@@ -566,7 +605,6 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 .console-catalog-page .catalog-mapping-history .catalog-history{max-height:190px;overflow:auto}
 .console-catalog-page .catalog-mapping-history .catalog-history li{font-size:11px;padding:9px}
 .console-catalog-page .catalog-mapping-history .catalog-history button{margin-inline-start:8px;padding:4px 7px;font-size:10px}
-@media(max-width:1100px){.console-catalog-page .catalog-split-layout{grid-template-columns:1fr}}
 @media(max-width:530px){.console-catalog-page .catalog-editor-panel .catalog-form{grid-template-columns:1fr}.console-catalog-page .catalog-editor-panel .catalog-form label:has(.catalog-unit-combo){grid-column:auto}}
 /* Shared PersianDatePicker styling for catalog and backup file filters. */
 .console-catalog-page .ui-persian-date,.backup-panel .backup-file-filters .ui-persian-date{position:relative;min-width:0;width:100%;direction:rtl}
@@ -585,7 +623,6 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 .console-catalog-page .ui-field__error{font-size:10px;color:#b04141}
 
 /* Step13 screenshot fix — contain all editor controls within grid cell. */
-.console-catalog-page .catalog-split-layout{grid-template-columns:minmax(0,0.95fr) minmax(0,1.55fr);width:100%;max-width:100%;align-items:stretch}
 .console-catalog-page .catalog-editor-panel,.console-catalog-page .catalog-form-dialog,
 .console-catalog-page .catalog-editor-body,.console-catalog-page .catalog-form{width:100%;max-width:100%;min-width:0;box-sizing:border-box}
 .console-catalog-page .catalog-editor-panel{overflow:visible}
@@ -606,7 +643,6 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 .console-catalog-page .catalog-split-layout .catalog-actions{gap:4px;flex-wrap:nowrap}
 .console-catalog-page .catalog-split-layout .catalog-actions button{padding:5px 7px;flex-shrink:0;white-space:nowrap}
 .console-catalog-page .ui-persian-date__popover,.backup-panel .backup-file-filters .ui-persian-date__popover{top:auto;bottom:calc(100% + 7px);right:0;left:auto}
-@media(max-width:1100px){.console-catalog-page .catalog-split-layout{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:530px){.console-catalog-page .catalog-editor-panel .catalog-form{grid-template-columns:minmax(0,1fr)}}
 
 /* Shared Argin application branding supplied by product owner (Phase06). */
