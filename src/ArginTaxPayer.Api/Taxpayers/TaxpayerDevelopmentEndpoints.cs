@@ -298,7 +298,7 @@ public static class TaxpayerDevelopmentEndpoints
         {
             if (!IsLocal(http)) return Results.NotFound();
             var result = await service.ListCustomerAccountsPageAsync(
-                Bearer(http), page ?? 1, pageSize ?? 10, query, ownership, ct, role);
+                Bearer(http), page ?? 1, pageSize ?? 10, query, ownership, ct, role, includeActivePlan: true);
             return result.Decision switch
             {
                 CustomerOwnershipDecision.Unauthenticated => Results.Unauthorized(),

@@ -4,7 +4,7 @@ import {readFileSync} from "node:fs";
 const ui=readFileSync(new URL("../app/invoices/workspace.tsx",import.meta.url),"utf8");
 const service=readFileSync(new URL("../../../src/ArginTaxPayer.Infrastructure/Persistence/Invoices/InvoiceEntryWorkspaceService.cs",import.meta.url),"utf8");
 test("draft edit resumes after the persisted completed step",()=>{
- assert.match(ui,/saved\.lastCompletedStep\+1/);
+ assert.match(ui,/saved\.lastCompletedStep\s*\+\s*1/);
  assert.match(ui,/setSavedSnapshot\(draftSnapshot\)/);
 });
 test("unsaved changes are confirmed before modal dismissal and navigation",()=>{
