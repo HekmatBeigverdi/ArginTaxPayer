@@ -291,6 +291,36 @@ class SchemaDeploymentTests(unittest.TestCase):
             self.assertTrue(self.run_reviewed_release(current))
             self.assertEqual(self.events, ['stop', 'backup', 'apply'])
 
+    def test_retry_serial_migration_requires_deletion_baseline_and_exact_approval(self):
+        self.expected = self.expected + list(h.RECOVERY_RELEASE_MIGRATIONS) + [h.INVOICE_DELETION_MIGRATION]
+        manifest = self.release / 'api/schema/migrations.json'
+        manifest.write_text(json.dumps(self.expected))
+        current = self.current_release_with_migrations()
+        self.applied = self.expected.copy()
+        self.expected = self.expected + [h.INVOICE_RETRY_SERIAL_MIGRATION]
+        approval = self.root / 'recovery-migration-approved'
+        self.db.identity = lambda: 'recovery_abcdef123456|argin_prod_app|true'
+
+        with patch.object(h, 'RECOVERY_MIGRATION_APPROVAL', approval), \
+             patch.object(h, 'BACKUPS', self.root / 'backups'):
+            approval.write_text(f'recovery_abcdef123456\n{"b" * 40}\n')
+            approval.chmod(0o600)
+            manifest.write_text(json.dumps(self.expected))
+            with self.assertRaisesRegex(h.Refused, 'approval does not match'):
+                self.run_reviewed_release(current)
+            self.assertEqual(self.database_calls, [])
+
+            approval.write_text(f'recovery_abcdef123456\n{self.release.name}\n')
+            manifest.write_text(json.dumps(self.expected + ['20261128100000_Unreviewed']))
+            with self.assertRaisesRegex(h.Refused, 'migration target'):
+                self.run_reviewed_release(current)
+            self.assertEqual(self.events, [])
+
+            manifest.write_text(json.dumps(self.expected))
+            self.assertTrue(self.run_reviewed_release(current))
+            self.assertEqual(self.events, ['stop', 'backup', 'apply'])
+            self.assertEqual(self.applied, self.expected)
+
     def test_reviewed_recovery_rejects_any_migration_outside_exact_release_delta(self):
         current = self.current_release_with_migrations()
         self.expected = self.expected + [
