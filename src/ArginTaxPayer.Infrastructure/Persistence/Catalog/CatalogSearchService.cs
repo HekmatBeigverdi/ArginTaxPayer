@@ -1,4 +1,3 @@
-using ArginTaxPayer.Domain.Catalog;
 using ArginTaxPayer.Infrastructure.Persistence.Identity;
 using Microsoft.EntityFrameworkCore;
 
@@ -16,14 +15,6 @@ public sealed class CatalogSearchService(ArginTaxPayerDbContext db, IdentityAuth
         page is >= 1 and <= 100000 && pageSize is >= 1 and <= 100 &&
         (long)(page - 1) * pageSize <= int.MaxValue &&
         (query is null || query.Trim().Length <= 120);
-
-    private static string NormalizeOfficialCodeQuery(string query) =>
-        string.Concat(query.Select(digit => digit switch
-        {
-            >= '۰' and <= '۹' => (char)('0' + digit - '۰'),
-            >= '٠' and <= '٩' => (char)('0' + digit - '٠'),
-            _ => digit
-        }));
 
     private Task<bool> CanSeeCustomerAsync(Guid actor, Guid customer, CancellationToken ct) =>
         db.IdentityUsers.AsNoTracking().AnyAsync(user =>
@@ -53,8 +44,7 @@ public sealed class CatalogSearchService(ArginTaxPayerDbContext db, IdentityAuth
               db.IdentityMfaStates.Any(m => m.UserId == actor && m.EnabledAtUtc != null))), ct);
 
     public async Task<CatalogPage<CustomerProductView>> ProductsAsync(
-        string? token, Guid customer, int page, int size, string? query, CancellationToken ct = default,
-        bool? archived = null)
+        string? token, Guid customer, int page, int size, string? query, CancellationToken ct = default)
     {
         var actor = await identity.CurrentUserIdAsync(token, ct);
         if (actor is null) return new(CatalogQueryDecision.Unauthenticated, [], page, size, false);
@@ -63,16 +53,11 @@ public sealed class CatalogSearchService(ArginTaxPayerDbContext db, IdentityAuth
             return new(CatalogQueryDecision.Forbidden, [], page, size, false);
         var filtered = db.CustomerCatalogItems.AsNoTracking()
             .Where(x => x.CustomerUserId == customer && (x.Kind == 1 || x.Kind == 2));
-        if (archived is true)
-            filtered = filtered.Where(x => x.Status == (int)CatalogItemStatus.Discontinued);
-        else if (archived is false)
-            filtered = filtered.Where(x => x.Status != (int)CatalogItemStatus.Discontinued);
         if (!string.IsNullOrWhiteSpace(query))
         {
             var q = query.Trim();
-            var officialPattern = "%" + NormalizeOfficialCodeQuery(q) + "%";
             filtered = filtered.Where(x => EF.Functions.ILike(x.InternalCode, "%" + q + "%") ||
-                (x.OfficialCode != null && EF.Functions.ILike(x.OfficialCode, officialPattern)) ||
+                (x.OfficialCode != null && EF.Functions.ILike(x.OfficialCode, "%" + q + "%")) ||
                 EF.Functions.ILike(x.Title, "%" + q + "%"));
         }
         var rows = await filtered.OrderBy(x => x.InternalCode).ThenBy(x => x.Id)
@@ -86,8 +71,7 @@ public sealed class CatalogSearchService(ArginTaxPayerDbContext db, IdentityAuth
     }
 
     public async Task<CatalogPage<CustomerServiceView>> ServicesAsync(
-        string? token, Guid customer, int page, int size, string? query, CancellationToken ct = default,
-        bool? archived = null)
+        string? token, Guid customer, int page, int size, string? query, CancellationToken ct = default)
     {
         var actor = await identity.CurrentUserIdAsync(token, ct);
         if (actor is null) return new(CatalogQueryDecision.Unauthenticated, [], page, size, false);
@@ -96,16 +80,11 @@ public sealed class CatalogSearchService(ArginTaxPayerDbContext db, IdentityAuth
             return new(CatalogQueryDecision.Forbidden, [], page, size, false);
         var filtered = db.CustomerCatalogItems.AsNoTracking()
             .Where(x => x.CustomerUserId == customer && x.Kind == 3);
-        if (archived is true)
-            filtered = filtered.Where(x => x.Status == (int)CatalogItemStatus.Discontinued);
-        else if (archived is false)
-            filtered = filtered.Where(x => x.Status != (int)CatalogItemStatus.Discontinued);
         if (!string.IsNullOrWhiteSpace(query))
         {
             var q = query.Trim();
-            var officialPattern = "%" + NormalizeOfficialCodeQuery(q) + "%";
             filtered = filtered.Where(x => EF.Functions.ILike(x.InternalCode, "%" + q + "%") ||
-                (x.OfficialCode != null && EF.Functions.ILike(x.OfficialCode, officialPattern)) ||
+                (x.OfficialCode != null && EF.Functions.ILike(x.OfficialCode, "%" + q + "%")) ||
                 EF.Functions.ILike(x.Title, "%" + q + "%"));
         }
         var rows = await filtered.OrderBy(x => x.InternalCode).ThenBy(x => x.Id)
@@ -136,8 +115,7 @@ public sealed class CatalogSearchService(ArginTaxPayerDbContext db, IdentityAuth
         if (!string.IsNullOrWhiteSpace(query))
         {
             var q = query.Trim();
-            var officialPattern = "%" + NormalizeOfficialCodeQuery(q) + "%";
-            hits = hits.Where(x => EF.Functions.ILike(x.Code, officialPattern) ||
+            hits = hits.Where(x => EF.Functions.ILike(x.Code, "%" + q + "%") ||
                 EF.Functions.ILike(x.Title, "%" + q + "%"));
         }
         var rows = await hits.OrderBy(x => x.Code).ThenBy(x => x.Id)

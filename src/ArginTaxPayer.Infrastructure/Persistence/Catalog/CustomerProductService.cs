@@ -124,14 +124,13 @@ public sealed class CustomerProductService(ArginTaxPayerDbContext db, IdentityAu
     }
 
     public async Task<CustomerProductResult> UpdateAsync(string? token, Guid customerId,
-        Guid productId, long expectedRevision, CatalogProductInput? input, bool discontinue,
-        CancellationToken ct = default, bool restore = false)
+        Guid productId, long expectedRevision, CatalogProductInput input, bool discontinue,
+        CancellationToken ct = default)
     {
         var actor = await identity.CurrentUserIdAsync(token, ct);
         if (actor is null) return new(CustomerProductDecision.Unauthenticated);
-        CatalogProductInput? clean = null;
         if (customerId == Guid.Empty || productId == Guid.Empty || expectedRevision < 1 ||
-            (restore ? discontinue : !CustomerProductPolicy.TryValidate(input, out clean)))
+            !CustomerProductPolicy.TryValidate(input, out var clean))
             return new(CustomerProductDecision.Invalid);
         if (!await HasScopeAsync(actor.Value, customerId, ct))
             return new(CustomerProductDecision.Forbidden);
@@ -147,16 +146,13 @@ public sealed class CustomerProductService(ArginTaxPayerDbContext db, IdentityAu
                     p.Id == productId && p.CustomerUserId == customerId &&
                     (p.Kind == 1 || p.Kind == 2), ct);
                 if (item is null) return new CustomerProductResult(CustomerProductDecision.NotFound);
-                var status = (CatalogItemStatus)item.Status;
-                if (item.Revision != expectedRevision || (restore
-                    ? !CustomerProductPolicy.IsArchived(status)
-                    : !CustomerProductPolicy.CanEdit(status)))
+                if (item.Revision != expectedRevision || !CustomerProductPolicy.CanEdit((CatalogItemStatus)item.Status))
                     return new CustomerProductResult(CustomerProductDecision.Conflict);
-                if (!restore && !CustomerProductPolicy.CanChangeKind((CatalogItemKind)item.Kind, clean!.Kind))
+                if (!CustomerProductPolicy.CanChangeKind((CatalogItemKind)item.Kind, clean!.Kind))
                     return new CustomerProductResult(CustomerProductDecision.Invalid);
-                if (!discontinue && !restore && !await IsUnitSelectableAsync(clean!.BaseUnitId, ct))
+                if (!discontinue && !await IsUnitSelectableAsync(clean.BaseUnitId, ct))
                     return new CustomerProductResult(CustomerProductDecision.UnitUnavailable);
-                if (!discontinue && !restore)
+                if (!discontinue)
                 {
                     item.Kind = (int)clean!.Kind;
                     item.InternalCode = clean.InternalCode;
@@ -165,8 +161,7 @@ public sealed class CustomerProductService(ArginTaxPayerDbContext db, IdentityAu
                     item.Title = clean.Title;
                     item.BaseUnitId = clean.BaseUnitId;
                 }
-                if (restore) item.Status = (int)CatalogItemStatus.Active;
-                if (discontinue) item.Status = (int)CatalogItemStatus.Discontinued;
+                item.Status = discontinue ? (int)CatalogItemStatus.Discontinued : item.Status;
                 item.Revision++;
                 item.UpdatedAtUtc = DateTime.UtcNow;
                 await db.SaveChangesAsync(ct);

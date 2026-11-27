@@ -101,7 +101,6 @@ export default function IdentityFlow({ restrictedLogin = false,onVisualStateChan
 
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
-  const [passwordVisible, setPasswordVisible] = useState(false);
   const [code, setCode] = useState("");
   const [challenge, setChallenge] = useState("");
   const [recovery, setRecovery] = useState(false);
@@ -176,7 +175,6 @@ export default function IdentityFlow({ restrictedLogin = false,onVisualStateChan
     setStep("details");
     setIdentifier("");
     setPassword("");
-    setPasswordVisible(false);
     setCode("");
     setChallenge("");
     setMfaExpiresAt(null);
@@ -220,7 +218,6 @@ export default function IdentityFlow({ restrictedLogin = false,onVisualStateChan
 
     if (restrictedLogin && (tab !== "login" || mode !== "password" || forgot))
       return;
-    setPasswordVisible(false);
     setError("");
     setMessage("");
     setPending(true);
@@ -542,32 +539,16 @@ export default function IdentityFlow({ restrictedLogin = false,onVisualStateChan
               {!phoneOtp && (
                 <>
                   <label htmlFor="auth-password">رمز عبور</label>
-                  <div className={tab === "login" ? "auth-password-field" : undefined}>
-                    <input
-                      id="auth-password"
-                      dir="ltr"
-                      type={tab === "login" && passwordVisible ? "text" : "password"}
-                      required
-                      autoComplete={tab === "register" ? "new-password" : "current-password"}
-                      minLength={tab === "register" ? 8 : undefined}
-                      value={password}
-                      onChange={(event) => setPassword(event.target.value)}
-                    />
-                    {tab === "login" && <button
-                      type="button"
-                      className="auth-password-toggle"
-                      aria-controls="auth-password"
-                      aria-label={passwordVisible ? "پنهان کردن رمز عبور" : "نمایش رمز عبور"}
-                      onClick={() => setPasswordVisible(visible => !visible)}
-                    >
-                      <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24"
-                        fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6-10-6-10-6Z" />
-                        <circle cx="12" cy="12" r="2.5" />
-                        {passwordVisible && <path d="M4 4l16 16" />}
-                      </svg>
-                    </button>}
-                  </div>
+                  <input
+                    id="auth-password"
+                    dir="ltr"
+                    type="password"
+                    required
+                    autoComplete={tab === "register" ? "new-password" : "current-password"}
+                    minLength={tab === "register" ? 8 : undefined}
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                  />
                 </>
               )}
             </>
@@ -702,7 +683,6 @@ export default function IdentityFlow({ restrictedLogin = false,onVisualStateChan
               className="auth-text-link"
               onClick={() => {
                 setForgot(true);
-                setPasswordVisible(false);
                 setStep("details");
                 setCode("");
                 setError("");

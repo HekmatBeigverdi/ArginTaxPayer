@@ -10,10 +10,10 @@ public static class CatalogDevelopmentEndpoints
 {
     public sealed record ProductWrite(string InternalCode, string Title,
         CatalogItemKind Kind, Guid BaseUnitId, long ExpectedRevision = 0, bool Discontinue = false,
-        string? OfficialCode = null, decimal? VatRatePercent = null, bool Restore = false);
+        string? OfficialCode = null, decimal? VatRatePercent = null);
     public sealed record ServiceWrite(string InternalCode, string Title,
         Guid BaseUnitId, long ExpectedRevision = 0, bool Discontinue = false,
-        string? OfficialCode = null, decimal? VatRatePercent = null, bool Restore = false);
+        string? OfficialCode = null, decimal? VatRatePercent = null);
 
     private static bool Local(HttpContext http) => http.Connection.RemoteIpAddress is { } ip &&
         (IPAddress.IsLoopback(ip) || ip.IsIPv4MappedToIPv6 && IPAddress.IsLoopback(ip.MapToIPv4()));
@@ -73,18 +73,18 @@ public static class CatalogDevelopmentEndpoints
         });
 
         group.MapGet("/customers/{customerId:guid}/products", async (Guid customerId,
-            HttpContext http, int? page, int? pageSize, string? query, bool? archived,
+            HttpContext http, int? page, int? pageSize, string? query,
             CatalogSearchService svc, CancellationToken ct) =>
         {
             if (!Local(http)) return Results.NotFound();
-            return Page(await svc.ProductsAsync(Token(http), customerId, page ?? 1, pageSize ?? 20, query, ct, archived));
+            return Page(await svc.ProductsAsync(Token(http), customerId, page ?? 1, pageSize ?? 20, query, ct));
         });
         group.MapPost("/customers/{customerId:guid}/products", async (Guid customerId,
             [FromBody] ProductWrite input, HttpContext http, CustomerProductService svc,
             CancellationToken ct) =>
         {
             if (!Local(http)) return Results.NotFound();
-            if (input is null || input.ExpectedRevision != 0 || input.Discontinue || input.Restore)
+            if (input is null || input.ExpectedRevision != 0 || input.Discontinue)
                 return Results.BadRequest(new { error = "invalid_create" });
             return Status(await svc.CreateAsync(Token(http), customerId,
                 new CatalogProductInput(input.InternalCode, input.Title, input.Kind, input.BaseUnitId, input.OfficialCode,input.VatRatePercent), ct), true);
@@ -103,22 +103,22 @@ public static class CatalogDevelopmentEndpoints
             if (input is null) return Results.BadRequest(new { error = "invalid_update" });
             return Status(await svc.UpdateAsync(Token(http), customerId, id, input.ExpectedRevision,
                 new CatalogProductInput(input.InternalCode, input.Title, input.Kind, input.BaseUnitId, input.OfficialCode,input.VatRatePercent),
-                input.Discontinue, ct, restore: input.Restore));
+                input.Discontinue, ct));
         });
 
         group.MapGet("/customers/{customerId:guid}/services", async (Guid customerId,
-            HttpContext http, int? page, int? pageSize, string? query, bool? archived,
+            HttpContext http, int? page, int? pageSize, string? query,
             CatalogSearchService svc, CancellationToken ct) =>
         {
             if (!Local(http)) return Results.NotFound();
-            return Page(await svc.ServicesAsync(Token(http), customerId, page ?? 1, pageSize ?? 20, query, ct, archived));
+            return Page(await svc.ServicesAsync(Token(http), customerId, page ?? 1, pageSize ?? 20, query, ct));
         });
         group.MapPost("/customers/{customerId:guid}/services", async (Guid customerId,
             [FromBody] ServiceWrite input, HttpContext http,
             CustomerServiceCatalogService svc, CancellationToken ct) =>
         {
             if (!Local(http)) return Results.NotFound();
-            if (input is null || input.ExpectedRevision != 0 || input.Discontinue || input.Restore)
+            if (input is null || input.ExpectedRevision != 0 || input.Discontinue)
                 return Results.BadRequest(new { error = "invalid_create" });
             return Status(await svc.CreateAsync(Token(http), customerId,
                 new CatalogServiceInput(input.InternalCode, input.Title, input.BaseUnitId, input.OfficialCode,input.VatRatePercent), ct), true);
@@ -137,7 +137,7 @@ public static class CatalogDevelopmentEndpoints
             if (input is null) return Results.BadRequest(new { error = "invalid_update" });
             return Status(await svc.UpdateAsync(Token(http), customerId, id, input.ExpectedRevision,
                 new CatalogServiceInput(input.InternalCode, input.Title, input.BaseUnitId, input.OfficialCode,input.VatRatePercent),
-                input.Discontinue, ct, restore: input.Restore));
+                input.Discontinue, ct));
         });
 
         return routes;
