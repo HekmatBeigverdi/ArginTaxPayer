@@ -243,7 +243,8 @@ const tehranLocalToUtc = (date: string, time: string) => {
 };
 // Keep the header check aligned with the server's InvoiceSubmissionDeadline rule.
 const invoiceSubmissionWindowMs = 12 * 24 * 60 * 60 * 1000;
-const invoiceDeadlineError = "مهلت ۱۲ روزهٔ ارسال صورتحساب گذشته است. تاریخ و ساعت واقعی صدور را بررسی و اصلاح کنید.";
+const invoiceDeadlineError = "مهلت ارسال صورتحساب گذشته است";
+const invoiceDeadlineAlertId = "invoice-submission-deadline-alert";
 const toFaDate = (value: string) => new Date(value).toLocaleDateString("fa-IR-u-ca-persian", {timeZone:"UTC"});
 const amount = (value: string) => {
   const n = Number(value);
@@ -1333,17 +1334,30 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
                   {chosenBuyer ? ` — ${chosenBuyer.kind===2?"حقوقی":"حقیقی"}` : ""}</small>}
               </div>
               {buyerLoading && !buyerDetailsNotRequired && <small className="invoice-entry-loading" role="status" aria-live="polite"><span className="argin-loader-spinner" aria-hidden="true"/>در حال دریافت فهرست خریداران…</small>}
+              {error === invoiceDeadlineError && (
+                <div id={invoiceDeadlineAlertId} role="alert" className="invoice-register__deadline-alert">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <circle cx="12" cy="12" r="9" />
+                    <path d="M12 7v6m0 4h.01" />
+                  </svg>
+                  <div>
+                    <strong>{invoiceDeadlineError}</strong>
+                    <p>از تاریخ و ساعت صدور بیش از ۱۲ روز گذشته است. با این تاریخ نمی‌توانید به مرحلهٔ بعد بروید.</p>
+                    <p>تاریخ و ساعت واقعی صدور را بررسی کنید. اگر اشتباه وارد شده‌اند، آن‌ها را اصلاح کنید و دوباره «مرحله بعد» را بزنید.</p>
+                  </div>
+                </div>
+              )}
               <label htmlFor="invoice-date">تاریخ صدور شمسی</label>
               <PersianDatePicker id="invoice-date" value={date} onChange={value => {
                 setDate(value);
                 setError(current => current === invoiceDeadlineError ? "" : current);
-              }} floating/>
+              }} ariaDescribedBy={error === invoiceDeadlineError ? invoiceDeadlineAlertId : undefined} floating/>
               <label htmlFor="invoice-hour">ساعت صدور (تهران)</label>
               <PersianTimePicker id="invoice-hour" value={hour} onChange={value => {
                 setHour(value);
                 setError(current => current === invoiceDeadlineError ? "" : current);
               }} timeZoneLabel="تهران" />
-              {error === invoiceDeadlineError && <p role="alert" className="form-error invoice-register__hint">{error}</p>}
               <label htmlFor="invoice-business-serial">سریال صورتحساب (۱۰ رقمی)</label>
               <input id="invoice-business-serial" dir="ltr" inputMode="numeric" maxLength={10}
                 value={businessSerialFocused?businessInvoiceSerial:paddedBusinessSerial(businessInvoiceSerial)} disabled={busy}

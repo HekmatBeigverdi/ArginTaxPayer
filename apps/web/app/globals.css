@@ -841,6 +841,26 @@ body{font-family:"Vazirmatn",Tahoma,Arial,sans-serif;background:var(--argin-page
 .console-page .invoice-register__fields .persian-time-picker select{min-height:31px;height:31px;font-size:12px}
 .console-page .invoice-register__fields .persian-time-picker{justify-content:flex-start}
 .console-page .invoice-register__hint{padding:7px 10px;font-size:11px;line-height:1.7;margin:5px 0}
+.invoice-register__deadline-alert {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-block: 4px;
+  padding: 10px 12px;
+  border: 1px solid #db9d96;
+  border-inline-start: 4px solid #ab352e;
+  border-radius: 8px;
+  background: #fff2f0;
+  color: #802821;
+  line-height: 1.8;
+}
+.invoice-register__deadline-alert > svg{flex:none;margin-top:2px}
+.invoice-register__deadline-alert strong{display:block;font-size:14px}
+.invoice-register__deadline-alert p{margin:2px 0 0;font-size:12px}
+.invoice-register__fields #invoice-date[aria-describedby="invoice-submission-deadline-alert"]{
+  border-color:#ab352e;
+}
 .console-page .invoice-register__row-tools{display:grid;grid-template-columns:110px minmax(0,1fr);gap:6px 10px;max-width:720px;align-items:center}
 .console-page .invoice-register__row-tools :is(select,input){min-height:31px;height:31px;padding:4px 8px;font-size:12px}
 .console-page .invoice-register__row-tools label{font-size:12px}
