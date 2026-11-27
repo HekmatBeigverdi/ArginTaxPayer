@@ -7,7 +7,11 @@ import { PersianDatePicker } from "../catalog/persian-date-picker";
 import { PersianTimePicker } from "../components/persian-time-picker";
 import SearchableCatalogPicker from "./searchable-catalog-picker";
 import SearchableSelect,{type SearchableSelectOption} from "../components/searchable-select";
-import InvoiceValidationPanel from "./invoice-validation-panel";
+import InvoiceValidationPanel, {
+  blockingInvoiceDraftFindings, FindingList, InvoiceDraftPreparationError,
+  prepareInvoiceDraft, readInvoiceDraftValidation,
+} from "./invoice-validation-panel";
+import { redirectForInvoiceSubscription } from "../../lib/invoice-subscription";
 import InvoiceHistoryPanel from "./invoice-history-panel";
 import InvoiceSendReadinessPanel from "./invoice-send-readiness-panel";
 import InvoiceFormalPreview from "./invoice-formal-preview";
@@ -121,6 +125,64 @@ type Row = {
 };
 
 type Step = 0 | 1 | 2;
+type DraftReviewFailure = {
+  message: string;
+  findings?: ReturnType<typeof blockingInvoiceDraftFindings>;
+  revision?: number;
+  step?: Step;
+};
+type DraftDispatchResult = {
+  status?: string;
+  referenceNumber?: string | null;
+  error?: string;
+  environment?: string;
+};
+const draftChecksDuringDispatch: Record<string, DraftReviewFailure> = {
+  invoice_submission_window_elapsed: {step: 0, message: "مهلت ۱۲ روزهٔ ارسال گذشته است. تاریخ و ساعت واقعی صدور را بررسی کنید."},
+  invoice_issue_date_future: {step: 0, message: "تاریخ یا ساعت صدور در آینده است. مقدار واقعی را وارد کنید."},
+  invoice_contract_number_missing: {step: 0, message: "شمارهٔ قرارداد را در سربرگ وارد کنید."},
+  invoice_memory_environment_mismatch: {step: 0, message: "حافظهٔ مالیاتی و محیط ارسال را در سربرگ بررسی کنید."},
+  official_invoice_lines_incomplete: {step: 1, message: "مشخصات کالا، واحد، شناسهٔ رسمی و نرخ مالیات ردیف‌ها را بررسی کنید."},
+  official_units_unverified: {step: 1, message: "واحد اندازه‌گیری ردیف‌ها برای ارسال تأیید نشده است."},
+  invoice_lines_invalid: {step: 1, message: "اطلاعات ردیف‌های کالا و خدمت معتبر نیست."},
+  invoice_calculation_audit_failed: {step: 2, message: "جمع مبالغ، ارزش افزوده و تسویه با محاسبات ارسال هم‌خوانی ندارد."},
+  sandbox_snapshot_validation_failed: {step: 2, message: "اعتبارسنجی داخلی صورتحساب انجام نشد. اقلام و جمع مبالغ را دوباره بررسی کنید."}
+};
+
+function draftFindingStep(findings: NonNullable<DraftReviewFailure["findings"]>): Step {
+  if (findings.some(finding => finding.fieldPath.startsWith("header"))) return 0;
+  if (findings.some(finding => finding.fieldPath.startsWith("body"))) return 1;
+  return 2;
+}
+
+function draftPreparationErrorStep(code: string): Step | undefined {
+  if (["invoice_lines_required", "invoice_line_snapshot_incomplete", "official_item_identifier_invalid"].includes(code)) return 1;
+  if (["invoice_settlement_required", "invoice_settlement_mismatch", "invoice_financial_calculation_invalid"].includes(code)) return 2;
+  if (["issue_date_adjusted", "invoice_submission_window_elapsed", "invoice_buyer_required", "buyer_not_owned",
+    "invoice_memory_selection_invalid", "fiscal_memory_not_owned_active_or_classified", "sandbox_memory_not_ready",
+    "invoice_pattern_not_supported_for_submission", "invoice_contract_number_required", "invoice_type2_fields_outside_pattern"].includes(code)) return 0;
+}
+
+async function requestDraftDispatch(taxpayerId: string, invoiceId: string): Promise<DraftDispatchResult> {
+  const base = "/api/invoice-dispatch/" + encodeURIComponent(taxpayerId) + "/" + encodeURIComponent(invoiceId);
+  const options = { credentials: "same-origin", cache: "no-store" } as const;
+  let result: DraftDispatchResult = {};
+  try {
+    const response = await fetch(base + "/send-and-inquire", {
+      ...options, method: "POST", signal: AbortSignal.timeout(120000)
+    });
+    result = await response.json() as DraftDispatchResult;
+    if ((response.ok && result.status === "Acknowledged" && result.referenceNumber) ||
+      [400, 401, 403, 404].includes(response.status) ||
+      ["subscription_required", "subscription_expired", "subscription_exhausted"].includes(result.error ?? "")) return result;
+  } catch { /* A lost response can still have a recorded receipt. */ }
+
+  // Recover from the recorded dispatch only. A lost response must not repeat the send.
+  const response = await fetch(base, { ...options, signal: AbortSignal.timeout(12000) });
+  if (!response.ok) return result;
+  const recorded = await response.json() as DraftDispatchResult;
+  return { ...result, ...recorded };
+}
 
 type SavedEntryLine = {
   catalogItemId: string | null;
@@ -284,6 +346,10 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   const saveRequestInFlight = useRef(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const quickSendInFlight = useRef(false);
+  const [quickSendStage, setQuickSendStage] = useState<"review" | "send" | null>(null);
+  const [draftReviewFailure, setDraftReviewFailure] = useState<DraftReviewFailure | null>(null);
+  const [quickSendReceipt, setQuickSendReceipt] = useState<{taxpayerId: string; invoiceId: string; reference: string; environment?: string} | null>(null);
   const deleteDialog = useRef<HTMLDialogElement>(null);
   const deleteInFlight = useRef(false);
   const [deleteTarget, setDeleteTarget] = useState<Invoice | null>(null);
@@ -639,6 +705,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
   }, [modal, busy, importOpen]);
 
   function open() {
+    setDraftReviewFailure(null);
     setEditing(null);
     setDetail(null);
     const currentTehran = tehranDateTime(new Date());
@@ -661,10 +728,14 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
     if(workspaceId&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(workspaceId))
       void editDraft({id:workspaceId});
   }, []);
-  async function editDraft(draft: Pick<Invoice,"id">) {
+  async function editDraft(draft: Pick<Invoice,"id">, failure?: DraftReviewFailure) {
     setBusy(true); setError("");
     try {
       const saved = await getJson<SavedEntry>("/api/invoices/workspaces/"+draft.id);
+      const currentFailure: DraftReviewFailure | undefined = failure?.revision && failure.revision !== saved.revision
+        ? {message: "نسخهٔ پیش‌نویس تغییر کرده است. اطلاعات نسخهٔ جدید را بررسی کنید."}
+        : failure;
+      setDraftReviewFailure(currentFailure ?? null);
       setEditing(saved);
       setBusinessInvoiceSerial(saved.businessInvoiceSerial==null?"":String(saved.businessInvoiceSerial));
       businessSerialManuallyEdited.current=false;
@@ -699,10 +770,95 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
         vatRate:String(line.vatRatePercent ?? "")
       })));
       nextKey.current = saved.lines.length;
-      setStep(Math.min(2,Math.max(0,saved.lastCompletedStep+1)) as Step);
+      setStep(currentFailure?.step ?? (Math.min(2, Math.max(0, saved.lastCompletedStep + 1)) as Step));
       setDetail(null); setModal(true);
     } catch(e) {setError((e as Error).message);}
     finally {setBusy(false);}
+  }
+
+  async function reviewAndSendDraft(item: Invoice) {
+    if (quickSendInFlight.current || busy || item.kind !== "workspace") return;
+    quickSendInFlight.current = true;
+    setQuickSendStage("review");
+    setQuickSendReceipt(null);
+    setNotice("");
+    setError("");
+    try {
+      const report = await readInvoiceDraftValidation(item.id);
+      if (report.draftId !== item.id || !Number.isSafeInteger(report.revision) || report.revision < 1)
+        throw new Error("پاسخ بررسی با پیش‌نویس انتخاب‌شده مطابقت ندارد.");
+      const findings = blockingInvoiceDraftFindings(report);
+      if (report.formHasBlockingErrors || findings.length || !["Sandbox", "Production"].includes(report.selectedEnvironment ?? "")) {
+        await editDraft(item, {
+          message: findings.length
+            ? "صورتحساب ارسال نشد. موارد زیر را در پیش‌نویس اصلاح کنید."
+            : "صورتحساب ارسال نشد. حافظهٔ مالیاتی و اطلاعات پیش‌نویس را بررسی کنید.",
+          findings, revision: report.revision,
+          step: findings.length ? draftFindingStep(findings) : 0
+        });
+        return;
+      }
+
+      let invoiceId: string;
+      try {
+        invoiceId = await prepareInvoiceDraft(item.id, report.revision);
+      } catch (cause) {
+        const code = cause instanceof InvoiceDraftPreparationError ? cause.code : "";
+        await editDraft(item, {
+          message: cause instanceof Error ? cause.message : "آماده‌سازی پیش‌نویس انجام نشد.",
+          step: draftPreparationErrorStep(code)
+        });
+        await reload();
+        return;
+      }
+
+      setQuickSendStage("send");
+      try {
+        const receipt = await requestDraftDispatch(item.taxpayerId, invoiceId);
+        if (redirectForInvoiceSubscription(receipt)) return;
+        const draftFailure = receipt.error ? draftChecksDuringDispatch[receipt.error] : undefined;
+        if (receipt.status === "Acknowledged" && typeof receipt.referenceNumber === "string" && receipt.referenceNumber) {
+          setQuickSendReceipt({taxpayerId: item.taxpayerId, invoiceId, reference: receipt.referenceNumber, environment: receipt.environment});
+        } else if (receipt.status === "Sending" || receipt.status === "Indeterminate") {
+          setError("نتیجهٔ ارسال هنوز مشخص نیست. از بخش جزئیات، وضعیت را استعلام کنید و ارسال را تکرار نکنید.");
+        } else if (draftFailure) {
+          // This endpoint refuses to reopen a document that has any dispatch operation.
+          const response = await fetch(`/api/invoice-dispatch/${encodeURIComponent(item.taxpayerId)}/${encodeURIComponent(invoiceId)}/return-to-draft`, {
+            method: "POST", credentials: "same-origin", cache: "no-store", signal: AbortSignal.timeout(20000)
+          });
+          const reopened = await response.json().catch(() => null);
+          if (response.ok && reopened?.workspaceId === item.id && reopened.authoritySubmitted === false) {
+            await editDraft(item, draftFailure);
+          } else {
+            setError(draftFailure.message + " بازگشت خودکار به پیش‌نویس ممکن نشد. وضعیت ارسال را از جزئیات بررسی کنید.");
+          }
+        } else if (receipt.error && !["send_api_unavailable", "send_failed", "existing_dispatch_requires_reconciliation"].includes(receipt.error)) {
+          setError(`رسید ارسال دریافت نشد (${receipt.error}). جزئیات صورتحساب و وضعیت ارسال را بررسی کنید.`);
+        } else {
+          setError("رسید ارسال در دسترس نیست. ابتدا وضعیت عملیات را از جزئیات صورتحساب بررسی کنید.");
+        }
+      } catch {
+        setError("پاسخ ارسال در دسترس نیست. پیش از ارسال دوباره، وضعیت صورتحساب را بررسی و استعلام کنید.");
+      } finally {
+        await reload();
+      }
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "بررسی پیش‌نویس انجام نشد.");
+    } finally {
+      quickSendInFlight.current = false;
+      setQuickSendStage(null);
+    }
+  }
+
+  async function openQuickSendInquiry(receipt: NonNullable<typeof quickSendReceipt>) {
+    try {
+      const prepared = await getJson<Invoice>(`/api/invoices/${encodeURIComponent(receipt.taxpayerId)}/${encodeURIComponent(receipt.invoiceId)}`);
+      setDetailInitialAction(null);
+      setAutoOpenDispatchFor(prepared.id);
+      setDetail(prepared);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "باز کردن جزئیات صورتحساب ممکن نشد.");
+    }
   }
   async function saveWorkspace(completeStep: Step, exit: boolean, navigateToBuyers = false,
     preserveVisibleStep = false) {
@@ -822,6 +978,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
         body:JSON.stringify(payload)
       });
       setEditing(saved);
+      setDraftReviewFailure(null);
       if (saved.businessInvoiceSerialLocked && saved.businessInvoiceSerial != null) {
         setBusinessInvoiceSerial(String(saved.businessInvoiceSerial));
       }
@@ -961,16 +1118,30 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
         </div>
       </div>
       <div className="invoice-register__actions">
-        <button type="button" className="identity-secondary" disabled={loading}
+        <button type="button" className="identity-secondary" disabled={loading || quickSendStage !== null}
           onClick={()=>setBulkOpen(true)}>ورود گروهی صورتحساب‌ها</button>
         <button type="button" className="identity-secondary" disabled={loading}
           onClick={() => void reload()}>بازخوانی</button>
         <button ref={openButton} type="button" className="identity-primary"
-          disabled={loading} onClick={open}>+ افزودن صورتحساب</button>
+          disabled={loading || quickSendStage !== null} onClick={open}>+ افزودن صورتحساب</button>
       </div>
     </div>
     {error && !modal && <p role="alert" className="form-error">{error}</p>}
     {notice && <p role="status" className="auth-info">{notice}</p>}
+    {quickSendStage && <p className="invoice-entry-loading" role="status">
+      <span className="argin-loader-spinner" aria-hidden="true"/>
+      {quickSendStage === "review" ? "در حال بررسی پیش‌نویس و آماده‌سازی صورتحساب…" : "در حال ارسال به سامانه مؤدیان…"}
+    </p>}
+    {quickSendReceipt && <div className="auth-info">
+      <p role="status">
+        رسید ارسال{quickSendReceipt.environment === "Sandbox" ? " در محیط آزمایشی" : ""} دریافت شد.
+        {" "}شماره رهگیری <bdi dir="ltr">{quickSendReceipt.reference}</bdi>.
+        {" "}چند ثانیه دیگر استعلام بگیرید تا وضعیت پذیرش مشخص شود.
+      </p>
+      <button type="button" className="identity-secondary" onClick={() => void openQuickSendInquiry(quickSendReceipt)}>
+        مشاهده وضعیت و استعلام
+      </button>
+    </div>}
     <div className="invoice-register__table-stage" aria-busy={loading}>
       {loading && <div className="argin-loader argin-loader-overlay invoice-register__loading" role="status" aria-live="polite">
         <span className="argin-loader-spinner" aria-hidden="true" />
@@ -1029,8 +1200,15 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
               </button>
               {openActionsFor===item.id && <div ref={actionsMenuRef} className={`invoice-actions-menu${openActionsUp?" invoice-actions-menu--up":""}`} role="menu" aria-label="عملیات صورتحساب"
                 onClick={()=>setOpenActionsFor(null)}>
-              {item.kind === "workspace" ? <button type="button" role="menuitem" className="console-row-action"
-              onClick={() => void editDraft(item)}><svg className="invoice-action-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m4 16-.8 4.8L8 20l11.5-11.5a2.1 2.1 0 0 0-3-3L5 17.1M14.5 6.5l3 3"/></svg><span>ویرایش و ادامه</span></button> :
+              {item.kind === "workspace" ? <>
+                <button type="button" role="menuitem" className="console-row-action" disabled={busy || quickSendStage !== null}
+                  onClick={() => void editDraft(item)}><svg className="invoice-action-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m4 16-.8 4.8L8 20l11.5-11.5a2.1 2.1 0 0 0-3-3L5 17.1M14.5 6.5l3 3"/></svg><span>ویرایش و ادامه</span></button>
+                <button type="button" role="menuitem" className="console-row-action" disabled={busy || quickSendStage !== null}
+                  onClick={() => void reviewAndSendDraft(item)}>
+                  <svg className="invoice-action-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m22 2-7 20-4-9-9-4 20-7ZM22 2 11 13"/></svg>
+                  <span>بررسی صورتحساب و ارسال</span>
+                </button>
+              </> :
               <span style={{display:"inline-flex",gap:5,alignItems:"center",flexWrap:"wrap"}}>
                {item.correctionInProgress&&<button type="button" role="menuitem" className="console-row-action"
                 onClick={()=>setCorrectionTarget(item)}><svg className="invoice-action-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8v5l3 2M21 12a9 9 0 1 1-2.6-6.4M21 4v5h-5"/></svg><span>ادامه ویرایش</span></button>}
@@ -1272,6 +1450,12 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
         <div className="invoice-register__form">
           <div className="invoice-register__dialog-body">
             {error && error !== invoiceDeadlineError && <p role="alert" className="form-error">{error}</p>}
+            {draftReviewFailure && <div className="form-error" role="alert">
+              <strong>{draftReviewFailure.message}</strong>
+              {draftReviewFailure.findings && draftReviewFailure.findings.length > 0 && <div className="invoice-validation__findings">
+                <FindingList findings={draftReviewFailure.findings} />
+              </div>}
+            </div>}
             {busy && <p className="invoice-entry-loading" role="status" aria-live="polite"><span className="argin-loader-spinner" aria-hidden="true"/>در حال ذخیره پیش‌نویس…</p>}
             {step === 0 && <section aria-label="سربرگ صورتحساب" className="invoice-register__fields"
               aria-busy={accountsLoading || taxpayersLoading || customerTaxpayersLoading || headerLoading || buyerLoading || formMetadataLoading}>
