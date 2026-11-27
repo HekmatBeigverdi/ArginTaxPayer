@@ -162,6 +162,7 @@ type SavedEntry = {
   fiscalMemoryId?: string | null;
   sandboxFiscalMemoryId?: string | null;
   businessInvoiceSerial?: number | null;
+  businessInvoiceSerialLocked?: boolean;
 };
 
 const headings = ["سربرگ صورتحساب", "اقلام صورتحساب", "مرور نهایی و تسویه"] as const;
@@ -366,7 +367,8 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
     if(!modal||!taxpayerId||businessSerialManuallyEdited.current)return;
     const issueDate=tehranLocalToUtc(date,hour);
     if(Number.isNaN(issueDate.valueOf()))return;
-    if(editing&&persianYear(issueDate)===persianYear(new Date(editing.issueDateUtc))&&
+    if(editing&&(editing.businessInvoiceSerialLocked ||
+        persianYear(issueDate)===persianYear(new Date(editing.issueDateUtc)))&&
         editing.businessInvoiceSerial!=null){
       setBusinessInvoiceSerial(String(editing.businessInvoiceSerial));
       return;
@@ -377,7 +379,7 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
       .then(result=>{if(active)setBusinessInvoiceSerial(String(result.serial));})
       .catch(()=>{if(active)setBusinessInvoiceSerial("");});
     return()=>{active=false;};
-  },[modal,taxpayerId,date,hour,editing?.id,editing?.issueDateUtc,editing?.businessInvoiceSerial]);
+  },[modal,taxpayerId,date,hour,editing?.id,editing?.issueDateUtc,editing?.businessInvoiceSerial,editing?.businessInvoiceSerialLocked]);
 
   useEffect(() => {
     let live = true;
@@ -820,6 +822,9 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
         body:JSON.stringify(payload)
       });
       setEditing(saved);
+      if (saved.businessInvoiceSerialLocked && saved.businessInvoiceSerial != null) {
+        setBusinessInvoiceSerial(String(saved.businessInvoiceSerial));
+      }
       setRows(current=>current.map((row,i)=>({...row,
         officialIdentifierSnapshot:saved.lines[i]?.officialIdentifierSnapshot??undefined})));
       setSavedSnapshot(draftSnapshot);
@@ -1361,10 +1366,13 @@ export default function InvoiceEntryWorkspace({actorId, isAdmin}: {actorId: stri
               <label htmlFor="invoice-business-serial">سریال صورتحساب (۱۰ رقمی)</label>
               <input id="invoice-business-serial" dir="ltr" inputMode="numeric" maxLength={10}
                 value={businessSerialFocused?businessInvoiceSerial:paddedBusinessSerial(businessInvoiceSerial)} disabled={busy}
+                readOnly={editing?.businessInvoiceSerialLocked}
                 onFocus={()=>setBusinessSerialFocused(true)} onBlur={()=>setBusinessSerialFocused(false)}
                 onChange={e=>{businessSerialManuallyEdited.current=true;
                   setBusinessInvoiceSerial(normalizeInvoiceIdentifier(e.target.value).replace(/\D/g,"").slice(-10));}} />
-              <small className="invoice-register__hint">شمارهٔ ده‌دهی مستقل از شناسهٔ مالیاتی است؛ پس از ثبت، برای همین مؤدی و سال شمسی یکتا می‌ماند.</small>
+              <small className="invoice-register__hint">{editing?.businessInvoiceSerialLocked
+                ? "در ارسال دوباره، سریال فاکتور اولیه ثابت می‌ماند."
+                : "شمارهٔ ده‌دهی مستقل از شناسهٔ مالیاتی است؛ پس از ثبت، برای همین مؤدی و سال شمسی یکتا می‌ماند."}</small>
               {(formMetadata?.entries.find(p => p.type === invoiceType && p.pattern === pattern)?.requiredFields ?? [])
                 .flatMap(field => field === "goldFields" ? GOLD_FIELDS : [field])
                 .map(field => <div key={field} className="invoice-register__conditional-field">
